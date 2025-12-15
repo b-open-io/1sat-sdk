@@ -1,7 +1,7 @@
 {
 	"name": "1sat-sdk",
 	"private": true,
-	"workspaces": ["packages/*"],
+	"workspaces": ["packages/*", "examples/*"],
 	"scripts": {
 		"build": "bun run --filter '*' build",
 		"dev": "bun run --filter '*' dev",

@@ -7,6 +7,7 @@
 
 import {
 	MessageType,
+	RpcMethod,
 	type ExtensionRequest,
 	type ExtensionResponse,
 	type ExtensionEvent,
@@ -14,9 +15,11 @@ import {
 	type RequestSender,
 	type RpcMethodValue,
 	type ApprovalData,
+	type InitState,
 } from './types'
 import type { OneSatEvent } from './provider-types'
 import { toExtensionError, MethodNotFoundError } from './errors'
+import { ConnectedSites, WalletState } from './storage'
 
 /** Storage key for pending requests (MV3 persistence) */
 const PENDING_REQUESTS_KEY = 'onesat_pending_requests'
@@ -123,6 +126,35 @@ export function createBackgroundHandler(
 	}
 
 	/**
+	 * Handle the internal __init__ request
+	 * Returns current connection state for the requesting origin
+	 */
+	async function handleInit(
+		origin: string | undefined,
+	): Promise<InitState> {
+		if (!origin) {
+			return { isConnected: false, addresses: null, identityPubKey: null }
+		}
+
+		const isConnected = await ConnectedSites.isConnected(origin)
+		if (!isConnected) {
+			return { isConnected: false, addresses: null, identityPubKey: null }
+		}
+
+		const walletAddresses = await WalletState.getAddresses()
+		return {
+			isConnected: true,
+			addresses: walletAddresses
+				? {
+						paymentAddress: walletAddresses.paymentAddress,
+						ordinalAddress: walletAddresses.ordinalAddress,
+					}
+				: null,
+			identityPubKey: walletAddresses?.identityPubKey ?? null,
+		}
+	}
+
+	/**
 	 * Handle an incoming request
 	 */
 	async function handleRequest(
@@ -132,6 +164,16 @@ export function createBackgroundHandler(
 		const { id, method, params } = request
 
 		try {
+			// Handle internal __init__ method
+			if (method === RpcMethod.INIT) {
+				const initState = await handleInit(sender.origin)
+				return {
+					type: MessageType.RESPONSE,
+					id,
+					result: initState,
+				}
+			}
+
 			// Get the handler for this method
 			const handler = handlers[method as keyof typeof handlers]
 

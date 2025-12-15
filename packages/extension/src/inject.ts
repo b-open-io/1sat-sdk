@@ -30,11 +30,13 @@ import type {
 } from './provider-types'
 import {
 	MessageType,
+	RpcMethod,
 	type ExtensionRequest,
 	type ExtensionResponse,
 	type ExtensionEvent,
 	type RpcMethodValue,
 	type InjectOptions,
+	type InitState,
 } from './types'
 import { fromExtensionError } from './errors'
 
@@ -249,13 +251,29 @@ export function injectOneSatProvider(options: InjectOptions = {}): void {
 		configurable: false,
 	})
 
-	// Dispatch event to signal provider is ready
-	window.dispatchEvent(new Event('onesat:ready'))
+	// Sync initial state from background (async, updates local cache)
+	// This ensures isConnected(), getAddresses(), etc. return correct values on page refresh
+	createMethod<void, InitState>(RpcMethod.INIT)()
+		.then((initState) => {
+			connected = initState.isConnected
+			addresses = initState.addresses
+			identityPubKey = initState.identityPubKey
 
-	// Log if in development
-	if (options.walletName) {
-		console.log(`[onesat] ${options.walletName} provider injected`)
-	}
+			// Dispatch ready event after state is synced
+			window.dispatchEvent(new Event('onesat:ready'))
+
+			if (options.walletName) {
+				console.log(
+					`[onesat] ${options.walletName} provider ready`,
+					initState.isConnected ? '(connected)' : '(not connected)',
+				)
+			}
+		})
+		.catch((err) => {
+			// Init failed (extension not responding), still dispatch ready
+			console.warn('[onesat] Init failed:', err)
+			window.dispatchEvent(new Event('onesat:ready'))
+		})
 }
 
 // Auto-inject if this script is loaded directly

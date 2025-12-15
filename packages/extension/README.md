@@ -434,6 +434,64 @@ async signTransaction(request) {
 }
 ```
 
+## Events
+
+The provider emits events that dApps can listen to. Your background script should emit these at appropriate times using the `broadcast()` function.
+
+### Provider Events
+
+| Event | When to Emit | Data |
+|-------|-------------|------|
+| `connect` | After user approves connection | `{ paymentAddress, ordinalAddress, identityPubKey }` |
+| `disconnect` | After disconnect() or user revokes in wallet UI | `{}` |
+| `accountChange` | When user switches account in wallet UI | `{ paymentAddress, ordinalAddress }` |
+
+### Emitting Events
+
+```typescript
+const { broadcast } = createBackgroundHandler({
+  handlers: {
+    async connect(request, sender) {
+      // ... approval logic ...
+      const result = { paymentAddress, ordinalAddress, identityPubKey }
+
+      // Event is emitted automatically on successful connect
+      return result
+    },
+  },
+})
+
+// When user switches account in your wallet UI:
+broadcast('accountChange', {
+  paymentAddress: newPaymentAddress,
+  ordinalAddress: newOrdinalAddress,
+})
+
+// When user disconnects via your wallet UI:
+broadcast('disconnect', {})
+```
+
+### Detecting Provider Ready
+
+The inject script dispatches a `onesat:ready` event after initial state sync:
+
+```typescript
+// In your dApp
+if (window.onesat) {
+  // Provider already available
+  startApp()
+} else {
+  // Wait for provider
+  window.addEventListener('onesat:ready', startApp)
+}
+
+function startApp() {
+  // Safe to use window.onesat
+  const connected = window.onesat.isConnected()
+  const addresses = window.onesat.getAddresses()
+}
+```
+
 ## Error Handling
 
 The package uses standardized error codes compatible with JSON-RPC:
@@ -515,7 +573,15 @@ export default defineConfig({
 
 ## Example: Minimal Wallet
 
-Here's a complete minimal wallet that stores a single key:
+See [`examples/minimal-wallet`](../../examples/minimal-wallet) for a complete working example with:
+
+- Single-key wallet (auto-generated)
+- Connect and sign message approval popups
+- Balance display via WhatsOnChain API
+- Connected sites management UI
+- Test page for integration testing
+
+Here's a simplified version:
 
 ```typescript
 // background.ts

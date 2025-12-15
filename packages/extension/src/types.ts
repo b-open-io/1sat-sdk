@@ -46,17 +46,25 @@ export type MessageTypeValue = (typeof MessageType)[keyof typeof MessageType]
  * RPC method names
  */
 export const RpcMethod = {
+	// Internal - state sync on page load
+	INIT: '__init__',
+	// Connection
 	CONNECT: 'connect',
 	DISCONNECT: 'disconnect',
 	IS_CONNECTED: 'isConnected',
+	// Signing
 	SIGN_TRANSACTION: 'signTransaction',
 	SIGN_MESSAGE: 'signMessage',
+	// Ordinals
 	INSCRIBE: 'inscribe',
 	SEND_ORDINALS: 'sendOrdinals',
+	// Listings
 	CREATE_LISTING: 'createListing',
 	PURCHASE_LISTING: 'purchaseListing',
 	CANCEL_LISTING: 'cancelListing',
+	// Tokens
 	TRANSFER_TOKEN: 'transferToken',
+	// Read-only
 	GET_BALANCE: 'getBalance',
 	GET_ORDINALS: 'getOrdinals',
 	GET_TOKENS: 'getTokens',
@@ -64,6 +72,15 @@ export const RpcMethod = {
 	GET_ADDRESSES: 'getAddresses',
 	GET_IDENTITY_PUB_KEY: 'getIdentityPubKey',
 } as const
+
+/**
+ * Initial state returned on page load
+ */
+export interface InitState {
+	isConnected: boolean
+	addresses: { paymentAddress: string; ordinalAddress: string } | null
+	identityPubKey: string | null
+}
 
 export type RpcMethodValue = (typeof RpcMethod)[keyof typeof RpcMethod]
 
@@ -173,20 +190,29 @@ export type Handler<TParams = unknown, TResult = unknown> = (
  * Handler map for background script
  */
 export interface HandlerMap {
+	// Connection
 	connect?: Handler<void, ConnectResult>
 	disconnect?: Handler<void, void>
+	isConnected?: Handler<void, boolean>
+	// Signing
 	signTransaction?: Handler<SignTransactionRequest, SignTransactionResult>
 	signMessage?: Handler<{ message: string }, SignMessageResult>
+	// Ordinals
 	inscribe?: Handler<InscribeRequest, InscribeResult>
 	sendOrdinals?: Handler<SendOrdinalsRequest, SendResult>
+	// Listings
 	createListing?: Handler<CreateListingRequest, ListingResult>
 	purchaseListing?: Handler<PurchaseListingRequest, SendResult>
 	cancelListing?: Handler<CancelListingRequest, SendResult>
+	// Tokens
 	transferToken?: Handler<TransferTokenRequest, SendResult>
+	// Read-only
 	getBalance?: Handler<void, BalanceResult>
 	getOrdinals?: Handler<ListOptions | undefined, OrdinalOutput[]>
 	getTokens?: Handler<ListOptions | undefined, TokenOutput[]>
 	getUtxos?: Handler<void, Utxo[]>
+	getAddresses?: Handler<void, { paymentAddress: string; ordinalAddress: string } | null>
+	getIdentityPubKey?: Handler<void, string | null>
 }
 
 /**

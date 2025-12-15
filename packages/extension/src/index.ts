@@ -96,6 +96,7 @@ export {
 	type ConnectedSite,
 	type WalletAddresses,
 	type Utxo,
+	type InitState,
 } from './types'
 
 // Provider types (re-exported for convenience)

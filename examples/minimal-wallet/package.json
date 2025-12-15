@@ -1,0 +1,22 @@
+{
+	"name": "minimal-wallet",
+	"version": "0.0.1",
+	"private": true,
+	"description": "Minimal example wallet extension using @1sat/extension",
+	"scripts": {
+		"build": "bun run build:inject && bun run build:content && bun run build:background && bun run build:popup",
+		"build:inject": "bun build src/inject.ts --outdir dist --target browser --minify",
+		"build:content": "bun build src/content.ts --outdir dist --target browser --minify",
+		"build:background": "bun build src/background.ts --outdir dist --target browser --minify",
+		"build:popup": "bun build src/popup.ts --outdir dist --target browser --minify",
+		"dev": "bun run build && bun run copy",
+		"copy": "cp manifest.json dist/ && cp -r popup dist/ && cp -r public/* dist/"
+	},
+	"dependencies": {
+		"@1sat/extension": "workspace:*",
+		"@bsv/sdk": "^1.2.0"
+	},
+	"devDependencies": {
+		"typescript": "^5.7.2"
+	}
+}

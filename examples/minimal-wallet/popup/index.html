@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Minimal Wallet</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      width: 360px;
+      min-height: 400px;
+      padding: 20px;
+      background: #1a1a2e;
+      color: #eee;
+    }
+    h1 {
+      font-size: 18px;
+      margin-bottom: 20px;
+      color: #fff;
+    }
+    .section {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .section h2 {
+      font-size: 12px;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: 8px;
+    }
+    .address {
+      font-family: monospace;
+      font-size: 12px;
+      word-break: break-all;
+      color: #4cc9f0;
+    }
+    .balance {
+      font-size: 24px;
+      font-weight: bold;
+      color: #4ade80;
+    }
+    .balance-loading {
+      color: #888;
+      font-size: 14px;
+    }
+    .sites-list {
+      list-style: none;
+    }
+    .sites-list li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #2a2a4e;
+    }
+    .sites-list li:last-child {
+      border-bottom: none;
+    }
+    .site-origin {
+      font-size: 13px;
+      color: #ccc;
+    }
+    .disconnect-btn {
+      background: #ef4444;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .disconnect-btn:hover {
+      background: #dc2626;
+    }
+    .no-sites {
+      color: #666;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Minimal Wallet</h1>
+
+  <div class="section">
+    <h2>Address</h2>
+    <div class="address" id="address">Loading...</div>
+  </div>
+
+  <div class="section">
+    <h2>Balance</h2>
+    <div id="balance" class="balance-loading">Loading...</div>
+  </div>
+
+  <div class="section">
+    <h2>Connected Sites</h2>
+    <ul class="sites-list" id="sites">
+      <li class="no-sites">Loading...</li>
+    </ul>
+  </div>
+
+  <script src="../popup.js" type="module"></script>
+  <script type="module">
+    async function init() {
+      const { getWalletAddress, getConnectedSites, disconnectSite, fetchBalance } = window.popup
+
+      // Load address
+      const address = await getWalletAddress()
+      document.getElementById('address').textContent = address
+
+      // Load balance
+      if (address !== 'No wallet yet') {
+        const satoshis = await fetchBalance(address)
+        const balanceEl = document.getElementById('balance')
+        balanceEl.className = 'balance'
+        balanceEl.textContent = `${satoshis.toLocaleString()} sats`
+      } else {
+        document.getElementById('balance').textContent = '0 sats'
+      }
+
+      // Load connected sites
+      const sites = await getConnectedSites()
+      const sitesEl = document.getElementById('sites')
+
+      if (sites.length === 0) {
+        sitesEl.innerHTML = '<li class="no-sites">No connected sites</li>'
+      } else {
+        sitesEl.innerHTML = sites.map(site => `
+          <li>
+            <span class="site-origin">${site}</span>
+            <button class="disconnect-btn" data-origin="${site}">Disconnect</button>
+          </li>
+        `).join('')
+
+        // Add disconnect handlers
+        sitesEl.querySelectorAll('.disconnect-btn').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            const origin = e.target.dataset.origin
+            await disconnectSite(origin)
+            init() // Refresh
+          })
+        })
+      }
+    }
+
+    init()
+  </script>
+</body>
+</html>

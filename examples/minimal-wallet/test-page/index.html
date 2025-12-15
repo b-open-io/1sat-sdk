@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Minimal Wallet Test Page</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      background: #0f0f0f;
+      color: #eee;
+    }
+    h1 {
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      color: #888;
+      margin-bottom: 32px;
+    }
+    .card {
+      background: #1a1a1a;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .card h2 {
+      font-size: 14px;
+      text-transform: uppercase;
+      color: #666;
+      margin-bottom: 16px;
+    }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ef4444;
+    }
+    .dot.connected {
+      background: #22c55e;
+    }
+    .status-text {
+      font-size: 18px;
+    }
+    .address {
+      font-family: monospace;
+      font-size: 14px;
+      color: #4cc9f0;
+      word-break: break-all;
+      background: #0f0f0f;
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 12px;
+    }
+    .actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .primary {
+      background: #7c3aed;
+      color: white;
+    }
+    .primary:hover {
+      background: #6d28d9;
+    }
+    .secondary {
+      background: #333;
+      color: white;
+    }
+    .secondary:hover {
+      background: #444;
+    }
+    .danger {
+      background: #ef4444;
+      color: white;
+    }
+    .danger:hover {
+      background: #dc2626;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .log {
+      background: #0f0f0f;
+      border-radius: 8px;
+      padding: 16px;
+      font-family: monospace;
+      font-size: 13px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .log-entry {
+      padding: 8px 0;
+      border-bottom: 1px solid #222;
+    }
+    .log-entry:last-child {
+      border-bottom: none;
+    }
+    .log-time {
+      color: #666;
+      margin-right: 8px;
+    }
+    .log-success {
+      color: #22c55e;
+    }
+    .log-error {
+      color: #ef4444;
+    }
+    .log-info {
+      color: #4cc9f0;
+    }
+    .balance-value {
+      font-size: 32px;
+      font-weight: bold;
+      color: #22c55e;
+    }
+    .balance-label {
+      color: #666;
+      font-size: 14px;
+    }
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #333;
+      border-radius: 8px;
+      background: #0f0f0f;
+      color: #eee;
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+    input:focus {
+      outline: none;
+      border-color: #7c3aed;
+    }
+    .no-extension {
+      background: #422006;
+      border: 1px solid #f59e0b;
+      border-radius: 8px;
+      padding: 16px;
+      color: #fcd34d;
+      margin-bottom: 24px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Minimal Wallet Test</h1>
+  <p class="subtitle">Test page for @1sat/extension integration</p>
+
+  <div id="no-extension" class="no-extension" style="display: none;">
+    Extension not detected. Make sure the Minimal Wallet extension is installed and this page is reloaded.
+  </div>
+
+  <div class="card">
+    <h2>Connection Status</h2>
+    <div class="status">
+      <div class="dot" id="status-dot"></div>
+      <span class="status-text" id="status-text">Checking...</span>
+    </div>
+    <div class="actions">
+      <button class="primary" id="connect-btn">Connect</button>
+      <button class="danger" id="disconnect-btn" disabled>Disconnect</button>
+    </div>
+    <div class="address" id="address" style="display: none;"></div>
+  </div>
+
+  <div class="card">
+    <h2>Balance</h2>
+    <div class="balance-value" id="balance">--</div>
+    <div class="balance-label">satoshis</div>
+    <button class="secondary" id="refresh-balance-btn" style="margin-top: 16px;" disabled>Refresh Balance</button>
+  </div>
+
+  <div class="card">
+    <h2>Sign Message</h2>
+    <input type="text" id="message-input" placeholder="Enter message to sign..." />
+    <button class="primary" id="sign-btn" disabled>Sign Message</button>
+  </div>
+
+  <div class="card">
+    <h2>Activity Log</h2>
+    <div class="log" id="log">
+      <div class="log-entry log-info">Waiting for extension...</div>
+    </div>
+  </div>
+
+  <script type="module">
+    // Log helper
+    function log(message, type = 'info') {
+      const logEl = document.getElementById('log')
+      const time = new Date().toLocaleTimeString()
+      const entry = document.createElement('div')
+      entry.className = `log-entry log-${type}`
+      entry.innerHTML = `<span class="log-time">${time}</span>${message}`
+      logEl.insertBefore(entry, logEl.firstChild)
+    }
+
+    // UI state
+    let connected = false
+
+    function updateUI() {
+      const dot = document.getElementById('status-dot')
+      const text = document.getElementById('status-text')
+      const connectBtn = document.getElementById('connect-btn')
+      const disconnectBtn = document.getElementById('disconnect-btn')
+      const signBtn = document.getElementById('sign-btn')
+      const refreshBtn = document.getElementById('refresh-balance-btn')
+
+      if (connected) {
+        dot.classList.add('connected')
+        text.textContent = 'Connected'
+        connectBtn.disabled = true
+        disconnectBtn.disabled = false
+        signBtn.disabled = false
+        refreshBtn.disabled = false
+      } else {
+        dot.classList.remove('connected')
+        text.textContent = 'Not connected'
+        connectBtn.disabled = false
+        disconnectBtn.disabled = true
+        signBtn.disabled = true
+        refreshBtn.disabled = true
+        document.getElementById('address').style.display = 'none'
+        document.getElementById('balance').textContent = '--'
+      }
+    }
+
+    // Wait for extension
+    async function init() {
+      // Wait for onesat:ready event or check if already available
+      if (window.onesat) {
+        onExtensionReady()
+      } else {
+        window.addEventListener('onesat:ready', onExtensionReady)
+        // Timeout fallback
+        setTimeout(() => {
+          if (!window.onesat) {
+            document.getElementById('no-extension').style.display = 'block'
+            log('Extension not detected', 'error')
+          }
+        }, 2000)
+      }
+    }
+
+    async function onExtensionReady() {
+      log('Extension detected!', 'success')
+      document.getElementById('no-extension').style.display = 'none'
+
+      // Check initial connection state
+      connected = window.onesat.isConnected()
+      if (connected) {
+        const addresses = window.onesat.getAddresses()
+        if (addresses) {
+          document.getElementById('address').textContent = addresses.paymentAddress
+          document.getElementById('address').style.display = 'block'
+          log(`Already connected: ${addresses.paymentAddress.slice(0, 12)}...`, 'info')
+        }
+      }
+      updateUI()
+
+      // Set up event listeners
+      window.onesat.on('connect', (data) => {
+        connected = true
+        document.getElementById('address').textContent = data.paymentAddress
+        document.getElementById('address').style.display = 'block'
+        log(`Connected: ${data.paymentAddress.slice(0, 12)}...`, 'success')
+        updateUI()
+        refreshBalance()
+      })
+
+      window.onesat.on('disconnect', () => {
+        connected = false
+        log('Disconnected', 'info')
+        updateUI()
+      })
+
+      window.onesat.on('accountChange', (data) => {
+        document.getElementById('address').textContent = data.paymentAddress
+        log(`Account changed: ${data.paymentAddress.slice(0, 12)}...`, 'info')
+        refreshBalance()
+      })
+    }
+
+    // Connect
+    document.getElementById('connect-btn').addEventListener('click', async () => {
+      try {
+        log('Requesting connection...', 'info')
+        const result = await window.onesat.connect()
+        connected = true
+        document.getElementById('address').textContent = result.paymentAddress
+        document.getElementById('address').style.display = 'block'
+        log(`Connected: ${result.paymentAddress}`, 'success')
+        updateUI()
+        refreshBalance()
+      } catch (err) {
+        log(`Connection failed: ${err.message}`, 'error')
+      }
+    })
+
+    // Disconnect
+    document.getElementById('disconnect-btn').addEventListener('click', async () => {
+      try {
+        await window.onesat.disconnect()
+        connected = false
+        log('Disconnected', 'info')
+        updateUI()
+      } catch (err) {
+        log(`Disconnect failed: ${err.message}`, 'error')
+      }
+    })
+
+    // Sign message
+    document.getElementById('sign-btn').addEventListener('click', async () => {
+      const message = document.getElementById('message-input').value
+      if (!message) {
+        log('Enter a message to sign', 'error')
+        return
+      }
+      try {
+        log(`Signing message: "${message}"`, 'info')
+        const result = await window.onesat.signMessage(message)
+        log(`Signature: ${result.sig.slice(0, 20)}...`, 'success')
+        console.log('Full signature result:', result)
+      } catch (err) {
+        log(`Signing failed: ${err.message}`, 'error')
+      }
+    })
+
+    // Refresh balance
+    async function refreshBalance() {
+      try {
+        const result = await window.onesat.getBalance()
+        document.getElementById('balance').textContent = result.satoshis.toLocaleString()
+        log(`Balance: ${result.satoshis} sats`, 'info')
+      } catch (err) {
+        log(`Balance fetch failed: ${err.message}`, 'error')
+      }
+    }
+
+    document.getElementById('refresh-balance-btn').addEventListener('click', refreshBalance)
+
+    // Initialize
+    init()
+  </script>
+</body>
+</html>
