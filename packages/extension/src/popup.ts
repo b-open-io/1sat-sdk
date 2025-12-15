@@ -3,8 +3,10 @@
  *
  * Helper functions for approval popup pages to retrieve request data
  * and send approve/reject responses back to the background script.
+ * Works across Chrome, Firefox, Edge, Safari via webextension-polyfill.
  */
 
+import browser from 'webextension-polyfill'
 import type { ApprovalData } from './types'
 
 /**
@@ -15,7 +17,9 @@ import type { ApprovalData } from './types'
  *
  * @returns The approval data, or null if not found
  */
-export async function getApprovalData<T = unknown>(): Promise<ApprovalData<T> | null> {
+export async function getApprovalData<
+	T = unknown,
+>(): Promise<ApprovalData<T> | null> {
 	// Get request ID from URL params
 	const params = new URLSearchParams(window.location.search)
 	const requestId = params.get('requestId')
@@ -27,7 +31,7 @@ export async function getApprovalData<T = unknown>(): Promise<ApprovalData<T> | 
 
 	// Retrieve data from session storage
 	const key = `approval_${requestId}`
-	const result = await chrome.storage.session.get(key)
+	const result = await browser.storage.session.get(key)
 
 	if (!result[key]) {
 		console.error('[onesat-popup] No approval data found for', requestId)
@@ -61,7 +65,7 @@ export function approveRequest(result?: unknown): void {
 	}
 
 	// Send approval message to background
-	chrome.runtime.sendMessage({
+	browser.runtime.sendMessage({
 		type: 'APPROVAL_RESPONSE',
 		requestId,
 		approved: true,
@@ -89,7 +93,7 @@ export function rejectRequest(reason?: string): void {
 	}
 
 	// Send rejection message to background
-	chrome.runtime.sendMessage({
+	browser.runtime.sendMessage({
 		type: 'APPROVAL_RESPONSE',
 		requestId,
 		approved: false,

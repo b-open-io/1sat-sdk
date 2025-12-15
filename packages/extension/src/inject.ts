@@ -5,40 +5,40 @@
  * provider that dApps use to communicate with the extension.
  */
 
+import { fromExtensionError } from './errors'
 import type {
-	OneSatProvider,
-	OneSatEvent,
-	EventHandler,
+	BalanceResult,
+	CancelListingRequest,
 	ConnectResult,
-	SignTransactionRequest,
-	SignTransactionResult,
-	SignMessageResult,
+	CreateListingRequest,
+	EventHandler,
 	InscribeRequest,
 	InscribeResult,
+	ListOptions,
+	ListingResult,
+	OneSatEvent,
+	OneSatProvider,
+	OrdinalOutput,
+	PurchaseListingRequest,
 	SendOrdinalsRequest,
 	SendResult,
-	CreateListingRequest,
-	ListingResult,
-	PurchaseListingRequest,
-	CancelListingRequest,
-	TransferTokenRequest,
-	BalanceResult,
-	OrdinalOutput,
+	SignMessageResult,
+	SignTransactionRequest,
+	SignTransactionResult,
 	TokenOutput,
-	ListOptions,
+	TransferTokenRequest,
 	Utxo,
 } from './provider-types'
 import {
-	MessageType,
-	RpcMethod,
+	type ExtensionEvent,
 	type ExtensionRequest,
 	type ExtensionResponse,
-	type ExtensionEvent,
-	type RpcMethodValue,
-	type InjectOptions,
 	type InitState,
+	type InjectOptions,
+	MessageType,
+	RpcMethod,
+	type RpcMethodValue,
 } from './types'
-import { fromExtensionError } from './errors'
 
 /** Message source identifier */
 const MESSAGE_SOURCE = 'onesat-inject'
@@ -143,14 +143,15 @@ export function injectOneSatProvider(options: InjectOptions = {}): void {
 		},
 
 		// Signing
-		signTransaction: createMethod<SignTransactionRequest, SignTransactionResult>(
-			'signTransaction',
-		),
+		signTransaction: createMethod<
+			SignTransactionRequest,
+			SignTransactionResult
+		>('signTransaction'),
 
 		async signMessage(message: string): Promise<SignMessageResult> {
-			return createMethod<{ message: string }, SignMessageResult>('signMessage')(
-				{ message },
-			)
+			return createMethod<{ message: string }, SignMessageResult>(
+				'signMessage',
+			)({ message })
 		},
 
 		// Ordinals
@@ -178,7 +179,9 @@ export function injectOneSatProvider(options: InjectOptions = {}): void {
 		getOrdinals: createMethod<ListOptions | undefined, OrdinalOutput[]>(
 			'getOrdinals',
 		),
-		getTokens: createMethod<ListOptions | undefined, TokenOutput[]>('getTokens'),
+		getTokens: createMethod<ListOptions | undefined, TokenOutput[]>(
+			'getTokens',
+		),
 		getUtxos: createMethod<void, Utxo[]>('getUtxos'),
 
 		// Events
@@ -225,7 +228,10 @@ export function injectOneSatProvider(options: InjectOptions = {}): void {
 			addresses = null
 			identityPubKey = null
 		} else if (message.event === 'accountChange') {
-			const data = message.data as { paymentAddress: string; ordinalAddress: string }
+			const data = message.data as {
+				paymentAddress: string
+				ordinalAddress: string
+			}
 			addresses = data
 		}
 

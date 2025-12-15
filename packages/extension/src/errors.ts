@@ -131,7 +131,9 @@ export function toExtensionError(error: unknown): ExtensionError {
 /**
  * Create an error from ExtensionError format
  */
-export function fromExtensionError(error: ExtensionError): OneSatExtensionError {
+export function fromExtensionError(
+	error: ExtensionError,
+): OneSatExtensionError {
 	switch (error.code) {
 		case ErrorCode.USER_REJECTED:
 			return new UserRejectedError(error.message)

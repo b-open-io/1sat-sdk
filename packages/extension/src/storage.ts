@@ -2,9 +2,11 @@
  * Storage utilities for wallet extensions
  *
  * Helpers for managing connected sites and wallet state
- * using chrome.storage.local for persistence.
+ * using browser.storage.local for persistence.
+ * Works across Chrome, Firefox, Edge, Safari via webextension-polyfill.
  */
 
+import browser from 'webextension-polyfill'
 import type { ConnectedSite, WalletAddresses } from './types'
 
 /** Storage keys */
@@ -30,7 +32,7 @@ export const ConnectedSites = {
 			connectedAt: Date.now(),
 			permissions: options.permissions || ['sign'],
 		}
-		await chrome.storage.local.set({ [CONNECTED_SITES_KEY]: sites })
+		await browser.storage.local.set({ [CONNECTED_SITES_KEY]: sites })
 	},
 
 	/**
@@ -39,7 +41,7 @@ export const ConnectedSites = {
 	async remove(origin: string): Promise<void> {
 		const sites = await this.getAll()
 		delete sites[origin]
-		await chrome.storage.local.set({ [CONNECTED_SITES_KEY]: sites })
+		await browser.storage.local.set({ [CONNECTED_SITES_KEY]: sites })
 	},
 
 	/**
@@ -62,8 +64,8 @@ export const ConnectedSites = {
 	 * Get all connected sites
 	 */
 	async getAll(): Promise<Record<string, ConnectedSite>> {
-		const result = await chrome.storage.local.get(CONNECTED_SITES_KEY)
-		return result[CONNECTED_SITES_KEY] || {}
+		const result = await browser.storage.local.get(CONNECTED_SITES_KEY)
+		return (result[CONNECTED_SITES_KEY] as Record<string, ConnectedSite>) || {}
 	},
 
 	/**
@@ -83,7 +85,7 @@ export const ConnectedSites = {
 			site.permissions.push(permission)
 			const sites = await this.getAll()
 			sites[origin] = site
-			await chrome.storage.local.set({ [CONNECTED_SITES_KEY]: sites })
+			await browser.storage.local.set({ [CONNECTED_SITES_KEY]: sites })
 		}
 	},
 
@@ -96,7 +98,7 @@ export const ConnectedSites = {
 			site.permissions = site.permissions.filter((p) => p !== permission)
 			const sites = await this.getAll()
 			sites[origin] = site
-			await chrome.storage.local.set({ [CONNECTED_SITES_KEY]: sites })
+			await browser.storage.local.set({ [CONNECTED_SITES_KEY]: sites })
 		}
 	},
 
@@ -104,7 +106,7 @@ export const ConnectedSites = {
 	 * Clear all connected sites
 	 */
 	async clear(): Promise<void> {
-		await chrome.storage.local.remove(CONNECTED_SITES_KEY)
+		await browser.storage.local.remove(CONNECTED_SITES_KEY)
 	},
 }
 
@@ -119,15 +121,15 @@ export const WalletState = {
 	 * Set wallet addresses
 	 */
 	async setAddresses(addresses: WalletAddresses): Promise<void> {
-		await chrome.storage.local.set({ [WALLET_ADDRESSES_KEY]: addresses })
+		await browser.storage.local.set({ [WALLET_ADDRESSES_KEY]: addresses })
 	},
 
 	/**
 	 * Get wallet addresses
 	 */
 	async getAddresses(): Promise<WalletAddresses | null> {
-		const result = await chrome.storage.local.get(WALLET_ADDRESSES_KEY)
-		return result[WALLET_ADDRESSES_KEY] || null
+		const result = await browser.storage.local.get(WALLET_ADDRESSES_KEY)
+		return (result[WALLET_ADDRESSES_KEY] as WalletAddresses) || null
 	},
 
 	/**
@@ -142,7 +144,7 @@ export const WalletState = {
 	 * Clear wallet state
 	 */
 	async clear(): Promise<void> {
-		await chrome.storage.local.remove(WALLET_ADDRESSES_KEY)
+		await browser.storage.local.remove(WALLET_ADDRESSES_KEY)
 	},
 }
 
@@ -154,22 +156,22 @@ export const WalletStorage = {
 	 * Get a value from storage
 	 */
 	async get<T>(key: string): Promise<T | null> {
-		const result = await chrome.storage.local.get(key)
-		return result[key] ?? null
+		const result = await browser.storage.local.get(key)
+		return (result[key] as T) ?? null
 	},
 
 	/**
 	 * Set a value in storage
 	 */
 	async set<T>(key: string, value: T): Promise<void> {
-		await chrome.storage.local.set({ [key]: value })
+		await browser.storage.local.set({ [key]: value })
 	},
 
 	/**
 	 * Remove a value from storage
 	 */
 	async remove(key: string): Promise<void> {
-		await chrome.storage.local.remove(key)
+		await browser.storage.local.remove(key)
 	},
 
 	/**
@@ -178,13 +180,13 @@ export const WalletStorage = {
 	async getMany<T extends Record<string, unknown>>(
 		keys: string[],
 	): Promise<Partial<T>> {
-		return chrome.storage.local.get(keys) as Promise<Partial<T>>
+		return browser.storage.local.get(keys) as Promise<Partial<T>>
 	},
 
 	/**
 	 * Set multiple values
 	 */
 	async setMany(items: Record<string, unknown>): Promise<void> {
-		await chrome.storage.local.set(items)
+		await browser.storage.local.set(items)
 	},
 }

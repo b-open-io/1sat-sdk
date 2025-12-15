@@ -475,7 +475,12 @@ src/
 
 ### Phase 3: Engine ✅ COMPLETE
 - [x] `@1sat/client` - HTTP client, UTXO fetching, broadcasting, input utilities
-- [x] `@1sat/core` - TxBuilder fluent API, createOrdinals, sendOrdinals
+- [x] `@1sat/core` - Wraps js-1sat-ord + TxBuilder fluent API
+  - Ordinals: createOrdinals, sendOrdinals, burnOrdinals
+  - Tokens: transferOrdTokens, deployBsv21Token
+  - Listings: createOrdListings, purchaseOrdListing, cancelOrdListings
+  - Token listings: createOrdTokenListings, purchaseOrdTokenListing, cancelOrdTokenListings
+  - Utilities: sendUtxos, OrdP2PKH, OrdLock
 
 ### Phase 4: Wallet ✅ COMPLETE
 - [x] `@1sat/wallet` - Full wallet engine (re-exports @1sat/wallet-toolbox)

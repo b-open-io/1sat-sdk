@@ -4,17 +4,21 @@
 	"private": true,
 	"description": "Minimal example wallet extension using @1sat/extension",
 	"scripts": {
-		"build": "bun run build:inject && bun run build:content && bun run build:background && bun run build:popup",
+		"build": "bun run build:inject && bun run build:content && bun run build:background && bun run build:popup && bun run build:popup-main && bun run build:popup-connect && bun run build:popup-sign",
 		"build:inject": "bun build src/inject.ts --outdir dist --target browser --minify",
 		"build:content": "bun build src/content.ts --outdir dist --target browser --minify",
 		"build:background": "bun build src/background.ts --outdir dist --target browser --minify",
 		"build:popup": "bun build src/popup.ts --outdir dist --target browser --minify",
+		"build:popup-main": "bun build src/popup-main.ts --outdir dist --target browser --minify",
+		"build:popup-connect": "bun build src/popup-connect.ts --outdir dist --target browser --minify",
+		"build:popup-sign": "bun build src/popup-sign.ts --outdir dist --target browser --minify",
 		"dev": "bun run build && bun run copy",
 		"copy": "cp manifest.json dist/ && cp -r popup dist/ && cp -r public/* dist/"
 	},
 	"dependencies": {
 		"@1sat/extension": "workspace:*",
-		"@bsv/sdk": "^1.2.0"
+		"@bsv/sdk": "^1.2.0",
+		"webextension-polyfill": "^0.12.0"
 	},
 	"devDependencies": {
 		"typescript": "^5.7.2"

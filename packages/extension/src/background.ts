@@ -3,23 +3,25 @@
  *
  * Sets up the background service worker to handle wallet requests.
  * Includes support for approval popups and MV3 service worker lifecycle.
+ * Works across Chrome, Firefox, Edge, Safari via webextension-polyfill.
  */
 
+import browser from 'webextension-polyfill'
+import { MethodNotFoundError, toExtensionError } from './errors'
+import type { OneSatEvent } from './provider-types'
+import { ConnectedSites, WalletState } from './storage'
 import {
-	MessageType,
-	RpcMethod,
+	type ApprovalData,
+	type BackgroundHandlerConfig,
+	type ExtensionEvent,
 	type ExtensionRequest,
 	type ExtensionResponse,
-	type ExtensionEvent,
-	type BackgroundHandlerConfig,
-	type RequestSender,
-	type RpcMethodValue,
-	type ApprovalData,
 	type InitState,
+	MessageType,
+	type RequestSender,
+	RpcMethod,
+	type RpcMethodValue,
 } from './types'
-import type { OneSatEvent } from './provider-types'
-import { toExtensionError, MethodNotFoundError } from './errors'
-import { ConnectedSites, WalletState } from './storage'
 
 /** Storage key for pending requests (MV3 persistence) */
 const PENDING_REQUESTS_KEY = 'onesat_pending_requests'
@@ -68,38 +70,27 @@ export function createBackgroundHandler(
 	): Promise<void> {
 		const pending = await getPendingRequests()
 		pending[id] = { request, sender, popupId }
-		await chrome.storage.session.set({ [PENDING_REQUESTS_KEY]: pending })
+		await browser.storage.session.set({ [PENDING_REQUESTS_KEY]: pending })
 	}
 
 	/**
 	 * Get all pending requests
 	 */
 	async function getPendingRequests(): Promise<Record<string, PendingRequest>> {
-		const result = await chrome.storage.session.get(PENDING_REQUESTS_KEY)
-		return result[PENDING_REQUESTS_KEY] || {}
-	}
-
-	/**
-	 * Remove a pending request
-	 */
-	async function removePendingRequest(id: string): Promise<PendingRequest | undefined> {
-		const pending = await getPendingRequests()
-		const request = pending[id]
-		if (request) {
-			delete pending[id]
-			await chrome.storage.session.set({ [PENDING_REQUESTS_KEY]: pending })
-		}
-		return request
+		const result = await browser.storage.session.get(PENDING_REQUESTS_KEY)
+		return (
+			(result[PENDING_REQUESTS_KEY] as Record<string, PendingRequest>) || {}
+		)
 	}
 
 	/**
 	 * Track connected tab
 	 */
 	async function addConnectedTab(tabId: number, origin: string): Promise<void> {
-		const result = await chrome.storage.session.get(CONNECTED_TABS_KEY)
-		const tabs: Record<number, string> = result[CONNECTED_TABS_KEY] || {}
+		const result = await browser.storage.session.get(CONNECTED_TABS_KEY)
+		const tabs = (result[CONNECTED_TABS_KEY] as Record<number, string>) || {}
 		tabs[tabId] = origin
-		await chrome.storage.session.set({ [CONNECTED_TABS_KEY]: tabs })
+		await browser.storage.session.set({ [CONNECTED_TABS_KEY]: tabs })
 		onConnect?.(tabId, origin)
 	}
 
@@ -107,12 +98,12 @@ export function createBackgroundHandler(
 	 * Remove connected tab
 	 */
 	async function removeConnectedTab(tabId: number): Promise<void> {
-		const result = await chrome.storage.session.get(CONNECTED_TABS_KEY)
-		const tabs: Record<number, string> = result[CONNECTED_TABS_KEY] || {}
+		const result = await browser.storage.session.get(CONNECTED_TABS_KEY)
+		const tabs = (result[CONNECTED_TABS_KEY] as Record<number, string>) || {}
 		const origin = tabs[tabId]
 		if (origin) {
 			delete tabs[tabId]
-			await chrome.storage.session.set({ [CONNECTED_TABS_KEY]: tabs })
+			await browser.storage.session.set({ [CONNECTED_TABS_KEY]: tabs })
 			onDisconnect?.(tabId, origin)
 		}
 	}
@@ -121,17 +112,15 @@ export function createBackgroundHandler(
 	 * Get all connected tabs
 	 */
 	async function getConnectedTabs(): Promise<Record<number, string>> {
-		const result = await chrome.storage.session.get(CONNECTED_TABS_KEY)
-		return result[CONNECTED_TABS_KEY] || {}
+		const result = await browser.storage.session.get(CONNECTED_TABS_KEY)
+		return (result[CONNECTED_TABS_KEY] as Record<number, string>) || {}
 	}
 
 	/**
 	 * Handle the internal __init__ request
 	 * Returns current connection state for the requesting origin
 	 */
-	async function handleInit(
-		origin: string | undefined,
-	): Promise<InitState> {
+	async function handleInit(origin: string | undefined): Promise<InitState> {
 		if (!origin) {
 			return { isConnected: false, addresses: null, identityPubKey: null }
 		}
@@ -218,7 +207,7 @@ export function createBackgroundHandler(
 
 		for (const tabId of Object.keys(tabs)) {
 			try {
-				await chrome.tabs.sendMessage(Number(tabId), message)
+				await browser.tabs.sendMessage(Number(tabId), message)
 			} catch {
 				// Tab may have been closed
 				await removeConnectedTab(Number(tabId))
@@ -227,44 +216,39 @@ export function createBackgroundHandler(
 	}
 
 	// Set up message listener
-	chrome.runtime.onMessage.addListener(
-		(
-			message: ExtensionRequest,
-			sender: chrome.runtime.MessageSender,
-			sendResponse: (response: ExtensionResponse) => void,
-		) => {
-			// Only handle our request messages
-			if (message.type !== MessageType.REQUEST) {
+	browser.runtime.onMessage.addListener(
+		(message: unknown, sender: browser.Runtime.MessageSender) => {
+			// Type guard for our messages
+			const msg = message as ExtensionRequest
+			if (!msg || msg.type !== MessageType.REQUEST) {
 				return false
 			}
 
-			// Build sender info
+			// Build sender info - extract origin from sender.url
+			const senderOrigin = sender.url ? new URL(sender.url).origin : undefined
 			const requestSender: RequestSender = {
-				origin: message.origin || sender.origin,
+				origin: msg.origin || senderOrigin,
 				tab: sender.tab,
 				frameId: sender.frameId,
 			}
 
 			// Check if auto-approve
-			const autoApprove = shouldAutoApprove?.(message) ?? false
+			const autoApprove = shouldAutoApprove?.(msg) ?? false
 
+			// Return promise for async response
 			if (autoApprove) {
-				// Handle immediately
-				handleRequest(message, requestSender).then(sendResponse)
-			} else {
-				// Store for MV3 persistence and handle
-				storePendingRequest(message.id, message, requestSender).then(() => {
-					handleRequest(message, requestSender).then(sendResponse)
-				})
+				return handleRequest(msg, requestSender)
 			}
 
-			// Return true to indicate async response
-			return true
+			// Store for MV3 persistence and handle
+			return storePendingRequest(msg.id, msg, requestSender).then(() =>
+				handleRequest(msg, requestSender),
+			)
 		},
 	)
 
 	// Clean up when tabs are closed
-	chrome.tabs.onRemoved.addListener((tabId) => {
+	browser.tabs.onRemoved.addListener((tabId) => {
 		removeConnectedTab(tabId)
 	})
 
@@ -282,67 +266,64 @@ export async function openApprovalPopup<T = unknown>(
 	path: string,
 	data?: T,
 ): Promise<boolean> {
-	return new Promise((resolve) => {
-		// Generate unique request ID
-		const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+	// Generate unique request ID
+	const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
 
-		// Store approval data for popup to retrieve
-		const approvalData: ApprovalData<T> = {
-			requestId,
-			method: 'approval' as RpcMethodValue,
-			params: data as T,
+	// Store approval data for popup to retrieve
+	const approvalData: ApprovalData<T> = {
+		requestId,
+		method: 'approval' as RpcMethodValue,
+		params: data as T,
+	}
+
+	await browser.storage.session.set({ [`approval_${requestId}`]: approvalData })
+
+	// Build popup URL with request ID
+	const url = browser.runtime.getURL(`${path}?requestId=${requestId}`)
+
+	// Open popup window
+	const window = await browser.windows.create({
+		url,
+		type: 'popup',
+		width: 400,
+		height: 600,
+		focused: true,
+	})
+
+	if (!window?.id) {
+		return false
+	}
+
+	const windowId = window.id
+
+	return new Promise((resolve) => {
+		// Listen for popup to send response
+		function handleMessage(message: unknown) {
+			const msg = message as {
+				type: string
+				requestId: string
+				approved: boolean
+			}
+			if (msg?.type === 'APPROVAL_RESPONSE' && msg.requestId === requestId) {
+				browser.runtime.onMessage.removeListener(handleMessage)
+				browser.storage.session.remove(`approval_${requestId}`)
+				resolve(msg.approved)
+			}
 		}
 
-		chrome.storage.session.set({ [`approval_${requestId}`]: approvalData })
+		browser.runtime.onMessage.addListener(handleMessage)
 
-		// Build popup URL with request ID
-		const url = chrome.runtime.getURL(`${path}?requestId=${requestId}`)
+		// Handle popup being closed without response
+		function onClose(closedId: number) {
+			if (closedId === windowId) {
+				browser.windows.onRemoved.removeListener(onClose)
+				browser.runtime.onMessage.removeListener(handleMessage)
+				browser.storage.session.remove(`approval_${requestId}`)
+				resolve(false)
+			}
+		}
 
-		// Open popup window
-		chrome.windows.create(
-			{
-				url,
-				type: 'popup',
-				width: 400,
-				height: 600,
-				focused: true,
-			},
-			(window) => {
-				if (!window?.id) {
-					resolve(false)
-					return
-				}
-
-				const windowId = window.id
-
-				// Listen for popup to send response
-				function handleMessage(
-					message: { type: string; requestId: string; approved: boolean },
-					_sender: chrome.runtime.MessageSender,
-				) {
-					if (
-						message.type === 'APPROVAL_RESPONSE' &&
-						message.requestId === requestId
-					) {
-						chrome.runtime.onMessage.removeListener(handleMessage)
-						chrome.storage.session.remove(`approval_${requestId}`)
-						resolve(message.approved)
-					}
-				}
-
-				chrome.runtime.onMessage.addListener(handleMessage)
-
-				// Handle popup being closed without response
-				chrome.windows.onRemoved.addListener(function onClose(closedId) {
-					if (closedId === windowId) {
-						chrome.windows.onRemoved.removeListener(onClose)
-						chrome.runtime.onMessage.removeListener(handleMessage)
-						chrome.storage.session.remove(`approval_${requestId}`)
-						resolve(false)
-					}
-				})
-			},
-		)
+		browser.windows.onRemoved.addListener(onClose)
 	})
 }
 
@@ -354,7 +335,7 @@ export async function openApprovalPopup<T = unknown>(
  */
 export async function keepAlive<T>(fn: () => Promise<T>): Promise<T> {
 	// Create a port connection to keep service worker alive
-	const keepAlivePort = chrome.runtime.connect({ name: 'keepalive' })
+	const keepAlivePort = browser.runtime.connect({ name: 'keepalive' })
 
 	try {
 		return await fn()

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>1Sat SDK Browser Example</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 600px;
+      margin: 2rem auto;
+      padding: 1rem;
+    }
+    button {
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+      cursor: pointer;
+      margin: 0.5rem 0;
+    }
+    .connected { color: green; }
+    .error { color: red; }
+    pre {
+      background: #f5f5f5;
+      padding: 1rem;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>1Sat SDK Browser Example</h1>
+
+  <div id="status">Not connected</div>
+
+  <div id="actions">
+    <button id="connectBtn">Connect Wallet</button>
+    <button id="disconnectBtn" style="display:none">Disconnect</button>
+  </div>
+
+  <div id="connected-actions" style="display:none">
+    <h3>Actions</h3>
+    <button id="getBalanceBtn">Get Balance</button>
+    <button id="getOrdinalsBtn">Get Ordinals</button>
+    <button id="inscribeBtn">Inscribe Text</button>
+  </div>
+
+  <div id="result"></div>
+
+  <script type="module">
+    import { createOneSat, UserRejectedError, TimeoutError } from '@1sat/sdk'
+
+    const onesat = createOneSat({
+      appName: '1Sat SDK Example',
+    })
+
+    const statusEl = document.getElementById('status')
+    const resultEl = document.getElementById('result')
+    const connectBtn = document.getElementById('connectBtn')
+    const disconnectBtn = document.getElementById('disconnectBtn')
+    const connectedActions = document.getElementById('connected-actions')
+
+    function showResult(data) {
+      resultEl.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`
+    }
+
+    function showError(err) {
+      resultEl.innerHTML = `<div class="error">${err.message}</div>`
+    }
+
+    function updateUI(connected) {
+      if (connected) {
+        connectBtn.style.display = 'none'
+        disconnectBtn.style.display = 'inline-block'
+        connectedActions.style.display = 'block'
+      } else {
+        connectBtn.style.display = 'inline-block'
+        disconnectBtn.style.display = 'none'
+        connectedActions.style.display = 'none'
+      }
+    }
+
+    // Check if already connected
+    if (onesat.isConnected()) {
+      const addrs = onesat.getAddresses()
+      statusEl.innerHTML = `<span class="connected">Connected: ${addrs.paymentAddress}</span>`
+      updateUI(true)
+    }
+
+    // Connect
+    connectBtn.addEventListener('click', async () => {
+      try {
+        const { paymentAddress, ordinalAddress } = await onesat.connect()
+        statusEl.innerHTML = `<span class="connected">Connected: ${paymentAddress}</span>`
+        updateUI(true)
+        showResult({ paymentAddress, ordinalAddress })
+      } catch (err) {
+        if (err instanceof UserRejectedError) {
+          showError(new Error('User rejected the connection request'))
+        } else if (err instanceof TimeoutError) {
+          showError(new Error('Connection timed out'))
+        } else {
+          showError(err)
+        }
+      }
+    })
+
+    // Disconnect
+    disconnectBtn.addEventListener('click', async () => {
+      await onesat.disconnect()
+      statusEl.textContent = 'Not connected'
+      updateUI(false)
+      resultEl.innerHTML = ''
+    })
+
+    // Get Balance
+    document.getElementById('getBalanceBtn').addEventListener('click', async () => {
+      try {
+        const balance = await onesat.getBalance()
+        showResult(balance)
+      } catch (err) {
+        showError(err)
+      }
+    })
+
+    // Get Ordinals
+    document.getElementById('getOrdinalsBtn').addEventListener('click', async () => {
+      try {
+        const ordinals = await onesat.getOrdinals({ limit: 10 })
+        showResult(ordinals)
+      } catch (err) {
+        showError(err)
+      }
+    })
+
+    // Inscribe
+    document.getElementById('inscribeBtn').addEventListener('click', async () => {
+      try {
+        const text = prompt('Enter text to inscribe:', 'Hello, Ordinals!')
+        if (!text) return
+
+        // Convert text to base64
+        const dataB64 = btoa(text)
+
+        const result = await onesat.inscribe({
+          dataB64,
+          contentType: 'text/plain',
+        })
+        showResult(result)
+      } catch (err) {
+        showError(err)
+      }
+    })
+  </script>
+</body>
+</html>

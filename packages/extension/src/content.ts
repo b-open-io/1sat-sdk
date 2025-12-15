@@ -3,14 +3,16 @@
  *
  * Relays messages between the page (inject script) and the
  * background service worker. Also handles injecting the provider script.
+ * Works across Chrome, Firefox, Edge, Safari via webextension-polyfill.
  */
 
+import browser from 'webextension-polyfill'
 import {
-	MessageType,
+	type ContentBridgeOptions,
+	type ExtensionEvent,
 	type ExtensionRequest,
 	type ExtensionResponse,
-	type ExtensionEvent,
-	type ContentBridgeOptions,
+	MessageType,
 } from './types'
 
 /** Message source identifiers */
@@ -50,7 +52,7 @@ export function createContentBridge(options: ContentBridgeOptions = {}): void {
 	function injectScript(): void {
 		try {
 			const script = document.createElement('script')
-			script.src = chrome.runtime.getURL('dist/inject.js')
+			script.src = browser.runtime.getURL('dist/inject.js')
 			script.type = 'module'
 
 			// Insert at document_start before page scripts run
@@ -69,7 +71,7 @@ export function createContentBridge(options: ContentBridgeOptions = {}): void {
 	/**
 	 * Handle messages from the page (inject script)
 	 */
-	function handlePageMessage(event: MessageEvent): void {
+	async function handlePageMessage(event: MessageEvent): Promise<void> {
 		// Only handle messages from this window
 		if (event.source !== window) return
 
@@ -96,30 +98,11 @@ export function createContentBridge(options: ContentBridgeOptions = {}): void {
 			origin,
 		}
 
-		// Send to background and wait for response
-		chrome.runtime.sendMessage(requestWithOrigin, (response: ExtensionResponse) => {
-			if (chrome.runtime.lastError) {
-				// Extension context invalidated (extension was reloaded)
-				log('Runtime error:', chrome.runtime.lastError.message)
-
-				const errorResponse: ExtensionResponse = {
-					type: MessageType.RESPONSE,
-					id: request.id,
-					error: {
-						code: -32603,
-						message: chrome.runtime.lastError.message || 'Extension error',
-					},
-				}
-
-				window.postMessage(
-					{
-						source: CONTENT_SOURCE,
-						payload: errorResponse,
-					},
-					'*',
-				)
-				return
-			}
+		try {
+			// Send to background and wait for response
+			const response = (await browser.runtime.sendMessage(
+				requestWithOrigin,
+			)) as ExtensionResponse
 
 			log('Got response from background:', response?.id)
 
@@ -131,27 +114,44 @@ export function createContentBridge(options: ContentBridgeOptions = {}): void {
 				},
 				'*',
 			)
-		})
+		} catch (err) {
+			// Extension context invalidated (extension was reloaded)
+			log('Runtime error:', (err as Error).message)
+
+			const errorResponse: ExtensionResponse = {
+				type: MessageType.RESPONSE,
+				id: request.id,
+				error: {
+					code: -32603,
+					message: (err as Error).message || 'Extension error',
+				},
+			}
+
+			window.postMessage(
+				{
+					source: CONTENT_SOURCE,
+					payload: errorResponse,
+				},
+				'*',
+			)
+		}
 	}
 
 	/**
 	 * Handle messages from the background (events)
 	 */
-	function handleBackgroundMessage(
-		message: ExtensionEvent,
-		_sender: chrome.runtime.MessageSender,
-		_sendResponse: (response?: unknown) => void,
-	): boolean {
-		// Only handle events
-		if (message.type !== MessageType.EVENT) return false
+	function handleBackgroundMessage(message: unknown): boolean {
+		// Type guard
+		const msg = message as ExtensionEvent
+		if (!msg || msg.type !== MessageType.EVENT) return false
 
-		log('Relaying event to page:', message.event)
+		log('Relaying event to page:', msg.event)
 
 		// Relay event to page
 		window.postMessage(
 			{
 				source: CONTENT_SOURCE,
-				payload: message,
+				payload: msg,
 			},
 			'*',
 		)
@@ -161,7 +161,7 @@ export function createContentBridge(options: ContentBridgeOptions = {}): void {
 
 	// Set up listeners
 	window.addEventListener('message', handlePageMessage)
-	chrome.runtime.onMessage.addListener(handleBackgroundMessage)
+	browser.runtime.onMessage.addListener(handleBackgroundMessage)
 
 	// Inject the provider script
 	injectScript()

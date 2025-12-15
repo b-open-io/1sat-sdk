@@ -80,6 +80,8 @@ export type {
 	CreateOrdinalsCollectionConfig,
 	CreateOrdinalsCollectionItemConfig,
 	SendOrdinalsConfig,
+	TransferOrdTokensConfig,
+	TokenSplitConfig,
 	// Signers
 	Signer,
 	LocalSigner,
@@ -183,16 +185,42 @@ export {
 } from '@1sat/client'
 
 // ============================================================================
-// Core (from @1sat/core)
+// Core (from @1sat/core - wraps js-1sat-ord)
 // ============================================================================
 export {
-	// TxBuilder
+	// TxBuilder (SDK-specific)
 	TxBuilder,
 	createTxBuilder,
 	type TxBuilderConfig,
-	// High-level operations
+	// Ordinal operations
 	createOrdinals,
 	sendOrdinals,
+	burnOrdinals,
+	// Token operations
+	transferOrdTokens,
+	deployBsv21Token,
+	// Listing operations
+	createOrdListings,
+	createOrdTokenListings,
+	cancelOrdListings,
+	cancelOrdTokenListings,
+	purchaseOrdListing,
+	purchaseOrdTokenListing,
+	// UTXO operations
+	sendUtxos,
+	// Config types
+	type DeployBsv21TokenConfig,
+	type CreateOrdListingsConfig,
+	type CreateOrdTokenListingsConfig,
+	type CancelOrdListingsConfig,
+	type CancelOrdTokenListingsConfig,
+	type PurchaseOrdListingConfig,
+	type PurchaseOrdTokenListingConfig,
+	type SendUtxosConfig,
+	type BurnOrdinalsConfig,
+	type NewTokenListing,
+	// Enums (re-exported from js-1sat-ord for convenience)
+	RoytaltyType,
 } from '@1sat/core'
 
 // ============================================================================

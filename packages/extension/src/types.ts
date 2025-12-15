@@ -2,26 +2,27 @@
  * Extension-specific types for @1sat/extension
  */
 
+import type browser from 'webextension-polyfill'
 import type {
+	BalanceResult,
+	CancelListingRequest,
 	ConnectResult,
-	SignTransactionRequest,
-	SignTransactionResult,
-	SignMessageResult,
+	CreateListingRequest,
 	InscribeRequest,
 	InscribeResult,
-	SendOrdinalsRequest,
-	SendResult,
-	CreateListingRequest,
-	ListingResult,
-	PurchaseListingRequest,
-	CancelListingRequest,
-	TransferTokenRequest,
-	BalanceResult,
-	OrdinalOutput,
-	TokenOutput,
 	ListOptions,
+	ListingResult,
 	OneSatEvent,
 	OneSatProvider,
+	OrdinalOutput,
+	PurchaseListingRequest,
+	SendOrdinalsRequest,
+	SendResult,
+	SignMessageResult,
+	SignTransactionRequest,
+	SignTransactionResult,
+	TokenOutput,
+	TransferTokenRequest,
 } from './provider-types'
 
 // Extend Window interface
@@ -173,7 +174,7 @@ export interface RequestSender {
 	/** Origin of the requesting page */
 	origin?: string
 	/** Tab information */
-	tab?: chrome.tabs.Tab
+	tab?: browser.Tabs.Tab
 	/** Frame ID */
 	frameId?: number
 }
@@ -211,7 +212,10 @@ export interface HandlerMap {
 	getOrdinals?: Handler<ListOptions | undefined, OrdinalOutput[]>
 	getTokens?: Handler<ListOptions | undefined, TokenOutput[]>
 	getUtxos?: Handler<void, Utxo[]>
-	getAddresses?: Handler<void, { paymentAddress: string; ordinalAddress: string } | null>
+	getAddresses?: Handler<
+		void,
+		{ paymentAddress: string; ordinalAddress: string } | null
+	>
 	getIdentityPubKey?: Handler<void, string | null>
 }
 

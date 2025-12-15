@@ -2,50 +2,36 @@
  * Background service worker - Wallet logic
  *
  * Handles all wallet operations: key management, signing, balance checks
+ * Uses KeyStore from @1sat/extension/keys for encrypted key storage.
  */
 
 import {
-	createBackgroundHandler,
-	openApprovalPopup,
-	keepAlive,
-	UserRejectedError,
-	UnauthorizedError,
+	type BalanceResult,
 	type ConnectResult,
 	type SignMessageResult,
-	type BalanceResult,
+	UnauthorizedError,
+	UserRejectedError,
 	type Utxo,
+	createBackgroundHandler,
+	keepAlive,
+	openApprovalPopup,
 } from '@1sat/extension'
-import { PrivateKey, BSM, BigNumber, Hash, type PublicKey } from '@bsv/sdk'
+import { KeyStore } from '@1sat/extension/keys'
+import { BSM } from '@bsv/sdk'
+import browser from 'webextension-polyfill'
 
-// Storage keys
-const STORAGE_KEYS = {
-	PRIVATE_KEY: 'wallet_private_key',
-	CONNECTED_SITES: 'connected_sites',
-} as const
+// Storage key for connected sites
+const CONNECTED_SITES_KEY = 'connected_sites'
 
-/**
- * Get or create the wallet's private key
- */
-async function getOrCreatePrivateKey(): Promise<PrivateKey> {
-	const result = await chrome.storage.local.get(STORAGE_KEYS.PRIVATE_KEY)
-	if (result[STORAGE_KEYS.PRIVATE_KEY]) {
-		return PrivateKey.fromWif(result[STORAGE_KEYS.PRIVATE_KEY])
-	}
-
-	// Generate new key
-	const pk = PrivateKey.fromRandom()
-	await chrome.storage.local.set({
-		[STORAGE_KEYS.PRIVATE_KEY]: pk.toWif(),
-	})
-	return pk
-}
+// Create the KeyStore instance
+const keyStore = new KeyStore()
 
 /**
  * Get connected sites
  */
 async function getConnectedSites(): Promise<string[]> {
-	const result = await chrome.storage.local.get(STORAGE_KEYS.CONNECTED_SITES)
-	return result[STORAGE_KEYS.CONNECTED_SITES] || []
+	const result = await browser.storage.local.get(CONNECTED_SITES_KEY)
+	return (result[CONNECTED_SITES_KEY] as string[]) || []
 }
 
 /**
@@ -55,7 +41,7 @@ async function addConnectedSite(origin: string): Promise<void> {
 	const sites = await getConnectedSites()
 	if (!sites.includes(origin)) {
 		sites.push(origin)
-		await chrome.storage.local.set({ [STORAGE_KEYS.CONNECTED_SITES]: sites })
+		await browser.storage.local.set({ [CONNECTED_SITES_KEY]: sites })
 	}
 }
 
@@ -65,7 +51,7 @@ async function addConnectedSite(origin: string): Promise<void> {
 async function removeConnectedSite(origin: string): Promise<void> {
 	const sites = await getConnectedSites()
 	const filtered = sites.filter((s) => s !== origin)
-	await chrome.storage.local.set({ [STORAGE_KEYS.CONNECTED_SITES]: filtered })
+	await browser.storage.local.set({ [CONNECTED_SITES_KEY]: filtered })
 }
 
 /**
@@ -102,7 +88,12 @@ async function fetchUtxos(address: string): Promise<Utxo[]> {
 	}
 	const data = await response.json()
 	return data.map(
-		(u: { tx_hash: string; tx_pos: number; value: number; script?: string }) => ({
+		(u: {
+			tx_hash: string
+			tx_pos: number
+			value: number
+			script?: string
+		}) => ({
 			txid: u.tx_hash,
 			vout: u.tx_pos,
 			satoshis: u.value,
@@ -110,6 +101,73 @@ async function fetchUtxos(address: string): Promise<Utxo[]> {
 		}),
 	)
 }
+
+// Internal message types for wallet management
+interface WalletMessage {
+	type: string
+	passphrase?: string
+	wif?: string
+}
+
+// Listen for internal wallet management messages from popup
+browser.runtime.onMessage.addListener((message: unknown) => {
+	const msg = message as WalletMessage
+	if (!msg?.type?.startsWith('WALLET_')) return
+
+	// Handle wallet management messages
+	switch (msg.type) {
+		case 'WALLET_GET_STATE':
+			return keyStore.getState()
+
+		case 'WALLET_IS_UNLOCKED':
+			return Promise.resolve(keyStore.isUnlocked())
+
+		case 'WALLET_GET_ADDRESSES':
+			return keyStore.getAddresses()
+
+		case 'WALLET_GENERATE':
+			if (!msg.passphrase) {
+				return Promise.resolve({ error: 'Passphrase required' })
+			}
+			keyStore.generate()
+			return keyStore.lock(msg.passphrase).then(() => keyStore.getAddresses())
+
+		case 'WALLET_IMPORT_WIF':
+			if (!msg.wif || !msg.passphrase) {
+				return Promise.resolve({ error: 'WIF and passphrase required' })
+			}
+			keyStore.importSingleWif(msg.wif)
+			return keyStore.lock(msg.passphrase).then(() => keyStore.getAddresses())
+
+		case 'WALLET_UNLOCK':
+			if (!msg.passphrase) {
+				return Promise.resolve({ error: 'Passphrase required' })
+			}
+			return keyStore
+				.unlock(msg.passphrase)
+				.then(() => ({ success: true }))
+				.catch((err: Error) => ({ error: err.message }))
+
+		case 'WALLET_LOCK':
+			keyStore.clearMemory()
+			return Promise.resolve({ success: true })
+
+		case 'WALLET_EXPORT_BACKUP':
+			if (!msg.passphrase) {
+				return Promise.resolve({ error: 'Passphrase required' })
+			}
+			if (!keyStore.isUnlocked()) {
+				return Promise.resolve({ error: 'Wallet is locked' })
+			}
+			return keyStore
+				.exportBackup(msg.passphrase)
+				.then((backup) => ({ backup }))
+				.catch((err: Error) => ({ error: err.message }))
+
+		default:
+			return
+	}
+})
 
 // Set up the background handler
 const { broadcast } = createBackgroundHandler({
@@ -121,14 +179,22 @@ const { broadcast } = createBackgroundHandler({
 			const origin = sender.origin
 			if (!origin) throw new UnauthorizedError('No origin')
 
+			// Check if wallet exists
+			const state = await keyStore.getState()
+			if (state === 'empty') {
+				throw new UnauthorizedError('No wallet configured')
+			}
+
 			// Check if already connected
 			if (await isSiteConnected(origin)) {
-				const pk = await getOrCreatePrivateKey()
-				const address = pk.toAddress().toString()
+				const addresses = await keyStore.getAddresses()
+				if (!addresses) {
+					throw new UnauthorizedError('Wallet not available')
+				}
 				return {
-					paymentAddress: address,
-					ordinalAddress: address,
-					identityPubKey: pk.toPublicKey().toString(),
+					paymentAddress: addresses.paymentAddress,
+					ordinalAddress: addresses.ordinalAddress,
+					identityPubKey: addresses.identityPubKey,
 				} as ConnectResult
 			}
 
@@ -144,13 +210,15 @@ const { broadcast } = createBackgroundHandler({
 			// Store connection
 			await addConnectedSite(origin)
 
-			const pk = await getOrCreatePrivateKey()
-			const address = pk.toAddress().toString()
+			const addresses = await keyStore.getAddresses()
+			if (!addresses) {
+				throw new UnauthorizedError('Wallet not available')
+			}
 
 			return {
-				paymentAddress: address,
-				ordinalAddress: address,
-				identityPubKey: pk.toPublicKey().toString(),
+				paymentAddress: addresses.paymentAddress,
+				ordinalAddress: addresses.ordinalAddress,
+				identityPubKey: addresses.identityPubKey,
 			} as ConnectResult
 		},
 
@@ -179,6 +247,11 @@ const { broadcast } = createBackgroundHandler({
 				throw new UnauthorizedError('Not connected')
 			}
 
+			// Must be unlocked to sign
+			if (!keyStore.isUnlocked()) {
+				throw new UnauthorizedError('Wallet is locked')
+			}
+
 			const { message } = request.params as { message: string }
 
 			// Show approval popup
@@ -194,13 +267,13 @@ const { broadcast } = createBackgroundHandler({
 			}
 
 			// Sign the message using BSM
-			const pk = await getOrCreatePrivateKey()
-			const address = pk.toAddress().toString()
+			const keys = keyStore.getKeys()
+			const address = keys.paymentKey.toAddress()
 
 			// BSM signature
 			const signature = BSM.sign(
 				Array.from(new TextEncoder().encode(message)),
-				pk,
+				keys.paymentKey,
 			)
 
 			return {
@@ -218,10 +291,12 @@ const { broadcast } = createBackgroundHandler({
 				throw new UnauthorizedError('Not connected')
 			}
 
-			const pk = await getOrCreatePrivateKey()
-			const address = pk.toAddress().toString()
-			const satoshis = await fetchBalance(address)
+			const addresses = await keyStore.getAddresses()
+			if (!addresses) {
+				throw new UnauthorizedError('Wallet not available')
+			}
 
+			const satoshis = await fetchBalance(addresses.paymentAddress)
 			return { satoshis } as BalanceResult
 		},
 
@@ -233,9 +308,12 @@ const { broadcast } = createBackgroundHandler({
 				throw new UnauthorizedError('Not connected')
 			}
 
-			const pk = await getOrCreatePrivateKey()
-			const address = pk.toAddress().toString()
-			return fetchUtxos(address)
+			const addresses = await keyStore.getAddresses()
+			if (!addresses) {
+				throw new UnauthorizedError('Wallet not available')
+			}
+
+			return fetchUtxos(addresses.paymentAddress)
 		},
 
 		/**
@@ -246,11 +324,12 @@ const { broadcast } = createBackgroundHandler({
 				return null
 			}
 
-			const pk = await getOrCreatePrivateKey()
-			const address = pk.toAddress().toString()
+			const addresses = await keyStore.getAddresses()
+			if (!addresses) return null
+
 			return {
-				paymentAddress: address,
-				ordinalAddress: address,
+				paymentAddress: addresses.paymentAddress,
+				ordinalAddress: addresses.ordinalAddress,
 			}
 		},
 
@@ -262,8 +341,8 @@ const { broadcast } = createBackgroundHandler({
 				return null
 			}
 
-			const pk = await getOrCreatePrivateKey()
-			return pk.toPublicKey().toString()
+			const addresses = await keyStore.getAddresses()
+			return addresses?.identityPubKey ?? null
 		},
 	},
 
@@ -292,6 +371,8 @@ const { broadcast } = createBackgroundHandler({
 })
 
 // Export broadcast for potential future use
-;(globalThis as unknown as { walletBroadcast: typeof broadcast }).walletBroadcast = broadcast
+;(
+	globalThis as unknown as { walletBroadcast: typeof broadcast }
+).walletBroadcast = broadcast
 
 console.log('[minimal-wallet] Background service worker started')

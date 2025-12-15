@@ -78,73 +78,153 @@
       color: #666;
       font-size: 13px;
     }
+    input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #333;
+      border-radius: 6px;
+      background: #0f0f1a;
+      color: #eee;
+      font-size: 13px;
+      font-family: monospace;
+      margin-bottom: 12px;
+    }
+    input[type="password"] {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    input:focus {
+      outline: none;
+      border-color: #4cc9f0;
+    }
+    button {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .primary {
+      background: #4cc9f0;
+      color: #000;
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    .primary:hover {
+      background: #22d3ee;
+    }
+    .secondary {
+      background: #333;
+      color: #fff;
+      width: 100%;
+    }
+    .secondary:hover {
+      background: #444;
+    }
+    .danger {
+      background: #ef4444;
+      color: white;
+      width: 100%;
+    }
+    .danger:hover {
+      background: #dc2626;
+    }
+    .backup-display {
+      font-family: monospace;
+      font-size: 10px;
+      word-break: break-all;
+      color: #f59e0b;
+      background: #1a1a2e;
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 12px;
+      display: none;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+    .setup-text {
+      color: #888;
+      font-size: 13px;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+    .divider {
+      text-align: center;
+      color: #666;
+      font-size: 12px;
+      margin: 12px 0;
+    }
+    .lock-icon {
+      display: inline-block;
+      margin-right: 6px;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .actions button {
+      flex: 1;
+    }
   </style>
 </head>
 <body>
   <h1>Minimal Wallet</h1>
 
-  <div class="section">
-    <h2>Address</h2>
-    <div class="address" id="address">Loading...</div>
+  <!-- Setup Section (shown when no wallet) -->
+  <div id="setup-section" style="display: none;">
+    <div class="section">
+      <h2>Setup Wallet</h2>
+      <p class="setup-text">Generate a new key or import an existing WIF. Your keys will be encrypted with your passphrase.</p>
+      <input type="password" id="setup-passphrase" placeholder="Enter passphrase (min 8 chars)" />
+      <button class="primary" id="generate-btn">Generate New Wallet</button>
+      <div class="divider">or</div>
+      <input type="text" id="wif-input" placeholder="Enter WIF to import..." />
+      <button class="secondary" id="import-btn">Import WIF</button>
+    </div>
   </div>
 
-  <div class="section">
-    <h2>Balance</h2>
-    <div id="balance" class="balance-loading">Loading...</div>
+  <!-- Unlock Section (shown when wallet is locked) -->
+  <div id="unlock-section" style="display: none;">
+    <div class="section">
+      <h2><span class="lock-icon">🔒</span>Wallet Locked</h2>
+      <p class="setup-text">Enter your passphrase to unlock the wallet.</p>
+      <input type="password" id="unlock-passphrase" placeholder="Enter passphrase" />
+      <button class="primary" id="unlock-btn">Unlock</button>
+    </div>
   </div>
 
-  <div class="section">
-    <h2>Connected Sites</h2>
-    <ul class="sites-list" id="sites">
-      <li class="no-sites">Loading...</li>
-    </ul>
+  <!-- Wallet Section (shown when unlocked) -->
+  <div id="wallet-section" style="display: none;">
+    <div class="section">
+      <h2>Address</h2>
+      <div class="address" id="address">Loading...</div>
+    </div>
+
+    <div class="section">
+      <h2>Balance</h2>
+      <div id="balance" class="balance-loading">Loading...</div>
+    </div>
+
+    <div class="section">
+      <h2>Connected Sites</h2>
+      <ul class="sites-list" id="sites">
+        <li class="no-sites">Loading...</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Backup</h2>
+      <button class="secondary" id="export-btn">Export Encrypted Backup</button>
+      <div class="backup-display" id="backup-display"></div>
+    </div>
+
+    <div class="section">
+      <button class="danger" id="lock-btn">Lock Wallet</button>
+    </div>
   </div>
 
-  <script src="../popup.js" type="module"></script>
-  <script type="module">
-    async function init() {
-      const { getWalletAddress, getConnectedSites, disconnectSite, fetchBalance } = window.popup
-
-      // Load address
-      const address = await getWalletAddress()
-      document.getElementById('address').textContent = address
-
-      // Load balance
-      if (address !== 'No wallet yet') {
-        const satoshis = await fetchBalance(address)
-        const balanceEl = document.getElementById('balance')
-        balanceEl.className = 'balance'
-        balanceEl.textContent = `${satoshis.toLocaleString()} sats`
-      } else {
-        document.getElementById('balance').textContent = '0 sats'
-      }
-
-      // Load connected sites
-      const sites = await getConnectedSites()
-      const sitesEl = document.getElementById('sites')
-
-      if (sites.length === 0) {
-        sitesEl.innerHTML = '<li class="no-sites">No connected sites</li>'
-      } else {
-        sitesEl.innerHTML = sites.map(site => `
-          <li>
-            <span class="site-origin">${site}</span>
-            <button class="disconnect-btn" data-origin="${site}">Disconnect</button>
-          </li>
-        `).join('')
-
-        // Add disconnect handlers
-        sitesEl.querySelectorAll('.disconnect-btn').forEach(btn => {
-          btn.addEventListener('click', async (e) => {
-            const origin = e.target.dataset.origin
-            await disconnectSite(origin)
-            init() // Refresh
-          })
-        })
-      }
-    }
-
-    init()
-  </script>
+  <script src="../popup-main.js"></script>
 </body>
 </html>
