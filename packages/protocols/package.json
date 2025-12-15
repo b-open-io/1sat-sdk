@@ -1,0 +1,43 @@
+{
+	"name": "@1sat/protocols",
+	"version": "0.0.1",
+	"description": "Protocol implementations for 1Sat Ordinals SDK",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": ["dist"],
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"clean": "rm -rf dist"
+	},
+	"keywords": [
+		"1sat",
+		"bsv",
+		"ordinals",
+		"protocols",
+		"sigma",
+		"ordlock",
+		"map"
+	],
+	"license": "MIT",
+	"dependencies": {
+		"@1sat/types": "workspace:*",
+		"@1sat/constants": "workspace:*",
+		"@1sat/utils": "workspace:*",
+		"sigma-protocol": "^0.1.6"
+	},
+	"peerDependencies": {
+		"@bsv/sdk": "^1.9.0"
+	},
+	"devDependencies": {
+		"@bsv/sdk": "^1.9.24",
+		"typescript": "^5.9.3"
+	}
+}

@@ -1,0 +1,25 @@
+{
+	"name": "@1sat/constants",
+	"version": "0.0.1",
+	"description": "Constants for 1Sat Ordinals SDK",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": ["dist"],
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"clean": "rm -rf dist"
+	},
+	"keywords": ["1sat", "bsv", "ordinals", "constants"],
+	"license": "MIT",
+	"devDependencies": {
+		"typescript": "^5.9.3"
+	}
+}
