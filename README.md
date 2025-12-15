@@ -236,23 +236,51 @@ await onesat.transferToken({
 })
 ```
 
-For server-side token operations with direct key access:
+For server-side token transfers with direct key access:
 
 ```typescript
-import { fetchTokenUtxos, selectTokenUtxos, TokenType } from '@1sat/sdk'
+import {
+  fetchPayUtxos,
+  fetchTokenUtxos,
+  selectTokenUtxos,
+  transferOrdTokens,
+  createBroadcaster,
+  TokenType,
+} from '@1sat/sdk'
+import { PrivateKey } from '@bsv/sdk'
 
-// Fetch token UTXOs (note: protocol is first argument)
+const paymentPk = PrivateKey.fromWif(process.env.PAYMENT_WIF!)
+const ordPk = PrivateKey.fromWif(process.env.ORD_WIF!)
+const address = paymentPk.toAddress().toString()
+const tokenId = 'token-origin-txid_0'
+const decimals = 8
+
+// Fetch UTXOs
+const utxos = await fetchPayUtxos(address)
 const tokenUtxos = await fetchTokenUtxos(TokenType.BSV21, tokenId, address)
 
-// Select UTXOs for transfer amount
-const { selectedUtxos, isEnough } = selectTokenUtxos(tokenUtxos, amount, decimals)
+// Select enough tokens for transfer
+const { selectedUtxos, isEnough } = selectTokenUtxos(tokenUtxos, 100, decimals)
+if (!isEnough) throw new Error('Insufficient token balance')
 
-if (!isEnough) {
-  throw new Error('Insufficient token balance')
-}
+// Build transfer transaction
+const result = await transferOrdTokens({
+  protocol: TokenType.BSV21,
+  tokenID: tokenId,
+  decimals,
+  utxos,
+  inputTokens: selectedUtxos,
+  distributions: [{ address: 'recipient-address', tokens: 100 }],
+  paymentPk,
+  ordPk,
+  changeAddress: address,
+  tokenChangeAddress: address,
+})
 
-// For full token transfer transaction building, use js-1sat-ord directly
-// or the @1sat/wallet package with OneSatWallet
+// Broadcast
+const broadcaster = createBroadcaster()
+await broadcaster.broadcast(result.tx)
+console.log('Transferred:', result.tx.id('hex'))
 ```
 
 ## Protocols
@@ -277,9 +305,10 @@ if (!isEnough) {
 │  - createOrdinals() │  - useOneSat       │  - Indexers      │
 │  - TxBuilder        │  - ConnectButton   │  - Sync engine   │
 ├─────────────────────┴──────────────────────────────────────┤
-│  @1sat/connect                                              │
-│  - Popup management, postMessage protocol, session storage  │
-├─────────────────────────────────────────────────────────────┤
+│  @1sat/connect            │  @1sat/extension                │
+│  - Popup wallet connection│  - Browser extension toolkit    │
+│  - postMessage protocol   │  - window.onesat injection      │
+├───────────────────────────┴─────────────────────────────────┤
 │  @1sat/core         │  @1sat/client      │  @1sat/protocols │
 │  - TxBuilder        │  - Indexer API     │  - MAP, Sigma    │
 │  - Ordinal ops      │  - Broadcast       │  - OrdP2PKH      │
@@ -296,6 +325,7 @@ if (!isEnough) {
 | `@1sat/sdk` | Main SDK - browser dApps and transaction building |
 | `@1sat/react` | React hooks and ConnectButton component |
 | `@1sat/connect` | Popup-based wallet connection |
+| `@1sat/extension` | Build browser wallet extensions with window.onesat |
 | `@1sat/core` | TxBuilder and ordinal operations |
 | `@1sat/client` | API client for indexer, broadcast, ORDFS |
 | `@1sat/protocols` | MAP, Sigma, OrdP2PKH, OrdLock implementations |

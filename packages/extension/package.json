@@ -1,0 +1,46 @@
+{
+	"name": "@1sat/extension",
+	"version": "0.0.1",
+	"description": "Build browser wallet extensions that implement window.onesat",
+	"type": "module",
+	"main": "./dist/index.js",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./popup": {
+			"types": "./dist/popup.d.ts",
+			"import": "./dist/popup.js"
+		},
+		"./storage": {
+			"types": "./dist/storage.d.ts",
+			"import": "./dist/storage.js"
+		}
+	},
+	"files": ["dist", "README.md"],
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"clean": "rm -rf dist"
+	},
+	"devDependencies": {
+		"@types/chrome": "^0.0.287",
+		"typescript": "^5.9.3"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"keywords": [
+		"1sat",
+		"ordinals",
+		"bsv",
+		"bitcoin",
+		"wallet",
+		"extension",
+		"chrome"
+	],
+	"license": "MIT"
+}
