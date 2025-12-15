@@ -210,6 +210,7 @@ export type EventHandler<T = unknown> = (data: T) => void
 
 /**
  * Window interface extension for TypeScript
+ * Browser extensions inject window.onesat with isOneSat: true
  */
 declare global {
 	interface Window {
@@ -219,8 +220,12 @@ declare global {
 
 /**
  * Main provider interface
+ * Implemented by both popup provider and browser extension
  */
 export interface OneSatProvider {
+	/** Identifies this as the OneSat provider (for detection) */
+	readonly isOneSat: true
+
 	// Connection
 	connect(): Promise<ConnectResult>
 	disconnect(): Promise<void>

@@ -40,8 +40,12 @@ const DEFAULT_TIMEOUT = 300000 // 5 minutes
 
 /**
  * Browser implementation of the OneSat wallet provider
+ * Uses popup-based communication with the wallet
  */
 export class OneSatBrowserProvider implements OneSatProvider {
+	/** Identifies this as the OneSat provider (for detection like Phantom's isPhantom) */
+	readonly isOneSat = true as const
+
 	private popupManager: PopupManager
 	private connection: StoredConnection | null = null
 	private events = new EventEmitter()

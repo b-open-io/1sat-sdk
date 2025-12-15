@@ -6,8 +6,12 @@
 
 import { MAP_PREFIX } from '@1sat/constants'
 import type { MAP } from '@1sat/types'
-import { toHex } from '@1sat/utils'
-import { Script } from '@bsv/sdk'
+import { Script, Utils } from '@bsv/sdk'
+
+const { toArray, toHex } = Utils
+
+/** Convert UTF-8 string to hex */
+const utf8ToHex = (str: string): string => toHex(toArray(str, 'utf8'))
 
 /**
  * Build MAP metadata ASM for appending to a script
@@ -19,14 +23,14 @@ export function buildMapAsm(metaData: MAP): string {
 		throw new Error('MAP.app and MAP.type are required fields')
 	}
 
-	const mapPrefixHex = toHex(MAP_PREFIX)
-	const mapCmdValue = toHex('SET')
+	const mapPrefixHex = utf8ToHex(MAP_PREFIX)
+	const mapCmdValue = utf8ToHex('SET')
 
 	let asm = `OP_RETURN ${mapPrefixHex} ${mapCmdValue}`
 
 	for (const [key, value] of Object.entries(metaData)) {
 		if (key !== 'cmd' && value !== undefined) {
-			asm = `${asm} ${toHex(key)} ${toHex(value)}`
+			asm = `${asm} ${utf8ToHex(key)} ${utf8ToHex(value)}`
 		}
 	}
 

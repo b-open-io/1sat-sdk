@@ -24,7 +24,8 @@
 		"@1sat/constants": "workspace:*",
 		"@1sat/utils": "workspace:*",
 		"@1sat/protocols": "workspace:*",
-		"@1sat/client": "workspace:*"
+		"@1sat/client": "workspace:*",
+		"satoshi-token": "^0.0.4"
 	},
 	"peerDependencies": {
 		"@bsv/sdk": "^1.9.0"

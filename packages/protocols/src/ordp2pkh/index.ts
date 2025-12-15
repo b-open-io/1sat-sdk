@@ -5,11 +5,13 @@
  */
 
 import type { Inscription, MAP } from '@1sat/types'
-import { toHex } from '@1sat/utils'
 import { LockingScript, P2PKH, type Script, Utils } from '@bsv/sdk'
 import { buildMapAsm } from '../map'
 
-const { toArray, toHex: bsvToHex } = Utils
+const { toArray, toHex } = Utils
+
+/** Convert UTF-8 string to hex */
+const utf8ToHex = (str: string): string => toHex(toArray(str, 'utf8'))
 
 /**
  * Apply inscription envelope and optional MAP metadata to a locking script
@@ -32,15 +34,15 @@ export function applyInscription(
 		inscription?.dataB64 !== undefined &&
 		inscription?.contentType !== undefined
 	) {
-		const ordHex = toHex('ord')
+		const ordHex = utf8ToHex('ord')
 		const fileBytes = toArray(inscription.dataB64, 'base64')
-		const fileHex = bsvToHex(fileBytes).trim()
+		const fileHex = toHex(fileBytes).trim()
 
 		if (!fileHex) {
 			throw new Error('Invalid file data')
 		}
 
-		const contentTypeHex = toHex(inscription.contentType)
+		const contentTypeHex = utf8ToHex(inscription.contentType)
 		if (!contentTypeHex) {
 			throw new Error('Invalid content type')
 		}

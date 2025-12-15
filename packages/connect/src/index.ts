@@ -75,7 +75,34 @@ export { OneSatBrowserProvider } from './provider'
 export { PopupManager, type PopupConfig, type PendingRequest } from './popup'
 
 /**
- * Create a new OneSat provider instance
+ * Check if the OneSat provider is injected by browser extension
+ * Extensions inject window.onesat with isOneSat: true
+ */
+export function isOneSatInjected(): boolean {
+	return (
+		typeof window !== 'undefined' &&
+		window.onesat !== undefined &&
+		window.onesat.isOneSat === true
+	)
+}
+
+/**
+ * Get the injected OneSat provider from browser extension
+ * Returns undefined if no extension is installed
+ */
+export function getInjectedOneSat(): OneSatProvider | undefined {
+	if (isOneSatInjected()) {
+		return window.onesat
+	}
+	return undefined
+}
+
+/**
+ * Create or get a OneSat provider
+ *
+ * Detection priority:
+ * 1. If browser extension is installed (window.onesat.isOneSat), use it
+ * 2. Otherwise, create a popup-based provider
  *
  * @example
  * ```typescript
@@ -85,7 +112,7 @@ export { PopupManager, type PopupConfig, type PendingRequest } from './popup'
  *   appName: 'My dApp',
  * })
  *
- * // Connect to wallet
+ * // Connect to wallet (opens popup if no extension)
  * const { paymentAddress, ordinalAddress } = await onesat.connect()
  *
  * // Sign a transaction
@@ -93,10 +120,17 @@ export { PopupManager, type PopupConfig, type PendingRequest } from './popup'
  * ```
  */
 export function createOneSat(config?: OneSatConfig): OneSatProvider {
+	// Check for injected extension provider first
+	const injected = getInjectedOneSat()
+	if (injected) {
+		return injected
+	}
+
+	// Fall back to popup-based provider
 	const provider = new OneSatBrowserProvider(config)
 
-	// Inject into window
-	if (typeof window !== 'undefined') {
+	// Inject into window (so subsequent calls find it)
+	if (typeof window !== 'undefined' && !window.onesat) {
 		window.onesat = provider
 	}
 
@@ -104,28 +138,31 @@ export function createOneSat(config?: OneSatConfig): OneSatProvider {
 }
 
 /**
- * Get the existing provider from window.onesat or create a new one
+ * Get the existing provider from window.onesat or create a new popup provider
+ * @deprecated Use createOneSat() instead - it handles detection automatically
  */
 export function getOneSat(config?: OneSatConfig): OneSatProvider {
-	if (typeof window !== 'undefined' && window.onesat) {
-		return window.onesat
-	}
 	return createOneSat(config)
 }
 
 /**
- * Check if the OneSat provider is available
+ * Check if any OneSat provider is available (extension or popup)
  */
 export function isOneSatAvailable(): boolean {
-	return typeof window !== 'undefined' && window.onesat !== undefined
+	return typeof window !== 'undefined' && window.onesat?.isOneSat === true
 }
 
 /**
- * Wait for the OneSat provider to be available
+ * Wait for the OneSat extension to be injected
+ * Useful for detecting extension after page load
+ *
+ * @param timeout - Max time to wait in ms (default: 3000)
+ * @returns The injected provider, or throws if timeout
  */
-export function waitForOneSat(timeout = 5000): Promise<OneSatProvider> {
+export function waitForOneSat(timeout = 3000): Promise<OneSatProvider> {
 	return new Promise((resolve, reject) => {
-		if (isOneSatAvailable()) {
+		// Already available
+		if (isOneSatInjected()) {
 			resolve(window.onesat!)
 			return
 		}
@@ -133,7 +170,7 @@ export function waitForOneSat(timeout = 5000): Promise<OneSatProvider> {
 		const startTime = Date.now()
 
 		const checkInterval = setInterval(() => {
-			if (isOneSatAvailable()) {
+			if (isOneSatInjected()) {
 				clearInterval(checkInterval)
 				resolve(window.onesat!)
 				return
@@ -141,7 +178,7 @@ export function waitForOneSat(timeout = 5000): Promise<OneSatProvider> {
 
 			if (Date.now() - startTime > timeout) {
 				clearInterval(checkInterval)
-				reject(new Error('Timeout waiting for OneSat provider'))
+				reject(new Error('OneSat extension not detected'))
 			}
 		}, 100)
 	})

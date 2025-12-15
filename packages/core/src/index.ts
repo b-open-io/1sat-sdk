@@ -3,7 +3,7 @@
  *
  * This package provides:
  * - TxBuilder: Fluent API for building ordinal transactions
- * - High-level functions: createOrdinals, sendOrdinals
+ * - High-level functions: createOrdinals, sendOrdinals, transferOrdTokens
  */
 
 // TxBuilder
@@ -11,3 +11,6 @@ export { createTxBuilder, TxBuilder, type TxBuilderConfig } from './builder'
 
 // Ordinal operations
 export { createOrdinals, sendOrdinals } from './ordinals'
+
+// Token operations
+export { transferOrdTokens } from './tokens'

@@ -1,5 +1,9 @@
 /**
  * @1sat/utils - Utility functions for 1Sat Ordinals SDK
+ *
+ * For byte manipulation, use @bsv/sdk Utils directly:
+ * import { Utils } from '@bsv/sdk'
+ * const { toArray, toBase64, toHex, toUTF8 } = Utils
  */
 
 import type {
@@ -13,46 +17,7 @@ import type {
 import { Utils } from '@bsv/sdk'
 import { imageMeta } from 'image-meta'
 
-const { toArray, toHex: bsvToHex, toUTF8 } = Utils
-
-// ============================================================================
-// Encoding Utilities
-// ============================================================================
-
-/**
- * Convert a UTF-8 string to its hexadecimal representation
- * Uses @bsv/sdk instead of Buffer
- */
-export function toHex(utf8Str: string): string {
-	return bsvToHex(toArray(utf8Str, 'utf8'))
-}
-
-/**
- * Convert a base64 string to hexadecimal
- */
-export function base64ToHex(base64: string): string {
-	return bsvToHex(toArray(base64, 'base64'))
-}
-
-/**
- * Convert a hexadecimal string to base64
- */
-export function hexToBase64(hex: string): string {
-	const bytes = toArray(hex, 'hex')
-	// Use browser/node compatible base64 encoding
-	if (typeof btoa !== 'undefined') {
-		return btoa(String.fromCharCode(...bytes))
-	}
-	// Fallback for environments without btoa
-	return Utils.toBase64(bytes)
-}
-
-/**
- * Convert base64 to UTF-8 string
- */
-export function base64ToUtf8(base64: string): string {
-	return toUTF8(toArray(base64, 'base64'))
-}
+const { toArray, toUTF8 } = Utils
 
 // ============================================================================
 // Outpoint Utilities
@@ -172,7 +137,7 @@ function isImageContentType(value: string): value is ImageContentType {
  * Validate an SVG icon (base64 encoded)
  */
 function validateSvg(svgBase64: string): Error | null {
-	const svgString = base64ToUtf8(svgBase64)
+	const svgString = toUTF8(toArray(svgBase64, 'base64'))
 	const widthMatch = svgString.match(/<svg[^>]*\s+width="([^"]+)"/)
 	const heightMatch = svgString.match(/<svg[^>]*\s+height="([^"]+)"/)
 

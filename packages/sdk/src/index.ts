@@ -49,6 +49,15 @@
 // ============================================================================
 // Types (from @1sat/types)
 // ============================================================================
+
+// Enums (need value export for runtime access)
+export {
+	TokenType,
+	TokenSelectionStrategy,
+	TokenInputMode,
+} from '@1sat/types'
+
+// Type-only exports
 export type {
 	// UTXOs
 	Utxo,
@@ -56,18 +65,16 @@ export type {
 	TokenUtxo,
 	// Inscriptions
 	Inscription,
-	ContentType,
-	SubTypeData,
+	IconInscription,
+	Destination,
 	// Tokens
-	TokenType,
-	TokenSelectionStrategy,
-	TokenInputMode,
 	Distribution,
 	// Protocols
 	MAP,
 	PreMAP,
 	// Results
 	ChangeResult,
+	TokenChangeResult,
 	// Config types
 	CreateOrdinalsConfig,
 	CreateOrdinalsCollectionConfig,
@@ -77,44 +84,48 @@ export type {
 	Signer,
 	LocalSigner,
 	RemoteSigner,
+	// Payments & Listings
+	Payment,
+	NewListing,
+	ExistingListing,
 } from '@1sat/types'
 
 // ============================================================================
 // Constants (from @1sat/constants)
 // ============================================================================
 export {
-	// Protocol opcodes
-	OP_FALSE,
-	OP_IF,
-	OP_ENDIF,
-	OP_RETURN,
+	// Protocol identifiers
 	ORD_PREFIX,
 	MAP_PREFIX,
 	// Fees
 	DEFAULT_SAT_PER_KB,
-	MIN_FEE,
 	DUST_LIMIT,
 	// Endpoints
-	API_HOST_MAIN,
-	API_HOST_TEST,
-	ORDFS_URL,
+	API_HOST,
+	API_HOST_TESTNET,
+	ORDFS_HOST,
+	// OrdLock
+	ORD_LOCK_PREFIX,
+	ORD_LOCK_SUFFIX,
+	// Content types
+	TOKEN_CONTENT_TYPE,
+	IMAGE_CONTENT_TYPES,
 } from '@1sat/constants'
 
 // ============================================================================
 // Utils (from @1sat/utils)
 // ============================================================================
 export {
-	// Encoding
-	hexToBase64,
-	base64ToHex,
 	// Outpoint parsing
 	parseOutpoint,
 	formatOutpoint,
+	isValidOutpoint,
 	// Metadata
 	stringifyMetaData,
 	// Validation
-	validateSubType,
-	validateIconSize,
+	validateSubTypeData,
+	validIconData,
+	validIconFormat,
 } from '@1sat/utils'
 
 // ============================================================================
@@ -123,18 +134,41 @@ export {
 export {
 	// Sigma signing
 	signData,
+	createSigma,
 	isLocalSigner,
+	isRemoteSigner,
+	Sigma,
+	// MAP protocol
+	buildMapScript,
+	buildMapAsm,
+	appendMapToScript,
+	createMap,
+	isValidMap,
 	// Templates
 	OrdP2PKH,
+	createOrdP2PKHScript,
+	applyInscription,
 	OrdLock,
+	createOrdLockScript,
+	isOrdLockScript,
+	buildOutput,
 	// Inscription building
 	buildInscriptionEnvelope,
+	buildInscriptionEnvelopeAsm,
+	createInscription,
+	createJsonInscription,
+	hasInscriptionEnvelope,
 } from '@1sat/protocols'
 
 // ============================================================================
 // Client (from @1sat/client)
 // ============================================================================
 export {
+	// HTTP client
+	createHttpClient,
+	FetchHttpClient,
+	type HttpClient,
+	type HttpClientResponse,
 	// UTXO fetching
 	fetchPayUtxos,
 	fetchNftUtxos,
@@ -142,9 +176,10 @@ export {
 	selectTokenUtxos,
 	// Broadcasting
 	OneSatBroadcaster,
-	broadcast,
+	createBroadcaster,
 	// Input conversion
 	inputFromUtxo,
+	inputsFromUtxos,
 } from '@1sat/client'
 
 // ============================================================================
@@ -154,6 +189,7 @@ export {
 	// TxBuilder
 	TxBuilder,
 	createTxBuilder,
+	type TxBuilderConfig,
 	// High-level operations
 	createOrdinals,
 	sendOrdinals,
@@ -167,6 +203,8 @@ export {
 	createOneSat,
 	getOneSat,
 	isOneSatAvailable,
+	isOneSatInjected,
+	getInjectedOneSat,
 	waitForOneSat,
 	// Provider
 	OneSatBrowserProvider,

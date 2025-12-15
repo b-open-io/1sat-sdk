@@ -6,10 +6,12 @@
  */
 
 import type { Inscription } from '@1sat/types'
-import { toHex } from '@1sat/utils'
 import { Script, Utils } from '@bsv/sdk'
 
-const { toArray, toHex: bsvToHex } = Utils
+const { toArray, toHex } = Utils
+
+/** Convert UTF-8 string to hex */
+const utf8ToHex = (str: string): string => toHex(toArray(str, 'utf8'))
 
 /**
  * Build an inscription envelope script
@@ -19,15 +21,15 @@ const { toArray, toHex: bsvToHex } = Utils
 export function buildInscriptionEnvelope(inscription: Inscription): Script {
 	const { dataB64, contentType } = inscription
 
-	const ordHex = toHex('ord')
+	const ordHex = utf8ToHex('ord')
 	const fileBytes = toArray(dataB64, 'base64')
-	const fileHex = bsvToHex(fileBytes).trim()
+	const fileHex = toHex(fileBytes).trim()
 
 	if (!fileHex) {
 		throw new Error('Invalid file data')
 	}
 
-	const contentTypeHex = toHex(contentType)
+	const contentTypeHex = utf8ToHex(contentType)
 	if (!contentTypeHex) {
 		throw new Error('Invalid content type')
 	}
@@ -46,15 +48,15 @@ export function buildInscriptionEnvelope(inscription: Inscription): Script {
 export function buildInscriptionEnvelopeAsm(inscription: Inscription): string {
 	const { dataB64, contentType } = inscription
 
-	const ordHex = toHex('ord')
+	const ordHex = utf8ToHex('ord')
 	const fileBytes = toArray(dataB64, 'base64')
-	const fileHex = bsvToHex(fileBytes).trim()
+	const fileHex = toHex(fileBytes).trim()
 
 	if (!fileHex) {
 		throw new Error('Invalid file data')
 	}
 
-	const contentTypeHex = toHex(contentType)
+	const contentTypeHex = utf8ToHex(contentType)
 	if (!contentTypeHex) {
 		throw new Error('Invalid content type')
 	}
@@ -70,7 +72,7 @@ export function buildInscriptionEnvelopeAsm(inscription: Inscription): string {
 export function hasInscriptionEnvelope(script: Script): boolean {
 	const asm = script.toASM()
 	// Look for the ordinals envelope pattern
-	const ordHex = toHex('ord')
+	const ordHex = utf8ToHex('ord')
 	return asm.includes(`OP_0 OP_IF ${ordHex}`) && asm.includes('OP_ENDIF')
 }
 

@@ -31,6 +31,9 @@ npm install @1sat/react
 
 ```typescript
 import { createOneSat } from '@1sat/sdk'
+import { Utils } from '@bsv/sdk'
+
+const { toArray, toBase64 } = Utils
 
 const onesat = createOneSat({
   appName: 'My dApp',
@@ -48,7 +51,7 @@ try {
 
 // Inscribe
 await onesat.inscribe({
-  dataB64: btoa('Hello, Ordinals!'),
+  dataB64: toBase64(toArray('Hello, Ordinals!', 'utf8')),
   contentType: 'text/plain',
 })
 
@@ -59,10 +62,10 @@ await onesat.sendOrdinals({
 })
 
 // Transfer tokens
-await onesat.transferTokens({
+await onesat.transferToken({
   tokenId: 'token-origin',
-  amount: 100,
-  destination: 'recipient-address',
+  amount: '100',
+  destinationAddress: 'recipient-address',
 })
 ```
 
@@ -100,8 +103,10 @@ function WalletInfo() {
 For backends or scripts where you control the keys directly:
 
 ```typescript
-import { createOrdinals, fetchPayUtxos, broadcast } from '@1sat/sdk'
-import { PrivateKey } from '@bsv/sdk'
+import { createOrdinals, fetchPayUtxos, createBroadcaster } from '@1sat/sdk'
+import { PrivateKey, Utils } from '@bsv/sdk'
+
+const { toArray, toBase64 } = Utils
 
 // SERVER SIDE ONLY - Never expose keys in client code
 const privateKey = PrivateKey.fromWif(process.env.WALLET_WIF!)
@@ -116,7 +121,7 @@ const result = await createOrdinals({
   destinations: [{
     address,
     inscription: {
-      dataB64: btoa('Hello, Ordinals!'),
+      dataB64: toBase64(toArray('Hello, Ordinals!', 'utf8')),
       contentType: 'text/plain',
     },
   }],
@@ -125,21 +130,23 @@ const result = await createOrdinals({
 })
 
 // Broadcast to network
-await broadcast(result.tx)
+const broadcaster = createBroadcaster()
+const broadcastResult = await broadcaster.broadcast(result.tx)
 console.log('Inscribed:', result.tx.id('hex'))
 ```
 
 ## Network Configuration
 
 ```typescript
-import { API_HOST_MAIN, API_HOST_TEST } from '@1sat/sdk'
+import { API_HOST, API_HOST_TESTNET, ORDFS_HOST } from '@1sat/sdk'
 
 // Mainnet (default)
 const onesat = createOneSat({ appName: 'My dApp' })
 
-// For direct transaction building, configure the API host:
-// Mainnet: https://ordinals.gorillapool.io
-// Testnet: https://testnet.ordinals.gorillapool.io
+// API endpoints:
+// API_HOST: https://ordinals.gorillapool.io/api (mainnet)
+// API_HOST_TESTNET: https://testnet.ordinals.gorillapool.io/api (testnet)
+// ORDFS_HOST: https://ordfs.network (inscription content)
 ```
 
 ## Wallet Compatibility
@@ -168,17 +175,19 @@ const onesat = createOneSat({
 |--------|-------------|
 | `connect()` | Connect to wallet, returns `{ paymentAddress, ordinalAddress }` |
 | `disconnect()` | Disconnect current session |
+| `isConnected()` | Check if wallet is connected |
 | `signTransaction(request)` | Sign a raw transaction |
 | `signMessage(message)` | Sign a message (BSM) |
 | `inscribe(request)` | Create an inscription |
 | `sendOrdinals(request)` | Transfer ordinals |
-| `transferTokens(request)` | Transfer BSV20/21 tokens |
+| `transferToken(request)` | Transfer BSV20/21 tokens |
 | `createListing(request)` | List ordinal for sale |
 | `purchaseListing(request)` | Buy a listed ordinal |
 | `cancelListing(request)` | Cancel a listing |
 | `getBalance()` | Get wallet balance |
 | `getOrdinals(options?)` | List owned ordinals |
 | `getTokens(options?)` | List owned tokens |
+| `getUtxos()` | Get payment UTXOs |
 
 ### Events
 
@@ -216,11 +225,24 @@ try {
 
 ## Token Operations
 
-```typescript
-import { fetchTokenUtxos, selectTokenUtxos, transferOrdTokens, broadcast } from '@1sat/sdk'
+For token transfers via wallet popup (browser dApps):
 
-// Fetch token UTXOs
-const tokenUtxos = await fetchTokenUtxos(address, tokenId)
+```typescript
+// Transfer tokens via wallet popup
+await onesat.transferToken({
+  tokenId: 'token-origin-txid_0',
+  amount: '100',
+  destinationAddress: 'recipient-address',
+})
+```
+
+For server-side token operations with direct key access:
+
+```typescript
+import { fetchTokenUtxos, selectTokenUtxos, TokenType } from '@1sat/sdk'
+
+// Fetch token UTXOs (note: protocol is first argument)
+const tokenUtxos = await fetchTokenUtxos(TokenType.BSV21, tokenId, address)
 
 // Select UTXOs for transfer amount
 const { selectedUtxos, isEnough } = selectTokenUtxos(tokenUtxos, amount, decimals)
@@ -229,21 +251,8 @@ if (!isEnough) {
   throw new Error('Insufficient token balance')
 }
 
-// Build and broadcast transfer
-const result = await transferOrdTokens({
-  protocol: 'bsv21',
-  tokenID: tokenId,
-  decimals: 8,
-  utxos: paymentUtxos,
-  inputTokens: selectedUtxos,
-  distributions: [{ address: recipient, tokens: amount }],
-  paymentPk: privateKey,
-  ordPk: ordinalKey,
-  changeAddress: address,
-  tokenChangeAddress: address,
-})
-
-await broadcast(result.tx)
+// For full token transfer transaction building, use js-1sat-ord directly
+// or the @1sat/wallet package with OneSatWallet
 ```
 
 ## Protocols
@@ -263,18 +272,18 @@ await broadcast(result.tx)
 ┌─────────────────────────────────────────────────────────────┐
 │                      Your Application                        │
 ├─────────────────────────────────────────────────────────────┤
-│  @1sat/sdk          │  @1sat/react                          │
-│  - createOneSat()   │  - OneSatProvider                     │
-│  - createOrdinals() │  - useOneSat, useBalance              │
-│  - sendOrdinals()   │  - ConnectButton                      │
-├─────────────────────┴───────────────────────────────────────┤
+│  @1sat/sdk          │  @1sat/react       │  @1sat/wallet    │
+│  - createOneSat()   │  - OneSatProvider  │  - OneSatWallet  │
+│  - createOrdinals() │  - useOneSat       │  - Indexers      │
+│  - TxBuilder        │  - ConnectButton   │  - Sync engine   │
+├─────────────────────┴──────────────────────────────────────┤
 │  @1sat/connect                                              │
 │  - Popup management, postMessage protocol, session storage  │
 ├─────────────────────────────────────────────────────────────┤
 │  @1sat/core         │  @1sat/client      │  @1sat/protocols │
 │  - TxBuilder        │  - Indexer API     │  - MAP, Sigma    │
 │  - Ordinal ops      │  - Broadcast       │  - OrdP2PKH      │
-│                     │  - ORDFS           │  - OrdLock       │
+│                     │  - UTXO fetch      │  - OrdLock       │
 ├─────────────────────────────────────────────────────────────┤
 │  @1sat/types  │  @1sat/constants  │  @1sat/utils            │
 └─────────────────────────────────────────────────────────────┘
@@ -293,7 +302,7 @@ await broadcast(result.tx)
 | `@1sat/types` | TypeScript type definitions |
 | `@1sat/constants` | Protocol constants and endpoints |
 | `@1sat/utils` | Encoding and validation utilities |
-| `@1sat/wallet` | Full wallet engine (for wallet apps) |
+| `@1sat/wallet` | Full BRC-100 wallet engine with indexers and sync |
 
 ## Development
 

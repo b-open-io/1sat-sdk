@@ -477,12 +477,12 @@ src/
 - [x] `@1sat/client` - HTTP client, UTXO fetching, broadcasting, input utilities
 - [x] `@1sat/core` - TxBuilder fluent API, createOrdinals, sendOrdinals
 
-### Phase 4: Wallet
-- [ ] `@1sat/wallet` - Full wallet engine
+### Phase 4: Wallet ✅ COMPLETE
+- [x] `@1sat/wallet` - Full wallet engine (re-exports @1sat/wallet-toolbox)
 
-### Phase 5: Integration
-- [ ] Update `@1sat/sdk` to bundle core + connect
-- [ ] Examples
+### Phase 5: Integration ✅ COMPLETE
+- [x] Update `@1sat/sdk` to bundle all packages with subpath exports
+- [ ] Examples (pending)
 
 ---
 
