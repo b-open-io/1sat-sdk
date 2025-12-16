@@ -70,6 +70,20 @@ export {
 	type StoredConnection,
 } from './storage'
 
+// Export wallet-side utilities (for popup pages)
+export {
+	parsePopupParams,
+	sendResponse,
+	sendErrorResponse,
+	rejectRequest,
+	walletLockedError,
+	walletNotConnectedError,
+	closePopup,
+	isPopupContext,
+	getPopupContext,
+	type PopupParams,
+} from './wallet'
+
 // Export provider
 export { OneSatBrowserProvider } from './provider'
 export { PopupManager, type PopupConfig, type PendingRequest } from './popup'
