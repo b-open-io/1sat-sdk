@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/connect",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"description": "Connection layer for 1Sat wallet - popup flow, events, session management",
 	"type": "module",
 	"main": "./dist/index.js",

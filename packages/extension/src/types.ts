@@ -125,15 +125,32 @@ export type ExtensionMessage =
 
 /**
  * Error codes (JSON-RPC compatible)
+ * Aligned with @1sat/connect for consistency
  */
 export const ErrorCode = {
+	// Standard JSON-RPC errors
+	PARSE_ERROR: -32700,
+	INVALID_REQUEST: -32600,
+	METHOD_NOT_FOUND: -32601,
+	INVALID_PARAMS: -32602,
+	INTERNAL_ERROR: -32603,
+
+	// Custom 1Sat errors (4000-4999)
 	USER_REJECTED: 4001,
+	WALLET_LOCKED: 4002,
+	WALLET_NOT_CONNECTED: 4003,
+	INSUFFICIENT_FUNDS: 4004,
+	INVALID_TRANSACTION: 4005,
+	POPUP_BLOCKED: 4006,
+	POPUP_CLOSED: 4007,
+	TIMEOUT: 4008,
+	NETWORK_ERROR: 4009,
+	ORIGIN_NOT_ALLOWED: 4010,
+
+	// EIP-1193 compatible aliases
 	UNAUTHORIZED: 4100,
 	UNSUPPORTED_METHOD: 4200,
 	DISCONNECTED: 4900,
-	INTERNAL_ERROR: -32603,
-	INVALID_PARAMS: -32602,
-	METHOD_NOT_FOUND: -32601,
 } as const
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode]

@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/client",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"description": "API client for 1Sat Ordinals SDK",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -20,8 +20,8 @@
 	"keywords": ["1sat", "bsv", "ordinals", "client", "api"],
 	"license": "MIT",
 	"dependencies": {
-		"@1sat/types": "workspace:*",
-		"@1sat/constants": "workspace:*",
+		"@1sat/types": "^0.0.2",
+		"@1sat/constants": "^0.0.2",
 		"satoshi-token": "^0.0.4"
 	},
 	"peerDependencies": {

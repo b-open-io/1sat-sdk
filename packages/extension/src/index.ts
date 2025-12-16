@@ -59,6 +59,10 @@ export {
 export {
 	OneSatExtensionError,
 	UserRejectedError,
+	WalletLockedError,
+	WalletNotConnectedError,
+	InsufficientFundsError,
+	InvalidTransactionError,
 	UnauthorizedError,
 	UnsupportedMethodError,
 	DisconnectedError,

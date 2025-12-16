@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/constants",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"description": "Constants for 1Sat Ordinals SDK",
 	"type": "module",
 	"main": "./dist/index.js",

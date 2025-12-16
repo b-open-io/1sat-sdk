@@ -42,7 +42,47 @@ export class UserRejectedError extends OneSatExtensionError {
 }
 
 /**
- * Not authorized / not connected (4100)
+ * Wallet is locked (4002)
+ */
+export class WalletLockedError extends OneSatExtensionError {
+	constructor(message = 'Wallet is locked. Please unlock first.') {
+		super(ErrorCode.WALLET_LOCKED, message)
+		this.name = 'WalletLockedError'
+	}
+}
+
+/**
+ * Wallet not connected (4003)
+ */
+export class WalletNotConnectedError extends OneSatExtensionError {
+	constructor(message = 'Wallet is not connected') {
+		super(ErrorCode.WALLET_NOT_CONNECTED, message)
+		this.name = 'WalletNotConnectedError'
+	}
+}
+
+/**
+ * Insufficient funds (4004)
+ */
+export class InsufficientFundsError extends OneSatExtensionError {
+	constructor(message = 'Insufficient funds') {
+		super(ErrorCode.INSUFFICIENT_FUNDS, message)
+		this.name = 'InsufficientFundsError'
+	}
+}
+
+/**
+ * Invalid transaction (4005)
+ */
+export class InvalidTransactionError extends OneSatExtensionError {
+	constructor(message = 'Invalid transaction') {
+		super(ErrorCode.INVALID_TRANSACTION, message)
+		this.name = 'InvalidTransactionError'
+	}
+}
+
+/**
+ * Not authorized / not connected (4100) - EIP-1193 compatible alias
  */
 export class UnauthorizedError extends OneSatExtensionError {
 	constructor(message = 'Not authorized. Please connect first.') {
@@ -137,6 +177,14 @@ export function fromExtensionError(
 	switch (error.code) {
 		case ErrorCode.USER_REJECTED:
 			return new UserRejectedError(error.message)
+		case ErrorCode.WALLET_LOCKED:
+			return new WalletLockedError(error.message)
+		case ErrorCode.WALLET_NOT_CONNECTED:
+			return new WalletNotConnectedError(error.message)
+		case ErrorCode.INSUFFICIENT_FUNDS:
+			return new InsufficientFundsError(error.message)
+		case ErrorCode.INVALID_TRANSACTION:
+			return new InvalidTransactionError(error.message)
 		case ErrorCode.UNAUTHORIZED:
 			return new UnauthorizedError(error.message)
 		case ErrorCode.UNSUPPORTED_METHOD:

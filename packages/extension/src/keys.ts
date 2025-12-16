@@ -30,9 +30,51 @@
  * ```
  */
 
-import { PrivateKey } from '@bsv/sdk'
+import { HD, Mnemonic, PrivateKey } from '@bsv/sdk'
 import { type OneSatBackup, decryptBackup, encryptBackup } from 'bitcoin-backup'
 import browser from 'webextension-polyfill'
+
+// ============================================================================
+// HD Derivation Path Constants
+// ============================================================================
+
+/** Yours Wallet standard paths */
+export const YOURS_WALLET_PATH = "m/44'/236'/0'/1/0"
+export const YOURS_ORD_PATH = "m/44'/236'/1'/0/0"
+export const YOURS_ID_PATH = "m/0'/236'/0'/0/0"
+
+/** RelayX paths */
+export const RELAYX_WALLET_PATH = YOURS_WALLET_PATH
+export const RELAYX_ORD_PATH = "m/44'/236'/0'/2/0"
+export const RELAYX_ID_PATH = YOURS_ID_PATH
+export const RELAYX_SWEEP_PATH = "m/44'/236'/0'/0/0"
+
+/** Twetch paths */
+export const TWETCH_WALLET_PATH = 'm/0/0'
+export const TWETCH_ORD_PATH = YOURS_ORD_PATH
+
+/** AYM paths */
+export const AYM_WALLET_PATH = 'm/0/0'
+export const AYM_ORD_PATH = 'm'
+
+/**
+ * Derivation paths configuration
+ */
+export interface DerivationPaths {
+	/** Path for payment/change address */
+	paymentPath: string
+	/** Path for ordinals address */
+	ordinalPath: string
+	/** Path for identity key (optional, defaults to ordinal path) */
+	identityPath?: string
+}
+
+/** Default derivation paths (Yours wallet compatible) */
+export const DEFAULT_DERIVATION_PATHS: DerivationPaths = {
+	paymentPath: YOURS_WALLET_PATH,
+	ordinalPath: YOURS_ORD_PATH,
+	identityPath: YOURS_ID_PATH,
+}
 
 /** Storage key for encrypted wallet data */
 const ENCRYPTED_WALLET_KEY = 'onesat_encrypted_wallet'
@@ -187,6 +229,96 @@ export class KeyStore {
 		}
 
 		return this.keys
+	}
+
+	/**
+	 * Import keys from a mnemonic with specified derivation paths
+	 * @param mnemonic - BIP39 mnemonic phrase
+	 * @param paths - Derivation paths (defaults to Yours wallet paths)
+	 */
+	importFromMnemonic(
+		mnemonic: string,
+		paths: DerivationPaths = DEFAULT_DERIVATION_PATHS,
+	): WalletKeys {
+		const seed = Mnemonic.fromString(mnemonic).toSeed()
+		const masterNode = HD.fromSeed(seed)
+
+		const paymentKey = masterNode.derive(paths.paymentPath).privKey
+		const ordinalKey = masterNode.derive(paths.ordinalPath).privKey
+		const identityKey = paths.identityPath
+			? masterNode.derive(paths.identityPath).privKey
+			: ordinalKey
+
+		this.keys = {
+			paymentKey,
+			ordinalKey,
+			identityKey,
+		}
+
+		this.meta = {
+			paymentAddress: paymentKey.toAddress(),
+			ordinalAddress: ordinalKey.toAddress(),
+			identityPubKey: identityKey.toPublicKey().toString(),
+			createdAt: new Date().toISOString(),
+		}
+
+		return this.keys
+	}
+
+	/**
+	 * Import from mnemonic, finding an ordinal address with "1s" prefix
+	 * Searches child keys until finding one with vanity "1s" prefix
+	 * @param mnemonic - BIP39 mnemonic phrase
+	 * @param timeout - Max search time in ms (default 100s)
+	 */
+	async findKeysFromMnemonic(
+		mnemonic: string,
+		timeout = 100000,
+	): Promise<{ keys: WalletKeys; ordinalIndex: number }> {
+		const seed = Mnemonic.fromString(mnemonic).toSeed()
+		const masterNode = HD.fromSeed(seed)
+
+		// Payment key at m/0
+		const paymentKey = masterNode.derive('m/0').privKey
+
+		// Search for ordinal key with "1s" prefix
+		const startTime = Date.now()
+		let index = 1
+
+		while (Date.now() - startTime < timeout) {
+			const ordinalNode = masterNode.derive(`m/${index}`)
+			const address = ordinalNode.privKey.toAddress()
+
+			if (address.startsWith('1s')) {
+				const ordinalKey = ordinalNode.privKey
+
+				this.keys = {
+					paymentKey,
+					ordinalKey,
+					identityKey: ordinalKey, // Use same key for identity
+				}
+
+				this.meta = {
+					paymentAddress: paymentKey.toAddress(),
+					ordinalAddress: address,
+					identityPubKey: ordinalKey.toPublicKey().toString(),
+					createdAt: new Date().toISOString(),
+				}
+
+				return { keys: this.keys, ordinalIndex: index }
+			}
+
+			index++
+
+			// Yield to event loop periodically
+			if (index % 100 === 0) {
+				await new Promise((resolve) => setTimeout(resolve, 0))
+			}
+		}
+
+		throw new Error(
+			`Timeout: Could not find "1s" prefixed address within ${timeout}ms`,
+		)
 	}
 
 	/**
@@ -381,4 +513,128 @@ export class KeyStore {
  */
 export function createKeyStore(): KeyStore {
 	return new KeyStore()
+}
+
+// ============================================================================
+// Standalone Utility Functions
+// ============================================================================
+
+/**
+ * Derive a single private key from mnemonic and path
+ */
+export function deriveKeyFromMnemonic(
+	mnemonic: string,
+	path: string,
+): PrivateKey {
+	const seed = Mnemonic.fromString(mnemonic).toSeed()
+	const masterNode = HD.fromSeed(seed)
+	return masterNode.derive(path).privKey
+}
+
+/**
+ * Derive keys from mnemonic with specified paths
+ */
+export function deriveKeysFromMnemonic(
+	mnemonic: string,
+	paths: DerivationPaths = DEFAULT_DERIVATION_PATHS,
+): WalletKeys {
+	const seed = Mnemonic.fromString(mnemonic).toSeed()
+	const masterNode = HD.fromSeed(seed)
+
+	const paymentKey = masterNode.derive(paths.paymentPath).privKey
+	const ordinalKey = masterNode.derive(paths.ordinalPath).privKey
+	const identityKey = paths.identityPath
+		? masterNode.derive(paths.identityPath).privKey
+		: ordinalKey
+
+	return { paymentKey, ordinalKey, identityKey }
+}
+
+/**
+ * Find keys from mnemonic with "1s" vanity ordinal address
+ * Standalone function (doesn't require KeyStore)
+ */
+export async function findKeysFromMnemonic(
+	mnemonic: string,
+	timeout = 100000,
+): Promise<{ keys: WalletKeys; paymentIndex: number; ordinalIndex: number }> {
+	const seed = Mnemonic.fromString(mnemonic).toSeed()
+	const masterNode = HD.fromSeed(seed)
+
+	// Payment key at m/0
+	const paymentKey = masterNode.derive('m/0').privKey
+
+	// Search for ordinal key with "1s" prefix
+	const startTime = Date.now()
+	let index = 1
+
+	while (Date.now() - startTime < timeout) {
+		const ordinalNode = masterNode.derive(`m/${index}`)
+		const address = ordinalNode.privKey.toAddress()
+
+		if (address.startsWith('1s')) {
+			const ordinalKey = ordinalNode.privKey
+
+			return {
+				keys: {
+					paymentKey,
+					ordinalKey,
+					identityKey: ordinalKey,
+				},
+				paymentIndex: 0,
+				ordinalIndex: index,
+			}
+		}
+
+		index++
+
+		// Yield to event loop periodically
+		if (index % 100 === 0) {
+			await new Promise((resolve) => setTimeout(resolve, 0))
+		}
+	}
+
+	throw new Error(
+		`Timeout: Could not find "1s" prefixed address within ${timeout}ms`,
+	)
+}
+
+/**
+ * Generate a new random BIP39 mnemonic
+ */
+export function generateMnemonic(): string {
+	return Mnemonic.fromRandom().toString()
+}
+
+/**
+ * Validate a BIP39 mnemonic phrase
+ */
+export function validateMnemonic(mnemonic: string): boolean {
+	try {
+		Mnemonic.fromString(mnemonic)
+		return true
+	} catch {
+		return false
+	}
+}
+
+/**
+ * Convert WIF to hex format (for wallet-toolbox compatibility)
+ */
+export function wifToHex(wif: string): string {
+	return PrivateKey.fromWif(wif).toString()
+}
+
+/**
+ * Get address from WIF
+ */
+export function wifToAddress(wif: string): string {
+	return PrivateKey.fromWif(wif).toAddress()
+}
+
+/**
+ * Get public key from WIF
+ */
+export function wifToPubKey(wif: string): string {
+	return PrivateKey.fromWif(wif).toPublicKey().toString()
 }
