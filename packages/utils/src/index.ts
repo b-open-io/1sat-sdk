@@ -298,3 +298,35 @@ export function validateSubTypeData(
 		return new Error('Invalid JSON data')
 	}
 }
+
+// ============================================================================
+// Key Derivation Utilities
+// ============================================================================
+
+export {
+	// Types
+	type WalletKeys,
+	type KeyDerivationPaths,
+	// Derivation path constants
+	YOURS_WALLET_PATH,
+	YOURS_ID_PATH,
+	YOURS_ORD_PATH,
+	RELAYX_ORD_PATH,
+	RELAYX_ID_PATH,
+	RELAYX_WALLET_PATH,
+	RELAYX_SWEEP_PATH,
+	TWETCH_WALLET_PATH,
+	TWETCH_ORD_PATH,
+	AYM_WALLET_PATH,
+	AYM_ORD_PATH,
+	// Conversion utilities
+	wifToHex,
+	wifToAddress,
+	wifToPublicKey,
+	// Key derivation functions
+	deriveKeyFromMnemonic,
+	getKeysFromMnemonicAndPaths,
+	findKeysWithVanityOrdinal,
+	generateMnemonic,
+	isValidMnemonic,
+} from './keys'
