@@ -22,7 +22,7 @@
 	"dependencies": {
 		"@1sat/types": "^0.0.2",
 		"@1sat/constants": "^0.0.2",
-		"@1sat/wallet-toolbox": "^0.0.1"
+		"@1sat/wallet-toolbox": "^0.0.2"
 	},
 	"peerDependencies": {
 		"@bsv/sdk": "^1.9.0",
