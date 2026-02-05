@@ -1,0 +1,35 @@
+{
+	"name": "@1sat/actions",
+	"version": "0.0.1",
+	"description": "Action definitions for the 1Sat SDK",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": ["dist"],
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"clean": "rm -rf dist"
+	},
+	"keywords": ["1sat", "bsv", "actions", "wallet", "ordinals"],
+	"license": "MIT",
+	"dependencies": {
+		"@1sat/client": "^0.0.2",
+		"@1sat/constants": "^0.0.2",
+		"@1sat/types": "^0.0.2",
+		"@bopen-io/templates": "^1.1.7"
+	},
+	"peerDependencies": {
+		"@bsv/sdk": "^1.10.4"
+	},
+	"devDependencies": {
+		"@bsv/sdk": "^1.10.4",
+		"typescript": "^5.9.3"
+	}
+}

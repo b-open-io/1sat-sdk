@@ -1,8 +1,7 @@
 /**
  * @1sat/wallet - BRC-100 Wallet Engine for 1Sat Ordinals SDK
  *
- * This package provides the wallet functionality for the 1Sat SDK,
- * wrapping @1sat/wallet-toolbox with SDK-specific integrations.
+ * This package provides the wallet functionality for the 1Sat SDK.
  *
  * @example
  * ```typescript
@@ -30,33 +29,37 @@
 // Core wallet exports
 export {
 	OneSatWallet,
+	type IngestResult,
 	type OneSatWalletArgs,
 	type OneSatWalletEvents,
-	type IngestResult,
-} from '@1sat/wallet-toolbox'
+} from './OneSatWallet'
 
 // Services
-export {
-	OneSatServices,
-	type SyncOutput,
-	type OrdfsMetadata,
-	type Capability,
-} from '@1sat/wallet-toolbox'
+export { OneSatServices } from '@1sat/client'
+export type {
+	Bsv21OutputData,
+	Bsv21TokenData,
+	Bsv21TransactionData,
+	Capability,
+	OrdfsMetadata,
+	SyncOutput,
+} from '@1sat/types'
 
 // Signers
-export { ReadOnlySigner } from '@1sat/wallet-toolbox'
+export { ReadOnlySigner } from './signers/ReadOnlySigner'
 
 // API Clients
 export {
-	BaseClient,
-	ChaintracksClient,
-	BeefClient,
 	ArcadeClient,
-	TxoClient,
-	OwnerClient,
-	OrdfsClient,
+	BaseClient,
+	BeefClient,
 	Bsv21Client,
-} from '@1sat/wallet-toolbox'
+	ChaintracksClient,
+	OrdfsClient,
+	OwnerClient,
+	OverlayClient,
+	TxoClient,
+} from '@1sat/client'
 
 // Indexers
 export {
@@ -76,9 +79,6 @@ export {
 	parseAddress,
 	SigmaIndexer,
 	type Bsv21,
-	type Bsv21OutputData,
-	type Bsv21TokenData,
-	type Bsv21TransactionData,
 	type CosignData,
 	type File,
 	type IndexData,
@@ -89,7 +89,68 @@ export {
 	type ParseResult,
 	type Sigma,
 	type Txo,
-} from '@1sat/wallet-toolbox'
+} from './indexers'
+
+// Address sync
+export {
+	AddressManager,
+	AddressSyncFetcher,
+	AddressSyncManager,
+	AddressSyncProcessor,
+	AddressSyncQueueIdb,
+	AddressSyncQueueSqlite,
+	BRC29_PROTOCOL_ID,
+	YOURS_PREFIX,
+	type AddressDerivation,
+	type AddressSyncEvents,
+	type AddressSyncFetcherEvents,
+	type AddressSyncFetcherOptions,
+	type AddressSyncManagerOptions,
+	type AddressSyncProcessorEvents,
+	type AddressSyncProcessorOptions,
+	type AddressSyncQueueInput,
+	type AddressSyncQueueItem,
+	type AddressSyncQueueItemStatus,
+	type AddressSyncQueueStats,
+	type AddressSyncQueueStorage,
+	type AddressSyncState,
+} from './address-sync'
+
+// Backup
+export {
+	FileBackupProvider,
+	FileRestoreReader,
+	Zip,
+	ZipDeflate,
+	unzip,
+	type BackupManifest,
+	type BackupProgressCallback,
+	type BackupProgressEvent,
+	type Unzipped,
+} from './backup'
+
+// Factory
+export {
+	createWebWallet,
+	fullSync,
+	type FullSyncOptions,
+	type FullSyncResult,
+	type FullSyncStage,
+	type WebWalletConfig,
+	type WebWalletResult,
+} from './factory'
+
+// CWI (Compute With Integrity)
+export {
+	ChromeCWI,
+	CWIEventName,
+	EventCWI,
+	createChromeCWI,
+	createCWI,
+	createEventCWI,
+	type CWIResponseDetail,
+	type CWITransport,
+} from './cwi'
 
 // Note: Storage utilities (StorageIdb, WalletStorageManager, Chain) should be
 // imported directly from '@bsv/wallet-toolbox/mobile'

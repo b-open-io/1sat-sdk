@@ -12,6 +12,7 @@
 
 // TxBuilder - SDK-specific fluent API
 export { createTxBuilder, TxBuilder, type TxBuilderConfig } from './builder'
+export { inputFromUtxo, inputsFromUtxos } from './input'
 
 // ============================================================================
 // Re-export everything from js-1sat-ord

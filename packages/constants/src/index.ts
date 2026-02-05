@@ -13,6 +13,15 @@ export const MAP_PREFIX = '1PuQa7K62MiKCtssSLKy1kh56WWU7MtUR5'
 export const ORD_PREFIX = 'ord'
 
 // ============================================================================
+// Basket Names
+// ============================================================================
+
+export const FUNDING_BASKET = 'default'
+export const ORDINALS_BASKET = '1sat'
+export const BSV21_BASKET = 'bsv21'
+export const LOCK_BASKET = 'lock'
+
+// ============================================================================
 // Fee Configuration
 // ============================================================================
 
@@ -21,6 +30,12 @@ export const DEFAULT_SAT_PER_KB = 10
 
 /** Dust limit - minimum satoshis for a standard output */
 export const DUST_LIMIT = 1
+
+/** BSV21 per-output fee in satoshis */
+export const BSV21_FEE_SATS = 1000
+
+/** Minimum sats required to unlock certain scripts */
+export const MIN_UNLOCK_SATS = 1500
 
 // ============================================================================
 // API Endpoints
@@ -35,6 +50,35 @@ export const API_HOST_TESTNET = 'https://testnet.ordinals.gorillapool.io/api'
 /** OrdFS host for inscription content */
 export const ORDFS_HOST = 'https://ordfs.network'
 
+/** WhatsOnChain API host (mainnet) */
+export const WOC_MAINNET_URL = 'https://api.whatsonchain.com/v1/bsv/main'
+
+/** WhatsOnChain API host (testnet) */
+export const WOC_TESTNET_URL = 'https://api.whatsonchain.com/v1/bsv/test'
+
+/** 1Sat API base URL (mainnet) */
+export const ONESAT_MAINNET_URL = 'https://1sat.shruggr.cloud'
+
+/** 1Sat API base URL (testnet) */
+export const ONESAT_TESTNET_URL = 'https://testnet.api.1sat.app'
+
+/** 1Sat API content URL (mainnet) */
+export const ONESAT_MAINNET_CONTENT_URL = 'https://1sat.shruggr.cloud/content'
+
+/** 1Sat API content URL (testnet) */
+export const ONESAT_TESTNET_CONTENT_URL = 'https://testnet.api.1sat.app/content'
+
+// ============================================================================
+// Protocol IDs
+// ============================================================================
+
+export const ONESAT_PROTOCOL: [0 | 1 | 2, string] = [1, 'onesat']
+export const MESSAGE_SIGNING_PROTOCOL: [0 | 1 | 2, string] = [
+	1,
+	'message signing',
+]
+export const BSV21_PROTOCOL: [0 | 1 | 2, string] = [1, 'bsv21']
+
 // ============================================================================
 // OrdLock Contract Scripts
 // ============================================================================
@@ -46,6 +90,14 @@ export const ORD_LOCK_PREFIX =
 /** OrdLock locking script suffix (hex) */
 export const ORD_LOCK_SUFFIX =
 	'615179547a75537a537a537a0079537a75527a527a7575615579008763567901c161517957795779210ac407f0e4bd44bfc207355a778b046225a7068fc59ee7eda43ad905aadbffc800206c266b30e6a1319c66dc401e5bd6b432ba49688eecd118297041da8074ce081059795679615679aa0079610079517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e01007e81517a75615779567956795679567961537956795479577995939521414136d08c5ed2bf3ba048afe6dcaebafeffffffffffffffffffffffffffffff00517951796151795179970079009f63007952799367007968517a75517a75517a7561527a75517a517951795296a0630079527994527a75517a6853798277527982775379012080517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e01205279947f7754537993527993013051797e527e54797e58797e527e53797e52797e57797e0079517a75517a75517a75517a75517a75517a75517a75517a75517a75517a75517a75517a75517a756100795779ac517a75517a75517a75517a75517a75517a75517a75517a75517a7561517a75517a756169587951797e58797eaa577961007982775179517958947f7551790128947f77517a75517a75618777777777777777777767557951876351795779a9876957795779ac777777777777777767006868'
+
+// ============================================================================
+// Lock Template Scripts
+// ============================================================================
+
+export const LOCK_PREFIX =
+	'20d37f4de0d1c735b4d51a5572df0f3d9104d1d9e99db8694fdd1b1a92e1f0dce1757601687f76a9'
+export const LOCK_SUFFIX = '88ac7e7601207f75a9011488'
 
 // ============================================================================
 // BSV21 Token Constants
@@ -73,3 +125,10 @@ export const IMAGE_CONTENT_TYPES = [
 	'image/svg+xml',
 	'image/webp',
 ] as const
+
+// ============================================================================
+// Limits and caching
+// ============================================================================
+
+export const MAX_INSCRIPTION_BYTES = 100_000
+export const EXCHANGE_RATE_CACHE_TTL = 5 * 60 * 1000

@@ -21,7 +21,7 @@
  */
 
 import { ErrorCodes } from './errors'
-import { createErrorResponse, createResponse, type ResponseMessage } from './messages'
+import { createErrorResponse, createResponse } from './messages'
 
 export interface PopupParams {
 	/** Unique request identifier for matching response */

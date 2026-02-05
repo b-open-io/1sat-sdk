@@ -166,23 +166,24 @@ export {
 // Client (from @1sat/client)
 // ============================================================================
 export {
-	// HTTP client
-	createHttpClient,
-	FetchHttpClient,
-	type HttpClient,
-	type HttpClientResponse,
-	// UTXO fetching
-	fetchPayUtxos,
-	fetchNftUtxos,
-	fetchTokenUtxos,
-	selectTokenUtxos,
-	// Broadcasting
-	OneSatBroadcaster,
-	createBroadcaster,
-	// Input conversion
-	inputFromUtxo,
-	inputsFromUtxos,
+	HttpError,
+	ArcadeClient,
+	BaseClient,
+	BeefClient,
+	Bsv21Client,
+	ChaintracksClient,
+	OneSatServices,
+	OrdfsClient,
+	OwnerClient,
+	OverlayClient,
+	TxoClient,
+	type OutputQueryOptions,
 } from '@1sat/client'
+
+// ============================================================================
+// Actions (from @1sat/actions)
+// ============================================================================
+export * from '@1sat/actions'
 
 // ============================================================================
 // Core (from @1sat/core - wraps js-1sat-ord)
@@ -192,6 +193,9 @@ export {
 	TxBuilder,
 	createTxBuilder,
 	type TxBuilderConfig,
+	// Input conversion
+	inputFromUtxo,
+	inputsFromUtxos,
 	// Ordinal operations
 	createOrdinals,
 	sendOrdinals,
@@ -206,8 +210,16 @@ export {
 	cancelOrdTokenListings,
 	purchaseOrdListing,
 	purchaseOrdTokenListing,
+	// UTXO fetching
+	fetchPayUtxos,
+	fetchNftUtxos,
+	fetchTokenUtxos,
+	selectTokenUtxos,
 	// UTXO operations
 	sendUtxos,
+	// Broadcasting
+	OneSatBroadcaster,
+	oneSatBroadcaster,
 	// Config types
 	type DeployBsv21TokenConfig,
 	type CreateOrdListingsConfig,

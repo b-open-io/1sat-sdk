@@ -29,6 +29,14 @@
 		"./wallet": {
 			"types": "./dist/wallet.d.ts",
 			"import": "./dist/wallet.js"
+		},
+		"./wallet/browser": {
+			"types": "./dist/wallet.browser.d.ts",
+			"import": "./dist/wallet.browser.js"
+		},
+		"./wallet/node": {
+			"types": "./dist/wallet.node.d.ts",
+			"import": "./dist/wallet.node.js"
 		}
 	},
 	"files": ["dist"],
@@ -39,6 +47,7 @@
 	"keywords": ["1sat", "bsv", "ordinals", "wallet", "sdk", "bitcoin"],
 	"license": "MIT",
 	"dependencies": {
+		"@1sat/actions": "^0.0.1",
 		"@1sat/connect": "^0.0.2",
 		"@1sat/types": "^0.0.2",
 		"@1sat/constants": "^0.0.2",
@@ -49,12 +58,12 @@
 		"@1sat/wallet": "^0.0.3"
 	},
 	"peerDependencies": {
-		"@bsv/sdk": "^1.9.0",
-		"@bsv/wallet-toolbox": "^1.7.0"
+		"@bsv/sdk": "^1.10.4",
+		"@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@1.7.24-idb-fix.1"
 	},
 	"devDependencies": {
-		"@bsv/sdk": "^1.9.24",
-		"@bsv/wallet-toolbox": "^1.7.14",
+		"@bsv/sdk": "^1.10.4",
+		"@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@1.7.24-idb-fix.1",
 		"typescript": "^5.9.3"
 	}
 }

@@ -24,10 +24,10 @@
 		"image-meta": "^0.2.2"
 	},
 	"peerDependencies": {
-		"@bsv/sdk": "^1.9.0"
+		"@bsv/sdk": "^1.10.4"
 	},
 	"devDependencies": {
-		"@bsv/sdk": "^1.9.24",
+		"@bsv/sdk": "^1.10.4",
 		"typescript": "^5.9.3"
 	}
 }

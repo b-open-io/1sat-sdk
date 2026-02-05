@@ -20,15 +20,15 @@
 	"keywords": ["1sat", "bsv", "ordinals", "client", "api"],
 	"license": "MIT",
 	"dependencies": {
-		"@1sat/types": "^0.0.2",
 		"@1sat/constants": "^0.0.2",
-		"satoshi-token": "^0.0.4"
+		"@1sat/types": "^0.0.2",
+		"@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@1.7.24-idb-fix.1"
 	},
 	"peerDependencies": {
-		"@bsv/sdk": "^1.9.0"
+		"@bsv/sdk": "^1.10.4"
 	},
 	"devDependencies": {
-		"@bsv/sdk": "^1.9.24",
+		"@bsv/sdk": "^1.10.4",
 		"typescript": "^5.9.3"
 	}
 }
