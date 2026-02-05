@@ -5,9 +5,7 @@
  * automatic fee calculation and change handling.
  */
 
-import { DEFAULT_SAT_PER_KB } from '@1sat/constants'
-import { signData } from '@1sat/protocols'
-import { OrdP2PKH } from '@1sat/protocols'
+import { DEFAULT_SAT_PER_KB } from '@1sat/types'
 import type {
 	ChangeResult,
 	Inscription,
@@ -27,6 +25,8 @@ import {
 	Utils,
 } from '@bsv/sdk'
 import { inputFromUtxo } from '../input'
+import { OrdP2PKH } from '../ordp2pkh'
+import { signData } from '../sigma'
 
 const { toBase64 } = Utils
 

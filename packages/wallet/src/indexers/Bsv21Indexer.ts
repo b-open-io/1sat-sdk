@@ -1,5 +1,5 @@
 import { HttpError, type OneSatServices } from '@1sat/client'
-import { BSV21_FEE_XPUB } from '@1sat/constants'
+import { BSV21_FEE_XPUB } from '@1sat/types'
 import {
 	type IndexSummary,
 	Indexer,

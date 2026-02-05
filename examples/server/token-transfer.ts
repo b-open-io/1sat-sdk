@@ -7,9 +7,9 @@
  * Usage:
  *   PAYMENT_WIF=... ORD_WIF=... TOKEN_ID=... RECIPIENT=... bun run examples/server/token-transfer.ts
  */
-import { ONESAT_MAINNET_URL } from '@1sat/constants'
 import {
 	ArcadeClient,
+	ONESAT_MAINNET_URL,
 	TokenType,
 	fetchPayUtxos,
 	fetchTokenUtxos,

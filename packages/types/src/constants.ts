@@ -1,5 +1,5 @@
 /**
- * @1sat/constants - Shared constants for 1Sat Ordinals SDK
+ * Shared constants for 1Sat Ordinals SDK
  */
 
 // ============================================================================

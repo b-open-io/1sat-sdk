@@ -20,7 +20,6 @@
 	"keywords": ["1sat", "bsv", "ordinals", "client", "api"],
 	"license": "MIT",
 	"dependencies": {
-		"@1sat/constants": "^0.0.2",
 		"@1sat/types": "^0.0.2",
 		"@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@1.7.24-idb-fix.1"
 	},

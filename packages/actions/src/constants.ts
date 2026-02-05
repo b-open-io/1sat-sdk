@@ -20,4 +20,4 @@ export {
 	ORD_LOCK_SUFFIX,
 	WOC_MAINNET_URL,
 	WOC_TESTNET_URL,
-} from '@1sat/constants'
+} from '@1sat/types'

@@ -1,6 +1,29 @@
 /**
  * @1sat/sdk/protocols - Protocol implementations
  *
- * Re-exports everything from @1sat/protocols for MAP, Sigma, OrdP2PKH, OrdLock.
+ * Re-exports protocol implementations from @1sat/core.
  */
-export * from '@1sat/protocols'
+export {
+	createSigma,
+	isLocalSigner,
+	isRemoteSigner,
+	Sigma,
+	signData,
+	appendMapToScript,
+	buildMapAsm,
+	buildMapScript,
+	createMap,
+	isValidMap,
+	buildInscriptionEnvelope,
+	buildInscriptionEnvelopeAsm,
+	createInscription,
+	createJsonInscription,
+	hasInscriptionEnvelope,
+	applyInscription,
+	createOrdP2PKHScript,
+	OrdP2PKH,
+	buildOutput,
+	createOrdLockScript,
+	isOrdLockScript,
+	OrdLock,
+} from '@1sat/core'

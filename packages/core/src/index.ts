@@ -15,6 +15,52 @@ export { createTxBuilder, TxBuilder, type TxBuilderConfig } from './builder'
 export { inputFromUtxo, inputsFromUtxos } from './input'
 
 // ============================================================================
+// Protocol implementations (formerly @1sat/protocols)
+// ============================================================================
+
+// Sigma protocol
+export {
+	createSigma,
+	isLocalSigner,
+	isRemoteSigner,
+	Sigma,
+	signData,
+} from './sigma'
+
+// MAP protocol
+export {
+	appendMapToScript,
+	buildMapAsm,
+	buildMapScript,
+	createMap,
+	isValidMap,
+} from './map'
+
+// Inscription envelope
+export {
+	buildInscriptionEnvelope,
+	buildInscriptionEnvelopeAsm,
+	createInscription,
+	createJsonInscription,
+	hasInscriptionEnvelope,
+} from './inscription'
+
+// OrdP2PKH template
+export {
+	applyInscription,
+	createOrdP2PKHScript,
+	OrdP2PKH,
+} from './ordp2pkh'
+
+// OrdLock template
+export {
+	buildOutput,
+	createOrdLockScript,
+	isOrdLockScript,
+	OrdLock,
+} from './ordlock'
+
+// ============================================================================
 // Re-export everything from js-1sat-ord
 // ============================================================================
 
@@ -50,13 +96,6 @@ export {
 	fetchNftUtxos,
 	fetchTokenUtxos,
 	selectTokenUtxos,
-} from 'js-1sat-ord'
-
-// Templates (also in @1sat/protocols)
-export {
-	OrdP2PKH,
-	OrdLock,
-	applyInscription,
 } from 'js-1sat-ord'
 
 // Utilities

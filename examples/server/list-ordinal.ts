@@ -7,9 +7,9 @@
  * Usage:
  *   PAYMENT_WIF=... ORD_WIF=... OUTPOINT=... PRICE=... bun run examples/server/list-ordinal.ts
  */
-import { ONESAT_MAINNET_URL } from '@1sat/constants'
 import {
 	ArcadeClient,
+	ONESAT_MAINNET_URL,
 	createOrdListings,
 	fetchNftUtxos,
 	fetchPayUtxos,

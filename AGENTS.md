@@ -19,12 +19,10 @@ Always use Bun and workspace scripts.
 - `bun run --filter '@1sat/<package>' dev` watch one package
 
 ## Monorepo Layout
-- `packages/types` shared type definitions
-- `packages/constants` shared constants and endpoints
+- `packages/types` shared type definitions and constants
 - `packages/utils` shared helpers (encoding/validation/metadata)
-- `packages/protocols` protocol templates and script helpers (MAP, Sigma, OrdLock, ordinals)
 - `packages/client` API clients and network services
-- `packages/core` transaction building and high-level core flows
+- `packages/core` transaction building, protocol implementations (MAP, Sigma, OrdLock, ordinals), and high-level core flows
 - `packages/actions` wallet actions
 - `packages/wallet` wallet runtime and indexers
 - `packages/connect` browser connection layer
@@ -36,7 +34,7 @@ Always use Bun and workspace scripts.
 ## Dependency Order (High Level)
 Follow this direction for new code:
 
-`types/constants` → `utils` → `protocols` → `client` → `core` → `actions/wallet` → `sdk` → `examples`
+`types` → `utils` → `client` → `core` → `actions/wallet` → `sdk` → `examples`
 
 Additional constraints:
 - `connect` is browser-focused and should remain independent from core wallet logic.

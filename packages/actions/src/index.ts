@@ -29,13 +29,11 @@ export * from './tokens'
 export * from './inscriptions'
 export * from './locks'
 export * from './signing'
-export * from './broadcast'
 
 // Export sweep module (uses external signing, not action-based)
 export * from './sweep'
 
 import { balanceActions } from './balance'
-import { broadcastActions } from './broadcast'
 import { inscriptionsActions } from './inscriptions'
 import { locksActions } from './locks'
 import { ordinalsActions } from './ordinals'
@@ -53,7 +51,6 @@ actionRegistry.registerAll([
 	...inscriptionsActions,
 	...locksActions,
 	...signingActions,
-	...broadcastActions,
 	...sweepActions,
 ])
 

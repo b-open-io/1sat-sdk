@@ -4,7 +4,7 @@
  * Implements the OrdLock script template for creating, canceling, and purchasing listings
  */
 
-import { ORD_LOCK_PREFIX, ORD_LOCK_SUFFIX } from '@1sat/constants'
+import { ORD_LOCK_PREFIX, ORD_LOCK_SUFFIX } from '@1sat/types'
 import type { Inscription } from '@1sat/types'
 import {
 	BigNumber,

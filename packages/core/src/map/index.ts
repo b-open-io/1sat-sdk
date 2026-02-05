@@ -4,7 +4,7 @@
  * Builds and parses MAP metadata in OP_RETURN scripts
  */
 
-import { MAP_PREFIX } from '@1sat/constants'
+import { MAP_PREFIX } from '@1sat/types'
 import type { MAP } from '@1sat/types'
 import { Script, Utils } from '@bsv/sdk'
 

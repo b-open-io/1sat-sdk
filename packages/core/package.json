@@ -21,10 +21,9 @@
 	"license": "MIT",
 	"dependencies": {
 		"@1sat/types": "^0.0.2",
-		"@1sat/constants": "^0.0.2",
-		"@1sat/protocols": "^0.0.2",
 		"@1sat/client": "^0.0.2",
-		"js-1sat-ord": "^0.1.90"
+		"js-1sat-ord": "^0.1.90",
+		"sigma-protocol": "^0.1.6"
 	},
 	"peerDependencies": {
 		"@bsv/sdk": "^1.10.4"

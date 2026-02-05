@@ -1,4 +1,4 @@
-import { ONESAT_MAINNET_URL, ONESAT_TESTNET_URL } from '@1sat/constants'
+import { ONESAT_MAINNET_URL, ONESAT_TESTNET_URL } from '@1sat/types'
 import type { Capability, ClientOptions, SyncOutput } from '@1sat/types'
 import {
 	Beef,

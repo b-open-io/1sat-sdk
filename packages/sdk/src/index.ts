@@ -93,7 +93,7 @@ export type {
 } from '@1sat/types'
 
 // ============================================================================
-// Constants (from @1sat/constants)
+// Constants (from @1sat/types)
 // ============================================================================
 export {
 	// Protocol identifiers
@@ -112,7 +112,7 @@ export {
 	// Content types
 	TOKEN_CONTENT_TYPE,
 	IMAGE_CONTENT_TYPES,
-} from '@1sat/constants'
+} from '@1sat/types'
 
 // ============================================================================
 // Utils (from @1sat/utils)
@@ -131,7 +131,7 @@ export {
 } from '@1sat/utils'
 
 // ============================================================================
-// Protocols (from @1sat/protocols)
+// Protocols (from @1sat/core)
 // ============================================================================
 export {
 	// Sigma signing
@@ -160,7 +160,7 @@ export {
 	createInscription,
 	createJsonInscription,
 	hasInscriptionEnvelope,
-} from '@1sat/protocols'
+} from '@1sat/core'
 
 // ============================================================================
 // Client (from @1sat/client)

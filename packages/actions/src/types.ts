@@ -44,7 +44,6 @@ export type ActionCategory =
 	| 'inscriptions'
 	| 'locks'
 	| 'signing'
-	| 'broadcast'
 	| 'sweep'
 
 /**
