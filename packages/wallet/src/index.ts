@@ -129,13 +129,14 @@ export {
 	type Unzipped,
 } from './backup'
 
-// Factory
+// Factory (runtime-specific factories are in ./browser and ./node entrypoints)
 export {
-	createWebWallet,
 	fullSync,
 	type FullSyncOptions,
 	type FullSyncResult,
 	type FullSyncStage,
+	type NodeWalletConfig,
+	type NodeWalletResult,
 	type WebWalletConfig,
 	type WebWalletResult,
 } from './factory'

@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/wallet",
-	"version": "0.0.3",
+	"version": "0.0.5",
 	"description": "BRC-100 wallet engine for 1Sat Ordinals SDK",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -38,7 +38,16 @@
 	"peerDependencies": {
 		"@bsv/sdk": "^1.10.4",
 		"@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@1.7.24-idb-fix.1",
-		"@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@1.7.24-idb-fix.1"
+		"@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@1.7.24-idb-fix.1",
+		"knex": "^3.0.0"
+	},
+	"peerDependenciesMeta": {
+		"knex": {
+			"optional": true
+		},
+		"@bsv/wallet-toolbox-mobile": {
+			"optional": true
+		}
 	},
 	"devDependencies": {
 		"@bsv/sdk": "^1.10.4",
