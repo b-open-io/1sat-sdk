@@ -12,7 +12,7 @@
  * ```
  */
 
-import { HD, Mnemonic, PrivateKey } from '@bsv/sdk'
+import { BigNumber, HD, Hash, Mnemonic, PrivateKey } from '@bsv/sdk'
 
 // ============================================================================
 // Types
@@ -273,4 +273,33 @@ export function isValidMnemonic(mnemonic: string): boolean {
 	} catch {
 		return false
 	}
+}
+
+// ============================================================================
+// Identity Key Derivation
+// ============================================================================
+
+/** secp256k1 curve order */
+const SECP256K1_ORDER = new BigNumber(
+	'fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141',
+	16,
+)
+
+/**
+ * Derive an identity key from payment and ordinal private keys.
+ * Uses SHA-256 of concatenated raw key bytes.
+ * Compatible with yours-wallet identity derivation.
+ */
+export function deriveIdentityKey(payWif: string, ordWif: string): PrivateKey {
+	const payKey = PrivateKey.fromWif(payWif)
+	const ordKey = PrivateKey.fromWif(ordWif)
+	const privBuf = payKey.toArray().concat(ordKey.toArray())
+	let identityPrivKey: PrivateKey | undefined
+	while (!identityPrivKey) {
+		const bn = new BigNumber(Hash.sha256(privBuf))
+		if (bn.lt(SECP256K1_ORDER)) {
+			identityPrivKey = PrivateKey.fromString(bn.toHex(), 'hex')
+		}
+	}
+	return identityPrivKey
 }

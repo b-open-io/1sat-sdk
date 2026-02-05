@@ -329,4 +329,5 @@ export {
 	findKeysWithVanityOrdinal,
 	generateMnemonic,
 	isValidMnemonic,
+	deriveIdentityKey,
 } from './keys'
