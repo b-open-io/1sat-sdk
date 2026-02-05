@@ -7,9 +7,10 @@
  * Usage:
  *   PAYMENT_WIF=... ORD_WIF=... TOKEN_ID=... RECIPIENT=... bun run examples/server/token-transfer.ts
  */
+import { ONESAT_MAINNET_URL } from '@1sat/constants'
 import {
+	ArcadeClient,
 	TokenType,
-	createBroadcaster,
 	fetchPayUtxos,
 	fetchTokenUtxos,
 	selectTokenUtxos,
@@ -101,14 +102,22 @@ async function main() {
 
 	// Broadcast
 	console.log('\nBroadcasting...')
-	const broadcaster = createBroadcaster()
-	const broadcastResult = await broadcaster.broadcast(result.tx)
+	const arcade = new ArcadeClient(ONESAT_MAINNET_URL)
+	const broadcastResult = await arcade.submitTransactionHex(result.tx.toHex())
 
-	if (broadcastResult.status === 'success') {
+	if (
+		broadcastResult.txStatus === 'MINED' ||
+		broadcastResult.txStatus === 'SEEN_ON_NETWORK' ||
+		broadcastResult.txStatus === 'ACCEPTED_BY_NETWORK' ||
+		broadcastResult.txStatus === 'IMMUTABLE'
+	) {
 		console.log('Transfer successful!')
 		console.log(`Transferred ${amount} tokens to ${recipient}`)
 	} else {
-		console.error('Broadcast failed:', broadcastResult.description)
+		console.error(
+			`Broadcast failed (${broadcastResult.txStatus}):`,
+			broadcastResult.extraInfo ?? 'No additional details',
+		)
 	}
 }
 

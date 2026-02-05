@@ -104,7 +104,8 @@ function WalletInfo() {
 For backends or scripts where you control the keys directly:
 
 ```typescript
-import { createOrdinals, fetchPayUtxos, oneSatBroadcaster } from '@1sat/sdk'
+import { ONESAT_MAINNET_URL } from '@1sat/constants'
+import { ArcadeClient, createOrdinals, fetchPayUtxos } from '@1sat/sdk'
 import { PrivateKey, Utils } from '@bsv/sdk'
 
 const { toArray, toBase64 } = Utils
@@ -131,8 +132,17 @@ const result = await createOrdinals({
 })
 
 // Broadcast to network
-const broadcastResult = await oneSatBroadcaster.broadcast(result.tx)
-console.log('Inscribed:', result.tx.id('hex'))
+const arcade = new ArcadeClient(ONESAT_MAINNET_URL)
+const broadcastResult = await arcade.submitTransactionHex(result.tx.toHex())
+
+if (
+  broadcastResult.txStatus === 'MINED' ||
+  broadcastResult.txStatus === 'SEEN_ON_NETWORK' ||
+  broadcastResult.txStatus === 'ACCEPTED_BY_NETWORK' ||
+  broadcastResult.txStatus === 'IMMUTABLE'
+) {
+  console.log('Inscribed:', result.tx.id('hex'))
+}
 ```
 
 ### Wallet Engine
@@ -274,13 +284,14 @@ For server-side token transfers with direct key access:
 
 ```typescript
 import {
+  ArcadeClient,
   fetchPayUtxos,
   fetchTokenUtxos,
   selectTokenUtxos,
   transferOrdTokens,
-  oneSatBroadcaster,
   TokenType,
 } from '@1sat/sdk'
+import { ONESAT_MAINNET_URL } from '@1sat/constants'
 import { PrivateKey } from '@bsv/sdk'
 
 const paymentPk = PrivateKey.fromWif(process.env.PAYMENT_WIF!)
@@ -312,8 +323,17 @@ const result = await transferOrdTokens({
 })
 
 // Broadcast
-await oneSatBroadcaster.broadcast(result.tx)
-console.log('Transferred:', result.tx.id('hex'))
+const arcade = new ArcadeClient(ONESAT_MAINNET_URL)
+const broadcastResult = await arcade.submitTransactionHex(result.tx.toHex())
+
+if (
+  broadcastResult.txStatus === 'MINED' ||
+  broadcastResult.txStatus === 'SEEN_ON_NETWORK' ||
+  broadcastResult.txStatus === 'ACCEPTED_BY_NETWORK' ||
+  broadcastResult.txStatus === 'IMMUTABLE'
+) {
+  console.log('Transferred:', result.tx.id('hex'))
+}
 ```
 
 ## Protocols

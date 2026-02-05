@@ -7,8 +7,9 @@
  * Usage:
  *   PAYMENT_WIF=... ORD_WIF=... OUTPOINT=... PRICE=... bun run examples/server/list-ordinal.ts
  */
+import { ONESAT_MAINNET_URL } from '@1sat/constants'
 import {
-	createBroadcaster,
+	ArcadeClient,
 	createOrdListings,
 	fetchNftUtxos,
 	fetchPayUtxos,
@@ -87,15 +88,23 @@ async function main() {
 
 	// Broadcast
 	console.log('\nBroadcasting...')
-	const broadcaster = createBroadcaster()
-	const broadcastResult = await broadcaster.broadcast(result.tx)
+	const arcade = new ArcadeClient(ONESAT_MAINNET_URL)
+	const broadcastResult = await arcade.submitTransactionHex(result.tx.toHex())
 
-	if (broadcastResult.status === 'success') {
+	if (
+		broadcastResult.txStatus === 'MINED' ||
+		broadcastResult.txStatus === 'SEEN_ON_NETWORK' ||
+		broadcastResult.txStatus === 'ACCEPTED_BY_NETWORK' ||
+		broadcastResult.txStatus === 'IMMUTABLE'
+	) {
 		console.log('Listing created successfully!')
 		console.log(`Listed ordinal for ${price} satoshis`)
 		console.log('Listing outpoint:', `${result.tx.id('hex')}_0`)
 	} else {
-		console.error('Broadcast failed:', broadcastResult.description)
+		console.error(
+			`Broadcast failed (${broadcastResult.txStatus}):`,
+			broadcastResult.extraInfo ?? 'No additional details',
+		)
 	}
 }
 
