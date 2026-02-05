@@ -7,15 +7,13 @@ Build apps on [1Sat Ordinals](https://1satordinals.com) - BSV's protocol for NFT
 ## Installation
 
 ```bash
-npm install @1sat/sdk
-# or
 bun add @1sat/sdk
 ```
 
 For React apps with hooks and components:
 
 ```bash
-npm install @1sat/react
+bun add @1sat/react
 ```
 
 ## Features
@@ -26,6 +24,7 @@ npm install @1sat/react
 - **Marketplace** - Create, purchase, and cancel listings
 - **Signing** - Message signing (BSM) and Sigma protocol for data attestation
 - **Builder** - Low-level transaction builder for custom flows
+- **Actions** - Self-describing wallet operations for agents and tooling
 
 ## Quick Start
 
@@ -105,7 +104,7 @@ function WalletInfo() {
 For backends or scripts where you control the keys directly:
 
 ```typescript
-import { createOrdinals, fetchPayUtxos, createBroadcaster } from '@1sat/sdk'
+import { createOrdinals, fetchPayUtxos, oneSatBroadcaster } from '@1sat/sdk'
 import { PrivateKey, Utils } from '@bsv/sdk'
 
 const { toArray, toBase64 } = Utils
@@ -132,9 +131,42 @@ const result = await createOrdinals({
 })
 
 // Broadcast to network
-const broadcaster = createBroadcaster()
-const broadcastResult = await broadcaster.broadcast(result.tx)
+const broadcastResult = await oneSatBroadcaster.broadcast(result.tx)
 console.log('Inscribed:', result.tx.id('hex'))
+```
+
+### Wallet Engine
+
+Browser (IndexedDB):
+
+```typescript
+import { OneSatWallet, StorageIdb, WalletStorageManager } from '@1sat/sdk/wallet/browser'
+
+const storage = await WalletStorageManager.createWithProviders(
+  new StorageIdb({ name: 'wallet' }),
+)
+
+const wallet = new OneSatWallet({
+  rootKey: privateKey,
+  storage,
+  chain: 'main',
+})
+```
+
+Node/Bun (SQLite):
+
+```typescript
+import { OneSatWallet, StorageSqlite, WalletStorageManager } from '@1sat/sdk/wallet/node'
+
+const storage = await WalletStorageManager.createWithProviders(
+  new StorageSqlite({ filename: 'wallet.sqlite' }),
+)
+
+const wallet = new OneSatWallet({
+  rootKey: privateKey,
+  storage,
+  chain: 'main',
+})
 ```
 
 ## Network Configuration
@@ -246,7 +278,7 @@ import {
   fetchTokenUtxos,
   selectTokenUtxos,
   transferOrdTokens,
-  createBroadcaster,
+  oneSatBroadcaster,
   TokenType,
 } from '@1sat/sdk'
 import { PrivateKey } from '@bsv/sdk'
@@ -280,8 +312,7 @@ const result = await transferOrdTokens({
 })
 
 // Broadcast
-const broadcaster = createBroadcaster()
-await broadcaster.broadcast(result.tx)
+await oneSatBroadcaster.broadcast(result.tx)
 console.log('Transferred:', result.tx.id('hex'))
 ```
 
@@ -315,6 +346,10 @@ console.log('Transferred:', result.tx.id('hex'))
 │  - TxBuilder        │  - Indexer API     │  - MAP, Sigma    │
 │  - Ordinal ops      │  - Broadcast       │  - OrdP2PKH      │
 │                     │  - UTXO fetch      │  - OrdLock       │
+├───────────────────────────┬─────────────────────────────────┤
+│  @1sat/actions      │  @1sat/utils       │  @1sat/constants │
+│  - Wallet actions   │  - Encoding        │  - Protocol defs │
+│  - Agent tooling    │  - Validation      │  - Endpoints     │
 ├─────────────────────────────────────────────────────────────┤
 │  @1sat/types  │  @1sat/constants  │  @1sat/utils            │
 └─────────────────────────────────────────────────────────────┘
@@ -335,6 +370,7 @@ console.log('Transferred:', result.tx.id('hex'))
 | `@1sat/constants` | Protocol constants and endpoints |
 | `@1sat/utils` | Encoding and validation utilities |
 | `@1sat/wallet` | Full BRC-100 wallet engine with indexers and sync |
+| `@1sat/actions` | Self-describing wallet actions for agents and tooling |
 
 ## Development
 
