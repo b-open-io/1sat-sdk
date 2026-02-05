@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/sdk",
-	"version": "0.0.3",
+	"version": "0.0.4",
 	"description": "1Sat Ordinals SDK - Complete toolkit for BSV ordinals, tokens, and wallet integration",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -48,11 +48,11 @@
 	"license": "MIT",
 	"dependencies": {
 		"@1sat/actions": "^0.0.1",
-		"@1sat/connect": "^0.0.2",
-		"@1sat/types": "^0.0.2",
-		"@1sat/utils": "^0.0.2",
-		"@1sat/client": "^0.0.2",
-		"@1sat/core": "^0.0.2",
+		"@1sat/connect": "^0.0.3",
+		"@1sat/types": "^0.0.3",
+		"@1sat/utils": "^0.0.4",
+		"@1sat/client": "^0.0.3",
+		"@1sat/core": "^0.0.3",
 		"@1sat/wallet": "^0.0.5",
 		"@1sat/wallet-browser": "^0.0.1",
 		"@1sat/wallet-node": "^0.0.1"
