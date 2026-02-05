@@ -1,6 +1,0 @@
-export { createWebWallet } from './createWebWallet'
-export type { WebWalletConfig, WebWalletResult } from './createWebWallet'
-export { createNodeWallet } from './createNodeWallet'
-export type { NodeWalletConfig, NodeWalletResult } from './createNodeWallet'
-export { fullSync } from './fullSync'
-export type { FullSyncOptions, FullSyncResult, FullSyncStage } from './fullSync'

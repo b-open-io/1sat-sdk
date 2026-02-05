@@ -1,19 +1,20 @@
 /**
- * Full wallet synchronization with remote backup server (Node/Bun variant).
+ * Full wallet synchronization with remote backup server.
  *
- * Identical to fullSync.ts but imports from @bsv/wallet-toolbox (node)
- * instead of @bsv/wallet-toolbox-mobile (browser) to avoid type conflicts.
+ * Performs a complete resync: push local -> reset sync state -> full pull from server.
+ * This is a deliberate user action (not automatic) for recovering from sync issues.
  */
 
 import type { WalletStorageManager } from '@bsv/wallet-toolbox'
 import type { sdk as toolboxSdk } from '@bsv/wallet-toolbox'
 import { createSyncMap } from '@bsv/wallet-toolbox/out/src/storage/schema/entities/EntityBase.js'
 import { EntitySyncState } from '@bsv/wallet-toolbox/out/src/storage/schema/entities/EntitySyncState.js'
-import type { FullSyncResult, FullSyncStage } from './fullSync'
 
 type WalletStorageProvider = toolboxSdk.WalletStorageProvider
 
-export interface NodeFullSyncOptions {
+export type FullSyncStage = 'pushing' | 'resetting' | 'pulling' | 'complete'
+
+export interface FullSyncOptions {
 	/** Local storage manager */
 	storage: WalletStorageManager
 	/** Remote backup storage provider (StorageClient) */
@@ -28,8 +29,13 @@ export interface NodeFullSyncOptions {
 	maxItems?: number
 }
 
-export async function fullSyncNode(
-	options: NodeFullSyncOptions,
+export interface FullSyncResult {
+	pushed: { inserts: number; updates: number }
+	pulled: { inserts: number; updates: number }
+}
+
+export async function fullSync(
+	options: FullSyncOptions,
 ): Promise<FullSyncResult> {
 	const {
 		storage,

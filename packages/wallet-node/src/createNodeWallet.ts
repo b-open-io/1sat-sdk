@@ -18,8 +18,7 @@ import {
 	WalletStorageManager,
 } from '@bsv/wallet-toolbox'
 import { type Knex, knex as makeKnex } from 'knex'
-import type { FullSyncResult, FullSyncStage } from './fullSync'
-import { fullSyncNode } from './fullSyncNode'
+import { type FullSyncResult, type FullSyncStage, fullSync } from './fullSync'
 
 type Chain = 'main' | 'test'
 type NodeWalletServices = toolboxSdk.WalletServices
@@ -209,7 +208,7 @@ export async function createNodeWallet(
 					'[createNodeWallet] Another device is active, performing full sync...',
 				)
 
-				await fullSyncNode({
+				await fullSync({
 					storage,
 					remoteStorage: remoteClient,
 					identityKey: identityPubKey,
@@ -377,7 +376,7 @@ export async function createNodeWallet(
 		? async (
 				onProgress?: (stage: FullSyncStage, message: string) => void,
 			): Promise<FullSyncResult> => {
-				return fullSyncNode({
+				return fullSync({
 					storage,
 					remoteStorage: remoteClient,
 					identityKey: identityPubKey,

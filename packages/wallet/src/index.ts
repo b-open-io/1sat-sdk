@@ -129,18 +129,6 @@ export {
 	type Unzipped,
 } from './backup'
 
-// Factory (runtime-specific factories are in ./browser and ./node entrypoints)
-export {
-	fullSync,
-	type FullSyncOptions,
-	type FullSyncResult,
-	type FullSyncStage,
-	type NodeWalletConfig,
-	type NodeWalletResult,
-	type WebWalletConfig,
-	type WebWalletResult,
-} from './factory'
-
 // CWI (Compute With Integrity)
 export {
 	ChromeCWI,
