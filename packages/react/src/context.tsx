@@ -2,7 +2,6 @@
 
 import {
 	type ConnectResult,
-	type OneSatConfig,
 	type OneSatProvider as OneSatProviderInterface,
 	createOneSat,
 } from '@1sat/connect'
@@ -40,8 +39,14 @@ export interface OneSatContextValue {
 const OneSatContext = createContext<OneSatContextValue | null>(null)
 
 export interface OneSatProviderProps {
-	/** Configuration for the provider */
-	config?: OneSatConfig
+	/** Name of the dApp (shown in approval popup) */
+	appName?: string
+	/** Base URL for the wallet popup (default: https://1sat.market) */
+	popupUrl?: string
+	/** Request timeout in milliseconds (default: 300000 = 5 minutes) */
+	timeout?: number
+	/** Network to use (default: main) */
+	network?: 'main' | 'test'
 	/** Children to render */
 	children: ReactNode
 }
@@ -55,14 +60,20 @@ export interface OneSatProviderProps {
  *
  * function App() {
  *   return (
- *     <OneSatProvider config={{ appName: 'My dApp' }}>
+ *     <OneSatProvider appName="My dApp">
  *       <MyApp />
  *     </OneSatProvider>
  *   )
  * }
  * ```
  */
-export function OneSatProvider({ config, children }: OneSatProviderProps) {
+export function OneSatProvider({
+	appName,
+	popupUrl,
+	timeout,
+	network,
+	children,
+}: OneSatProviderProps) {
 	const [provider, setProvider] = useState<OneSatProviderInterface | null>(null)
 	const [isConnected, setIsConnected] = useState(false)
 	const [isConnecting, setIsConnecting] = useState(false)
@@ -71,14 +82,12 @@ export function OneSatProvider({ config, children }: OneSatProviderProps) {
 	const [identityPubKey, setIdentityPubKey] = useState<string | null>(null)
 	const [error, setError] = useState<Error | null>(null)
 
-	// Initialize provider on mount
 	useEffect(() => {
 		if (typeof window === 'undefined') return
 
-		const p = createOneSat(config)
+		const p = createOneSat({ appName, popupUrl, timeout, network })
 		setProvider(p)
 
-		// Check if already connected (from storage)
 		if (p.isConnected()) {
 			const addresses = p.getAddresses()
 			if (addresses) {
@@ -89,7 +98,6 @@ export function OneSatProvider({ config, children }: OneSatProviderProps) {
 			}
 		}
 
-		// Set up event listeners
 		const handleConnect = (result: ConnectResult) => {
 			setIsConnected(true)
 			setPaymentAddress(result.paymentAddress)
@@ -111,7 +119,7 @@ export function OneSatProvider({ config, children }: OneSatProviderProps) {
 			p.off('connect', handleConnect as () => void)
 			p.off('disconnect', handleDisconnect)
 		}
-	}, [config])
+	}, [appName, popupUrl, timeout, network])
 
 	const connect = useCallback(async (): Promise<ConnectResult> => {
 		if (!provider) {

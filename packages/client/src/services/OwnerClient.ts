@@ -83,9 +83,7 @@ export class OwnerClient extends BaseClient {
 
 		eventSource.addEventListener('txo', (event) => {
 			try {
-				const output = JSON.parse(
-					(event as MessageEvent).data,
-				) as IndexedOutput
+				const output = JSON.parse((event as MessageEvent).data) as IndexedOutput
 				collected.push(output)
 				opts?.onTxo?.(output)
 			} catch (e) {

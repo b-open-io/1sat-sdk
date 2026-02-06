@@ -35,7 +35,6 @@ type ServiceCallHistory = toolboxSdk.ServiceCallHistory
 type ServicesCallHistory = toolboxSdk.ServicesCallHistory
 type WalletServices = toolboxSdk.WalletServices
 
-
 export type { SyncOutput }
 
 /**

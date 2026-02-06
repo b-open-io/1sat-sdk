@@ -2,44 +2,61 @@
 
 import type {
 	BalanceResult,
-	ListOptions,
+	CancelListingRequest,
+	CreateListingRequest,
+	InscribeRequest,
+	OneSatProvider as OneSatProviderInterface,
 	OrdinalOutput,
+	PurchaseListingRequest,
+	SendOrdinalsRequest,
+	SignTransactionRequest,
 	TokenOutput,
+	TransferTokenRequest,
+	Utxo,
 } from '@1sat/connect'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useOneSatContext } from './context'
 
-/**
- * Main hook for 1Sat wallet interaction
- *
- * @example
- * ```tsx
- * function MyComponent() {
- *   const { isConnected, connect, paymentAddress } = useOneSat()
- *
- *   if (!isConnected) {
- *     return <button onClick={connect}>Connect Wallet</button>
- *   }
- *
- *   return <p>Connected: {paymentAddress}</p>
- * }
- * ```
- */
-export function useOneSat() {
-	const context = useOneSatContext()
+// --- Internal helpers ---
 
-	return {
-		provider: context.provider,
-		isConnected: context.isConnected,
-		isConnecting: context.isConnecting,
-		paymentAddress: context.paymentAddress,
-		ordinalAddress: context.ordinalAddress,
-		identityPubKey: context.identityPubKey,
-		connect: context.connect,
-		disconnect: context.disconnect,
-		error: context.error,
-	}
+/**
+ * Mutation hook with loading/error state. Uses a ref for the action
+ * function so the returned mutate callback has stable identity.
+ */
+function useProviderAction<TArgs extends unknown[], TResult>(
+	actionFn: (
+		provider: OneSatProviderInterface,
+		...args: TArgs
+	) => Promise<TResult>,
+) {
+	const { provider, isConnected } = useOneSatContext()
+	const [isLoading, setIsLoading] = useState(false)
+	const [error, setError] = useState<Error | null>(null)
+	const actionRef = useRef(actionFn)
+	actionRef.current = actionFn
+
+	const mutate = useCallback(
+		async (...args: TArgs): Promise<TResult> => {
+			if (!provider || !isConnected) throw new Error('Wallet not connected')
+			setIsLoading(true)
+			setError(null)
+			try {
+				return await actionRef.current(provider, ...args)
+			} catch (e) {
+				const err = e instanceof Error ? e : new Error(String(e))
+				setError(err)
+				throw err
+			} finally {
+				setIsLoading(false)
+			}
+		},
+		[provider, isConnected],
+	)
+
+	return { mutate, isLoading, error }
 }
+
+// --- Query hooks ---
 
 /**
  * Hook to get the wallet balance
@@ -61,13 +78,10 @@ export function useBalance() {
 
 	const refetch = useCallback(async () => {
 		if (!provider || !isConnected) return
-
 		setIsLoading(true)
 		setError(null)
-
 		try {
-			const result = await provider.getBalance()
-			setBalance(result)
+			setBalance(await provider.getBalance())
 		} catch (e) {
 			setError(e instanceof Error ? e : new Error(String(e)))
 		} finally {
@@ -100,17 +114,11 @@ export function useBalance() {
  * function Gallery() {
  *   const { ordinals, isLoading } = useOrdinals()
  *   if (isLoading) return <span>Loading...</span>
- *   return (
- *     <div>
- *       {ordinals.map(ord => (
- *         <div key={ord.outpoint}>{ord.origin}</div>
- *       ))}
- *     </div>
- *   )
+ *   return ordinals.map(ord => <div key={ord.outpoint}>{ord.origin}</div>)
  * }
  * ```
  */
-export function useOrdinals(options?: ListOptions) {
+export function useOrdinals(limit?: number, offset?: number) {
 	const { provider, isConnected } = useOneSatContext()
 	const [ordinals, setOrdinals] = useState<OrdinalOutput[]>([])
 	const [isLoading, setIsLoading] = useState(false)
@@ -118,19 +126,20 @@ export function useOrdinals(options?: ListOptions) {
 
 	const refetch = useCallback(async () => {
 		if (!provider || !isConnected) return
-
 		setIsLoading(true)
 		setError(null)
-
 		try {
-			const result = await provider.getOrdinals(options)
-			setOrdinals(result)
+			const opts =
+				limit !== undefined || offset !== undefined
+					? { limit, offset }
+					: undefined
+			setOrdinals(await provider.getOrdinals(opts))
 		} catch (e) {
 			setError(e instanceof Error ? e : new Error(String(e)))
 		} finally {
 			setIsLoading(false)
 		}
-	}, [provider, isConnected, options])
+	}, [provider, isConnected, limit, offset])
 
 	useEffect(() => {
 		if (isConnected) {
@@ -140,12 +149,7 @@ export function useOrdinals(options?: ListOptions) {
 		}
 	}, [isConnected, refetch])
 
-	return {
-		ordinals,
-		isLoading,
-		error,
-		refetch,
-	}
+	return { ordinals, isLoading, error, refetch }
 }
 
 /**
@@ -156,19 +160,11 @@ export function useOrdinals(options?: ListOptions) {
  * function Tokens() {
  *   const { tokens, isLoading } = useTokens()
  *   if (isLoading) return <span>Loading...</span>
- *   return (
- *     <div>
- *       {tokens.map(token => (
- *         <div key={token.outpoint}>
- *           {token.symbol}: {token.amount}
- *         </div>
- *       ))}
- *     </div>
- *   )
+ *   return tokens.map(t => <div key={t.outpoint}>{t.symbol}: {t.amount}</div>)
  * }
  * ```
  */
-export function useTokens(options?: ListOptions) {
+export function useTokens(limit?: number, offset?: number) {
 	const { provider, isConnected } = useOneSatContext()
 	const [tokens, setTokens] = useState<TokenOutput[]>([])
 	const [isLoading, setIsLoading] = useState(false)
@@ -176,19 +172,20 @@ export function useTokens(options?: ListOptions) {
 
 	const refetch = useCallback(async () => {
 		if (!provider || !isConnected) return
-
 		setIsLoading(true)
 		setError(null)
-
 		try {
-			const result = await provider.getTokens(options)
-			setTokens(result)
+			const opts =
+				limit !== undefined || offset !== undefined
+					? { limit, offset }
+					: undefined
+			setTokens(await provider.getTokens(opts))
 		} catch (e) {
 			setError(e instanceof Error ? e : new Error(String(e)))
 		} finally {
 			setIsLoading(false)
 		}
-	}, [provider, isConnected, options])
+	}, [provider, isConnected, limit, offset])
 
 	useEffect(() => {
 		if (isConnected) {
@@ -198,64 +195,70 @@ export function useTokens(options?: ListOptions) {
 		}
 	}, [isConnected, refetch])
 
-	return {
-		tokens,
-		isLoading,
-		error,
-		refetch,
-	}
+	return { tokens, isLoading, error, refetch }
 }
+
+/**
+ * Hook to get payment UTXOs from the wallet
+ *
+ * @example
+ * ```tsx
+ * function Utxos() {
+ *   const { utxos, refetch } = useUtxos()
+ *   return <span>{utxos.length} UTXOs available</span>
+ * }
+ * ```
+ */
+export function useUtxos() {
+	const { provider, isConnected } = useOneSatContext()
+	const [utxos, setUtxos] = useState<Utxo[]>([])
+	const [isLoading, setIsLoading] = useState(false)
+	const [error, setError] = useState<Error | null>(null)
+
+	const refetch = useCallback(async () => {
+		if (!provider || !isConnected) return
+		setIsLoading(true)
+		setError(null)
+		try {
+			setUtxos(await provider.getUtxos())
+		} catch (e) {
+			setError(e instanceof Error ? e : new Error(String(e)))
+		} finally {
+			setIsLoading(false)
+		}
+	}, [provider, isConnected])
+
+	useEffect(() => {
+		if (isConnected) {
+			refetch()
+		} else {
+			setUtxos([])
+		}
+	}, [isConnected, refetch])
+
+	return { utxos, isLoading, error, refetch }
+}
+
+// --- Mutation hooks ---
 
 /**
  * Hook for signing transactions
  *
  * @example
  * ```tsx
- * function SignTx() {
- *   const { signTransaction, isLoading } = useSignTransaction()
- *
- *   const handleSign = async () => {
- *     const result = await signTransaction(rawTx)
- *     console.log('Signed:', result.txid)
- *   }
- *
- *   return <button onClick={handleSign} disabled={isLoading}>Sign</button>
- * }
+ * const { signTransaction, isLoading } = useSignTransaction()
+ * const result = await signTransaction({ rawtx, description: 'Send payment' })
  * ```
  */
 export function useSignTransaction() {
-	const { provider, isConnected } = useOneSatContext()
-	const [isLoading, setIsLoading] = useState(false)
-	const [error, setError] = useState<Error | null>(null)
-
-	const signTransaction = useCallback(
-		async (rawtx: string, description?: string) => {
-			if (!provider || !isConnected) {
-				throw new Error('Wallet not connected')
-			}
-
-			setIsLoading(true)
-			setError(null)
-
-			try {
-				const result = await provider.signTransaction({ rawtx, description })
-				return result
-			} catch (e) {
-				const err = e instanceof Error ? e : new Error(String(e))
-				setError(err)
-				throw err
-			} finally {
-				setIsLoading(false)
-			}
-		},
-		[provider, isConnected],
-	)
-
-	return {
-		signTransaction,
+	const {
+		mutate: signTransaction,
 		isLoading,
 		error,
-	}
+	} = useProviderAction((p, request: SignTransactionRequest) =>
+		p.signTransaction(request),
+	)
+	return { signTransaction, isLoading, error }
 }
 
 /**
@@ -263,92 +266,133 @@ export function useSignTransaction() {
  *
  * @example
  * ```tsx
- * function SignMessage() {
- *   const { signMessage, isLoading } = useSignMessage()
- *
- *   const handleSign = async () => {
- *     const result = await signMessage('Hello, World!')
- *     console.log('Signature:', result.signature)
- *   }
- *
- *   return <button onClick={handleSign} disabled={isLoading}>Sign Message</button>
- * }
+ * const { signMessage, isLoading } = useSignMessage()
+ * const result = await signMessage('Hello, World!')
  * ```
  */
 export function useSignMessage() {
-	const { provider, isConnected } = useOneSatContext()
-	const [isLoading, setIsLoading] = useState(false)
-	const [error, setError] = useState<Error | null>(null)
-
-	const signMessage = useCallback(
-		async (message: string) => {
-			if (!provider || !isConnected) {
-				throw new Error('Wallet not connected')
-			}
-
-			setIsLoading(true)
-			setError(null)
-
-			try {
-				const result = await provider.signMessage(message)
-				return result
-			} catch (e) {
-				const err = e instanceof Error ? e : new Error(String(e))
-				setError(err)
-				throw err
-			} finally {
-				setIsLoading(false)
-			}
-		},
-		[provider, isConnected],
-	)
-
-	return {
-		signMessage,
+	const {
+		mutate: signMessage,
 		isLoading,
 		error,
-	}
+	} = useProviderAction((p, message: string) => p.signMessage(message))
+	return { signMessage, isLoading, error }
 }
 
 /**
  * Hook for inscribing ordinals
+ *
+ * @example
+ * ```tsx
+ * const { inscribe, isLoading } = useInscribe()
+ * const result = await inscribe({ dataB64, contentType: 'text/plain' })
+ * ```
  */
 export function useInscribe() {
-	const { provider, isConnected } = useOneSatContext()
-	const [isLoading, setIsLoading] = useState(false)
-	const [error, setError] = useState<Error | null>(null)
-
-	const inscribe = useCallback(
-		async (params: {
-			dataB64: string
-			contentType: string
-			destinationAddress?: string
-			metaData?: Record<string, string>
-		}) => {
-			if (!provider || !isConnected) {
-				throw new Error('Wallet not connected')
-			}
-
-			setIsLoading(true)
-			setError(null)
-
-			try {
-				const result = await provider.inscribe(params)
-				return result
-			} catch (e) {
-				const err = e instanceof Error ? e : new Error(String(e))
-				setError(err)
-				throw err
-			} finally {
-				setIsLoading(false)
-			}
-		},
-		[provider, isConnected],
-	)
-
-	return {
-		inscribe,
+	const {
+		mutate: inscribe,
 		isLoading,
 		error,
-	}
+	} = useProviderAction((p, request: InscribeRequest) => p.inscribe(request))
+	return { inscribe, isLoading, error }
+}
+
+/**
+ * Hook for sending ordinals
+ *
+ * @example
+ * ```tsx
+ * const { sendOrdinals, isLoading } = useSendOrdinals()
+ * await sendOrdinals({ outpoints: ['txid_0'], destinationAddress: 'addr' })
+ * ```
+ */
+export function useSendOrdinals() {
+	const {
+		mutate: sendOrdinals,
+		isLoading,
+		error,
+	} = useProviderAction((p, request: SendOrdinalsRequest) =>
+		p.sendOrdinals(request),
+	)
+	return { sendOrdinals, isLoading, error }
+}
+
+/**
+ * Hook for transferring tokens (BSV20/21)
+ *
+ * @example
+ * ```tsx
+ * const { transferToken, isLoading } = useTransferToken()
+ * await transferToken({ tokenId: 'origin_0', amount: '100', destinationAddress: 'addr' })
+ * ```
+ */
+export function useTransferToken() {
+	const {
+		mutate: transferToken,
+		isLoading,
+		error,
+	} = useProviderAction((p, request: TransferTokenRequest) =>
+		p.transferToken(request),
+	)
+	return { transferToken, isLoading, error }
+}
+
+/**
+ * Hook for creating marketplace listings
+ *
+ * @example
+ * ```tsx
+ * const { createListing, isLoading } = useCreateListing()
+ * await createListing({ outpoints: ['txid_0'], priceSatoshis: 100000 })
+ * ```
+ */
+export function useCreateListing() {
+	const {
+		mutate: createListing,
+		isLoading,
+		error,
+	} = useProviderAction((p, request: CreateListingRequest) =>
+		p.createListing(request),
+	)
+	return { createListing, isLoading, error }
+}
+
+/**
+ * Hook for purchasing a listed ordinal
+ *
+ * @example
+ * ```tsx
+ * const { purchaseListing, isLoading } = usePurchaseListing()
+ * await purchaseListing({ listingOutpoint: 'txid_0' })
+ * ```
+ */
+export function usePurchaseListing() {
+	const {
+		mutate: purchaseListing,
+		isLoading,
+		error,
+	} = useProviderAction((p, request: PurchaseListingRequest) =>
+		p.purchaseListing(request),
+	)
+	return { purchaseListing, isLoading, error }
+}
+
+/**
+ * Hook for cancelling marketplace listings
+ *
+ * @example
+ * ```tsx
+ * const { cancelListing, isLoading } = useCancelListing()
+ * await cancelListing({ listingOutpoints: ['txid_0'] })
+ * ```
+ */
+export function useCancelListing() {
+	const {
+		mutate: cancelListing,
+		isLoading,
+		error,
+	} = useProviderAction((p, request: CancelListingRequest) =>
+		p.cancelListing(request),
+	)
+	return { cancelListing, isLoading, error }
 }

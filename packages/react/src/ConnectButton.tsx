@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { useOneSat } from './hooks'
+import { useOneSatContext } from './context'
 
 export interface ConnectButtonProps {
 	/** Custom class name for the button */
@@ -83,7 +83,7 @@ export function ConnectButton({
 		paymentAddress,
 		connect: providerConnect,
 		disconnect: providerDisconnect,
-	} = useOneSat()
+	} = useOneSatContext()
 
 	const connect = async () => {
 		try {

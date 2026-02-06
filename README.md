@@ -18,13 +18,14 @@ bun add @1sat/react
 
 ## Features
 
-- **Connect** - Wallet connection via popup (1sat.market) or future browser extensions
+- **Connect** - Wallet connection via popup (1sat.market) or browser extensions
 - **Ordinals** - Inscribe, send, and list NFTs
 - **Tokens** - Full support for BSV20 (tick) and BSV21 (token ID) standards
 - **Marketplace** - Create, purchase, and cancel listings
 - **Signing** - Message signing (BSM) and Sigma protocol for data attestation
 - **Builder** - Low-level transaction builder for custom flows
 - **Actions** - Self-describing wallet operations for agents and tooling
+- **Wallet Engine** - Full BRC-100 wallet with indexers, sync, and backup
 
 ## Quick Start
 
@@ -104,8 +105,7 @@ function WalletInfo() {
 For backends or scripts where you control the keys directly:
 
 ```typescript
-import { ONESAT_MAINNET_URL } from '@1sat/constants'
-import { ArcadeClient, createOrdinals, fetchPayUtxos } from '@1sat/sdk'
+import { ArcadeClient, createOrdinals, fetchPayUtxos, ONESAT_MAINNET_URL } from '@1sat/sdk'
 import { PrivateKey, Utils } from '@bsv/sdk'
 
 const { toArray, toBase64 } = Utils
@@ -150,15 +150,10 @@ if (
 Browser (IndexedDB):
 
 ```typescript
-import { OneSatWallet, StorageIdb, WalletStorageManager } from '@1sat/sdk/wallet/browser'
+import { createWebWallet } from '@1sat/wallet-browser'
 
-const storage = await WalletStorageManager.createWithProviders(
-  new StorageIdb({ name: 'wallet' }),
-)
-
-const wallet = new OneSatWallet({
-  rootKey: privateKey,
-  storage,
+const { wallet, services } = await createWebWallet({
+  rootKey: privateKeyHex,
   chain: 'main',
 })
 ```
@@ -166,16 +161,12 @@ const wallet = new OneSatWallet({
 Node/Bun (SQLite):
 
 ```typescript
-import { OneSatWallet, StorageSqlite, WalletStorageManager } from '@1sat/sdk/wallet/node'
+import { createNodeWallet } from '@1sat/wallet-node'
 
-const storage = await WalletStorageManager.createWithProviders(
-  new StorageSqlite({ filename: 'wallet.sqlite' }),
-)
-
-const wallet = new OneSatWallet({
-  rootKey: privateKey,
-  storage,
+const { wallet, services } = await createNodeWallet({
+  rootKey: privateKeyHex,
   chain: 'main',
+  dbFilename: 'wallet.sqlite',
 })
 ```
 
@@ -290,8 +281,8 @@ import {
   selectTokenUtxos,
   transferOrdTokens,
   TokenType,
+  ONESAT_MAINNET_URL,
 } from '@1sat/sdk'
-import { ONESAT_MAINNET_URL } from '@1sat/constants'
 import { PrivateKey } from '@bsv/sdk'
 
 const paymentPk = PrivateKey.fromWif(process.env.PAYMENT_WIF!)
@@ -350,46 +341,53 @@ if (
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      Your Application                        │
-├─────────────────────────────────────────────────────────────┤
-│  @1sat/sdk          │  @1sat/react       │  @1sat/wallet    │
-│  - createOneSat()   │  - OneSatProvider  │  - OneSatWallet  │
-│  - createOrdinals() │  - useOneSat       │  - Indexers      │
-│  - TxBuilder        │  - ConnectButton   │  - Sync engine   │
-├─────────────────────┴──────────────────────────────────────┤
-│  @1sat/connect            │  @1sat/extension                │
-│  - Popup wallet connection│  - Browser extension toolkit    │
-│  - postMessage protocol   │  - window.onesat injection      │
-├───────────────────────────┴─────────────────────────────────┤
-│  @1sat/core         │  @1sat/client      │  @1sat/protocols │
-│  - TxBuilder        │  - Indexer API     │  - MAP, Sigma    │
-│  - Ordinal ops      │  - Broadcast       │  - OrdP2PKH      │
-│                     │  - UTXO fetch      │  - OrdLock       │
-├───────────────────────────┬─────────────────────────────────┤
-│  @1sat/actions      │  @1sat/utils       │  @1sat/constants │
-│  - Wallet actions   │  - Encoding        │  - Protocol defs │
-│  - Agent tooling    │  - Validation      │  - Endpoints     │
-├─────────────────────────────────────────────────────────────┤
-│  @1sat/types  │  @1sat/constants  │  @1sat/utils            │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                       Your Application                       │
+├──────────────────────────────────────────────────────────────┤
+│  @1sat/sdk               │  @1sat/react                     │
+│  - createOneSat()        │  - OneSatProvider                │
+│  - createOrdinals()      │  - useOneSat / useBalance        │
+│  - TxBuilder, Actions    │  - ConnectButton                 │
+├──────────────────────────┴──────────────────────────────────┤
+│  @1sat/connect                  │  @1sat/extension           │
+│  - Popup wallet connection      │  - Browser extension       │
+│  - postMessage protocol         │  - window.onesat injection │
+├─────────────────────────────────┴────────────────────────────┤
+│  @1sat/wallet-browser   │  @1sat/wallet-node                │
+│  - createWebWallet()    │  - createNodeWallet()             │
+│  - IndexedDB storage    │  - SQLite storage                 │
+├─────────────────────────┴────────────────────────────────────┤
+│  @1sat/wallet           │  @1sat/actions                    │
+│  - OneSatWallet         │  - Action registry                │
+│  - Indexers & sync      │  - Agent tooling                  │
+│  - Backup / CWI         │  - Self-describing ops            │
+├─────────────────────────┴────────────────────────────────────┤
+│  @1sat/core                     │  @1sat/client              │
+│  - TxBuilder, Ordinal ops       │  - Indexer API             │
+│  - Protocols: MAP, Sigma,       │  - Broadcast (Arcade)      │
+│    OrdP2PKH, OrdLock            │  - UTXO fetch, ORDFS       │
+├─────────────────────────────────┴────────────────────────────┤
+│  @1sat/types            │  @1sat/utils                      │
+│  - Type definitions     │  - Encoding & validation          │
+│  - Protocol constants   │  - Key derivation                 │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ### Packages
 
 | Package | Description |
 |---------|-------------|
-| `@1sat/sdk` | Main SDK - browser dApps and transaction building |
+| `@1sat/sdk` | Main SDK - aggregates all packages for browser dApps and transaction building |
 | `@1sat/react` | React hooks and ConnectButton component |
-| `@1sat/connect` | Popup-based wallet connection |
-| `@1sat/extension` | Build browser wallet extensions with window.onesat |
-| `@1sat/core` | TxBuilder and ordinal operations |
-| `@1sat/client` | API client for indexer, broadcast, ORDFS |
-| `@1sat/protocols` | MAP, Sigma, OrdP2PKH, OrdLock implementations |
-| `@1sat/types` | TypeScript type definitions |
-| `@1sat/constants` | Protocol constants and endpoints |
-| `@1sat/utils` | Encoding and validation utilities |
-| `@1sat/wallet` | Full BRC-100 wallet engine with indexers and sync |
+| `@1sat/connect` | Popup-based wallet connection protocol |
+| `@1sat/extension` | Browser wallet extension toolkit (window.onesat) |
+| `@1sat/core` | TxBuilder, ordinal operations, and protocol implementations (MAP, Sigma, OrdP2PKH, OrdLock) |
+| `@1sat/client` | API clients for indexer, broadcast, and ORDFS |
+| `@1sat/types` | TypeScript type definitions and protocol constants |
+| `@1sat/utils` | Encoding, validation, and key derivation utilities |
+| `@1sat/wallet` | Base BRC-100 wallet engine with indexers, sync, backup, and CWI |
+| `@1sat/wallet-browser` | Browser wallet factory (IndexedDB storage) |
+| `@1sat/wallet-node` | Node/Bun wallet factory (SQLite storage) |
 | `@1sat/actions` | Self-describing wallet actions for agents and tooling |
 
 ## Development
@@ -399,13 +397,13 @@ if (
 bun install
 
 # Build all packages
-bun run --filter '*' build
+bun run build
 
 # Lint
 bun run lint
 
 # Watch mode
-cd packages/sdk && bun run dev
+bun dev
 ```
 
 ## Related
