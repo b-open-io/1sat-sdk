@@ -18,6 +18,7 @@ import {
 	WalletStorageManager,
 } from '@bsv/wallet-toolbox-mobile/out/src/index.client.js'
 import { type FullSyncResult, type FullSyncStage, fullSync } from './fullSync'
+import type { MonitorEvent } from './types'
 
 type Chain = 'main' | 'test'
 type MobileWalletServices = mobileSdk.WalletServices
@@ -49,6 +50,8 @@ export interface WebWalletConfig {
 	onTransactionBroadcasted?: (txid: string) => void
 	/** Callback when a transaction is proven (called after remote sync if connected) */
 	onTransactionProven?: (txid: string, blockHeight: number) => void
+	/** Typed monitor event callback for structured lifecycle events */
+	onMonitorEvent?: (event: MonitorEvent) => void
 }
 
 /**
@@ -123,8 +126,15 @@ function parsePrivateKey(input: PrivateKey | string): PrivateKey {
 export async function createWebWallet(
 	config: WebWalletConfig,
 ): Promise<WebWalletResult> {
-	const { chain } = config
+	const { chain, onMonitorEvent } = config
 	const feeModel = config.feeModel ?? DEFAULT_FEE_MODEL
+	const emit = (event: MonitorEvent) => {
+		try {
+			onMonitorEvent?.(event)
+		} catch {
+			// Never let event handler errors crash wallet operations
+		}
+	}
 
 	// 1. Parse private key and create KeyDeriver
 	const privateKey = parsePrivateKey(config.privateKey)
@@ -194,8 +204,10 @@ export async function createWebWallet(
 					storage,
 					remoteStorage: remoteClient,
 					identityKey: identityPubKey,
-					onProgress: (stage, msg) =>
-						console.log(`[createWebWallet] fullSync ${stage}: ${msg}`),
+					onProgress: (stage, msg) => {
+						console.log(`[createWebWallet] fullSync ${stage}: ${msg}`)
+						emit({ type: 'sync:progress', stage, message: msg })
+					},
 				})
 
 				// Claim active status (merge now works because mappings exist from fullSync)
@@ -209,10 +221,9 @@ export async function createWebWallet(
 				)
 			}
 		} catch (err) {
-			console.log(
-				'[createWebWallet] Remote backup connection failed:',
-				err instanceof Error ? err.message : err,
-			)
+			const msg = err instanceof Error ? err.message : String(err)
+			console.log('[createWebWallet] Remote backup connection failed:', msg)
+			emit({ type: 'error', source: 'remote-storage', message: msg })
 			remoteClient = undefined
 		}
 	}
@@ -222,6 +233,7 @@ export async function createWebWallet(
 		if (storage.getBackupStores().length > 0) {
 			await storage.updateBackups(undefined, (msg: string) => {
 				console.log(`[createWebWallet] ${context}:`, msg)
+				emit({ type: 'sync:backup', message: `${context}: ${msg}` })
 				return msg
 			})
 		}
@@ -292,6 +304,7 @@ export async function createWebWallet(
 	// the interception in step 8 handles the sync, but these still fire for the user callback.
 	monitor.onTransactionBroadcasted = async (result) => {
 		console.log('[createWebWallet] Monitor detected broadcast:', result.txid)
+		emit({ type: 'broadcast', txid: result.txid, status: 'success' })
 
 		// Sync to remote backup first (if connected)
 		// Note: For immediate broadcasts, step 8 already synced, but this is harmless
@@ -329,6 +342,12 @@ export async function createWebWallet(
 			'block',
 			status.blockHeight,
 		)
+		emit({
+			type: 'proven',
+			txid: status.txid,
+			blockHeight: status.blockHeight,
+			blockHash: status.blockHash ?? '',
+		})
 
 		// Sync to remote backup first (if connected)
 		if (remoteClient) {

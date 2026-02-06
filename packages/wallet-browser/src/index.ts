@@ -15,6 +15,9 @@ export type { WebWalletConfig, WebWalletResult } from './createWebWallet'
 export { fullSync } from './fullSync'
 export type { FullSyncOptions, FullSyncResult, FullSyncStage } from './fullSync'
 
+// Monitor events
+export type { MonitorEvent } from './types'
+
 // Re-export browser toolbox utilities
 export {
 	Monitor,

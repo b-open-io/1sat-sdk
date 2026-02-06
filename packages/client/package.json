@@ -21,7 +21,7 @@
 	"license": "MIT",
 	"dependencies": {
 		"@1sat/types": "^0.0.4",
-		"@bsv/wallet-toolbox-mobile": "^2.0.4"
+		"@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@2.0.4-idb-fix.1"
 	},
 	"peerDependencies": {
 		"@bsv/sdk": "^2.0.1"

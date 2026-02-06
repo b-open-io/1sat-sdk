@@ -12,8 +12,8 @@
 	},
 	"overrides": {
 		"@bsv/sdk": "^2.0.1",
-		"@bsv/wallet-toolbox-mobile": "^2.0.4",
-		"@bopen-io/wallet-toolbox-mobile": "npm:@bsv/wallet-toolbox-mobile@^2.0.4"
+		"@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@2.0.4-idb-fix.1",
+		"@bopen-io/wallet-toolbox-mobile": "2.0.4-idb-fix.1"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",
