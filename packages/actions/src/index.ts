@@ -22,7 +22,6 @@ export { ActionRegistry, actionRegistry, type McpTool } from './registry'
 export * from './constants'
 
 // Export module actions and types
-export * from './balance'
 export * from './payments'
 export * from './ordinals'
 export * from './tokens'
@@ -33,7 +32,6 @@ export * from './signing'
 // Export sweep module (uses external signing, not action-based)
 export * from './sweep'
 
-import { balanceActions } from './balance'
 import { inscriptionsActions } from './inscriptions'
 import { locksActions } from './locks'
 import { ordinalsActions } from './ordinals'
@@ -44,7 +42,6 @@ import { sweepActions } from './sweep'
 import { tokensActions } from './tokens'
 
 actionRegistry.registerAll([
-	...balanceActions,
 	...paymentsActions,
 	...ordinalsActions,
 	...tokensActions,

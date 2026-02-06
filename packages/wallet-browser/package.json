@@ -20,10 +20,10 @@
 	"keywords": ["1sat", "bsv", "ordinals", "wallet", "browser"],
 	"license": "MIT",
 	"dependencies": {
-		"@1sat/wallet": "workspace:*"
+		"@1sat/wallet": "^0.0.8"
 	},
 	"peerDependencies": {
-		"@1sat/client": "^0.0.4",
+		"@1sat/client": "^0.0.5",
 		"@bsv/sdk": "^2.0.1",
 		"@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@2.0.4-idb-fix.1"
 	},

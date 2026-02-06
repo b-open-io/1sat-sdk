@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/sdk",
-	"version": "0.0.4",
+	"version": "0.0.5",
 	"description": "1Sat Ordinals SDK - Complete toolkit for BSV ordinals, tokens, and wallet integration",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -47,15 +47,15 @@
 	"keywords": ["1sat", "bsv", "ordinals", "wallet", "sdk", "bitcoin"],
 	"license": "MIT",
 	"dependencies": {
-		"@1sat/actions": "workspace:*",
-		"@1sat/connect": "workspace:*",
-		"@1sat/types": "workspace:*",
-		"@1sat/utils": "workspace:*",
-		"@1sat/client": "workspace:*",
-		"@1sat/core": "workspace:*",
-		"@1sat/wallet": "workspace:*",
-		"@1sat/wallet-browser": "workspace:*",
-		"@1sat/wallet-node": "workspace:*"
+		"@1sat/actions": "^0.0.5",
+		"@1sat/connect": "^0.0.4",
+		"@1sat/types": "^0.0.5",
+		"@1sat/utils": "^0.0.7",
+		"@1sat/client": "^0.0.5",
+		"@1sat/core": "^0.0.5",
+		"@1sat/wallet": "^0.0.8",
+		"@1sat/wallet-browser": "^0.0.4",
+		"@1sat/wallet-node": "^0.0.2"
 	},
 	"peerDependencies": {
 		"@bsv/sdk": "^2.0.1"
