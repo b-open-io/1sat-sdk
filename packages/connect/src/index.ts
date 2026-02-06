@@ -8,6 +8,19 @@ export type {
 	OneSatProvider,
 	OneSatEvent,
 	EventHandler,
+	TransportMode,
+	MobileFallbackMode,
+	CWIHandshakeReason,
+	CWIWalletStatus,
+	CWITransportName,
+	CWITransportConfig,
+	CWIState,
+	CWIRequestMessage,
+	CWIResponseMessage,
+	CWIStateMessage,
+	CWITransportEvent,
+	CWITransportEventHandler,
+	CWITransport,
 	RpcMethod,
 	SignTransactionRequest,
 	SignTransactionResult,
@@ -42,6 +55,11 @@ export {
 	PopupBlockedError,
 	PopupClosedError,
 	TimeoutError,
+	TransportUnavailableError,
+	FallbackRequiredError,
+	AuthorizationTimeoutError,
+	StateMismatchError,
+	CodeReplayError,
 	fromErrorResponse,
 } from './errors'
 
@@ -87,6 +105,14 @@ export {
 // Export provider
 export { OneSatBrowserProvider } from './provider'
 export { PopupManager, type PopupConfig, type PendingRequest } from './popup'
+export {
+	AutoTransport,
+	EmbedTransport,
+	RedirectTransport,
+	createAutoTransport,
+	createEmbedTransport,
+	createRedirectTransport,
+} from './transport'
 
 /**
  * Check if the OneSat provider is injected by browser extension

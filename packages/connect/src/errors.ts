@@ -20,6 +20,11 @@ export const ErrorCodes = {
 	TIMEOUT: 4008,
 	NETWORK_ERROR: 4009,
 	ORIGIN_NOT_ALLOWED: 4010,
+	TRANSPORT_UNAVAILABLE: 4011,
+	FALLBACK_REQUIRED: 4012,
+	AUTHORIZATION_TIMEOUT: 4013,
+	STATE_MISMATCH: 4014,
+	CODE_REPLAY: 4015,
 } as const
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes]
@@ -96,6 +101,50 @@ export class TimeoutError extends OneSatError {
 	}
 }
 
+export class TransportUnavailableError extends OneSatError {
+	constructor(
+		message = 'No available transport for wallet request',
+		data?: unknown,
+	) {
+		super(ErrorCodes.TRANSPORT_UNAVAILABLE, message, data)
+		this.name = 'TransportUnavailableError'
+	}
+}
+
+export class FallbackRequiredError extends OneSatError {
+	constructor(
+		message = 'Embed transport requires redirect fallback',
+		data?: unknown,
+	) {
+		super(ErrorCodes.FALLBACK_REQUIRED, message, data)
+		this.name = 'FallbackRequiredError'
+	}
+}
+
+export class AuthorizationTimeoutError extends OneSatError {
+	constructor(message = 'Authorization flow timed out', data?: unknown) {
+		super(ErrorCodes.AUTHORIZATION_TIMEOUT, message, data)
+		this.name = 'AuthorizationTimeoutError'
+	}
+}
+
+export class StateMismatchError extends OneSatError {
+	constructor(message = 'Authorization state mismatch', data?: unknown) {
+		super(ErrorCodes.STATE_MISMATCH, message, data)
+		this.name = 'StateMismatchError'
+	}
+}
+
+export class CodeReplayError extends OneSatError {
+	constructor(
+		message = 'Authorization code has already been used',
+		data?: unknown,
+	) {
+		super(ErrorCodes.CODE_REPLAY, message, data)
+		this.name = 'CodeReplayError'
+	}
+}
+
 /**
  * Create an error from an error response
  */
@@ -119,6 +168,16 @@ export function fromErrorResponse(error: {
 			return new PopupClosedError(error.message)
 		case ErrorCodes.TIMEOUT:
 			return new TimeoutError(error.message)
+		case ErrorCodes.TRANSPORT_UNAVAILABLE:
+			return new TransportUnavailableError(error.message, error.data)
+		case ErrorCodes.FALLBACK_REQUIRED:
+			return new FallbackRequiredError(error.message, error.data)
+		case ErrorCodes.AUTHORIZATION_TIMEOUT:
+			return new AuthorizationTimeoutError(error.message, error.data)
+		case ErrorCodes.STATE_MISMATCH:
+			return new StateMismatchError(error.message, error.data)
+		case ErrorCodes.CODE_REPLAY:
+			return new CodeReplayError(error.message, error.data)
 		default:
 			return new OneSatError(error.code as ErrorCode, error.message, error.data)
 	}
