@@ -20,15 +20,16 @@
 	"keywords": ["1sat", "bsv", "ordinals", "wallet", "browser"],
 	"license": "MIT",
 	"dependencies": {
-		"@1sat/wallet": "^0.0.6"
+		"@1sat/client": "workspace:*",
+		"@1sat/wallet": "workspace:*"
 	},
 	"peerDependencies": {
-		"@bsv/sdk": "^1.10.4",
-		"@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@1.7.24-idb-fix.1"
+		"@bsv/sdk": "^2.0.1",
+		"@bsv/wallet-toolbox-mobile": "^2.0.4"
 	},
 	"devDependencies": {
-		"@bsv/sdk": "^1.10.4",
-		"@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@1.7.24-idb-fix.1",
+		"@bsv/sdk": "^2.0.1",
+		"@bsv/wallet-toolbox-mobile": "^2.0.4",
 		"typescript": "^5.9.3"
 	}
 }

@@ -7,6 +7,7 @@
 
 import { OrdLock } from '@bopen-io/templates'
 import {
+	type BEEF,
 	Beef,
 	BigNumber,
 	type CreateActionArgs,
@@ -448,7 +449,7 @@ export interface GetOrdinalsInput {
 /** Result from getOrdinals action */
 export interface GetOrdinalsResult {
 	outputs: WalletOutput[]
-	BEEF?: number[]
+	BEEF?: BEEF
 }
 
 /**

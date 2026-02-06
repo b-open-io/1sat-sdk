@@ -22,7 +22,6 @@ export {
 	StorageClient,
 	StorageKnex,
 	StorageProvider,
-	StorageSqlite,
 	Wallet,
 	WalletStorageManager,
 	type sdk as walletSdk,

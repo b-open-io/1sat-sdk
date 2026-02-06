@@ -23,13 +23,13 @@
 		"@1sat/wallet": "^0.0.5"
 	},
 	"peerDependencies": {
-		"@bsv/sdk": "^1.10.4",
-		"@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@1.7.24-idb-fix.1",
+		"@bsv/sdk": "^2.0.1",
+		"@bsv/wallet-toolbox": "^2.0.4",
 		"knex": "^3.0.0"
 	},
 	"devDependencies": {
-		"@bsv/sdk": "^1.10.4",
-		"@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@1.7.24-idb-fix.1",
+		"@bsv/sdk": "^2.0.1",
+		"@bsv/wallet-toolbox": "^2.0.4",
 		"knex": "^3.1.0",
 		"typescript": "^5.9.3"
 	}

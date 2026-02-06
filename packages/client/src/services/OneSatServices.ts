@@ -9,6 +9,7 @@ import {
 	type WalletLoggerInterface,
 } from '@bsv/sdk'
 import type { TableOutput, sdk as toolboxSdk } from '@bsv/wallet-toolbox-mobile'
+import { WalletError } from '@bsv/wallet-toolbox-mobile/out/src/sdk/WalletError.js'
 import {
 	ArcadeClient,
 	BeefClient,
@@ -34,20 +35,6 @@ type ServiceCallHistory = toolboxSdk.ServiceCallHistory
 type ServicesCallHistory = toolboxSdk.ServicesCallHistory
 type WalletServices = toolboxSdk.WalletServices
 
-/**
- * Simple error class for WalletServices error responses.
- */
-class ServiceError extends Error {
-	isError: true = true
-
-	constructor(
-		public code: string,
-		public description: string,
-	) {
-		super(description)
-		this.name = code
-	}
-}
 
 export type { SyncOutput }
 
@@ -145,10 +132,10 @@ export class OneSatServices implements WalletServices {
 		} catch (error) {
 			return {
 				txid,
-				error: new ServiceError(
+				error: new WalletError(
 					'NETWORK_ERROR',
 					error instanceof Error ? error.message : 'Unknown error',
-				) as unknown as toolboxSdk.WalletError,
+				),
 			}
 		}
 	}
@@ -189,10 +176,10 @@ export class OneSatServices implements WalletServices {
 				)
 				return {
 					name: '1sat-api',
-					error: new ServiceError(
+					error: new WalletError(
 						'HEADER_NOT_FOUND',
 						`Block header not found for height ${merklePath.blockHeight}`,
-					) as unknown as toolboxSdk.WalletError,
+					),
 				}
 			}
 
@@ -204,10 +191,10 @@ export class OneSatServices implements WalletServices {
 			console.error('[OneSatServices] getMerklePath error:', error)
 			return {
 				name: '1sat-api',
-				error: new ServiceError(
+				error: new WalletError(
 					'NETWORK_ERROR',
 					error instanceof Error ? error.message : 'Unknown error',
-				) as unknown as toolboxSdk.WalletError,
+				),
 			}
 		}
 	}
@@ -260,10 +247,10 @@ export class OneSatServices implements WalletServices {
 					results.push({
 						name: '1sat-api',
 						status: 'error',
-						error: new ServiceError(
+						error: new WalletError(
 							status.txStatus,
 							status.extraInfo || 'Transaction rejected',
-						) as unknown as toolboxSdk.WalletError,
+						),
 						txidResults: [{ txid, status: 'error', data: status }],
 					})
 				} else {
@@ -279,10 +266,10 @@ export class OneSatServices implements WalletServices {
 				results.push({
 					name: '1sat-api',
 					status: 'error',
-					error: new ServiceError(
+					error: new WalletError(
 						'NETWORK_ERROR',
 						error instanceof Error ? error.message : 'Unknown error',
-					) as unknown as toolboxSdk.WalletError,
+					),
 					txidResults: [{ txid, status: 'error' }],
 				})
 			}
@@ -433,10 +420,10 @@ export class OneSatServices implements WalletServices {
 			return {
 				name: '1sat-api',
 				status: 'error',
-				error: new ServiceError(
+				error: new WalletError(
 					'INVALID_PARAMETER',
 					'outpoint is required for getUtxoStatus',
-				) as unknown as toolboxSdk.WalletError,
+				),
 				details: [],
 			}
 		}

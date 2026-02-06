@@ -47,21 +47,21 @@
 	"keywords": ["1sat", "bsv", "ordinals", "wallet", "sdk", "bitcoin"],
 	"license": "MIT",
 	"dependencies": {
-		"@1sat/actions": "^0.0.1",
-		"@1sat/connect": "^0.0.3",
-		"@1sat/types": "^0.0.3",
-		"@1sat/utils": "^0.0.4",
-		"@1sat/client": "^0.0.3",
-		"@1sat/core": "^0.0.3",
-		"@1sat/wallet": "^0.0.5",
-		"@1sat/wallet-browser": "^0.0.1",
-		"@1sat/wallet-node": "^0.0.1"
+		"@1sat/actions": "workspace:*",
+		"@1sat/connect": "workspace:*",
+		"@1sat/types": "workspace:*",
+		"@1sat/utils": "workspace:*",
+		"@1sat/client": "workspace:*",
+		"@1sat/core": "workspace:*",
+		"@1sat/wallet": "workspace:*",
+		"@1sat/wallet-browser": "workspace:*",
+		"@1sat/wallet-node": "workspace:*"
 	},
 	"peerDependencies": {
-		"@bsv/sdk": "^1.10.4"
+		"@bsv/sdk": "^2.0.1"
 	},
 	"devDependencies": {
-		"@bsv/sdk": "^1.10.4",
+		"@bsv/sdk": "^2.0.1",
 		"typescript": "^5.9.3"
 	}
 }

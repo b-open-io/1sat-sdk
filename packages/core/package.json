@@ -23,13 +23,13 @@
 		"@1sat/types": "^0.0.3",
 		"@1sat/client": "^0.0.3",
 		"js-1sat-ord": "^0.1.90",
-		"sigma-protocol": "^0.1.6"
+		"sigma-protocol": "^0.1.9"
 	},
 	"peerDependencies": {
-		"@bsv/sdk": "^1.10.4"
+		"@bsv/sdk": "^2.0.1"
 	},
 	"devDependencies": {
-		"@bsv/sdk": "^1.10.4",
+		"@bsv/sdk": "^2.0.1",
 		"typescript": "^5.9.3"
 	}
 }
