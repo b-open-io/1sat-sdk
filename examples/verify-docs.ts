@@ -8,38 +8,16 @@
  *   bun run examples/verify-docs.ts
  */
 import {
-	type BalanceResult,
-	type CancelListingRequest,
-	type ConnectResult,
-	type CreateListingRequest,
 	ErrorCodes,
-	type EventHandler,
-	type InscribeRequest,
-	type InscribeResult,
 	InsufficientFundsError,
-	type ListOptions,
-	type ListingResult,
-	type OneSatConfig,
-	type OneSatEvent,
-	type OneSatProvider,
 	OneSatBrowserProvider,
+	type OneSatConfig,
 	OneSatError,
-	type OrdinalOutput,
 	PopupBlockedError,
 	PopupClosedError,
-	type PurchaseListingRequest,
-	type RpcMethod,
 	RpcMethods,
-	type SendOrdinalsRequest,
-	type SendResult,
-	type SignMessageResult,
-	type SignTransactionRequest,
-	type SignTransactionResult,
 	TimeoutError,
-	type TokenOutput,
-	type TransferTokenRequest,
 	UserRejectedError,
-	type Utxo,
 	WalletLockedError,
 	WalletNotConnectedError,
 	createOneSat,
@@ -49,6 +27,85 @@ import {
 	isOneSatInjected,
 	waitForOneSat,
 } from '../packages/connect/src/index'
+
+// Type-only re-exports verified at compile time — if any is missing, tsc fails.
+import type {
+	BalanceResult,
+	// CWI transport types
+	CWIHandshakeReason,
+	CWIRequestMessage,
+	CWIResponseMessage,
+	CWIState,
+	CWIStateMessage,
+	CWITransport,
+	CWITransportConfig,
+	CWITransportEvent,
+	CWITransportEventHandler,
+	CWITransportName,
+	CWIWalletStatus,
+	CancelListingRequest,
+	ConnectResult,
+	CreateListingRequest,
+	EventHandler,
+	InscribeRequest,
+	InscribeResult,
+	ListOptions,
+	ListingResult,
+	MobileFallbackMode,
+	OneSatEvent,
+	OneSatProvider,
+	OrdinalOutput,
+	PurchaseListingRequest,
+	RpcMethod,
+	SendOrdinalsRequest,
+	SendResult,
+	SignMessageResult,
+	SignTransactionRequest,
+	SignTransactionResult,
+	TokenOutput,
+	TransferTokenRequest,
+	TransportMode,
+	Utxo,
+} from '../packages/connect/src/index'
+
+// Reference every type so biome sees them as used
+type _TypeCheck = [
+	BalanceResult,
+	CancelListingRequest,
+	ConnectResult,
+	CreateListingRequest,
+	EventHandler,
+	InscribeRequest,
+	InscribeResult,
+	ListOptions,
+	ListingResult,
+	OneSatEvent,
+	OneSatProvider,
+	OrdinalOutput,
+	PurchaseListingRequest,
+	RpcMethod,
+	SendOrdinalsRequest,
+	SendResult,
+	SignMessageResult,
+	SignTransactionRequest,
+	SignTransactionResult,
+	TokenOutput,
+	TransferTokenRequest,
+	Utxo,
+	CWIHandshakeReason,
+	CWIWalletStatus,
+	CWITransportName,
+	CWITransportConfig,
+	CWIState,
+	CWIRequestMessage,
+	CWIResponseMessage,
+	CWIStateMessage,
+	CWITransportEvent,
+	CWITransportEventHandler,
+	CWITransport,
+	TransportMode,
+	MobileFallbackMode,
+]
 
 let passed = 0
 let failed = 0
@@ -76,7 +133,10 @@ test('isOneSatInjected is a function', typeof isOneSatInjected === 'function')
 test('isOneSatAvailable is a function', typeof isOneSatAvailable === 'function')
 test('waitForOneSat is a function', typeof waitForOneSat === 'function')
 test('getInjectedOneSat is a function', typeof getInjectedOneSat === 'function')
-test('OneSatBrowserProvider is a class', typeof OneSatBrowserProvider === 'function')
+test(
+	'OneSatBrowserProvider is a class',
+	typeof OneSatBrowserProvider === 'function',
+)
 test('fromErrorResponse is a function', typeof fromErrorResponse === 'function')
 
 // ---------------------------------------------------------------------------
@@ -85,15 +145,18 @@ test('fromErrorResponse is a function', typeof fromErrorResponse === 'function')
 section('Provider Methods (OneSatProvider interface)')
 
 // We can't call createOneSat in Node (no window), so provide a minimal mock
-globalThis.window = globalThis.window || Object.assign({} as any, {
-	addEventListener: () => {},
-	removeEventListener: () => {},
-	localStorage: {
-		getItem: () => null,
-		setItem: () => {},
-		removeItem: () => {},
-	},
-})
+globalThis.window =
+	globalThis.window ||
+	// biome-ignore lint/suspicious/noExplicitAny: minimal mock for Node
+	Object.assign({} as any, {
+		addEventListener: () => {},
+		removeEventListener: () => {},
+		localStorage: {
+			getItem: () => null,
+			setItem: () => {},
+			removeItem: () => {},
+		},
+	})
 const wallet = new OneSatBrowserProvider({ appName: 'Test' })
 
 // Connection
@@ -129,7 +192,10 @@ test('off() exists', typeof wallet.off === 'function')
 
 // Utility
 test('getAddresses() exists', typeof wallet.getAddresses === 'function')
-test('getIdentityPubKey() exists', typeof wallet.getIdentityPubKey === 'function')
+test(
+	'getIdentityPubKey() exists',
+	typeof wallet.getIdentityPubKey === 'function',
+)
 test('isOneSat === true', wallet.isOneSat === true)
 
 // ---------------------------------------------------------------------------
@@ -138,7 +204,10 @@ test('isOneSat === true', wallet.isOneSat === true)
 section('Pre-connection State')
 test('isConnected() = false before connect', wallet.isConnected() === false)
 test('getAddresses() = null before connect', wallet.getAddresses() === null)
-test('getIdentityPubKey() = null before connect', wallet.getIdentityPubKey() === null)
+test(
+	'getIdentityPubKey() = null before connect',
+	wallet.getIdentityPubKey() === null,
+)
 
 // ---------------------------------------------------------------------------
 // 4. Error classes and codes — MUST match docs exactly
@@ -149,11 +218,17 @@ const userErr = new UserRejectedError()
 test('UserRejectedError.code = 4001', userErr.code === 4001)
 test('UserRejectedError instanceof OneSatError', userErr instanceof OneSatError)
 test('UserRejectedError instanceof Error', userErr instanceof Error)
-test('UserRejectedError.name = "UserRejectedError"', userErr.name === 'UserRejectedError')
+test(
+	'UserRejectedError.name = "UserRejectedError"',
+	userErr.name === 'UserRejectedError',
+)
 
 const lockErr = new WalletLockedError()
 test('WalletLockedError.code = 4002', lockErr.code === 4002)
-test('WalletLockedError.name = "WalletLockedError"', lockErr.name === 'WalletLockedError')
+test(
+	'WalletLockedError.name = "WalletLockedError"',
+	lockErr.name === 'WalletLockedError',
+)
 
 const notConnErr = new WalletNotConnectedError()
 test('WalletNotConnectedError.code = 4003', notConnErr.code === 4003)
@@ -176,8 +251,14 @@ test('TimeoutError.code = 4008', timeoutErr.code === 4008)
 section('ErrorCodes Constants')
 test('ErrorCodes.USER_REJECTED = 4001', ErrorCodes.USER_REJECTED === 4001)
 test('ErrorCodes.WALLET_LOCKED = 4002', ErrorCodes.WALLET_LOCKED === 4002)
-test('ErrorCodes.WALLET_NOT_CONNECTED = 4003', ErrorCodes.WALLET_NOT_CONNECTED === 4003)
-test('ErrorCodes.INSUFFICIENT_FUNDS = 4004', ErrorCodes.INSUFFICIENT_FUNDS === 4004)
+test(
+	'ErrorCodes.WALLET_NOT_CONNECTED = 4003',
+	ErrorCodes.WALLET_NOT_CONNECTED === 4003,
+)
+test(
+	'ErrorCodes.INSUFFICIENT_FUNDS = 4004',
+	ErrorCodes.INSUFFICIENT_FUNDS === 4004,
+)
 test('ErrorCodes.POPUP_BLOCKED = 4006', ErrorCodes.POPUP_BLOCKED === 4006)
 test('ErrorCodes.POPUP_CLOSED = 4007', ErrorCodes.POPUP_CLOSED === 4007)
 test('ErrorCodes.TIMEOUT = 4008', ErrorCodes.TIMEOUT === 4008)
@@ -196,11 +277,13 @@ test(
 )
 test(
 	'4003 -> WalletNotConnectedError',
-	fromErrorResponse({ code: 4003, message: 't' }) instanceof WalletNotConnectedError,
+	fromErrorResponse({ code: 4003, message: 't' }) instanceof
+		WalletNotConnectedError,
 )
 test(
 	'4004 -> InsufficientFundsError',
-	fromErrorResponse({ code: 4004, message: 't' }) instanceof InsufficientFundsError,
+	fromErrorResponse({ code: 4004, message: 't' }) instanceof
+		InsufficientFundsError,
 )
 test(
 	'4006 -> PopupBlockedError',
@@ -221,17 +304,32 @@ test(
 section('RPC Method Names')
 test('CONNECT = "connect"', RpcMethods.CONNECT === 'connect')
 test('DISCONNECT = "disconnect"', RpcMethods.DISCONNECT === 'disconnect')
-test('SIGN_TRANSACTION = "signTransaction"', RpcMethods.SIGN_TRANSACTION === 'signTransaction')
+test(
+	'SIGN_TRANSACTION = "signTransaction"',
+	RpcMethods.SIGN_TRANSACTION === 'signTransaction',
+)
 test('SIGN_MESSAGE = "signMessage"', RpcMethods.SIGN_MESSAGE === 'signMessage')
 test('INSCRIBE = "inscribe"', RpcMethods.INSCRIBE === 'inscribe')
-test('SEND_ORDINALS = "sendOrdinals"', RpcMethods.SEND_ORDINALS === 'sendOrdinals')
-test('CREATE_LISTING = "createListing"', RpcMethods.CREATE_LISTING === 'createListing')
+test(
+	'SEND_ORDINALS = "sendOrdinals"',
+	RpcMethods.SEND_ORDINALS === 'sendOrdinals',
+)
+test(
+	'CREATE_LISTING = "createListing"',
+	RpcMethods.CREATE_LISTING === 'createListing',
+)
 test(
 	'PURCHASE_LISTING = "purchaseListing"',
 	RpcMethods.PURCHASE_LISTING === 'purchaseListing',
 )
-test('CANCEL_LISTING = "cancelListing"', RpcMethods.CANCEL_LISTING === 'cancelListing')
-test('TRANSFER_TOKEN = "transferToken"', RpcMethods.TRANSFER_TOKEN === 'transferToken')
+test(
+	'CANCEL_LISTING = "cancelListing"',
+	RpcMethods.CANCEL_LISTING === 'cancelListing',
+)
+test(
+	'TRANSFER_TOKEN = "transferToken"',
+	RpcMethods.TRANSFER_TOKEN === 'transferToken',
+)
 test('GET_BALANCE = "getBalance"', RpcMethods.GET_BALANCE === 'getBalance')
 test('GET_ORDINALS = "getOrdinals"', RpcMethods.GET_ORDINALS === 'getOrdinals')
 test('GET_TOKENS = "getTokens"', RpcMethods.GET_TOKENS === 'getTokens')
@@ -246,49 +344,70 @@ try {
 	await wallet.getBalance()
 	test('getBalance() throws WalletNotConnectedError', false)
 } catch (e) {
-	test('getBalance() throws WalletNotConnectedError', e instanceof WalletNotConnectedError)
+	test(
+		'getBalance() throws WalletNotConnectedError',
+		e instanceof WalletNotConnectedError,
+	)
 }
 
 try {
 	await wallet.signMessage('test')
 	test('signMessage() throws WalletNotConnectedError', false)
 } catch (e) {
-	test('signMessage() throws WalletNotConnectedError', e instanceof WalletNotConnectedError)
+	test(
+		'signMessage() throws WalletNotConnectedError',
+		e instanceof WalletNotConnectedError,
+	)
 }
 
 try {
 	await wallet.getOrdinals()
 	test('getOrdinals() throws WalletNotConnectedError', false)
 } catch (e) {
-	test('getOrdinals() throws WalletNotConnectedError', e instanceof WalletNotConnectedError)
+	test(
+		'getOrdinals() throws WalletNotConnectedError',
+		e instanceof WalletNotConnectedError,
+	)
 }
 
 try {
 	await wallet.getTokens()
 	test('getTokens() throws WalletNotConnectedError', false)
 } catch (e) {
-	test('getTokens() throws WalletNotConnectedError', e instanceof WalletNotConnectedError)
+	test(
+		'getTokens() throws WalletNotConnectedError',
+		e instanceof WalletNotConnectedError,
+	)
 }
 
 try {
 	await wallet.getUtxos()
 	test('getUtxos() throws WalletNotConnectedError', false)
 } catch (e) {
-	test('getUtxos() throws WalletNotConnectedError', e instanceof WalletNotConnectedError)
+	test(
+		'getUtxos() throws WalletNotConnectedError',
+		e instanceof WalletNotConnectedError,
+	)
 }
 
 try {
 	await wallet.inscribe({ dataB64: 'dGVzdA==', contentType: 'text/plain' })
 	test('inscribe() throws WalletNotConnectedError', false)
 } catch (e) {
-	test('inscribe() throws WalletNotConnectedError', e instanceof WalletNotConnectedError)
+	test(
+		'inscribe() throws WalletNotConnectedError',
+		e instanceof WalletNotConnectedError,
+	)
 }
 
 try {
 	await wallet.sendOrdinals({ outpoints: ['a_0'], destinationAddress: 'addr' })
 	test('sendOrdinals() throws WalletNotConnectedError', false)
 } catch (e) {
-	test('sendOrdinals() throws WalletNotConnectedError', e instanceof WalletNotConnectedError)
+	test(
+		'sendOrdinals() throws WalletNotConnectedError',
+		e instanceof WalletNotConnectedError,
+	)
 }
 
 try {
@@ -299,23 +418,29 @@ try {
 	})
 	test('transferToken() throws WalletNotConnectedError', false)
 } catch (e) {
-	test('transferToken() throws WalletNotConnectedError', e instanceof WalletNotConnectedError)
+	test(
+		'transferToken() throws WalletNotConnectedError',
+		e instanceof WalletNotConnectedError,
+	)
 }
 
 try {
 	await wallet.signTransaction({ rawtx: '0100' })
 	test('signTransaction() throws WalletNotConnectedError', false)
 } catch (e) {
-	test('signTransaction() throws WalletNotConnectedError', e instanceof WalletNotConnectedError)
+	test(
+		'signTransaction() throws WalletNotConnectedError',
+		e instanceof WalletNotConnectedError,
+	)
 }
 
 // ---------------------------------------------------------------------------
 // 9. Event system basic operations
 // ---------------------------------------------------------------------------
 section('Event System')
-let eventFired = false
+let _eventFired = false
 const evtHandler = () => {
-	eventFired = true
+	_eventFired = true
 }
 wallet.on('connect', evtHandler)
 wallet.off('connect', evtHandler)
@@ -326,7 +451,10 @@ test('on/off subscribe/unsubscribe works without error', true)
 // ---------------------------------------------------------------------------
 section('OneSatConfig Shape')
 const _config1: OneSatConfig = { appName: 'Test' }
-const _config2: OneSatConfig = { appName: 'Test', popupUrl: 'https://example.com' }
+const _config2: OneSatConfig = {
+	appName: 'Test',
+	popupUrl: 'https://example.com',
+}
 const _config3: OneSatConfig = { appName: 'Test', timeout: 60000 }
 const _config4: OneSatConfig = { appName: 'Test', network: 'main' }
 const _config5: OneSatConfig = { appName: 'Test', network: 'test' }
@@ -338,7 +466,7 @@ test('OneSatConfig accepts network: main | test', true)
 // ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------
-console.log('\n' + '='.repeat(50))
+console.log(`\n${'='.repeat(50)}`)
 const total = passed + failed
 if (failed === 0) {
 	console.log(`\x1b[32m${passed}/${total} tests passed\x1b[0m`)
