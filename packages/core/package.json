@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/core",
-	"version": "0.0.3",
+	"version": "0.0.4",
 	"description": "Transaction building core for 1Sat Ordinals SDK",
 	"type": "module",
 	"main": "./dist/index.js",
