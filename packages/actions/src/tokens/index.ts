@@ -361,7 +361,6 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 					)
 					overlayValidated = true
 					for (const v of validated) {
-						// Normalize outpoint format: server returns txid_vout, wallet uses txid.vout
 						const normalizedOutpoint = v.outpoint.replace('_', '.')
 						validOutpoints.add(normalizedOutpoint)
 					}

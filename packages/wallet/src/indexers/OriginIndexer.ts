@@ -162,7 +162,7 @@ export class OriginIndexer extends Indexer {
 				const spendSatoshis = BigInt(spend.output.satoshis || 0)
 				// Check if this input's satoshi range contains our output's satoshi
 				if (satsIn === outSat && spendSatoshis === 1n) {
-					sourceOutpoint = spend.outpoint.toOrdinalString()
+					sourceOutpoint = spend.outpoint.toString()
 					break
 				}
 
@@ -222,14 +222,14 @@ export class OriginIndexer extends Indexer {
 				} catch (e) {
 					if (e instanceof HttpError && e.status === 404) {
 						// Source outpoint not found in OrdFS - treat as new origin
-						origin.outpoint = txo.outpoint.toOrdinalString()
+						origin.outpoint = txo.outpoint.toString()
 					} else {
 						throw e
 					}
 				}
 			} else {
 				// New origin
-				origin.outpoint = txo.outpoint.toOrdinalString()
+				origin.outpoint = txo.outpoint.toString()
 			}
 
 			// Validate parent if inscription claims one
@@ -237,7 +237,7 @@ export class OriginIndexer extends Indexer {
 			if (insc?.parent) {
 				try {
 					const metadata = await this.services.ordfs.getMetadata(
-						txo.outpoint.toOrdinalString(),
+						txo.outpoint.toString(),
 						0,
 					)
 					if (metadata.parent !== insc.parent) {

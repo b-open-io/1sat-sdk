@@ -24,18 +24,24 @@ const { toArray, toUTF8 } = Utils
 // ============================================================================
 
 /**
- * Parse an outpoint string (txid_vout) into its components
+ * Parse an outpoint string into its components.
+ * Accepts both period (txid.vout) and underscore (txid_vout) delimiters.
  */
 export function parseOutpoint(outpoint: string): {
 	txid: string
 	vout: number
 } {
-	const parts = outpoint.split('_')
-	if (parts.length !== 2) {
+	if (outpoint.length < 66) {
 		throw new Error(`Invalid outpoint format: ${outpoint}`)
 	}
-	const [txid, voutStr] = parts
-	const vout = Number.parseInt(voutStr, 10)
+	const txid = outpoint.substring(0, 64)
+	const separator = outpoint[64]
+	if (separator !== '.' && separator !== '_') {
+		throw new Error(
+			`Invalid outpoint separator: expected '.' or '_', got '${separator}'`,
+		)
+	}
+	const vout = Number.parseInt(outpoint.substring(65), 10)
 	if (Number.isNaN(vout)) {
 		throw new Error(`Invalid vout in outpoint: ${outpoint}`)
 	}
@@ -43,34 +49,35 @@ export function parseOutpoint(outpoint: string): {
 }
 
 /**
- * Format txid and vout into an outpoint string
+ * Format txid and vout into an outpoint string (period-delimited)
  */
 export function formatOutpoint(txid: string, vout: number): string {
-	return `${txid}_${vout}`
+	return `${txid}.${vout}`
 }
 
 /**
- * Validate that a string is a valid outpoint format
+ * Validate that a string is a valid outpoint format.
+ * Accepts both period (txid.vout) and underscore (txid_vout) delimiters.
  */
 export function isValidOutpoint(outpoint: string): boolean {
-	if (!outpoint.includes('_') || outpoint.endsWith('_')) {
+	if (outpoint.length < 66) {
 		return false
 	}
 
-	const parts = outpoint.split('_')
-	if (parts.length !== 2) {
+	const separator = outpoint[64]
+	if (separator !== '.' && separator !== '_') {
 		return false
 	}
 
-	const [txid, voutStr] = parts
+	const txid = outpoint.substring(0, 64)
+	const voutStr = outpoint.substring(65)
 	const vout = Number.parseInt(voutStr, 10)
 
 	if (Number.isNaN(vout) || vout < 0) {
 		return false
 	}
 
-	// txid should be 64 hex characters (unless it starts with _)
-	if (!outpoint.startsWith('_') && txid.length !== 64) {
+	if (!/^[0-9a-fA-F]{64}$/.test(txid)) {
 		return false
 	}
 

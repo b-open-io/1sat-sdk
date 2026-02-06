@@ -139,7 +139,7 @@ export class TxBuilder {
 				this.tx.addInput(inputFromUtxo(utxo))
 			}
 
-			this.spentOutpoints.push(`${utxo.txid}_${utxo.vout}`)
+			this.spentOutpoints.push(`${utxo.txid}.${utxo.vout}`)
 			this.totalSatsIn += BigInt(utxo.satoshis)
 		}
 		return this
@@ -180,7 +180,7 @@ export class TxBuilder {
 				this.tx.addInput(inputFromUtxo(utxo))
 			}
 
-			this.spentOutpoints.push(`${utxo.txid}_${utxo.vout}`)
+			this.spentOutpoints.push(`${utxo.txid}.${utxo.vout}`)
 			this.totalSatsIn += BigInt(utxo.satoshis)
 
 			// Check if we have enough funds

@@ -112,7 +112,7 @@ export class InscriptionIndexer extends Indexer {
 				const reader = new Utils.Reader(Array.from(decoded.parent))
 				const txid = Utils.toHex(reader.read(32).reverse())
 				const vout = reader.readInt32LE()
-				insc.parent = `${txid}_${vout}`
+				insc.parent = `${txid}.${vout}`
 			} catch {
 				// Ignore parsing errors
 			}
