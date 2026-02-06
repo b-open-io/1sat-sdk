@@ -185,6 +185,25 @@ export interface SyncOutput {
 	spendTxid?: string
 }
 
+/**
+ * Progress update streamed during owner sync via SSE.
+ * Phases: "fetch" → "ingest" → "done" (or "error").
+ */
+export interface SyncProgress {
+	/** Current sync phase */
+	phase: 'fetch' | 'ingest' | 'done' | 'error'
+	/** Total transactions to process (set after fetch) */
+	total?: number
+	/** Transactions processed so far */
+	processed?: number
+	/** Error message when phase is "error" */
+	error?: string
+	/** Owner being synced */
+	owner?: string
+	/** Last synced block height */
+	height?: number
+}
+
 // ============================================================================
 // Indexer Types
 // ============================================================================
