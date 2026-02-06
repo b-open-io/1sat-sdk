@@ -2,14 +2,14 @@
  * React example using @1sat/react
  *
  * Install dependencies:
- *   bun add @1sat/sdk @1sat/react react react-dom
+ *   bun add @1sat/react react react-dom
  */
 import {
 	ConnectButton,
 	OneSatProvider,
 	useBalance,
 	useInscribe,
-	useOneSat,
+	useOneSatContext,
 	useOrdinals,
 } from '@1sat/react'
 import { Utils } from '@bsv/sdk'
@@ -18,11 +18,9 @@ import { useState } from 'react'
 const { toArray, toBase64 } = Utils
 
 function WalletInfo() {
-	const { isConnected, paymentAddress, ordinalAddress } = useOneSat()
-	const { data: balance, isLoading: balanceLoading } = useBalance()
-	const { data: ordinals, isLoading: ordinalsLoading } = useOrdinals({
-		limit: 5,
-	})
+	const { isConnected, paymentAddress, ordinalAddress } = useOneSatContext()
+	const { satoshis, isLoading: balanceLoading } = useBalance()
+	const { ordinals, isLoading: ordinalsLoading } = useOrdinals(5)
 
 	if (!isConnected) {
 		return <p>Connect your wallet to get started</p>
@@ -39,18 +37,14 @@ function WalletInfo() {
 			</p>
 
 			<h3>Balance</h3>
-			{balanceLoading ? (
-				<p>Loading...</p>
-			) : (
-				<p>{balance?.satoshis ?? 0} satoshis</p>
-			)}
+			{balanceLoading ? <p>Loading...</p> : <p>{satoshis} satoshis</p>}
 
-			<h3>Ordinals ({ordinals?.length ?? 0})</h3>
+			<h3>Ordinals ({ordinals.length})</h3>
 			{ordinalsLoading ? (
 				<p>Loading...</p>
 			) : (
 				<ul>
-					{ordinals?.map((ord) => (
+					{ordinals.map((ord) => (
 						<li key={ord.outpoint}>
 							{ord.origin?.data?.insc?.file?.type ?? 'Unknown'} - {ord.outpoint}
 						</li>
@@ -62,7 +56,7 @@ function WalletInfo() {
 }
 
 function InscribeForm() {
-	const { isConnected } = useOneSat()
+	const { isConnected } = useOneSatContext()
 	const { inscribe, isLoading } = useInscribe()
 	const [text, setText] = useState('')
 	const [result, setResult] = useState<{ txid: string } | null>(null)

@@ -1,3 +1,4 @@
+import { ArcadeClient } from '@1sat/client'
 /**
  * Server-side inscription example
  *
@@ -7,12 +8,8 @@
  * Usage:
  *   WALLET_WIF=your-private-key-wif bun run examples/server/inscribe.ts
  */
-import {
-	ArcadeClient,
-	ONESAT_MAINNET_URL,
-	createOrdinals,
-	fetchPayUtxos,
-} from '@1sat/sdk'
+import { createOrdinals, fetchPayUtxos } from '@1sat/core'
+import { ONESAT_MAINNET_URL } from '@1sat/types'
 import { PrivateKey, Utils } from '@bsv/sdk'
 
 const { toArray, toBase64 } = Utils

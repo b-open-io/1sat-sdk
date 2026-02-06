@@ -645,7 +645,7 @@ Test your extension with any dApp using the 1sat SDK:
 
 ```typescript
 // In a dApp
-import { createOneSat } from '@1sat/sdk'
+import { createOneSat } from '@1sat/connect'
 
 const onesat = createOneSat({ appName: 'Test App' })
 
@@ -682,8 +682,9 @@ import type {
 
 ## Related
 
-- [@1sat/sdk](../sdk) - Main SDK for dApps
 - [@1sat/connect](../connect) - Popup wallet connection
+- [@1sat/core](../core) - Transaction building and protocol implementations
+- [@1sat/client](../client) - API clients for indexer and broadcast
 - [1sat.market](https://1sat.market) - Reference wallet implementation
 
 ## License

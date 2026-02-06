@@ -6,14 +6,20 @@ Build apps on [1Sat Ordinals](https://1satordinals.com) - BSV's protocol for NFT
 
 ## Installation
 
-```bash
-bun add @1sat/sdk
-```
-
-For React apps with hooks and components:
+Install only the packages you need:
 
 ```bash
+# Browser dApps (popup wallet connection)
+bun add @1sat/connect
+
+# React apps
 bun add @1sat/react
+
+# Server / scripts (direct key access)
+bun add @1sat/core @1sat/client @1sat/types
+
+# Wallet engine
+bun add @1sat/wallet-browser  # or @1sat/wallet-node
 ```
 
 ## Features
@@ -32,7 +38,7 @@ bun add @1sat/react
 ### Browser dApp
 
 ```typescript
-import { createOneSat } from '@1sat/sdk'
+import { createOneSat } from '@1sat/connect'
 import { Utils } from '@bsv/sdk'
 
 const { toArray, toBase64 } = Utils
@@ -74,7 +80,7 @@ await onesat.transferToken({
 ### React
 
 ```tsx
-import { OneSatProvider, ConnectButton, useOneSat, useBalance } from '@1sat/react'
+import { OneSatProvider, ConnectButton, useOneSatContext, useBalance } from '@1sat/react'
 
 function App() {
   return (
@@ -86,15 +92,15 @@ function App() {
 }
 
 function WalletInfo() {
-  const { isConnected, paymentAddress } = useOneSat()
-  const { data: balance } = useBalance()
+  const { isConnected, paymentAddress } = useOneSatContext()
+  const { satoshis, isLoading } = useBalance()
 
   if (!isConnected) return null
 
   return (
     <div>
       <p>Address: {paymentAddress}</p>
-      <p>Balance: {balance?.satoshis} sats</p>
+      <p>Balance: {satoshis} sats</p>
     </div>
   )
 }
@@ -105,7 +111,9 @@ function WalletInfo() {
 For backends or scripts where you control the keys directly:
 
 ```typescript
-import { ArcadeClient, createOrdinals, fetchPayUtxos, ONESAT_MAINNET_URL } from '@1sat/sdk'
+import { createOrdinals, fetchPayUtxos } from '@1sat/core'
+import { ArcadeClient } from '@1sat/client'
+import { ONESAT_MAINNET_URL } from '@1sat/types'
 import { PrivateKey, Utils } from '@bsv/sdk'
 
 const { toArray, toBase64 } = Utils
@@ -173,7 +181,7 @@ const { wallet, services } = await createNodeWallet({
 ## Network Configuration
 
 ```typescript
-import { API_HOST, API_HOST_TESTNET, ORDFS_HOST } from '@1sat/sdk'
+import { API_HOST, API_HOST_TESTNET, ORDFS_HOST } from '@1sat/types'
 
 // Mainnet (default)
 const onesat = createOneSat({ appName: 'My dApp' })
@@ -243,7 +251,7 @@ onesat.on('accountChange', ({ paymentAddress, ordinalAddress }) => {
 ### Error Handling
 
 ```typescript
-import { UserRejectedError, TimeoutError, InsufficientFundsError } from '@1sat/sdk'
+import { UserRejectedError, TimeoutError, InsufficientFundsError } from '@1sat/connect'
 
 try {
   await onesat.connect()
@@ -274,15 +282,9 @@ await onesat.transferToken({
 For server-side token transfers with direct key access:
 
 ```typescript
-import {
-  ArcadeClient,
-  fetchPayUtxos,
-  fetchTokenUtxos,
-  selectTokenUtxos,
-  transferOrdTokens,
-  TokenType,
-  ONESAT_MAINNET_URL,
-} from '@1sat/sdk'
+import { fetchPayUtxos, fetchTokenUtxos, selectTokenUtxos, transferOrdTokens, TokenType } from '@1sat/core'
+import { ArcadeClient } from '@1sat/client'
+import { ONESAT_MAINNET_URL } from '@1sat/types'
 import { PrivateKey } from '@bsv/sdk'
 
 const paymentPk = PrivateKey.fromWif(process.env.PAYMENT_WIF!)
@@ -344,11 +346,10 @@ if (
 ┌──────────────────────────────────────────────────────────────┐
 │                       Your Application                       │
 ├──────────────────────────────────────────────────────────────┤
-│  @1sat/sdk               │  @1sat/react                     │
-│  - createOneSat()        │  - OneSatProvider                │
-│  - createOrdinals()      │  - useOneSat / useBalance        │
-│  - TxBuilder, Actions    │  - ConnectButton                 │
-├──────────────────────────┴──────────────────────────────────┤
+│  @1sat/react                                                 │
+│  - OneSatProvider, useOneSatContext, useBalance               │
+│  - ConnectButton, useOrdinals, useInscribe                   │
+├──────────────────────────────────────────────────────────────┤
 │  @1sat/connect                  │  @1sat/extension           │
 │  - Popup wallet connection      │  - Browser extension       │
 │  - postMessage protocol         │  - window.onesat injection │
@@ -377,7 +378,6 @@ if (
 
 | Package | Description |
 |---------|-------------|
-| `@1sat/sdk` | Main SDK - aggregates all packages for browser dApps and transaction building |
 | `@1sat/react` | React hooks and ConnectButton component |
 | `@1sat/connect` | Popup-based wallet connection protocol |
 | `@1sat/extension` | Browser wallet extension toolkit (window.onesat) |

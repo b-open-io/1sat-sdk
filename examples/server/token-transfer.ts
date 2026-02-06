@@ -1,3 +1,4 @@
+import { ArcadeClient } from '@1sat/client'
 /**
  * Server-side token transfer example
  *
@@ -8,14 +9,13 @@
  *   PAYMENT_WIF=... ORD_WIF=... TOKEN_ID=... RECIPIENT=... bun run examples/server/token-transfer.ts
  */
 import {
-	ArcadeClient,
-	ONESAT_MAINNET_URL,
 	TokenType,
 	fetchPayUtxos,
 	fetchTokenUtxos,
 	selectTokenUtxos,
 	transferOrdTokens,
-} from '@1sat/sdk'
+} from '@1sat/core'
+import { ONESAT_MAINNET_URL } from '@1sat/types'
 import { PrivateKey } from '@bsv/sdk'
 
 async function main() {

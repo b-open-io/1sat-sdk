@@ -21,7 +21,7 @@ bunx create-vite my-app --template react-ts
 cd my-app
 
 # Install dependencies
-bun add @1sat/sdk @1sat/react @bsv/sdk
+bun add @1sat/react @bsv/sdk
 
 # Copy the example App.tsx
 cp ../examples/react/App.tsx src/App.tsx

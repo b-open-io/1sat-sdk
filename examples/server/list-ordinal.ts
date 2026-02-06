@@ -1,3 +1,4 @@
+import { ArcadeClient } from '@1sat/client'
 /**
  * Server-side ordinal listing example
  *
@@ -7,13 +8,8 @@
  * Usage:
  *   PAYMENT_WIF=... ORD_WIF=... OUTPOINT=... PRICE=... bun run examples/server/list-ordinal.ts
  */
-import {
-	ArcadeClient,
-	ONESAT_MAINNET_URL,
-	createOrdListings,
-	fetchNftUtxos,
-	fetchPayUtxos,
-} from '@1sat/sdk'
+import { createOrdListings, fetchNftUtxos, fetchPayUtxos } from '@1sat/core'
+import { ONESAT_MAINNET_URL } from '@1sat/types'
 import { PrivateKey } from '@bsv/sdk'
 
 async function main() {
