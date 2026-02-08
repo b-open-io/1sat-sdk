@@ -111,18 +111,38 @@ export function isValidMessage(data: unknown): data is ProtocolMessage {
 	if (typeof data !== 'object' || data === null) return false
 
 	const msg = data as Record<string, unknown>
+	let type: unknown
+	let version: unknown
+	let requestId: unknown
+	let origin: unknown
+	try {
+		type = msg.type
+		version = msg.version
+		requestId = msg.requestId
+		origin = msg.origin
+	} catch {
+		// Some browser/extension payloads can expose throwing getters
+		// (for example cross-origin Window proxies). Treat as non-protocol message.
+		return false
+	}
 
-	if (typeof msg.type !== 'string') return false
-	if (typeof msg.version !== 'string') return false
-	if (typeof msg.requestId !== 'string') return false
-	if (typeof msg.origin !== 'string') return false
+	if (typeof type !== 'string') return false
+	if (typeof version !== 'string') return false
+	if (typeof requestId !== 'string') return false
+	if (typeof origin !== 'string') return false
 
-	if (msg.type === MessageTypes.REQUEST) {
-		if (typeof msg.method !== 'string') return false
+	if (type === MessageTypes.REQUEST) {
+		let method: unknown
+		try {
+			method = msg.method
+		} catch {
+			return false
+		}
+		if (typeof method !== 'string') return false
 		return true
 	}
 
-	if (msg.type === MessageTypes.RESPONSE) {
+	if (type === MessageTypes.RESPONSE) {
 		return true
 	}
 

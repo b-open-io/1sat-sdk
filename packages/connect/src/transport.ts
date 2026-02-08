@@ -276,11 +276,23 @@ export class EmbedTransport implements CWITransport {
 
 	private handleMessage = (event: MessageEvent): void => {
 		if (this.isDestroyed) return
-		if (event.origin !== this.walletOrigin) return
-		if (!this.iframe || event.source !== this.iframe.contentWindow) return
+		let eventOrigin: string
+		let eventSource: MessageEventSource | null
+		let eventData: unknown
+		try {
+			eventOrigin = event.origin
+			eventSource = event.source
+			eventData = event.data
+		} catch {
+			return
+		}
 
-		if (isCWIStateMessage(event.data)) {
-			const state = normalizeState(event.data.cwiState)
+		if (eventOrigin !== this.walletOrigin) return
+		const iframeWindow = this.getIframeWindow()
+		if (!iframeWindow || eventSource !== iframeWindow) return
+
+		if (isCWIStateMessage(eventData)) {
+			const state = normalizeState(eventData.cwiState)
 			this.lastState = state
 			this.resolveStateWaiters(state)
 			this.updateIframeVisibility(state.hasPermission === true)
@@ -295,26 +307,36 @@ export class EmbedTransport implements CWITransport {
 			return
 		}
 
-		if (!isCWIResponseMessage(event.data)) return
-		const pending = this.pendingInvocations.get(event.data.id)
+		if (!isCWIResponseMessage(eventData)) return
+		const pending = this.pendingInvocations.get(eventData.id)
 		if (!pending) return
 
-		this.pendingInvocations.delete(event.data.id)
+		this.pendingInvocations.delete(eventData.id)
 		clearTimeout(pending.timeoutId)
 
-		if (event.data.status === 'error') {
-			pending.reject(toCWIError(event.data))
+		if (eventData.status === 'error') {
+			pending.reject(toCWIError(eventData))
 			return
 		}
 
-		pending.resolve(event.data.result)
+		pending.resolve(eventData.result)
+	}
+
+	private getIframeWindow(): Window | null {
+		const iframe = this.iframe
+		if (!iframe) return null
+		try {
+			return iframe.contentWindow
+		} catch {
+			return null
+		}
 	}
 
 	private ensureIframe(): HTMLIFrameElement {
 		if (typeof window === 'undefined' || typeof document === 'undefined') {
 			throw new TransportUnavailableError('Embed transport requires a browser')
 		}
-		if (this.iframe?.contentWindow) {
+		if (this.iframe) {
 			return this.iframe
 		}
 
@@ -408,8 +430,8 @@ export class EmbedTransport implements CWITransport {
 		}
 
 		await this.handshake()
-		const iframe = this.ensureIframe()
-		const target = iframe.contentWindow
+		this.ensureIframe()
+		const target = this.getIframeWindow()
 		if (!target) {
 			throw new TransportUnavailableError('CWI iframe is not reachable')
 		}

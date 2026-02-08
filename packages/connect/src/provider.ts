@@ -77,16 +77,25 @@ export class OneSatBrowserProvider implements OneSatProvider {
 	 * Handle messages from the wallet popup
 	 */
 	private handleMessage = (event: MessageEvent) => {
+		let eventOrigin: string;
+		let eventData: unknown;
+		try {
+			eventOrigin = event.origin;
+			eventData = event.data;
+		} catch {
+			return;
+		}
+
 		// Validate origin
-		if (event.origin !== this.popupOrigin) return;
+		if (eventOrigin !== this.popupOrigin) return;
 
 		// Validate message format
-		if (!isValidMessage(event.data)) return;
+		if (!isValidMessage(eventData)) return;
 
 		// Only handle responses
-		if (!isResponse(event.data)) return;
+		if (!isResponse(eventData)) return;
 
-		const { requestId, result, error } = event.data;
+		const { requestId, result, error } = eventData;
 
 		// Check if we have a pending request for this
 		if (!this.popupManager.hasPendingRequest(requestId)) return;
