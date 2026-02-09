@@ -32,7 +32,7 @@ import { OpNSIndexer } from '../indexers/OpNSIndexer'
 import { OriginIndexer } from '../indexers/OriginIndexer'
 import { Outpoint } from '../indexers/Outpoint'
 import { SigmaIndexer } from '../indexers/SigmaIndexer'
-import type { AddressDerivation, AddressManager } from './AddressManager'
+import { BRC29_PROTOCOL_ID, type AddressDerivation, type AddressManager } from './AddressManager'
 
 /** Reorg-safe depth - only update lastQueuedScore for outputs this many blocks deep */
 const REORG_SAFE_DEPTH = 6
@@ -430,7 +430,7 @@ export class AddressSyncProcessor {
 
 			// Build InternalizeOutput entries for owned outputs
 			const outputs: InternalizeOutput[] = []
-			let internalizedCount = 0
+			const ownedTxos: Txo[] = []
 
 			for (const txo of ctx.txos) {
 				if (!txo.owner) continue
@@ -443,7 +443,7 @@ export class AddressSyncProcessor {
 				const internalizeOutput = this.buildInternalizeOutput(txo, derivation)
 				if (internalizeOutput) {
 					outputs.push(internalizeOutput)
-					internalizedCount++
+					ownedTxos.push(txo)
 				}
 			}
 
@@ -452,7 +452,7 @@ export class AddressSyncProcessor {
 				const args: InternalizeActionArgs = {
 					tx: Array.from(beef),
 					outputs,
-					description: '1sat sync',
+					description: this.buildDescription(ownedTxos),
 				}
 
 				console.log(
@@ -463,7 +463,7 @@ export class AddressSyncProcessor {
 				console.log(
 					`[AddressSyncProcessor] Internalization complete for txid ${txid}`,
 				)
-				this.emit('process:parsed', { internalizedCount })
+				this.emit('process:parsed', { internalizedCount: ownedTxos.length })
 			}
 
 			// Complete all items for this txid
@@ -574,7 +574,28 @@ export class AddressSyncProcessor {
 				},
 			}
 		}
-		// P2PKH-based output - use wallet payment for auto-signing
+
+		// P2PKH ordinals/tokens: basket insertion so they don't get consumed as change
+		if (txo.basket && txo.basket !== 'fund') {
+			const tags = this.collectTags(txo)
+			const nameTag = tags.find((t) => t.startsWith('name:'))
+
+			return {
+				outputIndex: vout,
+				protocol: 'basket insertion',
+				insertionRemittance: {
+					basket: txo.basket,
+					tags,
+					customInstructions: JSON.stringify({
+						protocolID: BRC29_PROTOCOL_ID,
+						keyID: `${derivation.derivationPrefix} ${derivation.derivationSuffix}`,
+						...(nameTag && { name: nameTag.slice(5).slice(0, 64) }),
+					}),
+				},
+			}
+		}
+
+		// P2PKH funding output - use wallet payment for auto-signing
 		return {
 			outputIndex: vout,
 			protocol: 'wallet payment',
@@ -592,6 +613,36 @@ export class AddressSyncProcessor {
 			tags.push(...indexData.tags)
 		}
 		return tags
+	}
+
+	private buildDescription(ownedTxos: Txo[]): string {
+		const parts: string[] = []
+		let sats = 0
+
+		for (const txo of ownedTxos) {
+			if (txo.data.bsv21) {
+				const token = txo.data.bsv21.data as { amt: bigint; dec: number; sym?: string }
+				const sym = token.sym || 'tokens'
+				const amt = Number(token.amt) / 10 ** token.dec
+				parts.push(`${amt} ${sym}`)
+			} else if (txo.basket === '1sat') {
+				parts.push('ordinal')
+			} else if (txo.basket === 'opns') {
+				parts.push('OPNS name')
+			} else if (txo.basket === 'fund') {
+				sats += Number(txo.output.satoshis || 0)
+			}
+		}
+
+		if (sats > 0) {
+			parts.push(`${sats} sats`)
+		}
+
+		if (parts.length === 0) return 'Received via address sync'
+
+		const desc = `Received ${parts.join(' + ')}`
+		if (desc.length <= 50) return desc
+		return desc.slice(0, 47) + '...'
 	}
 }
 

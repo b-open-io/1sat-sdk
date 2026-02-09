@@ -19,6 +19,7 @@ import {
 } from '@bsv/sdk'
 import { BSV21_BASKET, BSV21_PROTOCOL } from '../constants'
 import type { Action, OneSatContext } from '../types'
+import { signP2PKHInput } from '../utils/signP2PKH'
 
 // ============================================================================
 // Types
@@ -338,6 +339,7 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 			const result = await ctx.wallet.listOutputs({
 				basket: BSV21_BASKET,
 				includeTags: true,
+				includeCustomInstructions: true,
 				include: 'locking scripts',
 				limit: 10000,
 			})
@@ -485,6 +487,7 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 				inputs: selected.map((o) => ({
 					outpoint: o.outpoint,
 					inputDescription: 'Token input',
+					unlockingScriptLength: 108,
 				})),
 				outputs,
 				options: { signAndProcess: false, randomizeOutputs: false },
@@ -498,9 +501,21 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 				return { error: 'no-signable-transaction' }
 			}
 
+			const tx = Transaction.fromBEEF(createResult.signableTransaction.tx)
+			const spends: Record<number, { unlockingScript: string }> = {}
+
+			for (let i = 0; i < selected.length; i++) {
+				const utxo = selected[i]
+				if (!utxo.customInstructions) continue
+				const { protocolID, keyID } = JSON.parse(utxo.customInstructions)
+				const unlocking = await signP2PKHInput(ctx, tx, i, protocolID, keyID)
+				if (typeof unlocking !== 'string') return unlocking
+				spends[i] = { unlockingScript: unlocking }
+			}
+
 			const signResult = await ctx.wallet.signAction({
 				reference: createResult.signableTransaction.reference,
-				spends: {},
+				spends,
 				options: { acceptDelayedBroadcast: false },
 			})
 

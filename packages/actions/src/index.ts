@@ -21,6 +21,9 @@ export { ActionRegistry, actionRegistry, type McpTool } from './registry'
 // Export constants
 export * from './constants'
 
+// Export shared utilities
+export { signP2PKHInput } from './utils/signP2PKH'
+
 // Export module actions and types
 export * from './payments'
 export * from './ordinals'
