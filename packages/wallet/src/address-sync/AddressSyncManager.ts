@@ -23,7 +23,7 @@ import type {
 	InternalizeOutput,
 	WalletInterface,
 } from '@bsv/sdk'
-import { Beef } from '@bsv/sdk'
+import { Beef, Transaction } from '@bsv/sdk'
 import { Bsv21Indexer } from '../indexers/Bsv21Indexer'
 import { FundIndexer } from '../indexers/FundIndexer'
 import { InscriptionIndexer } from '../indexers/InscriptionIndexer'
@@ -426,6 +426,14 @@ export class AddressSyncProcessor {
 				throw new Error(`Transaction ${txid} not found in BEEF`)
 			}
 
+			// Ensure all inputs have source transactions loaded
+			for (const input of btx.tx.inputs) {
+				if (!input.sourceTransaction && input.sourceTXID) {
+					const rawTx = await this.services.beef.getRawTx(input.sourceTXID)
+					input.sourceTransaction = Transaction.fromBinary(Array.from(rawTx))
+				}
+			}
+
 			const ctx = await this.parseTransaction(btx.tx)
 
 			// Build InternalizeOutput entries for owned outputs
@@ -469,15 +477,13 @@ export class AddressSyncProcessor {
 			// Complete all items for this txid
 			await this.syncQueue.completeMany(items.map((i) => i.id))
 		} catch (error) {
-			// Fail all items for this txid
+			// Log error but leave items as 'processing'.
+			// resetProcessing() runs on next start() and puts them back to 'pending'.
 			const errorMsg = error instanceof Error ? error.message : String(error)
 			console.error(
-				`[AddressSyncProcessor] Failed to process txid ${txid}:`,
+				`[AddressSyncProcessor] Failed to process txid ${txid}, will retry on next cycle:`,
 				errorMsg,
 			)
-			for (const item of items) {
-				await this.syncQueue.fail(item.id, errorMsg)
-			}
 		}
 	}
 
@@ -494,6 +500,39 @@ export class AddressSyncProcessor {
 			spends: [],
 			summary: {},
 			indexers: this.indexers,
+		}
+
+		// Parse inputs into spends
+		for (let vin = 0; vin < tx.inputs.length; vin++) {
+			const input = tx.inputs[vin]
+			if (!input.sourceTransaction) {
+				throw new Error(`Missing sourceTransaction for input ${vin}`)
+			}
+			const sourceTxid = input.sourceTransaction.id('hex')
+			const txo: Txo = {
+				output: input.sourceTransaction.outputs[input.sourceOutputIndex],
+				outpoint: new Outpoint(sourceTxid, input.sourceOutputIndex),
+				data: {},
+			}
+
+			for (const indexer of this.indexers) {
+				const result = await indexer.parse(txo)
+				if (result) {
+					txo.data[indexer.tag] = {
+						data: result.data,
+						tags: result.tags,
+						content: result.content,
+					}
+					if (result.owner && !txo.owner) {
+						txo.owner = result.owner
+					}
+					if (result.basket && !txo.basket) {
+						txo.basket = result.basket
+					}
+				}
+			}
+
+			ctx.spends.push(txo)
 		}
 
 		// Parse each output
