@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/client",
-	"version": "0.0.5",
+	"version": "0.0.6",
 	"description": "API client for 1Sat Ordinals SDK",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -21,7 +21,7 @@
 	"license": "MIT",
 	"dependencies": {
 		"@1sat/types": "^0.0.5",
-		"@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@2.0.4-idb-fix.1"
+		"@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@2.0.5-idb-fix.2"
 	},
 	"peerDependencies": {
 		"@bsv/sdk": "^2.0.1"

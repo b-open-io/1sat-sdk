@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/actions",
-	"version": "0.0.6",
+	"version": "0.0.7",
 	"description": "Action definitions for the 1Sat SDK",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -20,7 +20,7 @@
 	"keywords": ["1sat", "bsv", "actions", "wallet", "ordinals"],
 	"license": "MIT",
 	"dependencies": {
-		"@1sat/client": "^0.0.5",
+		"@1sat/client": "^0.0.6",
 		"@1sat/types": "^0.0.5",
 		"@bopen-io/templates": "^1.1.8"
 	},
