@@ -1,35 +1,43 @@
 {
-	"name": "@1sat/wallet-browser",
-	"version": "0.0.9",
-	"description": "Browser wallet factory for 1Sat Ordinals SDK",
-	"type": "module",
-	"main": "./dist/index.js",
-	"types": "./dist/index.d.ts",
-	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js"
-		}
-	},
-	"files": ["dist"],
-	"scripts": {
-		"build": "tsc",
-		"dev": "tsc --watch",
-		"clean": "rm -rf dist"
-	},
-	"keywords": ["1sat", "bsv", "ordinals", "wallet", "browser"],
-	"license": "MIT",
-	"dependencies": {
-		"@1sat/wallet": "^0.0.12"
-	},
-	"peerDependencies": {
-		"@1sat/client": "^0.0.6",
-		"@bsv/sdk": "^2.0.1",
-		"@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@2.0.5-idb-fix.2"
-	},
-	"devDependencies": {
-		"@bsv/sdk": "^2.0.1",
-		"@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@2.0.5-idb-fix.2",
-		"typescript": "^5.9.3"
-	}
+  "name": "@1sat/wallet-browser",
+  "version": "0.0.10",
+  "description": "Browser wallet factory for 1Sat Ordinals SDK",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "1sat",
+    "bsv",
+    "ordinals",
+    "wallet",
+    "browser"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@1sat/wallet": "^0.0.13"
+  },
+  "peerDependencies": {
+    "@1sat/client": "^0.0.6",
+    "@bsv/sdk": "^2.0.1",
+    "@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@2.0.5-idb-fix.2"
+  },
+  "devDependencies": {
+    "@bsv/sdk": "^2.0.1",
+    "@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@2.0.5-idb-fix.2",
+    "typescript": "^5.9.3"
+  }
 }
