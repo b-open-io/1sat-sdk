@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/react",
-	"version": "0.0.3",
+	"version": "0.0.4",
 	"description": "React hooks and components for 1Sat wallet integration",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -13,7 +13,7 @@
 	},
 	"files": ["dist"],
 	"scripts": {
-		"build": "bun build ./src/index.ts --outdir ./dist --target browser --external react --external @1sat/connect && tsc --emitDeclarationOnly",
+		"build": "bun run build.ts && tsc --emitDeclarationOnly",
 		"dev": "tsc --watch"
 	},
 	"keywords": ["1sat", "bsv", "ordinals", "wallet", "sdk", "react", "hooks"],
