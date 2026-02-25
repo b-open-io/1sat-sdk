@@ -28,4 +28,4 @@ export {
 	Wallet,
 	WalletStorageManager,
 	type sdk as walletSdk,
-} from '@bsv/wallet-toolbox-mobile/out/src/index.client.js'
+} from '@bsv/wallet-toolbox/out/src/index.client.js'

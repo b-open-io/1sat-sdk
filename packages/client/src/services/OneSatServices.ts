@@ -8,8 +8,8 @@ import {
 	Utils,
 	type WalletLoggerInterface,
 } from '@bsv/sdk'
-import type { TableOutput, sdk as toolboxSdk } from '@bsv/wallet-toolbox-mobile'
-import { WalletError } from '@bsv/wallet-toolbox-mobile/out/src/sdk/WalletError.js'
+import type { TableOutput, sdk as toolboxSdk } from '@bsv/wallet-toolbox'
+import { WalletError } from '@bsv/wallet-toolbox/out/src/sdk/WalletError.js'
 import {
 	ArcadeClient,
 	BeefClient,

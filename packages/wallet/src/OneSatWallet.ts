@@ -12,7 +12,7 @@ import {
 	Wallet,
 	type WalletStorageManager,
 	type sdk as mobileSdk,
-} from '@bsv/wallet-toolbox-mobile'
+} from '@bsv/wallet-toolbox'
 import {
 	Bsv21Indexer,
 	CosignIndexer,

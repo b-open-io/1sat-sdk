@@ -1,6 +1,6 @@
 import {
 	Hash,
-	Transaction,
+	type Transaction,
 	TransactionSignature,
 	UnlockingScript,
 	Utils,

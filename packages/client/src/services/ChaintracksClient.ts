@@ -4,7 +4,7 @@ import type {
 	BaseBlockHeader,
 	BlockHeader,
 	Chain,
-} from '@bsv/wallet-toolbox-mobile'
+} from '@bsv/wallet-toolbox'
 import { BaseClient } from './BaseClient'
 
 /**

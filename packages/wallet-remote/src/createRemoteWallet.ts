@@ -1,12 +1,12 @@
 import { OneSatServices } from '@1sat/client'
 import { KeyDeriver, PrivateKey, type WalletInterface } from '@bsv/sdk'
-import type { sdk as mobileSdk } from '@bsv/wallet-toolbox-mobile'
+import type { sdk as mobileSdk } from '@bsv/wallet-toolbox'
 import {
 	Services,
 	StorageClient,
 	Wallet,
 	WalletStorageManager,
-} from '@bsv/wallet-toolbox-mobile/out/src/index.client.js'
+} from '@bsv/wallet-toolbox/out/src/index.client.js'
 
 type Chain = 'main' | 'test'
 type MobileWalletServices = mobileSdk.WalletServices
@@ -36,6 +36,8 @@ export interface RemoteWalletResult {
 	destroy: () => Promise<void>
 	/** Storage manager (for diagnostics) */
 	storage: WalletStorageManager
+	/** Effective fee model used by this wallet */
+	feeModel: { model: 'sat/kb'; value: number }
 }
 
 function parsePrivateKey(input: PrivateKey | string): PrivateKey {
@@ -131,5 +133,6 @@ export async function createRemoteWallet(
 		services: oneSatServices,
 		destroy,
 		storage,
+		feeModel,
 	}
 }

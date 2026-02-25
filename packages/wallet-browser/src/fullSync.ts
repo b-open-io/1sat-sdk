@@ -5,10 +5,10 @@
  * This is a deliberate user action (not automatic) for recovering from sync issues.
  */
 
-import type { WalletStorageManager } from '@bsv/wallet-toolbox-mobile/out/src/index.client.js'
-import type { sdk as mobileToolboxSdk } from '@bsv/wallet-toolbox-mobile/out/src/index.client.js'
-import { createSyncMap } from '@bsv/wallet-toolbox-mobile/out/src/storage/schema/entities/EntityBase.js'
-import { EntitySyncState } from '@bsv/wallet-toolbox-mobile/out/src/storage/schema/entities/EntitySyncState.js'
+import type { WalletStorageManager } from '@bsv/wallet-toolbox/out/src/index.client.js'
+import type { sdk as mobileToolboxSdk } from '@bsv/wallet-toolbox/out/src/index.client.js'
+import { createSyncMap } from '@bsv/wallet-toolbox/out/src/storage/schema/entities/EntityBase.js'
+import { EntitySyncState } from '@bsv/wallet-toolbox/out/src/storage/schema/entities/EntitySyncState.js'
 
 type WalletStorageProvider = mobileToolboxSdk.WalletStorageProvider
 

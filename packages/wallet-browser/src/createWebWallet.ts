@@ -7,7 +7,7 @@
 
 import { OneSatServices } from '@1sat/client'
 import { KeyDeriver, PrivateKey, type WalletInterface } from '@bsv/sdk'
-import type { sdk as mobileSdk } from '@bsv/wallet-toolbox-mobile'
+import type { sdk as mobileSdk } from '@bsv/wallet-toolbox'
 import {
 	Monitor,
 	Services,
@@ -16,7 +16,7 @@ import {
 	StorageProvider,
 	Wallet,
 	WalletStorageManager,
-} from '@bsv/wallet-toolbox-mobile/out/src/index.client.js'
+} from '@bsv/wallet-toolbox/out/src/index.client.js'
 import { type FullSyncResult, type FullSyncStage, fullSync } from './fullSync'
 import type { MonitorEvent } from './types'
 

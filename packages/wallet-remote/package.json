@@ -1,43 +1,35 @@
 {
-  "name": "@1sat/wallet-remote",
-  "version": "0.0.2",
-  "description": "Remote-only wallet factory for 1Sat Ordinals SDK",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "clean": "rm -rf dist"
-  },
-  "keywords": [
-    "1sat",
-    "bsv",
-    "ordinals",
-    "wallet",
-    "remote"
-  ],
-  "license": "MIT",
-  "dependencies": {
-    "@1sat/wallet": "^0.0.13"
-  },
-  "peerDependencies": {
-    "@1sat/client": "^0.0.6",
-    "@bsv/sdk": "^2.0.1",
-    "@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@2.0.5-idb-fix.2"
-  },
-  "devDependencies": {
-    "@bsv/sdk": "^2.0.1",
-    "@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@2.0.5-idb-fix.2",
-    "typescript": "^5.9.3"
-  }
+	"name": "@1sat/wallet-remote",
+	"version": "0.0.3",
+	"description": "Remote-only wallet factory for 1Sat Ordinals SDK",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": ["dist"],
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"clean": "rm -rf dist"
+	},
+	"keywords": ["1sat", "bsv", "ordinals", "wallet", "remote"],
+	"license": "MIT",
+	"dependencies": {
+		"@1sat/wallet": "^0.0.14"
+	},
+	"peerDependencies": {
+		"@1sat/client": "^0.0.7",
+		"@bsv/sdk": "^2.0.4",
+		"@bsv/wallet-toolbox": "^2.0.20"
+	},
+	"devDependencies": {
+		"@bsv/sdk": "^2.0.4",
+		"@bsv/wallet-toolbox": "^2.0.20",
+		"typescript": "^5.9.3"
+	}
 }

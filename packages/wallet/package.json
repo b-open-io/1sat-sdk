@@ -1,45 +1,38 @@
 {
-  "name": "@1sat/wallet",
-  "version": "0.0.13",
-  "description": "BRC-100 wallet engine for 1Sat Ordinals SDK",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "clean": "rm -rf dist"
-  },
-  "keywords": [
-    "1sat",
-    "bsv",
-    "ordinals",
-    "wallet",
-    "brc-100"
-  ],
-  "license": "MIT",
-  "dependencies": {
-    "@1sat/client": "^0.0.6",
-    "@1sat/types": "^0.0.5",
-    "@bopen-io/templates": "^1.1.8",
-    "@msgpack/msgpack": "^3.1.3",
-    "fflate": "^0.8.2"
-  },
-  "peerDependencies": {
-    "@bsv/sdk": "^2.0.1"
-  },
-  "devDependencies": {
-    "@bsv/sdk": "^2.0.1",
-    "@types/chrome": "^0.1.32",
-    "typescript": "^5.9.3"
-  }
+	"name": "@1sat/wallet",
+	"version": "0.0.14",
+	"description": "BRC-100 wallet engine for 1Sat Ordinals SDK",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": ["dist"],
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"clean": "rm -rf dist"
+	},
+	"keywords": ["1sat", "bsv", "ordinals", "wallet", "brc-100"],
+	"license": "MIT",
+	"dependencies": {
+		"@1sat/client": "^0.0.7",
+		"@1sat/types": "^0.0.6",
+		"@bopen-io/templates": "^1.1.8",
+		"@msgpack/msgpack": "^3.1.3",
+		"fflate": "^0.8.2"
+	},
+	"peerDependencies": {
+		"@bsv/sdk": "^2.0.4"
+	},
+	"devDependencies": {
+		"@bsv/sdk": "^2.0.4",
+		"@bsv/wallet-toolbox": "^2.0.20",
+		"@types/chrome": "^0.1.32",
+		"typescript": "^5.9.3"
+	}
 }

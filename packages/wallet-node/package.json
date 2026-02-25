@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/wallet-node",
-	"version": "0.0.4",
+	"version": "0.0.5",
 	"description": "Node/Bun wallet factory for 1Sat Ordinals SDK",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -20,15 +20,16 @@
 	"keywords": ["1sat", "bsv", "ordinals", "wallet", "node", "server", "cli"],
 	"license": "MIT",
 	"dependencies": {
-		"@1sat/wallet": "^0.0.12"
+		"@1sat/wallet": "^0.0.14"
 	},
 	"peerDependencies": {
-		"@bsv/sdk": "^2.0.1",
-		"@bsv/wallet-toolbox": "^2.0.4",
+		"@bsv/sdk": "^2.0.4",
+		"@bsv/wallet-toolbox": "^2.0.20",
 		"knex": "^3.0.0"
 	},
 	"devDependencies": {
-		"@bsv/sdk": "^2.0.1",
+		"@1sat/client": "^0.0.7",
+		"@bsv/sdk": "^2.0.4",
 		"@bsv/wallet-toolbox": "^2.0.4",
 		"knex": "^3.1.0",
 		"typescript": "^5.9.3"

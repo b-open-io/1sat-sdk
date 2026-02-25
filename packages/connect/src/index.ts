@@ -1,5 +1,5 @@
-import { OneSatBrowserProvider } from "./provider";
-import type { OneSatConfig, OneSatProvider } from "./types";
+import { OneSatBrowserProvider } from './provider'
+import type { OneSatConfig, OneSatProvider } from './types'
 
 // Export errors
 export {
@@ -19,7 +19,7 @@ export {
 	UserRejectedError,
 	WalletLockedError,
 	WalletNotConnectedError,
-} from "./errors";
+} from './errors'
 // Export messages
 export {
 	type BaseMessage,
@@ -34,10 +34,10 @@ export {
 	type ProtocolMessage,
 	type RequestMessage,
 	type ResponseMessage,
-} from "./messages";
-export { type PendingRequest, type PopupConfig, PopupManager } from "./popup";
+} from './messages'
+export { type PendingRequest, type PopupConfig, PopupManager } from './popup'
 // Export provider
-export { OneSatBrowserProvider } from "./provider";
+export { OneSatBrowserProvider } from './provider'
 
 // Export storage utilities
 export {
@@ -46,7 +46,7 @@ export {
 	loadConnection,
 	type StoredConnection,
 	saveConnection,
-} from "./storage";
+} from './storage'
 export {
 	AutoTransport,
 	createAutoTransport,
@@ -54,7 +54,7 @@ export {
 	createRedirectTransport,
 	EmbedTransport,
 	RedirectTransport,
-} from "./transport";
+} from './transport'
 // Export types
 export type {
 	BalanceResult,
@@ -94,8 +94,8 @@ export type {
 	TransferTokenRequest,
 	TransportMode,
 	Utxo,
-} from "./types";
-export { RpcMethods } from "./types";
+} from './types'
+export { RpcMethods } from './types'
 // Export wallet-side utilities (for popup pages)
 export {
 	closePopup,
@@ -108,7 +108,7 @@ export {
 	sendResponse,
 	walletLockedError,
 	walletNotConnectedError,
-} from "./wallet";
+} from './wallet'
 
 /**
  * Check if the OneSat provider is injected by browser extension
@@ -116,10 +116,10 @@ export {
  */
 export function isOneSatInjected(): boolean {
 	return (
-		typeof window !== "undefined" &&
+		typeof window !== 'undefined' &&
 		window.onesat !== undefined &&
 		window.onesat.isOneSat === true
-	);
+	)
 }
 
 /**
@@ -128,9 +128,9 @@ export function isOneSatInjected(): boolean {
  */
 export function getInjectedOneSat(): OneSatProvider | undefined {
 	if (isOneSatInjected()) {
-		return window.onesat;
+		return window.onesat
 	}
-	return undefined;
+	return undefined
 }
 
 /**
@@ -157,20 +157,20 @@ export function getInjectedOneSat(): OneSatProvider | undefined {
  */
 export function createOneSat(config?: OneSatConfig): OneSatProvider {
 	// Check for injected extension provider first
-	const injected = getInjectedOneSat();
+	const injected = getInjectedOneSat()
 	if (injected) {
-		return injected;
+		return injected
 	}
 
 	// Fall back to popup-based provider
-	const provider = new OneSatBrowserProvider(config);
+	const provider = new OneSatBrowserProvider(config)
 
 	// Inject into window (so subsequent calls find it)
-	if (typeof window !== "undefined" && !window.onesat) {
-		window.onesat = provider;
+	if (typeof window !== 'undefined' && !window.onesat) {
+		window.onesat = provider
 	}
 
-	return provider;
+	return provider
 }
 
 /**
@@ -178,14 +178,14 @@ export function createOneSat(config?: OneSatConfig): OneSatProvider {
  * @deprecated Use createOneSat() instead - it handles detection automatically
  */
 export function getOneSat(config?: OneSatConfig): OneSatProvider {
-	return createOneSat(config);
+	return createOneSat(config)
 }
 
 /**
  * Check if any OneSat provider is available (extension or popup)
  */
 export function isOneSatAvailable(): boolean {
-	return typeof window !== "undefined" && window.onesat?.isOneSat === true;
+	return typeof window !== 'undefined' && window.onesat?.isOneSat === true
 }
 
 /**
@@ -199,23 +199,23 @@ export function waitForOneSat(timeout = 3000): Promise<OneSatProvider> {
 	return new Promise((resolve, reject) => {
 		// Already available
 		if (isOneSatInjected()) {
-			resolve(window.onesat!);
-			return;
+			resolve(window.onesat!)
+			return
 		}
 
-		const startTime = Date.now();
+		const startTime = Date.now()
 
 		const checkInterval = setInterval(() => {
 			if (isOneSatInjected()) {
-				clearInterval(checkInterval);
-				resolve(window.onesat!);
-				return;
+				clearInterval(checkInterval)
+				resolve(window.onesat!)
+				return
 			}
 
 			if (Date.now() - startTime > timeout) {
-				clearInterval(checkInterval);
-				reject(new Error("OneSat extension not detected"));
+				clearInterval(checkInterval)
+				reject(new Error('OneSat extension not detected'))
 			}
-		}, 100);
-	});
+		}, 100)
+	})
 }
