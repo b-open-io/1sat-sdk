@@ -291,9 +291,9 @@ export interface TokenChangeResult extends ChangeResult {
  * MAP metadata with all values stringified (ready for blockchain)
  */
 export type MAP = {
-	app: string
-	type: string
-	[prop: string]: string
+	app?: string
+	type?: string
+	[prop: string]: string | undefined
 }
 
 /**
