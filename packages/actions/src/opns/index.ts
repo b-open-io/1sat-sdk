@@ -1,0 +1,286 @@
+/**
+ * OpNS Module
+ *
+ * Actions for managing OpNS name identity bindings.
+ * Registers/deregisters identity public keys on OpNS tokens via MAP metadata.
+ */
+
+import {
+	Transaction,
+	Utils,
+	type WalletOutput,
+} from '@bsv/sdk'
+import { buildTransferOrdinals } from '../ordinals'
+import type { Action, OneSatContext } from '../types'
+import { signP2PKHInput } from '../utils/signP2PKH'
+
+// ============================================================================
+// Types
+// ============================================================================
+
+export interface OpnsRegisterRequest {
+	/** The OpNS ordinal output to register (from listOutputs) */
+	ordinal: WalletOutput
+	/** BEEF data from listOutputs (include: 'entire transactions') */
+	inputBEEF: number[]
+}
+
+export interface OpnsDeregisterRequest {
+	/** The OpNS ordinal output to deregister (from listOutputs) */
+	ordinal: WalletOutput
+	/** BEEF data from listOutputs (include: 'entire transactions') */
+	inputBEEF: number[]
+}
+
+export interface OpnsOperationResponse {
+	txid?: string
+	rawtx?: string
+	error?: string
+}
+
+// ============================================================================
+// Actions
+// ============================================================================
+
+/**
+ * Register an identity key on an OpNS name.
+ * Transfers the OpNS ordinal to self with MAP metadata binding the wallet's
+ * identity public key, then submits to the OpNS overlay.
+ */
+export const opnsRegister: Action<
+	OpnsRegisterRequest,
+	OpnsOperationResponse
+> = {
+	meta: {
+		name: 'opnsRegister',
+		description:
+			'Register identity key on an OpNS name via MAP metadata',
+		category: 'opns',
+		requiresServices: true,
+		inputSchema: {
+			type: 'object',
+			properties: {
+				ordinal: {
+					type: 'object',
+					description: 'WalletOutput of the OpNS ordinal from listOutputs',
+				},
+				inputBEEF: {
+					type: 'array',
+					description:
+						"BEEF from listOutputs with include: 'entire transactions'",
+				},
+			},
+			required: ['ordinal', 'inputBEEF'],
+		},
+	},
+	async execute(ctx, input) {
+		try {
+			if (!ctx.services) {
+				return { error: 'services-required' }
+			}
+
+			const { ordinal, inputBEEF } = input
+
+			// Get wallet's identity public key
+			const { publicKey: identityPubKey } = await ctx.wallet.getPublicKey({
+				identityKey: true,
+			})
+
+			// Transfer to self with MAP identity binding
+			const params = await buildTransferOrdinals(ctx, {
+				transfers: [
+					{
+						ordinal,
+						counterparty: 'self',
+						map: {
+							'opns.idKey': identityPubKey,
+						},
+					},
+				],
+				inputBEEF,
+			})
+
+			if ('error' in params) {
+				return params
+			}
+
+			const createResult = await ctx.wallet.createAction({
+				...params,
+				options: { signAndProcess: false, randomizeOutputs: false },
+			})
+
+			if (!createResult.signableTransaction) {
+				return { error: 'no-signable-transaction' }
+			}
+
+			if (!ordinal.customInstructions) {
+				return { error: 'missing-custom-instructions' }
+			}
+
+			const tx = Transaction.fromBEEF(createResult.signableTransaction.tx)
+			const { protocolID, keyID } = JSON.parse(ordinal.customInstructions)
+
+			const unlocking = await signP2PKHInput(ctx, tx, 0, protocolID, keyID)
+			if (typeof unlocking !== 'string') return unlocking
+
+			const signResult = await ctx.wallet.signAction({
+				reference: createResult.signableTransaction.reference,
+				spends: { 0: { unlockingScript: unlocking } },
+				options: { acceptDelayedBroadcast: false },
+			})
+
+			if ('error' in signResult) {
+				return { error: String(signResult.error) }
+			}
+
+			// Submit to OpNS overlay for indexing
+			if (signResult.tx) {
+				try {
+					const overlayResult = await ctx.services.overlay.submit(
+						signResult.tx,
+						['tm_opns'],
+					)
+					console.log(
+						'[opnsRegister] Overlay submission result:',
+						overlayResult,
+					)
+				} catch (overlayError) {
+					console.warn(
+						'[opnsRegister] Overlay submission failed:',
+						overlayError,
+					)
+				}
+			}
+
+			return {
+				txid: signResult.txid,
+				rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+			}
+		} catch (error) {
+			console.error('[opnsRegister]', error)
+			return {
+				error: error instanceof Error ? error.message : 'unknown-error',
+			}
+		}
+	},
+}
+
+/**
+ * Deregister an identity key from an OpNS name.
+ * Transfers the OpNS ordinal to self with MAP metadata containing an empty
+ * idKey field, explicitly clearing the identity binding on-chain.
+ */
+export const opnsDeregister: Action<
+	OpnsDeregisterRequest,
+	OpnsOperationResponse
+> = {
+	meta: {
+		name: 'opnsDeregister',
+		description:
+			'Remove identity key binding from an OpNS name',
+		category: 'opns',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				ordinal: {
+					type: 'object',
+					description: 'WalletOutput of the OpNS ordinal from listOutputs',
+				},
+				inputBEEF: {
+					type: 'array',
+					description:
+						"BEEF from listOutputs with include: 'entire transactions'",
+				},
+			},
+			required: ['ordinal', 'inputBEEF'],
+		},
+	},
+	async execute(ctx, input) {
+		try {
+			const { ordinal, inputBEEF } = input
+
+			// Transfer to self with empty idKey — explicitly clears identity binding
+			const params = await buildTransferOrdinals(ctx, {
+				transfers: [
+					{
+						ordinal,
+						counterparty: 'self',
+						map: {
+							'opns.idKey': '',
+						},
+					},
+				],
+				inputBEEF,
+			})
+
+			if ('error' in params) {
+				return params
+			}
+
+			const createResult = await ctx.wallet.createAction({
+				...params,
+				options: { signAndProcess: false, randomizeOutputs: false },
+			})
+
+			if (!createResult.signableTransaction) {
+				return { error: 'no-signable-transaction' }
+			}
+
+			if (!ordinal.customInstructions) {
+				return { error: 'missing-custom-instructions' }
+			}
+
+			const tx = Transaction.fromBEEF(createResult.signableTransaction.tx)
+			const { protocolID, keyID } = JSON.parse(ordinal.customInstructions)
+
+			const unlocking = await signP2PKHInput(ctx, tx, 0, protocolID, keyID)
+			if (typeof unlocking !== 'string') return unlocking
+
+			const signResult = await ctx.wallet.signAction({
+				reference: createResult.signableTransaction.reference,
+				spends: { 0: { unlockingScript: unlocking } },
+				options: { acceptDelayedBroadcast: false },
+			})
+
+			if ('error' in signResult) {
+				return { error: String(signResult.error) }
+			}
+
+			// Submit to OpNS overlay to update index (remove identity binding)
+			if (signResult.tx && ctx.services) {
+				try {
+					const overlayResult = await ctx.services.overlay.submit(
+						signResult.tx,
+						['tm_opns'],
+					)
+					console.log(
+						'[opnsDeregister] Overlay submission result:',
+						overlayResult,
+					)
+				} catch (overlayError) {
+					console.warn(
+						'[opnsDeregister] Overlay submission failed:',
+						overlayError,
+					)
+				}
+			}
+
+			return {
+				txid: signResult.txid,
+				rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+			}
+		} catch (error) {
+			console.error('[opnsDeregister]', error)
+			return {
+				error: error instanceof Error ? error.message : 'unknown-error',
+			}
+		}
+	},
+}
+
+// ============================================================================
+// Module exports
+// ============================================================================
+
+/** All OpNS actions for registry */
+export const opnsActions = [opnsRegister, opnsDeregister]
