@@ -4,7 +4,7 @@
  * Actions for creating inscriptions.
  */
 
-import { Inscription } from '@bopen-io/templates'
+import { Inscription, MAP as MAPTemplate } from '@bopen-io/templates'
 import { P2PKH, PublicKey, Script, Utils } from '@bsv/sdk'
 import {
 	MAX_INSCRIPTION_BYTES,
@@ -40,16 +40,23 @@ function buildInscriptionScript(
 	address: string,
 	base64Content: string,
 	contentType: string,
+	map?: Record<string, string>,
 ): Script {
 	const content = Utils.toArray(base64Content, 'base64')
-	const inscription = Inscription.create(new Uint8Array(content), contentType)
-	const inscriptionScript = inscription.lock()
 	const p2pkhScript = new P2PKH().lock(address)
 
-	const combined = new Script()
-	for (const chunk of inscriptionScript.chunks) combined.chunks.push(chunk)
-	for (const chunk of p2pkhScript.chunks) combined.chunks.push(chunk)
-	return combined
+	// Build suffix: P2PKH + optional MAP
+	const suffix = new Script()
+	for (const chunk of p2pkhScript.chunks) suffix.chunks.push(chunk)
+	if (map && Object.keys(map).length > 0) {
+		const mapScript = MAPTemplate.set(map)
+		for (const chunk of mapScript.chunks) suffix.chunks.push(chunk)
+	}
+
+	const inscription = Inscription.create(new Uint8Array(content), contentType, {
+		scriptSuffix: suffix,
+	})
+	return new Script(inscription.lock().chunks)
 }
 
 // ============================================================================
@@ -106,6 +113,7 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 				address,
 				input.base64Content,
 				input.contentType,
+				input.map,
 			)
 
 			// Build tags - type is always included, name from MAP if provided
