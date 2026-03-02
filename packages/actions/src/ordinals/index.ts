@@ -5,6 +5,7 @@
  * Returns WalletOutput[] directly from the SDK - no custom mapping needed.
  */
 
+import { MAP as MAPTemplate } from '@bopen-io/templates'
 import { OrdLock } from '@bopen-io/templates'
 import {
 	type BEEF,
@@ -59,6 +60,8 @@ export interface TransferItem {
 	counterparty?: PubKeyHex
 	/** Raw P2PKH address */
 	address?: string
+	/** Optional MAP metadata to append to the output script */
+	map?: Record<string, string>
 }
 
 export interface TransferOrdinalsRequest {
@@ -225,7 +228,7 @@ export async function buildTransferOrdinals(
 	const inputs: CreateActionArgs['inputs'] = []
 	const outputs: CreateActionArgs['outputs'] = []
 
-	for (const { ordinal, counterparty, address } of transfers) {
+	for (const { ordinal, counterparty, address, map } of transfers) {
 		if (!counterparty && !address) {
 			return { error: 'must-provide-counterparty-or-address' }
 		}
@@ -267,11 +270,24 @@ export async function buildTransferOrdinals(
 			unlockingScriptLength: 108,
 		})
 
+		// Build locking script — append MAP metadata when provided
+		const p2pkhScript = new P2PKH().lock(recipientAddress)
+		let lockingScript: string
+		if (map && Object.keys(map).length > 0) {
+			const mapScript = MAPTemplate.set(map)
+			const combined = new Script()
+			for (const chunk of p2pkhScript.chunks) combined.chunks.push(chunk)
+			for (const chunk of mapScript.chunks) combined.chunks.push(chunk)
+			lockingScript = new LockingScript(combined.chunks).toHex()
+		} else {
+			lockingScript = p2pkhScript.toHex()
+		}
+
 		// Only track output in wallet when transferring to a counterparty (wallet can derive keys to spend it)
 		// External address transfers are NOT tracked since the wallet cannot spend them
 		if (counterparty) {
 			outputs?.push({
-				lockingScript: new P2PKH().lock(recipientAddress).toHex(),
+				lockingScript,
 				satoshis: 1,
 				outputDescription: 'Ordinal transfer',
 				basket: ORDINALS_BASKET,
@@ -285,7 +301,7 @@ export async function buildTransferOrdinals(
 		} else {
 			// External address - output is not tracked in wallet
 			outputs?.push({
-				lockingScript: new P2PKH().lock(recipientAddress).toHex(),
+				lockingScript,
 				satoshis: 1,
 				outputDescription: 'Ordinal transfer to external address',
 				tags: [],
@@ -481,6 +497,11 @@ export const transferOrdinals: Action<
 							address: {
 								type: 'string',
 								description: 'Recipient P2PKH address',
+							},
+							map: {
+								type: 'object',
+								description:
+									'Optional MAP metadata to append to the output script',
 							},
 						},
 						required: ['ordinal'],
