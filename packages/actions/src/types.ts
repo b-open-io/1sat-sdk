@@ -45,6 +45,7 @@ export type ActionCategory =
 	| 'locks'
 	| 'signing'
 	| 'sweep'
+	| 'opns'
 
 /**
  * Metadata describing an action for AI agents and tooling.
