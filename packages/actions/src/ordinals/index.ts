@@ -26,6 +26,7 @@ import {
 } from '@bsv/sdk'
 import {
 	ONESAT_PROTOCOL,
+	OPNS_BASKET,
 	ORDINALS_BASKET,
 	ORD_LOCK_PREFIX,
 	ORD_LOCK_SUFFIX,
@@ -234,6 +235,10 @@ export async function buildTransferOrdinals(
 		}
 
 		const outpoint = ordinal.outpoint
+		const sourceType = ordinal.tags?.find(t => t.startsWith('type:'))?.slice(5)
+		if (sourceType === 'application/bsv-20') {
+			return { error: `Cannot transfer BSV-20 token ${outpoint} through ordinal transfer — use BSV-21 transfer instead` }
+		}
 
 		let recipientAddress: string
 		if (counterparty) {
@@ -290,7 +295,7 @@ export async function buildTransferOrdinals(
 				lockingScript,
 				satoshis: 1,
 				outputDescription: 'Ordinal transfer',
-				basket: ORDINALS_BASKET,
+				basket: sourceType === 'application/op-ns' ? OPNS_BASKET : ORDINALS_BASKET,
 				tags,
 				customInstructions: JSON.stringify({
 					protocolID: ONESAT_PROTOCOL,

@@ -18,6 +18,7 @@ import {
 	BSV21_BASKET,
 	BSV21_PROTOCOL,
 	ONESAT_PROTOCOL,
+	OPNS_BASKET,
 	ORDINALS_BASKET,
 } from '../constants'
 import type { Action, OneSatContext } from '../types'
@@ -417,6 +418,10 @@ export const sweepOrdinals: Action<
 			// Build outputs - one per ordinal, each 1 sat to derived address
 			const outputs: CreateActionOutput[] = []
 			for (const input of inputs) {
+				if (input.contentType === 'application/bsv-20') {
+					return { error: `Cannot sweep BSV-20 token ${input.outpoint} through ordinal sweep — use sweepBsv21 instead` }
+				}
+
 				// Derive a unique public key for this ordinal using the input outpoint as keyID
 				const pubKeyResult = await ctx.wallet.getPublicKey({
 					protocolID: ONESAT_PROTOCOL,
@@ -438,6 +443,7 @@ export const sweepOrdinals: Action<
 				const tags: string[] = []
 				if (input.contentType) tags.push(`type:${input.contentType}`)
 				if (input.origin) tags.push(`origin:${input.origin}`)
+				if (input.name) tags.push(`name:${input.name.slice(0, 64)}`)
 				const customInstructions = JSON.stringify({
 					protocolID: ONESAT_PROTOCOL,
 					keyID: input.outpoint,
@@ -450,7 +456,7 @@ export const sweepOrdinals: Action<
 					lockingScript: lockingScript.toHex(),
 					satoshis: 1,
 					outputDescription: `Ordinal ${input.origin ?? input.outpoint}`,
-					basket: ORDINALS_BASKET,
+					basket: input.contentType === 'application/op-ns' ? OPNS_BASKET : ORDINALS_BASKET,
 					tags,
 					customInstructions,
 				})

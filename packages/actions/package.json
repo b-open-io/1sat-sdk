@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/actions",
-	"version": "0.0.9",
+	"version": "0.0.10",
 	"description": "Action definitions for the 1Sat SDK",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -21,8 +21,8 @@
 	"license": "MIT",
 	"dependencies": {
 		"@1sat/client": "^0.0.7",
-		"@1sat/types": "^0.0.7",
-		"@bopen-io/templates": "^1.1.8"
+		"@1sat/types": "^0.0.8",
+		"@bopen-io/templates": "^1.1.9"
 	},
 	"peerDependencies": {
 		"@bsv/sdk": "^2.0.4"
