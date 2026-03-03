@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.8] - 2026-03-03
+
+### Added
+- `OPNS_BASKET` constant (`'opns'`) for OpNS ordinal basket routing
+
 ## [0.0.7] - 2026-03-03
 
 ### Changed
