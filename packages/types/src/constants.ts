@@ -19,6 +19,7 @@ export const ORD_PREFIX = 'ord'
 export const FUNDING_BASKET = 'default'
 export const ORDINALS_BASKET = '1sat'
 export const BSV21_BASKET = 'bsv21'
+export const OPNS_BASKET = 'opns'
 export const LOCK_BASKET = 'lock'
 
 // ============================================================================
