@@ -63,6 +63,8 @@ export interface TransferItem {
 	address?: string
 	/** Optional MAP metadata to append to the output script */
 	map?: Record<string, string>
+	/** Additional tags to append to the output (e.g. 'status:published') */
+	extraTags?: string[]
 }
 
 export interface TransferOrdinalsRequest {
@@ -229,7 +231,7 @@ export async function buildTransferOrdinals(
 	const inputs: CreateActionArgs['inputs'] = []
 	const outputs: CreateActionArgs['outputs'] = []
 
-	for (const { ordinal, counterparty, address, map } of transfers) {
+	for (const { ordinal, counterparty, address, map, extraTags } of transfers) {
 		if (!counterparty && !address) {
 			return { error: 'must-provide-counterparty-or-address' }
 		}
@@ -265,6 +267,9 @@ export async function buildTransferOrdinals(
 			) {
 				tags.push(tag)
 			}
+		}
+		if (extraTags) {
+			tags.push(...extraTags)
 		}
 
 		const sourceName = extractName(ordinal.customInstructions)

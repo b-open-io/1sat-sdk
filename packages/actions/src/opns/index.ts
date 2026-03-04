@@ -95,6 +95,7 @@ export const opnsRegister: Action<
 						map: {
 							'opns.idKey': identityPubKey,
 						},
+						extraTags: ['opns:published'],
 					},
 				],
 				inputBEEF,
@@ -208,6 +209,7 @@ export const opnsDeregister: Action<
 						map: {
 							'opns.idKey': '',
 						},
+						extraTags: [],
 					},
 				],
 				inputBEEF,
