@@ -564,6 +564,18 @@ export const sweepOrdinals: Action<
 			}
 		} catch (error) {
 			console.error('[sweepOrdinals]', error)
+			if (error && typeof error === 'object' && 'sendWithResults' in error) {
+				const werr = error as {
+					sendWithResults?: unknown
+					txid?: string
+					message?: string
+				}
+				console.error('[sweepOrdinals] WERR_REVIEW_ACTIONS details:', {
+					message: werr.message,
+					txid: werr.txid,
+					sendWithResults: JSON.stringify(werr.sendWithResults, null, 2),
+				})
+			}
 			return {
 				error: error instanceof Error ? error.message : 'unknown-error',
 			}
