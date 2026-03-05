@@ -1,3 +1,4 @@
+export { AdminClient } from './AdminClient'
 export { BaseClient } from './BaseClient'
 export { ChaintracksClient } from './ChaintracksClient'
 export { BeefClient } from './BeefClient'

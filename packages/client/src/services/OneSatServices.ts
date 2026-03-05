@@ -11,6 +11,7 @@ import {
 import type { TableOutput, sdk as toolboxSdk } from '@bsv/wallet-toolbox'
 import { WalletError } from '@bsv/wallet-toolbox/out/src/sdk/WalletError.js'
 import {
+	AdminClient,
 	ArcadeClient,
 	BeefClient,
 	Bsv21Client,
@@ -58,6 +59,7 @@ export class OneSatServices implements WalletServices {
 	readonly baseUrl: string
 
 	// ===== API Clients =====
+	readonly admin: AdminClient
 	readonly chaintracks: ChaintracksClient
 	readonly beef: BeefClient
 	readonly arcade: ArcadeClient
@@ -89,6 +91,7 @@ export class OneSatServices implements WalletServices {
 			baseUrl || (chain === 'main' ? ONESAT_MAINNET_URL : ONESAT_TESTNET_URL)
 
 		const opts: ClientOptions = { timeout: 30000 }
+		this.admin = new AdminClient(this.baseUrl, opts)
 		this.chaintracks = new ChaintracksClient(this.baseUrl, opts)
 		this.beef = new BeefClient(this.baseUrl, opts)
 		this.arcade = new ArcadeClient(this.baseUrl, opts)

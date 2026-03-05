@@ -32,20 +32,10 @@ export interface SweepBsvResponse {
 	error?: string
 }
 
-/** Input for ordinal sweep operations */
-export interface SweepOrdinalInput extends SweepInput {
-	/** Content type from ordfs metadata */
-	contentType?: string
-	/** Origin outpoint for tracking */
-	origin?: string
-	/** Name from MAP metadata */
-	name?: string
-}
-
 /** Request to sweep ordinals */
 export interface SweepOrdinalsRequest {
 	/** Ordinal UTXOs to sweep */
-	inputs: SweepOrdinalInput[]
+	inputs: SweepInput[]
 	/** WIF private key controlling the inputs */
 	wif: string
 }

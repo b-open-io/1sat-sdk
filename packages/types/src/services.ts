@@ -26,6 +26,7 @@ export interface ClientOptions {
  * These match the actual capability names from 1sat-stack.
  */
 export type Capability =
+	| 'admin' // Admin panel (/1sat/admin)
 	| 'beef' // BEEF storage, raw tx, proofs (/1sat/beef)
 	| 'pubsub' // SSE subscriptions (/1sat/sse)
 	| 'txo' // TXO lookup (/1sat/txo)

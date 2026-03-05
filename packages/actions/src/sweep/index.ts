@@ -12,7 +12,6 @@ import {
 	PrivateKey,
 	PublicKey,
 	Transaction,
-	Utils,
 } from '@bsv/sdk'
 import {
 	BSV21_BASKET,
@@ -22,6 +21,7 @@ import {
 	ORDINALS_BASKET,
 } from '../constants'
 import type { Action, OneSatContext } from '../types'
+import type { OrdfsMetadata } from '@1sat/types'
 import type {
 	SweepBsv21Request,
 	SweepBsv21Response,
@@ -33,6 +33,18 @@ import type {
 } from './types'
 
 export * from './types'
+
+/** Extract name from ORDFS metadata map fields */
+function extractName(meta?: OrdfsMetadata): string | undefined {
+	if (!meta?.map) return undefined
+	const mapName = meta.map.name
+	if (typeof mapName === 'string') return mapName
+	const subTypeData = meta.map.subTypeData as
+		| Record<string, unknown>
+		| undefined
+	if (typeof subTypeData?.name === 'string') return subTypeData.name
+	return undefined
+}
 
 /**
  * Prepare sweep inputs from IndexedOutput objects by fetching locking scripts.
@@ -354,12 +366,6 @@ export const sweepOrdinals: Action<
 								type: 'string',
 								description: 'Locking script hex',
 							},
-							contentType: {
-								type: 'string',
-								description: 'Content type from metadata',
-							},
-							origin: { type: 'string', description: 'Origin outpoint' },
-							name: { type: 'string', description: 'Name from MAP metadata' },
 						},
 						required: ['outpoint', 'satoshis', 'lockingScript'],
 					},
@@ -385,6 +391,19 @@ export const sweepOrdinals: Action<
 				return { error: 'no-inputs' }
 			}
 
+			// Resolve metadata for all inputs from ORDFS
+			const outpoints = inputs.map((i) => i.outpoint)
+			console.log(
+				`[sweepOrdinals] Resolving metadata for ${outpoints.length} outpoints`,
+			)
+			const metadataMap = await ctx.services.ordfs.bulkMetadata(outpoints)
+
+			// Build a lookup by outpoint
+			const metadata = new Map<string, OrdfsMetadata>()
+			for (const [op, meta] of Object.entries(metadataMap)) {
+				if (meta) metadata.set(op, meta)
+			}
+
 			// Parse WIF
 			const privateKey = PrivateKey.fromWif(wif)
 
@@ -407,9 +426,10 @@ export const sweepOrdinals: Action<
 			// Build input descriptors
 			const inputDescriptors = inputs.map((input) => {
 				const [txid, voutStr] = input.outpoint.split('_')
+				const meta = metadata.get(input.outpoint)
 				return {
 					outpoint: `${txid}.${voutStr}`,
-					inputDescription: `Ordinal ${input.origin ?? input.outpoint}`,
+					inputDescription: `Ordinal ${meta?.origin ?? input.outpoint}`,
 					unlockingScriptLength: 108,
 					sequenceNumber: 0xffffffff,
 				}
@@ -418,7 +438,12 @@ export const sweepOrdinals: Action<
 			// Build outputs - one per ordinal, each 1 sat to derived address
 			const outputs: CreateActionOutput[] = []
 			for (const input of inputs) {
-				if (input.contentType === 'application/bsv-20') {
+				const meta = metadata.get(input.outpoint)
+				const contentType = meta?.contentType
+				const origin = meta?.origin ?? input.outpoint
+				const name = extractName(meta)
+
+				if (contentType === 'application/bsv-20') {
 					return { error: `Cannot sweep BSV-20 token ${input.outpoint} through ordinal sweep — use sweepBsv21 instead` }
 				}
 
@@ -439,24 +464,24 @@ export const sweepOrdinals: Action<
 				).toAddress()
 				const lockingScript = new P2PKH().lock(derivedAddress)
 
-				// Build tags following ordinals API pattern
+				// Build tags from resolved metadata
 				const tags: string[] = []
-				if (input.contentType) tags.push(`type:${input.contentType}`)
-				if (input.origin) tags.push(`origin:${input.origin}`)
-				if (input.name) tags.push(`name:${input.name.slice(0, 64)}`)
+				if (contentType) tags.push(`type:${contentType}`)
+				if (origin) tags.push(`origin:${origin}`)
+				if (name) tags.push(`name:${name.slice(0, 64)}`)
 				const customInstructions = JSON.stringify({
 					protocolID: ONESAT_PROTOCOL,
 					keyID: input.outpoint,
-					...(input.name && { name: input.name.slice(0, 64) }),
+					...(name && { name: name.slice(0, 64) }),
 				})
 				console.log(
-					`[sweepOrdinals] Output for ${input.outpoint}: keyID=${input.outpoint}, customInstructions=${customInstructions}`,
+					`[sweepOrdinals] Output for ${input.outpoint}: contentType=${contentType}, origin=${origin}, name=${name}`,
 				)
 				outputs.push({
 					lockingScript: lockingScript.toHex(),
 					satoshis: 1,
-					outputDescription: `Ordinal ${input.origin ?? input.outpoint}`,
-					basket: input.contentType === 'application/op-ns' ? OPNS_BASKET : ORDINALS_BASKET,
+					outputDescription: `Ordinal ${origin}`,
+					basket: contentType === 'application/op-ns' ? OPNS_BASKET : ORDINALS_BASKET,
 					tags,
 					customInstructions,
 				})
@@ -466,63 +491,13 @@ export const sweepOrdinals: Action<
 
 			// Create action to get signable transaction
 			// CRITICAL: randomizeOutputs must be false to preserve ordinal satoshi positions
-			const createActionArgs = {
+			const createResult = await ctx.wallet.createAction({
 				description: `Sweep ${inputs.length} ordinal${inputs.length !== 1 ? 's' : ''}`,
 				inputBEEF: beefData,
 				inputs: inputDescriptors,
 				outputs,
 				options: { signAndProcess: false, randomizeOutputs: false },
-			}
-
-			console.log('[sweepOrdinals] === CREATE ACTION ARGS ===')
-			console.log(
-				`[sweepOrdinals] description: ${createActionArgs.description}`,
-			)
-			console.log(`[sweepOrdinals] inputBEEF length: ${beefData.length} bytes`)
-			console.log(`[sweepOrdinals] inputs count: ${inputDescriptors.length}`)
-			console.log(`[sweepOrdinals] outputs count: ${outputs.length}`)
-			console.log(
-				'[sweepOrdinals] inputs:',
-				JSON.stringify(inputDescriptors, null, 2),
-			)
-			console.log('[sweepOrdinals] outputs:', JSON.stringify(outputs, null, 2))
-			console.log(
-				'[sweepOrdinals] options:',
-				JSON.stringify(createActionArgs.options),
-			)
-			console.log('[sweepOrdinals] Calling createAction...')
-
-			let createResult: Awaited<ReturnType<typeof ctx.wallet.createAction>>
-			try {
-				createResult = await ctx.wallet.createAction(createActionArgs)
-				console.log(
-					'[sweepOrdinals] createAction returned:',
-					JSON.stringify(
-						createResult,
-						(key, value) => {
-							// Don't stringify large binary data
-							if (key === 'tx' && value instanceof Uint8Array) {
-								return `<Uint8Array ${value.length} bytes>`
-							}
-							if (key === 'tx' && Array.isArray(value)) {
-								return `<Array ${value.length} bytes>`
-							}
-							return value
-						},
-						2,
-					),
-				)
-			} catch (createError) {
-				console.error('[sweepOrdinals] createAction threw:', createError)
-				const errorMsg =
-					createError instanceof Error
-						? createError.message
-						: String(createError)
-				const errorStack =
-					createError instanceof Error ? createError.stack : undefined
-				console.error('[sweepOrdinals] Stack:', errorStack)
-				return { error: `createAction failed: ${errorMsg}` }
-			}
+			})
 
 			if ('error' in createResult && createResult.error) {
 				return { error: String(createResult.error) }
@@ -534,36 +509,6 @@ export const sweepOrdinals: Action<
 
 			// Sign each input with our external key
 			const tx = Transaction.fromBEEF(createResult.signableTransaction.tx)
-
-			// Log transaction structure for debugging
-			console.log('[sweepOrdinals] === Transaction Structure ===')
-			console.log(`[sweepOrdinals] Inputs (${tx.inputs.length}):`)
-			let totalInputSats = 0
-			for (let i = 0; i < tx.inputs.length; i++) {
-				const inp = tx.inputs[i]
-				const sats =
-					inp.sourceTransaction?.outputs[inp.sourceOutputIndex]?.satoshis ?? 0
-				totalInputSats += sats
-				console.log(
-					`  [${i}] ${inp.sourceTXID}:${inp.sourceOutputIndex} = ${sats} sats`,
-				)
-			}
-			console.log(`[sweepOrdinals] Outputs (${tx.outputs.length}):`)
-			let totalOutputSats = 0
-			for (let i = 0; i < tx.outputs.length; i++) {
-				const out = tx.outputs[i]
-				totalOutputSats += out.satoshis ?? 0
-				console.log(
-					`  [${i}] ${out.satoshis} sats, script len=${out.lockingScript?.toHex().length ?? 0}`,
-				)
-			}
-			console.log(
-				`[sweepOrdinals] Total in: ${totalInputSats}, Total out: ${totalOutputSats}, Fee: ${totalInputSats - totalOutputSats}`,
-			)
-			console.log(
-				`[sweepOrdinals] Signable tx hex: ${Utils.toHex(createResult.signableTransaction.tx)}`,
-			)
-			console.log('[sweepOrdinals] ==============================')
 
 			// Build a set of outpoints we control
 			const ourOutpoints = new Set(
@@ -590,25 +535,16 @@ export const sweepOrdinals: Action<
 
 			await tx.sign()
 
-			// Log signed transaction details for debugging
-			const localTxid = tx.id('hex')
-			console.log('[sweepOrdinals] === LOCAL SIGNED TX ===')
-			console.log(`[sweepOrdinals] Local txid: ${localTxid}`)
-			console.log(`[sweepOrdinals] Signed tx hex: ${tx.toHex()}`)
-
 			// Extract unlocking scripts for signAction
 			const spends: Record<number, { unlockingScript: string }> = {}
-			console.log('[sweepOrdinals] === UNLOCKING SCRIPTS FOR SIGNACTION ===')
 			for (let i = 0; i < tx.inputs.length; i++) {
 				const txInput = tx.inputs[i]
 				const inputOutpoint = `${txInput.sourceTXID}.${txInput.sourceOutputIndex}`
 
 				if (ourOutpoints.has(inputOutpoint)) {
-					const unlockHex = txInput.unlockingScript?.toHex() ?? ''
-					spends[i] = { unlockingScript: unlockHex }
-					console.log(`  [${i}] ${inputOutpoint}: ${unlockHex.length} chars`)
-				} else {
-					console.log(`  [${i}] ${inputOutpoint}: (wallet input - not ours)`)
+					spends[i] = {
+						unlockingScript: txInput.unlockingScript?.toHex() ?? '',
+					}
 				}
 			}
 
@@ -621,74 +557,6 @@ export const sweepOrdinals: Action<
 
 			if ('error' in signResult) {
 				return { error: String(signResult.error) }
-			}
-
-			// Debug: compare local vs signAction result
-			console.log('[sweepOrdinals] === SIGN ACTION RESULT ===')
-			console.log(`[sweepOrdinals] signAction txid: ${signResult.txid}`)
-			// Log broadcast results if available
-			if ('sendWithResults' in signResult) {
-				console.log(
-					'[sweepOrdinals] sendWithResults:',
-					JSON.stringify(
-						(signResult as { sendWithResults?: unknown }).sendWithResults,
-					),
-				)
-			}
-			console.log(`[sweepOrdinals] Local txid (partial): ${localTxid}`)
-			console.log(
-				'[sweepOrdinals] Note: TXIDs differ because local is partial (wallet input unsigned)',
-			)
-
-			if (signResult.tx) {
-				// Parse returned BEEF to show final transaction structure
-				const returnedTx = Transaction.fromBEEF(signResult.tx)
-				console.log('[sweepOrdinals] === FINAL TX STRUCTURE (broadcast) ===')
-				console.log(
-					`[sweepOrdinals] Final inputs (${returnedTx.inputs.length}):`,
-				)
-				let returnedInputSats = 0
-				for (let i = 0; i < returnedTx.inputs.length; i++) {
-					const inp = returnedTx.inputs[i]
-					const sats =
-						inp.sourceTransaction?.outputs[inp.sourceOutputIndex]?.satoshis ?? 0
-					returnedInputSats += sats
-					const isOurs = ourOutpoints.has(
-						`${inp.sourceTXID}.${inp.sourceOutputIndex}`,
-					)
-					console.log(
-						`  [${i}] ${inp.sourceTXID?.slice(0, 8)}...:${inp.sourceOutputIndex} = ${sats} sats, unlock=${inp.unlockingScript?.toHex().length ?? 0} chars ${isOurs ? '(ours)' : '(wallet fee)'}`,
-					)
-				}
-				console.log(
-					`[sweepOrdinals] Final outputs (${returnedTx.outputs.length}):`,
-				)
-				let returnedOutputSats = 0
-				for (let i = 0; i < returnedTx.outputs.length; i++) {
-					const out = returnedTx.outputs[i]
-					returnedOutputSats += out.satoshis ?? 0
-					console.log(
-						`  [${i}] ${out.satoshis} sats, script=${out.lockingScript?.toHex().length ?? 0} chars`,
-					)
-				}
-				const finalFee = returnedInputSats - returnedOutputSats
-				console.log(
-					`[sweepOrdinals] Final: Total in=${returnedInputSats}, Total out=${returnedOutputSats}, Fee=${finalFee} sats`,
-				)
-				console.log(`[sweepOrdinals] Final tx hex: ${returnedTx.toHex()}`)
-				console.log(
-					`[sweepOrdinals] Final tx computed id: ${returnedTx.id('hex')}`,
-				)
-
-				// Check if fee seems too low (less than 1 sat/byte)
-				const txSize = returnedTx.toHex().length / 2
-				const satPerByte = finalFee / txSize
-				console.log(
-					`[sweepOrdinals] Tx size: ${txSize} bytes, Fee rate: ${satPerByte.toFixed(2)} sat/byte`,
-				)
-				if (satPerByte < 0.5) {
-					console.warn('[sweepOrdinals] WARNING: Fee rate seems very low!')
-				}
 			}
 
 			return {

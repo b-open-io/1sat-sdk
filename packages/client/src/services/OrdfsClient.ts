@@ -34,6 +34,21 @@ export class OrdfsClient extends BaseClient {
 	}
 
 	/**
+	 * Get metadata for multiple outpoints in a single request
+	 * @param outpoints - Array of outpoints (txid_vout)
+	 * @returns Map of outpoint to metadata (null if not found)
+	 */
+	async bulkMetadata(
+		outpoints: string[],
+	): Promise<Record<string, OrdfsMetadata | null>> {
+		return this.request<Record<string, OrdfsMetadata | null>>('/metadata', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ outpoints }),
+		})
+	}
+
+	/**
 	 * Get inscription content with full response headers
 	 * @param outpoint - Outpoint (txid_vout) or txid
 	 * @param options - Content request options
