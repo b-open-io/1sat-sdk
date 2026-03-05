@@ -20,6 +20,7 @@ import {
 import { BSV21_BASKET, BSV21_PROTOCOL } from '../constants'
 import type { Action, OneSatContext } from '../types'
 import { signP2PKHInput } from '../utils/signP2PKH'
+import { parseOutpoint } from '@1sat/utils'
 
 // ============================================================================
 // Types
@@ -317,15 +318,6 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 				return { error: 'amount-must-be-positive' }
 			}
 
-			const parts = tokenId.split('_')
-			if (
-				parts.length !== 2 ||
-				parts[0].length !== 64 ||
-				!/^\d+$/.test(parts[1])
-			) {
-				return { error: 'invalid-token-id-format' }
-			}
-
 			if (!ctx.services) {
 				return { error: 'services-required' }
 			}
@@ -601,12 +593,7 @@ export const purchaseBsv21: Action<
 				return { error: 'services-required-for-purchase' }
 			}
 
-			const parts = outpoint.split('_')
-			if (parts.length !== 2) {
-				return { error: 'invalid-outpoint-format' }
-			}
-			const [txid, voutStr] = parts
-			const vout = Number.parseInt(voutStr, 10)
+			const { txid, vout } = parseOutpoint(outpoint)
 
 			try {
 				await ctx.services.bsv21.validateOutput(tokenId, outpoint)

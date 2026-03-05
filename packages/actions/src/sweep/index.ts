@@ -22,6 +22,7 @@ import {
 } from '../constants'
 import type { Action, OneSatContext } from '../types'
 import type { OrdfsMetadata } from '@1sat/types'
+import { parseOutpoint, formatOutpoint } from '@1sat/utils'
 import type {
 	SweepBsv21Request,
 	SweepBsv21Response,
@@ -61,8 +62,7 @@ export async function prepareSweepInputs(
 	// Group UTXOs by txid to minimize BEEF fetches
 	const byTxid = new Map<string, { vout: number; utxo: IndexedOutput }[]>()
 	for (const utxo of utxos) {
-		const [txid, voutStr] = utxo.outpoint.split('_')
-		const vout = Number.parseInt(voutStr, 10)
+		const { txid, vout } = parseOutpoint(utxo.outpoint)
 		const existing = byTxid.get(txid) ?? []
 		existing.push({ vout, utxo })
 		byTxid.set(txid, existing)
@@ -173,7 +173,7 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 			}
 
 			// Fetch BEEF for all input transactions and merge them
-			const txids = [...new Set(inputs.map((i) => i.outpoint.split('_')[0]))]
+			const txids = [...new Set(inputs.map((i) => parseOutpoint(i.outpoint).txid))]
 
 			console.log(`[sweep] Fetching BEEF for ${txids.length} transactions`)
 
@@ -191,10 +191,9 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 
 			// Build input descriptors (we'll sign after getting the final transaction)
 			const inputDescriptors = inputs.map((input) => {
-				const [txid, voutStr] = input.outpoint.split('_')
-				// Convert outpoint format: our format uses "_" but SDK expects "."
+				const { txid, vout } = parseOutpoint(input.outpoint)
 				return {
-					outpoint: `${txid}.${voutStr}`,
+					outpoint: formatOutpoint(txid, vout),
 					inputDescription: 'Sweep input',
 					unlockingScriptLength: 108, // P2PKH unlocking script length
 					sequenceNumber: 0xffffffff,
@@ -248,15 +247,15 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 			// Build a set of outpoints we control (using SDK format with ".")
 			const ourOutpoints = new Set(
 				inputs.map((input) => {
-					const [txid, vout] = input.outpoint.split('_')
-					return `${txid}.${vout}`
+					const { txid, vout } = parseOutpoint(input.outpoint)
+					return formatOutpoint(txid, vout)
 				}),
 			)
 
 			// Find and set up P2PKH unlocker on each input we control
 			for (let i = 0; i < tx.inputs.length; i++) {
 				const txInput = tx.inputs[i]
-				const inputOutpoint = `${txInput.sourceTXID}.${txInput.sourceOutputIndex}`
+				const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
 				const hasSourceTx = !!txInput.sourceTransaction
 				const sourceSatoshis =
 					txInput.sourceTransaction?.outputs[txInput.sourceOutputIndex]
@@ -283,7 +282,7 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 			const spends: Record<number, { unlockingScript: string }> = {}
 			for (let i = 0; i < tx.inputs.length; i++) {
 				const txInput = tx.inputs[i]
-				const inputOutpoint = `${txInput.sourceTXID}.${txInput.sourceOutputIndex}`
+				const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
 
 				if (ourOutpoints.has(inputOutpoint)) {
 					spends[i] = {
@@ -408,7 +407,7 @@ export const sweepOrdinals: Action<
 			const privateKey = PrivateKey.fromWif(wif)
 
 			// Fetch BEEF for all input transactions and merge them
-			const txids = [...new Set(inputs.map((i) => i.outpoint.split('_')[0]))]
+			const txids = [...new Set(inputs.map((i) => parseOutpoint(i.outpoint).txid))]
 			console.log(
 				`[sweepOrdinals] Fetching BEEF for ${txids.length} transactions`,
 			)
@@ -425,10 +424,10 @@ export const sweepOrdinals: Action<
 
 			// Build input descriptors
 			const inputDescriptors = inputs.map((input) => {
-				const [txid, voutStr] = input.outpoint.split('_')
+				const { txid, vout } = parseOutpoint(input.outpoint)
 				const meta = metadata.get(input.outpoint)
 				return {
-					outpoint: `${txid}.${voutStr}`,
+					outpoint: formatOutpoint(txid, vout),
 					inputDescription: `Ordinal ${meta?.origin ?? input.outpoint}`,
 					unlockingScriptLength: 108,
 					sequenceNumber: 0xffffffff,
@@ -513,15 +512,15 @@ export const sweepOrdinals: Action<
 			// Build a set of outpoints we control
 			const ourOutpoints = new Set(
 				inputs.map((input) => {
-					const [txid, vout] = input.outpoint.split('_')
-					return `${txid}.${vout}`
+					const { txid, vout } = parseOutpoint(input.outpoint)
+					return formatOutpoint(txid, vout)
 				}),
 			)
 
 			// Set up P2PKH unlocker on each input we control
 			for (let i = 0; i < tx.inputs.length; i++) {
 				const txInput = tx.inputs[i]
-				const inputOutpoint = `${txInput.sourceTXID}.${txInput.sourceOutputIndex}`
+				const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
 
 				if (ourOutpoints.has(inputOutpoint)) {
 					const p2pkh = new P2PKH()
@@ -539,7 +538,7 @@ export const sweepOrdinals: Action<
 			const spends: Record<number, { unlockingScript: string }> = {}
 			for (let i = 0; i < tx.inputs.length; i++) {
 				const txInput = tx.inputs[i]
-				const inputOutpoint = `${txInput.sourceTXID}.${txInput.sourceOutputIndex}`
+				const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
 
 				if (ourOutpoints.has(inputOutpoint)) {
 					spends[i] = {
@@ -677,7 +676,7 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 			}
 
 			// Fetch BEEF for all input transactions and merge them
-			const txids = [...new Set(inputs.map((i) => i.outpoint.split('_')[0]))]
+			const txids = [...new Set(inputs.map((i) => parseOutpoint(i.outpoint).txid))]
 			console.log(`[sweepBsv21] Fetching BEEF for ${txids.length} transactions`)
 
 			const firstBeef = await ctx.services.getBeefForTxid(txids[0])
@@ -692,9 +691,9 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 
 			// Build input descriptors
 			const inputDescriptors = inputs.map((input) => {
-				const [txid, voutStr] = input.outpoint.split('_')
+				const { txid, vout } = parseOutpoint(input.outpoint)
 				return {
-					outpoint: `${txid}.${voutStr}`,
+					outpoint: formatOutpoint(txid, vout),
 					inputDescription: `Token input ${input.outpoint}`,
 					unlockingScriptLength: 108,
 					sequenceNumber: 0xffffffff,
@@ -778,15 +777,15 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 			// Build a set of outpoints we control
 			const ourOutpoints = new Set(
 				inputs.map((input) => {
-					const [txid, vout] = input.outpoint.split('_')
-					return `${txid}.${vout}`
+					const { txid, vout } = parseOutpoint(input.outpoint)
+					return formatOutpoint(txid, vout)
 				}),
 			)
 
 			// Set up P2PKH unlocker on each input we control
 			for (let i = 0; i < tx.inputs.length; i++) {
 				const txInput = tx.inputs[i]
-				const inputOutpoint = `${txInput.sourceTXID}.${txInput.sourceOutputIndex}`
+				const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
 
 				if (ourOutpoints.has(inputOutpoint)) {
 					txInput.unlockingScriptTemplate = p2pkh.unlock(
@@ -803,7 +802,7 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 			const spends: Record<number, { unlockingScript: string }> = {}
 			for (let i = 0; i < tx.inputs.length; i++) {
 				const txInput = tx.inputs[i]
-				const inputOutpoint = `${txInput.sourceTXID}.${txInput.sourceOutputIndex}`
+				const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
 
 				if (ourOutpoints.has(inputOutpoint)) {
 					spends[i] = {

@@ -33,6 +33,7 @@ import {
 } from '../constants'
 import type { Action, OneSatContext } from '../types'
 import { signP2PKHInput } from '../utils/signP2PKH'
+import { parseOutpoint } from '@1sat/utils'
 
 // ============================================================================
 // Helpers
@@ -923,12 +924,7 @@ export const purchaseOrdinal: Action<
 				return { error: 'services-required-for-purchase' }
 			}
 
-			const parts = outpoint.split('_')
-			if (parts.length !== 2) {
-				return { error: 'invalid-outpoint-format' }
-			}
-			const [txid, voutStr] = parts
-			const vout = Number.parseInt(voutStr, 10)
+			const { txid, vout } = parseOutpoint(outpoint)
 
 			let { contentType, origin, name } = input
 			if (!contentType || !origin || name === undefined) {
