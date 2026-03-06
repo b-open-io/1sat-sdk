@@ -34,9 +34,9 @@ export class OrdfsClient extends BaseClient {
 	}
 
 	/**
-	 * Get metadata for multiple outpoints in a single request
-	 * @param outpoints - Array of outpoints (txid_vout)
-	 * @returns Map of outpoint to metadata (null if not found)
+	 * Get metadata for multiple outpoints in a single request.
+	 * @param outpoints - Array of outpoints (txid_vout). Supports `:seq` suffix (e.g. `txid_0:-2` for origin resolution).
+	 * @returns Map of outpoint (as provided) to metadata (null if not found)
 	 */
 	async bulkMetadata(
 		outpoints: string[],

@@ -383,12 +383,14 @@ export const sweepOrdinals: Action<
 			console.log(
 				`[sweepOrdinals] Resolving metadata for ${outpoints.length} outpoints`,
 			)
-			const metadataMap = await ctx.services.ordfs.bulkMetadata(outpoints)
+			const metadataMap = await ctx.services.ordfs.bulkMetadata(
+				outpoints.map((op) => `${op}:-2`),
+			)
 
-			// Build a lookup by outpoint
+			// Build a lookup by outpoint (strip :-2 suffix from response keys)
 			const metadata = new Map<string, OrdfsMetadata>()
 			for (const [op, meta] of Object.entries(metadataMap)) {
-				if (meta) metadata.set(op, meta)
+				if (meta) metadata.set(op.replace(/:-2$/, ''), meta)
 			}
 
 			// Parse WIF

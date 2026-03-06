@@ -71,10 +71,10 @@ export async function resolveOrdinalTags(
 		}
 	}
 
-	// Fetch missing type/origin from ORDFS metadata
+	// Fetch missing type/origin from ORDFS metadata (seq -2 = origin resolution)
 	if ((!contentType || !origin) && ctx.services) {
 		try {
-			const metadata = await ctx.services.ordfs.getMetadata(outpoint)
+			const metadata = await ctx.services.ordfs.getMetadata(outpoint, -2)
 			contentType = contentType ?? metadata.contentType
 			origin = origin ?? metadata.origin ?? outpoint
 
