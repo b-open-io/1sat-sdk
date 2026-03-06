@@ -50,9 +50,7 @@ export {
 export {
 	AutoTransport,
 	createAutoTransport,
-	createEmbedTransport,
 	createRedirectTransport,
-	EmbedTransport,
 	RedirectTransport,
 } from './transport'
 // Export types

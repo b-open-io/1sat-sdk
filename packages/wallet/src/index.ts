@@ -137,8 +137,11 @@ export {
 	createChromeCWI,
 	createCWI,
 	createEventCWI,
+	createWebCWI,
 	type CWIResponseDetail,
 	type CWITransport,
+	type WebCWIConfig,
+	type WebCWIResult,
 } from './cwi'
 
 // Note: Storage utilities (StorageIdb, WalletStorageManager, Chain) should be

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.9] - 2026-03-06
+
+### Changed
+- Removed `EmbedTransport` and `createEmbedTransport` from public exports (replaced by `createWebCWI` from `@1sat/wallet`)
+
 ## [0.0.7] - 2026-02-08
 
 ### Fixed
