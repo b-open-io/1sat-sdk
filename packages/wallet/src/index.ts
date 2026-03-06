@@ -1,39 +1,3 @@
-/**
- * @1sat/wallet - BRC-100 Wallet Engine for 1Sat Ordinals SDK
- *
- * This package provides the wallet functionality for the 1Sat SDK.
- *
- * @example
- * ```typescript
- * import { OneSatWallet, OneSatServices } from '@1sat/wallet'
- * import { WalletStorageManager, StorageIdb } from '@bsv/wallet-toolbox/mobile'
- *
- * // Create storage (from @bsv/wallet-toolbox)
- * const storage = await WalletStorageManager.createWalletStorageManager(
- *   new StorageIdb({ name: 'my-wallet' })
- * )
- *
- * // Initialize wallet
- * const wallet = new OneSatWallet({
- *   rootKey: privateKey,
- *   storage,
- *   chain: 'main',
- *   owners: new Set([address1, address2])
- * })
- *
- * // Sync and use
- * wallet.syncAll()
- * ```
- */
-
-// Core wallet exports
-export {
-	OneSatWallet,
-	type IngestResult,
-	type OneSatWalletArgs,
-	type OneSatWalletEvents,
-} from './OneSatWallet'
-
 // Services
 export { OneSatServices } from '@1sat/client'
 export type {
