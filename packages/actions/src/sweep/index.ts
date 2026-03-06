@@ -17,10 +17,9 @@ import {
 	BSV21_BASKET,
 	BSV21_PROTOCOL,
 	ONESAT_PROTOCOL,
-	OPNS_BASKET,
-	ORDINALS_BASKET,
 } from '../constants'
 import type { Action, OneSatContext } from '../types'
+import { resolveOrdinalTags } from '../ordinals'
 import type { OrdfsMetadata } from '@1sat/types'
 import { parseOutpoint, formatOutpoint } from '@1sat/utils'
 import type {
@@ -35,17 +34,6 @@ import type {
 
 export * from './types'
 
-/** Extract name from ORDFS metadata map fields */
-function extractName(meta?: OrdfsMetadata): string | undefined {
-	if (!meta?.map) return undefined
-	const mapName = meta.map.name
-	if (typeof mapName === 'string') return mapName
-	const subTypeData = meta.map.subTypeData as
-		| Record<string, unknown>
-		| undefined
-	if (typeof subTypeData?.name === 'string') return subTypeData.name
-	return undefined
-}
 
 /**
  * Prepare sweep inputs from IndexedOutput objects by fetching locking scripts.
@@ -439,14 +427,16 @@ export const sweepOrdinals: Action<
 			for (const input of inputs) {
 				const meta = metadata.get(input.outpoint)
 				const contentType = meta?.contentType
-				const origin = meta?.origin ?? input.outpoint
-				const name = extractName(meta)
 
 				if (contentType === 'application/bsv-20') {
 					return { error: `Cannot sweep BSV-20 token ${input.outpoint} through ordinal sweep — use sweepBsv21 instead` }
 				}
 
-				// Derive a unique public key for this ordinal using the input outpoint as keyID
+				const { tags, basket } = await resolveOrdinalTags(ctx, input.outpoint, {
+					contentType,
+					origin: meta?.origin,
+				})
+
 				const pubKeyResult = await ctx.wallet.getPublicKey({
 					protocolID: ONESAT_PROTOCOL,
 					keyID: input.outpoint,
@@ -457,32 +447,20 @@ export const sweepOrdinals: Action<
 					return { error: `Failed to derive key for ${input.outpoint}` }
 				}
 
-				// Create P2PKH locking script from derived public key
 				const derivedAddress = PublicKey.fromString(
 					pubKeyResult.publicKey,
 				).toAddress()
-				const lockingScript = new P2PKH().lock(derivedAddress)
 
-				// Build tags from resolved metadata
-				const tags: string[] = []
-				if (contentType) tags.push(`type:${contentType}`)
-				if (origin) tags.push(`origin:${origin}`)
-				if (name) tags.push(`name:${name.slice(0, 64)}`)
-				const customInstructions = JSON.stringify({
-					protocolID: ONESAT_PROTOCOL,
-					keyID: input.outpoint,
-					...(name && { name: name.slice(0, 64) }),
-				})
-				console.log(
-					`[sweepOrdinals] Output for ${input.outpoint}: contentType=${contentType}, origin=${origin}, name=${name}`,
-				)
 				outputs.push({
-					lockingScript: lockingScript.toHex(),
+					lockingScript: new P2PKH().lock(derivedAddress).toHex(),
 					satoshis: 1,
-					outputDescription: `Ordinal ${origin}`,
-					basket: contentType === 'application/op-ns' ? OPNS_BASKET : ORDINALS_BASKET,
+					outputDescription: `Ordinal ${meta?.origin ?? input.outpoint}`,
+					basket,
 					tags,
-					customInstructions,
+					customInstructions: JSON.stringify({
+						protocolID: ONESAT_PROTOCOL,
+						keyID: input.outpoint,
+					}),
 				})
 			}
 

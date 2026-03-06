@@ -39,15 +39,93 @@ import { parseOutpoint } from '@1sat/utils'
 // Helpers
 // ============================================================================
 
-function extractName(customInstructions?: string): string | undefined {
-	if (!customInstructions) return undefined
-	try {
-		const parsed = JSON.parse(customInstructions)
-		return parsed.name
-	} catch {
-		return undefined
+/**
+ * Resolve ordinal tags (type, origin, name) and basket for a self-spend output.
+ * Fetches missing data from ORDFS when services are available.
+ *
+ * Source can be either existing tags (from a WalletOutput) or explicit fields
+ * (from metadata or function args). Both are normalized into the same resolution.
+ */
+export async function resolveOrdinalTags(
+	ctx: OneSatContext,
+	outpoint: string,
+	source?: {
+		tags?: string[]
+		contentType?: string
+		origin?: string
+		name?: string
+	},
+): Promise<{ tags: string[]; basket: string }> {
+	// Extract known values from source tags or explicit fields
+	let contentType = source?.contentType
+	let origin = source?.origin
+	let name = source?.name
+
+	if (source?.tags) {
+		for (const tag of source.tags) {
+			if (!contentType && tag.startsWith('type:'))
+				contentType = tag.slice(5)
+			if (!origin && tag.startsWith('origin:')) origin = tag.slice(7)
+			if (name === undefined && tag.startsWith('name:'))
+				name = tag.slice(5)
+		}
 	}
+
+	// Fetch missing type/origin from ORDFS metadata
+	if ((!contentType || !origin) && ctx.services) {
+		try {
+			const metadata = await ctx.services.ordfs.getMetadata(outpoint)
+			contentType = contentType ?? metadata.contentType
+			origin = origin ?? metadata.origin ?? outpoint
+
+			// Non-OPNS: try MAP metadata for name
+			if (
+				name === undefined &&
+				contentType !== 'application/op-ns' &&
+				metadata.map
+			) {
+				const mapName = metadata.map.name
+				const subTypeData = metadata.map.subTypeData as
+					| Record<string, unknown>
+					| undefined
+				name =
+					(typeof mapName === 'string' ? mapName : undefined) ??
+					(typeof subTypeData?.name === 'string'
+						? subTypeData.name
+						: undefined)
+			}
+		} catch {
+			// Fall through with whatever we have
+		}
+	}
+
+	origin = origin ?? outpoint
+
+	// OPNS: name is inscription content
+	if (
+		name === undefined &&
+		contentType === 'application/op-ns' &&
+		ctx.services
+	) {
+		try {
+			const content = await ctx.services.ordfs.getContent(origin)
+			name = new TextDecoder().decode(content.data).trim()
+		} catch {
+			// Fall through
+		}
+	}
+
+	const tags: string[] = []
+	if (contentType) tags.push(`type:${contentType}`)
+	if (origin) tags.push(`origin:${origin}`)
+	if (name) tags.push(`name:${name.slice(0, 64)}`)
+
+	const basket =
+		contentType === 'application/op-ns' ? OPNS_BASKET : ORDINALS_BASKET
+
+	return { tags, basket }
 }
+
 
 // ============================================================================
 // Types
@@ -258,22 +336,10 @@ export async function buildTransferOrdinals(
 			return { error: 'must-provide-counterparty-or-address' }
 		}
 
-		// Preserve important tags from source output
-		const tags: string[] = []
-		for (const tag of ordinal.tags ?? []) {
-			if (
-				tag.startsWith('type:') ||
-				tag.startsWith('origin:') ||
-				tag.startsWith('name:')
-			) {
-				tags.push(tag)
-			}
-		}
-		if (extraTags) {
-			tags.push(...extraTags)
-		}
-
-		const sourceName = extractName(ordinal.customInstructions)
+		const { tags, basket } = await resolveOrdinalTags(ctx, outpoint, {
+			tags: ordinal.tags,
+		})
+		if (extraTags) tags.push(...extraTags)
 
 		inputs?.push({
 			outpoint,
@@ -294,23 +360,19 @@ export async function buildTransferOrdinals(
 			lockingScript = p2pkhScript.toHex()
 		}
 
-		// Only track output in wallet when transferring to a counterparty (wallet can derive keys to spend it)
-		// External address transfers are NOT tracked since the wallet cannot spend them
 		if (counterparty) {
 			outputs?.push({
 				lockingScript,
 				satoshis: 1,
 				outputDescription: 'Ordinal transfer',
-				basket: sourceType === 'application/op-ns' ? OPNS_BASKET : ORDINALS_BASKET,
+				basket,
 				tags,
 				customInstructions: JSON.stringify({
 					protocolID: ONESAT_PROTOCOL,
 					keyID: outpoint,
-					...(sourceName && { name: sourceName }),
 				}),
 			})
 		} else {
-			// External address - output is not tracked in wallet
 			outputs?.push({
 				lockingScript,
 				satoshis: 1,
@@ -345,23 +407,14 @@ export async function buildListOrdinal(
 	if (price <= 0) return { error: 'invalid-price' }
 
 	const outpoint = ordinal.outpoint
-	const typeTag = ordinal.tags?.find((t) => t.startsWith('type:'))
-	const originTag = ordinal.tags?.find((t) => t.startsWith('origin:'))
-	const nameTag = ordinal.tags?.find((t) => t.startsWith('name:'))
-	const originOutpoint = originTag ? originTag.slice(7) : outpoint
-
-	const sourceName = extractName(ordinal.customInstructions)
 
 	const cancelAddress = await deriveCancelAddressInternal(ctx, outpoint)
 	const lockingScript = buildOrdLockScript(cancelAddress, payAddress, price)
 
-	const tags: string[] = [
-		'ordlock',
-		`origin:${originOutpoint}`,
-		`price:${price}`,
-	]
-	if (typeTag) tags.push(typeTag)
-	if (nameTag) tags.push(nameTag)
+	const { tags, basket } = await resolveOrdinalTags(ctx, outpoint, {
+		tags: ordinal.tags,
+	})
+	tags.push('ordlock', `price:${price}`)
 
 	return {
 		description: `List ordinal for ${price} sats`,
@@ -378,12 +431,11 @@ export async function buildListOrdinal(
 				lockingScript: lockingScript.toHex(),
 				satoshis: 1,
 				outputDescription: `List ordinal for ${price} sats`,
-				basket: ORDINALS_BASKET,
+				basket,
 				tags,
 				customInstructions: JSON.stringify({
 					protocolID: ONESAT_PROTOCOL,
 					keyID: outpoint,
-					...(sourceName && { name: sourceName }),
 				}),
 			},
 		],
@@ -748,22 +800,13 @@ export const cancelListing: Action<
 			if (!listing.customInstructions) {
 				return { error: 'missing-custom-instructions' }
 			}
-			const {
-				protocolID,
-				keyID,
-				name: listingName,
-			} = JSON.parse(listing.customInstructions)
-
-			const typeTag = listing.tags?.find((t) => t.startsWith('type:'))
-			const originTag = listing.tags?.find((t) => t.startsWith('origin:'))
-			const nameTag = listing.tags?.find((t) => t.startsWith('name:'))
+			const { protocolID, keyID } = JSON.parse(listing.customInstructions)
 
 			const cancelAddress = await deriveCancelAddressInternal(ctx, keyID)
 
-			const tags: string[] = []
-			if (typeTag) tags.push(typeTag)
-			if (originTag) tags.push(originTag)
-			if (nameTag) tags.push(nameTag)
+			const { tags, basket } = await resolveOrdinalTags(ctx, outpoint, {
+				tags: listing.tags,
+			})
 
 			const createResult = await ctx.wallet.createAction({
 				description: 'Cancel ordinal listing',
@@ -780,12 +823,11 @@ export const cancelListing: Action<
 						lockingScript: new P2PKH().lock(cancelAddress).toHex(),
 						satoshis: 1,
 						outputDescription: 'Cancelled listing',
-						basket: ORDINALS_BASKET,
+						basket,
 						tags,
 						customInstructions: JSON.stringify({
 							protocolID,
 							keyID,
-							...(listingName && { name: listingName }),
 						}),
 					},
 				],
@@ -926,24 +968,11 @@ export const purchaseOrdinal: Action<
 
 			const { txid, vout } = parseOutpoint(outpoint)
 
-			let { contentType, origin, name } = input
-			if (!contentType || !origin || name === undefined) {
-				const metadata = await ctx.services.ordfs.getMetadata(outpoint)
-				contentType = contentType ?? metadata.contentType
-				origin = origin ?? metadata.origin ?? outpoint
-				// Extract name from map.name or map.subTypeData.name
-				if (name === undefined && metadata.map) {
-					const mapName = metadata.map.name
-					const subTypeData = metadata.map.subTypeData as
-						| Record<string, unknown>
-						| undefined
-					name =
-						(typeof mapName === 'string' ? mapName : undefined) ??
-						(typeof subTypeData?.name === 'string'
-							? subTypeData.name
-							: undefined)
-				}
-			}
+			const { tags, basket } = await resolveOrdinalTags(ctx, outpoint, {
+				contentType: input.contentType,
+				origin: input.origin,
+				name: input.name,
+			})
 
 			const beef = await ctx.services.getBeefForTxid(txid)
 			const listingBeefTx = beef.findTxid(txid)
@@ -978,20 +1007,15 @@ export const purchaseOrdinal: Action<
 				customInstructions?: string
 			}> = []
 
-			const p2pkh = new P2PKH()
-			const purchaseTags = [`type:${contentType}`, `origin:${origin}`]
-			if (name) purchaseTags.push(`name:${name}`)
-
 			outputs.push({
-				lockingScript: p2pkh.lock(ourOrdAddress).toHex(),
+				lockingScript: new P2PKH().lock(ourOrdAddress).toHex(),
 				satoshis: 1,
 				outputDescription: 'Purchased ordinal',
-				basket: ORDINALS_BASKET,
-				tags: purchaseTags,
+				basket,
+				tags,
 				customInstructions: JSON.stringify({
 					protocolID: ONESAT_PROTOCOL,
 					keyID: outpoint,
-					...(name && { name: name.slice(0, 64) }),
 				}),
 			})
 
@@ -1012,7 +1036,7 @@ export const purchaseOrdinal: Action<
 				const marketFee = Math.ceil(payoutSatoshis * marketplaceRate)
 				if (marketFee > 0) {
 					outputs.push({
-						lockingScript: p2pkh.lock(marketplaceAddress).toHex(),
+						lockingScript: new P2PKH().lock(marketplaceAddress).toHex(),
 						satoshis: marketFee,
 						outputDescription: 'Marketplace fee',
 						tags: [],
