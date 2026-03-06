@@ -134,25 +134,6 @@ export const opnsRegister: Action<
 				return { error: String(signResult.error) }
 			}
 
-			// Submit to OpNS overlay for indexing
-			if (signResult.tx) {
-				try {
-					const overlayResult = await ctx.services.overlay.submit(
-						signResult.tx,
-						['tm_opns'],
-					)
-					console.log(
-						'[opnsRegister] Overlay submission result:',
-						overlayResult,
-					)
-				} catch (overlayError) {
-					console.warn(
-						'[opnsRegister] Overlay submission failed:',
-						overlayError,
-					)
-				}
-			}
-
 			return {
 				txid: signResult.txid,
 				rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
@@ -246,25 +227,6 @@ export const opnsDeregister: Action<
 
 			if ('error' in signResult) {
 				return { error: String(signResult.error) }
-			}
-
-			// Submit to OpNS overlay to update index (remove identity binding)
-			if (signResult.tx && ctx.services) {
-				try {
-					const overlayResult = await ctx.services.overlay.submit(
-						signResult.tx,
-						['tm_opns'],
-					)
-					console.log(
-						'[opnsDeregister] Overlay submission result:',
-						overlayResult,
-					)
-				} catch (overlayError) {
-					console.warn(
-						'[opnsDeregister] Overlay submission failed:',
-						overlayError,
-					)
-				}
 			}
 
 			return {
