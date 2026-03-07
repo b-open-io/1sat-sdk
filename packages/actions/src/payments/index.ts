@@ -6,7 +6,10 @@
 
 import { Inscription } from '@bopen-io/templates'
 import { type CreateActionOutput, P2PKH, Script, Utils } from '@bsv/sdk'
+import { PaymailClient } from '@bsv/paymail/client'
 import type { Action } from '../types'
+
+const paymailClient = new PaymailClient()
 
 /**
  * Magic constant that tells the wallet to send all available funds minus fees.
@@ -47,8 +50,24 @@ export interface SendBsvResponse {
 // Internal helpers
 // ============================================================================
 
+interface PaymailRef {
+	paymail: string
+	reference: string
+}
+
 function isPaymail(address: string): boolean {
 	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)
+}
+
+async function deliverP2P(refs: PaymailRef[], txHex: string): Promise<void> {
+	for (const ref of refs) {
+		await paymailClient.sendTransactionP2P(ref.paymail, txHex, ref.reference, {
+			sender: '1Sat Wallet',
+			pubkey: '',
+			signature: '',
+			note: 'P2P payment from 1Sat Wallet',
+		})
+	}
 }
 
 function buildInscriptionScript(
@@ -128,7 +147,23 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 			}
 
 			const outputs: CreateActionOutput[] = []
+			const paymailRefs: PaymailRef[] = []
+
 			for (const req of requests) {
+				if (req.paymail) {
+					const dest = await paymailClient.getP2pPaymentDestination(req.paymail, req.satoshis)
+					paymailRefs.push({ paymail: req.paymail, reference: dest.reference })
+					for (const output of dest.outputs) {
+						outputs.push({
+							lockingScript: output.script,
+							satoshis: output.satoshis,
+							outputDescription: `Paymail payment to ${req.paymail}`,
+							tags: [],
+						})
+					}
+					continue
+				}
+
 				let lockingScript: Script
 
 				if (req.script) {
@@ -151,8 +186,6 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 					} catch {
 						return { error: 'invalid-data' }
 					}
-				} else if (req.paymail) {
-					return { error: 'paymail-not-yet-implemented' }
 				} else {
 					return { error: 'invalid-request' }
 				}
@@ -174,6 +207,11 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 			if (!result.txid) {
 				return { error: 'no-txid-returned' }
 			}
+
+			if (paymailRefs.length > 0 && result.tx) {
+				await deliverP2P(paymailRefs, Utils.toHex(result.tx))
+			}
+
 			return {
 				txid: result.txid,
 				rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
@@ -216,7 +254,7 @@ export const sendAllBsv: Action<SendAllBsvInput, SendBsvResponse> = {
 		try {
 			const { destination } = input
 			if (isPaymail(destination)) {
-				return { error: 'paymail-not-yet-implemented' }
+				return { error: 'sendAllBsv does not support paymail — use sendBsv with a fixed amount' }
 			}
 
 			const result = await ctx.wallet.createAction({
