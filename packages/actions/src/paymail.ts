@@ -97,11 +97,7 @@ export async function sendTransactionP2P(
 	const resp = await fetch(resolveUrl(url, alias, domain), {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({
-			hex,
-			reference,
-			metadata: { sender: '1Sat Wallet', pubkey: '', signature: '', note: '' },
-		}),
+		body: JSON.stringify({ hex, reference }),
 	})
 	if (!resp.ok) throw new Error(`P2P send failed: ${resp.status}`)
 	return await resp.json()
