@@ -6,10 +6,8 @@
 
 import { Inscription } from '@bopen-io/templates'
 import { type CreateActionOutput, P2PKH, Script, Utils } from '@bsv/sdk'
-import { PaymailClient } from '@bsv/paymail/client'
+import { getP2pPaymentDestination, sendTransactionP2P } from '../paymail'
 import type { Action } from '../types'
-
-const paymailClient = new PaymailClient()
 
 /**
  * Magic constant that tells the wallet to send all available funds minus fees.
@@ -61,12 +59,7 @@ function isPaymail(address: string): boolean {
 
 async function deliverP2P(refs: PaymailRef[], txHex: string): Promise<void> {
 	for (const ref of refs) {
-		await paymailClient.sendTransactionP2P(ref.paymail, txHex, ref.reference, {
-			sender: '1Sat Wallet',
-			pubkey: '',
-			signature: '',
-			note: 'P2P payment from 1Sat Wallet',
-		})
+		await sendTransactionP2P(ref.paymail, txHex, ref.reference)
 	}
 }
 
@@ -151,7 +144,7 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 
 			for (const req of requests) {
 				if (req.paymail) {
-					const dest = await paymailClient.getP2pPaymentDestination(req.paymail, req.satoshis)
+					const dest = await getP2pPaymentDestination(req.paymail, req.satoshis)
 					paymailRefs.push({ paymail: req.paymail, reference: dest.reference })
 					for (const output of dest.outputs) {
 						outputs.push({
