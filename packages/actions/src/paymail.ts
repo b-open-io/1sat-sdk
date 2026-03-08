@@ -8,6 +8,7 @@
 const DOH_URL = 'https://dns.google.com/resolve'
 
 const P2P_PAYMENT_DESTINATION = '2a40af698840'
+const P2P_RECEIVE_BEEF = '5c55a7fdb7bb'
 const P2P_RECEIVE_TX = '5f1323cddf31'
 
 const capabilityCache = new Map<string, Record<string, string>>()
@@ -84,20 +85,33 @@ export async function getP2pPaymentDestination(
 	return await resp.json()
 }
 
-export async function sendTransactionP2P(
+export async function sendBeefP2P(
 	paymail: string,
-	hex: string,
+	beefHex: string,
 	reference: string,
 ): Promise<P2pSendResult> {
 	const [alias, domain] = paymail.split('@')
 	const caps = await getCapabilities(domain)
-	const url = caps[P2P_RECEIVE_TX]
-	if (!url) throw new Error(`${domain} does not support P2P transaction receive`)
 
-	const resp = await fetch(resolveUrl(url, alias, domain), {
+	// Prefer receive-beef, fall back to receive-transaction
+	const beefUrl = caps[P2P_RECEIVE_BEEF]
+	if (beefUrl) {
+		const resp = await fetch(resolveUrl(beefUrl, alias, domain), {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ beef: beefHex, reference }),
+		})
+		if (!resp.ok) throw new Error(`P2P beef send failed: ${resp.status}`)
+		return await resp.json()
+	}
+
+	const txUrl = caps[P2P_RECEIVE_TX]
+	if (!txUrl) throw new Error(`${domain} does not support P2P receive`)
+
+	const resp = await fetch(resolveUrl(txUrl, alias, domain), {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ hex, reference }),
+		body: JSON.stringify({ hex: beefHex, reference }),
 	})
 	if (!resp.ok) throw new Error(`P2P send failed: ${resp.status}`)
 	return await resp.json()

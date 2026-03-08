@@ -6,7 +6,7 @@
 
 import { Inscription } from '@bopen-io/templates'
 import { type CreateActionOutput, P2PKH, Script, Utils } from '@bsv/sdk'
-import { getP2pPaymentDestination, sendTransactionP2P } from '../paymail'
+import { getP2pPaymentDestination, sendBeefP2P } from '../paymail'
 import type { Action } from '../types'
 
 /**
@@ -57,9 +57,9 @@ function isPaymail(address: string): boolean {
 	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)
 }
 
-async function deliverP2P(refs: PaymailRef[], txHex: string): Promise<void> {
+async function deliverP2P(refs: PaymailRef[], beefHex: string): Promise<void> {
 	for (const ref of refs) {
-		await sendTransactionP2P(ref.paymail, txHex, ref.reference)
+		await sendBeefP2P(ref.paymail, beefHex, ref.reference)
 	}
 }
 
