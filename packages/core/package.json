@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/core",
-	"version": "0.0.6",
+	"version": "0.0.7",
 	"description": "Transaction building core for 1Sat Ordinals SDK",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -21,7 +21,7 @@
 	"license": "MIT",
 	"dependencies": {
 		"@1sat/types": "^0.0.6",
-		"@1sat/client": "^0.0.7",
+		"@1sat/client": "^0.0.8",
 		"js-1sat-ord": "^0.1.90",
 		"sigma-protocol": "^0.1.9"
 	},
