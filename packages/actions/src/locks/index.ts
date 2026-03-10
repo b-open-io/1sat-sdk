@@ -360,10 +360,10 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 			for (let i = 0; i < maturedLocks.length; i++) {
 				const lock = maturedLocks[i]
 				const input = tx.inputs[i]
-				if (!lock.output.lockingScript || !input.sourceTXID) {
+				if (!input.sourceTXID || !input.sourceTransaction) {
 					return { error: 'missing-lock-data' }
 				}
-				const lockingScript = Script.fromHex(lock.output.lockingScript)
+				const lockingScript = input.sourceTransaction.outputs[input.sourceOutputIndex].lockingScript
 
 				const preimage = TransactionSignature.format({
 					sourceTXID: input.sourceTXID,
