@@ -1,10 +1,12 @@
 /**
  * Sweep Scan Module
  *
- * Pure HTTP function to scan an address for UTXOs and categorize them.
- * No OneSatContext dependency — can be used standalone by any client.
+ * Scans an address for UTXOs using the owner sync service and categorizes them
+ * into funding, ordinals, and BSV-21 tokens.
  */
 
+import type { OneSatServices } from '@1sat/client'
+import type { IndexedOutput } from '@1sat/types'
 import type { SweepBsv21Input, SweepInput } from './types'
 
 /** A group of BSV-21 token UTXOs with the same tokenId */
@@ -27,17 +29,24 @@ export interface ScanResult {
 
 /**
  * Scan an address for UTXOs and categorize them into funding, ordinals, and BSV-21 tokens.
- * Uses the GorillaPool API to fetch unspent outputs.
+ * Uses the owner sync service to fetch unspent outputs.
  */
-export async function scanAddressUtxos(address: string): Promise<ScanResult> {
-	const res = await fetch(
-		`https://ordinals.gorillapool.io/api/txos/address/${address}/unspent?limit=1000`,
-	)
-	if (!res.ok) {
-		throw new Error(`GorillaPool API error: ${res.status}`)
-	}
+export async function scanAddressUtxos(
+	services: OneSatServices,
+	address: string,
+): Promise<ScanResult> {
+	const utxos: IndexedOutput[] = []
 
-	const utxos = (await res.json()) as Array<Record<string, unknown>>
+	for await (const event of services.owner.getTxos(address, {
+		unspent: true,
+		sats: true,
+	})) {
+		if (event.type === 'txo') {
+			utxos.push(event.data)
+		} else if (event.type === 'error') {
+			throw event.error
+		}
+	}
 
 	const funding: SweepInput[] = []
 	const ordinals: SweepInput[] = []
@@ -48,22 +57,19 @@ export async function scanAddressUtxos(address: string): Promise<ScanResult> {
 	}> = []
 
 	for (const utxo of utxos) {
-		const txid = utxo.txid as string
-		const vout = utxo.vout as number
-		const outpoint = `${txid}_${vout}`
-		const satoshis = (utxo.satoshis as number) || 0
-		const script = (utxo.script as string) || ''
-		const origin = utxo.origin as Record<string, unknown> | undefined
-		const originData = origin?.data as Record<string, unknown> | undefined
+		const outpoint = utxo.outpoint
+		const satoshis = utxo.satoshis ?? 0
+		const data = utxo.data as Record<string, unknown> | undefined
 
+		// lockingScript resolved later via BEEF in prepareSweepBsv
 		const base: SweepInput = {
 			outpoint,
 			satoshis,
-			lockingScript: script,
+			lockingScript: '',
 		}
 
-		if (originData?.bsv21) {
-			const bsv21 = originData.bsv21 as Record<string, unknown>
+		if (data?.bsv21) {
+			const bsv21 = data.bsv21 as Record<string, unknown>
 			const tokenId = (bsv21.id as string) || ''
 			const amount = (bsv21.amt as string) || '0'
 			bsv21Raw.push({
@@ -71,7 +77,7 @@ export async function scanAddressUtxos(address: string): Promise<ScanResult> {
 				sym: bsv21.sym as string | undefined,
 				dec: (bsv21.dec as number) ?? 0,
 			})
-		} else if (originData?.insc || origin?.outpoint) {
+		} else if (data?.insc || data?.origin) {
 			ordinals.push(base)
 		} else {
 			funding.push(base)
