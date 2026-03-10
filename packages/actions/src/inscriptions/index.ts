@@ -120,6 +120,7 @@ async function inscribeWithSigma(
 	// Step 3: Create inscription tx, spending the anchor and broadcasting both
 	const inscribeResult = await ctx.wallet.createAction({
 		description: 'Create inscription',
+		inputBEEF: anchorResult.tx,
 		inputs: [
 			{
 				outpoint: `${anchorResult.txid}.0`,
