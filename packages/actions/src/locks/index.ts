@@ -5,20 +5,15 @@
  */
 
 import {
-	Beef,
 	type CreateActionOutput,
-	Hash,
 	PublicKey,
-	Script,
 	Transaction,
-	TransactionSignature,
 	Utils,
 	type WalletOutput,
 } from '@bsv/sdk'
+import { Lock } from '@bopen-io/templates'
 import {
 	LOCK_BASKET,
-	LOCK_PREFIX,
-	LOCK_SUFFIX,
 	MIN_UNLOCK_SATS,
 } from '../constants'
 import type { Action, ActionLogEntry } from '../types'
@@ -54,19 +49,6 @@ export interface LockOperationResponse {
 	txid?: string
 	rawtx?: string
 	error?: string
-}
-
-// ============================================================================
-// Internal helpers
-// ============================================================================
-
-function buildLockScript(address: string, until: number): Script {
-	const pkh = Utils.fromBase58Check(address).data as number[]
-	return new Script()
-		.writeScript(Script.fromHex(LOCK_PREFIX))
-		.writeBin(pkh)
-		.writeNumber(until)
-		.writeScript(Script.fromHex(LOCK_SUFFIX))
 }
 
 // ============================================================================
@@ -183,7 +165,7 @@ export const lockBsv: Action<LockBsvInput, LockOperationResponse> = {
 				if (req.satoshis <= 0) return { error: 'invalid-satoshis' }
 				if (req.until <= 0) return { error: 'invalid-block-height' }
 
-				const lockingScript = buildLockScript(lockAddress, req.until)
+				const lockingScript = Lock.lock(lockAddress, req.until)
 				outputs.push({
 					lockingScript: lockingScript.toHex(),
 					satoshis: req.satoshis,
@@ -337,7 +319,7 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 				inputs: maturedLocks.map((l) => ({
 					outpoint: l.output.outpoint,
 					inputDescription: 'Locked BSV',
-					unlockingScriptLength: 1000,
+					unlockingScriptLength: 1202,
 					sequenceNumber: 0,
 				})),
 				outputs: [],
@@ -363,46 +345,16 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 				if (!input.sourceTXID || !input.sourceTransaction) {
 					return { error: 'missing-lock-data' }
 				}
-				const lockingScript = input.sourceTransaction.outputs[input.sourceOutputIndex].lockingScript
 
-				const preimage = TransactionSignature.format({
-					sourceTXID: input.sourceTXID,
-					sourceOutputIndex: input.sourceOutputIndex,
-					sourceSatoshis: lock.output.satoshis,
-					transactionVersion: tx.version,
-					otherInputs: tx.inputs.filter((_, idx) => idx !== i),
-					outputs: tx.outputs,
-					inputIndex: i,
-					subscript: lockingScript,
-					inputSequence: 0,
-					lockTime: tx.lockTime,
-					scope:
-						TransactionSignature.SIGHASH_ALL |
-						TransactionSignature.SIGHASH_ANYONECANPAY |
-						TransactionSignature.SIGHASH_FORKID,
-				})
-
-				const sighash = Hash.sha256(Hash.sha256(preimage))
-
-				const { signature } = await ctx.wallet.createSignature({
-					protocolID: lock.protocolID,
-					keyID: lock.keyID,
-					counterparty: 'self',
-					hashToDirectlySign: Array.from(sighash),
-				})
-
-				const { publicKey } = await ctx.wallet.getPublicKey({
-					protocolID: lock.protocolID,
-					keyID: lock.keyID,
-					counterparty: 'self',
-					forSelf: true,
-				})
-
-				const unlockingScript = new Script()
-					.writeBin(signature)
-					.writeBin(Utils.toArray(publicKey, 'hex'))
-					.writeBin(Array.from(preimage))
-
+				const unlocker = Lock.unlockWithWallet(
+					ctx.wallet,
+					lock.protocolID,
+					lock.keyID,
+					'self',
+					'all',
+					true,
+				)
+				const unlockingScript = await unlocker.sign(tx, i)
 				spends[i] = { unlockingScript: unlockingScript.toHex() }
 			}
 

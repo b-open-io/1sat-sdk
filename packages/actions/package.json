@@ -25,7 +25,7 @@
 		"@1sat/types": "^0.0.10",
 		"@1sat/utils": "^0.0.8",
 		"@1sat/wallet": "^0.0.20",
-		"@bopen-io/templates": "^1.1.9"
+		"@bopen-io/templates": "^1.2.0"
 	},
 	"peerDependencies": {
 		"@bsv/sdk": "^2.0.4"
