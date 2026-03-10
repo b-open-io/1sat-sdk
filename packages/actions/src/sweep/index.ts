@@ -906,3 +906,140 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 
 // Export actions array for registry
 export const sweepActions = [sweepBsv, sweepOrdinals, sweepBsv21]
+
+// Export scan module (pure HTTP, no OneSatContext needed)
+export { scanAddressUtxos, type ScanResult, type TokenBalance } from './scan'
+
+// Export PrepareResult type
+export type { PrepareResult } from './types'
+
+/**
+ * Prepare a BSV sweep transaction for client-side signing.
+ * Returns unsigned tx + reference -- client signs externally, then calls completeSweep.
+ */
+export async function prepareSweepBsv(
+	ctx: OneSatContext,
+	inputs: SweepInput[],
+	amount?: number,
+): Promise<import('./types').PrepareResult> {
+	if (!ctx.services) throw new Error('Services required')
+	if (!inputs.length) throw new Error('No inputs provided')
+
+	const inputTotal = inputs.reduce((sum, i) => sum + i.satoshis, 0)
+	if (amount !== undefined && amount > inputTotal)
+		throw new Error('Insufficient funds')
+
+	// Fetch BEEF for all input transactions and merge them
+	const txids = [
+		...new Set(inputs.map((i) => parseOutpoint(i.outpoint).txid)),
+	]
+
+	const firstBeef = await ctx.services.getBeefForTxid(txids[0])
+	for (let i = 1; i < txids.length; i++) {
+		const additionalBeef = await ctx.services.getBeefForTxid(txids[i])
+		firstBeef.mergeBeef(additionalBeef)
+	}
+
+	// Build input descriptors
+	const inputDescriptors = inputs.map((input) => {
+		const { txid, vout } = parseOutpoint(input.outpoint)
+		return {
+			outpoint: formatOutpoint(txid, vout),
+			inputDescription: 'Sweep input',
+			unlockingScriptLength: 108, // P2PKH unlocking script length
+			sequenceNumber: 0xffffffff,
+		}
+	})
+
+	// Build outputs array
+	const outputs: CreateActionOutput[] = []
+
+	// If amount specified, we need the source address for the return output.
+	// Since we don't have the WIF here (client-side signing), the caller must
+	// handle partial sweeps by adding a return output before calling this.
+	// For prepareSweepBsv, always sweep all -- wallet creates change.
+
+	// Step 1: Create action to get the signable transaction
+	const createResult = await ctx.wallet.createAction({
+		description: amount
+			? `Sweep ${amount} sats`
+			: `Sweep ${inputTotal} sats`,
+		inputBEEF: firstBeef.toBinary(),
+		inputs: inputDescriptors,
+		outputs,
+		options: { signAndProcess: false },
+	})
+
+	if ('error' in createResult && createResult.error) {
+		throw new Error(String(createResult.error))
+	}
+
+	if (!createResult.signableTransaction) {
+		throw new Error('No signable transaction returned')
+	}
+
+	// Parse the transaction to build inputsToSign mapping
+	const tx = Transaction.fromBEEF(createResult.signableTransaction.tx)
+
+	const ourOutpoints = new Set(
+		inputs.map((input) => {
+			const { txid, vout } = parseOutpoint(input.outpoint)
+			return formatOutpoint(txid, vout)
+		}),
+	)
+
+	const inputsToSign: import('./types').PrepareResult['inputsToSign'] = []
+	for (let idx = 0; idx < tx.inputs.length; idx++) {
+		const txInput = tx.inputs[idx]
+		const op = formatOutpoint(
+			txInput.sourceTXID!,
+			txInput.sourceOutputIndex,
+		)
+		if (ourOutpoints.has(op)) {
+			const matchingInput = inputs.find((i) => {
+				const { txid, vout } = parseOutpoint(i.outpoint)
+				return formatOutpoint(txid, vout) === op
+			})
+			inputsToSign.push({
+				index: idx,
+				outpoint: matchingInput?.outpoint ?? '',
+				satoshis: matchingInput?.satoshis ?? 0,
+				lockingScript: matchingInput?.lockingScript ?? '',
+			})
+		}
+	}
+
+	// Convert tx BEEF to hex for JSON transport
+	const txHex = Utils.toHex(createResult.signableTransaction.tx)
+
+	return {
+		txHex,
+		reference: createResult.signableTransaction.reference,
+		inputsToSign,
+	}
+}
+
+/**
+ * Complete a sweep by broadcasting with signed spends.
+ * Called after client-side signing with the reference from prepare.
+ */
+export async function completeSweep(
+	ctx: OneSatContext,
+	reference: string,
+	spends: Record<number, { unlockingScript: string }>,
+): Promise<{ txid: string; rawTx?: string }> {
+	const signResult = await ctx.wallet.signAction({
+		reference,
+		spends,
+		options: { acceptDelayedBroadcast: false },
+	})
+
+	if ('error' in signResult) {
+		throw new Error(String(signResult.error))
+	}
+
+	return {
+		txid: signResult.txid!,
+		rawTx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+	}
+}
