@@ -1,49 +1,21 @@
 /**
- * AddressManager - Manages yours receive addresses using BRC-29 derivation format.
+ * AddressManager - Manages BRC-29 receive addresses.
  *
- * Yours receive addresses are fixed, public addresses that users share publicly.
- * They are derived deterministically from the identity key using:
- * - derivationPrefix: "yours receive" (fixed)
- * - derivationSuffix: "0", "1", "2", ... (sequential counter)
- * - senderIdentityKey: our own identity public key (self-referential derivation)
- *
- * This allows:
- * 1. Deterministic regeneration on wallet restore
- * 2. Syncing external payments to these addresses
- * 3. Auto-signing via BRC-29/ScriptTemplateBRC29 (wallet knows the derivation info)
- *
- * Address derivation is done externally (in yours-wallet) and passed to this class.
+ * Accepts pre-derived addresses and provides lookup/management.
+ * Derivation is done externally (via deriveDepositAddresses action or equivalent).
  */
 
-import { P2PKH, type WalletProtocol } from '@bsv/sdk'
+import { type AddressDerivation, BRC29_PROTOCOL_ID } from '@1sat/types'
+import { P2PKH } from '@bsv/sdk'
 
 /** Fixed prefix for yours receive addresses */
 export const YOURS_PREFIX = 'yours'
 
-/** BRC-29 protocol ID - used by wallet-toolbox for key derivation and signing */
-export const BRC29_PROTOCOL_ID: WalletProtocol = [2, '3241645161d8']
+// Re-export from @1sat/types for backwards compatibility
+export { BRC29_PROTOCOL_ID, type AddressDerivation }
 
 /**
- * Derivation info for a yours receive address.
- * This is what's needed for internalizeAction's paymentRemittance.
- */
-export interface AddressDerivation {
-	/** The Bitcoin address (base58check) */
-	address: string
-	/** The key index (0, 1, 2, etc.) for internal lookups */
-	index: number
-	/** Base64-encoded derivation prefix (e.g., base64("yours receive")) */
-	derivationPrefix: string
-	/** Base64-encoded derivation suffix (e.g., base64("0"), base64("1"), etc.) */
-	derivationSuffix: string
-	/** Our own identity public key (self-referential) */
-	senderIdentityKey: string
-	/** The public key for this address */
-	publicKey: string
-}
-
-/**
- * AddressManager manages yours receive addresses.
+ * AddressManager manages BRC-29 receive addresses.
  * Accepts pre-derived addresses - derivation is done externally.
  */
 export class AddressManager {

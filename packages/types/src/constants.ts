@@ -21,6 +21,7 @@ export const ORDINALS_BASKET = '1sat'
 export const BSV21_BASKET = 'bsv21'
 export const OPNS_BASKET = 'opns'
 export const LOCK_BASKET = 'lock'
+export const SIGMA_BASKET = 'sigma'
 
 // ============================================================================
 // Fee Configuration
@@ -79,6 +80,8 @@ export const MESSAGE_SIGNING_PROTOCOL: [0 | 1 | 2, string] = [
 	'message signing',
 ]
 export const BSV21_PROTOCOL: [0 | 1 | 2, string] = [1, 'bsv21']
+export const BAP_PROTOCOL_ID: [0 | 1 | 2, string] = [1, 'bapid']
+export const BAP_KEY_ID = 'identity'
 
 // ============================================================================
 // OrdLock Contract Scripts
@@ -126,6 +129,32 @@ export const IMAGE_CONTENT_TYPES = [
 	'image/svg+xml',
 	'image/webp',
 ] as const
+
+// ============================================================================
+// BRC-29 Address Derivation
+// ============================================================================
+
+/** BRC-29 protocol ID — used by wallet-toolbox for key derivation and signing */
+export const BRC29_PROTOCOL_ID: [0 | 1 | 2, string] = [2, '3241645161d8']
+
+/**
+ * Derivation info for a BRC-29 receive address.
+ * Contains everything needed for internalizeAction's paymentRemittance.
+ */
+export interface AddressDerivation {
+	/** The Bitcoin address (base58check) */
+	address: string
+	/** The key index (0, 1, 2, etc.) for internal lookups */
+	index: number
+	/** Base64-encoded derivation prefix (e.g., base64("yours")) */
+	derivationPrefix: string
+	/** Base64-encoded derivation suffix (4-byte big-endian index) */
+	derivationSuffix: string
+	/** The wallet's root identity public key */
+	senderIdentityKey: string
+	/** The derived public key for this address */
+	publicKey: string
+}
 
 // ============================================================================
 // Limits and caching

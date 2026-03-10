@@ -2,6 +2,7 @@ export * from '@1sat/wallet'
 
 export { createRemoteWallet } from './createRemoteWallet'
 export type {
+	LocalBackupConfig,
 	RemoteWalletConfig,
 	RemoteWalletResult,
 } from './createRemoteWallet'

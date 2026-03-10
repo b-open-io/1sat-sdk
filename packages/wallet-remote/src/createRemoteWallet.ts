@@ -4,6 +4,8 @@ import type { sdk as mobileSdk } from '@bsv/wallet-toolbox'
 import {
 	Services,
 	StorageClient,
+	StorageIdb,
+	StorageProvider,
 	Wallet,
 	WalletStorageManager,
 } from '@bsv/wallet-toolbox/out/src/index.client.js'
@@ -13,6 +15,11 @@ type MobileWalletServices = mobileSdk.WalletServices
 
 const DEFAULT_FEE_MODEL = { model: 'sat/kb' as const, value: 100 }
 const DEFAULT_CONNECTION_TIMEOUT = 5000
+
+export interface LocalBackupConfig {
+	/** IndexedDB database name. Default: 'wallet-backup-{chain}net' */
+	databaseName?: string
+}
 
 export interface RemoteWalletConfig {
 	/** Private key - can be PrivateKey instance, WIF string, or hex string */
@@ -25,6 +32,8 @@ export interface RemoteWalletConfig {
 	feeModel?: { model: 'sat/kb'; value: number }
 	/** Connection timeout in milliseconds. Default: 5000 */
 	connectionTimeout?: number
+	/** Enable local IndexedDB backup. true = defaults, or pass options. */
+	localBackup?: boolean | LocalBackupConfig
 }
 
 export interface RemoteWalletResult {
@@ -38,6 +47,8 @@ export interface RemoteWalletResult {
 	storage: WalletStorageManager
 	/** Effective fee model used by this wallet */
 	feeModel: { model: 'sat/kb'; value: number }
+	/** Local backup storage instance, if localBackup was enabled */
+	backupStorage?: StorageIdb
 }
 
 function parsePrivateKey(input: PrivateKey | string): PrivateKey {
@@ -63,11 +74,11 @@ function parsePrivateKey(input: PrivateKey | string): PrivateKey {
 }
 
 /**
- * Create a wallet that uses a remote storage server as its sole storage.
+ * Create a wallet that uses a remote storage server as its primary storage.
  *
- * No local storage (IndexedDB/SQLite) is created. No Monitor is started
- * client-side — the server handles transaction lifecycle (broadcasting,
- * proof checking, failure management).
+ * When `localBackup` is enabled, a local IndexedDB backup is created and
+ * kept in sync after each state-changing operation. The remote remains the
+ * active storage — the local copy is for data safety and provider migration.
  */
 export async function createRemoteWallet(
 	config: RemoteWalletConfig,
@@ -124,6 +135,38 @@ export async function createRemoteWallet(
 		await storage.setActive(remoteSettings.storageIdentityKey)
 	}
 
+	// Set up local backup if requested
+	let backupStorage: StorageIdb | undefined
+	if (config.localBackup) {
+		const opts = typeof config.localBackup === 'object' ? config.localBackup : {}
+		const dbName = opts.databaseName ?? `wallet-backup-${chain}net`
+
+		const storageOptions = StorageProvider.createStorageBaseOptions(chain)
+		storageOptions.feeModel = feeModel
+		backupStorage = new StorageIdb(storageOptions)
+		await backupStorage.migrate(dbName, `${identityPubKey}-backup`)
+		await storage.addWalletStorageProvider(backupStorage)
+		await storage.updateBackups()
+
+		const originalCreateAction = wallet.createAction.bind(wallet)
+		wallet.createAction = async (args) => {
+			const result = await originalCreateAction(args)
+			if (result.txid) {
+				storage.updateBackups().catch(() => {})
+			}
+			return result
+		}
+
+		const originalSignAction = wallet.signAction.bind(wallet)
+		wallet.signAction = async (args) => {
+			const result = await originalSignAction(args)
+			if (result.txid) {
+				storage.updateBackups().catch(() => {})
+			}
+			return result
+		}
+	}
+
 	const destroy = async (): Promise<void> => {
 		await wallet.destroy()
 	}
@@ -134,5 +177,6 @@ export async function createRemoteWallet(
 		destroy,
 		storage,
 		feeModel,
+		backupStorage,
 	}
 }
