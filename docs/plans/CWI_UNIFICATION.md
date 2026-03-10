@@ -1,6 +1,15 @@
 # CWI Unification Plan
 
-Status: **In Progress**
+Status: **COMPLETE** (2026-03-06)
+
+## What Was Done
+
+1. `CWIEventName` values changed to plain method names — `@1sat/wallet@0.0.15`
+2. `createWebCWI()` now sends plain names, compatible with 1sat-website bridge
+3. `EmbedTransport` removed from `@1sat/connect` — `@1sat/connect@0.0.9`
+4. `OneSatWallet` dead code class removed — `@1sat/wallet@0.0.17`
+5. 1sat-website migrated from `@1sat/wallet-browser` to `@1sat/wallet-remote`
+6. Legacy balance + sweep BSV wired up on wallet page
 
 ## Problem
 

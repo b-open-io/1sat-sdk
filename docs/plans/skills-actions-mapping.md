@@ -22,7 +22,7 @@ Tracks how installed agent skills map to `@1sat/actions`, what's aligned, what's
 | `getLockData` | locks | Free | Yes |
 | `lockBsv` | locks | Configurable (recoverable) | No |
 | `unlockBsv` | locks | Min 1500 sat threshold | No |
-| `signMessage` | signing | Free | Yes |
+| `signBsm` | signing | Free | Yes |
 | `opnsRegister` | opns | 1 sat + fees | No |
 | `opnsDeregister` | opns | 1 sat + fees | No |
 | `sweepBsv` | sweep | Free (external WIF) | No |
@@ -38,7 +38,7 @@ These skills already use `createContext() → action.execute()`:
 | `1sat-skills:wallet-setup` | Wallet creation (prerequisite for all actions) |
 | `1sat-skills:wallet-create-ordinals` | `inscribe` |
 | `1sat-skills:sweep-import` | `sweepBsv`, `sweepOrdinals`, `sweepBsv21` |
-| `1sat-skills:transaction-building` | `sendBsv`, `sendAllBsv`, `signMessage` |
+| `1sat-skills:transaction-building` | `sendBsv`, `sendAllBsv`, `signBsm` |
 | `1sat-skills:token-operations` | `listTokens`, `getBsv21Balances`, `sendBsv21`, `purchaseBsv21` |
 | `1sat-skills:ordinals-marketplace` | `getOrdinals`, `listOrdinal`, `purchaseOrdinal`, `cancelListing`, `deriveCancelAddress` |
 | `1sat-skills:timelock` | `getLockData`, `lockBsv`, `unlockBsv` |
@@ -63,11 +63,11 @@ These skills already use `createContext() → action.execute()`:
 
 | Skill | Overlap with action | Extra coverage |
 |-------|--------------------|----------------|
-| `bsv-skills:message-signing` | `signMessage` (BSM mode) | Also teaches Sigma and AIP (transaction-bound signatures) |
+| `bsv-skills:message-signing` | `signBsm` (BSM mode) | Also teaches Sigma and AIP (transaction-bound signatures) |
 
 ### Resolution needed
 
-- [ ] **`message-signing`** — `signMessage` action only covers BSM. Sigma and AIP are transaction-bound signing patterns not in the action system. Decision: add Sigma/AIP as new actions, or keep as separate skill territory?
+- [ ] **`message-signing`** — `signBsm` action only covers BSM. Sigma and AIP are transaction-bound signing patterns not in the action system. Decision: add Sigma/AIP as new actions, or keep as separate skill territory?
 
 ## Gaps (skill exists, no action equivalent)
 
@@ -241,7 +241,7 @@ Build test suite in `1sat-sdk/packages/actions/` to validate all 20 actions end-
 
 - [x] **2a.** Set up test infrastructure: wallet creation, funding, two-wallet pattern for marketplace tests
 - [x] **2a.1** Owner sync + funding internalization working (fixed BEEF merkle path handling in 1sat-stack, fixed senderIdentityKey to use root identity key)
-- [ ] **2b.** Test read-only actions: `getOrdinals`, `deriveCancelAddress`, `listTokens`, `getBsv21Balances`, `getLockData`, `signMessage`
+- [ ] **2b.** Test read-only actions: `getOrdinals`, `deriveCancelAddress`, `listTokens`, `getBsv21Balances`, `getLockData`, `signBsm`
 - [x] **2c.** Test inscription: `inscribe` (with and without Sigma) — both paths working via MCP. Non-sigma: txid `e06b2f3b...`. Sigma: txid `24a00cbc...`, verified on-chain.
 - [ ] **2d.** Test ordinal marketplace chain: `listOrdinal` → `cancelListing`, `listOrdinal` → `purchaseOrdinal`, `transferOrdinals`
 - [ ] **2e.** Test token operations: `sendBsv21`, `purchaseBsv21`
@@ -293,7 +293,7 @@ For a full integration test of all 20 actions, the test wallet needs:
 
 ```
 Phase 1 — Read-only (free):
-  getOrdinals, deriveCancelAddress, listTokens, getBsv21Balances, getLockData, signMessage
+  getOrdinals, deriveCancelAddress, listTokens, getBsv21Balances, getLockData, signBsm
 
 Phase 2 — Create assets:
   inscribe → creates ordinal for later phases

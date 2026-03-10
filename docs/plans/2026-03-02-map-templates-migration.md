@@ -1,12 +1,14 @@
 # MAP Templates Migration Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **Status: SDK COMPLETE** ✅ | Go deferred to OpNS simplification plan
 
 **Goal:** Replace legacy ASM-based MAP script building with `@bopen-io/templates` MAP class, fix inscribe to actually write MAP data, and simplify OpNS to use `opns.idKey`.
 
 **Architecture:** All MAP script building moves from `@1sat/core` (ASM string concatenation) to `@bopen-io/templates` MAP class (proper push-data scripts via BitCom). The `MAP` TypeScript type becomes flexible (no required fields). Inscription outputs use the `scriptSuffix` option to append MAP after the envelope.
 
 **Tech Stack:** TypeScript (`@bopen-io/templates`, `@bsv/sdk`), Go (`1sat-stack`)
+
+**Result:** SDK changes completed in prior session. Go-side changes superseded by OpNS simplification plan (OrdFS handles identity resolution).
 
 ---
 
@@ -337,4 +339,18 @@ git commit -m "chore: remove @1sat/core dependency from actions package"
 
 ## Task 7: Verification — type check all packages
 
-**SDK-side verification completed by parallel session. Go-side deferred to OpNS simplification plan.**
+**Status: COMPLETE** — SDK-side verification completed by prior session. Go-side deferred to OpNS simplification plan.
+
+---
+
+## Summary
+
+All SDK changes were completed in a prior development session:
+- ✅ MAP type made flexible (`app?`, `type?` optional)
+- ✅ `appendMapToScript` replaced with `@bopen-io/templates` MAP
+- ✅ Inscribe action writes MAP to output script via `scriptSuffix`
+- ✅ OpNS actions simplified to use `opns.idKey` field
+- ✅ `@1sat/core` dependency removed from actions package
+
+Go-side changes were superseded by the OpNS simplification plan which removes MAP parsing from the overlay entirely (OrdFS handles identity resolution now).
+

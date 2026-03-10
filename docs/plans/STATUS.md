@@ -1,0 +1,42 @@
+# Project Plans
+
+| Plan | Status | Description |
+|------|--------|-------------|
+| [MAP Templates Migration](./2026-03-02-map-templates-migration.md) | **COMPLETE** | SDK-side changes done, Go deferred |
+| [CWI Unification](./CWI_UNIFICATION.md) | **COMPLETE** | Method names unified, EmbedTransport removed |
+| [CWI/OneSat Separation](./2026-03-06-cwi-onesat-separation.md) | **COMPLETE** | Superseded by CWI Unification |
+
+## Completed Work (2026-03-06)
+
+### CWI Unification — @1sat/wallet
+- `CWIEventName` values changed from `cwi_` prefix to plain method names
+- `createWebCWI()` now compatible with 1sat-website bridge/relay
+- `OneSatWallet` dead code class removed (was pulling server-side deps into browser bundles)
+- Published: `@1sat/wallet@0.0.15` (CWI names), `@1sat/wallet@0.0.17` (OneSatWallet removed)
+
+### CWI Unification — @1sat/connect
+- `EmbedTransport` and `createEmbedTransport` removed from exports
+- `AutoTransport`, `RedirectTransport` retained (deferred)
+- Published: `@1sat/connect@0.0.9`
+
+### 1sat-website — wallet-remote migration
+- Swapped `@1sat/wallet-browser` → `@1sat/wallet-remote` across 6 files
+- `createWebWallet` → `createRemoteWallet` with remote storage URL
+- Monitor removed (remote wallet server handles monitoring)
+- Legacy balance surfaced from GorillaPool funding UTXOs
+- Sweep BSV button wired to `sweepBsv` from `@1sat/actions`
+- Build passes (Turbopack, no module-not-found errors)
+- Changes unstaged on `omega` branch
+
+## Completed Plans (Earlier)
+
+| Plan | Status | Description |
+|------|--------|-------------|
+| MAP Templates Migration | **COMPLETE** | SDK changes done in prior session |
+
+## Status Legend
+
+- **Not Started**: Plan created, work not begun
+- **In Progress**: Active development
+- **BLOCKED**: Waiting on dependency or issue resolution
+- **COMPLETE**: Work finished and verified
