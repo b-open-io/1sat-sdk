@@ -5,6 +5,7 @@
  */
 
 import {
+	Beef,
 	type CreateActionOutput,
 	Hash,
 	PublicKey,
@@ -270,7 +271,7 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 				basket: LOCK_BASKET,
 				includeTags: true,
 				includeCustomInstructions: true,
-				include: 'locking scripts',
+				include: 'entire transactions',
 				limit: 10000,
 			})
 
@@ -314,21 +315,32 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 
 			const maxUntil = Math.max(...maturedLocks.map((l) => l.until))
 
+			let inputBEEF = result.BEEF
+			if (!inputBEEF || (inputBEEF as number[]).length === 0) {
+				if (!ctx.services) return { error: 'no-beef-available' }
+				console.warn('[unlockBsv] BEEF not returned by listOutputs, falling back to service lookup')
+				const txids = [
+					...new Set(
+						maturedLocks.map((l) => l.output.outpoint.split('.')[0]),
+					),
+				]
+				const beef = await ctx.services.getBeefForTxid(txids[0])
+				for (let i = 1; i < txids.length; i++) {
+					beef.mergeBeef(await ctx.services.getBeefForTxid(txids[i]))
+				}
+				inputBEEF = beef.toBinary()
+			}
+
 			const createResult = await ctx.wallet.createAction({
 				description: `Unlock ${maturedLocks.length} lock(s)`,
+				inputBEEF,
 				inputs: maturedLocks.map((l) => ({
 					outpoint: l.output.outpoint,
 					inputDescription: 'Locked BSV',
 					unlockingScriptLength: 180,
 					sequenceNumber: 0,
 				})),
-				outputs: [
-					{
-						lockingScript: '',
-						satoshis: 0,
-						outputDescription: 'Unlocked BSV',
-					},
-				],
+				outputs: [],
 				lockTime: maxUntil,
 				options: { signAndProcess: false },
 			})

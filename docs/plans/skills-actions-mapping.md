@@ -247,6 +247,15 @@ Sigma signing proves authorship of inscriptions/transactions using the wallet's 
 - [x] **1.5g.** Live test of Sigma inscription — tested via MCP `createOrdinals` with `signWithBAP: true`. Two bugs fixed: (1) anchor BEEF must be passed as `inputBEEF` to inscription `createAction`, (2) `signP2PKH` had hardcoded `sourceSatoshis: 1` instead of reading actual value from source tx. Sigma signature verified on-chain with `sigma-protocol` library.
 - [ ] **1.5h.** Apply Sigma to other actions (transfers, listings, token ops)
 
+### Priority 1.9: New bsv-mcp diagnostic tools
+
+Add BEEF/BUMP/transaction parsing tools to aid debugging and development:
+
+- [ ] **1.9a.** `bsv_parseBeef` — takes BEEF bytes (hex or base64), returns structured JSON: version, BUMPs (block heights, tree structure, leaf offsets), transactions (txid, bumpIndex, hasProof, inputs/outputs summary). No network calls.
+- [ ] **1.9b.** `bsv_parseBump` — takes raw BUMP bytes, returns block height, tree height, leaf nodes with offsets and types (hash/txid/duplicate). No network calls.
+- [ ] **1.9c.** `bsv_parseTransaction` — takes raw tx bytes (hex or base64), returns structured JSON: version, locktime, inputs (sourceTXID, sourceOutputIndex, sequence, unlocking script hex), outputs (satoshis, locking script hex). No network calls, no script analysis. Complements `bsv_decodeTransaction` which does on-chain lookups, fee calculation, and script type identification.
+- [ ] **1.9d.** Fix `unlockBsv` BEEF issue — `listOutputs` with `include: 'entire transactions'` returns valid BEEF (lock tx + BUMP confirmed), but `createAction` rejects it. Root cause under investigation in go-wallet-toolbox `create_process_inputs.go`. Either a BEEF merge issue or a validation bug on the server side.
+
 ### Priority 2: Test existing actions
 
 Build test suite in `1sat-sdk/packages/actions/` to validate all 20 actions end-to-end with real BSV.

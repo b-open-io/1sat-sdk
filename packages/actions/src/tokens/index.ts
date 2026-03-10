@@ -6,6 +6,7 @@
 
 import { BSV21, OrdLock } from '@bopen-io/templates'
 import {
+	Beef,
 	BigNumber,
 	LockingScript,
 	OP,
@@ -332,7 +333,7 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 				basket: BSV21_BASKET,
 				includeTags: true,
 				includeCustomInstructions: true,
-				include: 'locking scripts',
+				include: 'entire transactions',
 				limit: 10000,
 			})
 
@@ -477,8 +478,22 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 
 			const symbol = tokenDetails.token.sym || tokenId.slice(0, 8)
 
+			let inputBEEF = result.BEEF
+			if (!inputBEEF || (inputBEEF as number[]).length === 0) {
+				if (!ctx.services) return { error: 'no-beef-available' }
+				console.warn('[sendBsv21] BEEF not returned by listOutputs, falling back to service lookup')
+				const txids = [
+					...new Set(selected.map((o) => o.outpoint.split('.')[0])),
+				]
+				const beef = await ctx.services.getBeefForTxid(txids[0])
+				for (let i = 1; i < txids.length; i++) {
+					beef.mergeBeef(await ctx.services.getBeefForTxid(txids[i]))
+				}
+				inputBEEF = beef.toBinary()
+			}
 			const createResult = await ctx.wallet.createAction({
 				description: `Send ${amount} ${symbol}`,
+				inputBEEF,
 				inputs: selected.map((o) => ({
 					outpoint: o.outpoint,
 					inputDescription: 'Token input',
