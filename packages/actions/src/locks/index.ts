@@ -337,7 +337,7 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 				inputs: maturedLocks.map((l) => ({
 					outpoint: l.output.outpoint,
 					inputDescription: 'Locked BSV',
-					unlockingScriptLength: 180,
+					unlockingScriptLength: 1000,
 					sequenceNumber: 0,
 				})),
 				outputs: [],
