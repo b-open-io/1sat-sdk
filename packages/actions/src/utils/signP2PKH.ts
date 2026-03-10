@@ -32,10 +32,12 @@ export async function signP2PKHInput(
 		return { error: `missing-source-txid-for-input-${inputIndex}` }
 	}
 
+	const sourceSatoshis =
+		txInput.sourceTransaction?.outputs[txInput.sourceOutputIndex]?.satoshis ?? 1
 	const preimage = TransactionSignature.format({
 		sourceTXID,
 		sourceOutputIndex: txInput.sourceOutputIndex,
-		sourceSatoshis: 1,
+		sourceSatoshis,
 		transactionVersion: tx.version,
 		otherInputs: tx.inputs
 			.filter((_, idx) => idx !== inputIndex)
