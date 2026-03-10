@@ -18,6 +18,8 @@ export interface OneSatContext {
 	chain: 'main' | 'test'
 	/** Optional WhatsOnChain API key */
 	wocApiKey?: string
+	/** Local storage directory for actions that need persistence (SQLite). In browsers, IDB is used automatically. In Node/Bun without this set, defaults to cwd. */
+	dataDir?: string
 	/** Enable debug logging of derivation info for fund recovery */
 	debug?: boolean
 	/** Structured log callback — receives derivation details for each action execution */
@@ -72,6 +74,7 @@ export type ActionCategory =
 	| 'signing'
 	| 'sweep'
 	| 'opns'
+	| 'sync'
 
 /**
  * Metadata describing an action for AI agents and tooling.
@@ -112,6 +115,7 @@ export function createContext(
 		services?: OneSatServices
 		chain?: 'main' | 'test'
 		wocApiKey?: string
+		dataDir?: string
 		debug?: boolean
 		log?: (entry: ActionLogEntry) => void
 	},
@@ -121,6 +125,7 @@ export function createContext(
 		services: options?.services,
 		chain: options?.chain ?? 'main',
 		wocApiKey: options?.wocApiKey,
+		dataDir: options?.dataDir,
 		debug: options?.debug,
 		log: options?.log,
 	}

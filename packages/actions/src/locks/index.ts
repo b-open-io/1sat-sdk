@@ -26,7 +26,7 @@ import type { Action, ActionLogEntry } from '../types'
 // Constants
 // ============================================================================
 
-const LOCK_PROTOCOL: [0 | 1 | 2, string] = [1, 'lock']
+const LOCK_PROTOCOL: [0 | 1 | 2, string] = [1, 'locks']
 const LOCK_KEY_ID = 'lock'
 
 // ============================================================================

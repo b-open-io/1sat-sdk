@@ -18,6 +18,59 @@ export type TxoStreamEvent =
 	| { type: 'error'; error: Error }
 
 /**
+ * Parsed SSE event from a streaming response.
+ */
+interface SSEEvent {
+	event?: string
+	data: string
+	id?: string
+}
+
+/**
+ * Parse SSE events from a fetch Response body.
+ * Works in browsers, Node, and Bun — no EventSource dependency.
+ */
+async function* parseSSE(response: Response): AsyncGenerator<SSEEvent> {
+	const reader = response.body?.getReader()
+	if (!reader) throw new Error('Response body is not readable')
+
+	const decoder = new TextDecoder()
+	let buffer = ''
+
+	try {
+		while (true) {
+			const { done, value } = await reader.read()
+			if (done) break
+
+			buffer += decoder.decode(value, { stream: true })
+
+			// Split on double newline (SSE event boundary)
+			const parts = buffer.split('\n\n')
+			// Last part is incomplete — keep it in buffer
+			buffer = parts.pop() || ''
+
+			for (const part of parts) {
+				if (!part.trim()) continue
+
+				const event: SSEEvent = { data: '' }
+				for (const line of part.split('\n')) {
+					if (line.startsWith('data: ')) {
+						event.data = line.slice(6)
+					} else if (line.startsWith('event: ')) {
+						event.event = line.slice(7)
+					} else if (line.startsWith('id: ')) {
+						event.id = line.slice(4)
+					}
+				}
+				yield event
+			}
+		}
+	} finally {
+		reader.releaseLock()
+	}
+}
+
+/**
  * Client for /1sat/owner/* routes.
  * Provides owner (address) queries and sync.
  *
@@ -32,27 +85,17 @@ export class OwnerClient extends BaseClient {
 	}
 
 	/**
-	 * Stream TXOs owned by an address/owner via SSE.
+	 * Stream TXOs owned by an address/owner as an async iterator.
 	 *
 	 * The stream has three phases:
 	 * 1. Sync — progress events report blockchain sync status (when refresh=true)
 	 * 2. Data — each matching TXO is delivered individually
 	 * 3. Done — signals the stream is complete
-	 *
-	 * @param owner - Owner identifier (address, pubkey, or script hash)
-	 * @param opts - Query options and callbacks
-	 * @returns Unsubscribe function to close the stream
 	 */
-	getTxos(
+	async *getTxos(
 		owner: string,
-		opts?: TxoQueryOptions & {
-			refresh?: boolean
-			onSync?: (progress: SyncProgress) => void
-			onTxo?: (output: IndexedOutput) => void
-			onDone?: (outputs: IndexedOutput[]) => void
-			onError?: (error: Error) => void
-		},
-	): () => void {
+		opts?: TxoQueryOptions & { refresh?: boolean },
+	): AsyncGenerator<TxoStreamEvent> {
 		const qs = this.buildQueryString({
 			tags: opts?.tags,
 			from: opts?.from,
@@ -67,118 +110,23 @@ export class OwnerClient extends BaseClient {
 		})
 
 		const url = `${this.baseUrl}/${owner}/txos${qs}`
-		const eventSource = new EventSource(url)
-		const collected: IndexedOutput[] = []
-
-		eventSource.addEventListener('sync', (event) => {
-			try {
-				const progress = JSON.parse(
-					(event as MessageEvent).data,
-				) as SyncProgress
-				opts?.onSync?.(progress)
-			} catch (e) {
-				opts?.onError?.(e instanceof Error ? e : new Error(String(e)))
-			}
-		})
-
-		eventSource.addEventListener('txo', (event) => {
-			try {
-				const output = JSON.parse((event as MessageEvent).data) as IndexedOutput
-				collected.push(output)
-				opts?.onTxo?.(output)
-			} catch (e) {
-				opts?.onError?.(e instanceof Error ? e : new Error(String(e)))
-			}
-		})
-
-		eventSource.addEventListener('done', () => {
-			eventSource.close()
-			opts?.onDone?.(collected)
-		})
-
-		eventSource.addEventListener('error', (event) => {
-			try {
-				const data = (event as MessageEvent).data
-				const msg = data ? String(data) : 'SSE stream error'
-				opts?.onError?.(new Error(msg))
-			} catch {
-				opts?.onError?.(new Error('SSE stream error'))
-			}
-		})
-
-		eventSource.onerror = () => {
-			eventSource.close()
-			opts?.onError?.(new Error('SSE connection error'))
+		const response = await this.fetchFn(url)
+		if (!response.ok) {
+			throw new Error(`SSE request failed: ${response.status}`)
 		}
 
-		return () => {
-			eventSource.close()
-		}
-	}
-
-	/**
-	 * Stream TXOs as an async iterator yielding typed events.
-	 *
-	 * @example
-	 * ```ts
-	 * for await (const event of client.owner.getTxosIterator(address)) {
-	 *   if (event.type === 'sync') updateProgress(event.data)
-	 *   if (event.type === 'txo') addOutput(event.data)
-	 * }
-	 * ```
-	 */
-	async *getTxosIterator(
-		owner: string,
-		opts?: TxoQueryOptions & { refresh?: boolean },
-	): AsyncGenerator<TxoStreamEvent, void, unknown> {
-		const events: TxoStreamEvent[] = []
-		let done = false
-		let error: Error | null = null
-		let resolve: (() => void) | null = null
-
-		const unsubscribe = this.getTxos(owner, {
-			...opts,
-			onSync: (progress) => {
-				events.push({ type: 'sync', data: progress })
-				resolve?.()
-			},
-			onTxo: (output) => {
-				events.push({ type: 'txo', data: output })
-				resolve?.()
-			},
-			onDone: () => {
-				done = true
-				resolve?.()
-			},
-			onError: (e) => {
-				error = e
-				resolve?.()
-			},
-		})
-
-		try {
-			while (!done && !error) {
-				if (events.length > 0) {
-					const event = events.shift()
-					if (event) yield event
-				} else {
-					await new Promise<void>((r) => {
-						resolve = r
-					})
-				}
+		for await (const sse of parseSSE(response)) {
+			if (sse.event === 'sync') {
+				yield { type: 'sync', data: JSON.parse(sse.data) as SyncProgress }
+			} else if (sse.event === 'txo') {
+				yield { type: 'txo', data: JSON.parse(sse.data) as IndexedOutput }
+			} else if (sse.event === 'done') {
+				yield { type: 'done' }
+				return
+			} else if (sse.event === 'error') {
+				yield { type: 'error', error: new Error(sse.data) }
+				return
 			}
-
-			// Yield remaining events
-			while (events.length > 0) {
-				const event = events.shift()
-				if (event) yield event
-			}
-
-			if (error) {
-				yield { type: 'error', error }
-			}
-		} finally {
-			unsubscribe()
 		}
 	}
 
@@ -190,23 +138,20 @@ export class OwnerClient extends BaseClient {
 	}
 
 	/**
-	 * Sync outputs for owner(s) via SSE stream.
-	 * The server merges results from all owners in score order.
+	 * Sync outputs for owner(s) via streaming fetch.
+	 * The server merges results from all owners in score order,
+	 * triggers lazy indexing (JungleBus sync), and streams results.
 	 *
 	 * @param owners - Array of addresses/owners to sync
-	 * @param onOutput - Callback for each output
 	 * @param from - Starting score (for pagination/resumption)
-	 * @param onDone - Callback when sync completes (client should retry after delay)
-	 * @param onError - Callback for errors
-	 * @returns Unsubscribe function
+	 * @param onProgress - Optional callback for progress updates
+	 * @yields SyncOutput for each output
 	 */
-	sync(
+	async *sync(
 		owners: string[],
-		onOutput: (output: SyncOutput) => void,
 		from?: number,
-		onDone?: () => void,
-		onError?: (error: Error) => void,
-	): () => void {
+		onProgress?: (progress: SyncProgress) => void,
+	): AsyncGenerator<SyncOutput> {
 		const params = new URLSearchParams()
 		for (const owner of owners) {
 			params.append('owner', owner)
@@ -216,85 +161,26 @@ export class OwnerClient extends BaseClient {
 		}
 
 		const url = `${this.baseUrl}/sync?${params.toString()}`
-		const eventSource = new EventSource(url)
-
-		eventSource.onmessage = (event) => {
-			try {
-				const output = JSON.parse(event.data) as SyncOutput
-				onOutput(output)
-			} catch (e) {
-				onError?.(e instanceof Error ? e : new Error(String(e)))
-			}
+		const response = await this.fetchFn(url)
+		if (!response.ok) {
+			throw new Error(`Sync request failed: ${response.status}`)
 		}
 
-		eventSource.addEventListener('done', () => {
-			eventSource.close()
-			onDone?.()
-		})
-
-		eventSource.onerror = () => {
-			eventSource.close()
-			onError?.(new Error('SSE connection error'))
-		}
-
-		return () => {
-			eventSource.close()
-		}
-	}
-
-	/**
-	 * Sync outputs as an async iterator.
-	 * Yields SyncOutput objects until the stream is done.
-	 */
-	async *syncIterator(
-		owners: string[],
-		from?: number,
-	): AsyncGenerator<SyncOutput, void, unknown> {
-		const outputs: SyncOutput[] = []
-		let done = false
-		let error: Error | null = null
-		let resolve: (() => void) | null = null
-
-		const unsubscribe = this.sync(
-			owners,
-			(output) => {
-				outputs.push(output)
-				resolve?.()
-			},
-			from,
-			() => {
-				done = true
-				resolve?.()
-			},
-			(e) => {
-				error = e
-				resolve?.()
-			},
-		)
-
-		try {
-			while (!done && !error) {
-				if (outputs.length > 0) {
-					const output = outputs.shift()
-					if (output) yield output
-				} else {
-					await new Promise<void>((r) => {
-						resolve = r
-					})
-				}
+		for await (const sse of parseSSE(response)) {
+			if (sse.event === 'done') {
+				return
 			}
-
-			// Yield remaining outputs
-			while (outputs.length > 0) {
-				const output = outputs.shift()
-				if (output) yield output
+			if (sse.event === 'error') {
+				throw new Error(sse.data)
 			}
-
-			if (error) {
-				throw error
+			if (sse.event === 'sync' && onProgress) {
+				onProgress(JSON.parse(sse.data) as SyncProgress)
+				continue
 			}
-		} finally {
-			unsubscribe()
+			// Default message events (no event: prefix) contain SyncOutput data
+			if (!sse.event && sse.data) {
+				yield JSON.parse(sse.data) as SyncOutput
+			}
 		}
 	}
 }

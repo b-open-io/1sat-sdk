@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/wallet",
-	"version": "0.0.19",
+	"version": "0.0.20",
 	"description": "BRC-100 wallet engine for 1Sat Ordinals SDK",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -20,7 +20,7 @@
 	"keywords": ["1sat", "bsv", "ordinals", "wallet", "brc-100"],
 	"license": "MIT",
 	"dependencies": {
-		"@1sat/client": "^0.0.8",
+		"@1sat/client": "^0.0.9",
 		"@1sat/types": "^0.0.10",
 		"@bopen-io/templates": "^1.1.9",
 		"@msgpack/msgpack": "^3.1.3",

@@ -204,12 +204,26 @@ Bumped `@1sat/client` dep to `^0.0.8` and `@1sat/wallet` dep to `^0.0.19` across
 ### Remaining old-pattern tools (not blocking P2)
 
 These still use the old `Wallet` class, `js-1sat-ord`, and/or `V5Broadcaster`. They'll be migrated when we build new actions in P3:
-- `wallet_getAddress`, `wallet_getPublicKey`, `wallet_refreshUtxos` — trivial, use old Wallet
-- `wallet_mintCollection` — js-1sat-ord, needs new action
-- `sendOrdinals.ts` — js-1sat-ord (not an MCP tool, helper only)
-- `a2bPublishMcp.ts`, `a2bPublishAgent.ts` — js-1sat-ord
+- `wallet_mintCollection` — js-1sat-ord + V5Broadcaster, needs new action
+- `a2bPublishMcp.ts` — js-1sat-ord + V5Broadcaster (gated by `ENABLE_A2B_TOOLS`)
 - `bap_generate`, `bap_friend` — fetchPaymentUtxos, V5/BsocialBroadcaster
 - `bsocial_createPost` — old Wallet
+
+### Code quality issues found during MCP audit (2026-03-10)
+
+**Dead code (delete):**
+- `sendOrdinals.ts` — never registered, superseded by `wallet_transferOrdToken`. Also has runtime error (`wallet.getPrivateKey()` doesn't exist).
+- `a2bPublishAgent.ts` — never registered anywhere, `registerA2bPublishAgentTool` is never imported.
+
+**Runtime errors on un-migrated tools:**
+- `gatherCollectionInfo.ts` L191 — calls `wallet.getPrivateKey()` which doesn't exist on the Wallet class. Should be `wallet.getPaymentKey()`.
+- `bsocial/createPost.ts` L106 — calls `wallet.getPaymentUtxos()` which doesn't exist. Should be `wallet.getUtxos()`.
+
+**Wrong address for BRC-100:**
+- `wallet_getAddress` (in `tools.ts`) returns `payPk.toAddress()` from the old Wallet class, not the BRC-29 derived deposit address from `walletInit.ts`. These are different addresses — users sending to the old address won't fund the BRC-100 wallet.
+
+**Irrelevant for BRC-100:**
+- `wallet_refreshUtxos` — calls `wallet.getUtxos()` on the old Wallet class, fetching from V5 API. BRC-100 wallets manage UTXOs internally. This tool is misleading when BRC-100 is active.
 
 ### Priority 1.5: Sigma signing in actions (PREREQUISITE for P2)
 
@@ -254,12 +268,22 @@ Build test suite in `1sat-sdk/packages/actions/` to validate all 20 actions end-
 ### bsv-mcp merge status (2026-03-10, updated)
 
 Branch `brc100-wallet` merged to master. All wallet tools use `@1sat/actions@0.0.25` with BRC-100 remote wallet. Sigma inscriptions tested and verified on-chain.
+
+**Migrated (clean):**
 - `createOrdinals.ts` → `inscribe.execute(ctx, ...)`
 - `getBalance.ts` → `ctx.wallet.listOutputs({ basket: 'default' })`
 - `sendToAddress.ts` → `sendBsv.execute(ctx, ...)`
 - `purchaseListing.ts` → `purchaseOrdinal.execute(ctx, ...)` / `purchaseBsv21.execute(ctx, ...)`
 - `transferOrdToken.ts` → `transferOrdinals.execute(ctx, ...)` / `sendBsv21.execute(ctx, ...)`
 - `utils/walletInit.ts` — BRC-100 remote wallet factory with BRC-29 deposit address
+- `brc100.ts` — 25 BRC-100 wallet tools (createAction, signAction, listOutputs, etc.)
+
+**Cleanup needed before P2 testing continues:**
+- [ ] Delete dead code: `sendOrdinals.ts`, `a2bPublishAgent.ts`
+- [ ] Fix runtime error: `gatherCollectionInfo.ts` L191 `getPrivateKey()` → `getPaymentKey()`
+- [ ] Fix runtime error: `bsocial/createPost.ts` L106 `getPaymentUtxos()` → `getUtxos()`
+- [ ] Fix `wallet_getAddress` to return BRC-100 deposit address (not raw payPk address)
+- [ ] Evaluate `wallet_refreshUtxos` — irrelevant for BRC-100, consider disabling or adding warning
 
 ### Priority 3: New actions for gaps (deferred)
 

@@ -58,26 +58,9 @@ export {
 // Address sync
 export {
 	AddressManager,
-	AddressSyncFetcher,
-	AddressSyncManager,
-	AddressSyncProcessor,
-	AddressSyncQueueIdb,
-	AddressSyncQueueSqlite,
 	BRC29_PROTOCOL_ID,
 	YOURS_PREFIX,
 	type AddressDerivation,
-	type AddressSyncEvents,
-	type AddressSyncFetcherEvents,
-	type AddressSyncFetcherOptions,
-	type AddressSyncManagerOptions,
-	type AddressSyncProcessorEvents,
-	type AddressSyncProcessorOptions,
-	type AddressSyncQueueInput,
-	type AddressSyncQueueItem,
-	type AddressSyncQueueItemStatus,
-	type AddressSyncQueueStats,
-	type AddressSyncQueueStorage,
-	type AddressSyncState,
 } from './address-sync'
 
 // Backup
