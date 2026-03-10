@@ -75,3 +75,22 @@ export interface SweepBsv21Response {
 	/** Error message if failed */
 	error?: string
 }
+
+/** Result from a prepare operation -- contains unsigned tx for client-side signing */
+export interface PrepareResult {
+	/** BEEF hex of the unsigned transaction */
+	txHex: string
+	/** Opaque reference string for signAction */
+	reference: string
+	/** Inputs that need client-side signing */
+	inputsToSign: Array<{
+		/** Input index in the transaction */
+		index: number
+		/** Outpoint (txid_vout format) */
+		outpoint: string
+		/** Satoshis in the input */
+		satoshis: number
+		/** Locking script hex */
+		lockingScript: string
+	}>
+}
