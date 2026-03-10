@@ -12,13 +12,14 @@ import {
 	PrivateKey,
 	PublicKey,
 	Transaction,
+	Utils,
 } from '@bsv/sdk'
 import {
 	BSV21_BASKET,
 	BSV21_PROTOCOL,
 	ONESAT_PROTOCOL,
 } from '../constants'
-import type { Action, OneSatContext } from '../types'
+import type { Action, ActionLogEntry, OneSatContext } from '../types'
 import { resolveOrdinalTags } from '../ordinals'
 import type { OrdfsMetadata } from '@1sat/types'
 import { parseOutpoint, formatOutpoint } from '@1sat/utils'
@@ -290,12 +291,30 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 				return { error: String(signResult.error) }
 			}
 
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'sweepBsv',
+					input: { inputCount: inputs.length, amount },
+					txid: signResult.txid,
+					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+				})
+			}
+
 			return {
 				txid: signResult.txid,
 				beef: signResult.tx ? Array.from(signResult.tx) : undefined,
 			}
 		} catch (error) {
 			console.error('[sweepBsv]', error)
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'sweepBsv',
+					input: { inputCount: request.inputs?.length },
+					error: error instanceof Error ? error.message : 'unknown-error',
+				})
+			}
 			// Log detailed error info for WERR_REVIEW_ACTIONS
 			if (error && typeof error === 'object' && 'sendWithResults' in error) {
 				const werr = error as {
@@ -538,12 +557,37 @@ export const sweepOrdinals: Action<
 				return { error: String(signResult.error) }
 			}
 
+			if (ctx.debug && ctx.log) {
+				const logOutputs: ActionLogEntry['outputs'] = inputs.map((inp, i) => ({
+					index: i,
+					protocolID: ONESAT_PROTOCOL,
+					keyID: inp.outpoint,
+					satoshis: 1,
+				}))
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'sweepOrdinals',
+					input: { inputCount: inputs.length },
+					txid: signResult.txid,
+					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					outputs: logOutputs,
+				})
+			}
+
 			return {
 				txid: signResult.txid,
 				beef: signResult.tx ? Array.from(signResult.tx) : undefined,
 			}
 		} catch (error) {
 			console.error('[sweepOrdinals]', error)
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'sweepOrdinals',
+					input: { inputCount: request.inputs?.length },
+					error: error instanceof Error ? error.message : 'unknown-error',
+				})
+			}
 			if (error && typeof error === 'object' && 'sendWithResults' in error) {
 				const werr = error as {
 					sendWithResults?: unknown
@@ -828,12 +872,31 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 				}
 			}
 
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'sweepBsv21',
+					input: { tokenId, inputCount: inputs.length, totalAmount: totalAmount.toString() },
+					txid: signResult.txid,
+					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					outputs: [{ index: 0, protocolID: BSV21_PROTOCOL, keyID, basket: BSV21_BASKET, satoshis: 1 }],
+				})
+			}
+
 			return {
 				txid: signResult.txid,
 				beef: signResult.tx ? Array.from(signResult.tx) : undefined,
 			}
 		} catch (error) {
 			console.error('[sweepBsv21]', error)
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'sweepBsv21',
+					input: { inputCount: request.inputs?.length },
+					error: error instanceof Error ? error.message : 'unknown-error',
+				})
+			}
 			return {
 				error: error instanceof Error ? error.message : 'unknown-error',
 			}

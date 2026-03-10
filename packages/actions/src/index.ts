@@ -9,6 +9,7 @@
 export {
 	type Action,
 	type ActionCategory,
+	type ActionLogEntry,
 	type ActionMetadata,
 	type JsonSchemaProperty,
 	type OneSatContext,
@@ -25,6 +26,7 @@ export * from './constants'
 export { signP2PKHInput } from './utils/signP2PKH'
 
 // Export module actions and types
+export * from './addresses'
 export * from './payments'
 export * from './ordinals'
 export * from './tokens'
@@ -36,6 +38,7 @@ export * from './opns'
 // Export sweep module (uses external signing, not action-based)
 export * from './sweep'
 
+import { addressesActions } from './addresses'
 import { inscriptionsActions } from './inscriptions'
 import { locksActions } from './locks'
 import { opnsActions } from './opns'
@@ -47,6 +50,7 @@ import { sweepActions } from './sweep'
 import { tokensActions } from './tokens'
 
 actionRegistry.registerAll([
+	...addressesActions,
 	...paymentsActions,
 	...ordinalsActions,
 	...tokensActions,

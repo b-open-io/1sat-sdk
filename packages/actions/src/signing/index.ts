@@ -1,7 +1,7 @@
 /**
  * Signing Module
  *
- * Actions for message signing.
+ * Actions for BSM (Bitcoin Signed Message) signing.
  */
 
 import { BSM, BigNumber, PublicKey, Signature, Utils } from '@bsv/sdk'
@@ -12,7 +12,7 @@ import type { Action } from '../types'
 // Types
 // ============================================================================
 
-export interface SignMessageRequest {
+export interface SignBsmRequest {
 	/** Message to sign */
 	message: string
 	/** Message encoding */
@@ -31,10 +31,10 @@ export interface SignedMessage {
 	pubKey: string
 	message: string
 	sig: string
-	derivationTag?: SignMessageRequest['tag']
+	derivationTag?: SignBsmRequest['tag']
 }
 
-export interface SignMessageResponse extends Partial<SignedMessage> {
+export interface SignBsmResponse extends Partial<SignedMessage> {
 	error?: string
 }
 
@@ -45,9 +45,9 @@ export interface SignMessageResponse extends Partial<SignedMessage> {
 /**
  * Sign a message using BSM (Bitcoin Signed Message) format.
  */
-export const signMessage: Action<SignMessageRequest, SignMessageResponse> = {
+export const signBsm: Action<SignBsmRequest, SignBsmResponse> = {
 	meta: {
-		name: 'signMessage',
+		name: 'signBsm',
 		description: 'Sign a message using BSM (Bitcoin Signed Message) format',
 		category: 'signing',
 		inputSchema: {
@@ -83,6 +83,7 @@ export const signMessage: Action<SignMessageRequest, SignMessageResponse> = {
 			const result = await ctx.wallet.createSignature({
 				protocolID: MESSAGE_SIGNING_PROTOCOL,
 				keyID,
+				counterparty: 'self',
 				hashToDirectlySign: Array.from(msgHash),
 			})
 
@@ -107,7 +108,7 @@ export const signMessage: Action<SignMessageRequest, SignMessageResponse> = {
 				derivationTag: tag,
 			}
 		} catch (error) {
-			console.error('[signMessage]', error)
+			console.error('[signBsm]', error)
 			return {
 				error: error instanceof Error ? error.message : 'unknown-error',
 			}
@@ -120,4 +121,7 @@ export const signMessage: Action<SignMessageRequest, SignMessageResponse> = {
 // ============================================================================
 
 /** All signing actions for registry */
-export const signingActions = [signMessage]
+export const signingActions = [signBsm]
+
+// Sigma signing helper
+export { applySigma } from './sigma'

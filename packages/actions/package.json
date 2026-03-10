@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/actions",
-	"version": "0.0.22",
+	"version": "0.0.23",
 	"description": "Action definitions for the 1Sat SDK",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -15,7 +15,8 @@
 	"scripts": {
 		"build": "tsc",
 		"dev": "tsc --watch",
-		"clean": "rm -rf dist"
+		"clean": "rm -rf dist",
+		"test": "bun test"
 	},
 	"keywords": ["1sat", "bsv", "actions", "wallet", "ordinals"],
 	"license": "MIT",

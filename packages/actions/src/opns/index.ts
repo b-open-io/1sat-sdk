@@ -11,6 +11,7 @@ import {
 	type WalletOutput,
 } from '@bsv/sdk'
 import { buildTransferOrdinals } from '../ordinals'
+import { ONESAT_PROTOCOL, OPNS_BASKET } from '../constants'
 import type { Action, OneSatContext } from '../types'
 import { signP2PKHInput } from '../utils/signP2PKH'
 
@@ -134,12 +135,31 @@ export const opnsRegister: Action<
 				return { error: String(signResult.error) }
 			}
 
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'opnsRegister',
+					input: { outpoint: ordinal.outpoint },
+					txid: signResult.txid,
+					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					outputs: [{ index: 0, protocolID: ONESAT_PROTOCOL, keyID: ordinal.outpoint, basket: OPNS_BASKET, satoshis: 1 }],
+				})
+			}
+
 			return {
 				txid: signResult.txid,
 				rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
 			}
 		} catch (error) {
 			console.error('[opnsRegister]', error)
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'opnsRegister',
+					input: { outpoint: input.ordinal.outpoint },
+					error: error instanceof Error ? error.message : 'unknown-error',
+				})
+			}
 			return {
 				error: error instanceof Error ? error.message : 'unknown-error',
 			}
@@ -229,12 +249,31 @@ export const opnsDeregister: Action<
 				return { error: String(signResult.error) }
 			}
 
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'opnsDeregister',
+					input: { outpoint: ordinal.outpoint },
+					txid: signResult.txid,
+					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					outputs: [{ index: 0, protocolID: ONESAT_PROTOCOL, keyID: ordinal.outpoint, basket: OPNS_BASKET, satoshis: 1 }],
+				})
+			}
+
 			return {
 				txid: signResult.txid,
 				rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
 			}
 		} catch (error) {
 			console.error('[opnsDeregister]', error)
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'opnsDeregister',
+					input: { outpoint: input.ordinal.outpoint },
+					error: error instanceof Error ? error.message : 'unknown-error',
+				})
+			}
 			return {
 				error: error instanceof Error ? error.message : 'unknown-error',
 			}

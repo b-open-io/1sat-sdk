@@ -20,7 +20,7 @@ import {
 	LOCK_SUFFIX,
 	MIN_UNLOCK_SATS,
 } from '../constants'
-import type { Action } from '../types'
+import type { Action, ActionLogEntry } from '../types'
 
 // ============================================================================
 // Constants
@@ -205,12 +205,39 @@ export const lockBsv: Action<LockBsvInput, LockOperationResponse> = {
 			if (!result.txid) {
 				return { error: 'no-txid-returned' }
 			}
+
+			if (ctx.debug && ctx.log) {
+				const logOutputs: ActionLogEntry['outputs'] = requests.map((req, i) => ({
+					index: i,
+					protocolID: LOCK_PROTOCOL,
+					keyID: LOCK_KEY_ID,
+					basket: LOCK_BASKET,
+					satoshis: req.satoshis,
+				}))
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'lockBsv',
+					input: { requests },
+					txid: result.txid,
+					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
+					outputs: logOutputs,
+				})
+			}
+
 			return {
 				txid: result.txid,
 				rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 			}
 		} catch (error) {
 			console.error('[lockBsv]', error)
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'lockBsv',
+					input: { requests: input.requests },
+					error: error instanceof Error ? error.message : 'unknown-error',
+				})
+			}
 			return {
 				error: error instanceof Error ? error.message : 'unknown-error',
 			}
@@ -377,12 +404,38 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 				return { error: String(signResult.error) }
 			}
 
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'unlockBsv',
+					input: { lockCount: maturedLocks.length },
+					txid: signResult.txid,
+					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					outputs: maturedLocks.map((l, i) => ({
+						index: i,
+						protocolID: l.protocolID,
+						keyID: l.keyID,
+						customInstructions: l.output.customInstructions,
+						basket: LOCK_BASKET,
+						satoshis: l.output.satoshis,
+					})),
+				})
+			}
+
 			return {
 				txid: signResult.txid,
 				rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
 			}
 		} catch (error) {
 			console.error('[unlockBsv]', error)
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'unlockBsv',
+					input: {},
+					error: error instanceof Error ? error.message : 'unknown-error',
+				})
+			}
 			return {
 				error: error instanceof Error ? error.message : 'unknown-error',
 			}

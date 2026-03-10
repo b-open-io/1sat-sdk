@@ -31,7 +31,7 @@ import {
 	ORD_LOCK_PREFIX,
 	ORD_LOCK_SUFFIX,
 } from '../constants'
-import type { Action, OneSatContext } from '../types'
+import type { Action, ActionLogEntry, OneSatContext } from '../types'
 import { signP2PKHInput } from '../utils/signP2PKH'
 import { parseOutpoint } from '@1sat/utils'
 
@@ -662,12 +662,38 @@ export const transferOrdinals: Action<
 				return { error: String(signResult.error) }
 			}
 
+			if (ctx.debug && ctx.log) {
+				const logOutputs: ActionLogEntry['outputs'] = input.transfers.map((t, i) => ({
+					index: i,
+					protocolID: ONESAT_PROTOCOL,
+					keyID: t.ordinal.outpoint,
+					basket: ORDINALS_BASKET,
+					satoshis: 1,
+				}))
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'transferOrdinals',
+					input: { transfers: input.transfers.map(t => ({ outpoint: t.ordinal.outpoint, counterparty: t.counterparty, address: t.address })) },
+					txid: signResult.txid,
+					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					outputs: logOutputs,
+				})
+			}
+
 			return {
 				txid: signResult.txid,
 				rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
 			}
 		} catch (error) {
 			console.error('[transferOrdinals]', error)
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'transferOrdinals',
+					input: { transfers: input.transfers.map(t => ({ outpoint: t.ordinal.outpoint })) },
+					error: error instanceof Error ? error.message : 'unknown-error',
+				})
+			}
 			return {
 				error: error instanceof Error ? error.message : 'unknown-error',
 			}
@@ -742,12 +768,31 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 					return { error: String(signResult.error) }
 				}
 
+				if (ctx.debug && ctx.log) {
+					ctx.log({
+						timestamp: new Date().toISOString(),
+						action: 'listOrdinal',
+						input: { outpoint: input.ordinal.outpoint, price: input.price },
+						txid: signResult.txid,
+						rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+						outputs: [{ index: 0, protocolID: ONESAT_PROTOCOL, keyID: input.ordinal.outpoint, basket: ORDINALS_BASKET, satoshis: 1 }],
+					})
+				}
+
 				return {
 					txid: signResult.txid,
 					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
 				}
 			} catch (error) {
 				console.error('[listOrdinal]', error)
+				if (ctx.debug && ctx.log) {
+					ctx.log({
+						timestamp: new Date().toISOString(),
+						action: 'listOrdinal',
+						input: { outpoint: input.ordinal.outpoint, price: input.price },
+						error: error instanceof Error ? error.message : 'unknown-error',
+					})
+				}
 				return {
 					error: error instanceof Error ? error.message : 'unknown-error',
 				}
@@ -906,12 +951,31 @@ export const cancelListing: Action<
 				return { error: String(signResult.error) }
 			}
 
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'cancelListing',
+					input: { outpoint, keyID },
+					txid: signResult.txid,
+					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					outputs: [{ index: 0, protocolID, keyID, customInstructions: listing.customInstructions, satoshis: 1 }],
+				})
+			}
+
 			return {
 				txid: signResult.txid,
 				rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
 			}
 		} catch (error) {
 			console.error('[cancelListing]', error)
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'cancelListing',
+					input: { outpoint: input.listing.outpoint },
+					error: error instanceof Error ? error.message : 'unknown-error',
+				})
+			}
 			return {
 				error: error instanceof Error ? error.message : 'unknown-error',
 			}
@@ -1087,12 +1151,31 @@ export const purchaseOrdinal: Action<
 				return { error: String(signResult.error) }
 			}
 
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'purchaseOrdinal',
+					input: { outpoint },
+					txid: signResult.txid,
+					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					outputs: [{ index: 0, protocolID: ONESAT_PROTOCOL, keyID: outpoint, basket: basket, satoshis: 1 }],
+				})
+			}
+
 			return {
 				txid: signResult.txid,
 				rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
 			}
 		} catch (error) {
 			console.error('[purchaseOrdinal]', error)
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'purchaseOrdinal',
+					input: { outpoint: input.outpoint },
+					error: error instanceof Error ? error.message : 'unknown-error',
+				})
+			}
 			return {
 				error: error instanceof Error ? error.message : 'unknown-error',
 			}

@@ -205,12 +205,30 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 				await deliverP2P(paymailRefs, Utils.toHex(result.tx))
 			}
 
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'sendBsv',
+					input: { requestCount: requests.length },
+					txid: result.txid,
+					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
+				})
+			}
+
 			return {
 				txid: result.txid,
 				rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 			}
 		} catch (error) {
 			console.error('[sendBsv]', error)
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'sendBsv',
+					input: { requestCount: input.requests?.length },
+					error: error instanceof Error ? error.message : 'unknown-error',
+				})
+			}
 			return {
 				error: error instanceof Error ? error.message : 'unknown-error',
 			}
@@ -266,12 +284,31 @@ export const sendAllBsv: Action<SendAllBsvInput, SendBsvResponse> = {
 			if (!result.txid) {
 				return { error: 'no-txid-returned' }
 			}
+
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'sendAllBsv',
+					input: { destination },
+					txid: result.txid,
+					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
+				})
+			}
+
 			return {
 				txid: result.txid,
 				rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 			}
 		} catch (error) {
 			console.error('[sendAllBsv]', error)
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'sendAllBsv',
+					input: { destination: input.destination },
+					error: error instanceof Error ? error.message : 'unknown-error',
+				})
+			}
 			return {
 				error: error instanceof Error ? error.message : 'unknown-error',
 			}

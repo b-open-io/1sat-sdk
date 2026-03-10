@@ -18,7 +18,7 @@ import {
 	type WalletOutput,
 } from '@bsv/sdk'
 import { BSV21_BASKET, BSV21_PROTOCOL } from '../constants'
-import type { Action, OneSatContext } from '../types'
+import type { Action, ActionLogEntry, OneSatContext } from '../types'
 import { signP2PKHInput } from '../utils/signP2PKH'
 import { parseOutpoint } from '@1sat/utils'
 
@@ -388,10 +388,12 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 			}
 
 			let recipientAddress: string
+			let recipientKeyID: string | undefined
 			if (counterparty) {
+				recipientKeyID = `${tokenId}-${Date.now()}`
 				const { publicKey } = await ctx.wallet.getPublicKey({
 					protocolID: BSV21_PROTOCOL,
-					keyID: `${tokenId}-${Date.now()}`,
+					keyID: recipientKeyID,
 					counterparty,
 					forSelf: false,
 				})
@@ -426,9 +428,10 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 
 			const change = totalIn - amount
 			let tokenOutputCount = 1
+			let changeKeyID: string | undefined
 			if (change > 0n) {
 				tokenOutputCount = 2
-				const changeKeyID = `${tokenId}-${Date.now()}`
+				changeKeyID = `${tokenId}-${Date.now()}`
 				const { publicKey } = await ctx.wallet.getPublicKey({
 					protocolID: BSV21_PROTOCOL,
 					keyID: changeKeyID,
@@ -528,12 +531,37 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 				}
 			}
 
+			if (ctx.debug && ctx.log) {
+				const logOutputs: ActionLogEntry['outputs'] = [
+					{ index: 0, protocolID: BSV21_PROTOCOL, keyID: recipientKeyID, basket: BSV21_BASKET, satoshis: 1 },
+				]
+				if (change > 0n) {
+					logOutputs.push({ index: 1, protocolID: BSV21_PROTOCOL, keyID: changeKeyID, basket: BSV21_BASKET, satoshis: 1 })
+				}
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'sendBsv21',
+					input: { tokenId, amount: amount.toString(), counterparty, address, paymail },
+					txid: signResult.txid,
+					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					outputs: logOutputs,
+				})
+			}
+
 			return {
 				txid: signResult.txid,
 				rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
 			}
 		} catch (error) {
 			console.error('[sendBsv21]', error)
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'sendBsv21',
+					input: { tokenId: input.tokenId, amount: input.amount?.toString() },
+					error: error instanceof Error ? error.message : 'unknown-error',
+				})
+			}
 			return {
 				error: error instanceof Error ? error.message : 'unknown-error',
 			}
@@ -760,12 +788,31 @@ export const purchaseBsv21: Action<
 				}
 			}
 
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'purchaseBsv21',
+					input: { tokenId, outpoint, amount: tokenAmount.toString() },
+					txid: signResult.txid,
+					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					outputs: [{ index: 0, protocolID: BSV21_PROTOCOL, keyID: bsv21KeyID, basket: BSV21_BASKET, satoshis: 1 }],
+				})
+			}
+
 			return {
 				txid: signResult.txid,
 				rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
 			}
 		} catch (error) {
 			console.error('[purchaseBsv21]', error)
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'purchaseBsv21',
+					input: { tokenId: input.tokenId, outpoint: input.outpoint, amount: input.amount?.toString() },
+					error: error instanceof Error ? error.message : 'unknown-error',
+				})
+			}
 			return {
 				error: error instanceof Error ? error.message : 'unknown-error',
 			}

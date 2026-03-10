@@ -18,6 +18,31 @@ export interface OneSatContext {
 	chain: 'main' | 'test'
 	/** Optional WhatsOnChain API key */
 	wocApiKey?: string
+	/** Enable debug logging of derivation info for fund recovery */
+	debug?: boolean
+	/** Structured log callback — receives derivation details for each action execution */
+	log?: (entry: ActionLogEntry) => void
+}
+
+/**
+ * Structured log entry emitted by actions when debug mode is enabled.
+ * Captures derivation details needed for fund recovery.
+ */
+export interface ActionLogEntry {
+	timestamp: string
+	action: string
+	input: unknown
+	txid?: string
+	rawtx?: string
+	outputs?: Array<{
+		index: number
+		protocolID?: unknown
+		keyID?: string
+		basket?: string
+		customInstructions?: string
+		satoshis: number
+	}>
+	error?: string
 }
 
 /**
@@ -37,6 +62,7 @@ export interface JsonSchemaProperty {
  * Action category for grouping related operations.
  */
 export type ActionCategory =
+	| 'addresses'
 	| 'balance'
 	| 'payments'
 	| 'ordinals'
@@ -86,6 +112,8 @@ export function createContext(
 		services?: OneSatServices
 		chain?: 'main' | 'test'
 		wocApiKey?: string
+		debug?: boolean
+		log?: (entry: ActionLogEntry) => void
 	},
 ): OneSatContext {
 	return {
@@ -93,5 +121,7 @@ export function createContext(
 		services: options?.services,
 		chain: options?.chain ?? 'main',
 		wocApiKey: options?.wocApiKey,
+		debug: options?.debug,
+		log: options?.log,
 	}
 }
