@@ -14,6 +14,7 @@ export * from './constants';
 export { signP2PKHInput } from './utils/signP2PKH';
 export { completeSignedAction } from './utils/completeSignedAction';
 export { createTrackedAction, randomActionId } from './utils/createTrackedAction';
+export { resolveBeef, extractIdTag } from './utils/resolveBeef';
 // Export module actions and types
 export * from './addresses';
 export * from './payments';

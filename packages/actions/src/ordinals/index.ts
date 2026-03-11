@@ -34,6 +34,7 @@ import {
 import type { Action, ActionLogEntry, OneSatContext } from '../types'
 import { completeSignedAction } from '../utils/completeSignedAction'
 import { createTrackedAction } from '../utils/createTrackedAction'
+import { resolveBeef } from '../utils/resolveBeef'
 import { signP2PKHInput } from '../utils/signP2PKH'
 import { parseOutpoint } from '@1sat/utils'
 
@@ -151,15 +152,15 @@ export interface TransferItem {
 export interface TransferOrdinalsRequest {
 	/** Ordinals to transfer with their destinations */
 	transfers: TransferItem[]
-	/** BEEF data from listOutputs (include: 'entire transactions') */
-	inputBEEF: number[]
+	/** BEEF data — resolved automatically via ID tag if omitted */
+	inputBEEF?: number[]
 }
 
 export interface ListOrdinalRequest {
 	/** The ordinal output to list (from listOutputs) */
 	ordinal: WalletOutput
-	/** BEEF data from listOutputs (include: 'entire transactions') */
-	inputBEEF: number[]
+	/** BEEF data — resolved automatically via ID tag if omitted */
+	inputBEEF?: number[]
 	/** Price in satoshis */
 	price: number
 	/** Address that receives payment on purchase (BRC-29 receive address) */
@@ -303,7 +304,7 @@ export async function buildTransferOrdinals(
 	ctx: OneSatContext,
 	request: TransferOrdinalsRequest,
 ): Promise<CreateActionArgs | { error: string }> {
-	const { transfers, inputBEEF } = request
+	const { transfers } = request
 
 	if (!transfers.length) {
 		return { error: 'no-transfers' }
@@ -384,6 +385,8 @@ export async function buildTransferOrdinals(
 		}
 	}
 
+	const inputBEEF = request.inputBEEF ?? await resolveBeef(ctx.wallet, ORDINALS_BASKET, transfers[0].ordinal)
+
 	return {
 		description:
 			transfers.length === 1
@@ -403,7 +406,7 @@ export async function buildListOrdinal(
 	ctx: OneSatContext,
 	request: ListOrdinalRequest,
 ): Promise<CreateActionArgs | { error: string }> {
-	const { ordinal, inputBEEF, price, payAddress } = request
+	const { ordinal, price, payAddress } = request
 
 	if (!payAddress) return { error: 'missing-pay-address' }
 	if (price <= 0) return { error: 'invalid-price' }
@@ -417,6 +420,8 @@ export async function buildListOrdinal(
 		tags: ordinal.tags,
 	})
 	tags.push('ordlock', `price:${price}`)
+
+	const inputBEEF = request.inputBEEF ?? await resolveBeef(ctx.wallet, ORDINALS_BASKET, ordinal)
 
 	return {
 		description: `List ordinal for ${price} sats`,
@@ -634,7 +639,7 @@ export const transferOrdinals: Action<
 			const result = await completeSignedAction(
 				ctx.wallet,
 				createResult,
-				input.inputBEEF,
+				params.inputBEEF as number[],
 				async (tx) => {
 					const spends: Record<number, { unlockingScript: string }> = {}
 					for (let i = 0; i < input.transfers.length; i++) {
@@ -743,7 +748,7 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 				const result = await completeSignedAction(
 					ctx.wallet,
 					createResult,
-					input.inputBEEF,
+					params.inputBEEF as number[],
 					async (tx) => {
 						const unlocking = await signP2PKHInput(ctx, tx, 0, protocolID, keyID)
 						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
@@ -782,10 +787,10 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 
 /** Input for cancelListing action */
 export interface CancelListingInput {
-	/** The listing output to cancel (from listOutputs, must include lockingScript) */
+	/** The listing output to cancel (from listOutputs) */
 	listing: WalletOutput
-	/** BEEF data from listOutputs (include: 'entire transactions') */
-	inputBEEF: number[]
+	/** BEEF data — resolved automatically via ID tag if omitted */
+	inputBEEF?: number[]
 }
 
 /**
@@ -811,15 +816,16 @@ export const cancelListing: Action<
 				inputBEEF: {
 					type: 'array',
 					description:
-						"BEEF from listOutputs with include: 'entire transactions'",
+						"BEEF — resolved automatically via ID tag if omitted",
 				},
 			},
-			required: ['listing', 'inputBEEF'],
+			required: ['listing'],
 		},
 	},
 	async execute(ctx, input) {
 		try {
-			const { listing, inputBEEF } = input
+			const { listing } = input
+			const inputBEEF = input.inputBEEF ?? await resolveBeef(ctx.wallet, ORDINALS_BASKET, listing)
 			const outpoint = listing.outpoint
 
 			if (!listing.customInstructions) {
