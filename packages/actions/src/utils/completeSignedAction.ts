@@ -46,11 +46,12 @@ export async function completeSignedAction(
 	const reference = createResult.signableTransaction.reference
 
 	try {
-		// Build complete BEEF by merging the unsigned tx into inputBEEF (which has merkle proofs).
-		// The signableTransaction BEEF only contains raw txs without proofs.
+		// Build complete BEEF by merging the signable transaction BEEF (which has funding
+		// input proof chains) into inputBEEF (which has ordinal/asset proof chains).
+		const signableBeef = Beef.fromBinary(createResult.signableTransaction.tx)
 		const signingTx = Transaction.fromBEEF(createResult.signableTransaction.tx)
 		const beef = Beef.fromBinary(inputBEEF)
-		beef.mergeRawTx(signingTx.toBinary())
+		beef.mergeBeef(signableBeef)
 		const tx = beef.findAtomicTransaction(signingTx.id('hex'))
 		if (!tx) {
 			await wallet.abortAction({ reference })
