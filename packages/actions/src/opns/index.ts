@@ -5,7 +5,7 @@
  * Registers/deregisters identity public keys on OpNS tokens via MAP metadata.
  */
 
-import type { WalletOutput } from '@bsv/sdk'
+import type { BEEF, WalletOutput } from '@bsv/sdk'
 import { buildTransferOrdinals } from '../ordinals'
 import { ONESAT_PROTOCOL, OPNS_BASKET } from '../constants'
 import type { Action } from '../types'
@@ -40,6 +40,58 @@ export interface OpnsOperationResponse {
 // ============================================================================
 // Actions
 // ============================================================================
+
+/** Input for getOpnsNames action */
+export interface GetOpnsNamesInput {
+	/** Max number of names to return */
+	limit?: number
+	/** Offset for pagination */
+	offset?: number
+}
+
+/** Result from getOpnsNames action */
+export interface GetOpnsNamesResult {
+	outputs: WalletOutput[]
+	BEEF?: BEEF
+}
+
+/**
+ * Get OpNS names from the wallet with BEEF for spending.
+ */
+export const getOpnsNames: Action<GetOpnsNamesInput, GetOpnsNamesResult> = {
+	meta: {
+		name: 'getOpnsNames',
+		description: 'Get OpNS names from the wallet with BEEF for spending',
+		category: 'opns',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				limit: {
+					type: 'integer',
+					description: 'Max names to return (default: 100)',
+				},
+				offset: {
+					type: 'integer',
+					description: 'Offset for pagination (default: 0)',
+				},
+			},
+		},
+	},
+	async execute(ctx, input) {
+		const result = await ctx.wallet.listOutputs({
+			basket: OPNS_BASKET,
+			includeTags: true,
+			includeCustomInstructions: true,
+			include: 'entire transactions',
+			limit: input.limit ?? 100,
+			offset: input.offset ?? 0,
+		})
+		return {
+			outputs: result.outputs,
+			BEEF: result.BEEF,
+		}
+	},
+}
 
 /**
  * Register an identity key on an OpNS name.
@@ -272,4 +324,4 @@ export const opnsDeregister: Action<
 // ============================================================================
 
 /** All OpNS actions for registry */
-export const opnsActions = [opnsRegister, opnsDeregister]
+export const opnsActions = [getOpnsNames, opnsRegister, opnsDeregister]
