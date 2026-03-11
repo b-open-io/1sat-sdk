@@ -29,6 +29,7 @@ import {
 	SigmaIndexer,
 } from '@1sat/wallet'
 import type { Action } from '../types'
+import { randomActionId } from '../utils/createTrackedAction'
 import type { ProcessedTxStore } from './ProcessedTxStore'
 import { ProcessedTxStoreIdb } from './ProcessedTxStoreIdb'
 import { ProcessedTxStoreSqlite } from './ProcessedTxStoreSqlite'
@@ -297,6 +298,7 @@ async function processTxid(
 	// Build InternalizeOutput entries for owned outputs
 	const internalizeOutputs: InternalizeOutput[] = []
 	const ownedTxos: Txo[] = []
+	const actionId = randomActionId()
 
 	for (const txo of parseCtx.txos) {
 		if (!txo.owner) continue
@@ -304,7 +306,7 @@ async function processTxid(
 		const derivation = addressMap.get(txo.owner)
 		if (!derivation) continue
 
-		const internalizeOutput = buildInternalizeOutput(txo, derivation)
+		const internalizeOutput = buildInternalizeOutput(txo, derivation, actionId)
 		if (internalizeOutput) {
 			internalizeOutputs.push(internalizeOutput)
 			ownedTxos.push(txo)
@@ -412,13 +414,15 @@ async function parseTransaction(
 function buildInternalizeOutput(
 	txo: Txo,
 	derivation: AddressDerivation,
+	actionId: string,
 ): InternalizeOutput | null {
 	const vout = txo.outpoint.vout
 	const protocol = txo.protocol || 'wallet payment'
+	const idTag = `id:${actionId}`
 
 	if (protocol === 'basket insertion') {
 		const basket = txo.basket || 'custom'
-		const tags = collectTags(txo)
+		const tags = [...collectTags(txo), idTag]
 		const nameTag = tags.find((t) => t.startsWith('name:'))
 
 		return {
@@ -439,7 +443,7 @@ function buildInternalizeOutput(
 
 	// P2PKH ordinals/tokens: basket insertion so they don't get consumed as change
 	if (txo.basket && txo.basket !== 'fund') {
-		const tags = collectTags(txo)
+		const tags = [...collectTags(txo), idTag]
 		const nameTag = tags.find((t) => t.startsWith('name:'))
 
 		return {

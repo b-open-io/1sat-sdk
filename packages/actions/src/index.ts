@@ -25,6 +25,7 @@ export * from './constants'
 // Export shared utilities
 export { signP2PKHInput } from './utils/signP2PKH'
 export { completeSignedAction, type CompleteSignedActionResult, type SigningCallback } from './utils/completeSignedAction'
+export { createTrackedAction, randomActionId } from './utils/createTrackedAction'
 
 // Export module actions and types
 export * from './addresses'

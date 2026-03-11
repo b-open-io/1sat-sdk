@@ -17,6 +17,7 @@ import {
 } from '../constants'
 import type { Action, ActionLogEntry } from '../types'
 import { completeSignedAction } from '../utils/completeSignedAction'
+import { createTrackedAction } from '../utils/createTrackedAction'
 
 // ============================================================================
 // Constants
@@ -179,7 +180,7 @@ export const lockBsv: Action<LockBsvInput, LockOperationResponse> = {
 				})
 			}
 
-			const result = await ctx.wallet.createAction({
+			const result = await createTrackedAction(ctx.wallet, {
 				description: `Lock BSV in ${requests.length} output(s)`,
 				outputs,
 				options: { signAndProcess: true, acceptDelayedBroadcast: false },

@@ -33,6 +33,7 @@ import {
 } from '../constants'
 import type { Action, ActionLogEntry, OneSatContext } from '../types'
 import { completeSignedAction } from '../utils/completeSignedAction'
+import { createTrackedAction } from '../utils/createTrackedAction'
 import { signP2PKHInput } from '../utils/signP2PKH'
 import { parseOutpoint } from '@1sat/utils'
 
@@ -621,7 +622,7 @@ export const transferOrdinals: Action<
 				console.log('[transferOrdinals] BEEF parse error:', e)
 			}
 
-			const createResult = await ctx.wallet.createAction({
+			const createResult = await createTrackedAction(ctx.wallet, {
 				...params,
 				options: { signAndProcess: false, randomizeOutputs: false },
 			})
@@ -723,7 +724,7 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 					return params
 				}
 
-				const createResult = await ctx.wallet.createAction({
+				const createResult = await createTrackedAction(ctx.wallet, {
 					...params,
 					options: { signAndProcess: false, randomizeOutputs: false },
 				})
@@ -832,7 +833,7 @@ export const cancelListing: Action<
 				tags: listing.tags,
 			})
 
-			const createResult = await ctx.wallet.createAction({
+			const createResult = await createTrackedAction(ctx.wallet, {
 				description: 'Cancel ordinal listing',
 				inputBEEF,
 				inputs: [
@@ -1078,7 +1079,7 @@ export const purchaseOrdinal: Action<
 
 			const beefBinary = beef.toBinary()
 
-			const createResult = await ctx.wallet.createAction({
+			const createResult = await createTrackedAction(ctx.wallet, {
 				description: `Purchase ordinal for ${payoutSatoshis} sats`,
 				inputBEEF: beefBinary,
 				inputs: [

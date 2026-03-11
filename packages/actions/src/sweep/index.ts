@@ -21,6 +21,7 @@ import {
 } from '../constants'
 import type { Action, ActionLogEntry, OneSatContext } from '../types'
 import { completeSignedAction } from '../utils/completeSignedAction'
+import { createTrackedAction } from '../utils/createTrackedAction'
 import { resolveOrdinalTags } from '../ordinals'
 import type { OrdfsMetadata } from '@1sat/types'
 import { parseOutpoint, formatOutpoint } from '@1sat/utils'
@@ -466,7 +467,7 @@ export const sweepOrdinals: Action<
 
 			// Create action to get signable transaction
 			// CRITICAL: randomizeOutputs must be false to preserve ordinal satoshi positions
-			const createResult = await ctx.wallet.createAction({
+			const createResult = await createTrackedAction(ctx.wallet, {
 				description: `Sweep ${inputs.length} ordinal${inputs.length !== 1 ? 's' : ''}`,
 				inputBEEF: beefData,
 				inputs: inputDescriptors,
@@ -756,7 +757,7 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 			const beefData = firstBeef.toBinary()
 
 			// Create action to get signable transaction
-			const createResult = await ctx.wallet.createAction({
+			const createResult = await createTrackedAction(ctx.wallet, {
 				description: `Sweep ${inputs.length} token UTXO${inputs.length !== 1 ? 's' : ''}`,
 				inputBEEF: beefData,
 				inputs: inputDescriptors,

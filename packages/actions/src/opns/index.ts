@@ -10,6 +10,7 @@ import { buildTransferOrdinals } from '../ordinals'
 import { ONESAT_PROTOCOL, OPNS_BASKET } from '../constants'
 import type { Action } from '../types'
 import { completeSignedAction } from '../utils/completeSignedAction'
+import { createTrackedAction } from '../utils/createTrackedAction'
 import { signP2PKHInput } from '../utils/signP2PKH'
 
 // ============================================================================
@@ -103,7 +104,7 @@ export const opnsRegister: Action<
 				return params
 			}
 
-			const createResult = await ctx.wallet.createAction({
+			const createResult = await createTrackedAction(ctx.wallet, {
 				...params,
 				options: { signAndProcess: false, randomizeOutputs: false },
 			})
@@ -211,7 +212,7 @@ export const opnsDeregister: Action<
 				return params
 			}
 
-			const createResult = await ctx.wallet.createAction({
+			const createResult = await createTrackedAction(ctx.wallet, {
 				...params,
 				options: { signAndProcess: false, randomizeOutputs: false },
 			})

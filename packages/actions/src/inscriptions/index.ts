@@ -15,6 +15,7 @@ import {
 import { applySigma } from '../signing/sigma'
 import type { Action, OneSatContext } from '../types'
 import { completeSignedAction } from '../utils/completeSignedAction'
+import { createTrackedAction } from '../utils/createTrackedAction'
 import { signP2PKHInput } from '../utils/signP2PKH'
 
 // ============================================================================
@@ -83,7 +84,7 @@ async function inscribeWithSigma(
 	const anchorLockingScript = new P2PKH().lock(anchorAddress)
 
 	// Step 1: Create anchor tx (signed, not broadcast)
-	const anchorResult = await ctx.wallet.createAction({
+	const anchorResult = await createTrackedAction(ctx.wallet, {
 		description: 'Sigma anchor output',
 		outputs: [
 			{
@@ -119,7 +120,7 @@ async function inscribeWithSigma(
 	)
 
 	// Step 3: Create inscription tx, spending the anchor and broadcasting both
-	const inscribeResult = await ctx.wallet.createAction({
+	const inscribeResult = await createTrackedAction(ctx.wallet, {
 		description: 'Create inscription',
 		inputBEEF: anchorResult.tx,
 		inputs: [
@@ -254,7 +255,7 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 				input.map,
 			)
 
-			const tags = [`type:${input.contentType}`]
+			const tags = [`type:${input.contentType}`, 'origin']
 			if (input.map?.name) {
 				tags.push(`name:${input.map.name}`)
 			}
@@ -263,7 +264,7 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 				return await inscribeWithSigma(ctx, lockingScript, keyID, tags, input)
 			}
 
-			const result = await ctx.wallet.createAction({
+			const result = await createTrackedAction(ctx.wallet, {
 				description: 'Create inscription',
 				outputs: [
 					{

@@ -20,6 +20,7 @@ import {
 import { BSV21_BASKET, BSV21_PROTOCOL } from '../constants'
 import type { Action, ActionLogEntry, OneSatContext } from '../types'
 import { completeSignedAction } from '../utils/completeSignedAction'
+import { createTrackedAction } from '../utils/createTrackedAction'
 import { signP2PKHInput } from '../utils/signP2PKH'
 import { parseOutpoint } from '@1sat/utils'
 
@@ -491,7 +492,7 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 				}
 				inputBEEF = beef.toBinary()
 			}
-			const createResult = await ctx.wallet.createAction({
+			const createResult = await createTrackedAction(ctx.wallet, {
 				description: `Send ${amount} ${symbol}`,
 				inputBEEF,
 				inputs: selected.map((o) => ({
@@ -732,7 +733,7 @@ export const purchaseBsv21: Action<
 
 			const beefBinary = beef.toBinary()
 
-			const createResult = await ctx.wallet.createAction({
+			const createResult = await createTrackedAction(ctx.wallet, {
 				description: `Purchase ${tokenAmount} tokens for ${payoutSatoshis} sats`,
 				inputBEEF: beefBinary,
 				inputs: [
