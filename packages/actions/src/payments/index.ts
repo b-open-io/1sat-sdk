@@ -8,6 +8,7 @@ import { Inscription } from '@bopen-io/templates'
 import { type CreateActionOutput, P2PKH, Script, Utils } from '@bsv/sdk'
 import { getP2pPaymentDestination, sendBeefP2P } from '../paymail'
 import type { Action } from '../types'
+import { createTrackedAction } from '../utils/createTrackedAction'
 
 /**
  * Magic constant that tells the wallet to send all available funds minus fees.
@@ -191,7 +192,7 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 				})
 			}
 
-			const result = await ctx.wallet.createAction({
+			const result = await createTrackedAction(ctx.wallet, {
 				description: `Send ${requests.length} payment(s)`,
 				outputs,
 				options: { signAndProcess: true, acceptDelayedBroadcast: false },
@@ -268,7 +269,7 @@ export const sendAllBsv: Action<SendAllBsvInput, SendBsvResponse> = {
 				return { error: 'sendAllBsv does not support paymail — use sendBsv with a fixed amount' }
 			}
 
-			const result = await ctx.wallet.createAction({
+			const result = await createTrackedAction(ctx.wallet, {
 				description: 'Send all BSV',
 				outputs: [
 					{

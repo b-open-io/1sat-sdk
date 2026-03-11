@@ -314,7 +314,7 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 				inputBEEF = beef.toBinary()
 			}
 
-			const createResult = await ctx.wallet.createAction({
+			const createResult = await createTrackedAction(ctx.wallet, {
 				description: `Unlock ${maturedLocks.length} lock(s)`,
 				inputBEEF,
 				inputs: maturedLocks.map((l) => ({

@@ -11,6 +11,7 @@ import { ONESAT_PROTOCOL, OPNS_BASKET } from '../constants'
 import type { Action } from '../types'
 import { completeSignedAction } from '../utils/completeSignedAction'
 import { createTrackedAction } from '../utils/createTrackedAction'
+import { resolveBeef } from '../utils/resolveBeef'
 import { signP2PKHInput } from '../utils/signP2PKH'
 
 // ============================================================================
@@ -20,15 +21,15 @@ import { signP2PKHInput } from '../utils/signP2PKH'
 export interface OpnsRegisterRequest {
 	/** The OpNS ordinal output to register (from listOutputs) */
 	ordinal: WalletOutput
-	/** BEEF data from listOutputs (include: 'entire transactions') */
-	inputBEEF: number[]
+	/** BEEF — resolved automatically via ID tag if omitted */
+	inputBEEF?: number[]
 }
 
 export interface OpnsDeregisterRequest {
 	/** The OpNS ordinal output to deregister (from listOutputs) */
 	ordinal: WalletOutput
-	/** BEEF data from listOutputs (include: 'entire transactions') */
-	inputBEEF: number[]
+	/** BEEF — resolved automatically via ID tag if omitted */
+	inputBEEF?: number[]
 }
 
 export interface OpnsOperationResponse {
@@ -121,7 +122,7 @@ export const opnsRegister: Action<
 						"BEEF from listOutputs with include: 'entire transactions'",
 				},
 			},
-			required: ['ordinal', 'inputBEEF'],
+			required: ['ordinal'],
 		},
 	},
 	async execute(ctx, input) {
@@ -130,7 +131,8 @@ export const opnsRegister: Action<
 				return { error: 'services-required' }
 			}
 
-			const { ordinal, inputBEEF } = input
+			const { ordinal } = input
+			const inputBEEF = input.inputBEEF ?? await resolveBeef(ctx.wallet, OPNS_BASKET, ordinal)
 
 			// Get wallet's identity public key
 			const { publicKey: identityPubKey } = await ctx.wallet.getPublicKey({
@@ -238,12 +240,13 @@ export const opnsDeregister: Action<
 						"BEEF from listOutputs with include: 'entire transactions'",
 				},
 			},
-			required: ['ordinal', 'inputBEEF'],
+			required: ['ordinal'],
 		},
 	},
 	async execute(ctx, input) {
 		try {
-			const { ordinal, inputBEEF } = input
+			const { ordinal } = input
+			const inputBEEF = input.inputBEEF ?? await resolveBeef(ctx.wallet, OPNS_BASKET, ordinal)
 
 			// Transfer to self with empty idKey — explicitly clears identity binding
 			const params = await buildTransferOrdinals(ctx, {

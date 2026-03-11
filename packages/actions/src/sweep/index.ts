@@ -210,7 +210,7 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 			// If no amount specified, no outputs - wallet creates change for everything
 
 			// Step 1: Create action to get the signable transaction
-			const createResult = await ctx.wallet.createAction({
+			const createResult = await createTrackedAction(ctx.wallet, {
 				description: amount
 					? `Sweep ${amount} sats`
 					: `Sweep ${inputTotal} sats`,
@@ -913,7 +913,7 @@ export async function prepareSweepBsv(
 	// For prepareSweepBsv, always sweep all -- wallet creates change.
 
 	// Step 1: Create action to get the signable transaction
-	const createResult = await ctx.wallet.createAction({
+	const createResult = await createTrackedAction(ctx.wallet, {
 		description: amount
 			? `Sweep ${amount} sats`
 			: `Sweep ${inputTotal} sats`,

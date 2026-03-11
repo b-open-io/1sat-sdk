@@ -53,6 +53,13 @@ Primary domain: 1Sat + BSV protocols (ordinals, BSV21 tokens, MAP, Sigma, OrdLoc
 - Keep runtime-specific entrypoints separate (`browser` vs `node`) where applicable.
 - Prefer explicit named exports from package entrypoints.
 
+## Action Conventions (packages/actions)
+- **All actions** must use `createTrackedAction` instead of raw `wallet.createAction`. This adds ID tags to basketed outputs for targeted lookups.
+- **Actions spending wallet-owned inputs** must make `inputBEEF` optional with `resolveBeef` fallback. The helper looks up BEEF via the output's ID tag.
+- **Actions spending external inputs** (e.g. purchasing a listing from another user) require `inputBEEF` — the caller's wallet has no BEEF for outputs it doesn't own.
+- **All two-phase actions** (signAndProcess: false) must use `completeSignedAction` for signing. It handles BEEF merge, script verification, signAction, and abort on failure.
+- **Template methods** (`OrdLock.cancelWithWallet`, `Lock.unlockWithWallet`) must be used for contract unlocking instead of manual signature construction. They handle sighash byte appending correctly.
+
 ## Working Rules for Agents
 - Edit the smallest set of files required.
 - Avoid cross-package deep imports; import through package entrypoints.
