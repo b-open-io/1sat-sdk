@@ -4,6 +4,7 @@ import {
 	Transaction,
 	Utils,
 	type CreateActionResult,
+	type SignActionOptions,
 	type WalletInterface,
 } from '@bsv/sdk'
 
@@ -36,7 +37,7 @@ export async function completeSignedAction(
 	createResult: CreateActionResult,
 	inputBEEF: number[],
 	sign: SigningCallback,
-	options?: { acceptDelayedBroadcast?: boolean; sendWith?: string[] },
+	options?: SignActionOptions,
 ): Promise<CompleteSignedActionResult> {
 	if (!createResult.signableTransaction) {
 		return { error: 'no-signable-transaction' }
@@ -73,10 +74,7 @@ export async function completeSignedAction(
 		const signResult = await wallet.signAction({
 			reference,
 			spends,
-			options: {
-				acceptDelayedBroadcast: options?.acceptDelayedBroadcast ?? false,
-				...(options?.sendWith && { sendWith: options.sendWith }),
-			},
+			options: { acceptDelayedBroadcast: false, ...options },
 		})
 
 		if ('error' in signResult) {
