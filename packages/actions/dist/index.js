@@ -12,6 +12,8 @@ export { ActionRegistry, actionRegistry } from './registry';
 export * from './constants';
 // Export shared utilities
 export { signP2PKHInput } from './utils/signP2PKH';
+export { completeSignedAction } from './utils/completeSignedAction';
+export { createTrackedAction, randomActionId } from './utils/createTrackedAction';
 // Export module actions and types
 export * from './addresses';
 export * from './payments';
