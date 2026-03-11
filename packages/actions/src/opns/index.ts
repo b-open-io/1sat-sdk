@@ -5,14 +5,11 @@
  * Registers/deregisters identity public keys on OpNS tokens via MAP metadata.
  */
 
-import {
-	Transaction,
-	Utils,
-	type WalletOutput,
-} from '@bsv/sdk'
+import type { WalletOutput } from '@bsv/sdk'
 import { buildTransferOrdinals } from '../ordinals'
 import { ONESAT_PROTOCOL, OPNS_BASKET } from '../constants'
-import type { Action, OneSatContext } from '../types'
+import type { Action } from '../types'
+import { completeSignedAction } from '../utils/completeSignedAction'
 import { signP2PKHInput } from '../utils/signP2PKH'
 
 // ============================================================================
@@ -111,45 +108,39 @@ export const opnsRegister: Action<
 				options: { signAndProcess: false, randomizeOutputs: false },
 			})
 
-			if (!createResult.signableTransaction) {
-				return { error: 'no-signable-transaction' }
+			if ('error' in createResult && createResult.error) {
+				return { error: String(createResult.error) }
 			}
 
 			if (!ordinal.customInstructions) {
 				return { error: 'missing-custom-instructions' }
 			}
 
-			const tx = Transaction.fromBEEF(createResult.signableTransaction.tx)
 			const { protocolID, keyID } = JSON.parse(ordinal.customInstructions)
 
-			const unlocking = await signP2PKHInput(ctx, tx, 0, protocolID, keyID)
-			if (typeof unlocking !== 'string') return unlocking
-
-			const signResult = await ctx.wallet.signAction({
-				reference: createResult.signableTransaction.reference,
-				spends: { 0: { unlockingScript: unlocking } },
-				options: { acceptDelayedBroadcast: false },
-			})
-
-			if ('error' in signResult) {
-				return { error: String(signResult.error) }
-			}
+			const result = await completeSignedAction(
+				ctx.wallet,
+				createResult,
+				inputBEEF,
+				async (tx) => {
+					const unlocking = await signP2PKHInput(ctx, tx, 0, protocolID, keyID)
+					if (typeof unlocking !== 'string') throw new Error(unlocking.error)
+					return { 0: { unlockingScript: unlocking } }
+				},
+			)
 
 			if (ctx.debug && ctx.log) {
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'opnsRegister',
 					input: { outpoint: ordinal.outpoint },
-					txid: signResult.txid,
-					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					txid: result.txid,
+					rawtx: result.rawtx,
 					outputs: [{ index: 0, protocolID: ONESAT_PROTOCOL, keyID: ordinal.outpoint, basket: OPNS_BASKET, satoshis: 1 }],
 				})
 			}
 
-			return {
-				txid: signResult.txid,
-				rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
-			}
+			return result
 		} catch (error) {
 			console.error('[opnsRegister]', error)
 			if (ctx.debug && ctx.log) {
@@ -225,45 +216,39 @@ export const opnsDeregister: Action<
 				options: { signAndProcess: false, randomizeOutputs: false },
 			})
 
-			if (!createResult.signableTransaction) {
-				return { error: 'no-signable-transaction' }
+			if ('error' in createResult && createResult.error) {
+				return { error: String(createResult.error) }
 			}
 
 			if (!ordinal.customInstructions) {
 				return { error: 'missing-custom-instructions' }
 			}
 
-			const tx = Transaction.fromBEEF(createResult.signableTransaction.tx)
 			const { protocolID, keyID } = JSON.parse(ordinal.customInstructions)
 
-			const unlocking = await signP2PKHInput(ctx, tx, 0, protocolID, keyID)
-			if (typeof unlocking !== 'string') return unlocking
-
-			const signResult = await ctx.wallet.signAction({
-				reference: createResult.signableTransaction.reference,
-				spends: { 0: { unlockingScript: unlocking } },
-				options: { acceptDelayedBroadcast: false },
-			})
-
-			if ('error' in signResult) {
-				return { error: String(signResult.error) }
-			}
+			const result = await completeSignedAction(
+				ctx.wallet,
+				createResult,
+				inputBEEF,
+				async (tx) => {
+					const unlocking = await signP2PKHInput(ctx, tx, 0, protocolID, keyID)
+					if (typeof unlocking !== 'string') throw new Error(unlocking.error)
+					return { 0: { unlockingScript: unlocking } }
+				},
+			)
 
 			if (ctx.debug && ctx.log) {
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'opnsDeregister',
 					input: { outpoint: ordinal.outpoint },
-					txid: signResult.txid,
-					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					txid: result.txid,
+					rawtx: result.rawtx,
 					outputs: [{ index: 0, protocolID: ONESAT_PROTOCOL, keyID: ordinal.outpoint, basket: OPNS_BASKET, satoshis: 1 }],
 				})
 			}
 
-			return {
-				txid: signResult.txid,
-				rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
-			}
+			return result
 		} catch (error) {
 			console.error('[opnsDeregister]', error)
 			if (ctx.debug && ctx.log) {

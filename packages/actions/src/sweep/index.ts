@@ -20,6 +20,7 @@ import {
 	ONESAT_PROTOCOL,
 } from '../constants'
 import type { Action, ActionLogEntry, OneSatContext } from '../types'
+import { completeSignedAction } from '../utils/completeSignedAction'
 import { resolveOrdinalTags } from '../ordinals'
 import type { OrdfsMetadata } from '@1sat/types'
 import { parseOutpoint, formatOutpoint } from '@1sat/utils'
@@ -222,17 +223,6 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 				return { error: String(createResult.error) }
 			}
 
-			if (!createResult.signableTransaction) {
-				return { error: 'no-signable-transaction' }
-			}
-
-			// Step 2: Sign each input with our external key
-			const tx = Transaction.fromBEEF(createResult.signableTransaction.tx)
-
-			console.log(
-				`[sweep] Transaction has ${tx.inputs.length} inputs, ${tx.outputs.length} outputs`,
-			)
-
 			// Build a set of outpoints we control (using SDK format with ".")
 			const ourOutpoints = new Set(
 				inputs.map((input) => {
@@ -241,69 +231,56 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 				}),
 			)
 
-			// Find and set up P2PKH unlocker on each input we control
-			for (let i = 0; i < tx.inputs.length; i++) {
-				const txInput = tx.inputs[i]
-				const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
-				const hasSourceTx = !!txInput.sourceTransaction
-				const sourceSatoshis =
-					txInput.sourceTransaction?.outputs[txInput.sourceOutputIndex]
-						?.satoshis
+			const result = await completeSignedAction(
+				ctx.wallet,
+				createResult,
+				beefData as number[],
+				async (tx) => {
+					// Set up P2PKH unlocker on each input we control
+					for (let i = 0; i < tx.inputs.length; i++) {
+						const txInput = tx.inputs[i]
+						const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
 
-				console.log(
-					`[sweep] Input ${i}: ${inputOutpoint}, hasSourceTx=${hasSourceTx}, satoshis=${sourceSatoshis}, isOurs=${ourOutpoints.has(inputOutpoint)}`,
-				)
-
-				if (ourOutpoints.has(inputOutpoint)) {
-					const p2pkh = new P2PKH()
-					txInput.unlockingScriptTemplate = p2pkh.unlock(
-						privateKey,
-						'all', // SIGHASH_ALL - commit to outputs (we know them now)
-						true, // anyoneCanPay - only commit to this input
-					)
-				}
-			}
-
-			// Sign all inputs
-			await tx.sign()
-
-			// Extract unlocking scripts for signAction (only for our inputs)
-			const spends: Record<number, { unlockingScript: string }> = {}
-			for (let i = 0; i < tx.inputs.length; i++) {
-				const txInput = tx.inputs[i]
-				const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
-
-				if (ourOutpoints.has(inputOutpoint)) {
-					spends[i] = {
-						unlockingScript: txInput.unlockingScript?.toHex() ?? '',
+						if (ourOutpoints.has(inputOutpoint)) {
+							const p2pkh = new P2PKH()
+							txInput.unlockingScriptTemplate = p2pkh.unlock(
+								privateKey,
+								'all',
+								true, // anyoneCanPay
+							)
+						}
 					}
-				}
-			}
 
-			// Step 3: Complete the action with our signatures
-			const signResult = await ctx.wallet.signAction({
-				reference: createResult.signableTransaction.reference,
-				spends,
-				options: { acceptDelayedBroadcast: false },
-			})
+					await tx.sign()
 
-			if ('error' in signResult) {
-				return { error: String(signResult.error) }
-			}
+					const spends: Record<number, { unlockingScript: string }> = {}
+					for (let i = 0; i < tx.inputs.length; i++) {
+						const txInput = tx.inputs[i]
+						const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
+
+						if (ourOutpoints.has(inputOutpoint)) {
+							spends[i] = {
+								unlockingScript: txInput.unlockingScript?.toHex() ?? '',
+							}
+						}
+					}
+					return spends
+				},
+			)
 
 			if (ctx.debug && ctx.log) {
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'sweepBsv',
 					input: { inputCount: inputs.length, amount },
-					txid: signResult.txid,
-					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					txid: result.txid,
+					rawtx: result.rawtx,
 				})
 			}
 
 			return {
-				txid: signResult.txid,
-				beef: signResult.tx ? Array.from(signResult.tx) : undefined,
+				txid: result.txid,
+				beef: result.rawtx ? Utils.toArray(result.rawtx, 'hex') : undefined,
 			}
 		} catch (error) {
 			console.error('[sweepBsv]', error)
@@ -501,13 +478,6 @@ export const sweepOrdinals: Action<
 				return { error: String(createResult.error) }
 			}
 
-			if (!createResult.signableTransaction) {
-				return { error: 'no-signable-transaction' }
-			}
-
-			// Sign each input with our external key
-			const tx = Transaction.fromBEEF(createResult.signableTransaction.tx)
-
 			// Build a set of outpoints we control
 			const ourOutpoints = new Set(
 				inputs.map((input) => {
@@ -516,46 +486,41 @@ export const sweepOrdinals: Action<
 				}),
 			)
 
-			// Set up P2PKH unlocker on each input we control
-			for (let i = 0; i < tx.inputs.length; i++) {
-				const txInput = tx.inputs[i]
-				const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
+			const result = await completeSignedAction(
+				ctx.wallet,
+				createResult,
+				beefData as number[],
+				async (tx) => {
+					for (let i = 0; i < tx.inputs.length; i++) {
+						const txInput = tx.inputs[i]
+						const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
 
-				if (ourOutpoints.has(inputOutpoint)) {
-					const p2pkh = new P2PKH()
-					txInput.unlockingScriptTemplate = p2pkh.unlock(
-						privateKey,
-						'all',
-						true, // anyoneCanPay
-					)
-				}
-			}
-
-			await tx.sign()
-
-			// Extract unlocking scripts for signAction
-			const spends: Record<number, { unlockingScript: string }> = {}
-			for (let i = 0; i < tx.inputs.length; i++) {
-				const txInput = tx.inputs[i]
-				const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
-
-				if (ourOutpoints.has(inputOutpoint)) {
-					spends[i] = {
-						unlockingScript: txInput.unlockingScript?.toHex() ?? '',
+						if (ourOutpoints.has(inputOutpoint)) {
+							const p2pkh = new P2PKH()
+							txInput.unlockingScriptTemplate = p2pkh.unlock(
+								privateKey,
+								'all',
+								true, // anyoneCanPay
+							)
+						}
 					}
-				}
-			}
 
-			// Complete the action with our signatures
-			const signResult = await ctx.wallet.signAction({
-				reference: createResult.signableTransaction.reference,
-				spends,
-				options: { acceptDelayedBroadcast: false },
-			})
+					await tx.sign()
 
-			if ('error' in signResult) {
-				return { error: String(signResult.error) }
-			}
+					const spends: Record<number, { unlockingScript: string }> = {}
+					for (let i = 0; i < tx.inputs.length; i++) {
+						const txInput = tx.inputs[i]
+						const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
+
+						if (ourOutpoints.has(inputOutpoint)) {
+							spends[i] = {
+								unlockingScript: txInput.unlockingScript?.toHex() ?? '',
+							}
+						}
+					}
+					return spends
+				},
+			)
 
 			if (ctx.debug && ctx.log) {
 				const logOutputs: ActionLogEntry['outputs'] = inputs.map((inp, i) => ({
@@ -568,15 +533,15 @@ export const sweepOrdinals: Action<
 					timestamp: new Date().toISOString(),
 					action: 'sweepOrdinals',
 					input: { inputCount: inputs.length },
-					txid: signResult.txid,
-					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					txid: result.txid,
+					rawtx: result.rawtx,
 					outputs: logOutputs,
 				})
 			}
 
 			return {
-				txid: signResult.txid,
-				beef: signResult.tx ? Array.from(signResult.tx) : undefined,
+				txid: result.txid,
+				beef: result.rawtx ? Utils.toArray(result.rawtx, 'hex') : undefined,
 			}
 		} catch (error) {
 			console.error('[sweepOrdinals]', error)
@@ -803,13 +768,6 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 				return { error: String(createResult.error) }
 			}
 
-			if (!createResult.signableTransaction) {
-				return { error: 'no-signable-transaction' }
-			}
-
-			// Sign each input with our external key
-			const tx = Transaction.fromBEEF(createResult.signableTransaction.tx)
-
 			// Build a set of outpoints we control
 			const ourOutpoints = new Set(
 				inputs.map((input) => {
@@ -818,56 +776,50 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 				}),
 			)
 
-			// Set up P2PKH unlocker on each input we control
-			for (let i = 0; i < tx.inputs.length; i++) {
-				const txInput = tx.inputs[i]
-				const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
+			const result = await completeSignedAction(
+				ctx.wallet,
+				createResult,
+				beefData as number[],
+				async (tx) => {
+					for (let i = 0; i < tx.inputs.length; i++) {
+						const txInput = tx.inputs[i]
+						const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
 
-				if (ourOutpoints.has(inputOutpoint)) {
-					txInput.unlockingScriptTemplate = p2pkh.unlock(
-						privateKey,
-						'all',
-						true, // anyoneCanPay
-					)
-				}
-			}
-
-			await tx.sign()
-
-			// Extract unlocking scripts for signAction
-			const spends: Record<number, { unlockingScript: string }> = {}
-			for (let i = 0; i < tx.inputs.length; i++) {
-				const txInput = tx.inputs[i]
-				const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
-
-				if (ourOutpoints.has(inputOutpoint)) {
-					spends[i] = {
-						unlockingScript: txInput.unlockingScript?.toHex() ?? '',
+						if (ourOutpoints.has(inputOutpoint)) {
+							txInput.unlockingScriptTemplate = p2pkh.unlock(
+								privateKey,
+								'all',
+								true, // anyoneCanPay
+							)
+						}
 					}
-				}
-			}
 
-			// Complete the action with our signatures
-			const signResult = await ctx.wallet.signAction({
-				reference: createResult.signableTransaction.reference,
-				spends,
-				options: { acceptDelayedBroadcast: false },
-			})
+					await tx.sign()
 
-			if ('error' in signResult) {
-				return { error: String(signResult.error) }
-			}
+					const spends: Record<number, { unlockingScript: string }> = {}
+					for (let i = 0; i < tx.inputs.length; i++) {
+						const txInput = tx.inputs[i]
+						const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
+
+						if (ourOutpoints.has(inputOutpoint)) {
+							spends[i] = {
+								unlockingScript: txInput.unlockingScript?.toHex() ?? '',
+							}
+						}
+					}
+					return spends
+				},
+			)
 
 			// Submit to overlay service for indexing
-			if (signResult.tx) {
+			if (result.rawtx) {
 				try {
 					const overlayResult = await ctx.services.overlay.submitBsv21(
-						signResult.tx,
+						Utils.toArray(result.rawtx, 'hex'),
 						tokenId,
 					)
 					console.log('[sweepBsv21] Overlay submission result:', overlayResult)
 				} catch (overlayError) {
-					// Log but don't fail the sweep - tx is already broadcast
 					console.warn('[sweepBsv21] Overlay submission failed:', overlayError)
 				}
 			}
@@ -877,15 +829,15 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 					timestamp: new Date().toISOString(),
 					action: 'sweepBsv21',
 					input: { tokenId, inputCount: inputs.length, totalAmount: totalAmount.toString() },
-					txid: signResult.txid,
-					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					txid: result.txid,
+					rawtx: result.rawtx,
 					outputs: [{ index: 0, protocolID: BSV21_PROTOCOL, keyID, basket: BSV21_BASKET, satoshis: 1 }],
 				})
 			}
 
 			return {
-				txid: signResult.txid,
-				beef: signResult.tx ? Array.from(signResult.tx) : undefined,
+				txid: result.txid,
+				beef: result.rawtx ? Utils.toArray(result.rawtx, 'hex') : undefined,
 			}
 		} catch (error) {
 			console.error('[sweepBsv21]', error)

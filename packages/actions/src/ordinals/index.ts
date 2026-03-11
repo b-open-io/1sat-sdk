@@ -18,7 +18,7 @@ import {
 	P2PKH,
 	PublicKey,
 	Script,
-	Transaction,
+	type Transaction,
 	TransactionSignature,
 	UnlockingScript,
 	Utils,
@@ -32,6 +32,7 @@ import {
 	ORD_LOCK_SUFFIX,
 } from '../constants'
 import type { Action, ActionLogEntry, OneSatContext } from '../types'
+import { completeSignedAction } from '../utils/completeSignedAction'
 import { signP2PKHInput } from '../utils/signP2PKH'
 import { parseOutpoint } from '@1sat/utils'
 
@@ -625,42 +626,29 @@ export const transferOrdinals: Action<
 				options: { signAndProcess: false, randomizeOutputs: false },
 			})
 
-			if (!createResult.signableTransaction) {
-				return { error: 'no-signable-transaction' }
+			if ('error' in createResult && createResult.error) {
+				return { error: String(createResult.error) }
 			}
 
-			const tx = Transaction.fromBEEF(createResult.signableTransaction.tx)
-			const spends: Record<number, { unlockingScript: string }> = {}
-
-			for (let i = 0; i < input.transfers.length; i++) {
-				const { ordinal } = input.transfers[i]
-				console.log(
-					`[transferOrdinals] Input ${i}: outpoint=${ordinal.outpoint}, customInstructions=${ordinal.customInstructions}`,
-				)
-				if (!ordinal.customInstructions) {
-					return {
-						error: `missing-custom-instructions-for-${ordinal.outpoint}`,
+			const result = await completeSignedAction(
+				ctx.wallet,
+				createResult,
+				input.inputBEEF,
+				async (tx) => {
+					const spends: Record<number, { unlockingScript: string }> = {}
+					for (let i = 0; i < input.transfers.length; i++) {
+						const { ordinal } = input.transfers[i]
+						if (!ordinal.customInstructions) {
+							throw new Error(`missing-custom-instructions-for-${ordinal.outpoint}`)
+						}
+						const { protocolID, keyID } = JSON.parse(ordinal.customInstructions)
+						const unlocking = await signP2PKHInput(ctx, tx, i, protocolID, keyID)
+						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
+						spends[i] = { unlockingScript: unlocking }
 					}
-				}
-				const { protocolID, keyID } = JSON.parse(ordinal.customInstructions)
-				console.log(
-					`[transferOrdinals] Input ${i}: protocolID=${JSON.stringify(protocolID)}, keyID=${keyID}`,
-				)
-
-				const unlocking = await signP2PKHInput(ctx, tx, i, protocolID, keyID)
-				if (typeof unlocking !== 'string') return unlocking
-				spends[i] = { unlockingScript: unlocking }
-			}
-
-			const signResult = await ctx.wallet.signAction({
-				reference: createResult.signableTransaction.reference,
-				spends,
-				options: { acceptDelayedBroadcast: false },
-			})
-
-			if ('error' in signResult) {
-				return { error: String(signResult.error) }
-			}
+					return spends
+				},
+			)
 
 			if (ctx.debug && ctx.log) {
 				const logOutputs: ActionLogEntry['outputs'] = input.transfers.map((t, i) => ({
@@ -674,16 +662,13 @@ export const transferOrdinals: Action<
 					timestamp: new Date().toISOString(),
 					action: 'transferOrdinals',
 					input: { transfers: input.transfers.map(t => ({ outpoint: t.ordinal.outpoint, counterparty: t.counterparty, address: t.address })) },
-					txid: signResult.txid,
-					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					txid: result.txid,
+					rawtx: result.rawtx,
 					outputs: logOutputs,
 				})
 			}
 
-			return {
-				txid: signResult.txid,
-				rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
-			}
+			return result
 		} catch (error) {
 			console.error('[transferOrdinals]', error)
 			if (ctx.debug && ctx.log) {
@@ -743,8 +728,8 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 					options: { signAndProcess: false, randomizeOutputs: false },
 				})
 
-				if (!createResult.signableTransaction) {
-					return { error: 'no-signable-transaction' }
+				if ('error' in createResult && createResult.error) {
+					return { error: String(createResult.error) }
 				}
 
 				if (!input.ordinal.customInstructions) {
@@ -754,35 +739,29 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 					input.ordinal.customInstructions,
 				)
 
-				const tx = Transaction.fromBEEF(createResult.signableTransaction.tx)
-				const unlocking = await signP2PKHInput(ctx, tx, 0, protocolID, keyID)
-				if (typeof unlocking !== 'string') return unlocking
-
-				const signResult = await ctx.wallet.signAction({
-					reference: createResult.signableTransaction.reference,
-					spends: { 0: { unlockingScript: unlocking } },
-					options: { acceptDelayedBroadcast: false },
-				})
-
-				if ('error' in signResult) {
-					return { error: String(signResult.error) }
-				}
+				const result = await completeSignedAction(
+					ctx.wallet,
+					createResult,
+					input.inputBEEF,
+					async (tx) => {
+						const unlocking = await signP2PKHInput(ctx, tx, 0, protocolID, keyID)
+						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
+						return { 0: { unlockingScript: unlocking } }
+					},
+				)
 
 				if (ctx.debug && ctx.log) {
 					ctx.log({
 						timestamp: new Date().toISOString(),
 						action: 'listOrdinal',
 						input: { outpoint: input.ordinal.outpoint, price: input.price },
-						txid: signResult.txid,
-						rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+						txid: result.txid,
+						rawtx: result.rawtx,
 						outputs: [{ index: 0, protocolID: ONESAT_PROTOCOL, keyID: input.ordinal.outpoint, basket: ORDINALS_BASKET, satoshis: 1 }],
 					})
 				}
 
-				return {
-					txid: signResult.txid,
-					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
-				}
+				return result
 			} catch (error) {
 				console.error('[listOrdinal]', error)
 				if (ctx.debug && ctx.log) {
@@ -883,89 +862,78 @@ export const cancelListing: Action<
 				return { error: String(createResult.error) }
 			}
 
-			if (!createResult.signableTransaction) {
-				return { error: 'no-signable-transaction' }
-			}
+			const result = await completeSignedAction(
+				ctx.wallet,
+				createResult,
+				inputBEEF,
+				async (tx) => {
+					const txInput = tx.inputs[0]
+					const lockScript =
+						txInput.sourceTransaction?.outputs[txInput.sourceOutputIndex]
+							?.lockingScript
+					if (!lockScript) {
+						throw new Error('missing-locking-script')
+					}
 
-			const tx = Transaction.fromBEEF(createResult.signableTransaction.tx)
-			const txInput = tx.inputs[0]
-			const lockingScript =
-				txInput.sourceTransaction?.outputs[txInput.sourceOutputIndex]
-					?.lockingScript
-			if (!lockingScript) {
-				return { error: 'missing-locking-script' }
-			}
+					const sourceTXID =
+						txInput.sourceTXID ?? txInput.sourceTransaction?.id('hex')
+					if (!sourceTXID) {
+						throw new Error('missing-source-txid')
+					}
 
-			const sourceTXID =
-				txInput.sourceTXID ?? txInput.sourceTransaction?.id('hex')
-			if (!sourceTXID) {
-				return { error: 'missing-source-txid' }
-			}
+					const preimage = TransactionSignature.format({
+						sourceTXID,
+						sourceOutputIndex: txInput.sourceOutputIndex,
+						sourceSatoshis: listing.satoshis,
+						transactionVersion: tx.version,
+						otherInputs: [],
+						inputIndex: 0,
+						outputs: tx.outputs,
+						inputSequence: txInput.sequence ?? 0xffffffff,
+						subscript: lockScript,
+						lockTime: tx.lockTime,
+						scope:
+							TransactionSignature.SIGHASH_ALL |
+							TransactionSignature.SIGHASH_ANYONECANPAY |
+							TransactionSignature.SIGHASH_FORKID,
+					})
 
-			const preimage = TransactionSignature.format({
-				sourceTXID,
-				sourceOutputIndex: txInput.sourceOutputIndex,
-				sourceSatoshis: listing.satoshis,
-				transactionVersion: tx.version,
-				otherInputs: [],
-				inputIndex: 0,
-				outputs: tx.outputs,
-				inputSequence: txInput.sequence ?? 0xffffffff,
-				subscript: lockingScript,
-				lockTime: tx.lockTime,
-				scope:
-					TransactionSignature.SIGHASH_ALL |
-					TransactionSignature.SIGHASH_ANYONECANPAY |
-					TransactionSignature.SIGHASH_FORKID,
-			})
+					const sighash = Hash.sha256(Hash.sha256(preimage))
 
-			const sighash = Hash.sha256(Hash.sha256(preimage))
+					const { signature } = await ctx.wallet.createSignature({
+						protocolID,
+						keyID,
+						counterparty: 'self',
+						hashToDirectlySign: Array.from(sighash),
+					})
 
-			const { signature } = await ctx.wallet.createSignature({
-				protocolID,
-				keyID,
-				counterparty: 'self',
-				hashToDirectlySign: Array.from(sighash),
-			})
+					const { publicKey } = await ctx.wallet.getPublicKey({
+						protocolID,
+						keyID,
+						forSelf: true,
+					})
 
-			const { publicKey } = await ctx.wallet.getPublicKey({
-				protocolID,
-				keyID,
-				forSelf: true,
-			})
+					const unlockingScript = new UnlockingScript()
+						.writeBin(signature)
+						.writeBin(Utils.toArray(publicKey, 'hex'))
+						.writeOpCode(OP.OP_1)
 
-			const unlockingScript = new UnlockingScript()
-				.writeBin(signature)
-				.writeBin(Utils.toArray(publicKey, 'hex'))
-				.writeOpCode(OP.OP_1)
-
-			const signResult = await ctx.wallet.signAction({
-				reference: createResult.signableTransaction.reference,
-				spends: {
-					0: { unlockingScript: unlockingScript.toHex() },
+					return { 0: { unlockingScript: unlockingScript.toHex() } }
 				},
-				options: { acceptDelayedBroadcast: false },
-			})
-
-			if ('error' in signResult) {
-				return { error: String(signResult.error) }
-			}
+			)
 
 			if (ctx.debug && ctx.log) {
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'cancelListing',
 					input: { outpoint, keyID },
-					txid: signResult.txid,
-					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					txid: result.txid,
+					rawtx: result.rawtx,
 					outputs: [{ index: 0, protocolID, keyID, customInstructions: listing.customInstructions, satoshis: 1 }],
 				})
 			}
 
-			return {
-				txid: signResult.txid,
-				rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
-			}
+			return result
 		} catch (error) {
 			console.error('[cancelListing]', error)
 			if (ctx.debug && ctx.log) {
@@ -1108,9 +1076,11 @@ export const purchaseOrdinal: Action<
 				}
 			}
 
+			const beefBinary = beef.toBinary()
+
 			const createResult = await ctx.wallet.createAction({
 				description: `Purchase ordinal for ${payoutSatoshis} sats`,
-				inputBEEF: beef.toBinary(),
+				inputBEEF: beefBinary,
 				inputs: [
 					{
 						outpoint,
@@ -1126,46 +1096,33 @@ export const purchaseOrdinal: Action<
 				return { error: String(createResult.error) }
 			}
 
-			if (!createResult.signableTransaction) {
-				return { error: 'no-signable-transaction' }
-			}
-
-			const tx = Transaction.fromBEEF(createResult.signableTransaction.tx)
-
-			const unlockingScript = await buildPurchaseUnlockingScript(
-				tx,
-				0,
-				listingOutput.satoshis ?? 1,
-				listingOutput.lockingScript,
-			)
-
-			const signResult = await ctx.wallet.signAction({
-				reference: createResult.signableTransaction.reference,
-				spends: {
-					0: { unlockingScript: unlockingScript.toHex() },
+			const result = await completeSignedAction(
+				ctx.wallet,
+				createResult,
+				beefBinary as number[],
+				async (tx) => {
+					const unlockingScript = await buildPurchaseUnlockingScript(
+						tx,
+						0,
+						listingOutput.satoshis ?? 1,
+						listingOutput.lockingScript,
+					)
+					return { 0: { unlockingScript: unlockingScript.toHex() } }
 				},
-				options: { acceptDelayedBroadcast: false },
-			})
-
-			if ('error' in signResult) {
-				return { error: String(signResult.error) }
-			}
+			)
 
 			if (ctx.debug && ctx.log) {
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'purchaseOrdinal',
 					input: { outpoint },
-					txid: signResult.txid,
-					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					txid: result.txid,
+					rawtx: result.rawtx,
 					outputs: [{ index: 0, protocolID: ONESAT_PROTOCOL, keyID: outpoint, basket: basket, satoshis: 1 }],
 				})
 			}
 
-			return {
-				txid: signResult.txid,
-				rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
-			}
+			return result
 		} catch (error) {
 			console.error('[purchaseOrdinal]', error)
 			if (ctx.debug && ctx.log) {

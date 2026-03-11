@@ -6,13 +6,12 @@
 
 import { BSV21, OrdLock } from '@bopen-io/templates'
 import {
-	Beef,
 	BigNumber,
 	LockingScript,
 	OP,
 	P2PKH,
 	PublicKey,
-	Transaction,
+	type Transaction,
 	TransactionSignature,
 	UnlockingScript,
 	Utils,
@@ -20,6 +19,7 @@ import {
 } from '@bsv/sdk'
 import { BSV21_BASKET, BSV21_PROTOCOL } from '../constants'
 import type { Action, ActionLogEntry, OneSatContext } from '../types'
+import { completeSignedAction } from '../utils/completeSignedAction'
 import { signP2PKHInput } from '../utils/signP2PKH'
 import { parseOutpoint } from '@1sat/utils'
 
@@ -329,7 +329,7 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 			}
 			const { fee_address, fee_per_output } = tokenDetails.status
 
-			const result = await ctx.wallet.listOutputs({
+			const listResult = await ctx.wallet.listOutputs({
 				basket: BSV21_BASKET,
 				includeTags: true,
 				includeCustomInstructions: true,
@@ -337,7 +337,7 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 				limit: 10000,
 			})
 
-			const tokenUtxos = result.outputs.filter((o) => {
+			const tokenUtxos = listResult.outputs.filter((o) => {
 				const idTag = o.tags?.find((t) => t.startsWith('id:'))
 				if (!idTag) return false
 				return idTag.slice(3) === tokenId
@@ -478,7 +478,7 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 
 			const symbol = tokenDetails.token.sym || tokenId.slice(0, 8)
 
-			let inputBEEF = result.BEEF
+			let inputBEEF = listResult.BEEF
 			if (!inputBEEF || (inputBEEF as number[]).length === 0) {
 				if (!ctx.services) return { error: 'no-beef-available' }
 				console.warn('[sendBsv21] BEEF not returned by listOutputs, falling back to service lookup')
@@ -507,37 +507,29 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 				return { error: String(createResult.error) }
 			}
 
-			if (!createResult.signableTransaction) {
-				return { error: 'no-signable-transaction' }
-			}
-
-			const tx = Transaction.fromBEEF(createResult.signableTransaction.tx)
-			const spends: Record<number, { unlockingScript: string }> = {}
-
-			for (let i = 0; i < selected.length; i++) {
-				const utxo = selected[i]
-				if (!utxo.customInstructions) continue
-				const { protocolID, keyID } = JSON.parse(utxo.customInstructions)
-				const unlocking = await signP2PKHInput(ctx, tx, i, protocolID, keyID)
-				if (typeof unlocking !== 'string') return unlocking
-				spends[i] = { unlockingScript: unlocking }
-			}
-
-			const signResult = await ctx.wallet.signAction({
-				reference: createResult.signableTransaction.reference,
-				spends,
-				options: { acceptDelayedBroadcast: false },
-			})
-
-			if ('error' in signResult) {
-				return { error: String(signResult.error) }
-			}
+			const result = await completeSignedAction(
+				ctx.wallet,
+				createResult,
+				inputBEEF as number[],
+				async (tx) => {
+					const spends: Record<number, { unlockingScript: string }> = {}
+					for (let i = 0; i < selected.length; i++) {
+						const utxo = selected[i]
+						if (!utxo.customInstructions) continue
+						const { protocolID, keyID } = JSON.parse(utxo.customInstructions)
+						const unlocking = await signP2PKHInput(ctx, tx, i, protocolID, keyID)
+						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
+						spends[i] = { unlockingScript: unlocking }
+					}
+					return spends
+				},
+			)
 
 			// Submit to overlay service for indexing
-			if (signResult.tx && ctx.services) {
+			if (result.rawtx && ctx.services) {
 				try {
 					const overlayResult = await ctx.services.overlay.submitBsv21(
-						signResult.tx,
+						Utils.toArray(result.rawtx, 'hex'),
 						tokenId,
 					)
 					console.log('[sendBsv21] Overlay submission result:', overlayResult)
@@ -557,16 +549,13 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 					timestamp: new Date().toISOString(),
 					action: 'sendBsv21',
 					input: { tokenId, amount: amount.toString(), counterparty, address, paymail },
-					txid: signResult.txid,
-					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					txid: result.txid,
+					rawtx: result.rawtx,
 					outputs: logOutputs,
 				})
 			}
 
-			return {
-				txid: signResult.txid,
-				rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
-			}
+			return result
 		} catch (error) {
 			console.error('[sendBsv21]', error)
 			if (ctx.debug && ctx.log) {
@@ -741,9 +730,11 @@ export const purchaseBsv21: Action<
 				})
 			}
 
+			const beefBinary = beef.toBinary()
+
 			const createResult = await ctx.wallet.createAction({
 				description: `Purchase ${tokenAmount} tokens for ${payoutSatoshis} sats`,
-				inputBEEF: beef.toBinary(),
+				inputBEEF: beefBinary,
 				inputs: [
 					{
 						outpoint,
@@ -759,36 +750,26 @@ export const purchaseBsv21: Action<
 				return { error: String(createResult.error) }
 			}
 
-			if (!createResult.signableTransaction) {
-				return { error: 'no-signable-transaction' }
-			}
-
-			const tx = Transaction.fromBEEF(createResult.signableTransaction.tx)
-
-			const unlockingScript = await buildPurchaseUnlockingScript(
-				tx,
-				0,
-				listingOutput.satoshis ?? 1,
-				listingOutput.lockingScript,
+			const result = await completeSignedAction(
+				ctx.wallet,
+				createResult,
+				beefBinary as number[],
+				async (tx) => {
+					const unlockingScript = await buildPurchaseUnlockingScript(
+						tx,
+						0,
+						listingOutput.satoshis ?? 1,
+						listingOutput.lockingScript,
+					)
+					return { 0: { unlockingScript: unlockingScript.toHex() } }
+				},
 			)
 
-			const signResult = await ctx.wallet.signAction({
-				reference: createResult.signableTransaction.reference,
-				spends: {
-					0: { unlockingScript: unlockingScript.toHex() },
-				},
-				options: { acceptDelayedBroadcast: false },
-			})
-
-			if ('error' in signResult) {
-				return { error: String(signResult.error) }
-			}
-
 			// Submit to overlay service for indexing
-			if (signResult.tx && ctx.services) {
+			if (result.rawtx && ctx.services) {
 				try {
 					const overlayResult = await ctx.services.overlay.submitBsv21(
-						signResult.tx,
+						Utils.toArray(result.rawtx, 'hex'),
 						tokenId,
 					)
 					console.log(
@@ -808,16 +789,13 @@ export const purchaseBsv21: Action<
 					timestamp: new Date().toISOString(),
 					action: 'purchaseBsv21',
 					input: { tokenId, outpoint, amount: tokenAmount.toString() },
-					txid: signResult.txid,
-					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					txid: result.txid,
+					rawtx: result.rawtx,
 					outputs: [{ index: 0, protocolID: BSV21_PROTOCOL, keyID: bsv21KeyID, basket: BSV21_BASKET, satoshis: 1 }],
 				})
 			}
 
-			return {
-				txid: signResult.txid,
-				rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
-			}
+			return result
 		} catch (error) {
 			console.error('[purchaseBsv21]', error)
 			if (ctx.debug && ctx.log) {

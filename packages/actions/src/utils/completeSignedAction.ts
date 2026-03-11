@@ -36,7 +36,7 @@ export async function completeSignedAction(
 	createResult: CreateActionResult,
 	inputBEEF: number[],
 	sign: SigningCallback,
-	options?: { acceptDelayedBroadcast?: boolean },
+	options?: { acceptDelayedBroadcast?: boolean; sendWith?: string[] },
 ): Promise<CompleteSignedActionResult> {
 	if (!createResult.signableTransaction) {
 		return { error: 'no-signable-transaction' }
@@ -73,7 +73,10 @@ export async function completeSignedAction(
 		const signResult = await wallet.signAction({
 			reference,
 			spends,
-			options: { acceptDelayedBroadcast: options?.acceptDelayedBroadcast ?? false },
+			options: {
+				acceptDelayedBroadcast: options?.acceptDelayedBroadcast ?? false,
+				...(options?.sendWith && { sendWith: options.sendWith }),
+			},
 		})
 
 		if ('error' in signResult) {

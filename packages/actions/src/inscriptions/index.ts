@@ -5,7 +5,7 @@
  */
 
 import { Inscription, MAP as MAPTemplate } from '@bopen-io/templates'
-import { P2PKH, PublicKey, Script, Transaction, Utils } from '@bsv/sdk'
+import { P2PKH, PublicKey, Script, Utils } from '@bsv/sdk'
 import {
 	MAX_INSCRIPTION_BYTES,
 	ONESAT_PROTOCOL,
@@ -14,6 +14,7 @@ import {
 } from '../constants'
 import { applySigma } from '../signing/sigma'
 import type { Action, OneSatContext } from '../types'
+import { completeSignedAction } from '../utils/completeSignedAction'
 import { signP2PKHInput } from '../utils/signP2PKH'
 
 // ============================================================================
@@ -153,51 +154,43 @@ async function inscribeWithSigma(
 		},
 	})
 
-	if (!inscribeResult.signableTransaction) {
-		return { error: 'no-signable-transaction' }
+	if ('error' in inscribeResult && inscribeResult.error) {
+		return { error: String(inscribeResult.error) }
 	}
 
-	const tx = Transaction.fromBEEF(inscribeResult.signableTransaction.tx)
-
-	// Sign the anchor input (vin 0)
-	const unlocking = await signP2PKHInput(
-		ctx,
-		tx,
-		0,
-		ONESAT_PROTOCOL,
-		anchorKeyID,
-	)
-	if (typeof unlocking !== 'string') return unlocking
-
-	// Sign and send both transactions together
-	const signResult = await ctx.wallet.signAction({
-		spends: { 0: { unlockingScript: unlocking } },
-		reference: inscribeResult.signableTransaction.reference,
-		options: {
+	const result = await completeSignedAction(
+		ctx.wallet,
+		inscribeResult,
+		anchorResult.tx as number[],
+		async (tx) => {
+			const unlocking = await signP2PKHInput(
+				ctx,
+				tx,
+				0,
+				ONESAT_PROTOCOL,
+				anchorKeyID,
+			)
+			if (typeof unlocking !== 'string') throw new Error(unlocking.error)
+			return { 0: { unlockingScript: unlocking } }
+		},
+		{
 			acceptDelayedBroadcast: true,
 			sendWith: [anchorResult.txid],
 		},
-	})
-
-	if (!signResult.txid) {
-		return { error: 'sign-no-txid' }
-	}
+	)
 
 	if (ctx.debug && ctx.log) {
 		ctx.log({
 			timestamp: new Date().toISOString(),
 			action: 'inscribe',
 			input: { contentType: input.contentType, map: input.map, signWithBAP: true, anchorTxid: anchorResult.txid },
-			txid: signResult.txid,
-			rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+			txid: result.txid,
+			rawtx: result.rawtx,
 			outputs: [{ index: 0, protocolID: ONESAT_PROTOCOL, keyID, basket: ORDINALS_BASKET, satoshis: 1 }],
 		})
 	}
 
-	return {
-		txid: signResult.txid,
-		rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
-	}
+	return result
 }
 
 // ============================================================================
