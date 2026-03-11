@@ -1,6 +1,7 @@
 import {
 	Beef,
 	Script,
+	Spend,
 	Transaction,
 	Utils,
 	type CreateActionResult,
@@ -61,15 +62,38 @@ export async function completeSignedAction(
 		// Let the caller build unlocking scripts using the fully-wired tx
 		const spends = await sign(tx)
 
-		// Apply unlocking scripts and verify
+		// Apply unlocking scripts and verify only the inputs we signed.
+		// Funding inputs are unsigned at this point — the wallet signs them during signAction.
 		for (const [idx, spend] of Object.entries(spends)) {
-			tx.inputs[Number(idx)].unlockingScript = Script.fromHex(spend.unlockingScript)
-		}
+			const i = Number(idx)
+			tx.inputs[i].unlockingScript = Script.fromHex(spend.unlockingScript)
 
-		const valid = await tx.verify('scripts only')
-		if (!valid) {
-			await wallet.abortAction({ reference })
-			return { error: 'transaction-verification-failed' }
+			const input = tx.inputs[i]
+			const sourceOutput = input.sourceTransaction?.outputs[input.sourceOutputIndex]
+			if (!sourceOutput) {
+				await wallet.abortAction({ reference })
+				return { error: `missing-source-transaction-for-input-${i}` }
+			}
+
+			const unlockingScript = tx.inputs[i].unlockingScript!
+			const spendCheck = new Spend({
+				sourceTXID: input.sourceTXID ?? input.sourceTransaction?.id('hex') ?? '',
+				sourceOutputIndex: input.sourceOutputIndex,
+				lockingScript: sourceOutput.lockingScript,
+				sourceSatoshis: sourceOutput.satoshis ?? 0,
+				transactionVersion: tx.version,
+				otherInputs: tx.inputs.filter((_, j) => j !== i),
+				unlockingScript,
+				inputSequence: input.sequence ?? 0xffffffff,
+				inputIndex: i,
+				outputs: tx.outputs,
+				lockTime: tx.lockTime,
+			})
+
+			if (!spendCheck.validate()) {
+				await wallet.abortAction({ reference })
+				return { error: `script-verification-failed-for-input-${i}` }
+			}
 		}
 
 		const signResult = await wallet.signAction({
