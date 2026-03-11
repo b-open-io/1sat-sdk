@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/actions",
-	"version": "0.0.42",
+	"version": "0.0.43",
 	"description": "Action definitions for the 1Sat SDK",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -25,7 +25,7 @@
 		"@1sat/types": "^0.0.10",
 		"@1sat/utils": "^0.0.8",
 		"@1sat/wallet": "^0.0.20",
-		"@bopen-io/templates": "1.2.1"
+		"@bopen-io/templates": "1.2.2"
 	},
 	"peerDependencies": {
 		"@bsv/sdk": "^2.0.4"

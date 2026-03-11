@@ -869,62 +869,18 @@ export const cancelListing: Action<
 				return { error: String(createResult.error) }
 			}
 
+			const cancelUnlock = OrdLock.cancelWithWallet(
+				ctx.wallet,
+				protocolID,
+				keyID,
+			)
+
 			const result = await completeSignedAction(
 				ctx.wallet,
 				createResult,
 				inputBEEF,
 				async (tx) => {
-					const txInput = tx.inputs[0]
-					const lockScript =
-						txInput.sourceTransaction?.outputs[txInput.sourceOutputIndex]
-							?.lockingScript
-					if (!lockScript) {
-						throw new Error('missing-locking-script')
-					}
-
-					const sourceTXID =
-						txInput.sourceTXID ?? txInput.sourceTransaction?.id('hex')
-					if (!sourceTXID) {
-						throw new Error('missing-source-txid')
-					}
-
-					const preimage = TransactionSignature.format({
-						sourceTXID,
-						sourceOutputIndex: txInput.sourceOutputIndex,
-						sourceSatoshis: listing.satoshis,
-						transactionVersion: tx.version,
-						otherInputs: [],
-						inputIndex: 0,
-						outputs: tx.outputs,
-						inputSequence: txInput.sequence ?? 0xffffffff,
-						subscript: lockScript,
-						lockTime: tx.lockTime,
-						scope:
-							TransactionSignature.SIGHASH_ALL |
-							TransactionSignature.SIGHASH_ANYONECANPAY |
-							TransactionSignature.SIGHASH_FORKID,
-					})
-
-					const sighash = Hash.sha256(Hash.sha256(preimage))
-
-					const { signature } = await ctx.wallet.createSignature({
-						protocolID,
-						keyID,
-						counterparty: 'self',
-						hashToDirectlySign: Array.from(sighash),
-					})
-
-					const { publicKey } = await ctx.wallet.getPublicKey({
-						protocolID,
-						keyID,
-						forSelf: true,
-					})
-
-					const unlockingScript = new UnlockingScript()
-						.writeBin(signature)
-						.writeBin(Utils.toArray(publicKey, 'hex'))
-						.writeOpCode(OP.OP_1)
-
+					const unlockingScript = await cancelUnlock.sign(tx, 0)
 					return { 0: { unlockingScript: unlockingScript.toHex() } }
 				},
 			)
