@@ -7,7 +7,6 @@
 import {
 	type CreateActionOutput,
 	PublicKey,
-	Transaction,
 	Utils,
 	type WalletOutput,
 } from '@bsv/sdk'
@@ -17,6 +16,7 @@ import {
 	MIN_UNLOCK_SATS,
 } from '../constants'
 import type { Action, ActionLogEntry } from '../types'
+import { completeSignedAction } from '../utils/completeSignedAction'
 
 // ============================================================================
 // Constants
@@ -249,7 +249,7 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 			if (!ctx.services) return { error: 'services-required' }
 			const currentHeight = await ctx.services.chaintracks.currentHeight()
 
-			const result = await ctx.wallet.listOutputs({
+			const listResult = await ctx.wallet.listOutputs({
 				basket: LOCK_BASKET,
 				includeTags: true,
 				includeCustomInstructions: true,
@@ -264,7 +264,7 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 				keyID: string
 			}> = []
 
-			for (const o of result.outputs) {
+			for (const o of listResult.outputs) {
 				const untilTag = o.tags?.find((t) => t.startsWith('until:'))
 				if (!untilTag) continue
 
@@ -297,7 +297,7 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 
 			const maxUntil = Math.max(...maturedLocks.map((l) => l.until))
 
-			let inputBEEF = result.BEEF
+			let inputBEEF = listResult.BEEF
 			if (!inputBEEF || (inputBEEF as number[]).length === 0) {
 				if (!ctx.services) return { error: 'no-beef-available' }
 				console.warn('[unlockBsv] BEEF not returned by listOutputs, falling back to service lookup')
@@ -319,7 +319,7 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 				inputs: maturedLocks.map((l) => ({
 					outpoint: l.output.outpoint,
 					inputDescription: 'Locked BSV',
-					unlockingScriptLength: 1202,
+					unlockingScriptLength: 1205,
 					sequenceNumber: 0,
 				})),
 				outputs: [],
@@ -331,50 +331,34 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 				return { error: String(createResult.error) }
 			}
 
-			if (!createResult.signableTransaction) {
-				return { error: 'no-signable-transaction' }
-			}
+			const result = await completeSignedAction(
+				ctx.wallet,
+				createResult,
+				inputBEEF as number[],
+				async (tx) => {
+					const spends: Record<number, { unlockingScript: string }> = {}
+					for (let i = 0; i < maturedLocks.length; i++) {
+						const lock = maturedLocks[i]
+						const unlocker = Lock.unlockWithWallet(
+							ctx.wallet,
+							lock.protocolID,
+							lock.keyID,
+							'self',
+						)
+						const unlockingScript = await unlocker.sign(tx, i)
+						spends[i] = { unlockingScript: unlockingScript.toHex() }
+					}
+					return spends
+				},
+			)
 
-			const tx = Transaction.fromBEEF(createResult.signableTransaction.tx)
-
-			const spends: Record<number, { unlockingScript: string }> = {}
-
-			for (let i = 0; i < maturedLocks.length; i++) {
-				const lock = maturedLocks[i]
-				const input = tx.inputs[i]
-				if (!input.sourceTXID || !input.sourceTransaction) {
-					return { error: 'missing-lock-data' }
-				}
-
-				const unlocker = Lock.unlockWithWallet(
-					ctx.wallet,
-					lock.protocolID,
-					lock.keyID,
-					'self',
-					'all',
-					true,
-				)
-				const unlockingScript = await unlocker.sign(tx, i)
-				spends[i] = { unlockingScript: unlockingScript.toHex() }
-			}
-
-			const signResult = await ctx.wallet.signAction({
-				reference: createResult.signableTransaction.reference,
-				spends,
-				options: { acceptDelayedBroadcast: false },
-			})
-
-			if ('error' in signResult) {
-				return { error: String(signResult.error) }
-			}
-
-			if (ctx.debug && ctx.log) {
+			if (ctx.debug && ctx.log && result.txid) {
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'unlockBsv',
 					input: { lockCount: maturedLocks.length },
-					txid: signResult.txid,
-					rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+					txid: result.txid,
+					rawtx: result.rawtx,
 					outputs: maturedLocks.map((l, i) => ({
 						index: i,
 						protocolID: l.protocolID,
@@ -386,10 +370,7 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 				})
 			}
 
-			return {
-				txid: signResult.txid,
-				rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
-			}
+			return result
 		} catch (error) {
 			console.error('[unlockBsv]', error)
 			if (ctx.debug && ctx.log) {
