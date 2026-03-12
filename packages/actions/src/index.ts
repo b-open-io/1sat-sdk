@@ -27,6 +27,7 @@ export { signP2PKHInput } from './utils/signP2PKH'
 export { completeSignedAction, type CompleteSignedActionResult, type SigningCallback } from './utils/completeSignedAction'
 export { createTrackedAction, randomActionId } from './utils/createTrackedAction'
 export { resolveBeef, extractIdTag } from './utils/resolveBeef'
+export { internalizeBeef, type InternalizeBeefOptions, type InternalizeBeefResult, type OutputDerivation } from './utils/internalizeBeef'
 
 // Export module actions and types
 export * from './addresses'

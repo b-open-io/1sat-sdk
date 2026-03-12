@@ -7,29 +7,14 @@
  */
 
 import { type AddressDerivation, BRC29_PROTOCOL_ID } from '@1sat/types'
-import type { Indexer, ParseContext, SyncProgress, Txo } from '@1sat/types'
-import type { SyncOutput } from '@1sat/types'
+import type { SyncOutput, SyncProgress } from '@1sat/types'
+import { PublicKey, Utils } from '@bsv/sdk'
+import type { Action, OneSatContext } from '../types'
 import {
-	Beef,
-	type InternalizeActionArgs,
-	type InternalizeOutput,
-	PublicKey,
-	Transaction,
-	Utils,
-} from '@bsv/sdk'
-import type { OneSatServices } from '@1sat/client'
-import {
-	Bsv21Indexer,
-	FundIndexer,
-	InscriptionIndexer,
-	MapIndexer,
-	OpNSIndexer,
-	OriginIndexer,
-	Outpoint,
-	SigmaIndexer,
-} from '@1sat/wallet'
-import type { Action } from '../types'
-import { randomActionId } from '../utils/createTrackedAction'
+	internalizeBeef,
+	type OutputDerivation,
+} from '../utils/internalizeBeef'
+import { syncMessages } from './syncMessages'
 import type { ProcessedTxStore } from './ProcessedTxStore'
 import { ProcessedTxStoreIdb } from './ProcessedTxStoreIdb'
 import { ProcessedTxStoreSqlite } from './ProcessedTxStoreSqlite'
@@ -177,20 +162,7 @@ export const syncAddresses: Action<SyncAddressesInput, SyncAddressesResult> = {
 			const { height: currentHeight } = await ctx.wallet.getHeight({})
 			const lastScore = await store.getLastScore()
 
-			// 4. Build indexers
-			const owners = new Set(addresses)
-			const network = ctx.chain === 'main' ? 'mainnet' : 'testnet'
-			const indexers: Indexer[] = [
-				new FundIndexer(owners, network),
-				new InscriptionIndexer(owners, network),
-				new Bsv21Indexer(owners, network, services),
-				new OriginIndexer(owners, network, services),
-				new OpNSIndexer(owners, network),
-				new SigmaIndexer(owners, network),
-				new MapIndexer(owners, network),
-			]
-
-			// 5. Fetch sync stream and group outputs by txid
+			// 4. Fetch sync stream and group outputs by txid
 			const outputsByTxid = new Map<string, SyncOutput[]>()
 			let maxSafeScore = lastScore
 
@@ -215,7 +187,7 @@ export const syncAddresses: Action<SyncAddressesInput, SyncAddressesResult> = {
 				}
 			}
 
-			// 6. Process each txid
+			// 5. Process each txid
 			let processed = 0
 			let failed = 0
 
@@ -224,14 +196,7 @@ export const syncAddresses: Action<SyncAddressesInput, SyncAddressesResult> = {
 				if (await store.has(txid)) continue
 
 				try {
-					await processTxid(
-						txid,
-						outputs,
-						ctx,
-						services,
-						indexers,
-						addressMap,
-					)
+					await processTxid(txid, outputs, ctx, services, addressMap)
 					await store.add(txid)
 					processed++
 				} catch (error) {
@@ -243,7 +208,7 @@ export const syncAddresses: Action<SyncAddressesInput, SyncAddressesResult> = {
 				}
 			}
 
-			// 7. Update last score
+			// 6. Update last score
 			if (maxSafeScore > lastScore) {
 				await store.setLastScore(maxSafeScore)
 			}
@@ -256,267 +221,50 @@ export const syncAddresses: Action<SyncAddressesInput, SyncAddressesResult> = {
 }
 
 // ============================================================================
-// Transaction processing (adapted from AddressSyncProcessor)
+// Transaction processing
 // ============================================================================
 
 async function processTxid(
 	txid: string,
 	outputs: SyncOutput[],
-	ctx: { wallet: import('@bsv/sdk').WalletInterface },
-	services: OneSatServices,
-	indexers: Indexer[],
+	ctx: OneSatContext,
+	services: import('@1sat/client').OneSatServices,
 	addressMap: Map<string, AddressDerivation>,
 ): Promise<void> {
-	// Check if all outputs are spend-only (no new outputs to internalize)
-	if (outputs.every((o) => !!o.spendTxid && !isNewOutput(o))) {
+	if (outputs.every((o) => !!o.spendTxid)) {
 		return
 	}
 
-	// Load BEEF
 	const beef = await services.beef.getBeef(txid)
 	if (!beef) {
 		throw new Error(`Failed to load BEEF for ${txid}`)
 	}
 
-	const beefObj = Beef.fromBinary(Array.from(beef))
-	const btx = beefObj.findTxid(txid)
-	if (!btx?.tx) {
-		throw new Error(`Transaction ${txid} not found in BEEF`)
+	// Build address → derivation map for the indexer-based owner matching
+	const addrDerivations = new Map<string, OutputDerivation>()
+	for (const [address, d] of addressMap) {
+		addrDerivations.set(address, {
+			outputIndex: 0, // not used in address mode
+			derivationPrefix: d.derivationPrefix,
+			derivationSuffix: d.derivationSuffix,
+			senderIdentityKey: d.senderIdentityKey,
+		})
 	}
 
-	// Ensure source transactions are loaded for inputs
-	for (const input of btx.tx.inputs) {
-		if (!input.sourceTransaction && input.sourceTXID) {
-			const rawTx = await services.beef.getRawTx(input.sourceTXID)
-			input.sourceTransaction = Transaction.fromBinary(Array.from(rawTx))
-		}
-	}
-
-	// Parse transaction with indexers
-	const parseCtx = await parseTransaction(btx.tx, indexers)
-
-	// Build InternalizeOutput entries for owned outputs
-	const internalizeOutputs: InternalizeOutput[] = []
-	const ownedTxos: Txo[] = []
-	const actionId = randomActionId()
-
-	for (const txo of parseCtx.txos) {
-		if (!txo.owner) continue
-
-		const derivation = addressMap.get(txo.owner)
-		if (!derivation) continue
-
-		const internalizeOutput = buildInternalizeOutput(txo, derivation, actionId)
-		if (internalizeOutput) {
-			internalizeOutputs.push(internalizeOutput)
-			ownedTxos.push(txo)
-		}
-	}
-
-	if (internalizeOutputs.length === 0) return
-
-	const args: InternalizeActionArgs = {
-		tx: Array.from(beef),
-		outputs: internalizeOutputs,
-		description: buildDescription(ownedTxos),
-	}
-
-	await ctx.wallet.internalizeAction(args)
+	await internalizeBeef({
+		beef,
+		addressDerivations: addrDerivations,
+		wallet: ctx.wallet,
+		services,
+		chain: ctx.chain,
+	})
 }
 
-function isNewOutput(output: SyncOutput): boolean {
-	// An output with only a spendTxid and no indication of being a new output
-	// is a spend notification, not a new output to internalize
-	return !output.spendTxid
-}
-
-async function parseTransaction(
-	tx: Transaction,
-	indexers: Indexer[],
-): Promise<ParseContext> {
-	const txid = tx.id('hex')
-
-	const ctx: ParseContext = {
-		tx,
-		txid,
-		txos: [],
-		spends: [],
-		summary: {},
-		indexers,
-	}
-
-	// Parse inputs into spends
-	for (let vin = 0; vin < tx.inputs.length; vin++) {
-		const input = tx.inputs[vin]
-		if (!input.sourceTransaction) {
-			throw new Error(`Missing sourceTransaction for input ${vin}`)
-		}
-		const sourceTxid = input.sourceTransaction.id('hex')
-		const txo: Txo = {
-			output: input.sourceTransaction.outputs[input.sourceOutputIndex],
-			outpoint: new Outpoint(sourceTxid, input.sourceOutputIndex),
-			data: {},
-		}
-
-		for (const indexer of indexers) {
-			const result = await indexer.parse(txo)
-			if (result) {
-				txo.data[indexer.tag] = {
-					data: result.data,
-					tags: result.tags,
-					content: result.content,
-				}
-				if (result.owner && !txo.owner) txo.owner = result.owner
-				if (result.basket && !txo.basket) txo.basket = result.basket
-			}
-		}
-
-		ctx.spends.push(txo)
-	}
-
-	// Parse each output
-	for (let vout = 0; vout < tx.outputs.length; vout++) {
-		const output = tx.outputs[vout]
-		const txo: Txo = {
-			output,
-			outpoint: new Outpoint(txid, vout),
-			data: {},
-		}
-
-		for (const indexer of indexers) {
-			const result = await indexer.parse(txo)
-			if (result) {
-				txo.data[indexer.tag] = {
-					data: result.data,
-					tags: result.tags,
-					content: result.content,
-				}
-				if (result.owner && !txo.owner) txo.owner = result.owner
-				if (result.basket && !txo.basket) txo.basket = result.basket
-				if (result.protocol && !txo.protocol) txo.protocol = result.protocol
-			}
-		}
-
-		ctx.txos.push(txo)
-	}
-
-	// Summarize phase
-	for (const indexer of indexers) {
-		const summary = await indexer.summarize(ctx, true)
-		if (summary) {
-			ctx.summary[indexer.tag] = summary
-		}
-	}
-
-	return ctx
-}
-
-function buildInternalizeOutput(
-	txo: Txo,
-	derivation: AddressDerivation,
-	actionId: string,
-): InternalizeOutput | null {
-	const vout = txo.outpoint.vout
-	const protocol = txo.protocol || 'wallet payment'
-	const idTag = `id:${actionId}`
-
-	if (protocol === 'basket insertion') {
-		const basket = txo.basket || 'custom'
-		const tags = [...collectTags(txo), idTag]
-		const nameTag = tags.find((t) => t.startsWith('name:'))
-
-		return {
-			outputIndex: vout,
-			protocol: 'basket insertion',
-			insertionRemittance: {
-				basket,
-				tags,
-				customInstructions: JSON.stringify({
-					derivationPrefix: derivation.derivationPrefix,
-					derivationSuffix: derivation.derivationSuffix,
-					senderIdentityKey: derivation.senderIdentityKey,
-					...(nameTag && { name: nameTag.slice(5).slice(0, 64) }),
-				}),
-			},
-		}
-	}
-
-	// P2PKH ordinals/tokens: basket insertion so they don't get consumed as change
-	if (txo.basket && txo.basket !== 'fund') {
-		const tags = [...collectTags(txo), idTag]
-		const nameTag = tags.find((t) => t.startsWith('name:'))
-
-		return {
-			outputIndex: vout,
-			protocol: 'basket insertion',
-			insertionRemittance: {
-				basket: txo.basket,
-				tags,
-				customInstructions: JSON.stringify({
-					protocolID: BRC29_PROTOCOL_ID,
-					keyID: `${derivation.derivationPrefix} ${derivation.derivationSuffix}`,
-					...(nameTag && { name: nameTag.slice(5).slice(0, 64) }),
-				}),
-			},
-		}
-	}
-
-	// P2PKH funding output
-	return {
-		outputIndex: vout,
-		protocol: 'wallet payment',
-		paymentRemittance: {
-			derivationPrefix: derivation.derivationPrefix,
-			derivationSuffix: derivation.derivationSuffix,
-			senderIdentityKey: derivation.senderIdentityKey,
-		},
-	}
-}
-
-function collectTags(txo: Txo): string[] {
-	const tags: string[] = []
-	for (const indexData of Object.values(txo.data)) {
-		tags.push(...indexData.tags)
-	}
-	return tags
-}
-
-function buildDescription(ownedTxos: Txo[]): string {
-	const parts: string[] = []
-	let sats = 0
-
-	for (const txo of ownedTxos) {
-		if (txo.data.bsv21) {
-			const token = txo.data.bsv21.data as {
-				amt: bigint
-				dec: number
-				sym?: string
-			}
-			const sym = token.sym || 'tokens'
-			const amt = Number(token.amt) / 10 ** token.dec
-			parts.push(`${amt} ${sym}`)
-		} else if (txo.basket === '1sat') {
-			parts.push('ordinal')
-		} else if (txo.basket === 'opns') {
-			parts.push('OPNS name')
-		} else if (txo.basket === 'fund') {
-			sats += Number(txo.output.satoshis || 0)
-		}
-	}
-
-	if (sats > 0) {
-		parts.push(`${sats} sats`)
-	}
-
-	if (parts.length === 0) return 'Received via address sync'
-
-	const desc = `Received ${parts.join(' + ')}`
-	if (desc.length <= 50) return desc
-	return `${desc.slice(0, 47)}...`
-}
+export { syncMessages }
+export type { SyncMessagesInput, SyncMessagesResult } from './syncMessages'
 
 /** All sync actions for registry */
-export const syncActions = [syncAddresses]
+export const syncActions = [syncAddresses, syncMessages]
 
 export { type ProcessedTxStore } from './ProcessedTxStore'
 export { ProcessedTxStoreIdb } from './ProcessedTxStoreIdb'
