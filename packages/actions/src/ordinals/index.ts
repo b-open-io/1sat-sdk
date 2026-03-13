@@ -5,6 +5,7 @@
  * Returns WalletOutput[] directly from the SDK - no custom mapping needed.
  */
 
+import { parseOutpoint } from '@1sat/utils'
 import { MAP as MAPTemplate } from '@bopen-io/templates'
 import { OrdLock } from '@bopen-io/templates'
 import {
@@ -12,7 +13,6 @@ import {
 	Beef,
 	BigNumber,
 	type CreateActionArgs,
-	Hash,
 	LockingScript,
 	OP,
 	P2PKH,
@@ -36,7 +36,6 @@ import { completeSignedAction } from '../utils/completeSignedAction'
 import { createTrackedAction } from '../utils/createTrackedAction'
 import { resolveBeef } from '../utils/resolveBeef'
 import { signP2PKHInput } from '../utils/signP2PKH'
-import { parseOutpoint } from '@1sat/utils'
 
 // ============================================================================
 // Helpers
@@ -66,11 +65,9 @@ export async function resolveOrdinalTags(
 
 	if (source?.tags) {
 		for (const tag of source.tags) {
-			if (!contentType && tag.startsWith('type:'))
-				contentType = tag.slice(5)
+			if (!contentType && tag.startsWith('type:')) contentType = tag.slice(5)
 			if (!origin && tag.startsWith('origin:')) origin = tag.slice(7)
-			if (name === undefined && tag.startsWith('name:'))
-				name = tag.slice(5)
+			if (name === undefined && tag.startsWith('name:')) name = tag.slice(5)
 		}
 	}
 
@@ -93,9 +90,7 @@ export async function resolveOrdinalTags(
 					| undefined
 				name =
 					(typeof mapName === 'string' ? mapName : undefined) ??
-					(typeof subTypeData?.name === 'string'
-						? subTypeData.name
-						: undefined)
+					(typeof subTypeData?.name === 'string' ? subTypeData.name : undefined)
 			}
 		} catch {
 			// Fall through with whatever we have
@@ -128,7 +123,6 @@ export async function resolveOrdinalTags(
 
 	return { tags, basket }
 }
-
 
 // ============================================================================
 // Types
@@ -319,9 +313,13 @@ export async function buildTransferOrdinals(
 		}
 
 		const outpoint = ordinal.outpoint
-		const sourceType = ordinal.tags?.find(t => t.startsWith('type:'))?.slice(5)
+		const sourceType = ordinal.tags
+			?.find((t) => t.startsWith('type:'))
+			?.slice(5)
 		if (sourceType === 'application/bsv-20') {
-			return { error: `Cannot transfer BSV-20 token ${outpoint} through ordinal transfer — use BSV-21 transfer instead` }
+			return {
+				error: `Cannot transfer BSV-20 token ${outpoint} through ordinal transfer — use BSV-21 transfer instead`,
+			}
 		}
 
 		let recipientAddress: string
@@ -385,7 +383,9 @@ export async function buildTransferOrdinals(
 		}
 	}
 
-	const inputBEEF = request.inputBEEF ?? await resolveBeef(ctx.wallet, ORDINALS_BASKET, transfers[0].ordinal)
+	const inputBEEF =
+		request.inputBEEF ??
+		(await resolveBeef(ctx.wallet, ORDINALS_BASKET, transfers[0].ordinal))
 
 	return {
 		description:
@@ -421,7 +421,9 @@ export async function buildListOrdinal(
 	})
 	tags.push('ordlock', `price:${price}`)
 
-	const inputBEEF = request.inputBEEF ?? await resolveBeef(ctx.wallet, ORDINALS_BASKET, ordinal)
+	const inputBEEF =
+		request.inputBEEF ??
+		(await resolveBeef(ctx.wallet, ORDINALS_BASKET, ordinal))
 
 	return {
 		description: `List ordinal for ${price} sats`,
@@ -645,10 +647,18 @@ export const transferOrdinals: Action<
 					for (let i = 0; i < input.transfers.length; i++) {
 						const { ordinal } = input.transfers[i]
 						if (!ordinal.customInstructions) {
-							throw new Error(`missing-custom-instructions-for-${ordinal.outpoint}`)
+							throw new Error(
+								`missing-custom-instructions-for-${ordinal.outpoint}`,
+							)
 						}
 						const { protocolID, keyID } = JSON.parse(ordinal.customInstructions)
-						const unlocking = await signP2PKHInput(ctx, tx, i, protocolID, keyID)
+						const unlocking = await signP2PKHInput(
+							ctx,
+							tx,
+							i,
+							protocolID,
+							keyID,
+						)
 						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
 						spends[i] = { unlockingScript: unlocking }
 					}
@@ -657,17 +667,25 @@ export const transferOrdinals: Action<
 			)
 
 			if (ctx.debug && ctx.log) {
-				const logOutputs: ActionLogEntry['outputs'] = input.transfers.map((t, i) => ({
-					index: i,
-					protocolID: ONESAT_PROTOCOL,
-					keyID: t.ordinal.outpoint,
-					basket: ORDINALS_BASKET,
-					satoshis: 1,
-				}))
+				const logOutputs: ActionLogEntry['outputs'] = input.transfers.map(
+					(t, i) => ({
+						index: i,
+						protocolID: ONESAT_PROTOCOL,
+						keyID: t.ordinal.outpoint,
+						basket: ORDINALS_BASKET,
+						satoshis: 1,
+					}),
+				)
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'transferOrdinals',
-					input: { transfers: input.transfers.map(t => ({ outpoint: t.ordinal.outpoint, counterparty: t.counterparty, address: t.address })) },
+					input: {
+						transfers: input.transfers.map((t) => ({
+							outpoint: t.ordinal.outpoint,
+							counterparty: t.counterparty,
+							address: t.address,
+						})),
+					},
 					txid: result.txid,
 					rawtx: result.rawtx,
 					outputs: logOutputs,
@@ -681,7 +699,11 @@ export const transferOrdinals: Action<
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'transferOrdinals',
-					input: { transfers: input.transfers.map(t => ({ outpoint: t.ordinal.outpoint })) },
+					input: {
+						transfers: input.transfers.map((t) => ({
+							outpoint: t.ordinal.outpoint,
+						})),
+					},
 					error: error instanceof Error ? error.message : 'unknown-error',
 				})
 			}
@@ -750,7 +772,13 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 					createResult,
 					params.inputBEEF as number[],
 					async (tx) => {
-						const unlocking = await signP2PKHInput(ctx, tx, 0, protocolID, keyID)
+						const unlocking = await signP2PKHInput(
+							ctx,
+							tx,
+							0,
+							protocolID,
+							keyID,
+						)
 						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
 						return { 0: { unlockingScript: unlocking } }
 					},
@@ -763,7 +791,15 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 						input: { outpoint: input.ordinal.outpoint, price: input.price },
 						txid: result.txid,
 						rawtx: result.rawtx,
-						outputs: [{ index: 0, protocolID: ONESAT_PROTOCOL, keyID: input.ordinal.outpoint, basket: ORDINALS_BASKET, satoshis: 1 }],
+						outputs: [
+							{
+								index: 0,
+								protocolID: ONESAT_PROTOCOL,
+								keyID: input.ordinal.outpoint,
+								basket: ORDINALS_BASKET,
+								satoshis: 1,
+							},
+						],
 					})
 				}
 
@@ -815,8 +851,7 @@ export const cancelListing: Action<
 				},
 				inputBEEF: {
 					type: 'array',
-					description:
-						"BEEF — resolved automatically via ID tag if omitted",
+					description: 'BEEF — resolved automatically via ID tag if omitted',
 				},
 			},
 			required: ['listing'],
@@ -825,7 +860,9 @@ export const cancelListing: Action<
 	async execute(ctx, input) {
 		try {
 			const { listing } = input
-			const inputBEEF = input.inputBEEF ?? await resolveBeef(ctx.wallet, ORDINALS_BASKET, listing)
+			const inputBEEF =
+				input.inputBEEF ??
+				(await resolveBeef(ctx.wallet, ORDINALS_BASKET, listing))
 			const outpoint = listing.outpoint
 
 			if (!listing.customInstructions) {
@@ -892,7 +929,15 @@ export const cancelListing: Action<
 					input: { outpoint, keyID },
 					txid: result.txid,
 					rawtx: result.rawtx,
-					outputs: [{ index: 0, protocolID, keyID, customInstructions: listing.customInstructions, satoshis: 1 }],
+					outputs: [
+						{
+							index: 0,
+							protocolID,
+							keyID,
+							customInstructions: listing.customInstructions,
+							satoshis: 1,
+						},
+					],
 				})
 			}
 
@@ -1081,7 +1126,15 @@ export const purchaseOrdinal: Action<
 					input: { outpoint },
 					txid: result.txid,
 					rawtx: result.rawtx,
-					outputs: [{ index: 0, protocolID: ONESAT_PROTOCOL, keyID: outpoint, basket: basket, satoshis: 1 }],
+					outputs: [
+						{
+							index: 0,
+							protocolID: ONESAT_PROTOCOL,
+							keyID: outpoint,
+							basket: basket,
+							satoshis: 1,
+						},
+					],
 				})
 			}
 

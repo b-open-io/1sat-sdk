@@ -1,4 +1,9 @@
-import { createTestContext, destroyTestContext, syncFunding, deriveDepositAddress } from './setup'
+import {
+	createTestContext,
+	deriveDepositAddress,
+	destroyTestContext,
+	syncFunding,
+} from './setup'
 
 async function main() {
 	const labels = ['primary', 'seller', 'buyer']
@@ -11,7 +16,10 @@ async function main() {
 			const count = await syncFunding(ctx)
 			console.log(`  internalized: ${count} outputs`)
 
-			const outputs = await ctx.wallet.listOutputs({ basket: 'default', limit: 100 })
+			const outputs = await ctx.wallet.listOutputs({
+				basket: 'default',
+				limit: 100,
+			})
 			console.log(`  wallet outputs: ${outputs.totalOutputs}`)
 			for (const o of outputs.outputs) {
 				console.log(`    ${o.outpoint} — ${o.satoshis} sats`)
@@ -24,4 +32,7 @@ async function main() {
 	}
 }
 
-main().catch(e => { console.error(e); process.exit(1) })
+main().catch((e) => {
+	console.error(e)
+	process.exit(1)
+})

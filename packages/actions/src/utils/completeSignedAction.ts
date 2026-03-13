@@ -1,11 +1,11 @@
 import {
 	Beef,
+	type CreateActionResult,
 	Script,
+	type SignActionOptions,
 	Spend,
 	Transaction,
 	Utils,
-	type CreateActionResult,
-	type SignActionOptions,
 	type WalletInterface,
 } from '@bsv/sdk'
 
@@ -69,7 +69,8 @@ export async function completeSignedAction(
 			tx.inputs[i].unlockingScript = Script.fromHex(spend.unlockingScript)
 
 			const input = tx.inputs[i]
-			const sourceOutput = input.sourceTransaction?.outputs[input.sourceOutputIndex]
+			const sourceOutput =
+				input.sourceTransaction?.outputs[input.sourceOutputIndex]
 			if (!sourceOutput) {
 				await wallet.abortAction({ reference })
 				return { error: `missing-source-transaction-for-input-${i}` }
@@ -77,7 +78,8 @@ export async function completeSignedAction(
 
 			const unlockingScript = tx.inputs[i].unlockingScript!
 			const spendCheck = new Spend({
-				sourceTXID: input.sourceTXID ?? input.sourceTransaction?.id('hex') ?? '',
+				sourceTXID:
+					input.sourceTXID ?? input.sourceTransaction?.id('hex') ?? '',
 				sourceOutputIndex: input.sourceOutputIndex,
 				lockingScript: sourceOutput.lockingScript,
 				sourceSatoshis: sourceOutput.satoshis ?? 0,

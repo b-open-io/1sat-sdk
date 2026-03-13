@@ -4,17 +4,14 @@
  * Actions for time-locking BSV.
  */
 
+import { Lock } from '@bopen-io/templates'
 import {
 	type CreateActionOutput,
 	PublicKey,
 	Utils,
 	type WalletOutput,
 } from '@bsv/sdk'
-import { Lock } from '@bopen-io/templates'
-import {
-	LOCK_BASKET,
-	MIN_UNLOCK_SATS,
-} from '../constants'
+import { LOCK_BASKET, MIN_UNLOCK_SATS } from '../constants'
 import type { Action, ActionLogEntry } from '../types'
 import { completeSignedAction } from '../utils/completeSignedAction'
 import { createTrackedAction } from '../utils/createTrackedAction'
@@ -191,13 +188,15 @@ export const lockBsv: Action<LockBsvInput, LockOperationResponse> = {
 			}
 
 			if (ctx.debug && ctx.log) {
-				const logOutputs: ActionLogEntry['outputs'] = requests.map((req, i) => ({
-					index: i,
-					protocolID: LOCK_PROTOCOL,
-					keyID: LOCK_KEY_ID,
-					basket: LOCK_BASKET,
-					satoshis: req.satoshis,
-				}))
+				const logOutputs: ActionLogEntry['outputs'] = requests.map(
+					(req, i) => ({
+						index: i,
+						protocolID: LOCK_PROTOCOL,
+						keyID: LOCK_KEY_ID,
+						basket: LOCK_BASKET,
+						satoshis: req.satoshis,
+					}),
+				)
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'lockBsv',
@@ -301,11 +300,11 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 			let inputBEEF = listResult.BEEF
 			if (!inputBEEF || (inputBEEF as number[]).length === 0) {
 				if (!ctx.services) return { error: 'no-beef-available' }
-				console.warn('[unlockBsv] BEEF not returned by listOutputs, falling back to service lookup')
+				console.warn(
+					'[unlockBsv] BEEF not returned by listOutputs, falling back to service lookup',
+				)
 				const txids = [
-					...new Set(
-						maturedLocks.map((l) => l.output.outpoint.split('.')[0]),
-					),
+					...new Set(maturedLocks.map((l) => l.output.outpoint.split('.')[0])),
 				]
 				const beef = await ctx.services.getBeefForTxid(txids[0])
 				for (let i = 1; i < txids.length; i++) {

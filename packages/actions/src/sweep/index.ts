@@ -5,6 +5,8 @@
  */
 
 import type { IndexedOutput } from '@1sat/types'
+import type { OrdfsMetadata } from '@1sat/types'
+import { formatOutpoint, parseOutpoint } from '@1sat/utils'
 import { BSV21 } from '@bopen-io/templates'
 import {
 	type CreateActionOutput,
@@ -14,17 +16,11 @@ import {
 	Transaction,
 	Utils,
 } from '@bsv/sdk'
-import {
-	BSV21_BASKET,
-	BSV21_PROTOCOL,
-	ONESAT_PROTOCOL,
-} from '../constants'
+import { BSV21_BASKET, BSV21_PROTOCOL, ONESAT_PROTOCOL } from '../constants'
+import { resolveOrdinalTags } from '../ordinals'
 import type { Action, ActionLogEntry, OneSatContext } from '../types'
 import { completeSignedAction } from '../utils/completeSignedAction'
 import { createTrackedAction } from '../utils/createTrackedAction'
-import { resolveOrdinalTags } from '../ordinals'
-import type { OrdfsMetadata } from '@1sat/types'
-import { parseOutpoint, formatOutpoint } from '@1sat/utils'
 import type {
 	SweepBsv21Request,
 	SweepBsv21Response,
@@ -36,7 +32,6 @@ import type {
 } from './types'
 
 export * from './types'
-
 
 /**
  * Prepare sweep inputs from IndexedOutput objects by fetching locking scripts.
@@ -164,7 +159,9 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 			}
 
 			// Fetch BEEF for all input transactions and merge them
-			const txids = [...new Set(inputs.map((i) => parseOutpoint(i.outpoint).txid))]
+			const txids = [
+				...new Set(inputs.map((i) => parseOutpoint(i.outpoint).txid)),
+			]
 
 			console.log(`[sweep] Fetching BEEF for ${txids.length} transactions`)
 
@@ -240,7 +237,10 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 					// Set up P2PKH unlocker on each input we control
 					for (let i = 0; i < tx.inputs.length; i++) {
 						const txInput = tx.inputs[i]
-						const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
+						const inputOutpoint = formatOutpoint(
+							txInput.sourceTXID!,
+							txInput.sourceOutputIndex,
+						)
 
 						if (ourOutpoints.has(inputOutpoint)) {
 							const p2pkh = new P2PKH()
@@ -257,7 +257,10 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 					const spends: Record<number, { unlockingScript: string }> = {}
 					for (let i = 0; i < tx.inputs.length; i++) {
 						const txInput = tx.inputs[i]
-						const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
+						const inputOutpoint = formatOutpoint(
+							txInput.sourceTXID!,
+							txInput.sourceOutputIndex,
+						)
 
 						if (ourOutpoints.has(inputOutpoint)) {
 							spends[i] = {
@@ -394,7 +397,9 @@ export const sweepOrdinals: Action<
 			const privateKey = PrivateKey.fromWif(wif)
 
 			// Fetch BEEF for all input transactions and merge them
-			const txids = [...new Set(inputs.map((i) => parseOutpoint(i.outpoint).txid))]
+			const txids = [
+				...new Set(inputs.map((i) => parseOutpoint(i.outpoint).txid)),
+			]
 			console.log(
 				`[sweepOrdinals] Fetching BEEF for ${txids.length} transactions`,
 			)
@@ -428,7 +433,9 @@ export const sweepOrdinals: Action<
 				const contentType = meta?.contentType
 
 				if (contentType === 'application/bsv-20') {
-					return { error: `Cannot sweep BSV-20 token ${input.outpoint} through ordinal sweep — use sweepBsv21 instead` }
+					return {
+						error: `Cannot sweep BSV-20 token ${input.outpoint} through ordinal sweep — use sweepBsv21 instead`,
+					}
 				}
 
 				const { tags, basket } = await resolveOrdinalTags(ctx, input.outpoint, {
@@ -494,7 +501,10 @@ export const sweepOrdinals: Action<
 				async (tx) => {
 					for (let i = 0; i < tx.inputs.length; i++) {
 						const txInput = tx.inputs[i]
-						const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
+						const inputOutpoint = formatOutpoint(
+							txInput.sourceTXID!,
+							txInput.sourceOutputIndex,
+						)
 
 						if (ourOutpoints.has(inputOutpoint)) {
 							const p2pkh = new P2PKH()
@@ -511,7 +521,10 @@ export const sweepOrdinals: Action<
 					const spends: Record<number, { unlockingScript: string }> = {}
 					for (let i = 0; i < tx.inputs.length; i++) {
 						const txInput = tx.inputs[i]
-						const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
+						const inputOutpoint = formatOutpoint(
+							txInput.sourceTXID!,
+							txInput.sourceOutputIndex,
+						)
 
 						if (ourOutpoints.has(inputOutpoint)) {
 							spends[i] = {
@@ -678,7 +691,9 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 			}
 
 			// Fetch BEEF for all input transactions and merge them
-			const txids = [...new Set(inputs.map((i) => parseOutpoint(i.outpoint).txid))]
+			const txids = [
+				...new Set(inputs.map((i) => parseOutpoint(i.outpoint).txid)),
+			]
 			console.log(`[sweepBsv21] Fetching BEEF for ${txids.length} transactions`)
 
 			const firstBeef = await ctx.services.getBeefForTxid(txids[0])
@@ -784,7 +799,10 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 				async (tx) => {
 					for (let i = 0; i < tx.inputs.length; i++) {
 						const txInput = tx.inputs[i]
-						const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
+						const inputOutpoint = formatOutpoint(
+							txInput.sourceTXID!,
+							txInput.sourceOutputIndex,
+						)
 
 						if (ourOutpoints.has(inputOutpoint)) {
 							txInput.unlockingScriptTemplate = p2pkh.unlock(
@@ -800,7 +818,10 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 					const spends: Record<number, { unlockingScript: string }> = {}
 					for (let i = 0; i < tx.inputs.length; i++) {
 						const txInput = tx.inputs[i]
-						const inputOutpoint = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
+						const inputOutpoint = formatOutpoint(
+							txInput.sourceTXID!,
+							txInput.sourceOutputIndex,
+						)
 
 						if (ourOutpoints.has(inputOutpoint)) {
 							spends[i] = {
@@ -829,10 +850,22 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'sweepBsv21',
-					input: { tokenId, inputCount: inputs.length, totalAmount: totalAmount.toString() },
+					input: {
+						tokenId,
+						inputCount: inputs.length,
+						totalAmount: totalAmount.toString(),
+					},
 					txid: result.txid,
 					rawtx: result.rawtx,
-					outputs: [{ index: 0, protocolID: BSV21_PROTOCOL, keyID, basket: BSV21_BASKET, satoshis: 1 }],
+					outputs: [
+						{
+							index: 0,
+							protocolID: BSV21_PROTOCOL,
+							keyID,
+							basket: BSV21_BASKET,
+							satoshis: 1,
+						},
+					],
 				})
 			}
 
@@ -883,9 +916,7 @@ export async function prepareSweepBsv(
 		throw new Error('Insufficient funds')
 
 	// Fetch BEEF for all input transactions and merge them
-	const txids = [
-		...new Set(inputs.map((i) => parseOutpoint(i.outpoint).txid)),
-	]
+	const txids = [...new Set(inputs.map((i) => parseOutpoint(i.outpoint).txid))]
 
 	const firstBeef = await ctx.services.getBeefForTxid(txids[0])
 	for (let i = 1; i < txids.length; i++) {
@@ -914,9 +945,7 @@ export async function prepareSweepBsv(
 
 	// Step 1: Create action to get the signable transaction
 	const createResult = await createTrackedAction(ctx.wallet, {
-		description: amount
-			? `Sweep ${amount} sats`
-			: `Sweep ${inputTotal} sats`,
+		description: amount ? `Sweep ${amount} sats` : `Sweep ${inputTotal} sats`,
 		inputBEEF: firstBeef.toBinary(),
 		inputs: inputDescriptors,
 		outputs,
@@ -944,10 +973,7 @@ export async function prepareSweepBsv(
 	const inputsToSign: import('./types').PrepareResult['inputsToSign'] = []
 	for (let idx = 0; idx < tx.inputs.length; idx++) {
 		const txInput = tx.inputs[idx]
-		const op = formatOutpoint(
-			txInput.sourceTXID!,
-			txInput.sourceOutputIndex,
-		)
+		const op = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)
 		if (ourOutpoints.has(op)) {
 			const matchingInput = inputs.find((i) => {
 				const { txid, vout } = parseOutpoint(i.outpoint)

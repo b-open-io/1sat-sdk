@@ -15,7 +15,9 @@ console.log('Total sats:', totalSats)
 // Show individual outputs
 console.log('\nOutput details:')
 for (const out of outputs.outputs) {
-	console.log(`  ${out.outpoint} — ${out.satoshis} sats, spendable: ${out.spendable}`)
+	console.log(
+		`  ${out.outpoint} — ${out.satoshis} sats, spendable: ${out.spendable}`,
+	)
 }
 
 // Check other baskets
@@ -25,10 +27,14 @@ for (const basket of ['sigma', 'ordinals', 'bsv21']) {
 		if (b.totalOutputs > 0) {
 			console.log(`\n${basket} basket: ${b.totalOutputs} outputs`)
 			for (const out of b.outputs) {
-				console.log(`  ${out.outpoint} — ${out.satoshis} sats, spendable: ${out.spendable}`)
+				console.log(
+					`  ${out.outpoint} — ${out.satoshis} sats, spendable: ${out.spendable}`,
+				)
 			}
 		}
-	} catch { /* basket may not exist */ }
+	} catch {
+		/* basket may not exist */
+	}
 }
 
 // Try syncFunding to see if we can refresh the server state
@@ -52,20 +58,24 @@ try {
 	console.log('\nTrying createAction after sync...')
 	const keyID = Date.now().toString()
 	const { publicKey } = await ctx.wallet.getPublicKey({
-		protocolID: [1, 'onesat'] as [0|1|2, string],
+		protocolID: [1, 'onesat'] as [0 | 1 | 2, string],
 		keyID,
 		counterparty: 'self',
 		forSelf: true,
 	})
-	const lockingScript = new P2PKH().lock(PublicKey.fromString(publicKey).toAddress())
+	const lockingScript = new P2PKH().lock(
+		PublicKey.fromString(publicKey).toAddress(),
+	)
 
 	const result = await ctx.wallet.createAction({
 		description: 'Test funding check',
-		outputs: [{
-			lockingScript: lockingScript.toHex(),
-			satoshis: 1,
-			outputDescription: 'Test output',
-		}],
+		outputs: [
+			{
+				lockingScript: lockingScript.toHex(),
+				satoshis: 1,
+				outputDescription: 'Test output',
+			},
+		],
 		options: { signAndProcess: true, acceptDelayedBroadcast: true },
 	})
 	console.log('Success! txid:', result.txid)

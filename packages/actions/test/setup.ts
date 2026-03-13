@@ -1,11 +1,10 @@
-import { createContext, type OneSatContext } from '@1sat/actions'
+import { type OneSatContext, createContext } from '@1sat/actions'
 import {
 	BRC29_PROTOCOL_ID,
-	createRemoteWallet,
 	type OneSatServices,
+	createRemoteWallet,
 } from '@1sat/wallet-remote'
-import { Beef, PublicKey, Utils } from '@bsv/sdk'
-import type { InternalizeActionArgs } from '@bsv/sdk'
+import { PublicKey, Utils } from '@bsv/sdk'
 import type { Wallet } from '@bsv/wallet-toolbox/out/src/index.client.js'
 
 const DEFAULT_REMOTE_STORAGE_URL = 'http://localhost:8080/1sat/wallet'
@@ -27,7 +26,9 @@ export interface TestContext {
 
 function wifEnvKey(label: string): string {
 	const upper = label.toUpperCase()
-	return process.env[`TEST_WALLET_WIF_${upper}`] ?? process.env.TEST_WALLET_WIF ?? ''
+	return (
+		process.env[`TEST_WALLET_WIF_${upper}`] ?? process.env.TEST_WALLET_WIF ?? ''
+	)
 }
 
 function toBase64Prefix(prefix: string): string {
@@ -64,9 +65,14 @@ export async function createTestContext(label: string): Promise<TestContext> {
 	}
 
 	const chain = (process.env.TEST_CHAIN ?? 'main') as 'main' | 'test'
-	const remoteStorageUrl = process.env.TEST_REMOTE_STORAGE_URL ?? DEFAULT_REMOTE_STORAGE_URL
+	const remoteStorageUrl =
+		process.env.TEST_REMOTE_STORAGE_URL ?? DEFAULT_REMOTE_STORAGE_URL
 
-	const result = await createRemoteWallet({ privateKey: wif, chain, remoteStorageUrl })
+	const result = await createRemoteWallet({
+		privateKey: wif,
+		chain,
+		remoteStorageUrl,
+	})
 
 	const ctx = createContext(result.wallet, { services: result.services, chain })
 
@@ -90,14 +96,20 @@ export async function syncFunding(context: TestContext): Promise<number> {
 	const derivationSuffix = toBase64Suffix(0)
 	const keyID = `${derivationPrefix} ${derivationSuffix}`
 
-	const senderIdentityKey = (await wallet.getPublicKey({
-		identityKey: true,
-	})).publicKey
+	const senderIdentityKey = (
+		await wallet.getPublicKey({
+			identityKey: true,
+		})
+	).publicKey
 
-	const baseUrl = process.env.TEST_REMOTE_STORAGE_URL?.replace('/wallet', '') ?? 'http://localhost:8080/1sat'
+	const baseUrl =
+		process.env.TEST_REMOTE_STORAGE_URL?.replace('/wallet', '') ??
+		'http://localhost:8080/1sat'
 
 	// Fetch indexed outputs via owner sync SSE
-	const response = await fetch(`${baseUrl}/owner/${address}/txos?refresh=true&unspent=true&limit=100`)
+	const response = await fetch(
+		`${baseUrl}/owner/${address}/txos?refresh=true&unspent=true&limit=100`,
+	)
 	const text = await response.text()
 
 	// Parse SSE txo events into outpoints grouped by txid
@@ -111,7 +123,9 @@ export async function syncFunding(context: TestContext): Promise<number> {
 			const vouts = outpointsByTxid.get(txid) ?? []
 			vouts.push(Number(voutStr))
 			outpointsByTxid.set(txid, vouts)
-		} catch { /* skip non-JSON lines */ }
+		} catch {
+			/* skip non-JSON lines */
+		}
 	}
 
 	let internalized = 0
@@ -123,7 +137,7 @@ export async function syncFunding(context: TestContext): Promise<number> {
 
 		await wallet.internalizeAction({
 			tx: Array.from(beefBytes),
-			outputs: vouts.map(vout => ({
+			outputs: vouts.map((vout) => ({
 				outputIndex: vout,
 				protocol: 'wallet payment' as const,
 				paymentRemittance: {

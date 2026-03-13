@@ -4,6 +4,7 @@
  * Actions for managing BSV21 tokens.
  */
 
+import { parseOutpoint } from '@1sat/utils'
 import { BSV21, OrdLock } from '@bopen-io/templates'
 import {
 	BigNumber,
@@ -22,7 +23,6 @@ import type { Action, ActionLogEntry, OneSatContext } from '../types'
 import { completeSignedAction } from '../utils/completeSignedAction'
 import { createTrackedAction } from '../utils/createTrackedAction'
 import { signP2PKHInput } from '../utils/signP2PKH'
-import { parseOutpoint } from '@1sat/utils'
 
 // ============================================================================
 // Types
@@ -482,7 +482,9 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 			let inputBEEF = listResult.BEEF
 			if (!inputBEEF || (inputBEEF as number[]).length === 0) {
 				if (!ctx.services) return { error: 'no-beef-available' }
-				console.warn('[sendBsv21] BEEF not returned by listOutputs, falling back to service lookup')
+				console.warn(
+					'[sendBsv21] BEEF not returned by listOutputs, falling back to service lookup',
+				)
 				const txids = [
 					...new Set(selected.map((o) => o.outpoint.split('.')[0])),
 				]
@@ -518,7 +520,13 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 						const utxo = selected[i]
 						if (!utxo.customInstructions) continue
 						const { protocolID, keyID } = JSON.parse(utxo.customInstructions)
-						const unlocking = await signP2PKHInput(ctx, tx, i, protocolID, keyID)
+						const unlocking = await signP2PKHInput(
+							ctx,
+							tx,
+							i,
+							protocolID,
+							keyID,
+						)
 						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
 						spends[i] = { unlockingScript: unlocking }
 					}
@@ -541,15 +549,33 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 
 			if (ctx.debug && ctx.log) {
 				const logOutputs: ActionLogEntry['outputs'] = [
-					{ index: 0, protocolID: BSV21_PROTOCOL, keyID: recipientKeyID, basket: BSV21_BASKET, satoshis: 1 },
+					{
+						index: 0,
+						protocolID: BSV21_PROTOCOL,
+						keyID: recipientKeyID,
+						basket: BSV21_BASKET,
+						satoshis: 1,
+					},
 				]
 				if (change > 0n) {
-					logOutputs.push({ index: 1, protocolID: BSV21_PROTOCOL, keyID: changeKeyID, basket: BSV21_BASKET, satoshis: 1 })
+					logOutputs.push({
+						index: 1,
+						protocolID: BSV21_PROTOCOL,
+						keyID: changeKeyID,
+						basket: BSV21_BASKET,
+						satoshis: 1,
+					})
 				}
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'sendBsv21',
-					input: { tokenId, amount: amount.toString(), counterparty, address, paymail },
+					input: {
+						tokenId,
+						amount: amount.toString(),
+						counterparty,
+						address,
+						paymail,
+					},
 					txid: result.txid,
 					rawtx: result.rawtx,
 					outputs: logOutputs,
@@ -792,7 +818,15 @@ export const purchaseBsv21: Action<
 					input: { tokenId, outpoint, amount: tokenAmount.toString() },
 					txid: result.txid,
 					rawtx: result.rawtx,
-					outputs: [{ index: 0, protocolID: BSV21_PROTOCOL, keyID: bsv21KeyID, basket: BSV21_BASKET, satoshis: 1 }],
+					outputs: [
+						{
+							index: 0,
+							protocolID: BSV21_PROTOCOL,
+							keyID: bsv21KeyID,
+							basket: BSV21_BASKET,
+							satoshis: 1,
+						},
+					],
 				})
 			}
 
@@ -803,7 +837,11 @@ export const purchaseBsv21: Action<
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'purchaseBsv21',
-					input: { tokenId: input.tokenId, outpoint: input.outpoint, amount: input.amount?.toString() },
+					input: {
+						tokenId: input.tokenId,
+						outpoint: input.outpoint,
+						amount: input.amount?.toString(),
+					},
 					error: error instanceof Error ? error.message : 'unknown-error',
 				})
 			}

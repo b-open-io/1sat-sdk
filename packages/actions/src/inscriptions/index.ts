@@ -184,10 +184,23 @@ async function inscribeWithSigma(
 		ctx.log({
 			timestamp: new Date().toISOString(),
 			action: 'inscribe',
-			input: { contentType: input.contentType, map: input.map, signWithBAP: true, anchorTxid: anchorResult.txid },
+			input: {
+				contentType: input.contentType,
+				map: input.map,
+				signWithBAP: true,
+				anchorTxid: anchorResult.txid,
+			},
 			txid: result.txid,
 			rawtx: result.rawtx,
-			outputs: [{ index: 0, protocolID: ONESAT_PROTOCOL, keyID, basket: ORDINALS_BASKET, satoshis: 1 }],
+			outputs: [
+				{
+					index: 0,
+					protocolID: ONESAT_PROTOCOL,
+					keyID,
+					basket: ORDINALS_BASKET,
+					satoshis: 1,
+				},
+			],
 		})
 	}
 
@@ -280,7 +293,11 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 						}),
 					},
 				],
-				options: { signAndProcess: true, acceptDelayedBroadcast: false, randomizeOutputs: false },
+				options: {
+					signAndProcess: true,
+					acceptDelayedBroadcast: false,
+					randomizeOutputs: false,
+				},
 			})
 
 			if (!result.txid) {
@@ -294,7 +311,15 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 					input: { contentType: input.contentType, map: input.map },
 					txid: result.txid,
 					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
-					outputs: [{ index: 0, protocolID: ONESAT_PROTOCOL, keyID, basket: ORDINALS_BASKET, satoshis: 1 }],
+					outputs: [
+						{
+							index: 0,
+							protocolID: ONESAT_PROTOCOL,
+							keyID,
+							basket: ORDINALS_BASKET,
+							satoshis: 1,
+						},
+					],
 				})
 			}
 

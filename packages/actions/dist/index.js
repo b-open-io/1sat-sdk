@@ -12,10 +12,10 @@ export { ActionRegistry, actionRegistry } from './registry';
 export * from './constants';
 // Export shared utilities
 export { signP2PKHInput } from './utils/signP2PKH';
-export { completeSignedAction } from './utils/completeSignedAction';
-export { createTrackedAction, randomActionId } from './utils/createTrackedAction';
+export { completeSignedAction, } from './utils/completeSignedAction';
+export { createTrackedAction, randomActionId, } from './utils/createTrackedAction';
 export { resolveBeef, extractIdTag } from './utils/resolveBeef';
-export { internalizeBeef } from './utils/internalizeBeef';
+export { internalizeBeef, } from './utils/internalizeBeef';
 // Export module actions and types
 export * from './addresses';
 export * from './payments';
@@ -24,12 +24,15 @@ export * from './tokens';
 export * from './inscriptions';
 export * from './locks';
 export * from './signing';
+export * from './social';
+export * from './identity';
 export * from './opns';
 // Export sweep module (uses external signing, not action-based)
 export * from './sweep';
 // Export sync module
 export * from './sync';
 import { addressesActions } from './addresses';
+import { identityActions } from './identity';
 import { inscriptionsActions } from './inscriptions';
 import { locksActions } from './locks';
 import { opnsActions } from './opns';
@@ -37,17 +40,20 @@ import { ordinalsActions } from './ordinals';
 import { paymentsActions } from './payments';
 import { actionRegistry } from './registry';
 import { signingActions } from './signing';
+import { socialActions } from './social';
 import { sweepActions } from './sweep';
 import { syncActions } from './sync';
 import { tokensActions } from './tokens';
 actionRegistry.registerAll([
     ...addressesActions,
+    ...identityActions,
     ...paymentsActions,
     ...ordinalsActions,
     ...tokensActions,
     ...inscriptionsActions,
     ...locksActions,
     ...signingActions,
+    ...socialActions,
     ...sweepActions,
     ...opnsActions,
     ...syncActions,

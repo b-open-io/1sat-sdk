@@ -1,10 +1,17 @@
-import { BSM, BigNumber, Hash, PublicKey, Script, Signature, Utils } from '@bsv/sdk'
+import {
+	BSM,
+	BigNumber,
+	Hash,
+	OP,
+	PublicKey,
+	Script,
+	Signature,
+	Utils,
+} from '@bsv/sdk'
 import { BAP_KEY_ID, BAP_PROTOCOL_ID } from '../constants'
 import type { OneSatContext } from '../types'
 
-const { toHex, toArray } = Utils
-
-const SIGMA_HEX = '5349474d41'
+const { toArray } = Utils
 
 const writeUint32LE = (value: number): number[] => [
 	value & 0xff,
@@ -39,6 +46,13 @@ function getMessageHash(inputHash: number[], dataHash: number[]): number[] {
 	combined.set(inputHash, 0)
 	combined.set(dataHash, inputHash.length)
 	return Hash.sha256(Array.from(combined))
+}
+
+/**
+ * Check whether a script contains OP_RETURN.
+ */
+function hasOpReturn(script: Script): boolean {
+	return script.chunks.some((c) => c.op === OP.OP_RETURN)
 }
 
 /**
@@ -83,14 +97,19 @@ export async function applySigma(
 	)
 
 	const address = publicKey.toAddress()
-	const compactSigHex = signature.toCompact(recovery, true, 'hex')
+	const compactSig = signature.toCompact(recovery, true) as number[]
 
-	const existingAsm = lockingScript.toASM()
-	const containsOpReturn = existingAsm.split(' ').includes('OP_RETURN')
-	const separator = containsOpReturn ? '7c' : 'OP_RETURN'
+	const out = new Script(lockingScript.chunks.slice())
+	if (hasOpReturn(lockingScript)) {
+		out.writeBin(toArray('|'))
+	} else {
+		out.writeOpCode(OP.OP_RETURN)
+	}
+	out.writeBin(toArray('SIGMA'))
+	out.writeBin(toArray('BSM'))
+	out.writeBin(toArray(address))
+	out.writeBin(compactSig)
+	out.writeBin(toArray(vin.toString()))
 
-	const sigmaAsm = `${SIGMA_HEX} ${toHex(toArray('BSM'))} ${toHex(toArray(address))} ${compactSigHex} ${toHex(toArray(vin.toString()))}`
-	const newAsm = `${existingAsm} ${separator} ${sigmaAsm}`
-
-	return Script.fromASM(newAsm)
+	return out
 }

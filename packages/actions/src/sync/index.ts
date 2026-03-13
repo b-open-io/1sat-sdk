@@ -11,13 +11,13 @@ import type { SyncOutput, SyncProgress } from '@1sat/types'
 import { PublicKey, Utils } from '@bsv/sdk'
 import type { Action, OneSatContext } from '../types'
 import {
-	internalizeBeef,
 	type OutputDerivation,
+	internalizeBeef,
 } from '../utils/internalizeBeef'
-import { syncMessages } from './syncMessages'
 import type { ProcessedTxStore } from './ProcessedTxStore'
 import { ProcessedTxStoreIdb } from './ProcessedTxStoreIdb'
 import { ProcessedTxStoreSqlite } from './ProcessedTxStoreSqlite'
+import { syncMessages } from './syncMessages'
 
 const REORG_SAFE_DEPTH = 6
 
@@ -266,6 +266,6 @@ export type { SyncMessagesInput, SyncMessagesResult } from './syncMessages'
 /** All sync actions for registry */
 export const syncActions = [syncAddresses, syncMessages]
 
-export { type ProcessedTxStore } from './ProcessedTxStore'
+export type { ProcessedTxStore } from './ProcessedTxStore'
 export { ProcessedTxStoreIdb } from './ProcessedTxStoreIdb'
 export { ProcessedTxStoreSqlite } from './ProcessedTxStoreSqlite'

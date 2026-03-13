@@ -10,8 +10,8 @@ import { Utils } from '@bsv/sdk'
 import { AuthFetch } from '@bsv/sdk/auth'
 import type { Action } from '../types'
 import {
-	internalizeBeef,
 	type OutputDerivation,
+	internalizeBeef,
 } from '../utils/internalizeBeef'
 
 // ============================================================================
@@ -70,8 +70,7 @@ export const syncMessages: Action<SyncMessagesInput, SyncMessagesResult> = {
 			properties: {
 				messageBox: {
 					type: 'string',
-					description:
-						'Message box name to poll (default: "payment_inbox")',
+					description: 'Message box name to poll (default: "payment_inbox")',
 				},
 			},
 		},
@@ -90,11 +89,14 @@ export const syncMessages: Action<SyncMessagesInput, SyncMessagesResult> = {
 		const authFetch = new AuthFetch(ctx.wallet)
 
 		// 1. List pending messages
-		const listResponse = await authFetch.fetch(`${messageboxUrl}/listMessages`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ messageBox }),
-		})
+		const listResponse = await authFetch.fetch(
+			`${messageboxUrl}/listMessages`,
+			{
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ messageBox }),
+			},
+		)
 
 		if (!listResponse.ok) {
 			throw new Error(

@@ -6,8 +6,8 @@
  */
 
 import type { BEEF, WalletOutput } from '@bsv/sdk'
+import { OPNS_BASKET } from '../constants'
 import { buildTransferOrdinals } from '../ordinals'
-import { ONESAT_PROTOCOL, OPNS_BASKET } from '../constants'
 import type { Action } from '../types'
 import { completeSignedAction } from '../utils/completeSignedAction'
 import { createTrackedAction } from '../utils/createTrackedAction'
@@ -99,119 +99,112 @@ export const getOpnsNames: Action<GetOpnsNamesInput, GetOpnsNamesResult> = {
  * Transfers the OpNS ordinal to self with MAP metadata binding the wallet's
  * identity public key, then submits to the OpNS overlay.
  */
-export const opnsRegister: Action<
-	OpnsRegisterRequest,
-	OpnsOperationResponse
-> = {
-	meta: {
-		name: 'opnsRegister',
-		description:
-			'Register identity key on an OpNS name via MAP metadata',
-		category: 'opns',
-		requiresServices: true,
-		inputSchema: {
-			type: 'object',
-			properties: {
-				ordinal: {
-					type: 'object',
-					description: 'WalletOutput of the OpNS ordinal from listOutputs',
-				},
-				inputBEEF: {
-					type: 'array',
-					description:
-						"BEEF from listOutputs with include: 'entire transactions'",
-				},
-			},
-			required: ['ordinal'],
-		},
-	},
-	async execute(ctx, input) {
-		try {
-			if (!ctx.services) {
-				return { error: 'services-required' }
-			}
-
-			const { ordinal } = input
-			const inputBEEF = input.inputBEEF ?? await resolveBeef(ctx.wallet, OPNS_BASKET, ordinal)
-
-			// Get wallet's identity public key
-			const { publicKey: identityPubKey } = await ctx.wallet.getPublicKey({
-				identityKey: true,
-			})
-
-			// Transfer to self with MAP identity binding
-			const params = await buildTransferOrdinals(ctx, {
-				transfers: [
-					{
-						ordinal,
-						counterparty: 'self',
-						map: {
-							'opns.idKey': identityPubKey,
-						},
-						extraTags: ['opns:published'],
+export const opnsRegister: Action<OpnsRegisterRequest, OpnsOperationResponse> =
+	{
+		meta: {
+			name: 'opnsRegister',
+			description: 'Register identity key on an OpNS name via MAP metadata',
+			category: 'opns',
+			requiresServices: true,
+			inputSchema: {
+				type: 'object',
+				properties: {
+					ordinal: {
+						type: 'object',
+						description: 'WalletOutput of the OpNS ordinal from listOutputs',
 					},
-				],
-				inputBEEF,
-			})
-
-			if ('error' in params) {
-				return params
-			}
-
-			const createResult = await createTrackedAction(ctx.wallet, {
-				...params,
-				options: { signAndProcess: false, randomizeOutputs: false },
-			})
-
-			if ('error' in createResult && createResult.error) {
-				return { error: String(createResult.error) }
-			}
-
-			if (!ordinal.customInstructions) {
-				return { error: 'missing-custom-instructions' }
-			}
-
-			const { protocolID, keyID } = JSON.parse(ordinal.customInstructions)
-
-			const result = await completeSignedAction(
-				ctx.wallet,
-				createResult,
-				inputBEEF,
-				async (tx) => {
-					const unlocking = await signP2PKHInput(ctx, tx, 0, protocolID, keyID)
-					if (typeof unlocking !== 'string') throw new Error(unlocking.error)
-					return { 0: { unlockingScript: unlocking } }
+					inputBEEF: {
+						type: 'array',
+						description:
+							"BEEF from listOutputs with include: 'entire transactions'",
+					},
 				},
-			)
+				required: ['ordinal'],
+			},
+		},
+		async execute(ctx, input) {
+			try {
+				if (!ctx.services) {
+					return { error: 'services-required' }
+				}
 
-			if (ctx.debug && ctx.log) {
-				ctx.log({
-					timestamp: new Date().toISOString(),
-					action: 'opnsRegister',
-					input: { outpoint: ordinal.outpoint },
-					txid: result.txid,
-					rawtx: result.rawtx,
-					outputs: [{ index: 0, protocolID: ONESAT_PROTOCOL, keyID: ordinal.outpoint, basket: OPNS_BASKET, satoshis: 1 }],
+				const { ordinal } = input
+				const inputBEEF =
+					input.inputBEEF ??
+					(await resolveBeef(ctx.wallet, OPNS_BASKET, ordinal))
+
+				// Get wallet's identity public key
+				const { publicKey: identityPubKey } = await ctx.wallet.getPublicKey({
+					identityKey: true,
 				})
-			}
 
-			return result
-		} catch (error) {
-			console.error('[opnsRegister]', error)
-			if (ctx.debug && ctx.log) {
-				ctx.log({
-					timestamp: new Date().toISOString(),
-					action: 'opnsRegister',
-					input: { outpoint: input.ordinal.outpoint },
+				// Transfer to self with MAP identity binding
+				const params = await buildTransferOrdinals(ctx, {
+					transfers: [
+						{
+							ordinal,
+							counterparty: 'self',
+							map: {
+								'opns.idKey': identityPubKey,
+							},
+							extraTags: ['opns:published'],
+						},
+					],
+					inputBEEF,
+				})
+
+				if ('error' in params) {
+					return params
+				}
+
+				const createResult = await createTrackedAction(ctx.wallet, {
+					...params,
+					options: { signAndProcess: false, randomizeOutputs: false },
+				})
+
+				if ('error' in createResult && createResult.error) {
+					return { error: String(createResult.error) }
+				}
+
+				if (!ordinal.customInstructions) {
+					return { error: 'missing-custom-instructions' }
+				}
+				const { protocolID, keyID } = JSON.parse(ordinal.customInstructions)
+
+				const result = await completeSignedAction(
+					ctx.wallet,
+					createResult,
+					inputBEEF,
+					async (tx) => {
+						const unlocking = await signP2PKHInput(
+							ctx,
+							tx,
+							0,
+							protocolID,
+							keyID,
+						)
+						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
+						return { 0: { unlockingScript: unlocking } }
+					},
+				)
+
+				return result
+			} catch (error) {
+				console.error('[opnsRegister]', error)
+				if (ctx.debug && ctx.log) {
+					ctx.log({
+						timestamp: new Date().toISOString(),
+						action: 'opnsRegister',
+						input: { outpoint: input.ordinal.outpoint },
+						error: error instanceof Error ? error.message : 'unknown-error',
+					})
+				}
+				return {
 					error: error instanceof Error ? error.message : 'unknown-error',
-				})
+				}
 			}
-			return {
-				error: error instanceof Error ? error.message : 'unknown-error',
-			}
-		}
-	},
-}
+		},
+	}
 
 /**
  * Deregister an identity key from an OpNS name.
@@ -224,8 +217,7 @@ export const opnsDeregister: Action<
 > = {
 	meta: {
 		name: 'opnsDeregister',
-		description:
-			'Remove identity key binding from an OpNS name',
+		description: 'Remove identity key binding from an OpNS name',
 		category: 'opns',
 		inputSchema: {
 			type: 'object',
@@ -246,7 +238,8 @@ export const opnsDeregister: Action<
 	async execute(ctx, input) {
 		try {
 			const { ordinal } = input
-			const inputBEEF = input.inputBEEF ?? await resolveBeef(ctx.wallet, OPNS_BASKET, ordinal)
+			const inputBEEF =
+				input.inputBEEF ?? (await resolveBeef(ctx.wallet, OPNS_BASKET, ordinal))
 
 			// Transfer to self with empty idKey — explicitly clears identity binding
 			const params = await buildTransferOrdinals(ctx, {
@@ -279,7 +272,6 @@ export const opnsDeregister: Action<
 			if (!ordinal.customInstructions) {
 				return { error: 'missing-custom-instructions' }
 			}
-
 			const { protocolID, keyID } = JSON.parse(ordinal.customInstructions)
 
 			const result = await completeSignedAction(
@@ -292,17 +284,6 @@ export const opnsDeregister: Action<
 					return { 0: { unlockingScript: unlocking } }
 				},
 			)
-
-			if (ctx.debug && ctx.log) {
-				ctx.log({
-					timestamp: new Date().toISOString(),
-					action: 'opnsDeregister',
-					input: { outpoint: ordinal.outpoint },
-					txid: result.txid,
-					rawtx: result.rawtx,
-					outputs: [{ index: 0, protocolID: ONESAT_PROTOCOL, keyID: ordinal.outpoint, basket: OPNS_BASKET, satoshis: 1 }],
-				})
-			}
 
 			return result
 		} catch (error) {

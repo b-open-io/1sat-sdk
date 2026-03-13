@@ -123,5 +123,6 @@ export const signBsm: Action<SignBsmRequest, SignBsmResponse> = {
 /** All signing actions for registry */
 export const signingActions = [signBsm]
 
-// Sigma signing helper
+// Signing helpers
+export { applyAip } from './aip'
 export { applySigma } from './sigma'

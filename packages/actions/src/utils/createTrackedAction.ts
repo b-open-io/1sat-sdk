@@ -1,4 +1,9 @@
-import { Utils, type CreateActionArgs, type CreateActionResult, type WalletInterface } from '@bsv/sdk'
+import {
+	type CreateActionArgs,
+	type CreateActionResult,
+	Utils,
+	type WalletInterface,
+} from '@bsv/sdk'
 
 /**
  * Generate a random hex string for action tracking.

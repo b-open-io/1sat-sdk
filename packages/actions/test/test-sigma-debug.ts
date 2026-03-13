@@ -1,5 +1,5 @@
 import './preload'
-import { P2PKH, PublicKey, Utils } from '@bsv/sdk'
+import { P2PKH, PublicKey } from '@bsv/sdk'
 import { createTestContext, destroyTestContext } from './setup'
 
 const ctx = await createTestContext('primary')
@@ -9,7 +9,7 @@ const wallet = ctx.wallet
 console.log('Step 1: Creating anchor tx...')
 const keyID = Date.now().toString()
 const { publicKey: anchorPubKey } = await wallet.getPublicKey({
-	protocolID: [1, 'onesat'] as [0|1|2, string],
+	protocolID: [1, 'onesat'] as [0 | 1 | 2, string],
 	keyID: `anchor-${keyID}`,
 	counterparty: 'self',
 	forSelf: true,
@@ -20,16 +20,18 @@ const anchorLockingScript = new P2PKH().lock(anchorAddress)
 try {
 	const anchorResult = await wallet.createAction({
 		description: 'Sigma anchor output',
-		outputs: [{
-			lockingScript: anchorLockingScript.toHex(),
-			satoshis: 2,
-			outputDescription: 'Sigma anchor',
-			basket: 'sigma',
-			customInstructions: JSON.stringify({
-				protocolID: [1, 'onesat'],
-				keyID: `anchor-${keyID}`,
-			}),
-		}],
+		outputs: [
+			{
+				lockingScript: anchorLockingScript.toHex(),
+				satoshis: 2,
+				outputDescription: 'Sigma anchor',
+				basket: 'sigma',
+				customInstructions: JSON.stringify({
+					protocolID: [1, 'onesat'],
+					keyID: `anchor-${keyID}`,
+				}),
+			},
+		],
 		options: {
 			signAndProcess: true,
 			noSend: true,
@@ -43,7 +45,7 @@ try {
 	// Step 2: Create inscription tx spending the anchor
 	console.log('\nStep 2: Creating inscription tx spending anchor...')
 	const { publicKey } = await wallet.getPublicKey({
-		protocolID: [1, 'onesat'] as [0|1|2, string],
+		protocolID: [1, 'onesat'] as [0 | 1 | 2, string],
 		keyID,
 		counterparty: 'self',
 		forSelf: true,
@@ -54,17 +56,21 @@ try {
 	try {
 		const inscribeResult = await wallet.createAction({
 			description: 'Create inscription',
-			inputs: [{
-				outpoint: `${anchorResult.txid}.0`,
-				inputDescription: 'Sigma anchor',
-				unlockingScriptLength: 108,
-			}],
-			outputs: [{
-				lockingScript: lockingScript.toHex(),
-				satoshis: 1,
-				outputDescription: 'Inscription',
-				basket: 'ordinals',
-			}],
+			inputs: [
+				{
+					outpoint: `${anchorResult.txid}.0`,
+					inputDescription: 'Sigma anchor',
+					unlockingScriptLength: 108,
+				},
+			],
+			outputs: [
+				{
+					lockingScript: lockingScript.toHex(),
+					satoshis: 1,
+					outputDescription: 'Inscription',
+					basket: 'ordinals',
+				},
+			],
 			options: {
 				signAndProcess: false,
 				randomizeOutputs: false,
@@ -75,12 +81,17 @@ try {
 				trustSelf: 'known',
 			},
 		})
-		console.log('Inscription result reference:', inscribeResult.signableTransaction?.reference)
+		console.log(
+			'Inscription result reference:',
+			inscribeResult.signableTransaction?.reference,
+		)
 		console.log('SUCCESS: Both steps completed')
 
 		// Abort the inscription (we don't need it)
 		if (inscribeResult.signableTransaction?.reference) {
-			await wallet.abortAction({ reference: inscribeResult.signableTransaction.reference })
+			await wallet.abortAction({
+				reference: inscribeResult.signableTransaction.reference,
+			})
 			console.log('Aborted inscription tx')
 		}
 	} catch (e) {

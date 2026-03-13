@@ -1,5 +1,9 @@
 import './preload'
-import { deriveDepositAddress, createTestContext, destroyTestContext } from './setup'
+import {
+	createTestContext,
+	deriveDepositAddress,
+	destroyTestContext,
+} from './setup'
 
 async function main() {
 	const labels = ['primary', 'seller', 'buyer']
@@ -10,7 +14,10 @@ async function main() {
 			console.log(`${label.toUpperCase()}: ${address}`)
 
 			// Check wallet balance
-			const outputs = await ctx.wallet.listOutputs({ basket: 'default', limit: 10 })
+			const outputs = await ctx.wallet.listOutputs({
+				basket: 'default',
+				limit: 10,
+			})
 			console.log(`  wallet outputs: ${outputs.totalOutputs}`)
 
 			await destroyTestContext(ctx)
@@ -20,4 +27,7 @@ async function main() {
 	}
 }
 
-main().catch(e => { console.error(e); process.exit(1) })
+main().catch((e) => {
+	console.error(e)
+	process.exit(1)
+})

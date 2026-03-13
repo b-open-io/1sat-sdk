@@ -2,7 +2,7 @@
  * Identity Module
  *
  * BAP identity actions: attestations and alias/profile updates.
- * Uses the wallet's BAP signing key ([1, "bapid"] / "identity") via applyAip.
+ * Uses the wallet's BAP signing key ([1, "sigma"] / "identity") via applyAip.
  *
  * Prerequisite: Sigma Identity must seed the wallet's `bap` basket with
  * an output tagged `type:id` and `bapId:<hash>` so actions can resolve

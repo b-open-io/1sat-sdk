@@ -74,9 +74,10 @@ All `1sat-skills` already use `createContext() → action.execute()`:
 
 ```
 BAP Master Key (xprv) — lives in Sigma Identity
-  └─ Identity N
-      ├─ Root key (key rotation + ID records — Sigma Identity only)
-      └─ Active key → BRC-100 wallet root key
+  └─ Member key (per identity)
+      ├─ Root key — ID publication + key rotation ONLY (Sigma Identity)
+      │   └─ BAP ID = base58(ripemd160(sha256(rootAddress))) — stable across rotations
+      └─ Current identity key → BRC-100 wallet root key
           └─ All wallet derivations (deposit addresses, signing, identity pubkey)
           └─ BAP signing key (Type42: "1-bapid-identity") — used by applySigma, applyAip
 ```
@@ -99,10 +100,12 @@ BAP Master Key (xprv) — lives in Sigma Identity
 - OAuth flow → return encrypted active key to clients
 
 *@1sat/actions (BRC-100 wallet):*
-- All existing 20 actions
+- All 25 actions (see inventory above)
 - `applySigma` (done), `applyAip` (done) — signing helpers
-- New: `createSocialPost` (done), `attestIdentity`, `updateAlias`, `sendMnee`, `mintCollection`
-- NOTE: `publishIdRecord` is NOT an action — requires root key
+- `publishIdentity` (done) — takes pre-signed script, validates AIP signature + wallet address match
+- `attest`, `updateProfile`, `getProfile` (done) — BAP identity management via wallet signing key
+- `createSocialPost` (done) — BSocial posts with AIP signing
+- Deferred: `sendMnee`, `mintCollection`
 
 *bsv-mcp:*
 - Wallet operations via actions (done)
@@ -174,7 +177,11 @@ Two paths to publish BAP ID and seed the wallet:
 
 **Droplit-funded path (onboarding):** Sigma Identity signs the ID OP_RETURN, Droplit funds and broadcasts, then `wallet.internalizeAction()` seeds the `bap` basket with `type:id, bapId:<hash>` tags. User doesn't need BSV yet.
 
-- [x] Create `publishIdentity` action in `@1sat/actions` (takes pre-signed script + bapId, wallet funds it)
+- [x] Create `publishIdentity` action in `@1sat/actions` (takes pre-signed script, validates AIP sig + wallet address match, extracts bapId)
+- [x] bsv-bap `MemberID` rewrite: counter-based two-level key derivation (member→current→signing), root key signing methods, `fromBackup()` with encrypted blob, `rotate()` (2026-03-13)
+- [ ] Fix sigma-auth `createEncryptedMemberBackups()` to use `bapIdentity.exportMember()` for proper encrypted blob (currently stores plain BAP ID string)
+- [ ] Fix sigma-auth signer iframe to derive signing key via counter from member key
+- [ ] Publish bsv-bap with counter/MemberID changes
 - [ ] Replace `yours-wallet-provider` with `@1sat/wallet-remote` in Sigma Identity
 - [ ] Wire root key signing via `PrivateKeySigner` + `AIP.sign()` (replaces broken `signTransaction()` stub)
 - [ ] Wire Droplit path: broadcast → `internalizeAction()` to seed `bap` basket

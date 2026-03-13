@@ -266,7 +266,10 @@ export const sendAllBsv: Action<SendAllBsvInput, SendBsvResponse> = {
 		try {
 			const { destination } = input
 			if (isPaymail(destination)) {
-				return { error: 'sendAllBsv does not support paymail — use sendBsv with a fixed amount' }
+				return {
+					error:
+						'sendAllBsv does not support paymail — use sendBsv with a fixed amount',
+				}
 			}
 
 			const result = await createTrackedAction(ctx.wallet, {

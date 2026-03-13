@@ -23,8 +23,12 @@ export interface P2pSendResult {
 	note?: string
 }
 
-async function resolveHost(domain: string): Promise<{ host: string; port: number }> {
-	const resp = await fetch(`${DOH_URL}?name=_bsvalias._tcp.${domain}&type=SRV&cd=0`)
+async function resolveHost(
+	domain: string,
+): Promise<{ host: string; port: number }> {
+	const resp = await fetch(
+		`${DOH_URL}?name=_bsvalias._tcp.${domain}&type=SRV&cd=0`,
+	)
 	const doh = await resp.json()
 
 	// NXDOMAIN or NOERROR with no answer — fall back to domain:443
@@ -48,10 +52,12 @@ async function resolveHost(domain: string): Promise<{ host: string; port: number
 		}
 	}
 
-	return { host: target, port: parseInt(parts[2]) }
+	return { host: target, port: Number.parseInt(parts[2]) }
 }
 
-async function getCapabilities(domain: string): Promise<Record<string, string>> {
+async function getCapabilities(
+	domain: string,
+): Promise<Record<string, string>> {
 	const cached = capabilityCache.get(domain)
 	if (cached) return cached
 
@@ -74,14 +80,16 @@ export async function getP2pPaymentDestination(
 	const [alias, domain] = paymail.split('@')
 	const caps = await getCapabilities(domain)
 	const url = caps[P2P_PAYMENT_DESTINATION]
-	if (!url) throw new Error(`${domain} does not support P2P payment destinations`)
+	if (!url)
+		throw new Error(`${domain} does not support P2P payment destinations`)
 
 	const resp = await fetch(resolveUrl(url, alias, domain), {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ satoshis }),
 	})
-	if (!resp.ok) throw new Error(`P2P destination request failed: ${resp.status}`)
+	if (!resp.ok)
+		throw new Error(`P2P destination request failed: ${resp.status}`)
 	return await resp.json()
 }
 

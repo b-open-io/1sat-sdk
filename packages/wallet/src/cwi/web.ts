@@ -66,7 +66,10 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 	typeof v === 'object' && v !== null
 
 const isResponse = (v: unknown): v is CWIResponseMessage =>
-	isRecord(v) && v.type === 'CWI' && v.isInvocation === false && typeof v.id === 'string'
+	isRecord(v) &&
+	v.type === 'CWI' &&
+	v.isInvocation === false &&
+	typeof v.id === 'string'
 
 const isState = (v: unknown): v is CWIStateMessage =>
 	isRecord(v) && v.type === 'CWI' && isRecord(v.cwiState)
@@ -89,7 +92,8 @@ export function createWebCWI(config?: WebCWIConfig): WebCWIResult {
 	const walletUrl = config?.walletUrl ?? DEFAULT_WALLET_URL
 	const iframePath = config?.iframePath ?? DEFAULT_IFRAME_PATH
 	const requestTimeout = config?.timeout ?? DEFAULT_REQUEST_TIMEOUT_MS
-	const handshakeTimeout = config?.handshakeTimeout ?? DEFAULT_HANDSHAKE_TIMEOUT_MS
+	const handshakeTimeout =
+		config?.handshakeTimeout ?? DEFAULT_HANDSHAKE_TIMEOUT_MS
 
 	const walletOrigin = new URL(walletUrl).origin
 	const iframeUrl = new URL(iframePath, walletUrl).toString()
@@ -112,7 +116,9 @@ export function createWebCWI(config?: WebCWIConfig): WebCWIResult {
 
 		if (isState(data)) {
 			if (data.cwiState.fallbackRecommended) {
-				handshakeReject?.(new Error('Web wallet indicated fallback recommended'))
+				handshakeReject?.(
+					new Error('Web wallet indicated fallback recommended'),
+				)
 				handshakeResolve = null
 				handshakeReject = null
 				return
@@ -240,7 +246,11 @@ export function createWebCWI(config?: WebCWIConfig): WebCWIResult {
 			} catch (err) {
 				clearTimeout(timeoutId)
 				pending.delete(id)
-				reject(new Error(`Failed to post message to web wallet: ${err instanceof Error ? err.message : String(err)}`))
+				reject(
+					new Error(
+						`Failed to post message to web wallet: ${err instanceof Error ? err.message : String(err)}`,
+					),
+				)
 			}
 		})
 	}

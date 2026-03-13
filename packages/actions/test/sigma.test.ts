@@ -1,13 +1,10 @@
 import { describe, expect, it } from 'bun:test'
 import {
-	BSM,
 	BigNumber,
 	ECDSA,
 	P2PKH,
 	PrivateKey,
-	PublicKey,
 	Script,
-	Signature,
 	Transaction,
 	Utils,
 } from '@bsv/sdk'
@@ -39,8 +36,7 @@ function createMockContext(): OneSatContext {
 	}
 }
 
-const DUMMY_TXID =
-	'a'.repeat(64)
+const DUMMY_TXID = 'a'.repeat(64)
 
 describe('applySigma', () => {
 	it('produces a signature verifiable by sigma-protocol (P2PKH output)', async () => {
@@ -176,7 +172,10 @@ describe('applySigma', () => {
 			})
 		}
 		for (let i = 0; i < targetVout; i++) {
-			tx.addOutput({ satoshis: 1, lockingScript: new P2PKH().lock(testAddress) })
+			tx.addOutput({
+				satoshis: 1,
+				lockingScript: new P2PKH().lock(testAddress),
+			})
 		}
 		tx.addOutput({ satoshis: 1, lockingScript: signedScript })
 

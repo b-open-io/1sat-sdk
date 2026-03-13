@@ -3,7 +3,9 @@ import type { WalletInterface, WalletOutput } from '@bsv/sdk'
 /**
  * Extract the `id:<hex>` tag from a WalletOutput's tags array.
  */
-export function extractIdTag(output: Pick<WalletOutput, 'tags'>): string | undefined {
+export function extractIdTag(
+	output: Pick<WalletOutput, 'tags'>,
+): string | undefined {
 	return output.tags?.find((t) => t.startsWith('id:'))
 }
 
@@ -27,7 +29,9 @@ export async function resolveBeef(
 ): Promise<number[]> {
 	const idTag = extractIdTag(output)
 	if (!idTag) {
-		throw new Error('Output has no id: tag — inputBEEF must be provided explicitly')
+		throw new Error(
+			'Output has no id: tag — inputBEEF must be provided explicitly',
+		)
 	}
 
 	const result = await wallet.listOutputs({

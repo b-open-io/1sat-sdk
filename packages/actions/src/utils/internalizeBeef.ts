@@ -10,6 +10,17 @@
 
 import type { OneSatServices } from '@1sat/client'
 import type { Indexer, ParseContext, Txo } from '@1sat/types'
+import { BRC29_PROTOCOL_ID } from '@1sat/types'
+import {
+	Bsv21Indexer,
+	FundIndexer,
+	InscriptionIndexer,
+	MapIndexer,
+	OpNSIndexer,
+	OriginIndexer,
+	Outpoint,
+	SigmaIndexer,
+} from '@1sat/wallet'
 import {
 	Beef,
 	type InternalizeActionArgs,
@@ -17,17 +28,6 @@ import {
 	Transaction,
 	type WalletInterface,
 } from '@bsv/sdk'
-import {
-	Bsv21Indexer,
-	FundIndexer,
-	InscriptionIndexer,
-	MapIndexer,
-	OpNSIndexer,
-	Outpoint,
-	OriginIndexer,
-	SigmaIndexer,
-} from '@1sat/wallet'
-import { BRC29_PROTOCOL_ID } from '@1sat/types'
 import { randomActionId } from './createTrackedAction'
 
 // ============================================================================

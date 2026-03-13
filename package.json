@@ -17,7 +17,7 @@
 		"typescript": "^5.9.3"
 	},
 	"dependencies": {
-		"@bopen-io/templates": "^1.1.8",
+		"@bopen-io/templates": "^1.2.3",
 		"sigma-protocol": "^0.1.9"
 	}
 }

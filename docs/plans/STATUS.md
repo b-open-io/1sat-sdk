@@ -5,6 +5,7 @@
 | [MAP Templates Migration](./2026-03-02-map-templates-migration.md) | **COMPLETE** | SDK-side changes done, Go deferred |
 | [CWI Unification](./CWI_UNIFICATION.md) | **COMPLETE** | Method names unified, EmbedTransport removed |
 | [CWI/OneSat Separation](./2026-03-06-cwi-onesat-separation.md) | **COMPLETE** | Superseded by CWI Unification |
+| [WPM & Message Box](./2026-03-11-wpm-messagebox.md) | **In Progress** | WPM in MCP done, OPNS reverted; message box integration next |
 
 ## Completed Work (2026-03-06)
 

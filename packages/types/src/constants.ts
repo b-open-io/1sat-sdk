@@ -82,7 +82,7 @@ export const MESSAGE_SIGNING_PROTOCOL: [0 | 1 | 2, string] = [
 	'message signing',
 ]
 export const BSV21_PROTOCOL: [0 | 1 | 2, string] = [1, 'bsv21']
-export const BAP_PROTOCOL_ID: [0 | 1 | 2, string] = [1, 'bapid']
+export const BAP_PROTOCOL_ID: [0 | 1 | 2, string] = [1, 'sigma']
 export const BAP_KEY_ID = 'identity'
 export const BAP_BITCOM_ADDRESS = '1BAPSuaPnfGnSBM3GLV9yhxUdYe4vGbdMT'
 

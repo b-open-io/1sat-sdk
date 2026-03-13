@@ -9,26 +9,19 @@ import {
 	listOrdinal,
 	listTokens,
 	lockBsv,
-	opnsDeregister,
-	opnsRegister,
-	purchaseBsv21,
 	purchaseOrdinal,
 	sendAllBsv,
 	sendBsv,
-	sendBsv21,
 	signBsm,
-	sweepBsv,
-	sweepBsv21,
-	sweepOrdinals,
 	transferOrdinals,
 	unlockBsv,
 } from '@1sat/actions'
 import { BSM, PublicKey, Utils } from '@bsv/sdk'
 import {
+	type TestContext,
 	createTestContext,
 	deriveDepositAddress,
 	destroyTestContext,
-	type TestContext,
 } from './setup'
 
 let primary: TestContext

@@ -7,7 +7,8 @@ const ctx = await createTestContext('primary')
 
 // Enable debug logging
 ctx.ctx.debug = true
-ctx.ctx.log = (entry: unknown) => console.log('[LOG]', JSON.stringify(entry, null, 2))
+ctx.ctx.log = (entry: unknown) =>
+	console.log('[LOG]', JSON.stringify(entry, null, 2))
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <circle cx="32" cy="32" r="30" fill="#f7931a" stroke="#c16800" stroke-width="2"/>

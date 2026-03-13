@@ -138,7 +138,8 @@ export async function createRemoteWallet(
 	// Set up local backup if requested
 	let backupStorage: StorageIdb | undefined
 	if (config.localBackup) {
-		const opts = typeof config.localBackup === 'object' ? config.localBackup : {}
+		const opts =
+			typeof config.localBackup === 'object' ? config.localBackup : {}
 		const dbName = opts.databaseName ?? `wallet-backup-${chain}net`
 
 		const storageOptions = StorageProvider.createStorageBaseOptions(chain)
