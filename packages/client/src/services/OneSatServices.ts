@@ -16,6 +16,8 @@ import {
 	BeefClient,
 	Bsv21Client,
 	ChaintracksClient,
+	MarketClient,
+	OpnsClient,
 	OrdfsClient,
 	OverlayClient,
 	OwnerClient,
@@ -52,6 +54,8 @@ export type { SyncOutput }
  * - /1sat/txo/* - Transaction outputs
  * - /1sat/owner/* - Address queries and sync
  * - /1sat/ordfs/* - Content/inscription serving
+ * - /1sat/market/* - Marketplace listings
+ * - /1sat/opns/* - OpNS domain names
  * - /overlay/* - Overlay services (topic managers, lookups)
  */
 export class OneSatServices implements WalletServices {
@@ -67,6 +71,8 @@ export class OneSatServices implements WalletServices {
 	readonly owner: OwnerClient
 	readonly ordfs: OrdfsClient
 	readonly bsv21: Bsv21Client
+	readonly market: MarketClient
+	readonly opns: OpnsClient
 	readonly overlay: OverlayClient
 
 	// Optional fallback to wallet-toolbox Services for methods we don't implement
@@ -99,6 +105,8 @@ export class OneSatServices implements WalletServices {
 		this.owner = new OwnerClient(this.baseUrl, opts)
 		this.ordfs = new OrdfsClient(this.baseUrl, opts)
 		this.bsv21 = new Bsv21Client(this.baseUrl, opts)
+		this.market = new MarketClient(this.baseUrl, opts)
+		this.opns = new OpnsClient(this.baseUrl, opts)
 		this.overlay = new OverlayClient(this.baseUrl, opts)
 	}
 
