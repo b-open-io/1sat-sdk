@@ -20,7 +20,7 @@
 	"keywords": ["1sat", "bsv", "ordinals", "client", "api"],
 	"license": "MIT",
 	"dependencies": {
-		"@1sat/types": "^0.0.6",
+		"@1sat/types": "^0.0.10",
 		"@bsv/wallet-toolbox": "^2.0.20"
 	},
 	"peerDependencies": {

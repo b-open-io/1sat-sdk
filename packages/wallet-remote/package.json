@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/wallet-remote",
-	"version": "0.0.7",
+	"version": "0.0.8",
 	"description": "Remote-only wallet factory for 1Sat Ordinals SDK",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -20,10 +20,10 @@
 	"keywords": ["1sat", "bsv", "ordinals", "wallet", "remote"],
 	"license": "MIT",
 	"dependencies": {
-		"@1sat/wallet": "^0.0.20"
+		"@1sat/wallet": "^0.0.21"
 	},
 	"peerDependencies": {
-		"@1sat/client": "^0.0.9",
+		"@1sat/client": "^0.0.11",
 		"@bsv/sdk": "^2.0.4",
 		"@bsv/wallet-toolbox": "^2.0.20"
 	},
