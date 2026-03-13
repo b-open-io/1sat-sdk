@@ -74,6 +74,8 @@ export type ActionCategory =
 	| 'signing'
 	| 'sweep'
 	| 'opns'
+	| 'social'
+	| 'identity'
 	| 'sync'
 
 /**

@@ -22,6 +22,8 @@ export const BSV21_BASKET = 'bsv21'
 export const OPNS_BASKET = 'opns'
 export const LOCK_BASKET = 'lock'
 export const SIGMA_BASKET = 'sigma'
+export const BSOCIAL_BASKET = 'bsocial'
+export const BAP_BASKET = 'bap'
 
 // ============================================================================
 // Fee Configuration
@@ -82,6 +84,7 @@ export const MESSAGE_SIGNING_PROTOCOL: [0 | 1 | 2, string] = [
 export const BSV21_PROTOCOL: [0 | 1 | 2, string] = [1, 'bsv21']
 export const BAP_PROTOCOL_ID: [0 | 1 | 2, string] = [1, 'bapid']
 export const BAP_KEY_ID = 'identity'
+export const BAP_BITCOM_ADDRESS = '1BAPSuaPnfGnSBM3GLV9yhxUdYe4vGbdMT'
 
 // ============================================================================
 // OrdLock Contract Scripts

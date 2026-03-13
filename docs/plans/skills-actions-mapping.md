@@ -1,8 +1,8 @@
-# Skills ↔ Actions Mapping
+# Skills ↔ Actions Plan
 
-Tracks how installed agent skills map to `@1sat/actions`, what's aligned, what's duplicated, and what needs resolution.
+Tracks the `@1sat/actions` ecosystem: what's done, what's next, and how skills/MCP/Sigma Identity fit together.
 
-## Action Inventory (20 actions)
+## Current Action Inventory (25 actions)
 
 | Action | Category | Cost | Read-only? |
 |--------|----------|------|------------|
@@ -28,14 +28,37 @@ Tracks how installed agent skills map to `@1sat/actions`, what's aligned, what's
 | `sweepBsv` | sweep | Free (external WIF) | No |
 | `sweepOrdinals` | sweep | Free (external WIF) | No |
 | `sweepBsv21` | sweep | 1000 sat overlay fee | No |
+| `createSocialPost` | social | Fees only | No |
+| `publishIdentity` | identity | Fees only | No |
+| `attest` | identity | Fees only | No |
+| `updateProfile` | identity | Fees only | No |
+| `getProfile` | identity | Free | Yes |
 
-## Fully Aligned Skills (use @1sat/actions)
+**Known issue:** `signBsm` has a `CalculateRecoveryFactor` bug (DER → compact roundtrip). Skipped in unit tests.
 
-These skills already use `createContext() → action.execute()`:
+## Completed Work
+
+### P1: bsv-mcp wallet → BRC-100 — DONE
+
+All bsv-mcp wallet tools migrated to `@1sat/actions@0.0.38` with BRC-100 remote wallet. Version 0.2.15 on master. Dead code deleted, addresses fixed, refresh rewritten.
+
+**One remaining cleanup:** `gatherCollectionInfo.ts` L191 `getPrivateKey()` — old Wallet class, fixed when collection minting is migrated (P3).
+
+### P1.5: Sigma signing — DONE
+
+`applySigma()` helper in `@1sat/actions/signing/sigma.ts`. Uses `wallet.createSignature()` with `BAP_PROTOCOL_ID` / `BAP_KEY_ID` / `counterparty: 'self'`. Tested on-chain (txid `24a00cbc...`). Wired to `inscribe` action with optional `sigma: boolean`.
+
+### P2: Test all 20 actions — DONE (2026-03-12)
+
+All tested end-to-end via bsv-mcp MCP tools against live 1sat-stack. 429 MCP invocations across all action categories. Details in `skill-updates-from-p2-testing.md`.
+
+### Skills aligned
+
+All `1sat-skills` already use `createContext() → action.execute()`:
 
 | Skill | Actions Used |
 |-------|-------------|
-| `1sat-skills:wallet-setup` | Wallet creation (prerequisite for all actions) |
+| `1sat-skills:wallet-setup` | Wallet creation |
 | `1sat-skills:wallet-create-ordinals` | `inscribe` |
 | `1sat-skills:sweep-import` | `sweepBsv`, `sweepOrdinals`, `sweepBsv21` |
 | `1sat-skills:transaction-building` | `sendBsv`, `sendAllBsv`, `signBsm` |
@@ -43,313 +66,205 @@ These skills already use `createContext() → action.execute()`:
 | `1sat-skills:ordinals-marketplace` | `getOrdinals`, `listOrdinal`, `purchaseOrdinal`, `cancelListing`, `deriveCancelAddress` |
 | `1sat-skills:timelock` | `getLockData`, `lockBsv`, `unlockBsv` |
 | `1sat-skills:opns-names` | `opnsRegister`, `opnsDeregister` |
-| `1sat-skills:dapp-connect` | `@1sat/connect`, `@1sat/react` (wallet connection, not actions directly) |
-| `1sat-skills:1sat-stack` | Direct API calls to indexer (supports actions with data) |
-| `1sat-skills:extract-blockchain-media` | ORDFS gateway / txex CLI (content access) |
+| `1sat-skills:dapp-connect` | `@1sat/connect`, `@1sat/react` |
+| `1sat-skills:1sat-stack` | Direct API calls to indexer |
+| `1sat-skills:extract-blockchain-media` | ORDFS gateway / txex CLI |
 
-## Duplicates (skill uses older pattern, action exists)
+## Architecture: Sigma Identity + BAP + BRC-100 Wallet
 
-| Skill | What it does | Library used | Duplicates action |
-|-------|-------------|-------------|-------------------|
-| `bsv-skills:wallet-send-bsv` | P2PKH payments from WIF | `@bsv/sdk` direct tx building | `sendBsv` |
-| `bsv-skills:broadcast-arc` | Broadcast raw tx via ARC | `@bsv/sdk` ARC | Implicit in all actions |
+```
+BAP Master Key (xprv) — lives in Sigma Identity
+  └─ Identity N
+      ├─ Root key (key rotation + ID records — Sigma Identity only)
+      └─ Active key → BRC-100 wallet root key
+          └─ All wallet derivations (deposit addresses, signing, identity pubkey)
+          └─ BAP signing key (Type42: "1-bapid-identity") — used by applySigma, applyAip
+```
 
-### Resolution needed
+**Shared wallet pattern:** All surfaces point at the same remote wallet. Same active key = same wallet state.
 
-- [ ] **`wallet-send-bsv`** — Duplicates `sendBsv` but works from a raw WIF (server/CLI, no wallet context). Decision: keep as separate "non-wallet" tool, or deprecate?
-- [ ] **`broadcast-arc`** — Every action broadcasts implicitly. Decision: keep as standalone utility for manual broadcast, or remove?
+| Surface | How it gets the active key | Wallet usage |
+|---------|---------------------------|-------------|
+| Sigma Identity website | Derives from BAP master | `createRemoteWallet(activeKey)` |
+| bsv-mcp | `PRIVATE_KEY_WIF` env var (future: OAuth) | `createRemoteWallet(activeKey)` |
+| 1sat-website | OAuth flow → encrypted active key | `createRemoteWallet(activeKey)` |
+| yours-wallet | Local key storage | `createRemoteWallet(activeKey)` |
 
-## Partial Overlap (skill covers more than the action)
+**What lives where:**
 
-| Skill | Overlap with action | Extra coverage |
-|-------|--------------------|----------------|
-| `bsv-skills:message-signing` | `signBsm` (BSM mode) | Also teaches Sigma and AIP (transaction-bound signatures) |
+*Sigma Identity (master key domain):*
+- BAP master key generation/storage, identity creation/selection
+- ID record publication (initial + rotation) — requires root key
+- Key rotation, friend key derivation
+- OAuth flow → return encrypted active key to clients
 
-### Resolution needed
+*@1sat/actions (BRC-100 wallet):*
+- All existing 20 actions
+- `applySigma` (done), `applyAip` (done) — signing helpers
+- New: `createSocialPost` (done), `attestIdentity`, `updateAlias`, `sendMnee`, `mintCollection`
+- NOTE: `publishIdRecord` is NOT an action — requires root key
 
-- [ ] **`message-signing`** — `signBsm` action only covers BSM. Sigma and AIP are transaction-bound signing patterns not in the action system. Decision: add Sigma/AIP as new actions, or keep as separate skill territory?
+*bsv-mcp:*
+- Wallet operations via actions (done)
+- BAP tools (`bap_generate`, `bap_getId`, `bap_friend`) — migrate OUT eventually
+- Read-only/utility tools stay as-is
 
-## Gaps (skill exists, no action equivalent)
+## P3: New Actions — Execution Order
 
-| Skill | Operation | Why no action exists |
-|-------|-----------|---------------------|
-| `bsv-skills:create-bap-identity` | BAP identity creation (Type42 + BRC-43) | Identity protocol, not a wallet payment operation |
-| `bsv-skills:bsocial` | On-chain social posts, likes, follows | Protocol-specific, not 1Sat-specific |
+### Step 1: `applyAip` helper (KEYSTONE) — DONE (2026-03-12)
 
-### Resolution needed
+Analogous to `applySigma` but for AIP signing. Signs OP_RETURN data directly (no input hash, no anchor tx needed). Unlocks steps 2-4.
 
-- [ ] **`create-bap-identity`** — Should BAP identity creation become an action? It's identity management, not payments/ordinals.
-- [ ] **`bsocial`** — Should social protocol operations become actions? They're generic BSV protocol operations.
+Location: `@1sat/actions/signing/aip.ts`
 
-## bsv-mcp Migration (40+ tools → @1sat/actions)
+- [x] Create `applyAip()` — delegates to `AIP.sign()` from `@bopen-io/templates@1.2.3` via `WalletSigner`
+  - Extracts AIP message buffer from OP_RETURN chunks
+  - Creates `WalletSigner(wallet, BAP_PROTOCOL_ID, BAP_KEY_ID, 'self')`
+  - Appends `[AIP_PREFIX, algorithm, address, compactSig]` using binary script building
 
-The `bsv-mcp` MCP server at `/Users/davidcase/Source/1sat/bsv-mcp` predates the BRC-100 wallet and `@1sat/actions`. It uses `@bsv/sdk` direct transaction building, `js-1sat-ord@0.1.91`, and raw WIF key management. All overlapping tools need to be migrated to use `@1sat/actions`.
+**Architecture change:** Published `@bopen-io/templates@1.2.3` with `Signer` interface abstraction:
+- `Signer` interface: `signHash(hash) → DER bytes`, `getPublicKey() → hex`
+- `PrivateKeySigner` — wraps raw `PrivateKey` (BSM.sign)
+- `WalletSigner` — wraps BRC-100 `WalletInterface` (createSignature/getPublicKey with protocolID/keyID)
+- `AIP.sign()` and `BSocial` constructor/statics now accept `Signer` instead of `PrivateKey` (breaking change from 1.2.2)
 
-### Direct overlaps (bsv-mcp tool → action)
+### Step 2: `createSocialPost` action — DONE (2026-03-12)
 
-| bsv-mcp Tool | Current Library | Target Action |
-|-------------|----------------|---------------|
-| `wallet_sendToAddress` | `@bsv/sdk` P2PKH + V5Broadcaster | `sendBsv` |
-| `wallet_createOrdinals` | `js-1sat-ord` | `inscribe` |
-| `wallet_purchaseListing` | `js-1sat-ord` | `purchaseOrdinal` / `purchaseBsv21` |
-| `wallet_transferOrdToken` | `js-1sat-ord` | `transferOrdinals` / `sendBsv21` |
-| `wallet_getBalance` | V5 API direct fetch | `getOrdinals` / `listTokens` / `getBsv21Balances` |
+On-chain social posts: B:// (content) + MAP (metadata) + AIP (signing via templates).
 
-### bsv-mcp tools with no action equivalent (new gaps)
+- [x] Create action in `@1sat/actions/social/`
+  - Uses `BSocial.createPost()` from templates with `WalletSigner` for AIP signing
+  - `app` field is caller-provided (MAP attribution, e.g. 'bsv-mcp', '1sat-website')
+  - 0-sat OP_RETURN output in `bsocial` basket with MAP-derived tags
+  - Tags: `app:{name}`, `type:{action}`, `context:{ctx}`, `contextValue:{val}`, `tag:{tag}`
+  - `buildSocialTags()` helper ready for future social action types
+  - New `BSOCIAL_BASKET` constant, new `'social'` ActionCategory
+- [ ] Migrate bsv-mcp `bsocial_createPost` to use it
+- [ ] Update `bsv-skills/bsocial` skill
+- [ ] Additional BSocial actions (like, follow, message, video, reply) — backburnered pending holistic review
 
-| bsv-mcp Tool | Operation | Candidate for new action? |
-|-------------|-----------|--------------------------|
-| `wallet_encryption` | ECIES encrypt/decrypt | Maybe — utility, not transaction |
-| `wallet_mintCollection` | Batch ordinal collection minting | Yes — extends `inscribe` |
-| `bap_generate` | Create BAP identity | Yes — identity lifecycle |
-| `bap_getId` | Lookup BAP identity | Read-only, could be service method |
-| `bap_friend` | BAP friend connection | Yes — social/identity |
-| `bsocial_createPost` | On-chain social post | Maybe — protocol-specific |
-| `mnee_sendMnee` | Send MNEE tokens | Maybe — separate token protocol |
-| `mnee_getBalance` | MNEE balance lookup | Read-only, service method |
-| `ordinals_searchInscriptions` | Search/filter inscriptions | Read-only, service method |
-| `ordinals_marketListings` | Marketplace listing queries | Read-only, service method |
-| `ordinals_marketSales` | Past sales data | Read-only, service method |
+### Step 3: `attest` + `updateProfile` + `getProfile` actions — DONE (2026-03-12)
 
-### bsv-mcp read-only/utility tools (no migration needed)
+BAP operations using the BRC-100 wallet's signing key (NOT master key ops).
 
-These query external APIs or provide utilities — they don't build transactions:
+**BAP ID resolution:** The BAP ID (`base58(ripemd160(sha256(rootAddress)))`) is derived from the root/member key, which actions don't have. Sigma Identity must seed the wallet by internalizing the initial BAP ID transaction output into the `bap` basket with tag `type:id, bapId:<hash>`. Actions then resolve the BAP ID from wallet state via `resolveBapId()` → `listOutputs({ basket: 'bap', tags: ['type:id'] })`. This seeding is a **prerequisite for testing** (see Step 6).
 
-| bsv-mcp Tool | Purpose |
-|-------------|---------|
-| `bsv_getPrice` | BSV/USD exchange rate |
-| `bsv_decodeTransaction` | Parse raw tx hex |
-| `bsv_explore` | Blockchain explorer queries |
-| `wallet_getAddress` | Return current address |
-| `wallet_getPublicKey` | Return public key |
-| `wallet_refreshUtxos` | Force UTXO refresh |
-| `ordinals_getInscription` | Lookup inscription by ID |
-| `ordinals_getTokenByIdOrTicker` | Token lookup |
-| `bmap_readPosts` / `bmap_readLikes` / `bmap_readFollows` | BMAP API queries |
-| `bsocial_readPosts` | Read social posts |
-| `utils_convertData` | Encoding conversion |
+**OP_RETURN formats** (all use `OP_FALSE OP_RETURN`):
+- ATTEST: `BAP_PREFIX | "ATTEST" | attestation_hash | counter` + AIP suffix
+- ALIAS: `BAP_PREFIX | "ALIAS" | bap_id | profile_json` + AIP suffix
 
-### Architecture changes needed
+Both signed with wallet's BAP key (`[1, "bapid"] / "identity"`) via `applyAip`.
 
-- [ ] **Replace wallet pattern** — bsv-mcp uses raw `PrivateKey` + manual UTXO management. Needs BRC-100 wallet via `@1sat/wallet-node` (for stdio mode) or `@1sat/wallet-remote` (for hosted mode).
-- [ ] **Remove js-1sat-ord dependency** — All inscription/ordinal operations should use `@1sat/actions` instead of `js-1sat-ord@0.1.91`.
-- [ ] **Remove V5Broadcaster** — Actions handle broadcasting through the wallet's `createAction()` flow.
-- [ ] **Add overlay integration** — Token operations (`sendBsv21`, `purchaseBsv21`) need BSV21 overlay validation, currently missing.
-- [ ] **Preserve Droplet API mode** — The subsidized wallet mode is useful for demos. May need adapter to work with BRC-100 wallet interface.
-- [ ] **Preserve OAuth 2.1** — HTTP/SSE transport uses Sigma Identity OAuth. This is orthogonal to wallet migration.
+- [x] Add `BAP_BASKET` and `BAP_BITCOM_ADDRESS` constants to `@1sat/types`
+- [x] Create `resolveBapId` helper — reads BAP ID from `bap` basket `type:id` tag
+- [x] Create `attest` in `@1sat/actions/identity/` — ATTEST OP_RETURN + `applyAip`, output in `bap` basket with tags `type:attest, hash:<hash>`
+- [x] Create `updateProfile` in `@1sat/actions/identity/` — ALIAS OP_RETURN + `applyAip`, output in `bap` basket with tags `type:alias, bapId:<hash>`. Relinquishes old alias outputs after new one is committed.
+- [x] Create `getProfile` in `@1sat/actions/identity/` — reads current profile from `bap` basket, parses ALIAS locking script, deduplicates via relinquish
+- [x] Update `bsv-skills/create-bap-identity` skill
 
-### Resolution needed
+### Step 4: Sigma Identity + Connect integration (PRIORITY)
 
-- [ ] **`wallet_mintCollection`** — Should batch collection minting become a new action? Currently only `inscribe` handles single inscriptions.
-- [ ] **BAP tools** (`bap_generate`, `bap_getId`, `bap_friend`) — Should BAP identity operations become actions? Or stay as bsv-mcp-only tools backed by the `bsv-bap` library?
-- [ ] **MNEE tools** — MNEE is a separate token protocol from BSV21. Should it get its own action category, or stay as bsv-mcp-only?
-- [ ] **BSocial tools** — On-chain social posts use B/MAP/AIP protocols. Action candidate or keep as protocol-level tool?
+Previously Step 6. Elevated because identity seeding is a prerequisite for testing Step 3 actions, and Connect needs to be revived as the unified wallet connection layer.
 
-## External Service Skills (no overlap, no conflict)
+#### 4a: Sigma Identity → BRC-100 wallet seeding
 
-These skills call external APIs or provide reference info — they complement actions, not duplicate them:
+Two paths to publish BAP ID and seed the wallet:
 
-| Skill | Purpose |
-|-------|---------|
-| `bsv-skills:junglebus` | Real-time tx subscription streaming (GorillaPool) |
-| `bsv-skills:ordfs` | ORDFS gateway content access |
-| `bsv-skills:check-bsv-price` | Price lookup |
-| `bsv-skills:lookup-bsv-address` | Address balance/UTXO lookups |
-| `bsv-skills:lookup-block-info` | Block header lookups |
-| `bsv-skills:decode-bsv-transaction` | Parse tx hex (introspection utility) |
-| `bsv-skills:key-derivation` | Type42/BRC-42/BIP32 key derivation (crypto utility) |
-| `bsv-skills:estimate-transaction-fee` | Fee rate lookup |
-| `bsv-skills:bsv-standards` | BRC specification reference |
-| `bsv-skills:validate-bsv-script` | Script analysis (educational) |
-| `bsv-skills:encrypt-decrypt-backup` | Backup encryption |
-| `bsv-skills:manage-bap-backup` | BAP backup management |
-| `bsv-skills:wallet-encrypt-decrypt` | ECDH encryption |
-| `bsv-skills:wallet-brc100` | BRC-100 wallet implementation reference (TS) |
-| `bsv-skills:wallet-brc100-go` | BRC-100 wallet implementation reference (Go) |
+**Wallet-funded path:** Sigma Identity signs the ID OP_RETURN with root key via `PrivateKeySigner` + `AIP.sign()` from `@bopen-io/templates`, then calls `publishIdentity.execute()` which funds via BRC-100 wallet. Output auto-lands in `bap` basket.
 
-## Plan of Attack
+**Droplit-funded path (onboarding):** Sigma Identity signs the ID OP_RETURN, Droplit funds and broadcasts, then `wallet.internalizeAction()` seeds the `bap` basket with `type:id, bapId:<hash>` tags. User doesn't need BSV yet.
 
-### Repositories
+- [x] Create `publishIdentity` action in `@1sat/actions` (takes pre-signed script + bapId, wallet funds it)
+- [ ] Replace `yours-wallet-provider` with `@1sat/wallet-remote` in Sigma Identity
+- [ ] Wire root key signing via `PrivateKeySigner` + `AIP.sign()` (replaces broken `signTransaction()` stub)
+- [ ] Wire Droplit path: broadcast → `internalizeAction()` to seed `bap` basket
+- [ ] Wire wallet path: root key signs → `publishIdentity.execute()` funds and broadcasts
+- [ ] Use `updateProfile.execute()` for ALIAS updates (replaces manual OP_RETURN construction)
+- [ ] Keep Droplit as configurable option for social actions (don't remove existing code)
+
+#### 4b: Rewrite @1sat/connect as fallthrough wallet detector
+
+Single `connectWallet()` call that returns a `WalletInterface` or null. Replaces the admin UI's manual toggle with automatic detection.
+
+**Detection fallthrough:**
+1. `WalletClient("auto")` — catches yours-wallet (`window.CWI`), browser extensions, Cicada, XDM
+2. `createWebCWI()` probe — iframe handshake to OneSat wallet tab with timeout (~1-2s)
+3. `null` — no wallet connected
+
+**API:**
+```typescript
+connectWallet(options?: {
+  walletUrl?: string        // default: 'https://www.1satwallet.com'
+  timeout?: number          // createWebCWI handshake timeout
+  prefer?: 'auto' | 'onesat'
+}): Promise<{ wallet: WalletInterface; provider: 'extension' | 'onesat'; disconnect: () => void } | null>
+```
+
+Extension wins when both available (faster). `prefer: 'onesat'` skips auto-detect. Sigma Identity is NOT a provider here — it's auth/signing, not wallet connection.
+
+- [ ] Strip existing popup/embed/redirect transport code from Connect
+- [ ] Implement `connectWallet()` with fallthrough detection
+- [ ] Wire `createWebCWI` probe with configurable timeout
+- [ ] Update 1sat-stack admin UI to use new Connect (remove toggle)
+- [ ] Update 1sat-website to use new Connect
+
+#### 4c: Remaining integration
+
+- [ ] Migrate BAP tools out of bsv-mcp to Sigma Identity / BAP MCP
+- [ ] Test identity actions end-to-end (attest, updateProfile, getProfile)
+
+Pending: Discussion with Satchmo on BAP MCP scope and Connect provider design.
+
+### Step 5: `sendMnee` action (deferred)
+
+Independent of AIP. Wraps the `mnee` npm library.
+
+- [ ] Create action in `@1sat/actions/mnee/`
+- [ ] Migrate bsv-mcp `mnee_sendMnee` to use it
+- [ ] Read-only tools (`mnee_getBalance`, `mnee_parseTx`) stay as-is
+
+### Step 6: `mintCollection` action (deferred)
+
+Batch ordinal minting. Extends `inscribe`.
+
+- [ ] Create action in `@1sat/actions/ordinals/`
+- [ ] Fix `gatherCollectionInfo.ts` L191, migrate to BRC-100 wallet context
+- [ ] Migrate bsv-mcp `wallet_mintCollection` to use it
+- [ ] Remove `js-1sat-ord` dependency from collection tools
+
+### Step 7: Apply Sigma to more actions
+
+Currently only `inscribe` supports `sigma: boolean`.
+
+- [ ] Add Sigma option to `transferOrdinals`, `listOrdinal`, `createSocialPost`, token ops
+
+## Deferred
+
+- **A2B publish** — `wallet_a2bPublishMcp`, gated by `ENABLE_A2B_TOOLS`. Niche.
+- **ECIES encrypt/decrypt** — already working via BRC-100 wallet tools.
+- **Diagnostic tools** (P1.9) — BEEF/BUMP/tx parsing for debugging. Nice-to-have.
+- **Droplet API mode** — subsidized wallet adapter. When needed.
+
+## Duplicate/Stale Skills to Resolve
+
+| Skill | Status | Resolution |
+|-------|--------|-----------|
+| `bsv-skills:wallet-send-bsv` | Duplicates `sendBsv` action | Deprecate or keep for raw-WIF-only use |
+| `bsv-skills:broadcast-arc` | Implicit in all actions | Deprecate or keep as manual broadcast utility |
+| `bsv-skills:message-signing` | Partially overlaps `signBsm` | Update to cover AIP via `applyAip` (now built) |
+
+## Future: CLI Extraction
+
+Actions live in `@1sat/actions` → CLI wraps them → skills call the CLI directly. MCP stays for interactive/conversational use. Functionality first, this is an optimization.
+
+## Repositories
 
 | Repo | Path | Purpose |
 |------|------|---------|
-| `1sat-sdk` | `/Users/davidcase/Source/1sat/1sat-sdk` | `@1sat/actions` — the action definitions |
-| `bsv-mcp` | `/Users/davidcase/Source/1sat/bsv-mcp` | MCP server — needs wallet migration |
-| `1sat-skills` | `/Users/davidcase/Source/1sat/1sat-skills` | 1Sat skill definitions (already aligned) |
-| `bsv-skills` | `/Users/davidcase/Source/1sat/bsv-skills` | BSV skill definitions (some duplicates/gaps) |
-| `better-auth-plugin` | `/Users/davidcase/Source/1sat/better-auth-plugin` | Sigma Auth plugin |
-
-### Priority 1: bsv-mcp wallet → BRC-100
-
-Replace the raw PrivateKey + manual UTXO wallet in bsv-mcp with a BRC-100 wallet that can execute `@1sat/actions`.
-
-- [x] **1a.** Understand current wallet interface in bsv-mcp — raw PrivateKey + manual UTXO fetch + js-1sat-ord + V5Broadcaster
-- [x] **1b.** Wallet factory: `@1sat/wallet-remote` for both modes (same as yours-wallet and 1sat-website)
-- [x] **1c.** Wire `createRemoteWallet()` + `createContext()` into bsv-mcp initialization. Deposit address derived with `BRC29_PROTOCOL_ID`, prefix `"mcp"`, index 0. `OneSatContext` passed to tools via `ToolsConfig`.
-- [x] **1d.** `wallet_sendToAddress` → `sendBsv.execute(ctx, { requests })`
-- [x] **1e.** `wallet_createOrdinals` → `inscribe.execute(ctx, { base64Content, contentType, map })`
-- [x] **1f.** `wallet_purchaseListing` → `purchaseOrdinal.execute()` / `purchaseBsv21.execute()`
-- [x] **1g.** `wallet_transferOrdToken` → `transferOrdinals.execute()` / `sendBsv21.execute()`
-- [x] **1h.** `wallet_getBalance` → `ctx.wallet.listOutputs({ basket: 'default' })`
-- [ ] ~~**1i.** Remove `js-1sat-ord` and `V5Broadcaster` dependencies~~ — Deferred to P3. Still used by: mintCollection, a2bPublish*, BAP tools, bsocial
-- [ ] **1j.** Verify Droplet API mode still works (or design adapter) — Deferred
-- [ ] **1k.** Verify OAuth 2.1 is unaffected — Orthogonal, no changes needed
-
-### Version alignment (completed during P1)
-
-Bumped `@1sat/client` dep to `^0.0.8` and `@1sat/wallet` dep to `^0.0.19` across all monorepo packages. Published:
-- `@1sat/types@0.0.10`, `@1sat/wallet@0.0.19`, `@1sat/wallet-browser@0.0.14`, `@1sat/wallet-node@0.0.8`, `@1sat/wallet-remote@0.0.6`
-- `@1sat/actions@0.0.25` — `signWithBAP` on `inscribe`, `inputBEEF` passthrough for sigma flow, `sourceSatoshis` fix in `signP2PKH`, `randomizeOutputs: false` for ordinal actions
-
-### Remaining old-pattern tools (not blocking P2)
-
-These still use the old `Wallet` class, `js-1sat-ord`, and/or `V5Broadcaster`. They'll be migrated when we build new actions in P3:
-- `wallet_mintCollection` — js-1sat-ord + V5Broadcaster, needs new action
-- `a2bPublishMcp.ts` — js-1sat-ord + V5Broadcaster (gated by `ENABLE_A2B_TOOLS`)
-- `bap_generate`, `bap_friend` — fetchPaymentUtxos, V5/BsocialBroadcaster
-- `bsocial_createPost` — old Wallet
-
-### Code quality issues found during MCP audit (2026-03-10)
-
-**Dead code (delete):**
-- `sendOrdinals.ts` — never registered, superseded by `wallet_transferOrdToken`. Also has runtime error (`wallet.getPrivateKey()` doesn't exist).
-- `a2bPublishAgent.ts` — never registered anywhere, `registerA2bPublishAgentTool` is never imported.
-
-**Runtime errors on un-migrated tools:**
-- `gatherCollectionInfo.ts` L191 — calls `wallet.getPrivateKey()` which doesn't exist on the Wallet class. Should be `wallet.getPaymentKey()`.
-- `bsocial/createPost.ts` L106 — calls `wallet.getPaymentUtxos()` which doesn't exist. Should be `wallet.getUtxos()`.
-
-**Wrong address for BRC-100:**
-- `wallet_getAddress` (in `tools.ts`) returns `payPk.toAddress()` from the old Wallet class, not the BRC-29 derived deposit address from `walletInit.ts`. These are different addresses — users sending to the old address won't fund the BRC-100 wallet.
-
-**Irrelevant for BRC-100:**
-- `wallet_refreshUtxos` — calls `wallet.getUtxos()` on the old Wallet class, fetching from V5 API. BRC-100 wallets manage UTXOs internally. This tool is misleading when BRC-100 is active.
-
-### Priority 1.5: Sigma signing in actions (PREREQUISITE for P2)
-
-Sigma signing proves authorship of inscriptions/transactions using the wallet's BAP identity.
-
-**Approach:** Anchor transaction pattern. Create a 2-sat self-payment (`noSend: true`), use its known outpoint for Sigma hash computation, bake SIGMA data into the locking script, then create the inscription tx spending the anchor with `sendWith` to broadcast both together.
-
-**Key decisions:**
-- Protocol name `"bapid"` (5-char minimum required by wallet-toolbox KeyDeriver). Invoice number: `"1-bapid-identity"`. Updated in both `@1sat/types` and `bsv-bap` library.
-- `counterparty: 'self'` for both `createSignature` and `getPublicKey` — prevents anyone from deriving the BAP signing address from the identity public key.
-- Anchor outputs stored in `sigma` basket (dedicated, no tags needed).
-- `applySigma` computes hashes natively (no dependency on `sigma-protocol` library at runtime), verified against `sigma-protocol` in unit tests.
-
-**Completed:**
-- [x] **1.5a.** `applySigma()` helper in `packages/actions/src/signing/sigma.ts` — computes Sigma hashes, signs via `wallet.createSignature({ hashToDirectlySign })`, appends SIGMA suffix to locking script
-- [x] **1.5b.** 4 unit tests verifying against `sigma-protocol` library: P2PKH output, OP_RETURN pipe separator, equivalence with direct signing, refVin=-1 handling
-- [x] **1.5c.** `inscribe` action updated with optional `sigma: boolean` — triggers anchor tx + Sigma flow via `inscribeWithSigma()`
-- [x] **1.5d.** Fixed `counterparty` mismatch bug — `getPublicKey` defaults to `'self'`, `createSignature` defaults to `'anyone'`. Fixed in both `applySigma` and `signBsm`.
-- [x] **1.5e.** Updated `bsv-bap` library: `BAP_PROTOCOL_ID` → `[1, "bapid"]`, `BAP_INVOICE_NUMBER` → `"1-bapid-identity"`, regenerated test vectors (74/74 pass)
-- [x] **1.5f.** Added `SIGMA_BASKET = 'sigma'` to `@1sat/types` constants
-- [x] **1.5g.** Live test of Sigma inscription — tested via MCP `createOrdinals` with `signWithBAP: true`. Two bugs fixed: (1) anchor BEEF must be passed as `inputBEEF` to inscription `createAction`, (2) `signP2PKH` had hardcoded `sourceSatoshis: 1` instead of reading actual value from source tx. Sigma signature verified on-chain with `sigma-protocol` library.
-- [ ] **1.5h.** Apply Sigma to other actions (transfers, listings, token ops)
-
-### Priority 1.9: New bsv-mcp diagnostic tools
-
-Add BEEF/BUMP/transaction parsing tools to aid debugging and development:
-
-- [ ] **1.9a.** `bsv_parseBeef` — takes BEEF bytes (hex or base64), returns structured JSON: version, BUMPs (block heights, tree structure, leaf offsets), transactions (txid, bumpIndex, hasProof, inputs/outputs summary). No network calls.
-- [ ] **1.9b.** `bsv_parseBump` — takes raw BUMP bytes, returns block height, tree height, leaf nodes with offsets and types (hash/txid/duplicate). No network calls.
-- [ ] **1.9c.** `bsv_parseTransaction` — takes raw tx bytes (hex or base64), returns structured JSON: version, locktime, inputs (sourceTXID, sourceOutputIndex, sequence, unlocking script hex), outputs (satoshis, locking script hex). No network calls, no script analysis. Complements `bsv_decodeTransaction` which does on-chain lookups, fee calculation, and script type identification.
-- [ ] **1.9d.** Fix `unlockBsv` BEEF issue — `listOutputs` with `include: 'entire transactions'` returns valid BEEF (lock tx + BUMP confirmed), but `createAction` rejects it. Root cause under investigation in go-wallet-toolbox `create_process_inputs.go`. Either a BEEF merge issue or a validation bug on the server side.
-
-### Priority 2: Test existing actions
-
-Build test suite in `1sat-sdk/packages/actions/` to validate all 20 actions end-to-end with real BSV.
-
-**Status:** Test infrastructure complete. Three wallets funded on rack (PRIMARY ~200k, BUYER 100k, SELLER 100k). Wallet state cleaned — stale `nosend` transactions aborted. bsv-mcp installed as MCP server (`/Users/davidcase/Source/1sat/.mcp.json`) with PRIMARY wallet WIF. Testing should use MCP tools, not throwaway scripts. Each action tested one at a time: check state → run → verify on-chain → check state after.
-
-- [x] **2a.** Set up test infrastructure: wallet creation, funding, two-wallet pattern for marketplace tests
-- [x] **2a.1** Owner sync + funding internalization working (fixed BEEF merkle path handling in 1sat-stack, fixed senderIdentityKey to use root identity key)
-- [ ] **2b.** Test read-only actions: `getOrdinals`, `deriveCancelAddress`, `listTokens`, `getBsv21Balances`, `getLockData`, `signBsm`
-- [x] **2c.** Test inscription: `inscribe` (with and without Sigma) — both paths working via MCP. Non-sigma: txid `e06b2f3b...`. Sigma: txid `24a00cbc...`, verified on-chain.
-- [ ] **2d.** Test ordinal marketplace chain: `listOrdinal` → `cancelListing`, `listOrdinal` → `purchaseOrdinal`, `transferOrdinals`
-- [ ] **2e.** Test token operations: `sendBsv21`, `purchaseBsv21`
-- [ ] **2f.** Test locks: `lockBsv` → `unlockBsv`
-- [ ] **2g.** Test OpNS: `opnsRegister` → `opnsDeregister`
-- [ ] **2h.** Test payments: `sendBsv`, `sendAllBsv`
-- [ ] **2i.** Test sweep: `sweepBsv`, `sweepOrdinals`, `sweepBsv21`
-- [ ] **2j.** Verify bsv-mcp tools produce same results as direct action calls
-
-### bsv-mcp merge status (2026-03-10, updated)
-
-Branch `brc100-wallet` merged to master. All wallet tools use `@1sat/actions@0.0.25` with BRC-100 remote wallet. Sigma inscriptions tested and verified on-chain.
-
-**Migrated (clean):**
-- `createOrdinals.ts` → `inscribe.execute(ctx, ...)`
-- `getBalance.ts` → `ctx.wallet.listOutputs({ basket: 'default' })`
-- `sendToAddress.ts` → `sendBsv.execute(ctx, ...)`
-- `purchaseListing.ts` → `purchaseOrdinal.execute(ctx, ...)` / `purchaseBsv21.execute(ctx, ...)`
-- `transferOrdToken.ts` → `transferOrdinals.execute(ctx, ...)` / `sendBsv21.execute(ctx, ...)`
-- `utils/walletInit.ts` — BRC-100 remote wallet factory with BRC-29 deposit address
-- `brc100.ts` — 25 BRC-100 wallet tools (createAction, signAction, listOutputs, etc.)
-
-**Cleanup needed before P2 testing continues:**
-- [ ] Delete dead code: `sendOrdinals.ts`, `a2bPublishAgent.ts`
-- [ ] Fix runtime error: `gatherCollectionInfo.ts` L191 `getPrivateKey()` → `getPaymentKey()`
-- [ ] Fix runtime error: `bsocial/createPost.ts` L106 `getPaymentUtxos()` → `getUtxos()`
-- [ ] Fix `wallet_getAddress` to return BRC-100 deposit address (not raw payPk address)
-- [ ] Evaluate `wallet_refreshUtxos` — irrelevant for BRC-100, consider disabling or adding warning
-
-### Priority 3: New actions for gaps (deferred)
-
-Only after P1.5 and P2 are solid. Decision items from the gap analysis above still need resolution before starting.
-
-- BAP identity lifecycle (`bap_generate`, `bap_getId`, `bap_friend`)
-- Collection minting (`wallet_mintCollection`)
-- MNEE token protocol
-- BSocial on-chain posts
-- ECIES encrypt/decrypt
-
-### Ongoing: Update skills
-
-As we change actions or bsv-mcp tools, update the corresponding skills in `1sat-skills/` and `bsv-skills/` to reflect the new patterns. Skills must stay in sync with the implementation they teach.
-
-## Test Suite Dependencies
-
-For a full integration test of all 20 actions, the test wallet needs:
-
-| Prerequisite | Required by |
-|-------------|-------------|
-| Funded wallet (~10,000 sats) | All state-changing actions |
-| Second wallet (buyer/seller) | `purchaseOrdinal`, `purchaseBsv21` |
-| Existing inscription in wallet | `listOrdinal`, `transferOrdinals` |
-| Existing BSV21 token in wallet | `sendBsv21`, `purchaseBsv21` |
-| Existing OpNS name in wallet | `opnsRegister`, `opnsDeregister` |
-| External funded WIF | `sweepBsv`, `sweepOrdinals`, `sweepBsv21` |
-| Near-future block height | `lockBsv` → `unlockBsv` chain |
-
-### Execution order (dependency chains)
-
-```
-Phase 1 — Read-only (free):
-  getOrdinals, deriveCancelAddress, listTokens, getBsv21Balances, getLockData, signBsm
-
-Phase 2 — Create assets:
-  inscribe → creates ordinal for later phases
-
-Phase 3 — Ordinal marketplace:
-  listOrdinal → cancelListing (recover)
-  listOrdinal → purchaseOrdinal (from second wallet)
-  transferOrdinals
-
-Phase 4 — Token operations:
-  sendBsv21
-  purchaseBsv21 (requires listed token from second wallet)
-
-Phase 5 — Locks:
-  lockBsv → unlockBsv (requires block height to pass)
-
-Phase 6 — OpNS:
-  opnsRegister → opnsDeregister (requires OpNS name in wallet)
-
-Phase 7 — Payments:
-  sendBsv
-  sendAllBsv (run last — sweeps entire balance)
-
-Phase 8 — Sweep (external WIF):
-  sweepBsv, sweepOrdinals, sweepBsv21
-```
+| `1sat-sdk` | `/Users/davidcase/Source/1sat/1sat-sdk` | `@1sat/actions` |
+| `bsv-mcp` | `/Users/davidcase/Source/1sat/bsv-mcp` | MCP server |
+| `bap` | `/Users/davidcase/Source/1sat/bap` | bsv-bap library |
+| `sigmaidentity` | `/Users/davidcase/Source/1sat/sigmaidentity` | Sigma Identity website |
+| `better-auth-plugin` | `/Users/davidcase/Source/1sat/better-auth-plugin` | @sigma-auth/better-auth-plugin |
+| `1sat-skills` | `/Users/davidcase/Source/1sat/1sat-skills` | 1Sat skill definitions |
+| `bsv-skills` | `/Users/davidcase/Source/1sat/bsv-skills` | BSV skill definitions |
