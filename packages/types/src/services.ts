@@ -27,6 +27,7 @@ export interface ClientOptions {
  */
 export type Capability =
 	| 'admin' // Admin panel (/1sat/admin)
+	| 'bap' // BAP identity (/1sat/bap)
 	| 'beef' // BEEF storage, raw tx, proofs (/1sat/beef)
 	| 'pubsub' // SSE subscriptions (/1sat/sse)
 	| 'txo' // TXO lookup (/1sat/txo)
@@ -346,6 +347,59 @@ export interface Bsv21TransactionData {
 	outputs: Bsv21OutputData[]
 	beef?: string
 	block_height?: number
+}
+
+// ============================================================================
+// BAP Types (Identity)
+// ============================================================================
+
+/**
+ * Address entry in a BAP identity's address history
+ */
+export interface BapAddress {
+	address: string
+	txId: string
+	block: number
+}
+
+/**
+ * BAP identity as returned by /1sat/bap/identity/get
+ *
+ * Note: the `identity` field contains the on-chain profile data (schema.org).
+ * This naming comes from the BAP protocol's storage format.
+ */
+export interface BapIdentity {
+	idKey: string
+	firstSeen: number
+	rootAddress: string
+	currentAddress: string
+	addresses: BapAddress[]
+	identity?: Record<string, unknown>
+}
+
+/**
+ * Validity record returned as part of validByAddress response
+ */
+export interface BapValidityRecord {
+	valid: boolean
+	block: number
+}
+
+/**
+ * Response from POST /1sat/bap/identity/validByAddress
+ */
+export interface BapValidByAddressResponse {
+	identity: BapIdentity
+	validityRecord: BapValidityRecord
+	profile?: Record<string, unknown>
+}
+
+/**
+ * Profile list entry from GET /1sat/bap/profile
+ */
+export interface BapProfileEntry {
+	_id: string
+	data: unknown
 }
 
 // ============================================================================
