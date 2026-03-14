@@ -1,11 +1,46 @@
 import { AIP, WalletSigner } from '@bopen-io/templates'
 import { OP, Script, Utils } from '@bsv/sdk'
-import { BAP_KEY_ID, BAP_PROTOCOL_ID } from '../constants'
+import { BAP_BASKET, BAP_KEY_ID, BAP_PROTOCOL_ID } from '../constants'
 import type { OneSatContext } from '../types'
 
 const { toArray } = Utils
 
 const AIP_PREFIX = '15PciHG22SNLQJXMoSUaWVi7WSqc7hCfva'
+
+/**
+ * Resolve the current BAP signing key ID from the wallet's basket.
+ *
+ * Scans `type:id` outputs for the highest `seq:N` tag and reads the
+ * keyID from customInstructions. Falls back to `identity-0` if no
+ * ID outputs exist (identity not yet published).
+ */
+export async function resolveCurrentKeyId(
+	ctx: OneSatContext,
+): Promise<string> {
+	const result = await ctx.wallet.listOutputs({
+		basket: BAP_BASKET,
+		tags: ['type:id'],
+		includeTags: true,
+		includeCustomInstructions: true,
+		limit: 100,
+	})
+
+	let maxSeq = 0
+	let keyID = `${BAP_KEY_ID}-0`
+
+	for (const output of result.outputs) {
+		const seqTag = output.tags?.find((t) => t.startsWith('seq:'))
+		if (!seqTag) continue
+		const seq = Number.parseInt(seqTag.slice(4), 10)
+		if (seq > maxSeq && output.customInstructions) {
+			maxSeq = seq
+			const info = JSON.parse(output.customInstructions)
+			keyID = info.keyID
+		}
+	}
+
+	return keyID
+}
 
 /**
  * Build the AIP message buffer from a locking script's OP_RETURN data.
@@ -34,24 +69,27 @@ function getAipMessageBuffer(lockingScript: Script): number[] {
 }
 
 /**
- * Sign OP_RETURN data with AIP using the BRC-100 wallet and append the
- * AIP protocol suffix to the provided locking script.
+ * Sign OP_RETURN data with AIP using any wallet-derived key.
  *
- * AIP signs the raw OP_RETURN content via BSM (no input hash or anchor
- * transaction — simpler than Sigma). The returned script contains the
- * original locking script followed by:
+ * General-purpose AIP signing — takes full derivation parameters
+ * (protocolID, keyID, counterparty) to sign with any derivable address.
+ *
+ * The returned script contains the original locking script followed by:
  * `| AIP_PREFIX BITCOIN_ECDSA <address> <compactSig>`
  */
 export async function applyAip(
 	ctx: OneSatContext,
 	lockingScript: Script,
+	protocolID: [0 | 1 | 2, string],
+	keyID: string,
+	counterparty: string,
 ): Promise<Script> {
 	const message = getAipMessageBuffer(lockingScript)
 	const signer = new WalletSigner(
 		ctx.wallet,
-		BAP_PROTOCOL_ID,
-		BAP_KEY_ID,
-		'self',
+		protocolID,
+		keyID,
+		counterparty,
 	)
 	const aip = await AIP.sign(message, signer)
 
@@ -63,4 +101,19 @@ export async function applyAip(
 	out.writeBin(aip.data.signature)
 
 	return out
+}
+
+/**
+ * Sign OP_RETURN data with AIP using the BAP signing key.
+ *
+ * When keyID is omitted, resolves the current signing key from the
+ * wallet's BAP basket (highest sequence output).
+ */
+export async function applyBapAip(
+	ctx: OneSatContext,
+	lockingScript: Script,
+	keyID?: string,
+): Promise<Script> {
+	const resolvedKeyID = keyID ?? (await resolveCurrentKeyId(ctx))
+	return applyAip(ctx, lockingScript, BAP_PROTOCOL_ID, resolvedKeyID, 'self')
 }
