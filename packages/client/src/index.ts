@@ -6,6 +6,7 @@ export { HttpError } from './errors'
 export {
 	AdminClient,
 	ArcadeClient,
+	BapClient,
 	BaseClient,
 	BeefClient,
 	Bsv21Client,
