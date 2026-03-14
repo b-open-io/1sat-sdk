@@ -19,9 +19,9 @@ import {
 	type WalletOutput,
 } from '@bsv/sdk'
 import { BSV21_BASKET, BSV21_PROTOCOL } from '../constants'
-import type { Action, ActionLogEntry, OneSatContext } from '../types'
+import type { Action, ActionLogEntry, ActionOptions, OneSatContext } from '../types'
 import { completeSignedAction } from '../utils/completeSignedAction'
-import { createTrackedAction } from '../utils/createTrackedAction'
+import { executeTrackedAction } from '../utils/createTrackedAction'
 import { signP2PKHInput } from '../utils/signP2PKH'
 
 // ============================================================================
@@ -55,7 +55,7 @@ export interface Bsv21Balance {
 	}
 }
 
-export interface SendBsv21Request {
+export interface SendBsv21Request extends ActionOptions {
 	/** Token ID (txid_vout format) */
 	tokenId: string
 	/** Amount to send (as bigint or string) */
@@ -68,7 +68,7 @@ export interface SendBsv21Request {
 	paymail?: string
 }
 
-export interface PurchaseBsv21Request {
+export interface PurchaseBsv21Request extends ActionOptions {
 	/** Token ID (txid_vout format of the deploy transaction) */
 	tokenId: string
 	/** Outpoint of listed token UTXO (OrdLock containing BSV21) */
@@ -494,7 +494,7 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 				}
 				inputBEEF = beef.toBinary()
 			}
-			const createResult = await createTrackedAction(ctx.wallet, {
+			const createResult = await executeTrackedAction(ctx.wallet, {
 				description: `Send ${amount} ${symbol}`,
 				inputBEEF,
 				inputs: selected.map((o) => ({
@@ -504,7 +504,7 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 				})),
 				outputs,
 				options: { signAndProcess: false, randomizeOutputs: false },
-			})
+			}, input.fundingProvider)
 
 			if ('error' in createResult && createResult.error) {
 				return { error: String(createResult.error) }
@@ -759,7 +759,7 @@ export const purchaseBsv21: Action<
 
 			const beefBinary = beef.toBinary()
 
-			const createResult = await createTrackedAction(ctx.wallet, {
+			const createResult = await executeTrackedAction(ctx.wallet, {
 				description: `Purchase ${tokenAmount} tokens for ${payoutSatoshis} sats`,
 				inputBEEF: beefBinary,
 				inputs: [
@@ -771,7 +771,7 @@ export const purchaseBsv21: Action<
 				],
 				outputs,
 				options: { signAndProcess: false, randomizeOutputs: false },
-			})
+			}, input.fundingProvider)
 
 			if ('error' in createResult && createResult.error) {
 				return { error: String(createResult.error) }

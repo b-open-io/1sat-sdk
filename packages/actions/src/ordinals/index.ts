@@ -31,9 +31,9 @@ import {
 	ORD_LOCK_PREFIX,
 	ORD_LOCK_SUFFIX,
 } from '../constants'
-import type { Action, ActionLogEntry, OneSatContext } from '../types'
+import type { Action, ActionLogEntry, ActionOptions, OneSatContext } from '../types'
 import { completeSignedAction } from '../utils/completeSignedAction'
-import { createTrackedAction } from '../utils/createTrackedAction'
+import { executeTrackedAction } from '../utils/createTrackedAction'
 import { resolveBeef } from '../utils/resolveBeef'
 import { signP2PKHInput } from '../utils/signP2PKH'
 
@@ -143,14 +143,14 @@ export interface TransferItem {
 	extraTags?: string[]
 }
 
-export interface TransferOrdinalsRequest {
+export interface TransferOrdinalsRequest extends ActionOptions {
 	/** Ordinals to transfer with their destinations */
 	transfers: TransferItem[]
 	/** BEEF data — resolved automatically via ID tag if omitted */
 	inputBEEF?: number[]
 }
 
-export interface ListOrdinalRequest {
+export interface ListOrdinalRequest extends ActionOptions {
 	/** The ordinal output to list (from listOutputs) */
 	ordinal: WalletOutput
 	/** BEEF data — resolved automatically via ID tag if omitted */
@@ -161,7 +161,7 @@ export interface ListOrdinalRequest {
 	payAddress: string
 }
 
-export interface PurchaseOrdinalRequest {
+export interface PurchaseOrdinalRequest extends ActionOptions {
 	/** Outpoint of listing to purchase */
 	outpoint: string
 	/** Marketplace address for fees */
@@ -629,10 +629,10 @@ export const transferOrdinals: Action<
 				console.log('[transferOrdinals] BEEF parse error:', e)
 			}
 
-			const createResult = await createTrackedAction(ctx.wallet, {
+			const createResult = await executeTrackedAction(ctx.wallet, {
 				...params,
 				options: { signAndProcess: false, randomizeOutputs: false },
-			})
+			}, input.fundingProvider)
 
 			if ('error' in createResult && createResult.error) {
 				return { error: String(createResult.error) }
@@ -751,10 +751,10 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 					return params
 				}
 
-				const createResult = await createTrackedAction(ctx.wallet, {
+				const createResult = await executeTrackedAction(ctx.wallet, {
 					...params,
 					options: { signAndProcess: false, randomizeOutputs: false },
-				})
+				}, input.fundingProvider)
 
 				if ('error' in createResult && createResult.error) {
 					return { error: String(createResult.error) }
@@ -822,7 +822,7 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 	}
 
 /** Input for cancelListing action */
-export interface CancelListingInput {
+export interface CancelListingInput extends ActionOptions {
 	/** The listing output to cancel (from listOutputs) */
 	listing: WalletOutput
 	/** BEEF data — resolved automatically via ID tag if omitted */
@@ -876,7 +876,7 @@ export const cancelListing: Action<
 				tags: listing.tags,
 			})
 
-			const createResult = await createTrackedAction(ctx.wallet, {
+			const createResult = await executeTrackedAction(ctx.wallet, {
 				description: 'Cancel ordinal listing',
 				inputBEEF,
 				inputs: [
@@ -900,7 +900,7 @@ export const cancelListing: Action<
 					},
 				],
 				options: { signAndProcess: false, randomizeOutputs: false },
-			})
+			}, input.fundingProvider)
 
 			if ('error' in createResult && createResult.error) {
 				return { error: String(createResult.error) }
@@ -1086,7 +1086,7 @@ export const purchaseOrdinal: Action<
 
 			const beefBinary = beef.toBinary()
 
-			const createResult = await createTrackedAction(ctx.wallet, {
+			const createResult = await executeTrackedAction(ctx.wallet, {
 				description: `Purchase ordinal for ${payoutSatoshis} sats`,
 				inputBEEF: beefBinary,
 				inputs: [
@@ -1098,7 +1098,7 @@ export const purchaseOrdinal: Action<
 				],
 				outputs,
 				options: { signAndProcess: false, randomizeOutputs: false },
-			})
+			}, input.fundingProvider)
 
 			if ('error' in createResult && createResult.error) {
 				return { error: String(createResult.error) }

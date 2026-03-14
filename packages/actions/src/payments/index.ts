@@ -7,8 +7,8 @@
 import { Inscription } from '@bopen-io/templates'
 import { type CreateActionOutput, P2PKH, Script, Utils } from '@bsv/sdk'
 import { getP2pPaymentDestination, sendBeefP2P } from '../paymail'
-import type { Action } from '../types'
-import { createTrackedAction } from '../utils/createTrackedAction'
+import type { Action, ActionOptions } from '../types'
+import { executeTrackedAction } from '../utils/createTrackedAction'
 
 /**
  * Magic constant that tells the wallet to send all available funds minus fees.
@@ -20,7 +20,7 @@ const maxPossibleSatoshis = 2099999999999999
 // Types
 // ============================================================================
 
-export interface SendBsvRequest {
+export interface SendBsvRequest extends ActionOptions {
 	/** Destination address (P2PKH) */
 	address?: string
 	/** Destination paymail */
@@ -85,7 +85,7 @@ function buildInscriptionScript(
 // ============================================================================
 
 /** Input for sendBsv action */
-export interface SendBsvInput {
+export interface SendBsvInput extends ActionOptions {
 	requests: SendBsvRequest[]
 }
 
@@ -192,11 +192,11 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 				})
 			}
 
-			const result = await createTrackedAction(ctx.wallet, {
+			const result = await executeTrackedAction(ctx.wallet, {
 				description: `Send ${requests.length} payment(s)`,
 				outputs,
 				options: { signAndProcess: true, acceptDelayedBroadcast: false },
-			})
+			}, input.fundingProvider)
 
 			if (!result.txid) {
 				return { error: 'no-txid-returned' }
@@ -238,7 +238,7 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 }
 
 /** Input for sendAllBsv action */
-export interface SendAllBsvInput {
+export interface SendAllBsvInput extends ActionOptions {
 	/** Destination address to send all funds to */
 	destination: string
 }
@@ -272,7 +272,7 @@ export const sendAllBsv: Action<SendAllBsvInput, SendBsvResponse> = {
 				}
 			}
 
-			const result = await createTrackedAction(ctx.wallet, {
+			const result = await executeTrackedAction(ctx.wallet, {
 				description: 'Send all BSV',
 				outputs: [
 					{
@@ -283,7 +283,7 @@ export const sendAllBsv: Action<SendAllBsvInput, SendBsvResponse> = {
 					},
 				],
 				options: { signAndProcess: true, acceptDelayedBroadcast: false },
-			})
+			}, input.fundingProvider)
 
 			if (!result.txid) {
 				return { error: 'no-txid-returned' }

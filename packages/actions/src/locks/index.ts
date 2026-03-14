@@ -12,9 +12,9 @@ import {
 	type WalletOutput,
 } from '@bsv/sdk'
 import { LOCK_BASKET, MIN_UNLOCK_SATS } from '../constants'
-import type { Action, ActionLogEntry } from '../types'
+import type { Action, ActionLogEntry, ActionOptions } from '../types'
 import { completeSignedAction } from '../utils/completeSignedAction'
-import { createTrackedAction } from '../utils/createTrackedAction'
+import { executeTrackedAction } from '../utils/createTrackedAction'
 
 // ============================================================================
 // Constants
@@ -27,7 +27,7 @@ const LOCK_KEY_ID = 'lock'
 // Types
 // ============================================================================
 
-export interface LockBsvRequest {
+export interface LockBsvRequest extends ActionOptions {
 	/** Amount in satoshis to lock */
 	satoshis: number
 	/** Block height until which to lock */
@@ -106,7 +106,7 @@ export const getLockData: Action<GetLockDataInput, LockData> = {
 }
 
 /** Input for lockBsv action */
-export interface LockBsvInput {
+export interface LockBsvInput extends ActionOptions {
 	requests: LockBsvRequest[]
 }
 
@@ -177,11 +177,11 @@ export const lockBsv: Action<LockBsvInput, LockOperationResponse> = {
 				})
 			}
 
-			const result = await createTrackedAction(ctx.wallet, {
+			const result = await executeTrackedAction(ctx.wallet, {
 				description: `Lock BSV in ${requests.length} output(s)`,
 				outputs,
 				options: { signAndProcess: true, acceptDelayedBroadcast: false },
-			})
+			}, input.fundingProvider)
 
 			if (!result.txid) {
 				return { error: 'no-txid-returned' }
@@ -313,7 +313,7 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 				inputBEEF = beef.toBinary()
 			}
 
-			const createResult = await createTrackedAction(ctx.wallet, {
+			const createResult = await executeTrackedAction(ctx.wallet, {
 				description: `Unlock ${maturedLocks.length} lock(s)`,
 				inputBEEF,
 				inputs: maturedLocks.map((l) => ({

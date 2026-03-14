@@ -4,6 +4,7 @@
 
 import type { OneSatServices } from '@1sat/client'
 import type { WalletInterface } from '@bsv/sdk'
+import type { FundingProvider } from './funding'
 
 /**
  * Context passed to all actions.
@@ -24,6 +25,16 @@ export interface OneSatContext {
 	debug?: boolean
 	/** Structured log callback — receives derivation details for each action execution */
 	log?: (entry: ActionLogEntry) => void
+}
+
+/**
+ * Base options for actions that create transactions.
+ * Extend this in action-specific request types to inherit funding support.
+ */
+export interface ActionOptions {
+	/** Optional external funding provider. When set, the provider funds and
+	 *  broadcasts the transaction instead of the wallet. */
+	fundingProvider?: FundingProvider
 }
 
 /**

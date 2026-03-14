@@ -18,8 +18,8 @@ import {
 	BAP_PROTOCOL_ID,
 } from '../constants'
 import { applyBapAip, resolveCurrentKeyId } from '../signing/aip'
-import type { Action, OneSatContext } from '../types'
-import { createTrackedAction } from '../utils/createTrackedAction'
+import type { Action, ActionOptions, OneSatContext } from '../types'
+import { executeTrackedAction } from '../utils/createTrackedAction'
 
 const { toArray, toBase58, toHex } = Utils
 
@@ -108,14 +108,14 @@ async function getCurrentSequence(
 // Types
 // ============================================================================
 
-export interface AttestRequest {
+export interface AttestRequest extends ActionOptions {
 	/** SHA-256 hash of the attestation URN (urn:bap:id:attribute:value:nonce) */
 	attestationHash: string
 	/** Attestation sequence number (default "0") */
 	counter?: string
 }
 
-export interface UpdateProfileRequest {
+export interface UpdateProfileRequest extends ActionOptions {
 	/** Schema.org profile data (e.g. { "@type": "Person", "name": "Alice" }) */
 	profile: Record<string, unknown>
 }
@@ -146,7 +146,7 @@ export interface ProfileResponse {
  *
  * Returns an error if an identity has already been published.
  */
-export const publishIdentity: Action<Record<string, never>, IdentityResponse> =
+export const publishIdentity: Action<ActionOptions, IdentityResponse> =
 	{
 		meta: {
 			name: 'publishIdentity',
@@ -157,7 +157,7 @@ export const publishIdentity: Action<Record<string, never>, IdentityResponse> =
 				properties: {},
 			},
 		},
-		async execute(ctx) {
+		async execute(ctx, input) {
 			try {
 				const existing = await ctx.wallet.listOutputs({
 					basket: BAP_BASKET,
@@ -182,7 +182,7 @@ export const publishIdentity: Action<Record<string, never>, IdentityResponse> =
 
 				const signedScript = await applyBapAip(ctx, script, rootKeyId)
 
-				const result = await createTrackedAction(ctx.wallet, {
+				const result = await executeTrackedAction(ctx.wallet, {
 					description: 'BAP identity publication',
 					outputs: [
 						{
@@ -202,7 +202,7 @@ export const publishIdentity: Action<Record<string, never>, IdentityResponse> =
 						acceptDelayedBroadcast: false,
 						randomizeOutputs: false,
 					},
-				})
+				}, input?.fundingProvider)
 
 				if (!result.txid) return { error: 'no-txid-returned' }
 
@@ -228,7 +228,7 @@ export const publishIdentity: Action<Record<string, never>, IdentityResponse> =
  * currentAddress, signs it with the outgoing key, and publishes.
  * The previous ID output is relinquished.
  */
-export const rotateIdentity: Action<Record<string, never>, IdentityResponse> = {
+export const rotateIdentity: Action<ActionOptions, IdentityResponse> = {
 	meta: {
 		name: 'rotateIdentity',
 		description: 'Rotate BAP signing key to the next derived key',
@@ -238,7 +238,7 @@ export const rotateIdentity: Action<Record<string, never>, IdentityResponse> = {
 			properties: {},
 		},
 	},
-	async execute(ctx) {
+	async execute(ctx, input) {
 		try {
 			const currentSeq = await getCurrentSequence(ctx)
 			if (currentSeq === null) {
@@ -268,7 +268,7 @@ export const rotateIdentity: Action<Record<string, never>, IdentityResponse> = {
 				limit: 100,
 			})
 
-			const result = await createTrackedAction(ctx.wallet, {
+			const result = await executeTrackedAction(ctx.wallet, {
 				description: 'BAP key rotation',
 				outputs: [
 					{
@@ -288,7 +288,7 @@ export const rotateIdentity: Action<Record<string, never>, IdentityResponse> = {
 					acceptDelayedBroadcast: false,
 					randomizeOutputs: false,
 				},
-			})
+			}, input?.fundingProvider)
 
 			if (!result.txid) return { error: 'no-txid-returned' }
 
@@ -357,7 +357,7 @@ export const attest: Action<AttestRequest, IdentityResponse> = {
 
 			const signedScript = await applyBapAip(ctx, script)
 
-			const result = await createTrackedAction(ctx.wallet, {
+			const result = await executeTrackedAction(ctx.wallet, {
 				description: 'BAP attestation',
 				outputs: [
 					{
@@ -373,7 +373,7 @@ export const attest: Action<AttestRequest, IdentityResponse> = {
 					acceptDelayedBroadcast: false,
 					randomizeOutputs: false,
 				},
-			})
+			}, input.fundingProvider)
 
 			if (!result.txid) return { error: 'no-txid-returned' }
 
@@ -436,7 +436,7 @@ export const updateProfile: Action<UpdateProfileRequest, IdentityResponse> = {
 
 			const signedScript = await applyBapAip(ctx, script)
 
-			const result = await createTrackedAction(ctx.wallet, {
+			const result = await executeTrackedAction(ctx.wallet, {
 				description: 'BAP alias update',
 				outputs: [
 					{
@@ -452,7 +452,7 @@ export const updateProfile: Action<UpdateProfileRequest, IdentityResponse> = {
 					acceptDelayedBroadcast: false,
 					randomizeOutputs: false,
 				},
-			})
+			}, input.fundingProvider)
 
 			if (!result.txid) return { error: 'no-txid-returned' }
 

@@ -20,7 +20,7 @@ import { BSV21_BASKET, BSV21_PROTOCOL, ONESAT_PROTOCOL } from '../constants'
 import { resolveOrdinalTags } from '../ordinals'
 import type { Action, ActionLogEntry, OneSatContext } from '../types'
 import { completeSignedAction } from '../utils/completeSignedAction'
-import { createTrackedAction } from '../utils/createTrackedAction'
+import { executeTrackedAction } from '../utils/createTrackedAction'
 import type {
 	SweepBsv21Request,
 	SweepBsv21Response,
@@ -207,7 +207,7 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 			// If no amount specified, no outputs - wallet creates change for everything
 
 			// Step 1: Create action to get the signable transaction
-			const createResult = await createTrackedAction(ctx.wallet, {
+			const createResult = await executeTrackedAction(ctx.wallet, {
 				description: amount
 					? `Sweep ${amount} sats`
 					: `Sweep ${inputTotal} sats`,
@@ -474,7 +474,7 @@ export const sweepOrdinals: Action<
 
 			// Create action to get signable transaction
 			// CRITICAL: randomizeOutputs must be false to preserve ordinal satoshi positions
-			const createResult = await createTrackedAction(ctx.wallet, {
+			const createResult = await executeTrackedAction(ctx.wallet, {
 				description: `Sweep ${inputs.length} ordinal${inputs.length !== 1 ? 's' : ''}`,
 				inputBEEF: beefData,
 				inputs: inputDescriptors,
@@ -772,7 +772,7 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 			const beefData = firstBeef.toBinary()
 
 			// Create action to get signable transaction
-			const createResult = await createTrackedAction(ctx.wallet, {
+			const createResult = await executeTrackedAction(ctx.wallet, {
 				description: `Sweep ${inputs.length} token UTXO${inputs.length !== 1 ? 's' : ''}`,
 				inputBEEF: beefData,
 				inputs: inputDescriptors,
@@ -944,7 +944,7 @@ export async function prepareSweepBsv(
 	// For prepareSweepBsv, always sweep all -- wallet creates change.
 
 	// Step 1: Create action to get the signable transaction
-	const createResult = await createTrackedAction(ctx.wallet, {
+	const createResult = await executeTrackedAction(ctx.wallet, {
 		description: amount ? `Sweep ${amount} sats` : `Sweep ${inputTotal} sats`,
 		inputBEEF: firstBeef.toBinary(),
 		inputs: inputDescriptors,

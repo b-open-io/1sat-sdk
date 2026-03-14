@@ -11,6 +11,7 @@ export {
 	type ActionCategory,
 	type ActionLogEntry,
 	type ActionMetadata,
+	type ActionOptions,
 	type JsonSchemaProperty,
 	type OneSatContext,
 	createContext,
@@ -31,8 +32,15 @@ export {
 } from './utils/completeSignedAction'
 export {
 	createTrackedAction,
+	executeTrackedAction,
 	randomActionId,
 } from './utils/createTrackedAction'
+
+// Export funding provider types
+export type {
+	FundingProvider,
+	FundingResult,
+} from './funding'
 export { resolveBeef, extractIdTag } from './utils/resolveBeef'
 export {
 	internalizeBeef,

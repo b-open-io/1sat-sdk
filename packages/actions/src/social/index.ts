@@ -15,13 +15,14 @@ import {
 } from '@bopen-io/templates'
 import { Utils } from '@bsv/sdk'
 import { BAP_KEY_ID, BAP_PROTOCOL_ID, BSOCIAL_BASKET } from '../constants'
-import type { Action } from '../types'
+import type { Action, ActionOptions } from '../types'
+import { executeTrackedAction } from '../utils/createTrackedAction'
 
 // ============================================================================
 // Types
 // ============================================================================
 
-export interface CreateSocialPostRequest {
+export interface CreateSocialPostRequest extends ActionOptions {
 	/** Application name for MAP attribution (e.g. 'bsv-mcp', '1sat-website') */
 	app: string
 	/** Post content (text) */
@@ -135,7 +136,7 @@ export const createSocialPost: Action<CreateSocialPostRequest, SocialResponse> =
 
 				const lockingScript = await BSocial.createPost(post, input.tags, signer)
 
-				const result = await ctx.wallet.createAction({
+				const result = await executeTrackedAction(ctx.wallet, {
 					description: 'Social post',
 					outputs: [
 						{
@@ -151,7 +152,7 @@ export const createSocialPost: Action<CreateSocialPostRequest, SocialResponse> =
 						acceptDelayedBroadcast: false,
 						randomizeOutputs: false,
 					},
-				})
+				}, input.fundingProvider)
 
 				if (!result.txid) {
 					return { error: 'no-txid-returned' }

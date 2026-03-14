@@ -8,9 +8,9 @@
 import type { BEEF, WalletOutput } from '@bsv/sdk'
 import { OPNS_BASKET } from '../constants'
 import { buildTransferOrdinals } from '../ordinals'
-import type { Action } from '../types'
+import type { Action, ActionOptions } from '../types'
 import { completeSignedAction } from '../utils/completeSignedAction'
-import { createTrackedAction } from '../utils/createTrackedAction'
+import { executeTrackedAction } from '../utils/createTrackedAction'
 import { resolveBeef } from '../utils/resolveBeef'
 import { signP2PKHInput } from '../utils/signP2PKH'
 
@@ -18,14 +18,14 @@ import { signP2PKHInput } from '../utils/signP2PKH'
 // Types
 // ============================================================================
 
-export interface OpnsRegisterRequest {
+export interface OpnsRegisterRequest extends ActionOptions {
 	/** The OpNS ordinal output to register (from listOutputs) */
 	ordinal: WalletOutput
 	/** BEEF — resolved automatically via ID tag if omitted */
 	inputBEEF?: number[]
 }
 
-export interface OpnsDeregisterRequest {
+export interface OpnsDeregisterRequest extends ActionOptions {
 	/** The OpNS ordinal output to deregister (from listOutputs) */
 	ordinal: WalletOutput
 	/** BEEF — resolved automatically via ID tag if omitted */
@@ -157,10 +157,10 @@ export const opnsRegister: Action<OpnsRegisterRequest, OpnsOperationResponse> =
 					return params
 				}
 
-				const createResult = await createTrackedAction(ctx.wallet, {
+				const createResult = await executeTrackedAction(ctx.wallet, {
 					...params,
 					options: { signAndProcess: false, randomizeOutputs: false },
-				})
+				}, input.fundingProvider)
 
 				if ('error' in createResult && createResult.error) {
 					return { error: String(createResult.error) }
@@ -260,10 +260,10 @@ export const opnsDeregister: Action<
 				return params
 			}
 
-			const createResult = await createTrackedAction(ctx.wallet, {
+			const createResult = await executeTrackedAction(ctx.wallet, {
 				...params,
 				options: { signAndProcess: false, randomizeOutputs: false },
-			})
+			}, input.fundingProvider)
 
 			if ('error' in createResult && createResult.error) {
 				return { error: String(createResult.error) }

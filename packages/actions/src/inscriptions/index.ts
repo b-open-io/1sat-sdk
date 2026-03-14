@@ -13,16 +13,16 @@ import {
 	SIGMA_BASKET,
 } from '../constants'
 import { applySigma } from '../signing/sigma'
-import type { Action, OneSatContext } from '../types'
+import type { Action, ActionOptions, OneSatContext } from '../types'
 import { completeSignedAction } from '../utils/completeSignedAction'
-import { createTrackedAction } from '../utils/createTrackedAction'
+import { executeTrackedAction } from '../utils/createTrackedAction'
 import { signP2PKHInput } from '../utils/signP2PKH'
 
 // ============================================================================
 // Types
 // ============================================================================
 
-export interface InscribeRequest {
+export interface InscribeRequest extends ActionOptions {
 	/** Base64 encoded content */
 	base64Content: string
 	/** Content type (MIME type) */
@@ -84,7 +84,7 @@ async function inscribeWithSigma(
 	const anchorLockingScript = new P2PKH().lock(anchorAddress)
 
 	// Step 1: Create anchor tx (signed, not broadcast)
-	const anchorResult = await createTrackedAction(ctx.wallet, {
+	const anchorResult = await executeTrackedAction(ctx.wallet, {
 		description: 'Sigma anchor output',
 		outputs: [
 			{
@@ -104,7 +104,7 @@ async function inscribeWithSigma(
 			randomizeOutputs: false,
 			acceptDelayedBroadcast: true,
 		},
-	})
+	}, input.fundingProvider)
 
 	if (!anchorResult.txid) {
 		return { error: 'anchor-no-txid' }
@@ -120,7 +120,7 @@ async function inscribeWithSigma(
 	)
 
 	// Step 3: Create inscription tx, spending the anchor and broadcasting both
-	const inscribeResult = await createTrackedAction(ctx.wallet, {
+	const inscribeResult = await executeTrackedAction(ctx.wallet, {
 		description: 'Create inscription',
 		inputBEEF: anchorResult.tx,
 		inputs: [
@@ -153,7 +153,7 @@ async function inscribeWithSigma(
 			acceptDelayedBroadcast: true,
 			trustSelf: 'known',
 		},
-	})
+	}, input.fundingProvider)
 
 	if ('error' in inscribeResult && inscribeResult.error) {
 		return { error: String(inscribeResult.error) }
@@ -277,7 +277,7 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 				return await inscribeWithSigma(ctx, lockingScript, keyID, tags, input)
 			}
 
-			const result = await createTrackedAction(ctx.wallet, {
+			const result = await executeTrackedAction(ctx.wallet, {
 				description: 'Create inscription',
 				outputs: [
 					{
@@ -298,7 +298,7 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 					acceptDelayedBroadcast: false,
 					randomizeOutputs: false,
 				},
-			})
+			}, input.fundingProvider)
 
 			if (!result.txid) {
 				return { error: 'no-txid-returned' }
