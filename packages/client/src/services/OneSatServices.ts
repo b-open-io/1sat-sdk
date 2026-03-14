@@ -13,6 +13,7 @@ import { WalletError } from '@bsv/wallet-toolbox/out/src/sdk/WalletError.js'
 import {
 	AdminClient,
 	ArcadeClient,
+	BapClient,
 	BeefClient,
 	Bsv21Client,
 	ChaintracksClient,
@@ -50,6 +51,7 @@ export type { SyncOutput }
  * - /1sat/chaintracks/* - Block headers and chain tracking
  * - /1sat/beef/* - Raw transactions and proofs
  * - /1sat/arcade/* - Transaction broadcasting
+ * - /1sat/bap/* - BAP identity attestation
  * - /1sat/bsv21/* - BSV21 token data
  * - /1sat/txo/* - Transaction outputs
  * - /1sat/owner/* - Address queries and sync
@@ -64,6 +66,7 @@ export class OneSatServices implements WalletServices {
 
 	// ===== API Clients =====
 	readonly admin: AdminClient
+	readonly bap: BapClient
 	readonly chaintracks: ChaintracksClient
 	readonly beef: BeefClient
 	readonly arcade: ArcadeClient
@@ -98,6 +101,7 @@ export class OneSatServices implements WalletServices {
 
 		const opts: ClientOptions = { timeout: 30000 }
 		this.admin = new AdminClient(this.baseUrl, opts)
+		this.bap = new BapClient(this.baseUrl, opts)
 		this.chaintracks = new ChaintracksClient(this.baseUrl, opts)
 		this.beef = new BeefClient(this.baseUrl, opts)
 		this.arcade = new ArcadeClient(this.baseUrl, opts)
