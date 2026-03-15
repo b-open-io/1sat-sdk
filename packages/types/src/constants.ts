@@ -61,13 +61,13 @@ export const WOC_MAINNET_URL = 'https://api.whatsonchain.com/v1/bsv/main'
 export const WOC_TESTNET_URL = 'https://api.whatsonchain.com/v1/bsv/test'
 
 /** 1Sat API base URL (mainnet) */
-export const ONESAT_MAINNET_URL = 'https://1sat.shruggr.cloud'
+export const ONESAT_MAINNET_URL = 'https://api.1sat.app'
 
 /** 1Sat API base URL (testnet) */
 export const ONESAT_TESTNET_URL = 'https://testnet.api.1sat.app'
 
 /** 1Sat API content URL (mainnet) */
-export const ONESAT_MAINNET_CONTENT_URL = 'https://1sat.shruggr.cloud/content'
+export const ONESAT_MAINNET_CONTENT_URL = 'https://api.1sat.app/content'
 
 /** 1Sat API content URL (testnet) */
 export const ONESAT_TESTNET_CONTENT_URL = 'https://testnet.api.1sat.app/content'

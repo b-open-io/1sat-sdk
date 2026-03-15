@@ -11,8 +11,8 @@ import { BaseClient } from './BaseClient'
  * Client for ordfs routes.
  * Provides inscription content and metadata.
  *
- * Content is served from /content (e.g., https://1sat.shruggr.cloud/content/:outpoint)
- * API routes use /1sat/ordfs (e.g., https://1sat.shruggr.cloud/1sat/ordfs/metadata/:outpoint)
+ * Content is served from /content (e.g., https://api.1sat.app/content/:outpoint)
+ * API routes use /1sat/ordfs (e.g., https://api.1sat.app/1sat/ordfs/metadata/:outpoint)
  */
 export class OrdfsClient extends BaseClient {
 	private readonly contentBaseUrl: string
