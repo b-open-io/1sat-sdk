@@ -10,9 +10,9 @@ const VERSION = (() => {
 		const pkg = JSON.parse(
 			readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
 		)
-		return pkg.version || '0.0.9'
+		return pkg.version || '0.0.11'
 	} catch {
-		return '0.0.9'
+		return '0.0.11'
 	}
 })()
 

@@ -9,6 +9,7 @@
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { arch, platform } from 'node:os'
 import { join } from 'node:path'
 import { PrivateKey } from '@bsv/sdk'
 import { type WifBackup, decryptBackup, encryptBackup } from 'bitcoin-backup'
@@ -32,7 +33,6 @@ export function hasKey(): boolean {
  * Check if Touch ID is available for password caching.
  */
 export function isTouchIDAvailable(): boolean {
-	const { platform, arch } = require('node:os')
 	return platform() === 'darwin' && arch() === 'arm64'
 }
 

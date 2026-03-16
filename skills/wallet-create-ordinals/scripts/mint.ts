@@ -1,9 +1,10 @@
 #!/usr/bin/env bun
 
-import { basename, extname } from 'path'
+import { basename, extname } from 'node:path'
+import { readFile } from 'node:fs/promises'
 import { createContext, inscribe } from '@1sat/actions'
 import { createRemoteWallet } from '@1sat/wallet-remote'
-import { readFile } from 'fs/promises'
+import { Utils } from '@bsv/sdk'
 
 const REMOTE_STORAGE_URL = 'https://1sat.shruggr.cloud/1sat/wallet'
 
@@ -58,7 +59,7 @@ async function main() {
 	try {
 		const fileData = await readFile(filePath)
 		const contentType = getContentType(filePath)
-		const base64Content = fileData.toString('base64')
+		const base64Content = Utils.toBase64(Array.from(fileData))
 
 		console.log(
 			`File: ${basename(filePath)} (${fileData.length} bytes, ${contentType})`,

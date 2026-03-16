@@ -446,7 +446,9 @@ if (
 | `@1sat/wallet-browser` | 0.0.18 | Browser wallet factory (IndexedDB storage) |
 | `@1sat/wallet-node` | 0.0.13 | Node/Bun wallet factory (SQLite storage) |
 | `@1sat/actions` | 0.0.54 | Self-describing wallet actions for agents and tooling |
-| `@1sat/cli` | 0.0.9 | Command-line interface (`1sat` binary) with 30+ commands |
+| `@1sat/cli` | 0.0.11 | Command-line interface (`1sat` binary) with 30+ commands |
+| `@1sat/wallet-remote` | 0.0.11 | Remote-only wallet factory (no local storage) |
+| `@1sat/vault` | 0.0.3 | Secure Enclave key storage for macOS (Touch ID / Keychain) |
 
 ## Protocols
 
