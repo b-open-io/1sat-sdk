@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/cli",
-	"version": "0.0.8",
+	"version": "0.0.9",
 	"description": "CLI for 1Sat Ordinals SDK",
 	"type": "module",
 	"main": "./src/cli.ts",
@@ -19,15 +19,12 @@
 		"@1sat/actions": "workspace:*",
 		"@1sat/client": "workspace:*",
 		"@1sat/types": "workspace:*",
-		"@1sat/wallet-node": "workspace:*",
+		"@1sat/wallet-node": ">=0.0.13",
 		"@bsv/sdk": "^2.0.4",
-		"@bsv/wallet-toolbox": "^2.0.20",
 		"chalk": "^5.0.0",
 		"@clack/prompts": "^0.8.0",
 		"bitcoin-backup": "^0.0.8",
 		"dotenv": "^17.0.0",
-		"better-sqlite3": "^12.8.0",
-		"knex": "^3.1.0",
 		"sigma-protocol": "^0.1.9"
 	},
 	"devDependencies": {
