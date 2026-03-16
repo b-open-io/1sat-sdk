@@ -1,3 +1,4 @@
+import { Lock } from '@1sat/templates'
 import {
 	type IndexSummary,
 	Indexer,
@@ -5,7 +6,6 @@ import {
 	type ParseResult,
 	type Txo,
 } from '@1sat/types'
-import { Lock } from '@1sat/templates'
 
 export interface LockData {
 	until: number

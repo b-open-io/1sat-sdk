@@ -176,7 +176,9 @@ async function tokenSend(args: string[], opts: GlobalFlags): Promise<void> {
 }
 
 async function tokenDeploy(_args: string[], _opts: GlobalFlags): Promise<void> {
-	fatal('tokens deploy is not yet available. No deploy action exists in the actions package.')
+	fatal(
+		'tokens deploy is not yet available. No deploy action exists in the actions package.',
+	)
 }
 
 async function tokenBuy(args: string[], opts: GlobalFlags): Promise<void> {

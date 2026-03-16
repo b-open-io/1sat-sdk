@@ -5,9 +5,9 @@
  * Returns WalletOutput[] directly from the SDK - no custom mapping needed.
  */
 
-import { parseOutpoint } from '@1sat/utils'
 import { MAP as MAPTemplate } from '@1sat/templates'
 import { OrdLock } from '@1sat/templates'
+import { parseOutpoint } from '@1sat/utils'
 import {
 	type BEEF,
 	Beef,

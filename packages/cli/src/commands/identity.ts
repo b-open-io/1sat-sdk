@@ -63,10 +63,7 @@ async function identityCreate(
 	}
 }
 
-async function identityInfo(
-	_args: string[],
-	opts: GlobalFlags,
-): Promise<void> {
+async function identityInfo(_args: string[], opts: GlobalFlags): Promise<void> {
 	const privateKey = await loadKey(resolvePassword())
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,

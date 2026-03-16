@@ -1,5 +1,6 @@
 import {
-	BSM,
+	BigNumber,
+	ECDSA,
 	type PrivateKey,
 	type Signature,
 	type WalletInterface,
@@ -27,7 +28,7 @@ export class PrivateKeySigner implements Signer {
 	constructor(private readonly privateKey: PrivateKey) {}
 
 	async signHash(hash: number[]): Promise<number[]> {
-		const sig = BSM.sign(hash, this.privateKey, 'raw') as Signature
+		const sig = ECDSA.sign(new BigNumber(hash), this.privateKey) as Signature
 		return sig.toDER() as number[]
 	}
 

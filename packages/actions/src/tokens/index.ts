@@ -4,8 +4,8 @@
  * Actions for managing BSV21 tokens.
  */
 
-import { parseOutpoint } from '@1sat/utils'
 import { BSV21, OrdLock } from '@1sat/templates'
+import { parseOutpoint } from '@1sat/utils'
 import {
 	BigNumber,
 	LockingScript,

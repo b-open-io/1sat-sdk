@@ -4,10 +4,10 @@
  * Functions for sweeping assets from external wallets into a BRC-100 wallet.
  */
 
+import { BSV21 } from '@1sat/templates'
 import type { IndexedOutput } from '@1sat/types'
 import type { OrdfsMetadata } from '@1sat/types'
 import { formatOutpoint, parseOutpoint } from '@1sat/utils'
-import { BSV21 } from '@1sat/templates'
 import {
 	type CreateActionOutput,
 	P2PKH,

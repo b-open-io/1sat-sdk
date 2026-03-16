@@ -9,8 +9,8 @@
 import { existsSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { HelperResult, SEAvailability } from './types'
 import { assertSupported } from './platform'
+import type { HelperResult, SEAvailability } from './types'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -21,7 +21,10 @@ function getHelperPath(): string {
 	return resolve(__dirname, '../swift/se-helper')
 }
 
-async function callHelper(args: string[], stdin?: string): Promise<HelperResult> {
+async function callHelper(
+	args: string[],
+	stdin?: string,
+): Promise<HelperResult> {
 	assertSupported()
 
 	const helperPath = getHelperPath()
@@ -72,7 +75,8 @@ export async function generateKey(label: string): Promise<{
 	keyFile: string
 }> {
 	const r = await callHelper(['generate', label])
-	if (!r.data) throw new Error('@1sat/vault: SE helper returned no data for generate')
+	if (!r.data)
+		throw new Error('@1sat/vault: SE helper returned no data for generate')
 	return {
 		publicKey: r.data,
 		keyFile: r.meta?.keyFile ?? '',
@@ -84,9 +88,13 @@ export async function generateKey(label: string): Promise<{
  * NO Touch ID required — only the public key is used.
  * Plaintext is piped via stdin (not visible in process list).
  */
-export async function encrypt(label: string, plaintext: string): Promise<string> {
+export async function encrypt(
+	label: string,
+	plaintext: string,
+): Promise<string> {
 	const r = await callHelper(['encrypt', label], plaintext)
-	if (!r.data) throw new Error('@1sat/vault: SE helper returned no data for encrypt')
+	if (!r.data)
+		throw new Error('@1sat/vault: SE helper returned no data for encrypt')
 	return r.data
 }
 
@@ -94,9 +102,13 @@ export async function encrypt(label: string, plaintext: string): Promise<string>
  * Decrypt ciphertext using the SE private key.
  * TRIGGERS Touch ID — the ECDH happens inside the Secure Enclave chip.
  */
-export async function decrypt(label: string, ciphertext: string): Promise<string> {
+export async function decrypt(
+	label: string,
+	ciphertext: string,
+): Promise<string> {
 	const r = await callHelper(['decrypt', label, ciphertext])
-	if (!r.data) throw new Error('@1sat/vault: SE helper returned no data for decrypt')
+	if (!r.data)
+		throw new Error('@1sat/vault: SE helper returned no data for decrypt')
 	return r.data
 }
 
@@ -106,7 +118,9 @@ export async function deleteKey(label: string): Promise<void> {
 }
 
 /** List all SE keys managed by this vault */
-export async function listKeys(): Promise<Array<{ label: string; publicKey: string }>> {
+export async function listKeys(): Promise<
+	Array<{ label: string; publicKey: string }>
+> {
 	const r = await callHelper(['list'])
 	if (!r.data || r.data === '[]') return []
 	return JSON.parse(r.data)

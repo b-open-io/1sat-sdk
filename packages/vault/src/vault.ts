@@ -26,9 +26,15 @@ import {
 	generateKey,
 	listKeys,
 } from './enclave'
-import type { ProtectResult, UnlockResult, VaultEntry, VaultSummary } from './types'
+import type {
+	ProtectResult,
+	UnlockResult,
+	VaultEntry,
+	VaultSummary,
+} from './types'
 
-const VAULT_DIR = process.env.SE_VAULT_DIR ?? resolve(homedir(), '.secure-enclave-vault')
+const VAULT_DIR =
+	process.env.SE_VAULT_DIR ?? resolve(homedir(), '.secure-enclave-vault')
 
 const SAFE_LABEL = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$/
 
@@ -77,7 +83,9 @@ export async function protectSecret(
 		createdAt: new Date().toISOString(),
 	}
 
-	writeFileSync(entryPath(label), JSON.stringify(entry, null, '\t'), { mode: 0o600 })
+	writeFileSync(entryPath(label), JSON.stringify(entry, null, '\t'), {
+		mode: 0o600,
+	})
 	return { publicKey }
 }
 
@@ -116,7 +124,9 @@ export function listSecrets(): VaultSummary[] {
 		.filter((f) => f.endsWith('.vault.json'))
 		.map((f) => {
 			const label = f.replace('.vault.json', '')
-			const entry: VaultEntry = JSON.parse(readFileSync(resolve(VAULT_DIR, f), 'utf-8'))
+			const entry: VaultEntry = JSON.parse(
+				readFileSync(resolve(VAULT_DIR, f), 'utf-8'),
+			)
 			return {
 				label,
 				metadata: entry.metadata,

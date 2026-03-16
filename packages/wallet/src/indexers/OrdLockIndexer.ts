@@ -1,3 +1,4 @@
+import { OrdLock } from '@1sat/templates'
 import {
 	type IndexSummary,
 	Indexer,
@@ -5,7 +6,6 @@ import {
 	type ParseResult,
 	type Txo,
 } from '@1sat/types'
-import { OrdLock } from '@1sat/templates'
 
 export class Listing {
 	constructor(

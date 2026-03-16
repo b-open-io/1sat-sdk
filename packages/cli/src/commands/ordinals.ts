@@ -2,6 +2,8 @@
  * Ordinals commands - list, mint, transfer, sell, cancel, buy.
  */
 
+import { readFileSync } from 'node:fs'
+import { basename, extname } from 'node:path'
 import {
 	cancelListing,
 	deriveDepositAddresses,
@@ -13,8 +15,6 @@ import {
 } from '@1sat/actions'
 import { Utils } from '@bsv/sdk'
 import { confirm, isCancel } from '@clack/prompts'
-import { readFileSync } from 'node:fs'
-import { basename, extname } from 'node:path'
 import type { GlobalFlags } from '../args'
 import { extractFlag } from '../args'
 import { loadContext } from '../context'

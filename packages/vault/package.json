@@ -19,7 +19,15 @@
 		"dev": "tsc --watch",
 		"clean": "rm -rf dist"
 	},
-	"keywords": ["1sat", "bsv", "secure-enclave", "vault", "touchid", "hardware", "cryptokit"],
+	"keywords": [
+		"1sat",
+		"bsv",
+		"secure-enclave",
+		"vault",
+		"touchid",
+		"hardware",
+		"cryptokit"
+	],
 	"license": "MIT",
 	"devDependencies": {
 		"typescript": "^5.9.3"

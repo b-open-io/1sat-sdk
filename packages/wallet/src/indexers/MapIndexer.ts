@@ -1,5 +1,5 @@
-import { Indexer, type ParseResult, type Txo } from '@1sat/types'
 import { MAP_PREFIX } from '@1sat/templates'
+import { Indexer, type ParseResult, type Txo } from '@1sat/types'
 import { OP, Script, Utils } from '@bsv/sdk'
 
 export class MapIndexer extends Indexer {
