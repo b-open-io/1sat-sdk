@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.0.2
+
+### Added
+- OpNS commands: register, deregister, lookup
+- Sweep commands: scan (WIF-based UTXO discovery), import (sweep BSV/ordinals/tokens)
+- Tokens buy command (purchaseBsv21)
+- Generic action executor now fully wired (`1sat action <name> <json>`)
+
+### Fixed
+- tx decode output formatting (was showing [object Object] for nested data)
+- printKeyValue signature in identity info
+- Version display in compiled binary
+
 ## 0.0.1
 
 Initial release of the 1sat CLI.
