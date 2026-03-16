@@ -71,7 +71,7 @@ async function identityInfo(_args: string[], opts: GlobalFlags): Promise<void> {
 
 	try {
 		const { publicKey } = await ctx.wallet.getPublicKey({
-			protocolID: [1, 'bap'],
+			protocolID: [1, 'sigma'],
 			keyID: '1',
 			counterparty: 'self',
 			forSelf: true,
