@@ -29,9 +29,24 @@ async function callHelper(
 
 	const helperPath = getHelperPath()
 	if (!existsSync(helperPath)) {
-		throw new Error(
-			`@1sat/vault: se-helper binary not found at ${helperPath}. Run: cd ${resolve(__dirname, '..')} && ./swift/build.sh`,
-		)
+		// Auto-compile if binary missing (bun can skip postinstall for cached packages)
+		const buildScript = resolve(__dirname, '../swift/build.sh')
+		if (!existsSync(buildScript)) {
+			throw new Error(
+				`@1sat/vault: Neither se-helper binary nor build.sh found. Package may be corrupt.`,
+			)
+		}
+		const build = Bun.spawnSync(['sh', buildScript], {
+			cwd: resolve(__dirname, '..'),
+			stdout: 'pipe',
+			stderr: 'pipe',
+		})
+		if (build.exitCode !== 0 || !existsSync(helperPath)) {
+			const err = new TextDecoder().decode(build.stderr)
+			throw new Error(
+				`@1sat/vault: Failed to compile se-helper. ${err}`,
+			)
+		}
 	}
 
 	const proc = Bun.spawn([helperPath, ...args], {
