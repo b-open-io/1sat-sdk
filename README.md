@@ -18,6 +18,49 @@ bunx @1sat/cli
 claude plugin install 1sat@b-open-io
 ```
 
+<details>
+<summary>Individual skills (for any AI coding tool)</summary>
+
+```bash
+# CLI tool usage and commands
+npx skills add b-open-io/1sat-sdk --skill 1sat-cli
+
+# Unified BSV indexing API (api.1sat.app)
+npx skills add b-open-io/1sat-sdk --skill 1sat-stack
+
+# Wallet popup + React hooks for browser dApps
+npx skills add b-open-io/1sat-sdk --skill dapp-connect
+
+# Ordinals marketplace (list/buy/cancel OrdLock listings)
+npx skills add b-open-io/1sat-sdk --skill ordinals-marketplace
+
+# BSV21 fungible token operations
+npx skills add b-open-io/1sat-sdk --skill token-operations
+
+# Transaction building with BRC-100 actions
+npx skills add b-open-io/1sat-sdk --skill transaction-building
+
+# Wallet setup (BRC-100, storage, sync)
+npx skills add b-open-io/1sat-sdk --skill wallet-setup
+
+# Mint and inscribe ordinals/NFTs
+npx skills add b-open-io/1sat-sdk --skill wallet-create-ordinals
+
+# Time-lock BSV until block height
+npx skills add b-open-io/1sat-sdk --skill timelock
+
+# Sweep/import from external WIF
+npx skills add b-open-io/1sat-sdk --skill sweep-import
+
+# OpNS on-chain name registration
+npx skills add b-open-io/1sat-sdk --skill opns-names
+
+# Extract inscribed media from blockchain
+npx skills add b-open-io/1sat-sdk --skill extract-blockchain-media
+```
+
+</details>
+
 **Install packages for your app:**
 
 ```bash
