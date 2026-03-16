@@ -2,9 +2,10 @@
  * Encrypted key management for the 1sat CLI.
  *
  * Key resolution priority:
- * 1. PRIVATE_KEY_WIF env var
- * 2. ~/.1sat/keys.bep encrypted file
- * 3. Fail with "Run 1sat init"
+ * 1. PRIVATE_KEY_WIF env var (headless/CI)
+ * 2. Touch ID cached password → decrypt keys.bep (macOS arm64)
+ * 3. Explicit password → decrypt keys.bep
+ * 4. Fail with guidance
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
@@ -28,9 +29,20 @@ export function hasKey(): boolean {
 }
 
 /**
- * Load the private key from env or encrypted file.
+ * Check if Touch ID is available for password caching.
+ */
+export function isTouchIDAvailable(): boolean {
+	const { platform, arch } = require('node:os')
+	return platform() === 'darwin' && arch() === 'arm64'
+}
+
+/**
+ * Load the private key from env, Touch ID cache, or password.
  *
- * @param password - Required if loading from encrypted file
+ * Resolution order:
+ * 1. PRIVATE_KEY_WIF env var
+ * 2. Touch ID cached password (if available)
+ * 3. Explicit password parameter
  */
 export async function loadKey(password?: string): Promise<PrivateKey> {
 	// Priority 1: Environment variable
@@ -47,14 +59,29 @@ export async function loadKey(password?: string): Promise<PrivateKey> {
 		)
 	}
 
-	if (!password) {
+	const encrypted = readFileSync(keysPath, 'utf8')
+
+	// Priority 2a: Try Touch ID cached password
+	let resolvedPassword = password
+	if (!resolvedPassword) {
+		try {
+			const { getCachedPassword } = await import('bitcoin-backup')
+			const cached = await getCachedPassword(keysPath)
+			if (cached) {
+				resolvedPassword = cached
+			}
+		} catch {
+			// Touch ID not available or no cached password — fall through
+		}
+	}
+
+	if (!resolvedPassword) {
 		throw new Error(
-			'Password required to decrypt key file. Pass --password or set ONESAT_PASSWORD.',
+			'Password required to decrypt key file. Pass --password, set ONESAT_PASSWORD, or run "1sat init --touchid" to enable Touch ID.',
 		)
 	}
 
-	const encrypted = readFileSync(keysPath, 'utf8')
-	const backup = await decryptBackup(encrypted, password)
+	const backup = await decryptBackup(encrypted, resolvedPassword)
 	if (!('wif' in backup) || typeof backup.wif !== 'string') {
 		throw new Error('Key file does not contain a WIF key.')
 	}
@@ -78,6 +105,22 @@ export async function saveKey(wif: string, password: string): Promise<void> {
 	const encrypted = await encryptBackup(payload, password)
 	const keysPath = getKeysPath()
 	writeFileSync(keysPath, encrypted, { mode: 0o600 })
+}
+
+/**
+ * Cache the password for keys.bep using Touch ID.
+ */
+export async function cacheKeyPassword(password: string): Promise<void> {
+	const { cachePassword } = await import('bitcoin-backup')
+	await cachePassword(getKeysPath(), password)
+}
+
+/**
+ * Remove the cached password for keys.bep.
+ */
+export async function forgetKeyPassword(): Promise<void> {
+	const { forgetPassword } = await import('bitcoin-backup')
+	await forgetPassword(getKeysPath())
 }
 
 /**

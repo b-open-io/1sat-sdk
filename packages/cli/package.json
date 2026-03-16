@@ -23,7 +23,7 @@
 		"@bsv/sdk": "^2.0.4",
 		"chalk": "^5.0.0",
 		"@clack/prompts": "^0.8.0",
-		"bitcoin-backup": "^0.0.8",
+		"bitcoin-backup": "^0.0.11",
 		"dotenv": "^17.0.0",
 		"sigma-protocol": "^0.1.9"
 	},
