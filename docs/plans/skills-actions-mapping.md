@@ -183,7 +183,12 @@ Two paths to publish BAP ID and seed the wallet:
 - [x] Fixed sigma-auth encrypted blob: 4 places now use `exportMember()` instead of plain BAP ID string (uncommitted in sigma-auth)
 - [x] Fixed sigma-auth signer iframe: SIGN_REQUEST derives signing key via `createMemberId()` + `getSigningKey()` (uncommitted in sigma-auth)
 - [x] Aligned `@1sat/types` BAP_PROTOCOL_ID to `"sigma"`, committed and pushed 1sat-sdk (2026-03-13)
-- [ ] Replace `yours-wallet-provider` with `@1sat/wallet-remote` in Sigma Identity
+- [x] Replace `yours-wallet-provider` with `@1sat/wallet-remote` in Sigma Identity (commit 3b288e5, 8ed995b)
+- [x] BAP API consolidation into 1sat-stack (OPL-1110 Done, OPL-1112 Done, OPL-1113 Done)
+- [x] bsv-bap rewrite with MemberID counter-based derivation (commit 882ab50)
+- [x] Signer iframe fixed for wallet key derivation (commit 8b7e150, 28c9c1d)
+- [x] Profile fetch timeout fix for unpublished identities (OPL-1072, commit 809cc0f)
+- [x] BapClient added to @1sat/client@0.0.14
 - [ ] Wire root key signing via `PrivateKeySigner` + `AIP.sign()` (replaces broken `signTransaction()` stub)
 - [ ] Wire Droplit path: broadcast → `internalizeAction()` to seed `bap` basket
 - [ ] Wire wallet path: root key signs → `publishIdentity.execute()` funds and broadcasts

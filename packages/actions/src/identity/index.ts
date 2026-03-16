@@ -195,7 +195,6 @@ export const publishIdentity: Action<ActionOptions, IdentityResponse> = {
 						},
 					],
 					options: {
-						signAndProcess: true,
 						acceptDelayedBroadcast: false,
 						randomizeOutputs: false,
 					},
@@ -285,7 +284,6 @@ export const rotateIdentity: Action<ActionOptions, IdentityResponse> = {
 						},
 					],
 					options: {
-						signAndProcess: true,
 						acceptDelayedBroadcast: false,
 						randomizeOutputs: false,
 					},
@@ -374,7 +372,6 @@ export const attest: Action<AttestRequest, IdentityResponse> = {
 						},
 					],
 					options: {
-						signAndProcess: true,
 						acceptDelayedBroadcast: false,
 						randomizeOutputs: false,
 					},
@@ -457,7 +454,6 @@ export const updateProfile: Action<UpdateProfileRequest, IdentityResponse> = {
 						},
 					],
 					options: {
-						signAndProcess: true,
 						acceptDelayedBroadcast: false,
 						randomizeOutputs: false,
 					},

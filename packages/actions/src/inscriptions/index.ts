@@ -101,7 +101,6 @@ async function inscribeWithSigma(
 				},
 			],
 			options: {
-				signAndProcess: true,
 				noSend: true,
 				randomizeOutputs: false,
 				acceptDelayedBroadcast: true,
@@ -304,7 +303,6 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 						},
 					],
 					options: {
-						signAndProcess: true,
 						acceptDelayedBroadcast: false,
 						randomizeOutputs: false,
 					},

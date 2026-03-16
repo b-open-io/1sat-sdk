@@ -150,7 +150,6 @@ export const createSocialPost: Action<CreateSocialPostRequest, SocialResponse> =
 							},
 						],
 						options: {
-							signAndProcess: true,
 							acceptDelayedBroadcast: false,
 							randomizeOutputs: false,
 						},

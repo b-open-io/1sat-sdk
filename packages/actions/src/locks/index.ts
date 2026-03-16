@@ -182,7 +182,7 @@ export const lockBsv: Action<LockBsvInput, LockOperationResponse> = {
 				{
 					description: `Lock BSV in ${requests.length} output(s)`,
 					outputs,
-					options: { signAndProcess: true, acceptDelayedBroadcast: false },
+					options: { acceptDelayedBroadcast: false },
 				},
 				input.fundingProvider,
 			)

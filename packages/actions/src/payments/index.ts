@@ -197,7 +197,7 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 				{
 					description: `Send ${requests.length} payment(s)`,
 					outputs,
-					options: { signAndProcess: true, acceptDelayedBroadcast: false },
+					options: { acceptDelayedBroadcast: false },
 				},
 				input.fundingProvider,
 			)
@@ -288,7 +288,7 @@ export const sendAllBsv: Action<SendAllBsvInput, SendBsvResponse> = {
 							tags: [],
 						},
 					],
-					options: { signAndProcess: true, acceptDelayedBroadcast: false },
+					options: { acceptDelayedBroadcast: false },
 				},
 				input.fundingProvider,
 			)

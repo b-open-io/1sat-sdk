@@ -34,6 +34,9 @@ function applyTrackingTags(args: CreateActionArgs, actionId: string): void {
  * into every output that has a basket. All outputs in the same action
  * share the same ID, allowing targeted lookups via listOutputs tag filter.
  *
+ * Uses two-phase flow (createAction + signAction) so the wallet's
+ * permission system can intercept between creation and signing.
+ *
  * @param wallet - BRC-100 wallet
  * @param args - Standard createAction args
  * @returns The createAction result, plus the generated actionId
@@ -45,8 +48,28 @@ export async function createTrackedAction(
 	const actionId = randomActionId()
 	applyTrackingTags(args, actionId)
 
-	const result = await wallet.createAction(args)
-	return { ...result, actionId }
+	const { options, ...rest } = args
+	const createResult = await wallet.createAction({
+		...rest,
+		options: {
+			...options,
+			signAndProcess: false,
+		},
+	})
+
+	if (!createResult.signableTransaction) {
+		return { ...createResult, actionId }
+	}
+
+	const signResult = await wallet.signAction({
+		reference: createResult.signableTransaction.reference,
+		spends: {},
+		options: {
+			acceptDelayedBroadcast: options?.acceptDelayedBroadcast ?? false,
+		},
+	})
+
+	return { ...signResult, actionId }
 }
 
 /**
