@@ -90,7 +90,7 @@ bun add @1sat/wallet-browser  # or @1sat/wallet-node
 - **Builder** — Low-level transaction builder for custom flows
 - **Actions** — Self-describing wallet operations for agents and tooling
 - **Wallet Engine** — Full BRC-100 wallet with indexers, sync, and backup
-- **CLI** — Terminal wallet with 30+ commands, runs without a global install
+- **CLI** — Terminal wallet with 30+ commands
 
 ## Quick Start
 
