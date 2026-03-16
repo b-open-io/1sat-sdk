@@ -29,9 +29,7 @@ export class OpnsClient extends BaseClient {
 	 * Get the current outpoint for a registered OpNS domain.
 	 */
 	async getOrigin(name: string): Promise<OpnsOriginResult> {
-		return this.request<OpnsOriginResult>(
-			`/origin/${encodeURIComponent(name)}`,
-		)
+		return this.request<OpnsOriginResult>(`/origin/${encodeURIComponent(name)}`)
 	}
 
 	/**
@@ -46,9 +44,7 @@ export class OpnsClient extends BaseClient {
 	 * Returns a map of outpoint string to boolean for those that exist.
 	 * @param outpoints - Array of outpoint strings (txid_vout or txid.vout)
 	 */
-	async validateOrigins(
-		outpoints: string[],
-	): Promise<Record<string, boolean>> {
+	async validateOrigins(outpoints: string[]): Promise<Record<string, boolean>> {
 		return this.request<Record<string, boolean>>('/origins', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },

@@ -7,7 +7,7 @@
 import type { IndexedOutput } from '@1sat/types'
 import type { OrdfsMetadata } from '@1sat/types'
 import { formatOutpoint, parseOutpoint } from '@1sat/utils'
-import { BSV21 } from '@bopen-io/templates'
+import { BSV21 } from '@1sat/templates'
 import {
 	type CreateActionOutput,
 	P2PKH,

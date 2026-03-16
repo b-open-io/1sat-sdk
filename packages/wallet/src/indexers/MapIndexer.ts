@@ -1,5 +1,5 @@
 import { Indexer, type ParseResult, type Txo } from '@1sat/types'
-import { MAP_PREFIX } from '@bopen-io/templates'
+import { MAP_PREFIX } from '@1sat/templates'
 import { OP, Script, Utils } from '@bsv/sdk'
 
 export class MapIndexer extends Indexer {

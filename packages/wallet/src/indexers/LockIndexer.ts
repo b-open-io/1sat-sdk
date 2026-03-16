@@ -5,7 +5,7 @@ import {
 	type ParseResult,
 	type Txo,
 } from '@1sat/types'
-import { Lock } from '@bopen-io/templates'
+import { Lock } from '@1sat/templates'
 
 export interface LockData {
 	until: number

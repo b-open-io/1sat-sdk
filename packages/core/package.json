@@ -20,8 +20,9 @@
 	"keywords": ["1sat", "bsv", "ordinals", "core", "transaction"],
 	"license": "MIT",
 	"dependencies": {
-		"@1sat/types": "^0.0.11",
-		"@1sat/client": "^0.0.12",
+		"@1sat/types": "workspace:*",
+		"@1sat/client": "workspace:*",
+		"@1sat/templates": "workspace:*",
 		"js-1sat-ord": "^0.1.90",
 		"sigma-protocol": "^0.1.9"
 	},

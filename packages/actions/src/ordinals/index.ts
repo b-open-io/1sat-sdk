@@ -6,8 +6,8 @@
  */
 
 import { parseOutpoint } from '@1sat/utils'
-import { MAP as MAPTemplate } from '@bopen-io/templates'
-import { OrdLock } from '@bopen-io/templates'
+import { MAP as MAPTemplate } from '@1sat/templates'
+import { OrdLock } from '@1sat/templates'
 import {
 	type BEEF,
 	Beef,
@@ -31,7 +31,12 @@ import {
 	ORD_LOCK_PREFIX,
 	ORD_LOCK_SUFFIX,
 } from '../constants'
-import type { Action, ActionLogEntry, ActionOptions, OneSatContext } from '../types'
+import type {
+	Action,
+	ActionLogEntry,
+	ActionOptions,
+	OneSatContext,
+} from '../types'
 import { completeSignedAction } from '../utils/completeSignedAction'
 import { executeTrackedAction } from '../utils/createTrackedAction'
 import { resolveBeef } from '../utils/resolveBeef'
@@ -629,10 +634,14 @@ export const transferOrdinals: Action<
 				console.log('[transferOrdinals] BEEF parse error:', e)
 			}
 
-			const createResult = await executeTrackedAction(ctx.wallet, {
-				...params,
-				options: { signAndProcess: false, randomizeOutputs: false },
-			}, input.fundingProvider)
+			const createResult = await executeTrackedAction(
+				ctx.wallet,
+				{
+					...params,
+					options: { signAndProcess: false, randomizeOutputs: false },
+				},
+				input.fundingProvider,
+			)
 
 			if ('error' in createResult && createResult.error) {
 				return { error: String(createResult.error) }
@@ -751,10 +760,14 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 					return params
 				}
 
-				const createResult = await executeTrackedAction(ctx.wallet, {
-					...params,
-					options: { signAndProcess: false, randomizeOutputs: false },
-				}, input.fundingProvider)
+				const createResult = await executeTrackedAction(
+					ctx.wallet,
+					{
+						...params,
+						options: { signAndProcess: false, randomizeOutputs: false },
+					},
+					input.fundingProvider,
+				)
 
 				if ('error' in createResult && createResult.error) {
 					return { error: String(createResult.error) }
@@ -876,31 +889,35 @@ export const cancelListing: Action<
 				tags: listing.tags,
 			})
 
-			const createResult = await executeTrackedAction(ctx.wallet, {
-				description: 'Cancel ordinal listing',
-				inputBEEF,
-				inputs: [
-					{
-						outpoint,
-						inputDescription: 'Listed ordinal',
-						unlockingScriptLength: 108,
-					},
-				],
-				outputs: [
-					{
-						lockingScript: new P2PKH().lock(cancelAddress).toHex(),
-						satoshis: 1,
-						outputDescription: 'Cancelled listing',
-						basket,
-						tags,
-						customInstructions: JSON.stringify({
-							protocolID,
-							keyID,
-						}),
-					},
-				],
-				options: { signAndProcess: false, randomizeOutputs: false },
-			}, input.fundingProvider)
+			const createResult = await executeTrackedAction(
+				ctx.wallet,
+				{
+					description: 'Cancel ordinal listing',
+					inputBEEF,
+					inputs: [
+						{
+							outpoint,
+							inputDescription: 'Listed ordinal',
+							unlockingScriptLength: 108,
+						},
+					],
+					outputs: [
+						{
+							lockingScript: new P2PKH().lock(cancelAddress).toHex(),
+							satoshis: 1,
+							outputDescription: 'Cancelled listing',
+							basket,
+							tags,
+							customInstructions: JSON.stringify({
+								protocolID,
+								keyID,
+							}),
+						},
+					],
+					options: { signAndProcess: false, randomizeOutputs: false },
+				},
+				input.fundingProvider,
+			)
 
 			if ('error' in createResult && createResult.error) {
 				return { error: String(createResult.error) }
@@ -1086,19 +1103,23 @@ export const purchaseOrdinal: Action<
 
 			const beefBinary = beef.toBinary()
 
-			const createResult = await executeTrackedAction(ctx.wallet, {
-				description: `Purchase ordinal for ${payoutSatoshis} sats`,
-				inputBEEF: beefBinary,
-				inputs: [
-					{
-						outpoint,
-						inputDescription: 'Listed ordinal',
-						unlockingScriptLength: 500,
-					},
-				],
-				outputs,
-				options: { signAndProcess: false, randomizeOutputs: false },
-			}, input.fundingProvider)
+			const createResult = await executeTrackedAction(
+				ctx.wallet,
+				{
+					description: `Purchase ordinal for ${payoutSatoshis} sats`,
+					inputBEEF: beefBinary,
+					inputs: [
+						{
+							outpoint,
+							inputDescription: 'Listed ordinal',
+							unlockingScriptLength: 500,
+						},
+					],
+					outputs,
+					options: { signAndProcess: false, randomizeOutputs: false },
+				},
+				input.fundingProvider,
+			)
 
 			if ('error' in createResult && createResult.error) {
 				return { error: String(createResult.error) }

@@ -20,10 +20,10 @@
 	"keywords": ["1sat", "bsv", "ordinals", "wallet", "remote"],
 	"license": "MIT",
 	"dependencies": {
-		"@1sat/wallet": "0.0.23"
+		"@1sat/wallet": "workspace:*"
 	},
 	"peerDependencies": {
-		"@1sat/client": "0.0.14",
+		"@1sat/client": "workspace:*",
 		"@bsv/sdk": "^2.0.4",
 		"@bsv/wallet-toolbox": "^2.0.20"
 	},

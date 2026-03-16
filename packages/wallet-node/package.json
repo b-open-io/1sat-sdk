@@ -20,7 +20,7 @@
 	"keywords": ["1sat", "bsv", "ordinals", "wallet", "node", "server", "cli"],
 	"license": "MIT",
 	"dependencies": {
-		"@1sat/wallet": "^0.0.22"
+		"@1sat/wallet": "workspace:*"
 	},
 	"peerDependencies": {
 		"@bsv/sdk": "^2.0.4",
@@ -28,7 +28,7 @@
 		"knex": "^3.0.0"
 	},
 	"devDependencies": {
-		"@1sat/client": "^0.0.12",
+		"@1sat/client": "workspace:*",
 		"@bsv/sdk": "^2.0.4",
 		"@bsv/wallet-toolbox": "^2.0.4",
 		"knex": "^3.1.0",

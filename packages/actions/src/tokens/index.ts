@@ -5,7 +5,7 @@
  */
 
 import { parseOutpoint } from '@1sat/utils'
-import { BSV21, OrdLock } from '@bopen-io/templates'
+import { BSV21, OrdLock } from '@1sat/templates'
 import {
 	BigNumber,
 	LockingScript,
@@ -19,7 +19,12 @@ import {
 	type WalletOutput,
 } from '@bsv/sdk'
 import { BSV21_BASKET, BSV21_PROTOCOL } from '../constants'
-import type { Action, ActionLogEntry, ActionOptions, OneSatContext } from '../types'
+import type {
+	Action,
+	ActionLogEntry,
+	ActionOptions,
+	OneSatContext,
+} from '../types'
 import { completeSignedAction } from '../utils/completeSignedAction'
 import { executeTrackedAction } from '../utils/createTrackedAction'
 import { signP2PKHInput } from '../utils/signP2PKH'
@@ -494,17 +499,21 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 				}
 				inputBEEF = beef.toBinary()
 			}
-			const createResult = await executeTrackedAction(ctx.wallet, {
-				description: `Send ${amount} ${symbol}`,
-				inputBEEF,
-				inputs: selected.map((o) => ({
-					outpoint: o.outpoint,
-					inputDescription: 'Token input',
-					unlockingScriptLength: 108,
-				})),
-				outputs,
-				options: { signAndProcess: false, randomizeOutputs: false },
-			}, input.fundingProvider)
+			const createResult = await executeTrackedAction(
+				ctx.wallet,
+				{
+					description: `Send ${amount} ${symbol}`,
+					inputBEEF,
+					inputs: selected.map((o) => ({
+						outpoint: o.outpoint,
+						inputDescription: 'Token input',
+						unlockingScriptLength: 108,
+					})),
+					outputs,
+					options: { signAndProcess: false, randomizeOutputs: false },
+				},
+				input.fundingProvider,
+			)
 
 			if ('error' in createResult && createResult.error) {
 				return { error: String(createResult.error) }
@@ -759,19 +768,23 @@ export const purchaseBsv21: Action<
 
 			const beefBinary = beef.toBinary()
 
-			const createResult = await executeTrackedAction(ctx.wallet, {
-				description: `Purchase ${tokenAmount} tokens for ${payoutSatoshis} sats`,
-				inputBEEF: beefBinary,
-				inputs: [
-					{
-						outpoint,
-						inputDescription: 'Listed token',
-						unlockingScriptLength: 500,
-					},
-				],
-				outputs,
-				options: { signAndProcess: false, randomizeOutputs: false },
-			}, input.fundingProvider)
+			const createResult = await executeTrackedAction(
+				ctx.wallet,
+				{
+					description: `Purchase ${tokenAmount} tokens for ${payoutSatoshis} sats`,
+					inputBEEF: beefBinary,
+					inputs: [
+						{
+							outpoint,
+							inputDescription: 'Listed token',
+							unlockingScriptLength: 500,
+						},
+					],
+					outputs,
+					options: { signAndProcess: false, randomizeOutputs: false },
+				},
+				input.fundingProvider,
+			)
 
 			if ('error' in createResult && createResult.error) {
 				return { error: String(createResult.error) }

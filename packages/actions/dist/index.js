@@ -13,7 +13,7 @@ export * from './constants';
 // Export shared utilities
 export { signP2PKHInput } from './utils/signP2PKH';
 export { completeSignedAction, } from './utils/completeSignedAction';
-export { createTrackedAction, randomActionId, } from './utils/createTrackedAction';
+export { createTrackedAction, executeTrackedAction, randomActionId, } from './utils/createTrackedAction';
 export { resolveBeef, extractIdTag } from './utils/resolveBeef';
 export { internalizeBeef, } from './utils/internalizeBeef';
 // Export module actions and types

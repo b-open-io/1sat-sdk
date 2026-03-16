@@ -4,7 +4,7 @@
  * Actions for creating inscriptions.
  */
 
-import { Inscription, MAP as MAPTemplate } from '@bopen-io/templates'
+import { Inscription, MAP as MAPTemplate } from '@1sat/templates'
 import { P2PKH, PublicKey, Script, Utils } from '@bsv/sdk'
 import {
 	MAX_INSCRIPTION_BYTES,
@@ -84,27 +84,31 @@ async function inscribeWithSigma(
 	const anchorLockingScript = new P2PKH().lock(anchorAddress)
 
 	// Step 1: Create anchor tx (signed, not broadcast)
-	const anchorResult = await executeTrackedAction(ctx.wallet, {
-		description: 'Sigma anchor output',
-		outputs: [
-			{
-				lockingScript: anchorLockingScript.toHex(),
-				satoshis: 2,
-				outputDescription: 'Sigma anchor',
-				basket: SIGMA_BASKET,
-				customInstructions: JSON.stringify({
-					protocolID: ONESAT_PROTOCOL,
-					keyID: anchorKeyID,
-				}),
+	const anchorResult = await executeTrackedAction(
+		ctx.wallet,
+		{
+			description: 'Sigma anchor output',
+			outputs: [
+				{
+					lockingScript: anchorLockingScript.toHex(),
+					satoshis: 2,
+					outputDescription: 'Sigma anchor',
+					basket: SIGMA_BASKET,
+					customInstructions: JSON.stringify({
+						protocolID: ONESAT_PROTOCOL,
+						keyID: anchorKeyID,
+					}),
+				},
+			],
+			options: {
+				signAndProcess: true,
+				noSend: true,
+				randomizeOutputs: false,
+				acceptDelayedBroadcast: true,
 			},
-		],
-		options: {
-			signAndProcess: true,
-			noSend: true,
-			randomizeOutputs: false,
-			acceptDelayedBroadcast: true,
 		},
-	}, input.fundingProvider)
+		input.fundingProvider,
+	)
 
 	if (!anchorResult.txid) {
 		return { error: 'anchor-no-txid' }
@@ -120,40 +124,44 @@ async function inscribeWithSigma(
 	)
 
 	// Step 3: Create inscription tx, spending the anchor and broadcasting both
-	const inscribeResult = await executeTrackedAction(ctx.wallet, {
-		description: 'Create inscription',
-		inputBEEF: anchorResult.tx,
-		inputs: [
-			{
-				outpoint: `${anchorResult.txid}.0`,
-				inputDescription: 'Sigma anchor',
-				unlockingScriptLength: 108,
+	const inscribeResult = await executeTrackedAction(
+		ctx.wallet,
+		{
+			description: 'Create inscription',
+			inputBEEF: anchorResult.tx,
+			inputs: [
+				{
+					outpoint: `${anchorResult.txid}.0`,
+					inputDescription: 'Sigma anchor',
+					unlockingScriptLength: 108,
+				},
+			],
+			outputs: [
+				{
+					lockingScript: sigmaScript.toHex(),
+					satoshis: 1,
+					outputDescription: 'Inscription',
+					basket: ORDINALS_BASKET,
+					tags,
+					customInstructions: JSON.stringify({
+						protocolID: ONESAT_PROTOCOL,
+						keyID,
+						...(input.map?.name && { name: input.map.name.slice(0, 64) }),
+					}),
+				},
+			],
+			options: {
+				signAndProcess: false,
+				randomizeOutputs: false,
+				noSend: true,
+				noSendChange: anchorResult.noSendChange,
+				knownTxids: [anchorResult.txid],
+				acceptDelayedBroadcast: true,
+				trustSelf: 'known',
 			},
-		],
-		outputs: [
-			{
-				lockingScript: sigmaScript.toHex(),
-				satoshis: 1,
-				outputDescription: 'Inscription',
-				basket: ORDINALS_BASKET,
-				tags,
-				customInstructions: JSON.stringify({
-					protocolID: ONESAT_PROTOCOL,
-					keyID,
-					...(input.map?.name && { name: input.map.name.slice(0, 64) }),
-				}),
-			},
-		],
-		options: {
-			signAndProcess: false,
-			randomizeOutputs: false,
-			noSend: true,
-			noSendChange: anchorResult.noSendChange,
-			knownTxids: [anchorResult.txid],
-			acceptDelayedBroadcast: true,
-			trustSelf: 'known',
 		},
-	}, input.fundingProvider)
+		input.fundingProvider,
+	)
 
 	if ('error' in inscribeResult && inscribeResult.error) {
 		return { error: String(inscribeResult.error) }
@@ -277,28 +285,32 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 				return await inscribeWithSigma(ctx, lockingScript, keyID, tags, input)
 			}
 
-			const result = await executeTrackedAction(ctx.wallet, {
-				description: 'Create inscription',
-				outputs: [
-					{
-						lockingScript: lockingScript.toHex(),
-						satoshis: 1,
-						outputDescription: 'Inscription',
-						basket: ORDINALS_BASKET,
-						tags,
-						customInstructions: JSON.stringify({
-							protocolID: ONESAT_PROTOCOL,
-							keyID,
-							...(input.map?.name && { name: input.map.name.slice(0, 64) }),
-						}),
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				{
+					description: 'Create inscription',
+					outputs: [
+						{
+							lockingScript: lockingScript.toHex(),
+							satoshis: 1,
+							outputDescription: 'Inscription',
+							basket: ORDINALS_BASKET,
+							tags,
+							customInstructions: JSON.stringify({
+								protocolID: ONESAT_PROTOCOL,
+								keyID,
+								...(input.map?.name && { name: input.map.name.slice(0, 64) }),
+							}),
+						},
+					],
+					options: {
+						signAndProcess: true,
+						acceptDelayedBroadcast: false,
+						randomizeOutputs: false,
 					},
-				],
-				options: {
-					signAndProcess: true,
-					acceptDelayedBroadcast: false,
-					randomizeOutputs: false,
 				},
-			}, input.fundingProvider)
+				input.fundingProvider,
+			)
 
 			if (!result.txid) {
 				return { error: 'no-txid-returned' }

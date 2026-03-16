@@ -12,7 +12,7 @@ import {
 	type BSocialPost,
 	type BSocialVideo,
 	WalletSigner,
-} from '@bopen-io/templates'
+} from '@1sat/templates'
 import { Utils } from '@bsv/sdk'
 import { BAP_KEY_ID, BAP_PROTOCOL_ID, BSOCIAL_BASKET } from '../constants'
 import type { Action, ActionOptions } from '../types'
@@ -136,23 +136,27 @@ export const createSocialPost: Action<CreateSocialPostRequest, SocialResponse> =
 
 				const lockingScript = await BSocial.createPost(post, input.tags, signer)
 
-				const result = await executeTrackedAction(ctx.wallet, {
-					description: 'Social post',
-					outputs: [
-						{
-							lockingScript: lockingScript.toHex(),
-							satoshis: 0,
-							outputDescription: 'BSocial post',
-							basket: BSOCIAL_BASKET,
-							tags: buildSocialTags(post, input.tags),
+				const result = await executeTrackedAction(
+					ctx.wallet,
+					{
+						description: 'Social post',
+						outputs: [
+							{
+								lockingScript: lockingScript.toHex(),
+								satoshis: 0,
+								outputDescription: 'BSocial post',
+								basket: BSOCIAL_BASKET,
+								tags: buildSocialTags(post, input.tags),
+							},
+						],
+						options: {
+							signAndProcess: true,
+							acceptDelayedBroadcast: false,
+							randomizeOutputs: false,
 						},
-					],
-					options: {
-						signAndProcess: true,
-						acceptDelayedBroadcast: false,
-						randomizeOutputs: false,
 					},
-				}, input.fundingProvider)
+					input.fundingProvider,
+				)
 
 				if (!result.txid) {
 					return { error: 'no-txid-returned' }

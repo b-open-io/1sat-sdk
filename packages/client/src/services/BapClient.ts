@@ -45,14 +45,11 @@ export class BapClient extends BaseClient {
 		address: string,
 		block?: number,
 	): Promise<BapValidByAddressResponse> {
-		return this.request<BapValidByAddressResponse>(
-			'/identity/validByAddress',
-			{
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ address, block: block ?? 0 }),
-			},
-		)
+		return this.request<BapValidByAddressResponse>('/identity/validByAddress', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ address, block: block ?? 0 }),
+		})
 	}
 
 	/**
@@ -70,10 +67,7 @@ export class BapClient extends BaseClient {
 	/**
 	 * List BAP profiles (paginated).
 	 */
-	async listProfiles(
-		limit = 20,
-		offset = 0,
-	): Promise<BapProfileEntry[]> {
+	async listProfiles(limit = 20, offset = 0): Promise<BapProfileEntry[]> {
 		const qs = this.buildQueryString({ limit, offset })
 		return this.request<BapProfileEntry[]>(`/profile${qs}`)
 	}

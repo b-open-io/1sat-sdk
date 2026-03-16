@@ -20,9 +20,10 @@
 	"keywords": ["1sat", "bsv", "ordinals", "wallet", "brc-100"],
 	"license": "MIT",
 	"dependencies": {
-		"@1sat/client": "0.0.14",
-		"@1sat/types": "0.0.12",
-		"@bopen-io/templates": "^1.1.9",
+		"@1sat/client": "workspace:*",
+		"@1sat/types": "workspace:*",
+		"@1sat/templates": "workspace:*",
+		"@bopen-io/templates": "^1.2.3",
 		"@msgpack/msgpack": "^3.1.3",
 		"fflate": "^0.8.2"
 	},

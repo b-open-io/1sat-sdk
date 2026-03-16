@@ -5,7 +5,7 @@ import {
 	type ParseResult,
 	type Txo,
 } from '@1sat/types'
-import { OrdLock } from '@bopen-io/templates'
+import { OrdLock } from '@1sat/templates'
 
 export class Listing {
 	constructor(

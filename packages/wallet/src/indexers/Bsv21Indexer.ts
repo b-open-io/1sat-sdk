@@ -7,7 +7,7 @@ import {
 	type ParseResult,
 	type Txo,
 } from '@1sat/types'
-import { BSV21 } from '@bopen-io/templates'
+import { BSV21 } from '@1sat/templates'
 import { HD, Hash, Utils } from '@bsv/sdk'
 
 const hdKey = HD.fromString(BSV21_FEE_XPUB)

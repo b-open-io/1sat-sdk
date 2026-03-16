@@ -157,10 +157,14 @@ export const opnsRegister: Action<OpnsRegisterRequest, OpnsOperationResponse> =
 					return params
 				}
 
-				const createResult = await executeTrackedAction(ctx.wallet, {
-					...params,
-					options: { signAndProcess: false, randomizeOutputs: false },
-				}, input.fundingProvider)
+				const createResult = await executeTrackedAction(
+					ctx.wallet,
+					{
+						...params,
+						options: { signAndProcess: false, randomizeOutputs: false },
+					},
+					input.fundingProvider,
+				)
 
 				if ('error' in createResult && createResult.error) {
 					return { error: String(createResult.error) }
@@ -260,10 +264,14 @@ export const opnsDeregister: Action<
 				return params
 			}
 
-			const createResult = await executeTrackedAction(ctx.wallet, {
-				...params,
-				options: { signAndProcess: false, randomizeOutputs: false },
-			}, input.fundingProvider)
+			const createResult = await executeTrackedAction(
+				ctx.wallet,
+				{
+					...params,
+					options: { signAndProcess: false, randomizeOutputs: false },
+				},
+				input.fundingProvider,
+			)
 
 			if ('error' in createResult && createResult.error) {
 				return { error: String(createResult.error) }

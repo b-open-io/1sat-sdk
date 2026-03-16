@@ -1,4 +1,4 @@
-import { AIP, WalletSigner } from '@bopen-io/templates'
+import { AIP, WalletSigner } from '@1sat/templates'
 import { OP, Script, Utils } from '@bsv/sdk'
 import { BAP_BASKET, BAP_KEY_ID, BAP_PROTOCOL_ID } from '../constants'
 import type { OneSatContext } from '../types'
@@ -14,9 +14,7 @@ const AIP_PREFIX = '15PciHG22SNLQJXMoSUaWVi7WSqc7hCfva'
  * keyID from customInstructions. Falls back to `identity-0` if no
  * ID outputs exist (identity not yet published).
  */
-export async function resolveCurrentKeyId(
-	ctx: OneSatContext,
-): Promise<string> {
+export async function resolveCurrentKeyId(ctx: OneSatContext): Promise<string> {
 	const result = await ctx.wallet.listOutputs({
 		basket: BAP_BASKET,
 		tags: ['type:id'],
@@ -85,12 +83,7 @@ export async function applyAip(
 	counterparty: string,
 ): Promise<Script> {
 	const message = getAipMessageBuffer(lockingScript)
-	const signer = new WalletSigner(
-		ctx.wallet,
-		protocolID,
-		keyID,
-		counterparty,
-	)
+	const signer = new WalletSigner(ctx.wallet, protocolID, keyID, counterparty)
 	const aip = await AIP.sign(message, signer)
 
 	const out = new Script(lockingScript.chunks.slice())

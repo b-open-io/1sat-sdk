@@ -21,11 +21,11 @@
 	"keywords": ["1sat", "bsv", "actions", "wallet", "ordinals"],
 	"license": "MIT",
 	"dependencies": {
-		"@1sat/client": "0.0.14",
-		"@1sat/types": "0.0.12",
-		"@1sat/utils": "^0.0.10",
-		"@1sat/wallet": "0.0.23",
-		"@bopen-io/templates": "1.2.3"
+		"@1sat/client": "workspace:*",
+		"@1sat/types": "workspace:*",
+		"@1sat/utils": "workspace:*",
+		"@1sat/wallet": "workspace:*",
+		"@1sat/templates": "workspace:*"
 	},
 	"peerDependencies": {
 		"@bsv/sdk": "^2.0.4"

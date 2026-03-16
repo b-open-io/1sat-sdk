@@ -4,7 +4,7 @@
  * Actions for time-locking BSV.
  */
 
-import { Lock } from '@bopen-io/templates'
+import { Lock } from '@1sat/templates'
 import {
 	type CreateActionOutput,
 	PublicKey,
@@ -177,11 +177,15 @@ export const lockBsv: Action<LockBsvInput, LockOperationResponse> = {
 				})
 			}
 
-			const result = await executeTrackedAction(ctx.wallet, {
-				description: `Lock BSV in ${requests.length} output(s)`,
-				outputs,
-				options: { signAndProcess: true, acceptDelayedBroadcast: false },
-			}, input.fundingProvider)
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				{
+					description: `Lock BSV in ${requests.length} output(s)`,
+					outputs,
+					options: { signAndProcess: true, acceptDelayedBroadcast: false },
+				},
+				input.fundingProvider,
+			)
 
 			if (!result.txid) {
 				return { error: 'no-txid-returned' }

@@ -4,7 +4,7 @@
  * Actions for sending BSV payments.
  */
 
-import { Inscription } from '@bopen-io/templates'
+import { Inscription } from '@1sat/templates'
 import { type CreateActionOutput, P2PKH, Script, Utils } from '@bsv/sdk'
 import { getP2pPaymentDestination, sendBeefP2P } from '../paymail'
 import type { Action, ActionOptions } from '../types'
@@ -192,11 +192,15 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 				})
 			}
 
-			const result = await executeTrackedAction(ctx.wallet, {
-				description: `Send ${requests.length} payment(s)`,
-				outputs,
-				options: { signAndProcess: true, acceptDelayedBroadcast: false },
-			}, input.fundingProvider)
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				{
+					description: `Send ${requests.length} payment(s)`,
+					outputs,
+					options: { signAndProcess: true, acceptDelayedBroadcast: false },
+				},
+				input.fundingProvider,
+			)
 
 			if (!result.txid) {
 				return { error: 'no-txid-returned' }
@@ -272,18 +276,22 @@ export const sendAllBsv: Action<SendAllBsvInput, SendBsvResponse> = {
 				}
 			}
 
-			const result = await executeTrackedAction(ctx.wallet, {
-				description: 'Send all BSV',
-				outputs: [
-					{
-						lockingScript: new P2PKH().lock(destination).toHex(),
-						satoshis: maxPossibleSatoshis,
-						outputDescription: 'Sweep all funds',
-						tags: [],
-					},
-				],
-				options: { signAndProcess: true, acceptDelayedBroadcast: false },
-			}, input.fundingProvider)
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				{
+					description: 'Send all BSV',
+					outputs: [
+						{
+							lockingScript: new P2PKH().lock(destination).toHex(),
+							satoshis: maxPossibleSatoshis,
+							outputDescription: 'Sweep all funds',
+							tags: [],
+						},
+					],
+					options: { signAndProcess: true, acceptDelayedBroadcast: false },
+				},
+				input.fundingProvider,
+			)
 
 			if (!result.txid) {
 				return { error: 'no-txid-returned' }

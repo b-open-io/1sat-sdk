@@ -65,9 +65,7 @@ export async function computeBapId(ctx: OneSatContext): Promise<string> {
  * Returns the BAP ID if a `type:id` output exists in the BAP basket,
  * null if the identity hasn't been published yet.
  */
-export async function resolveBapId(
-	ctx: OneSatContext,
-): Promise<string | null> {
+export async function resolveBapId(ctx: OneSatContext): Promise<string | null> {
 	const result = await ctx.wallet.listOutputs({
 		basket: BAP_BASKET,
 		tags: ['type:id'],
@@ -81,9 +79,7 @@ export async function resolveBapId(
  * Find the current sequence number from BAP basket ID outputs.
  * Returns the highest seq tag value, or null if no ID outputs exist.
  */
-async function getCurrentSequence(
-	ctx: OneSatContext,
-): Promise<number | null> {
+async function getCurrentSequence(ctx: OneSatContext): Promise<number | null> {
 	const result = await ctx.wallet.listOutputs({
 		basket: BAP_BASKET,
 		tags: ['type:id'],
@@ -146,43 +142,44 @@ export interface ProfileResponse {
  *
  * Returns an error if an identity has already been published.
  */
-export const publishIdentity: Action<ActionOptions, IdentityResponse> =
-	{
-		meta: {
-			name: 'publishIdentity',
-			description: 'Publish initial BAP identity record from wallet',
-			category: 'identity',
-			inputSchema: {
-				type: 'object',
-				properties: {},
-			},
+export const publishIdentity: Action<ActionOptions, IdentityResponse> = {
+	meta: {
+		name: 'publishIdentity',
+		description: 'Publish initial BAP identity record from wallet',
+		category: 'identity',
+		inputSchema: {
+			type: 'object',
+			properties: {},
 		},
-		async execute(ctx, input) {
-			try {
-				const existing = await ctx.wallet.listOutputs({
-					basket: BAP_BASKET,
-					tags: ['type:id'],
-					limit: 1,
-				})
-				if (existing.outputs.length) {
-					return { error: 'identity-exists: already published' }
-				}
+	},
+	async execute(ctx, input) {
+		try {
+			const existing = await ctx.wallet.listOutputs({
+				basket: BAP_BASKET,
+				tags: ['type:id'],
+				limit: 1,
+			})
+			if (existing.outputs.length) {
+				return { error: 'identity-exists: already published' }
+			}
 
-				const rootKeyId = signingKeyId(0)
-				const bapId = await computeBapId(ctx)
-				const currentAddress = await deriveAddress(ctx, rootKeyId)
+			const rootKeyId = signingKeyId(0)
+			const bapId = await computeBapId(ctx)
+			const currentAddress = await deriveAddress(ctx, rootKeyId)
 
-				const script = new Script()
-				script.writeOpCode(OP.OP_FALSE)
-				script.writeOpCode(OP.OP_RETURN)
-				script.writeBin(toArray(BAP_BITCOM_ADDRESS))
-				script.writeBin(toArray('ID'))
-				script.writeBin(toArray(bapId))
-				script.writeBin(toArray(currentAddress))
+			const script = new Script()
+			script.writeOpCode(OP.OP_FALSE)
+			script.writeOpCode(OP.OP_RETURN)
+			script.writeBin(toArray(BAP_BITCOM_ADDRESS))
+			script.writeBin(toArray('ID'))
+			script.writeBin(toArray(bapId))
+			script.writeBin(toArray(currentAddress))
 
-				const signedScript = await applyBapAip(ctx, script, rootKeyId)
+			const signedScript = await applyBapAip(ctx, script, rootKeyId)
 
-				const result = await executeTrackedAction(ctx.wallet, {
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				{
 					description: 'BAP identity publication',
 					outputs: [
 						{
@@ -202,23 +199,25 @@ export const publishIdentity: Action<ActionOptions, IdentityResponse> =
 						acceptDelayedBroadcast: false,
 						randomizeOutputs: false,
 					},
-				}, input?.fundingProvider)
+				},
+				input?.fundingProvider,
+			)
 
-				if (!result.txid) return { error: 'no-txid-returned' }
+			if (!result.txid) return { error: 'no-txid-returned' }
 
-				return {
-					txid: result.txid,
-					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
-					bapId,
-				}
-			} catch (error) {
-				console.error('[publishIdentity]', error)
-				return {
-					error: error instanceof Error ? error.message : 'unknown-error',
-				}
+			return {
+				txid: result.txid,
+				rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
+				bapId,
 			}
-		},
-	}
+		} catch (error) {
+			console.error('[publishIdentity]', error)
+			return {
+				error: error instanceof Error ? error.message : 'unknown-error',
+			}
+		}
+	},
+}
 
 /**
  * Rotate the BAP signing key.
@@ -268,27 +267,31 @@ export const rotateIdentity: Action<ActionOptions, IdentityResponse> = {
 				limit: 100,
 			})
 
-			const result = await executeTrackedAction(ctx.wallet, {
-				description: 'BAP key rotation',
-				outputs: [
-					{
-						lockingScript: signedScript.toHex(),
-						satoshis: 0,
-						outputDescription: 'BAP ID',
-						basket: BAP_BASKET,
-						tags: ['type:id', `bapId:${bapId}`, `seq:${nextSeq}`],
-						customInstructions: JSON.stringify({
-							protocolID: BAP_PROTOCOL_ID,
-							keyID: nextKeyId,
-						}),
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				{
+					description: 'BAP key rotation',
+					outputs: [
+						{
+							lockingScript: signedScript.toHex(),
+							satoshis: 0,
+							outputDescription: 'BAP ID',
+							basket: BAP_BASKET,
+							tags: ['type:id', `bapId:${bapId}`, `seq:${nextSeq}`],
+							customInstructions: JSON.stringify({
+								protocolID: BAP_PROTOCOL_ID,
+								keyID: nextKeyId,
+							}),
+						},
+					],
+					options: {
+						signAndProcess: true,
+						acceptDelayedBroadcast: false,
+						randomizeOutputs: false,
 					},
-				],
-				options: {
-					signAndProcess: true,
-					acceptDelayedBroadcast: false,
-					randomizeOutputs: false,
 				},
-			}, input?.fundingProvider)
+				input?.fundingProvider,
+			)
 
 			if (!result.txid) return { error: 'no-txid-returned' }
 
@@ -357,23 +360,27 @@ export const attest: Action<AttestRequest, IdentityResponse> = {
 
 			const signedScript = await applyBapAip(ctx, script)
 
-			const result = await executeTrackedAction(ctx.wallet, {
-				description: 'BAP attestation',
-				outputs: [
-					{
-						lockingScript: signedScript.toHex(),
-						satoshis: 0,
-						outputDescription: 'BAP ATTEST',
-						basket: BAP_BASKET,
-						tags: ['type:attest', `hash:${input.attestationHash}`],
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				{
+					description: 'BAP attestation',
+					outputs: [
+						{
+							lockingScript: signedScript.toHex(),
+							satoshis: 0,
+							outputDescription: 'BAP ATTEST',
+							basket: BAP_BASKET,
+							tags: ['type:attest', `hash:${input.attestationHash}`],
+						},
+					],
+					options: {
+						signAndProcess: true,
+						acceptDelayedBroadcast: false,
+						randomizeOutputs: false,
 					},
-				],
-				options: {
-					signAndProcess: true,
-					acceptDelayedBroadcast: false,
-					randomizeOutputs: false,
 				},
-			}, input.fundingProvider)
+				input.fundingProvider,
+			)
 
 			if (!result.txid) return { error: 'no-txid-returned' }
 
@@ -436,23 +443,27 @@ export const updateProfile: Action<UpdateProfileRequest, IdentityResponse> = {
 
 			const signedScript = await applyBapAip(ctx, script)
 
-			const result = await executeTrackedAction(ctx.wallet, {
-				description: 'BAP alias update',
-				outputs: [
-					{
-						lockingScript: signedScript.toHex(),
-						satoshis: 0,
-						outputDescription: 'BAP ALIAS',
-						basket: BAP_BASKET,
-						tags: ['type:alias', `bapId:${bapId}`],
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				{
+					description: 'BAP alias update',
+					outputs: [
+						{
+							lockingScript: signedScript.toHex(),
+							satoshis: 0,
+							outputDescription: 'BAP ALIAS',
+							basket: BAP_BASKET,
+							tags: ['type:alias', `bapId:${bapId}`],
+						},
+					],
+					options: {
+						signAndProcess: true,
+						acceptDelayedBroadcast: false,
+						randomizeOutputs: false,
 					},
-				],
-				options: {
-					signAndProcess: true,
-					acceptDelayedBroadcast: false,
-					randomizeOutputs: false,
 				},
-			}, input.fundingProvider)
+				input.fundingProvider,
+			)
 
 			if (!result.txid) return { error: 'no-txid-returned' }
 
