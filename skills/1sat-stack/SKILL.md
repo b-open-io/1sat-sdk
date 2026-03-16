@@ -81,11 +81,43 @@ POST /bsv21/{tokenId}/{lockType}/unspent                     Multi-address unspe
 
 ### ORDFS (On-chain Content)
 
+**Content endpoint is at `/content/` — NOT under the `/1sat/` prefix.**
+
 ```
-GET  /content/{path}              Serve ordinal content by path
-GET  /ordfs/stream/{outpoint}     Stream ORDFS content by outpoint
-GET  /ordfs/metadata/{path}       Get ORDFS file metadata
+GET  /content/{outpoint}[:{seq}][/filename]   Serve inscription content
+GET  /ordfs/metadata/{outpoint}[:{seq}]       Content metadata (JSON)
+POST /ordfs/metadata                          Bulk metadata (body: {"outpoints": [...]}, max 100)
+GET  /ordfs/stream/{outpoint}                 Stream chunked ORDFS content (supports Range headers)
 ```
+
+**Sequence parameter (`:seq`)** — appended to outpoint with a colon, controls transfer chain resolution:
+
+| seq | Behavior |
+|-----|----------|
+| omitted | Raw content from exact outpoint. No origin resolution, no crawl. |
+| `-2` | Origin only. Backward crawl to find origin, return its content. |
+| `0` | Content at requested outpoint + origin metadata in headers. |
+| `-1` | Latest. Forward crawl to tip of transfer chain. |
+| `N` | Content at specific absolute sequence number. |
+
+**Query params:**
+- `?map=true` — include merged MAP metadata in `X-Map` response header
+- `?parent=true` — include parent outpoint in `X-Parent` response header
+- `?out=true` — include resolved outpoint details
+- `?raw` — for directory inscriptions (`ord-fs/json`), return raw JSON instead of redirecting
+
+**Response headers** (present when seq is used):
+- `X-Outpoint` — resolved outpoint
+- `X-Origin` — origin outpoint
+- `X-Ord-Seq` — resolved sequence number
+- `X-Map` — merged MAP JSON (when `?map=true`)
+- `X-Parent` — parent outpoint (when `?parent=true`)
+
+**Directory traversal:** Inscriptions with content type `ord-fs/json` are directories. Append `/filename` to the path to resolve files within the directory. Requesting a directory root redirects to `index.html`. If the file isn't found, `index.html` is served (SPA fallback).
+
+**Caching:** Specific sequences (seq >= 0, seq == -2) are immutable-cached. Latest (seq == -1) uses no-cache.
+
+For full details on the sequence model, content resolution, streaming, and DNS routing, see `pkg/ordfs/README.md` in the 1sat-stack repo.
 
 ### BAP Identity
 

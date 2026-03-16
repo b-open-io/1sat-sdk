@@ -277,28 +277,109 @@ Discover BSV21 tokens.
 
 ## ORDFS (On-chain Content) Endpoints
 
-### GET /content/{path}
+**The content endpoint is mounted at `/content/`, NOT under the `/1sat/` prefix.** Metadata, stream, and preview endpoints are under `/1sat/ordfs/`.
 
-Serve ordinal/ORDFS content by path. The path can be:
-- An outpoint: `txid.0`
-- A domain path: `domain/file.png`
+### GET /content/{outpoint}[:{seq}][/filename]
 
-Returns the file with the correct Content-Type header.
+Serve inscription content. The outpoint is `txid_vout` format.
+
+**Sequence parameter:** Append `:{seq}` to the outpoint to control transfer chain resolution.
+
+| seq value | Behavior |
+|-----------|----------|
+| omitted | Raw content from exact outpoint. No origin resolution, no crawl. |
+| `-2` | Origin only. Backward crawl to find origin outpoint, return its content. |
+| `0` | Content at the requested outpoint. Also resolves origin for metadata headers. |
+| `-1` | Latest. Full forward crawl to the tip of the transfer chain. |
+| `N` (positive int) | Content at a specific absolute sequence number in the transfer chain. |
+
+**Query params:**
+- `map` — `true` to include merged MAP metadata in `X-Map` response header
+- `parent` — `true` to include parent outpoint in `X-Parent` response header
+- `out` — `true` to include resolved outpoint details
+- `raw` — for directory inscriptions (`ord-fs/json`), return raw directory JSON instead of redirecting to `index.html`
+
+**Response headers** (present when seq is specified):
+
+| Header | Description |
+|--------|-------------|
+| `X-Outpoint` | Resolved outpoint |
+| `X-Origin` | Origin outpoint |
+| `X-Ord-Seq` | Resolved sequence number |
+| `X-Map` | Merged MAP JSON (only when `?map=true`) |
+| `X-Parent` | Parent outpoint (only when `?parent=true`) |
+
+**Caching:**
+- Specific sequence (seq >= 0, seq == -2): `Cache-Control: public, max-age=31536000, immutable`
+- Latest (seq == -1): `Cache-Control: no-cache, no-store, must-revalidate`
+
+**Directory traversal:** Inscriptions with content type `ord-fs/json` are directories mapping filenames to outpoints. Append `/filename` to resolve a file within the directory. Requesting a directory root redirects to `index.html`. If the file isn't in the mapping, `index.html` is served (SPA fallback). Use `?raw` to get the directory JSON itself.
+
+**Examples:**
+```bash
+# Raw content, no crawl
+curl https://api.1sat.app/content/{txid}_{vout}
+
+# Latest content (forward crawl to tip)
+curl https://api.1sat.app/content/{txid}_{vout}:-1
+
+# Origin content (backward crawl)
+curl https://api.1sat.app/content/{txid}_{vout}:-2
+
+# Content at sequence 5 with MAP metadata
+curl https://api.1sat.app/content/{txid}_{vout}:5?map=true
+
+# File from a directory inscription
+curl https://api.1sat.app/content/{txid}_{vout}/style.css
+```
+
+---
+
+### GET /ordfs/metadata/{outpoint}[:{seq}]
+
+Content metadata without the content body. Supports the same sequence parameter as the content endpoint.
+
+**Response:**
+```json
+{
+  "contentType": "image/png",
+  "contentLength": 48210,
+  "sequence": 3,
+  "outpoint": "abc123_0",
+  "origin": "def456_0",
+  "map": { "app": "myapp", "type": "image" }
+}
+```
+
+The `map` field contains the merged MAP data up to the resolved sequence. Only present if the inscription has MAP data.
+
+---
+
+### POST /ordfs/metadata
+
+Bulk metadata lookup for multiple outpoints.
+
+**Body:**
+```json
+{
+  "outpoints": ["txid1_0", "txid2_0:0", "txid3_0:-1"]
+}
+```
+
+Maximum 100 outpoints per request. Each outpoint can include a sequence parameter.
+
+**Response:** Array of metadata objects (same format as single metadata endpoint).
 
 ---
 
 ### GET /ordfs/stream/{outpoint}
 
-Stream ORDFS content from a specific transaction output.
+Stream chunked ORDFS content. Used for large files split across multiple inscriptions in a transfer chain (first chunk has `stream=ordfs` content type parameter, subsequent chunks use `ordfs/stream`).
+
+Supports HTTP Range headers for partial content retrieval.
 
 **Path params:**
-- `outpoint` — `txid.vout` format
-
----
-
-### GET /ordfs/metadata/{path}
-
-Get ORDFS file metadata (content type, size, timestamp) without fetching the content.
+- `outpoint` — `txid_vout` format
 
 ---
 
