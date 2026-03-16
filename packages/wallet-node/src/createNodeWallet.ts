@@ -1,7 +1,7 @@
 /**
  * Factory for creating node/server wallets.
  *
- * Analogous to createWebWallet but uses StorageKnex (SQLite or MySQL)
+ * Analogous to createWebWallet but uses StorageBunSqlite (bun:sqlite)
  * instead of StorageIdb (IndexedDB) for CLI, agent, and server use cases.
  */
 
@@ -12,13 +12,12 @@ import {
 	Monitor,
 	Services,
 	StorageClient,
-	StorageKnex,
 	StorageProvider,
 	Wallet,
 	WalletStorageManager,
 } from '@bsv/wallet-toolbox'
-import { type Knex, knex as makeKnex } from 'knex'
 import { type FullSyncResult, type FullSyncStage, fullSync } from './fullSync'
+import { StorageBunSqlite } from './storage-bun-sqlite'
 
 type Chain = 'main' | 'test'
 type NodeWalletServices = toolboxSdk.WalletServices
@@ -26,11 +25,7 @@ type NodeWalletServices = toolboxSdk.WalletServices
 const DEFAULT_STORAGE_NAME = 'wallet'
 const DEFAULT_REMOTE_STORAGE_TIMEOUT = 5000
 const DEFAULT_FEE_MODEL = { model: 'sat/kb' as const, value: 100 }
-const DEFAULT_STORAGE: Knex.Config = {
-	client: 'better-sqlite3',
-	connection: { filename: './wallet.db' },
-	useNullAsDefault: true,
-}
+const DEFAULT_FILENAME = './wallet.db'
 
 /**
  * Configuration for creating a node wallet.
@@ -46,8 +41,11 @@ export interface NodeWalletConfig {
 	remoteStorageUrl?: string
 	/** Unique identifier for this storage instance. Must be persisted by the consuming application and reused across sessions. */
 	storageIdentityKey: string
-	/** Knex configuration for database connection. Default: SQLite at ./wallet.db */
-	storage?: Knex.Config
+	/** Path to SQLite database file (bun:sqlite). Default: './wallet.db' */
+	filename?: string
+	/** Optional pre-configured storage provider (e.g. StorageKnex for Node.js users).
+	 *  When provided, filename is ignored and this provider is used directly. */
+	storageProvider?: InstanceType<typeof StorageProvider>
 	/** Callback when a transaction is broadcasted (called after remote sync if connected) */
 	onTransactionBroadcasted?: (txid: string) => void
 	/** Callback when a transaction is proven (called after remote sync if connected) */
@@ -156,11 +154,13 @@ export async function createNodeWallet(
 		>[2],
 	)
 
-	// 3. Create Knex instance and local storage
-	const knex = makeKnex(config.storage ?? DEFAULT_STORAGE)
+	// 3. Create storage — use custom provider if supplied, otherwise bun:sqlite
 	const storageOptions = StorageProvider.createStorageBaseOptions(chain)
 	storageOptions.feeModel = feeModel
-	const localStorage = new StorageKnex({ ...storageOptions, knex })
+	const localStorage = config.storageProvider ?? new StorageBunSqlite({
+		...storageOptions,
+		filename: config.filename ?? DEFAULT_FILENAME,
+	})
 	await localStorage.migrate(DEFAULT_STORAGE_NAME, config.storageIdentityKey)
 
 	// 4. Create storage manager with local-only storage initially
@@ -366,9 +366,10 @@ export async function createNodeWallet(
 	// 11. Create cleanup function
 	const destroy = async (): Promise<void> => {
 		monitor.stopTasks()
+		// Allow in-flight monitor tasks to settle before destroying
+		await new Promise((r) => setTimeout(r, 100))
 		await monitor.destroy()
 		await wallet.destroy()
-		await knex.destroy()
 	}
 
 	// 12. Create fullSync function if remote storage is connected

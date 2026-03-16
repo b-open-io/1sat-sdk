@@ -24,14 +24,12 @@
 	},
 	"peerDependencies": {
 		"@bsv/sdk": "^2.0.4",
-		"@bsv/wallet-toolbox": "^2.0.20",
-		"knex": "^3.0.0"
+		"@bsv/wallet-toolbox": "^2.0.20"
 	},
 	"devDependencies": {
 		"@1sat/client": "workspace:*",
 		"@bsv/sdk": "^2.0.4",
 		"@bsv/wallet-toolbox": "^2.0.4",
-		"knex": "^3.1.0",
 		"typescript": "^5.9.3"
 	}
 }
