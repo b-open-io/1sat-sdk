@@ -79,7 +79,7 @@ export async function protectSecret(
 	const entry: VaultEntry = {
 		ciphertext,
 		metadata,
-		publicKey: `${publicKey.slice(0, 40)}...`,
+		publicKey,
 		createdAt: new Date().toISOString(),
 	}
 

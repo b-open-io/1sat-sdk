@@ -22,9 +22,25 @@ import LocalAuthentication
 //   ~/.secure-enclave-vault/<label>.key    — SE key dataRepresentation (284 bytes, opaque)
 //   ~/.secure-enclave-vault/<label>.pub    — public key (x963, for encryption without SE)
 
-let VAULT_DIR = FileManager.default.homeDirectoryForCurrentUser
-    .appendingPathComponent(".secure-enclave-vault")
+let VAULT_DIR: URL = {
+    if let envDir = ProcessInfo.processInfo.environment["SE_VAULT_DIR"] {
+        return URL(fileURLWithPath: envDir)
+    }
+    return FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent(".secure-enclave-vault")
+}()
 let HKDF_INFO = Data("se-vault-v1".utf8)
+
+// MARK: - Label Validation
+
+let SAFE_LABEL = try! NSRegularExpression(pattern: "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$")
+
+func validateLabel(_ label: String) {
+    let range = NSRange(label.startIndex..., in: label)
+    if SAFE_LABEL.firstMatch(in: label, range: range) == nil {
+        fail("INVALID_LABEL: \"\(label)\" — labels must be 1-63 chars, alphanumeric/hyphens/underscores/dots, starting with alphanumeric.")
+    }
+}
 
 // MARK: - Error Types
 
@@ -182,7 +198,7 @@ func listKeys() throws -> [(label: String, pubKeyHex: String)] {
             let label = String(filename.dropLast(4))
             guard let pubData = try? Data(contentsOf: pubPath(label)) else { return nil }
             let hex = pubData.map { String(format: "%02x", $0) }.joined()
-            return (label, String(hex.prefix(40)) + "...")
+            return (label, hex)
         }
 }
 
@@ -302,6 +318,7 @@ struct App {
                 guard SecureEnclave.isAvailable else { fail("SECURE_ENCLAVE_NOT_AVAILABLE"); return }
 
                 let label = args[2]
+                validateLabel(label)
                 let (_, pubKey) = try generateKey(label: label)
                 let pubHex = pubKey.x963Representation.map { String(format: "%02x", $0) }.joined()
 
@@ -315,6 +332,7 @@ struct App {
             case "encrypt":
                 guard args.count >= 3 else { fail("Usage: se-helper encrypt <label> (plaintext via stdin)"); return }
                 let label = args[2]
+                validateLabel(label)
                 // Read plaintext from stdin, not CLI args (args visible in ps)
                 let plaintext: String
                 if args.count >= 4 {
@@ -343,6 +361,7 @@ struct App {
             case "decrypt":
                 guard args.count >= 4 else { fail("Usage: se-helper decrypt <label> <ciphertext_base64>"); return }
                 let label = args[2]
+                validateLabel(label)
                 let b64 = args[3]
 
                 guard let ciphertext = Data(base64Encoded: b64) else {
@@ -364,6 +383,7 @@ struct App {
 
             case "delete":
                 guard args.count >= 3 else { fail("Usage: se-helper delete <label>"); return }
+                validateLabel(args[2])
                 try deleteKey(label: args[2])
                 ok(meta: ["label": args[2]])
 
