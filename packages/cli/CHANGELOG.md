@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.3
+
+### Fixed
+- Removed 66MB compiled binary from npm package (only src/ needed — Bun runs TS natively)
+
 ## 0.0.2
 
 ### Added
