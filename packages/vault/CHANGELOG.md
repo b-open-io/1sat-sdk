@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.3
+
+### Added
+- `SE_VAULT_DIR` environment variable support in Swift binary (matches TypeScript behavior)
+- Label validation in Swift binary (generate, encrypt, decrypt, delete commands)
+- Comprehensive README with API reference, usage examples, and portability warning
+
+### Fixed
+- Full public key hex stored in vault.json and list output (was truncated to 40 chars)
+- Swift binary now reads vault directory from `SE_VAULT_DIR` env var instead of hardcoded path
+
 ## 0.0.2
 
 ### Added
