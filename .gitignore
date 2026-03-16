@@ -5,3 +5,6 @@ dist
 bun.lock
 .env
 .env.local
+*.db
+*.db-shm
+*.db-wal

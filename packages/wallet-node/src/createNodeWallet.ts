@@ -16,6 +16,7 @@ import {
 	Wallet,
 	WalletStorageManager,
 } from '@bsv/wallet-toolbox'
+import { type Knex, knex as makeKnex } from 'knex'
 import { type FullSyncResult, type FullSyncStage, fullSync } from './fullSync'
 import { StorageBunSqlite } from './storage-bun-sqlite'
 
@@ -26,6 +27,14 @@ const DEFAULT_STORAGE_NAME = 'wallet'
 const DEFAULT_REMOTE_STORAGE_TIMEOUT = 5000
 const DEFAULT_FEE_MODEL = { model: 'sat/kb' as const, value: 100 }
 const DEFAULT_FILENAME = './wallet.db'
+const DEFAULT_KNEX_STORAGE: Knex.Config = {
+	client: 'better-sqlite3',
+	connection: { filename: DEFAULT_FILENAME },
+	useNullAsDefault: true,
+}
+
+/** Detect if running in Bun */
+const isBun = typeof globalThis.Bun !== 'undefined'
 
 /**
  * Configuration for creating a node wallet.
@@ -41,11 +50,10 @@ export interface NodeWalletConfig {
 	remoteStorageUrl?: string
 	/** Unique identifier for this storage instance. Must be persisted by the consuming application and reused across sessions. */
 	storageIdentityKey: string
-	/** Path to SQLite database file (bun:sqlite). Default: './wallet.db' */
+	/** Knex configuration for database connection (Node.js). Ignored when running in Bun. */
+	storage?: Knex.Config
+	/** Path to SQLite database file. Default: './wallet.db' */
 	filename?: string
-	/** Optional pre-configured storage provider (e.g. StorageKnex for Node.js users).
-	 *  When provided, filename is ignored and this provider is used directly. */
-	storageProvider?: InstanceType<typeof StorageProvider>
 	/** Callback when a transaction is broadcasted (called after remote sync if connected) */
 	onTransactionBroadcasted?: (txid: string) => void
 	/** Callback when a transaction is proven (called after remote sync if connected) */
@@ -154,13 +162,28 @@ export async function createNodeWallet(
 		>[2],
 	)
 
-	// 3. Create storage — use custom provider if supplied, otherwise bun:sqlite
+	// 3. Create storage — auto-detect runtime: bun:sqlite in Bun, knex in Node
 	const storageOptions = StorageProvider.createStorageBaseOptions(chain)
 	storageOptions.feeModel = feeModel
-	const localStorage = config.storageProvider ?? new StorageBunSqlite({
-		...storageOptions,
-		filename: config.filename ?? DEFAULT_FILENAME,
-	})
+
+	let localStorage: StorageProvider
+	let knexInstance: ReturnType<typeof makeKnex> | undefined
+
+	if (isBun) {
+		localStorage = new StorageBunSqlite({
+			...storageOptions,
+			filename: config.filename ?? DEFAULT_FILENAME,
+		})
+	} else {
+		const { StorageKnex } = await import('@bsv/wallet-toolbox')
+		const knexConfig = config.storage ?? {
+			...DEFAULT_KNEX_STORAGE,
+			connection: { filename: config.filename ?? DEFAULT_FILENAME },
+		}
+		knexInstance = makeKnex(knexConfig)
+		localStorage = new StorageKnex({ ...storageOptions, knex: knexInstance })
+	}
+
 	await localStorage.migrate(DEFAULT_STORAGE_NAME, config.storageIdentityKey)
 
 	// 4. Create storage manager with local-only storage initially
@@ -370,6 +393,7 @@ export async function createNodeWallet(
 		await new Promise((r) => setTimeout(r, 100))
 		await monitor.destroy()
 		await wallet.destroy()
+		if (knexInstance) await knexInstance.destroy()
 	}
 
 	// 12. Create fullSync function if remote storage is connected
