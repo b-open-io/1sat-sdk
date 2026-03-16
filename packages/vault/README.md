@@ -419,6 +419,40 @@ any file or SE operation.
 
 **Runtime flow:**
 
+```mermaid
+graph TD
+    subgraph Applications
+        BAP["BAP CLI<br/><i>identity keys</i>"]
+        CLW["ClawNet CLI<br/><i>auth tokens</i>"]
+        BBK["bbackup CLI<br/><i>cached passwords</i>"]
+    end
+
+    subgraph "@1sat/vault TypeScript API"
+        PS["protectSecret()<br/>no Touch ID"]
+        US["unlockSecret()<br/>Touch ID required"]
+    end
+
+    subgraph "se-helper (Swift CryptoKit binary)"
+        ENC["ECIES Encrypt<br/><i>ephemeral ECDH + HKDF + AES-256-GCM</i>"]
+        DEC["ECIES Decrypt<br/><i>SE-internal ECDH + HKDF + AES-256-GCM</i>"]
+        TID{{"Touch ID<br/>LAContext"}}
+    end
+
+    SE[/"Secure Enclave Chip<br/>P-256 private key<br/>NEVER leaves hardware"/]
+    DISK[("~/.secure-enclave-vault/<br/>.key  .pub  .vault.json")]
+
+    BAP & CLW & BBK -->|"plaintext via stdin"| PS
+    BAP & CLW & BBK -.->|"label + ciphertext"| US
+
+    PS -->|"encrypt cmd"| ENC
+    US -->|"decrypt cmd"| DEC
+
+    ENC -->|"uses public key only"| DISK
+    TID -->|"auth OK"| DEC
+    DEC <-->|"ECDH inside chip"| SE
+    SE -.->|"hardware-bound keys"| DISK
+```
+
 1. TypeScript calls `Bun.spawn(['swift/se-helper', subcommand, label, ...])`.
 2. `se-helper` uses `CryptoKit.SecureEnclave.P256` and `LocalAuthentication.LAContext`.
 3. Key files are stored at `~/.secure-enclave-vault/<label>.key` (opaque hardware-bound blob)
