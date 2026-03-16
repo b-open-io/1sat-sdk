@@ -2,19 +2,17 @@
  * Help text and version display for the 1sat CLI.
  */
 
+import { readFileSync } from 'node:fs'
 import chalk from 'chalk'
 
-// Version is read at build time via Bun's import. Works in both source and compiled binary.
 const VERSION = (() => {
 	try {
-		// biome-ignore lint/style/noVar: dynamic require for Bun compiled binary compat
-		const { readFileSync } = require('node:fs')
 		const pkg = JSON.parse(
 			readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
 		)
-		return pkg.version || '0.0.1'
+		return pkg.version || '0.0.9'
 	} catch {
-		return '0.0.1'
+		return '0.0.9'
 	}
 })()
 
