@@ -9,6 +9,9 @@ Build apps on [1Sat Ordinals](https://1satordinals.com) - BSV's protocol for NFT
 Install only the packages you need:
 
 ```bash
+# CLI (terminal wallet and operations)
+bun add -g @1sat/cli
+
 # Browser dApps (popup wallet connection)
 bun add @1sat/connect
 
@@ -17,6 +20,9 @@ bun add @1sat/react
 
 # Server / scripts (direct key access)
 bun add @1sat/core @1sat/client @1sat/types
+
+# Script templates (Inscription, OrdLock, BSV20, BSV21, etc.)
+bun add @1sat/templates
 
 # Wallet engine
 bun add @1sat/wallet-browser  # or @1sat/wallet-node
@@ -368,6 +374,11 @@ if (
 │  - Protocols: MAP, Sigma,       │  - Broadcast (Arcade)      │
 │    OrdP2PKH, OrdLock            │  - UTXO fetch, ORDFS       │
 ├─────────────────────────────────┴────────────────────────────┤
+│  @1sat/templates                │  @1sat/cli                 │
+│  - Inscription, OrdLock, Lock  │  - Terminal wallet & ops   │
+│  - BSV20, BSV21, AIP, BAP     │  - Binary: 1sat            │
+│  - MAP, Sigma, BSocial         │  - 29 commands             │
+├─────────────────────────────────┴────────────────────────────┤
 │  @1sat/types            │  @1sat/utils                      │
 │  - Type definitions     │  - Encoding & validation          │
 │  - Protocol constants   │  - Key derivation                 │
@@ -389,6 +400,8 @@ if (
 | `@1sat/wallet-browser` | Browser wallet factory (IndexedDB storage) |
 | `@1sat/wallet-node` | Node/Bun wallet factory (SQLite storage) |
 | `@1sat/actions` | Self-describing wallet actions for agents and tooling |
+| `@1sat/templates` | Bitcoin script templates (Inscription, OrdLock, Lock, BSV20, BSV21, AIP, BAP, MAP, Sigma, BSocial) |
+| `@1sat/cli` | Command-line interface (`1sat` binary) for wallet ops, ordinals, tokens, and more |
 
 ## Development
 
