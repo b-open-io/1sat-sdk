@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.4
+
+### Fixed
+- Add missing transitive deps (dotenv, knex, better-sqlite3, @bsv/wallet-toolbox) so `bunx @1sat/cli` works
+- Deps now resolve to latest published versions (actions@0.0.53, wallet-node@0.0.12, etc.)
+
 ## 0.0.3
 
 ### Fixed
