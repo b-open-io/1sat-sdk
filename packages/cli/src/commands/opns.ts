@@ -1,0 +1,165 @@
+/**
+ * OpNS commands - register, deregister, lookup.
+ *
+ * Manage OpNS name identity bindings.
+ */
+
+import {
+	getOpnsNames,
+	opnsDeregister as opnsDeregisterAction,
+	opnsRegister as opnsRegisterAction,
+} from '@1sat/actions'
+import { confirm, isCancel } from '@clack/prompts'
+import type { GlobalFlags } from '../args'
+import { extractFlag } from '../args'
+import { loadContext } from '../context'
+import { printCommandHelp } from '../help'
+import { loadKey, resolvePassword } from '../keys'
+import { fatal, formatLabel, formatValue, output } from '../output'
+
+export async function handleOpnsCommand(
+	args: string[],
+	opts: GlobalFlags,
+): Promise<void> {
+	const [subcommand, ...rest] = args
+
+	switch (subcommand) {
+		case 'register':
+			return opnsRegister(rest, opts)
+		case 'deregister':
+			return opnsDeregister(rest, opts)
+		case 'lookup':
+			return opnsLookup(rest, opts)
+		default:
+			printCommandHelp('opns', {
+				register: 'Register identity on an OpNS name (--outpoint <op>)',
+				deregister: 'Deregister identity from an OpNS name (--outpoint <op>)',
+				lookup: 'List OpNS names from wallet',
+			})
+			if (subcommand && subcommand !== 'help') {
+				process.exit(1)
+			}
+	}
+}
+
+async function opnsRegister(args: string[], opts: GlobalFlags): Promise<void> {
+	const outpoint = extractFlag(args, '--outpoint')
+
+	if (!outpoint) fatal('Missing --outpoint <txid.vout>')
+
+	if (!opts.yes) {
+		const ok = await confirm({
+			message: `Register identity on OpNS name ${outpoint}?`,
+		})
+		if (isCancel(ok) || !ok) {
+			fatal('Registration cancelled.')
+		}
+	}
+
+	const privateKey = await loadKey(resolvePassword())
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		// Look up the OpNS ordinal from the wallet
+		const namesResult = await getOpnsNames.execute(ctx, { limit: 10000 })
+		const ordinal = namesResult.outputs.find((o) => o.outpoint === outpoint)
+		if (!ordinal) {
+			fatal(`OpNS name not found in wallet: ${outpoint}`)
+		}
+
+		const result = await opnsRegisterAction.execute(ctx, {
+			ordinal,
+			inputBEEF: namesResult.BEEF as number[] | undefined,
+		})
+
+		if (result.error) {
+			fatal(result.error)
+		}
+
+		output(opts.json ? result : { txid: result.txid }, opts)
+	} finally {
+		await destroy()
+	}
+}
+
+async function opnsDeregister(
+	args: string[],
+	opts: GlobalFlags,
+): Promise<void> {
+	const outpoint = extractFlag(args, '--outpoint')
+
+	if (!outpoint) fatal('Missing --outpoint <txid.vout>')
+
+	if (!opts.yes) {
+		const ok = await confirm({
+			message: `Deregister identity from OpNS name ${outpoint}?`,
+		})
+		if (isCancel(ok) || !ok) {
+			fatal('Deregistration cancelled.')
+		}
+	}
+
+	const privateKey = await loadKey(resolvePassword())
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		// Look up the OpNS ordinal from the wallet
+		const namesResult = await getOpnsNames.execute(ctx, { limit: 10000 })
+		const ordinal = namesResult.outputs.find((o) => o.outpoint === outpoint)
+		if (!ordinal) {
+			fatal(`OpNS name not found in wallet: ${outpoint}`)
+		}
+
+		const result = await opnsDeregisterAction.execute(ctx, {
+			ordinal,
+			inputBEEF: namesResult.BEEF as number[] | undefined,
+		})
+
+		if (result.error) {
+			fatal(result.error)
+		}
+
+		output(opts.json ? result : { txid: result.txid }, opts)
+	} finally {
+		await destroy()
+	}
+}
+
+async function opnsLookup(_args: string[], opts: GlobalFlags): Promise<void> {
+	const privateKey = await loadKey(resolvePassword())
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const result = await getOpnsNames.execute(ctx, { limit: 100 })
+
+		if (opts.json) {
+			output(result.outputs, opts)
+			return
+		}
+
+		if (result.outputs.length === 0) {
+			output('No OpNS names found.', opts)
+			return
+		}
+
+		for (const o of result.outputs) {
+			const nameTag = o.tags?.find((t) => t.startsWith('name:'))?.slice(5) ?? ''
+			const publishedTag = o.tags?.find((t) => t === 'opns:published')
+			const status = publishedTag ? 'registered' : 'unregistered'
+
+			console.log(
+				`  ${formatValue(o.outpoint)}  ${nameTag ? formatValue(nameTag) : ''}  ${formatLabel(status)}`,
+			)
+		}
+
+		console.log(`\n  ${result.outputs.length} OpNS name(s) found.`)
+	} finally {
+		await destroy()
+	}
+}
