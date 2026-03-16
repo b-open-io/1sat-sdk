@@ -43,9 +43,7 @@ async function callHelper(
 		})
 		if (build.exitCode !== 0 || !existsSync(helperPath)) {
 			const err = new TextDecoder().decode(build.stderr)
-			throw new Error(
-				`@1sat/vault: Failed to compile se-helper. ${err}`,
-			)
+			throw new Error(`@1sat/vault: Failed to compile se-helper. ${err}`)
 		}
 	}
 
