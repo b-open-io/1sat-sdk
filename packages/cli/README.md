@@ -1,3 +1,5 @@
+![1sat CLI](assets/banner.png)
+
 # @1sat/cli
 
 Command-line interface for 1Sat Ordinals on BSV.
