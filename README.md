@@ -1,4 +1,4 @@
-![1Sat SDK](assets/sdk-banner.jpg)
+![1Sat SDK](assets/sdk-banner.png)
 
 # 1Sat SDK
 
