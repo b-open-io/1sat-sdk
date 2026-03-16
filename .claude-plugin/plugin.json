@@ -1,0 +1,18 @@
+{
+  "name": "1sat-skills",
+  "version": "0.1.6",
+  "description": "1Sat ecosystem tools for BSV \u2014 unified indexing API (1sat-stack), ordinals minting and marketplace (list/buy/cancel), BSV21 token operations, wallet setup (BRC-100), transaction building, time locks, sweep/import, OpNS names, dApp wallet connection, CLI tool, and media extraction.",
+  "author": {
+    "name": "b-open-io",
+    "url": "https://github.com/b-open-io"
+  },
+  "repository": "https://github.com/b-open-io/1sat-sdk",
+  "keywords": [
+    "bsv",
+    "ordinals",
+    "nft",
+    "1sat",
+    "blockchain",
+    "marketplace"
+  ]
+}
