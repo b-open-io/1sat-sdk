@@ -2,42 +2,52 @@
 
 # 1Sat SDK
 
-Build apps on [1Sat Ordinals](https://1satordinals.com) - BSV's protocol for NFTs, fungible tokens (BSV20/21), and on-chain data.
+Build apps on [1Sat Ordinals](https://1satordinals.com) — BSV's protocol for NFTs, fungible tokens (BSV20/21), and on-chain data.
 
-## Installation
+## Fastest Start
 
-Install only the packages you need:
+**Run the CLI immediately (no install):**
 
 ```bash
-# CLI (terminal wallet and operations)
-bun add -g @1sat/cli
+bunx @1sat/cli
+```
 
-# Browser dApps (popup wallet connection)
+**Add Agent Skills for Claude Code:**
+
+```bash
+claude plugin install 1sat@b-open-io
+```
+
+**Install packages for your app:**
+
+```bash
+# Browser dApps — wallet popup connection
 bun add @1sat/connect
 
 # React apps
 bun add @1sat/react
 
-# Server / scripts (direct key access)
+# Server / scripts — direct key access
 bun add @1sat/core @1sat/client @1sat/types
 
-# Script templates (Inscription, OrdLock, BSV20, BSV21, etc.)
+# Bitcoin script templates
 bun add @1sat/templates
 
-# Wallet engine
+# Full BRC-100 wallet engine
 bun add @1sat/wallet-browser  # or @1sat/wallet-node
 ```
 
-## Features
+## What's in the Box
 
-- **Connect** - Wallet connection via popup (1sat.market) or browser extensions
-- **Ordinals** - Inscribe, send, and list NFTs
-- **Tokens** - Full support for BSV20 (tick) and BSV21 (token ID) standards
-- **Marketplace** - Create, purchase, and cancel listings
-- **Signing** - Message signing (BSM) and Sigma protocol for data attestation
-- **Builder** - Low-level transaction builder for custom flows
-- **Actions** - Self-describing wallet operations for agents and tooling
-- **Wallet Engine** - Full BRC-100 wallet with indexers, sync, and backup
+- **Connect** — Wallet popup connection (1sat.market) with extension auto-detection
+- **Ordinals** — Inscribe, transfer, and list NFTs
+- **Tokens** — Full support for BSV20 (tick) and BSV21 (origin) standards
+- **Marketplace** — Create, purchase, and cancel OrdLock listings
+- **Signing** — BSM message signing and Sigma protocol for data attestation
+- **Builder** — Low-level transaction builder for custom flows
+- **Actions** — Self-describing wallet operations for agents and tooling
+- **Wallet Engine** — Full BRC-100 wallet with indexers, sync, and backup
+- **CLI** — Terminal wallet with 30+ commands, runs without a global install
 
 ## Quick Start
 
@@ -53,12 +63,12 @@ const onesat = createOneSat({
   appName: 'My dApp',
 })
 
-// Connect - opens wallet popup for user approval
+// Connect — opens wallet popup if no extension is installed
 try {
   const { paymentAddress, ordinalAddress } = await onesat.connect()
   console.log('Connected:', paymentAddress)
 } catch (err) {
-  if (err.code === 'USER_REJECTED') {
+  if (err instanceof UserRejectedError) {
     console.log('User closed the popup')
   }
 }
@@ -124,7 +134,7 @@ import { PrivateKey, Utils } from '@bsv/sdk'
 
 const { toArray, toBase64 } = Utils
 
-// SERVER SIDE ONLY - Never expose keys in client code
+// SERVER SIDE ONLY — never expose private keys in client code
 const privateKey = PrivateKey.fromWif(process.env.WALLET_WIF!)
 const address = privateKey.toAddress().toString()
 
@@ -184,27 +194,35 @@ const { wallet, services } = await createNodeWallet({
 })
 ```
 
-## Network Configuration
+### CLI
 
-```typescript
-import { API_HOST, API_HOST_TESTNET, ORDFS_HOST } from '@1sat/types'
+```bash
+# First-time setup — generates or imports a WIF key
+1sat init
 
-// Mainnet (default)
-const onesat = createOneSat({ appName: 'My dApp' })
+# Wallet operations
+1sat wallet balance
+1sat wallet address
+1sat wallet send --to <addr> --sats <amount>
 
-// API endpoints:
-// API_HOST: https://ordinals.gorillapool.io/api (mainnet)
-// API_HOST_TESTNET: https://testnet.ordinals.gorillapool.io/api (testnet)
-// ORDFS_HOST: https://ordfs.network (inscription content)
+# Ordinals
+1sat ordinals list
+1sat ordinals mint --file image.png
+1sat ordinals sell --outpoint <txid.vout> --price 10000
+
+# BSV21 tokens
+1sat tokens balances
+1sat tokens send --token-id <id> --to <addr> --amount 100
+
+# Identity
+1sat identity create
+1sat identity sign --message "Hello"
+
+# Run any registered action by name
+1sat action sendBsv '{"requests":[{"address":"1A1z...","satoshis":1000}]}'
 ```
 
-## Wallet Compatibility
-
-The SDK connects to wallets via a popup interface. Currently supported:
-
-- **1sat.market** - Default popup wallet (no extension required)
-
-Future support planned for browser extensions and embedded wallets.
+The CLI resolves your key from `PRIVATE_KEY_WIF` (env var, good for CI) or `~/.1sat/keys.bep` (encrypted keyfile created by `1sat init`). Pass `--json` for machine-readable output on any command.
 
 ## API Reference
 
@@ -212,11 +230,13 @@ Future support planned for browser extensions and embedded wallets.
 
 ```typescript
 const onesat = createOneSat({
-  appName: 'My dApp',              // Required: Your app name
-  popupUrl: 'https://1sat.market', // Optional: Wallet popup URL (default: 1sat.market)
-  timeout: 300000,                 // Optional: Request timeout in ms (default: 5 min)
+  appName: 'My dApp',              // Required: your app name
+  popupUrl: 'https://1sat.market', // Optional: wallet popup URL (default: 1sat.market)
+  timeout: 300000,                 // Optional: request timeout in ms (default: 5 min)
 })
 ```
+
+`createOneSat` checks for `window.onesat` (browser extension) first. If found, it returns the injected provider. Otherwise it creates a popup-based provider.
 
 ### Provider Methods
 
@@ -257,7 +277,12 @@ onesat.on('accountChange', ({ paymentAddress, ordinalAddress }) => {
 ### Error Handling
 
 ```typescript
-import { UserRejectedError, TimeoutError, InsufficientFundsError } from '@1sat/connect'
+import {
+  UserRejectedError,
+  TimeoutError,
+  InsufficientFundsError,
+  PopupBlockedError,
+} from '@1sat/connect'
 
 try {
   await onesat.connect()
@@ -268,24 +293,13 @@ try {
     console.log('Request timed out')
   } else if (err instanceof InsufficientFundsError) {
     console.log('Not enough funds')
+  } else if (err instanceof PopupBlockedError) {
+    console.log('Browser blocked the popup — call connect() from a user gesture')
   }
 }
 ```
 
-## Token Operations
-
-For token transfers via wallet popup (browser dApps):
-
-```typescript
-// Transfer tokens via wallet popup
-await onesat.transferToken({
-  tokenId: 'token-origin-txid_0',
-  amount: '100',
-  destinationAddress: 'recipient-address',
-})
-```
-
-For server-side token transfers with direct key access:
+## Token Transfers (Server-Side)
 
 ```typescript
 import { fetchPayUtxos, fetchTokenUtxos, selectTokenUtxos, transferOrdTokens, TokenType } from '@1sat/core'
@@ -307,7 +321,7 @@ const tokenUtxos = await fetchTokenUtxos(TokenType.BSV21, tokenId, address)
 const { selectedUtxos, isEnough } = selectTokenUtxos(tokenUtxos, 100, decimals)
 if (!isEnough) throw new Error('Insufficient token balance')
 
-// Build transfer transaction
+// Build and broadcast
 const result = await transferOrdTokens({
   protocol: TokenType.BSV21,
   tokenID: tokenId,
@@ -321,7 +335,6 @@ const result = await transferOrdTokens({
   tokenChangeAddress: address,
 })
 
-// Broadcast
 const arcade = new ArcadeClient(ONESAT_MAINNET_URL)
 const broadcastResult = await arcade.submitTransactionHex(result.tx.toHex())
 
@@ -335,17 +348,6 @@ if (
 }
 ```
 
-## Protocols
-
-| Protocol | Description |
-|----------|-------------|
-| **1Sat Ordinals** | NFT inscriptions on BSV |
-| **BSV20** | Fungible tokens (tick-based, like BRC-20) |
-| **BSV21** | Fungible tokens (origin-based, contract-like) |
-| **MAP** | Magic Attribute Protocol - on-chain metadata |
-| **Sigma** | Transaction data signing and attestation |
-| **OrdLock** | Trustless marketplace listing contract |
-
 ## Architecture
 
 ```
@@ -353,21 +355,21 @@ if (
 │                       Your Application                       │
 ├──────────────────────────────────────────────────────────────┤
 │  @1sat/react                                                 │
-│  - OneSatProvider, useOneSatContext, useBalance               │
+│  - OneSatProvider, useOneSatContext, useBalance              │
 │  - ConnectButton, useOrdinals, useInscribe                   │
 ├──────────────────────────────────────────────────────────────┤
 │  @1sat/connect                  │  @1sat/extension           │
 │  - Popup wallet connection      │  - Browser extension       │
 │  - postMessage protocol         │  - window.onesat injection │
 ├─────────────────────────────────┴────────────────────────────┤
-│  @1sat/wallet-browser   │  @1sat/wallet-node                │
-│  - createWebWallet()    │  - createNodeWallet()             │
-│  - IndexedDB storage    │  - SQLite storage                 │
+│  @1sat/wallet-browser   │  @1sat/wallet-node                 │
+│  - createWebWallet()    │  - createNodeWallet()              │
+│  - IndexedDB storage    │  - SQLite storage                  │
 ├─────────────────────────┴────────────────────────────────────┤
-│  @1sat/wallet           │  @1sat/actions                    │
-│  - OneSatWallet         │  - Action registry                │
-│  - Indexers & sync      │  - Agent tooling                  │
-│  - Backup / CWI         │  - Self-describing ops            │
+│  @1sat/wallet           │  @1sat/actions                     │
+│  - OneSatWallet         │  - Action registry                 │
+│  - Indexers & sync      │  - Agent tooling                   │
+│  - Backup / CWI         │  - Self-describing ops             │
 ├─────────────────────────┴────────────────────────────────────┤
 │  @1sat/core                     │  @1sat/client              │
 │  - TxBuilder, Ordinal ops       │  - Indexer API             │
@@ -375,35 +377,57 @@ if (
 │    OrdP2PKH, OrdLock            │  - UTXO fetch, ORDFS       │
 ├─────────────────────────────────┴────────────────────────────┤
 │  @1sat/templates                │  @1sat/cli                 │
-│  - Inscription, OrdLock, Lock  │  - Terminal wallet & ops   │
-│  - BSV20, BSV21, AIP, BAP     │  - Binary: 1sat            │
-│  - MAP, Sigma, BSocial         │  - 29 commands             │
+│  - Inscription, OrdLock, Lock   │  - Terminal wallet & ops   │
+│  - BSV20, BSV21, AIP, BAP      │  - Binary: 1sat            │
+│  - MAP, Sigma, BSocial          │  - 30+ commands            │
 ├─────────────────────────────────┴────────────────────────────┤
-│  @1sat/types            │  @1sat/utils                      │
-│  - Type definitions     │  - Encoding & validation          │
-│  - Protocol constants   │  - Key derivation                 │
+│  @1sat/types            │  @1sat/utils                       │
+│  - Type definitions     │  - Encoding & validation           │
+│  - Protocol constants   │  - Key derivation                  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-### Packages
+## Packages
 
-| Package | Description |
-|---------|-------------|
-| `@1sat/react` | React hooks and ConnectButton component |
-| `@1sat/connect` | Popup-based wallet connection protocol |
-| `@1sat/extension` | Browser wallet extension toolkit (window.onesat) |
-| `@1sat/core` | TxBuilder, ordinal operations, and protocol implementations (MAP, Sigma, OrdP2PKH, OrdLock) |
-| `@1sat/client` | API clients for indexer, broadcast, and ORDFS |
-| `@1sat/types` | TypeScript type definitions and protocol constants |
-| `@1sat/utils` | Encoding, validation, and key derivation utilities |
-| `@1sat/wallet` | Base BRC-100 wallet engine with indexers, sync, backup, and CWI |
-| `@1sat/wallet-browser` | Browser wallet factory (IndexedDB storage) |
-| `@1sat/wallet-node` | Node/Bun wallet factory (SQLite storage) |
-| `@1sat/actions` | Self-describing wallet actions for agents and tooling |
-| `@1sat/templates` | Bitcoin script templates (Inscription, OrdLock, Lock, BSV20, BSV21, AIP, BAP, MAP, Sigma, BSocial) |
-| `@1sat/cli` | Command-line interface (`1sat` binary) for wallet ops, ordinals, tokens, and more |
+| Package | Version | Description |
+|---------|---------|-------------|
+| `@1sat/connect` | 0.0.9 | Popup wallet connection, postMessage protocol, session management |
+| `@1sat/react` | 0.0.7 | React hooks and ConnectButton component |
+| `@1sat/extension` | 0.0.4 | Build browser wallet extensions that implement `window.onesat` |
+| `@1sat/core` | 0.0.10 | TxBuilder, ordinal operations, MAP, Sigma, OrdP2PKH, OrdLock |
+| `@1sat/client` | 0.0.16 | API clients for indexer, broadcast (Arcade), and ORDFS |
+| `@1sat/templates` | 0.0.2 | Bitcoin script templates: Inscription, OrdLock, Lock, BSV20, BSV21, AIP, BAP, MAP, Sigma, BSocial |
+| `@1sat/types` | 0.0.13 | TypeScript type definitions and protocol constants |
+| `@1sat/utils` | 0.0.11 | Encoding, validation, and key derivation utilities |
+| `@1sat/wallet` | 0.0.24 | BRC-100 wallet engine with indexers, sync, backup, and CWI |
+| `@1sat/wallet-browser` | 0.0.18 | Browser wallet factory (IndexedDB storage) |
+| `@1sat/wallet-node` | 0.0.13 | Node/Bun wallet factory (SQLite storage) |
+| `@1sat/actions` | 0.0.54 | Self-describing wallet actions for agents and tooling |
+| `@1sat/cli` | 0.0.9 | Command-line interface (`1sat` binary) with 30+ commands |
 
-## Development
+## Protocols
+
+| Protocol | Description |
+|----------|-------------|
+| **1Sat Ordinals** | NFT inscriptions on BSV |
+| **BSV20** | Fungible tokens (tick-based, similar to BRC-20) |
+| **BSV21** | Fungible tokens (origin-based, contract-like) |
+| **MAP** | Magic Attribute Protocol — on-chain metadata |
+| **Sigma** | Transaction data signing and attestation |
+| **OrdLock** | Trustless marketplace listing contract |
+
+## Network Constants
+
+```typescript
+import { API_HOST, API_HOST_TESTNET, ORDFS_HOST, ONESAT_MAINNET_URL } from '@1sat/types'
+
+// API_HOST: https://ordinals.gorillapool.io/api (mainnet)
+// API_HOST_TESTNET: https://testnet.ordinals.gorillapool.io/api (testnet)
+// ORDFS_HOST: https://ordfs.network (inscription content)
+// ONESAT_MAINNET_URL: https://api.1sat.app (Arcade broadcast endpoint)
+```
+
+## Contributing
 
 ```bash
 # Install dependencies
@@ -415,16 +439,20 @@ bun run build
 # Lint
 bun run lint
 
-# Watch mode
+# Watch mode (all packages)
 bun dev
+
+# Build a single package
+bun run --filter '@1sat/core' build
 ```
+
+Dependency order for new code: `types` → `utils` → `client` → `core` → `actions/wallet` → `sdk` → `examples`
 
 ## Related
 
-- [1sat.market](https://1sat.market) - Ordinals marketplace and wallet
-- [js-1sat-ord](https://github.com/BitcoinSchema/js-1sat-ord) - Low-level ordinal operations
-- [bitcoin-auth](https://github.com/BitcoinSchema/bitcoin-auth) - BSV authentication
-- [@bsv/sdk](https://github.com/bitcoin-sv/ts-sdk) - BSV primitives
+- [1sat.market](https://1sat.market) — Ordinals marketplace and wallet
+- [js-1sat-ord](https://github.com/BitcoinSchema/js-1sat-ord) — Low-level ordinal operations
+- [@bsv/sdk](https://github.com/bitcoin-sv/ts-sdk) — BSV primitives
 
 ## License
 
