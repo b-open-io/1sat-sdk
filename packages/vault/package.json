@@ -1,0 +1,27 @@
+{
+	"name": "@1sat/vault",
+	"version": "0.0.1",
+	"description": "Secure Enclave hardware vault for protecting secrets with Touch ID",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": ["dist", "swift/Sources/main.swift", "swift/build.sh"],
+	"scripts": {
+		"build": "tsc",
+		"build:swift": "./swift/build.sh",
+		"postinstall": "./swift/build.sh",
+		"dev": "tsc --watch",
+		"clean": "rm -rf dist"
+	},
+	"keywords": ["1sat", "bsv", "secure-enclave", "vault", "touchid", "hardware", "cryptokit"],
+	"license": "MIT",
+	"devDependencies": {
+		"typescript": "^5.9.3"
+	}
+}
