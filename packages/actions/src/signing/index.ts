@@ -124,5 +124,6 @@ export const signBsm: Action<SignBsmRequest, SignBsmResponse> = {
 export const signingActions = [signBsm]
 
 // Signing helpers
-export { applyAip, applyBapAip, resolveCurrentKeyId } from './aip'
+export { applyAip, applyBapAip, resolveBapSigner, resolveCurrentKeyId } from './aip'
+export { signWithBap, type BapSignature } from './bap'
 export { applySigma } from './sigma'

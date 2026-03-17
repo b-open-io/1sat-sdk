@@ -8,6 +8,17 @@ const { toArray } = Utils
 const AIP_PREFIX = '15PciHG22SNLQJXMoSUaWVi7WSqc7hCfva'
 
 /**
+ * Resolve the current BAP signing key ID and create a WalletSigner for it.
+ */
+export async function resolveBapSigner(ctx: OneSatContext, keyID?: string): Promise<{ signer: WalletSigner; keyID: string }> {
+	const resolvedKeyID = keyID ?? (await resolveCurrentKeyId(ctx))
+	return {
+		signer: new WalletSigner(ctx.wallet, BAP_PROTOCOL_ID, resolvedKeyID, 'self'),
+		keyID: resolvedKeyID,
+	}
+}
+
+/**
  * Resolve the current BAP signing key ID from the wallet's basket.
  *
  * Scans `type:id` outputs for the highest `seq:N` tag and reads the
@@ -107,6 +118,16 @@ export async function applyBapAip(
 	lockingScript: Script,
 	keyID?: string,
 ): Promise<Script> {
-	const resolvedKeyID = keyID ?? (await resolveCurrentKeyId(ctx))
-	return applyAip(ctx, lockingScript, BAP_PROTOCOL_ID, resolvedKeyID, 'self')
+	const { signer } = await resolveBapSigner(ctx, keyID)
+	const message = getAipMessageBuffer(lockingScript)
+	const aip = await AIP.sign(message, signer)
+
+	const out = new Script(lockingScript.chunks.slice())
+	out.writeBin(toArray('|'))
+	out.writeBin(toArray(AIP_PREFIX))
+	out.writeBin(toArray(aip.data.algorithm))
+	out.writeBin(toArray(aip.data.address))
+	out.writeBin(aip.data.signature)
+
+	return out
 }
