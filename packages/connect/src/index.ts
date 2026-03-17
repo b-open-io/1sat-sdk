@@ -1,6 +1,13 @@
 import { OneSatBrowserProvider } from './provider'
 import type { OneSatConfig, OneSatProvider } from './types'
 
+// Export connectWallet — recommended entry point for BRC-100 wallet detection
+export {
+	connectWallet,
+	type ConnectWalletOptions,
+	type ConnectWalletResult,
+} from './connectWallet'
+
 // Export errors
 export {
 	AuthorizationTimeoutError,

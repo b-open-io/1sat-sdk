@@ -19,9 +19,14 @@
 	"keywords": ["1sat", "bsv", "ordinals", "wallet", "sdk", "connect"],
 	"license": "MIT",
 	"dependencies": {
+		"@1sat/wallet": "workspace:*",
 		"eventemitter3": "^5.0.1"
 	},
+	"peerDependencies": {
+		"@bsv/sdk": "^2.0.4"
+	},
 	"devDependencies": {
+		"@bsv/sdk": "^2.0.4",
 		"typescript": "^5.9.3"
 	}
 }
