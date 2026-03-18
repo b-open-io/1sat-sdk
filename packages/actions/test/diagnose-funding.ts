@@ -42,8 +42,8 @@ console.log('\n--- Attempting syncFunding ---')
 try {
 	const synced = await syncFunding(ctx)
 	console.log('syncFunding internalized:', synced, 'outputs')
-} catch (e: any) {
-	console.error('syncFunding failed:', e.message)
+} catch (e) {
+	console.error('syncFunding failed:', (e as Error).message)
 }
 
 // Re-check after sync
@@ -79,11 +79,11 @@ try {
 		options: { signAndProcess: true, acceptDelayedBroadcast: true },
 	})
 	console.log('Success! txid:', result.txid)
-} catch (e: any) {
-	console.error('Failed:', e.message)
-	// Print full error for more context
-	if (e.code) console.error('Error code:', e.code)
-	if (e.data) console.error('Error data:', JSON.stringify(e.data, null, 2))
+} catch (e) {
+	const err = e as Error & { code?: string; data?: unknown }
+	console.error('Failed:', err.message)
+	if (err.code) console.error('Error code:', err.code)
+	if (err.data) console.error('Error data:', JSON.stringify(err.data, null, 2))
 }
 
 await destroyTestContext(ctx)

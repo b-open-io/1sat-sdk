@@ -10,10 +10,18 @@ const AIP_PREFIX = '15PciHG22SNLQJXMoSUaWVi7WSqc7hCfva'
 /**
  * Resolve the current BAP signing key ID and create a WalletSigner for it.
  */
-export async function resolveBapSigner(ctx: OneSatContext, keyID?: string): Promise<{ signer: WalletSigner; keyID: string }> {
+export async function resolveBapSigner(
+	ctx: OneSatContext,
+	keyID?: string,
+): Promise<{ signer: WalletSigner; keyID: string }> {
 	const resolvedKeyID = keyID ?? (await resolveCurrentKeyId(ctx))
 	return {
-		signer: new WalletSigner(ctx.wallet, BAP_PROTOCOL_ID, resolvedKeyID, 'self'),
+		signer: new WalletSigner(
+			ctx.wallet,
+			BAP_PROTOCOL_ID,
+			resolvedKeyID,
+			'self',
+		),
 		keyID: resolvedKeyID,
 	}
 }

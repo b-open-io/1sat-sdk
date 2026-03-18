@@ -10,13 +10,6 @@ import type { Wallet } from '@bsv/wallet-toolbox/out/src/index.client.js'
 const DEFAULT_REMOTE_STORAGE_URL = 'http://localhost:8080/1sat/wallet'
 const TEST_ADDRESS_PREFIX = 'test'
 
-/** Shape of a single SSE data event from /owner/sync */
-interface SyncOutput {
-	outpoint: string
-	score: number
-	spendTxid?: string
-}
-
 export interface TestContext {
 	ctx: OneSatContext
 	wallet: Wallet
@@ -94,7 +87,7 @@ export async function syncFunding(context: TestContext): Promise<number> {
 	const address = await deriveDepositAddress(wallet)
 	const derivationPrefix = toBase64Prefix(TEST_ADDRESS_PREFIX)
 	const derivationSuffix = toBase64Suffix(0)
-	const keyID = `${derivationPrefix} ${derivationSuffix}`
+	const _keyID = `${derivationPrefix} ${derivationSuffix}`
 
 	const senderIdentityKey = (
 		await wallet.getPublicKey({

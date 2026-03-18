@@ -1,49 +1,325 @@
 [
-  { "_type": "text", "shapeId": "title", "x": 300, "y": -80, "text": "@1sat/vault — Secure Enclave Architecture", "color": "black", "size": "xl" },
+	{
+		"_type": "text",
+		"shapeId": "title",
+		"x": 300,
+		"y": -80,
+		"text": "@1sat/vault — Secure Enclave Architecture",
+		"color": "black",
+		"size": "xl"
+	},
 
-  { "_type": "frame", "shapeId": "app-layer", "name": "Application Layer", "children": ["app-cli", "app-bap", "app-clawnet", "app-bbackup"] },
-  { "_type": "rectangle", "shapeId": "app-cli", "w": 140, "h": 60, "color": "light-green", "fill": "solid", "text": "1sat CLI" },
-  { "_type": "rectangle", "shapeId": "app-bap", "w": 140, "h": 60, "color": "light-green", "fill": "solid", "text": "BAP CLI" },
-  { "_type": "rectangle", "shapeId": "app-clawnet", "w": 140, "h": 60, "color": "light-green", "fill": "solid", "text": "ClawNet CLI" },
-  { "_type": "rectangle", "shapeId": "app-bbackup", "w": 140, "h": 60, "color": "light-green", "fill": "solid", "text": "bbackup CLI" },
+	{
+		"_type": "frame",
+		"shapeId": "app-layer",
+		"name": "Application Layer",
+		"children": ["app-cli", "app-bap", "app-clawnet", "app-bbackup"]
+	},
+	{
+		"_type": "rectangle",
+		"shapeId": "app-cli",
+		"w": 140,
+		"h": 60,
+		"color": "light-green",
+		"fill": "solid",
+		"text": "1sat CLI"
+	},
+	{
+		"_type": "rectangle",
+		"shapeId": "app-bap",
+		"w": 140,
+		"h": 60,
+		"color": "light-green",
+		"fill": "solid",
+		"text": "BAP CLI"
+	},
+	{
+		"_type": "rectangle",
+		"shapeId": "app-clawnet",
+		"w": 140,
+		"h": 60,
+		"color": "light-green",
+		"fill": "solid",
+		"text": "ClawNet CLI"
+	},
+	{
+		"_type": "rectangle",
+		"shapeId": "app-bbackup",
+		"w": 140,
+		"h": 60,
+		"color": "light-green",
+		"fill": "solid",
+		"text": "bbackup CLI"
+	},
 
-  { "_type": "frame", "shapeId": "vault-api", "name": "@1sat/vault TypeScript API", "children": ["vault-protect", "vault-unlock", "vault-remove", "vault-list", "vault-check"] },
-  { "_type": "rectangle", "shapeId": "vault-protect", "w": 160, "h": 60, "color": "violet", "fill": "solid", "text": "protectSecret()\nNo Touch ID" },
-  { "_type": "rectangle", "shapeId": "vault-unlock", "w": 160, "h": 60, "color": "violet", "fill": "solid", "text": "unlockSecret()\nTouch ID required" },
-  { "_type": "rectangle", "shapeId": "vault-remove", "w": 140, "h": 60, "color": "violet", "fill": "solid", "text": "removeSecret()" },
-  { "_type": "rectangle", "shapeId": "vault-list", "w": 140, "h": 60, "color": "violet", "fill": "solid", "text": "listSecrets()" },
-  { "_type": "rectangle", "shapeId": "vault-check", "w": 140, "h": 60, "color": "violet", "fill": "solid", "text": "isSupported()" },
+	{
+		"_type": "frame",
+		"shapeId": "vault-api",
+		"name": "@1sat/vault TypeScript API",
+		"children": [
+			"vault-protect",
+			"vault-unlock",
+			"vault-remove",
+			"vault-list",
+			"vault-check"
+		]
+	},
+	{
+		"_type": "rectangle",
+		"shapeId": "vault-protect",
+		"w": 160,
+		"h": 60,
+		"color": "violet",
+		"fill": "solid",
+		"text": "protectSecret()\nNo Touch ID"
+	},
+	{
+		"_type": "rectangle",
+		"shapeId": "vault-unlock",
+		"w": 160,
+		"h": 60,
+		"color": "violet",
+		"fill": "solid",
+		"text": "unlockSecret()\nTouch ID required"
+	},
+	{
+		"_type": "rectangle",
+		"shapeId": "vault-remove",
+		"w": 140,
+		"h": 60,
+		"color": "violet",
+		"fill": "solid",
+		"text": "removeSecret()"
+	},
+	{
+		"_type": "rectangle",
+		"shapeId": "vault-list",
+		"w": 140,
+		"h": 60,
+		"color": "violet",
+		"fill": "solid",
+		"text": "listSecrets()"
+	},
+	{
+		"_type": "rectangle",
+		"shapeId": "vault-check",
+		"w": 140,
+		"h": 60,
+		"color": "violet",
+		"fill": "solid",
+		"text": "isSupported()"
+	},
 
-  { "_type": "rectangle", "shapeId": "swift-helper", "w": 260, "h": 80, "color": "blue", "fill": "solid", "text": "se-helper (Swift CryptoKit)\nCompiled binary, no entitlements" },
+	{
+		"_type": "rectangle",
+		"shapeId": "swift-helper",
+		"w": 260,
+		"h": 80,
+		"color": "blue",
+		"fill": "solid",
+		"text": "se-helper (Swift CryptoKit)\nCompiled binary, no entitlements"
+	},
 
-  { "_type": "frame", "shapeId": "crypto-layer", "name": "Cryptographic Operations (inside Swift binary)", "children": ["ecdh-encrypt", "ecdh-decrypt", "touchid-gate"] },
-  { "_type": "rectangle", "shapeId": "ecdh-encrypt", "w": 200, "h": 70, "color": "light-blue", "fill": "solid", "text": "ECIES Encrypt\nEphemeral ECDH +\nHKDF + AES-256-GCM" },
-  { "_type": "rectangle", "shapeId": "ecdh-decrypt", "w": 200, "h": 70, "color": "light-blue", "fill": "solid", "text": "ECIES Decrypt\nSE-internal ECDH +\nHKDF + AES-256-GCM" },
-  { "_type": "diamond", "shapeId": "touchid-gate", "w": 160, "h": 100, "color": "yellow", "fill": "solid", "text": "Touch ID\nLAContext" },
+	{
+		"_type": "frame",
+		"shapeId": "crypto-layer",
+		"name": "Cryptographic Operations (inside Swift binary)",
+		"children": ["ecdh-encrypt", "ecdh-decrypt", "touchid-gate"]
+	},
+	{
+		"_type": "rectangle",
+		"shapeId": "ecdh-encrypt",
+		"w": 200,
+		"h": 70,
+		"color": "light-blue",
+		"fill": "solid",
+		"text": "ECIES Encrypt\nEphemeral ECDH +\nHKDF + AES-256-GCM"
+	},
+	{
+		"_type": "rectangle",
+		"shapeId": "ecdh-decrypt",
+		"w": 200,
+		"h": 70,
+		"color": "light-blue",
+		"fill": "solid",
+		"text": "ECIES Decrypt\nSE-internal ECDH +\nHKDF + AES-256-GCM"
+	},
+	{
+		"_type": "diamond",
+		"shapeId": "touchid-gate",
+		"w": 160,
+		"h": 100,
+		"color": "yellow",
+		"fill": "solid",
+		"text": "Touch ID\nLAContext"
+	},
 
-  { "_type": "cloud", "shapeId": "secure-enclave", "w": 280, "h": 100, "color": "red", "fill": "solid", "text": "Secure Enclave Chip\nP-256 private key\nNEVER leaves hardware" },
+	{
+		"_type": "cloud",
+		"shapeId": "secure-enclave",
+		"w": 280,
+		"h": 100,
+		"color": "red",
+		"fill": "solid",
+		"text": "Secure Enclave Chip\nP-256 private key\nNEVER leaves hardware"
+	},
 
-  { "_type": "rectangle", "shapeId": "disk-storage", "w": 240, "h": 70, "color": "grey", "fill": "semi", "text": "~/.secure-enclave-vault/\n.key  .pub  .vault.json" },
+	{
+		"_type": "rectangle",
+		"shapeId": "disk-storage",
+		"w": 240,
+		"h": 70,
+		"color": "grey",
+		"fill": "semi",
+		"text": "~/.secure-enclave-vault/\n.key  .pub  .vault.json"
+	},
 
-  { "_type": "arrow", "shapeId": "a1", "fromId": "app-bap", "toId": "vault-protect", "color": "black", "dash": "solid", "text": "rootPk" },
-  { "_type": "arrow", "shapeId": "a2", "fromId": "app-clawnet", "toId": "vault-protect", "color": "black", "dash": "solid", "text": "token" },
-  { "_type": "arrow", "shapeId": "a3", "fromId": "app-bbackup", "toId": "vault-protect", "color": "black", "dash": "solid", "text": "password" },
-  { "_type": "arrow", "shapeId": "a4", "fromId": "app-bap", "toId": "vault-unlock", "color": "black", "dash": "dashed" },
-  { "_type": "arrow", "shapeId": "a5", "fromId": "app-clawnet", "toId": "vault-unlock", "color": "black", "dash": "dashed" },
-  { "_type": "arrow", "shapeId": "a6", "fromId": "app-bbackup", "toId": "vault-unlock", "color": "black", "dash": "dashed" },
+	{
+		"_type": "arrow",
+		"shapeId": "a1",
+		"fromId": "app-bap",
+		"toId": "vault-protect",
+		"color": "black",
+		"dash": "solid",
+		"text": "rootPk"
+	},
+	{
+		"_type": "arrow",
+		"shapeId": "a2",
+		"fromId": "app-clawnet",
+		"toId": "vault-protect",
+		"color": "black",
+		"dash": "solid",
+		"text": "token"
+	},
+	{
+		"_type": "arrow",
+		"shapeId": "a3",
+		"fromId": "app-bbackup",
+		"toId": "vault-protect",
+		"color": "black",
+		"dash": "solid",
+		"text": "password"
+	},
+	{
+		"_type": "arrow",
+		"shapeId": "a4",
+		"fromId": "app-bap",
+		"toId": "vault-unlock",
+		"color": "black",
+		"dash": "dashed"
+	},
+	{
+		"_type": "arrow",
+		"shapeId": "a5",
+		"fromId": "app-clawnet",
+		"toId": "vault-unlock",
+		"color": "black",
+		"dash": "dashed"
+	},
+	{
+		"_type": "arrow",
+		"shapeId": "a6",
+		"fromId": "app-bbackup",
+		"toId": "vault-unlock",
+		"color": "black",
+		"dash": "dashed"
+	},
 
-  { "_type": "arrow", "shapeId": "a7", "fromId": "vault-protect", "toId": "swift-helper", "color": "violet", "dash": "solid", "text": "stdin: plaintext" },
-  { "_type": "arrow", "shapeId": "a8", "fromId": "vault-unlock", "toId": "swift-helper", "color": "violet", "dash": "solid", "text": "args: label, b64" },
+	{
+		"_type": "arrow",
+		"shapeId": "a7",
+		"fromId": "vault-protect",
+		"toId": "swift-helper",
+		"color": "violet",
+		"dash": "solid",
+		"text": "stdin: plaintext"
+	},
+	{
+		"_type": "arrow",
+		"shapeId": "a8",
+		"fromId": "vault-unlock",
+		"toId": "swift-helper",
+		"color": "violet",
+		"dash": "solid",
+		"text": "args: label, b64"
+	},
 
-  { "_type": "arrow", "shapeId": "a9", "fromId": "swift-helper", "toId": "ecdh-encrypt", "color": "blue", "dash": "solid", "text": "encrypt cmd" },
-  { "_type": "arrow", "shapeId": "a10", "fromId": "swift-helper", "toId": "ecdh-decrypt", "color": "blue", "dash": "solid", "text": "decrypt cmd" },
+	{
+		"_type": "arrow",
+		"shapeId": "a9",
+		"fromId": "swift-helper",
+		"toId": "ecdh-encrypt",
+		"color": "blue",
+		"dash": "solid",
+		"text": "encrypt cmd"
+	},
+	{
+		"_type": "arrow",
+		"shapeId": "a10",
+		"fromId": "swift-helper",
+		"toId": "ecdh-decrypt",
+		"color": "blue",
+		"dash": "solid",
+		"text": "decrypt cmd"
+	},
 
-  { "_type": "arrow", "shapeId": "a11", "fromId": "ecdh-encrypt", "toId": "disk-storage", "color": "grey", "dash": "solid", "text": "pub key only" },
-  { "_type": "arrow", "shapeId": "a12", "fromId": "touchid-gate", "toId": "ecdh-decrypt", "color": "yellow", "dash": "solid", "text": "auth OK" },
-  { "_type": "arrow", "shapeId": "a13", "fromId": "ecdh-decrypt", "toId": "secure-enclave", "color": "red", "dash": "solid", "text": "ECDH inside chip" },
-  { "_type": "arrow", "shapeId": "a14", "fromId": "secure-enclave", "toId": "disk-storage", "color": "grey", "dash": "dotted", "text": "hardware-bound keys" },
+	{
+		"_type": "arrow",
+		"shapeId": "a11",
+		"fromId": "ecdh-encrypt",
+		"toId": "disk-storage",
+		"color": "grey",
+		"dash": "solid",
+		"text": "pub key only"
+	},
+	{
+		"_type": "arrow",
+		"shapeId": "a12",
+		"fromId": "touchid-gate",
+		"toId": "ecdh-decrypt",
+		"color": "yellow",
+		"dash": "solid",
+		"text": "auth OK"
+	},
+	{
+		"_type": "arrow",
+		"shapeId": "a13",
+		"fromId": "ecdh-decrypt",
+		"toId": "secure-enclave",
+		"color": "red",
+		"dash": "solid",
+		"text": "ECDH inside chip"
+	},
+	{
+		"_type": "arrow",
+		"shapeId": "a14",
+		"fromId": "secure-enclave",
+		"toId": "disk-storage",
+		"color": "grey",
+		"dash": "dotted",
+		"text": "hardware-bound keys"
+	},
 
-  { "_type": "note", "shapeId": "note1", "x": 900, "y": 100, "text": "Encryption uses PUBLIC key only.\nNo Touch ID, no SE access.\nAnyone can encrypt." },
-  { "_type": "note", "shapeId": "note2", "x": 900, "y": 300, "text": "Decryption uses PRIVATE key.\nECDH happens INSIDE the chip.\nTouch ID gates access." },
-  { "_type": "note", "shapeId": "note3", "x": 900, "y": 500, "text": "Key files are hardware-bound.\nUseless on any other machine.\nNot a backup mechanism." }
+	{
+		"_type": "note",
+		"shapeId": "note1",
+		"x": 900,
+		"y": 100,
+		"text": "Encryption uses PUBLIC key only.\nNo Touch ID, no SE access.\nAnyone can encrypt."
+	},
+	{
+		"_type": "note",
+		"shapeId": "note2",
+		"x": 900,
+		"y": 300,
+		"text": "Decryption uses PRIVATE key.\nECDH happens INSIDE the chip.\nTouch ID gates access."
+	},
+	{
+		"_type": "note",
+		"shapeId": "note3",
+		"x": 900,
+		"y": 500,
+		"text": "Key files are hardware-bound.\nUseless on any other machine.\nNot a backup mechanism."
+	}
 ]

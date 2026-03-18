@@ -90,7 +90,7 @@ export async function internalizeBeef(
 
 	const btx = beefObj.findTxid(mainTxid)
 	if (!btx?.tx) {
-		throw new Error(`Transaction not found in BEEF`)
+		throw new Error('Transaction not found in BEEF')
 	}
 
 	// Ensure source transactions are loaded for inputs

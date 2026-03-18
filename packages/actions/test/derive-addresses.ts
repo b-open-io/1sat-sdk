@@ -21,8 +21,8 @@ async function main() {
 			console.log(`  wallet outputs: ${outputs.totalOutputs}`)
 
 			await destroyTestContext(ctx)
-		} catch (e: any) {
-			console.log(`${label.toUpperCase()}: ${e.message}`)
+		} catch (e) {
+			console.log(`${label.toUpperCase()}: ${(e as Error).message}`)
 		}
 	}
 }

@@ -15,8 +15,8 @@ for (const { ref, desc } of refs) {
 	try {
 		const result = await ctx.wallet.abortAction({ reference: ref })
 		console.log(`Aborted ${desc}: ${JSON.stringify(result)}`)
-	} catch (e: any) {
-		console.error(`Failed ${desc}: ${e.message}`)
+	} catch (e) {
+		console.error(`Failed ${desc}: ${(e as Error).message}`)
 	}
 }
 

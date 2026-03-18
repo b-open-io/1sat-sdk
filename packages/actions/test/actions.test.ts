@@ -267,12 +267,12 @@ describe('Phase 4 — Token operations', () => {
 describe('Phase 5 — Locks', () => {
 	test('lockBsv — locks BSV until a block height', async () => {
 		// Lock a small amount for 10 blocks into the future
-		const lockData = await getLockData.execute(
+		const _lockData = await getLockData.execute(
 			primary.ctx,
 			{} as Record<string, never>,
 		)
 		// We need current height from services
-		const currentHeight =
+		const _currentHeight =
 			(await primary.services?.chaintracks?.currentHeight()) ?? 900000
 
 		const result = await lockBsv.execute(primary.ctx, {
@@ -300,7 +300,7 @@ describe('Phase 5 — Locks', () => {
 // Phase 6 — OpNS
 // ============================================================================
 
-const testOpnsName = `test-${Date.now()}`
+const _testOpnsName = `test-${Date.now()}`
 
 describe('Phase 6 — OpNS', () => {
 	test.todo('opnsRegister — registers an OpNS name')

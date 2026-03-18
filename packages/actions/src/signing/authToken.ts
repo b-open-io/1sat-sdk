@@ -3,7 +3,7 @@ import type { Action, OneSatContext } from '../types'
 
 const { toArray, toHex } = Utils
 
-const AUTH_PROTOCOL_ID: [number, string] = [2, 'bitcoin-auth']
+const AUTH_PROTOCOL_ID: [0 | 1 | 2, string] = [2, 'bitcoin-auth']
 const AUTH_KEY_ID = 'auth-0'
 
 export interface AuthTokenRequest {
@@ -20,11 +20,11 @@ export interface AuthTokenResponse {
 }
 
 function compactSign(
-	derSig: string,
+	derSig: number[],
 	msgHash: number[],
 	pubKeyHex: string,
 ): string {
-	const sig = Signature.fromDER(derSig)
+	const sig = Signature.fromDER(toHex(derSig), 'hex')
 	const pubKey = PublicKey.fromString(pubKeyHex)
 	const recovery = sig.CalculateRecoveryFactor(pubKey, new BigNumber(msgHash))
 	return sig.toCompact(recovery, true, 'base64') as string

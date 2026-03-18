@@ -46,7 +46,7 @@ async function resolveHost(
 		const norm = (d: string) => d.replace(/\.$/, '')
 		const a = norm(domain)
 		const b = norm(target)
-		if (a !== b && !a.endsWith('.' + b) && !b.endsWith('.' + a)) {
+		if (a !== b && !a.endsWith(`.${b}`) && !b.endsWith(`.${a}`)) {
 			// Untrusted redirect — fall back to domain
 			return { host: domain, port: 443 }
 		}

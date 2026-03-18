@@ -9,7 +9,7 @@ const ctx = await createTestContext('primary')
 try {
 	await ctx.wallet.abortAction({ reference: 'dXUOUy1kfswUsZHb' })
 	console.log('Aborted stale anchor')
-} catch (e) {
+} catch (_e) {
 	console.log('Abort skipped (already aborted or does not exist)')
 }
 

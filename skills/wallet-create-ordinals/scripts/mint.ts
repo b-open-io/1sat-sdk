@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
-import { basename, extname } from 'node:path'
 import { readFile } from 'node:fs/promises'
+import { basename, extname } from 'node:path'
 import { createContext, inscribe } from '@1sat/actions'
 import { createRemoteWallet } from '@1sat/wallet-remote'
 import { Utils } from '@bsv/sdk'

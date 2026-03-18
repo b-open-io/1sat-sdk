@@ -26,8 +26,8 @@ async function main() {
 			}
 
 			await destroyTestContext(ctx)
-		} catch (e: any) {
-			console.error(`${label.toUpperCase()}: ${e.message}`)
+		} catch (e) {
+			console.error(`${label.toUpperCase()}: ${(e as Error).message}`)
 		}
 	}
 }

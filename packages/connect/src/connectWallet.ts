@@ -1,6 +1,6 @@
+import { type WebCWIConfig, createWebCWI } from '@1sat/wallet'
 import { WalletClient } from '@bsv/sdk'
 import type { WalletInterface } from '@bsv/sdk'
-import { createWebCWI, type WebCWIConfig } from '@1sat/wallet'
 
 export interface ConnectWalletOptions {
 	/** Base URL for the OneSat web wallet iframe fallback */
