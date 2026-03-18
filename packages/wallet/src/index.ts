@@ -84,9 +84,12 @@ export {
 	createChromeCWI,
 	createCWI,
 	createEventCWI,
+	createSigmaCWI,
 	createWebCWI,
 	type CWIResponseDetail,
 	type CWITransport,
+	type SigmaCWIConfig,
+	type SigmaCWIResult,
 	type WebCWIConfig,
 	type WebCWIResult,
 } from './cwi'

@@ -11,3 +11,8 @@ export { createCWI, type CWITransport } from './factory'
 export { createEventCWI, CWI as EventCWI } from './event'
 export { createChromeCWI, ChromeCWI } from './chrome'
 export { createWebCWI, type WebCWIConfig, type WebCWIResult } from './web'
+export {
+	createSigmaCWI,
+	type SigmaCWIConfig,
+	type SigmaCWIResult,
+} from './sigma'
