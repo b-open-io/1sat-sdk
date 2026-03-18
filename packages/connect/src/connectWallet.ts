@@ -1,69 +1,164 @@
-import { type WebCWIConfig, createWebCWI } from '@1sat/wallet'
+import {
+	type SigmaCWIConfig,
+	type WebCWIConfig,
+	createSigmaCWI,
+	createWebCWI,
+} from '@1sat/wallet'
 import { WalletClient } from '@bsv/sdk'
 import type { WalletInterface } from '@bsv/sdk'
 
-export interface ConnectWalletOptions {
-	/** Base URL for the OneSat web wallet iframe fallback */
-	walletUrl?: string
-	/** Handshake timeout for the web CWI iframe in ms (default: 5000) */
-	handshakeTimeout?: number
+export interface WalletProviderConfig {
+	/** Provider identifier — 'onesat', 'sigma', or a custom string */
+	type: string
+	/** Display name for UI */
+	name: string
+	/** Icon URL or data URI */
+	icon?: string
+	/** Base URL for iframe-based providers */
+	url?: string
+}
+
+export interface ConnectWalletConfig {
+	/** Try WalletClient('auto') first (default: true) */
+	autoDetect?: boolean
+	/** Available providers for manual selection or fallback */
+	providers?: WalletProviderConfig[]
 }
 
 export interface ConnectWalletResult {
 	wallet: WalletInterface
-	provider: 'brc100' | 'onesat'
+	/** Which provider connected ('brc100', 'onesat', 'sigma', or custom) */
+	provider: string
 	identityKey: string
 	disconnect: () => void
 }
 
+export interface AvailableProvider extends WalletProviderConfig {
+	/** True if the provider was detected (e.g. extension installed) */
+	detected: boolean
+	/** Connect to this provider */
+	connect: () => Promise<ConnectWalletResult>
+}
+
+/** @deprecated Use ConnectWalletConfig instead */
+export type ConnectWalletOptions = ConnectWalletConfig
+
+const DEFAULT_ONESAT_URL = 'https://1sat.market'
+const DEFAULT_SIGMA_URL = 'https://auth.sigmaidentity.com'
+
+async function connectBrc100AutoDetect(): Promise<ConnectWalletResult> {
+	const client = new WalletClient('auto')
+	await client.connectToSubstrate()
+	await client.waitForAuthentication({})
+	const { publicKey } = await client.getPublicKey({ identityKey: true })
+	return {
+		wallet: client,
+		provider: 'brc100',
+		identityKey: publicKey,
+		disconnect: () => {},
+	}
+}
+
+function createProviderConnector(
+	config: WalletProviderConfig,
+): () => Promise<ConnectWalletResult> {
+	switch (config.type) {
+		case 'onesat':
+			return async () => {
+				const webConfig: WebCWIConfig = {}
+				if (config.url) webConfig.walletUrl = config.url
+				const { wallet, destroy } = createWebCWI(webConfig)
+				await wallet.waitForAuthentication({})
+				const { publicKey } = await wallet.getPublicKey({
+					identityKey: true,
+				})
+				return {
+					wallet,
+					provider: 'onesat',
+					identityKey: publicKey,
+					disconnect: destroy,
+				}
+			}
+		case 'sigma':
+			return async () => {
+				const sigmaConfig: SigmaCWIConfig = {
+					sigmaUrl: config.url ?? DEFAULT_SIGMA_URL,
+				}
+				const { wallet, destroy } = createSigmaCWI(sigmaConfig)
+				await wallet.waitForAuthentication({})
+				const { publicKey } = await wallet.getPublicKey({
+					identityKey: true,
+				})
+				return {
+					wallet,
+					provider: 'sigma',
+					identityKey: publicKey,
+					disconnect: destroy,
+				}
+			}
+		default:
+			return () =>
+				Promise.reject(
+					new Error(`No built-in connector for provider type: ${config.type}`),
+				)
+	}
+}
+
 /**
- * Connect to a BRC-100 wallet using automatic substrate detection with
- * OneSat web wallet as fallback.
+ * Get the list of available wallet providers with connect functions.
+ *
+ * Use this when you need to present a provider selection UI.
+ * Each provider has a `connect()` function that returns a ConnectWalletResult.
+ */
+export function getAvailableProviders(
+	config?: ConnectWalletConfig,
+): AvailableProvider[] {
+	const providerConfigs = config?.providers ?? [
+		{ type: 'onesat', name: 'OneSat Wallet', url: DEFAULT_ONESAT_URL },
+	]
+
+	return providerConfigs.map((p) => ({
+		...p,
+		detected: false,
+		connect: createProviderConnector(p),
+	}))
+}
+
+/**
+ * Connect to a BRC-100 wallet with configurable provider detection.
  *
  * Detection order:
- * 1. WalletClient("auto") — browser extensions (window.CWI), Cicada,
- *    localhost wallet, XDM
- * 2. createWebCWI — iframe bridge to OneSat web wallet (1satwallet.com)
+ * 1. If autoDetect (default true): WalletClient("auto") — browser extensions,
+ *    Cicada, localhost wallet, XDM
+ * 2. Falls through configured providers in order
  *
- * Returns null if no wallet is available.
+ * Returns null if no wallet is available. Use getAvailableProviders()
+ * to present a manual selection UI instead.
  */
 export async function connectWallet(
-	options?: ConnectWalletOptions,
+	config?: ConnectWalletConfig,
 ): Promise<ConnectWalletResult | null> {
-	// Try BRC-100 substrate auto-detection first
-	try {
-		const client = new WalletClient('auto')
-		await client.connectToSubstrate()
-		await client.waitForAuthentication({})
-		const { publicKey } = await client.getPublicKey({ identityKey: true })
-		return {
-			wallet: client,
-			provider: 'brc100',
-			identityKey: publicKey,
-			disconnect: () => {},
+	const autoDetect = config?.autoDetect ?? true
+
+	if (autoDetect) {
+		try {
+			return await connectBrc100AutoDetect()
+		} catch {
+			// No BRC-100 wallet found via auto-detection
 		}
-	} catch {
-		// No BRC-100 wallet found via auto-detection, try OneSat fallback
 	}
 
-	// Fall back to OneSat web wallet via iframe
-	try {
-		const config: WebCWIConfig = {}
-		if (options?.walletUrl) config.walletUrl = options.walletUrl
-		if (options?.handshakeTimeout)
-			config.handshakeTimeout = options.handshakeTimeout
+	// Try configured providers in order
+	const providers = config?.providers ?? [
+		{ type: 'onesat', name: 'OneSat Wallet', url: DEFAULT_ONESAT_URL },
+	]
 
-		const { wallet, destroy } = createWebCWI(config)
-		await wallet.waitForAuthentication({})
-		const { publicKey } = await wallet.getPublicKey({ identityKey: true })
-		return {
-			wallet,
-			provider: 'onesat',
-			identityKey: publicKey,
-			disconnect: destroy,
+	for (const provider of providers) {
+		try {
+			return await createProviderConnector(provider)()
+		} catch {
+			// This provider failed, try next
 		}
-	} catch {
-		// OneSat web wallet also unavailable
 	}
 
 	return null

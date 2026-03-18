@@ -4,8 +4,12 @@ import type { OneSatConfig, OneSatProvider } from './types'
 // Export connectWallet — recommended entry point for BRC-100 wallet detection
 export {
 	connectWallet,
+	getAvailableProviders,
+	type AvailableProvider,
+	type ConnectWalletConfig,
 	type ConnectWalletOptions,
 	type ConnectWalletResult,
+	type WalletProviderConfig,
 } from './connectWallet'
 
 // Export errors
