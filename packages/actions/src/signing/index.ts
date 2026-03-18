@@ -120,10 +120,22 @@ export const signBsm: Action<SignBsmRequest, SignBsmResponse> = {
 // Module exports
 // ============================================================================
 
+import { getAuthToken } from './authToken'
+
 /** All signing actions for registry */
-export const signingActions = [signBsm]
+export const signingActions = [signBsm, getAuthToken]
 
 // Signing helpers
-export { applyAip, applyBapAip, resolveBapSigner, resolveCurrentKeyId } from './aip'
+export {
+	applyAip,
+	applyBapAip,
+	resolveBapSigner,
+	resolveCurrentKeyId,
+} from './aip'
 export { signWithBap, type BapSignature } from './bap'
 export { applySigma } from './sigma'
+export {
+	getAuthToken,
+	type AuthTokenRequest,
+	type AuthTokenResponse,
+} from './authToken'
