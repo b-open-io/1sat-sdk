@@ -121,9 +121,20 @@ export const signBsm: Action<SignBsmRequest, SignBsmResponse> = {
 // ============================================================================
 
 import { getAuthToken } from './authToken'
+import {
+	decryptFromCounterparty,
+	encryptForCounterparty,
+} from './counterpartyCrypto'
+import { getFriendPublicKey } from './friendPubKey'
 
 /** All signing actions for registry */
-export const signingActions = [signBsm, getAuthToken]
+export const signingActions = [
+	signBsm,
+	getAuthToken,
+	getFriendPublicKey,
+	encryptForCounterparty,
+	decryptFromCounterparty,
+]
 
 // Signing helpers
 export {
@@ -139,3 +150,16 @@ export {
 	type AuthTokenRequest,
 	type AuthTokenResponse,
 } from './authToken'
+export {
+	getFriendPublicKey,
+	type FriendPubKeyRequest,
+	type FriendPubKeyResponse,
+} from './friendPubKey'
+export {
+	encryptForCounterparty,
+	decryptFromCounterparty,
+	type EncryptRequest,
+	type EncryptResponse,
+	type DecryptRequest,
+	type DecryptResponse,
+} from './counterpartyCrypto'
