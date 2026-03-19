@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.21
+
+### Changed
+- Picks up `@1sat/connect@0.0.18` with CWI handshake fix
+
 ## 0.0.9
 
 ### Added
