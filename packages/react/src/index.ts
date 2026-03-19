@@ -36,3 +36,9 @@ export {
 
 // Components
 export { ConnectButton, type ConnectButtonProps } from './ConnectButton'
+export {
+	WalletSelector,
+	type WalletSelectorProps,
+	type WalletSelectorProviderInfo,
+	type WalletSelectorRenderProps,
+} from './WalletSelector'

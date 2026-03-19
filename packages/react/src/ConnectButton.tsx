@@ -1,70 +1,32 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { useOneSatContext } from './context'
+import { useWallet } from './wallet-context'
 
 export interface ConnectButtonProps {
-	/** Custom class name for the button */
 	className?: string
-	/** Custom styles for the button */
 	style?: React.CSSProperties
-	/** Text to show when disconnected */
 	connectLabel?: ReactNode
-	/** Text to show when connecting */
 	connectingLabel?: ReactNode
-	/** Text to show when connected (receives address) */
-	connectedLabel?: ReactNode | ((address: string) => ReactNode)
-	/** Called after successful connection */
+	connectedLabel?: ReactNode | ((identityKey: string) => ReactNode)
 	onConnect?: () => void
-	/** Called after disconnection */
 	onDisconnect?: () => void
-	/** Called on error */
 	onError?: (error: Error) => void
-	/** Whether to disconnect on click when connected */
 	disconnectOnClick?: boolean
-	/** Custom render function for full control */
 	children?: (props: {
 		isConnected: boolean
 		isConnecting: boolean
-		address: string | null
+		identityKey: string | null
 		connect: () => Promise<void>
-		disconnect: () => Promise<void>
+		disconnect: () => void
 	}) => ReactNode
 }
 
-/**
- * Truncate an address for display
- */
-function truncateAddress(address: string): string {
-	if (address.length <= 12) return address
-	return `${address.slice(0, 6)}...${address.slice(-4)}`
+function truncateIdentityKey(key: string): string {
+	if (key.length <= 12) return key
+	return `${key.slice(0, 6)}...${key.slice(-4)}`
 }
 
-/**
- * Ready-to-use connect button component
- *
- * @example
- * ```tsx
- * // Basic usage
- * <ConnectButton />
- *
- * // With custom labels
- * <ConnectButton
- *   connectLabel="Connect 1Sat"
- *   connectingLabel="Connecting..."
- *   connectedLabel={(addr) => `Connected: ${addr}`}
- * />
- *
- * // With custom render
- * <ConnectButton>
- *   {({ isConnected, connect, disconnect }) => (
- *     <button onClick={isConnected ? disconnect : connect}>
- *       {isConnected ? 'Disconnect' : 'Connect'}
- *     </button>
- *   )}
- * </ConnectButton>
- * ```
- */
 export function ConnectButton({
 	className,
 	style,
@@ -78,39 +40,40 @@ export function ConnectButton({
 	children,
 }: ConnectButtonProps) {
 	const {
-		isConnected,
-		isConnecting,
-		paymentAddress,
-		connect: providerConnect,
-		disconnect: providerDisconnect,
-	} = useOneSatContext()
+		status,
+		identityKey,
+		connect: walletConnect,
+		disconnect: walletDisconnect,
+	} = useWallet()
+
+	const isConnected = status === 'connected'
+	const isConnecting = status === 'detecting' || status === 'connecting'
 
 	const connect = async () => {
 		try {
-			await providerConnect()
+			await walletConnect()
 			onConnect?.()
 		} catch (e) {
 			onError?.(e instanceof Error ? e : new Error(String(e)))
 		}
 	}
 
-	const disconnect = async () => {
+	const disconnect = () => {
 		try {
-			await providerDisconnect()
+			walletDisconnect()
 			onDisconnect?.()
 		} catch (e) {
 			onError?.(e instanceof Error ? e : new Error(String(e)))
 		}
 	}
 
-	// Custom render function
 	if (children) {
 		return (
 			<>
 				{children({
 					isConnected,
 					isConnecting,
-					address: paymentAddress,
+					identityKey,
 					connect,
 					disconnect,
 				})}
@@ -118,7 +81,6 @@ export function ConnectButton({
 		)
 	}
 
-	// Default button rendering
 	if (isConnecting) {
 		return (
 			<button className={className} style={style} disabled type="button">
@@ -130,8 +92,8 @@ export function ConnectButton({
 	if (isConnected) {
 		const label =
 			typeof connectedLabel === 'function'
-				? connectedLabel(paymentAddress ?? '')
-				: (connectedLabel ?? truncateAddress(paymentAddress ?? ''))
+				? connectedLabel(identityKey ?? '')
+				: (connectedLabel ?? truncateIdentityKey(identityKey ?? ''))
 
 		return (
 			<button

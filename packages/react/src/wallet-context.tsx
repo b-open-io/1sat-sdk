@@ -117,9 +117,7 @@ export function WalletProvider({
 			setError(null)
 
 			if (selectedType) {
-				const provider = availableProviders.find(
-					(p) => p.type === selectedType,
-				)
+				const provider = availableProviders.find((p) => p.type === selectedType)
 				if (!provider) {
 					setError(new Error(`Unknown provider: ${selectedType}`))
 					return
@@ -149,37 +147,51 @@ export function WalletProvider({
 		[availableProviders, providers, applyResult],
 	)
 
+	// Capture current callbacks in a ref so the mount effect has no deps
+	const mountRef = useRef({
+		autoDetect,
+		availableProviders,
+		connect,
+		applyResult,
+	})
+	mountRef.current = { autoDetect, availableProviders, connect, applyResult }
+
 	// Auto-detect or reconnect on mount
 	useEffect(() => {
-		if (status !== 'disconnected') return
+		const {
+			autoDetect: auto,
+			availableProviders: providers,
+			connect: doConnect,
+			applyResult: apply,
+		} = mountRef.current
 
 		const stored = loadStored()
 
 		if (stored) {
-			// Try reconnecting to last provider
 			setStatus('connecting')
-			const provider = availableProviders.find(
-				(p) => p.type === stored.providerType,
-			)
+			const provider = providers.find((p) => p.type === stored.providerType)
 			if (provider) {
-				provider.connect().then(applyResult).catch(() => {
-					clearStored()
-					if (autoDetect) {
-						connect()
-					} else {
-						setStatus('selecting')
-					}
-				})
+				provider
+					.connect()
+					.then(apply)
+					.catch(() => {
+						clearStored()
+						if (auto) {
+							doConnect()
+						} else {
+							setStatus('selecting')
+						}
+					})
 				return
 			}
 		}
 
-		if (autoDetect) {
-			connect()
+		if (auto) {
+			doConnect()
 		} else {
 			setStatus('selecting')
 		}
-	}, []) // eslint-disable-line react-hooks/exhaustive-deps -- mount only
+	}, [])
 
 	const value = useMemo<WalletContextValue>(
 		() => ({
