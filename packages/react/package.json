@@ -22,9 +22,11 @@
 		"@1sat/connect": "workspace:*"
 	},
 	"peerDependencies": {
+		"@bsv/sdk": "^2.0.0",
 		"react": "^18.0.0 || ^19.0.0"
 	},
 	"devDependencies": {
+		"@bsv/sdk": "^2.0.12",
 		"@types/react": "^19.0.0",
 		"react": "^19.0.0",
 		"typescript": "^5.9.3"
