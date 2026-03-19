@@ -140,8 +140,12 @@ export function createSigmaCWI(config: SigmaCWIConfig): SigmaCWIResult {
 		if (isState(data)) {
 			const { status, hasPermission } = data.cwiState
 
-			// Show iframe for password entry or permission prompts
-			if (status === 'need_password' || hasPermission) {
+			// Show iframe for password entry, biometric prompt, or permission prompts
+			if (
+				status === 'need_password' ||
+				status === 'need_biometric' ||
+				hasPermission
+			) {
 				updateIframeVisibility(true)
 			} else {
 				updateIframeVisibility(false)
@@ -194,6 +198,8 @@ export function createSigmaCWI(config: SigmaCWIConfig): SigmaCWIResult {
 			'pointer-events: none',
 			'z-index: 2147483647',
 		].join('; ')
+
+		el.setAttribute('allow', 'publickey-credentials-get *')
 
 		const parent = document.body ?? document.documentElement
 		if (!parent) throw new Error('Unable to mount Sigma CWI iframe')
