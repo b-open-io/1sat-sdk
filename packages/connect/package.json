@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/connect",
-	"version": "0.0.14",
+	"version": "0.0.15",
 	"description": "Connection layer for 1Sat wallet - popup flow, events, session management",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -20,6 +20,8 @@
 	"license": "MIT",
 	"dependencies": {
 		"@1sat/wallet": "workspace:*",
+		"@sigma-auth/better-auth-plugin": "^0.0.84",
+		"better-auth": "^1.5.4",
 		"eventemitter3": "^5.0.1"
 	},
 	"peerDependencies": {

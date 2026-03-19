@@ -6,7 +6,7 @@ import {
 } from '@1sat/wallet'
 import { WalletClient } from '@bsv/sdk'
 import type { WalletInterface } from '@bsv/sdk'
-import { SIGMA_URL, initiateSigmaOAuth } from './sigma-oauth'
+import { SIGMA_URL, initiateSigmaOAuth, setSigmaIdentity } from './sigma-oauth'
 
 export interface WalletProviderConfig {
 	/** Provider identifier — 'onesat', 'sigma', or a custom string */
@@ -69,6 +69,7 @@ export async function reconnectSigma(
 	const cwiConfig: SigmaCWIConfig = { sigmaUrl }
 	const { wallet, destroy, sendCustomMessage } = createSigmaCWI(cwiConfig)
 
+	setSigmaIdentity(bapId)
 	sendCustomMessage('SET_IDENTITY', { bapId })
 
 	await wallet.waitForAuthentication({})

@@ -1,24 +1,22 @@
 /**
- * Sigma OAuth — PKCE flow helpers for Sigma Identity provider.
- *
- * These are standard OAuth 2.0 + PKCE utilities. No dependency on
- * @sigma-auth/better-auth-plugin — the consuming app's server-side
- * callback route handles the token exchange.
+ * Sigma OAuth — wraps @sigma-auth/better-auth-plugin/client for the
+ * standard Sigma Identity OAuth flow (PKCE, redirect, callback).
  */
+
+import {
+	type SigmaSignInOptions,
+	sigmaClient,
+} from '@sigma-auth/better-auth-plugin/client'
+import { createAuthClient } from 'better-auth/client'
 
 /** Sigma Identity server URL */
 export const SIGMA_URL = 'https://auth.sigmaidentity.com'
-
-/** Standard Sigma authorize endpoint (custom gate that checks wallet status first) */
-const SIGMA_AUTHORIZE_PATH = '/oauth2/authorize'
 
 export interface SigmaOAuthConfig {
 	/** OAuth client ID registered with Sigma */
 	clientId: string
 	/** Local callback URL path (default: /auth/sigma/callback) */
 	callbackURL?: string
-	/** Scopes to request (default: ['openid', 'profile']) */
-	scopes?: string[]
 }
 
 export interface SigmaOAuthResult {
@@ -32,149 +30,62 @@ export interface SigmaOAuthResult {
 	accessToken: string
 }
 
-const STORAGE_PREFIX = 'sigma_oauth_'
-const STATE_KEY = `${STORAGE_PREFIX}state`
-const VERIFIER_KEY = `${STORAGE_PREFIX}verifier`
+type AuthClientOptions = NonNullable<Parameters<typeof createAuthClient>[0]>
+type AuthClientPlugin = NonNullable<AuthClientOptions['plugins']>[number]
 
-// --- PKCE helpers ---
-
-function randomBytes(length: number): Uint8Array {
-	const buf = new Uint8Array(length)
-	crypto.getRandomValues(buf)
-	return buf
-}
-
-function base64UrlEncode(bytes: Uint8Array): string {
-	let binary = ''
-	for (const byte of bytes) {
-		binary += String.fromCharCode(byte)
+type SigmaPluginActions = ReturnType<
+	ReturnType<typeof sigmaClient>['getActions']
+>
+type SigmaAugmentedClient = {
+	sigma: SigmaPluginActions['sigma']
+	signIn: {
+		sigma: SigmaPluginActions['signIn']['sigma']
 	}
-	return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-function generateVerifier(): string {
-	return base64UrlEncode(randomBytes(32))
-}
+const baseAuthClient = createAuthClient({
+	baseURL: SIGMA_URL,
+	plugins: [sigmaClient() as unknown as AuthClientPlugin],
+})
 
-function generateState(): string {
-	return base64UrlEncode(randomBytes(16))
-}
-
-async function computeChallenge(verifier: string): Promise<string> {
-	const encoder = new TextEncoder()
-	const data = encoder.encode(verifier)
-	const hash = await crypto.subtle.digest('SHA-256', data)
-	return base64UrlEncode(new Uint8Array(hash))
-}
-
-// --- Public API ---
+export const sigmaAuthClient = baseAuthClient as typeof baseAuthClient &
+	SigmaAugmentedClient
 
 /**
- * Initiate Sigma OAuth by redirecting the browser to the authorize endpoint.
+ * Initiate Sigma OAuth by redirecting to the authorize endpoint.
+ * Uses the better-auth-plugin's signIn.sigma() which handles PKCE,
+ * sessionStorage, wallet-check gate, and redirect.
  *
- * Generates PKCE verifier/challenge, stores state in sessionStorage,
- * and navigates the browser away. Returns a never-resolving Promise
- * since the page navigates.
+ * Returns a never-resolving Promise since the page navigates away.
  */
 export async function initiateSigmaOAuth(
 	config: SigmaOAuthConfig,
+	options?: Omit<SigmaSignInOptions, 'clientId' | 'callbackURL'>,
 ): Promise<never> {
-	const callbackURL = config.callbackURL ?? '/auth/sigma/callback'
-	const scopes = config.scopes ?? ['openid', 'profile']
-
-	const verifier = generateVerifier()
-	const challenge = await computeChallenge(verifier)
-	const state = generateState()
-
-	sessionStorage.setItem(VERIFIER_KEY, verifier)
-	sessionStorage.setItem(STATE_KEY, state)
-
-	const redirectUri = new URL(callbackURL, window.location.origin).toString()
-
-	const params = new URLSearchParams({
-		response_type: 'code',
-		client_id: config.clientId,
-		redirect_uri: redirectUri,
-		state,
-		code_challenge: challenge,
-		code_challenge_method: 'S256',
-		scope: scopes.join(' '),
+	await sigmaAuthClient.signIn.sigma({
+		clientId: config.clientId,
+		callbackURL: config.callbackURL ?? '/auth/sigma/callback',
+		...options,
 	})
-
-	const authorizeUrl = `${SIGMA_URL}${SIGMA_AUTHORIZE_PATH}?${params.toString()}`
-	window.location.href = authorizeUrl
-
-	// Page navigates away — return a never-resolving promise
 	return new Promise<never>(() => {})
 }
 
 /**
- * Check if the current URL has Sigma OAuth callback parameters
- * that match a pending OAuth flow.
- */
-export function isSigmaCallback(searchParams: URLSearchParams): boolean {
-	const code = searchParams.get('code')
-	const state = searchParams.get('state')
-	const storedState = sessionStorage.getItem(STATE_KEY)
-	return !!(code && state && storedState && state === storedState)
-}
-
-/**
- * Complete Sigma OAuth by exchanging the authorization code.
- *
- * Validates state from sessionStorage, POSTs the code + verifier to the
- * app's server-side callback route, and returns the user info.
- *
- * @param searchParams - URL search params from the callback
- * @param serverCallbackUrl - Server-side route that exchanges code for tokens
- *   (default: /api/auth/sigma/callback)
+ * Complete Sigma OAuth callback. Uses the better-auth-plugin's
+ * handleCallback() which verifies state, exchanges code via the
+ * server-side callback route, and returns user data.
  */
 export async function completeSigmaOAuth(
 	searchParams: URLSearchParams,
-	serverCallbackUrl = '/api/auth/sigma/callback',
 ): Promise<SigmaOAuthResult> {
-	const code = searchParams.get('code')
-	const state = searchParams.get('state')
-	const storedState = sessionStorage.getItem(STATE_KEY)
-	const verifier = sessionStorage.getItem(VERIFIER_KEY)
+	const result = await sigmaAuthClient.sigma.handleCallback(searchParams)
 
-	if (!code || !state) {
-		throw new Error('Missing OAuth callback parameters (code or state)')
-	}
-
-	if (!storedState || state !== storedState) {
-		throw new Error('OAuth state mismatch — possible CSRF attack')
-	}
-
-	if (!verifier) {
-		throw new Error('Missing PKCE verifier — OAuth flow was not initiated')
-	}
-
-	// Clean up session storage
-	sessionStorage.removeItem(STATE_KEY)
-	sessionStorage.removeItem(VERIFIER_KEY)
-
-	const response = await fetch(serverCallbackUrl, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ code, state, code_verifier: verifier }),
-	})
-
-	if (!response.ok) {
-		const text = await response.text().catch(() => '')
-		throw new Error(
-			`Sigma OAuth token exchange failed (${response.status}): ${text}`,
-		)
-	}
-
-	const result = await response.json()
-
-	const bapId = result.user?.bap_id
+	const bapId = result.user?.bap_id as string | undefined
 	if (!bapId) {
 		throw new Error('Sigma callback response missing bap_id')
 	}
 
-	const pubkey = result.user?.pubkey
+	const pubkey = result.user?.pubkey as string | undefined
 	if (!pubkey) {
 		throw new Error('Sigma callback response missing pubkey')
 	}
@@ -182,7 +93,15 @@ export async function completeSigmaOAuth(
 	return {
 		bapId,
 		pubkey,
-		user: result.user,
-		accessToken: result.access_token ?? '',
+		user: result.user as unknown as Record<string, unknown>,
+		accessToken: (result.access_token as string) ?? '',
 	}
+}
+
+/**
+ * Set the active Sigma identity on the auth client.
+ * Must be called after OAuth to enable iframe signing.
+ */
+export function setSigmaIdentity(bapId: string): void {
+	sigmaAuthClient.sigma.setIdentity(bapId)
 }

@@ -18,7 +18,8 @@ export {
 export {
 	completeSigmaOAuth,
 	initiateSigmaOAuth,
-	isSigmaCallback,
+	setSigmaIdentity,
+	sigmaAuthClient,
 	SIGMA_URL,
 	type SigmaOAuthConfig,
 	type SigmaOAuthResult,

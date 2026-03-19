@@ -1,6 +1,6 @@
 'use client'
 
-import { completeSigmaOAuth, isSigmaCallback } from '@1sat/connect'
+import { completeSigmaOAuth } from '@1sat/connect'
 import { type ReactNode, useEffect, useState } from 'react'
 
 const STORAGE_KEY = 'onesat_wallet_provider'
@@ -8,8 +8,6 @@ const STORAGE_KEY = 'onesat_wallet_provider'
 export interface SigmaCallbackProps {
 	/** Where to redirect after successful auth (default: '/') */
 	redirectTo?: string
-	/** Server-side route that exchanges code for tokens (default: /api/auth/sigma/callback) */
-	serverCallbackUrl?: string
 	/** Custom loading content */
 	loadingContent?: ReactNode
 	/** Custom error render */
@@ -19,7 +17,9 @@ export interface SigmaCallbackProps {
 /**
  * Generic Sigma OAuth callback page component.
  *
- * Place this as the default export of your callback route page:
+ * Uses the better-auth-plugin's handleCallback() to complete the OAuth flow.
+ * Stores the result in WalletProvider's localStorage key for reconnection.
+ *
  * ```tsx
  * // app/auth/sigma/callback/page.tsx
  * import { SigmaCallback } from '@1sat/react'
@@ -30,7 +30,6 @@ export interface SigmaCallbackProps {
  */
 export function SigmaCallback({
 	redirectTo = '/',
-	serverCallbackUrl = '/api/auth/sigma/callback',
 	loadingContent,
 	renderError,
 }: SigmaCallbackProps) {
@@ -39,14 +38,8 @@ export function SigmaCallback({
 	useEffect(() => {
 		const searchParams = new URLSearchParams(window.location.search)
 
-		if (!isSigmaCallback(searchParams)) {
-			setError('Invalid callback — missing or mismatched OAuth parameters.')
-			return
-		}
-
-		completeSigmaOAuth(searchParams, serverCallbackUrl)
+		completeSigmaOAuth(searchParams)
 			.then((result) => {
-				// Store connection info for WalletProvider to pick up on mount
 				localStorage.setItem(
 					STORAGE_KEY,
 					JSON.stringify({
@@ -62,9 +55,15 @@ export function SigmaCallback({
 			})
 			.catch((err) => {
 				console.error('Sigma OAuth callback error:', err)
-				setError(err instanceof Error ? err.message : 'Authentication failed')
+				const msg =
+					err instanceof Error
+						? err.message
+						: typeof err === 'object' && err !== null && 'message' in err
+							? String(err.message)
+							: 'Authentication failed'
+				setError(msg)
 			})
-	}, [redirectTo, serverCallbackUrl])
+	}, [redirectTo])
 
 	if (error) {
 		if (renderError) {
