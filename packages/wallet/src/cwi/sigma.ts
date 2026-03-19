@@ -199,7 +199,7 @@ export function createSigmaCWI(config: SigmaCWIConfig): SigmaCWIResult {
 			'z-index: 2147483647',
 		].join('; ')
 
-		el.setAttribute('allow', 'publickey-credentials-get *')
+		el.setAttribute('allow', 'publickey-credentials-get')
 
 		const parent = document.body ?? document.documentElement
 		if (!parent) throw new Error('Unable to mount Sigma CWI iframe')
