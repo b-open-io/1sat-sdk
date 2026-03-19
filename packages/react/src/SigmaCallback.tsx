@@ -1,6 +1,6 @@
 'use client'
 
-import { completeSigmaOAuth } from '@1sat/connect'
+import { completeSigmaOAuth, connectSigmaWallet } from '@1sat/connect'
 import { type ReactNode, useEffect, useState } from 'react'
 
 const STORAGE_KEY = 'onesat_wallet_provider'
@@ -15,18 +15,13 @@ export interface SigmaCallbackProps {
 }
 
 /**
- * Generic Sigma OAuth callback page component.
+ * Sigma OAuth callback page component.
  *
- * Uses the better-auth-plugin's handleCallback() to complete the OAuth flow.
- * Stores the result in WalletProvider's localStorage key for reconnection.
- *
- * ```tsx
- * // app/auth/sigma/callback/page.tsx
- * import { SigmaCallback } from '@1sat/react'
- * export default function Page() {
- *   return <SigmaCallback redirectTo="/dashboard" />
- * }
- * ```
+ * Completes the full sign-in flow:
+ * 1. Exchange OAuth code for identity (bapId, pubkey)
+ * 2. Create CWI iframe and wait for wallet authentication
+ * 3. Store connection for WalletProvider
+ * 4. Redirect to target page
  */
 export function SigmaCallback({
 	redirectTo = '/',
@@ -34,38 +29,42 @@ export function SigmaCallback({
 	renderError,
 }: SigmaCallbackProps) {
 	const [error, setError] = useState<string | null>(null)
+	const [status, setStatus] = useState<string>('Completing authentication...')
 
 	useEffect(() => {
 		const searchParams = new URLSearchParams(window.location.search)
-		localStorage.setItem('__sigma_debug', JSON.stringify({ stage: 'start', search: window.location.search }))
 
-		completeSigmaOAuth(searchParams)
-			.then((result) => {
-				localStorage.setItem('__sigma_debug', JSON.stringify({ stage: 'success', bapId: result.bapId, pubkey: result.pubkey, hasUser: !!result.user }))
-				localStorage.setItem(
-					STORAGE_KEY,
-					JSON.stringify({
-						providerType: 'sigma',
-						identityKey: result.pubkey,
-						bapId: result.bapId,
-						user: result.user,
-						accessToken: result.accessToken,
-					}),
-				)
+		async function completeSignIn() {
+			const oauthResult = await completeSigmaOAuth(searchParams)
 
-				window.location.href = redirectTo
-			})
-			.catch((err) => {
-				localStorage.setItem('__sigma_debug', JSON.stringify({ stage: 'error', error: typeof err === 'object' ? JSON.stringify(err) : String(err) }))
-				console.error('Sigma OAuth callback error:', err)
-				const msg =
-					err instanceof Error
-						? err.message
-						: typeof err === 'object' && err !== null && 'message' in err
-							? String(err.message)
-							: 'Authentication failed'
-				setError(msg)
-			})
+			setStatus('Connecting wallet...')
+
+			const walletResult = await connectSigmaWallet(oauthResult.bapId)
+
+			localStorage.setItem(
+				STORAGE_KEY,
+				JSON.stringify({
+					providerType: 'sigma',
+					identityKey: walletResult.identityKey,
+					bapId: oauthResult.bapId,
+					user: oauthResult.user,
+					accessToken: oauthResult.accessToken,
+				}),
+			)
+
+			window.location.href = redirectTo
+		}
+
+		completeSignIn().catch((err) => {
+			console.error('Sigma sign-in error:', err)
+			const msg =
+				err instanceof Error
+					? err.message
+					: typeof err === 'object' && err !== null && 'message' in err
+						? String(err.message)
+						: 'Authentication failed'
+			setError(msg)
+		})
 	}, [redirectTo])
 
 	if (error) {
@@ -132,7 +131,7 @@ export function SigmaCallback({
 				justifyContent: 'center',
 			}}
 		>
-			<p style={{ color: '#666' }}>Connecting wallet...</p>
+			<p style={{ color: '#666' }}>{status}</p>
 		</div>
 	)
 }

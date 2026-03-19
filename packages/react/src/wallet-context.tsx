@@ -1,11 +1,10 @@
 import {
 	type AvailableProvider,
 	type ConnectWalletResult,
-	type SigmaProviderConfig,
 	type WalletProviderConfig,
+	connectSigmaWallet,
 	connectWallet,
 	getAvailableProviders,
-	reconnectSigma,
 } from '@1sat/connect'
 import type { WalletInterface } from '@bsv/sdk'
 import {
@@ -158,14 +157,12 @@ export function WalletProvider({
 	// Capture current callbacks in a ref so the mount effect has no deps
 	const mountRef = useRef({
 		autoDetect,
-		providers,
 		availableProviders,
 		connect,
 		applyResult,
 	})
 	mountRef.current = {
 		autoDetect,
-		providers,
 		availableProviders,
 		connect,
 		applyResult,
@@ -175,7 +172,6 @@ export function WalletProvider({
 	useEffect(() => {
 		const {
 			autoDetect: auto,
-			providers: providerConfigs,
 			availableProviders: available,
 			connect: doConnect,
 			applyResult: apply,
@@ -186,22 +182,16 @@ export function WalletProvider({
 		if (stored) {
 			setStatus('connecting')
 
-			// Sigma reconnect: use CWI iframe + SET_IDENTITY with stored bapId
+			// Sigma reconnect: create CWI iframe with stored bapId
 			if (stored.providerType === 'sigma' && stored.bapId) {
-				const sigmaConfig = providerConfigs?.find(
-					(p): p is SigmaProviderConfig =>
-						p.type === 'sigma' && 'clientId' in p,
-				)
-				if (sigmaConfig) {
-					reconnectSigma(sigmaConfig, stored.bapId)
-						.then(apply)
-						.catch(() => {
-							clearStored()
-							if (auto) doConnect()
-							else setStatus('selecting')
-						})
-					return
-				}
+				connectSigmaWallet(stored.bapId)
+					.then(apply)
+					.catch(() => {
+						clearStored()
+						if (auto) doConnect()
+						else setStatus('selecting')
+					})
+				return
 			}
 
 			// Non-sigma provider reconnect

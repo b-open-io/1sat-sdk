@@ -5,7 +5,7 @@ import type { OneSatConfig, OneSatProvider } from './types'
 export {
 	connectWallet,
 	getAvailableProviders,
-	reconnectSigma,
+	connectSigmaWallet,
 	type AvailableProvider,
 	type ConnectWalletConfig,
 	type ConnectWalletOptions,

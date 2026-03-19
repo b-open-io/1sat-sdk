@@ -55,18 +55,16 @@ export type ConnectWalletOptions = ConnectWalletConfig
 const DEFAULT_ONESAT_URL = 'https://1sat.market'
 
 /**
- * Reconnect to a Sigma wallet after OAuth has completed.
+ * Connect to a Sigma wallet via CWI iframe.
  *
- * Creates the CWI iframe, sends SET_IDENTITY with the stored bapId,
- * and waits for authentication. Use this on page load when a stored
- * sigma connection exists.
+ * Creates the CWI iframe, sends SET_IDENTITY with the bapId,
+ * and waits for authentication (user grants permission via iframe).
+ * The user is not signed in until waitForAuthentication completes.
  */
-export async function reconnectSigma(
-	config: SigmaProviderConfig,
+export async function connectSigmaWallet(
 	bapId: string,
 ): Promise<ConnectWalletResult> {
-	const sigmaUrl = config.url ?? SIGMA_URL
-	const cwiConfig: SigmaCWIConfig = { sigmaUrl }
+	const cwiConfig: SigmaCWIConfig = { sigmaUrl: SIGMA_URL }
 	const { wallet, destroy, sendCustomMessage } = createSigmaCWI(cwiConfig)
 
 	setSigmaIdentity(bapId)
