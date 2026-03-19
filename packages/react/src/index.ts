@@ -10,6 +10,9 @@ export {
 	type WalletStatus,
 } from './wallet-context'
 
+// Sigma OAuth callback
+export { SigmaCallback, type SigmaCallbackProps } from './SigmaCallback'
+
 // Components
 export { ConnectButton, type ConnectButtonProps } from './ConnectButton'
 export {

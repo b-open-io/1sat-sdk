@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.9
+
+### Added
+- `SigmaCallback` component — generic OAuth callback page for Sigma Identity
+- WalletProvider sigma reconnect — on mount, reconnects CWI iframe with stored bapId
+- StoredConnection now persists `bapId`, `user`, and `accessToken` for sigma sessions
+
 ## 0.0.8
 
 ### Breaking Changes
