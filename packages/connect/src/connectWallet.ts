@@ -158,15 +158,12 @@ export function getAvailableProviders(
 }
 
 /**
- * Connect to a BRC-100 wallet with configurable provider detection.
+ * Auto-detect a BRC-100 wallet via WalletClient("auto").
  *
- * Detection order:
- * 1. If autoDetect (default true): WalletClient("auto") — browser extensions,
- *    Cicada, localhost wallet, XDM
- * 2. Falls through configured providers in order
- *
- * Returns null if no wallet is available. Use getAvailableProviders()
- * to present a manual selection UI instead.
+ * Finds browser extensions, Cicada, localhost wallet, XDM.
+ * Returns null if no wallet is detected. Does NOT fall through
+ * to redirect-based providers (Sigma, OneSat popup) — those
+ * require explicit user selection via getAvailableProviders().
  */
 export async function connectWallet(
 	config?: ConnectWalletConfig,
@@ -178,19 +175,6 @@ export async function connectWallet(
 			return await connectBrc100AutoDetect()
 		} catch {
 			// No BRC-100 wallet found via auto-detection
-		}
-	}
-
-	// Try configured providers in order
-	const providers = config?.providers ?? [
-		{ type: 'onesat', name: 'OneSat Wallet', url: DEFAULT_ONESAT_URL },
-	]
-
-	for (const provider of providers) {
-		try {
-			return await createProviderConnector(provider)()
-		} catch {
-			// This provider failed, try next
 		}
 	}
 
