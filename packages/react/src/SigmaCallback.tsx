@@ -8,6 +8,8 @@ const STORAGE_KEY = 'onesat_wallet_provider'
 export interface SigmaCallbackProps {
 	/** Where to redirect after successful auth (default: '/') */
 	redirectTo?: string
+	/** Called after successful auth instead of hard redirect. Use for SPA navigation. */
+	onComplete?: () => void
 	/** Custom loading content */
 	loadingContent?: ReactNode
 	/** Custom error render */
@@ -25,6 +27,7 @@ export interface SigmaCallbackProps {
  */
 export function SigmaCallback({
 	redirectTo = '/',
+	onComplete,
 	loadingContent,
 	renderError,
 }: SigmaCallbackProps) {
@@ -41,7 +44,11 @@ export function SigmaCallback({
 
 			await connectSigmaWallet(oauthResult.bapId)
 
-			window.location.href = redirectTo
+			if (onComplete) {
+				onComplete()
+			} else {
+				window.location.href = redirectTo
+			}
 		}
 
 		completeSignIn().catch((err) => {
