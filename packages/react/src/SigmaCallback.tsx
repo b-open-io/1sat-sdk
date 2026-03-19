@@ -2,8 +2,7 @@
 
 import { completeSigmaOAuth, connectSigmaWallet } from '@1sat/connect'
 import { type ReactNode, useEffect, useState } from 'react'
-
-const STORAGE_KEY = 'onesat_wallet_provider'
+import { useWallet } from './wallet-context'
 
 export interface SigmaCallbackProps {
 	/** Where to redirect after successful auth (default: '/') */
@@ -31,6 +30,7 @@ export function SigmaCallback({
 	loadingContent,
 	renderError,
 }: SigmaCallbackProps) {
+	const { applyResult } = useWallet()
 	const [error, setError] = useState<string | null>(null)
 	const [status, setStatus] = useState<string>('Completing authentication...')
 
@@ -42,7 +42,8 @@ export function SigmaCallback({
 
 			setStatus('Connecting wallet...')
 
-			await connectSigmaWallet(oauthResult.bapId)
+			const walletResult = await connectSigmaWallet(oauthResult.bapId)
+			applyResult(walletResult)
 
 			if (onComplete) {
 				onComplete()
@@ -61,7 +62,7 @@ export function SigmaCallback({
 						: 'Authentication failed'
 			setError(msg)
 		})
-	}, [redirectTo])
+	}, [redirectTo, applyResult, onComplete])
 
 	if (error) {
 		if (renderError) {

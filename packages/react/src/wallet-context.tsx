@@ -31,6 +31,7 @@ export interface WalletContextValue {
 	providerType: string | null
 	availableProviders: AvailableProvider[]
 	connect: (providerType?: string) => Promise<void>
+	applyResult: (result: ConnectWalletResult) => void
 	disconnect: () => void
 	error: Error | null
 }
@@ -173,6 +174,7 @@ export function WalletProvider({
 			providerType,
 			availableProviders,
 			connect,
+			applyResult,
 			disconnect,
 			error,
 		}),
@@ -183,6 +185,7 @@ export function WalletProvider({
 			providerType,
 			availableProviders,
 			connect,
+			applyResult,
 			disconnect,
 			error,
 		],
