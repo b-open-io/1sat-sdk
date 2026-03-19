@@ -39,18 +39,7 @@ export function SigmaCallback({
 
 			setStatus('Connecting wallet...')
 
-			const walletResult = await connectSigmaWallet(oauthResult.bapId)
-
-			localStorage.setItem(
-				STORAGE_KEY,
-				JSON.stringify({
-					providerType: 'sigma',
-					identityKey: walletResult.identityKey,
-					bapId: oauthResult.bapId,
-					user: oauthResult.user,
-					accessToken: oauthResult.accessToken,
-				}),
-			)
+			await connectSigmaWallet(oauthResult.bapId)
 
 			window.location.href = redirectTo
 		}
