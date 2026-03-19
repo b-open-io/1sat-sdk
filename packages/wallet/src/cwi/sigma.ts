@@ -9,7 +9,7 @@ import { type CWITransport, createCWI } from './factory'
 import type { CWIEventName } from './types'
 
 const DEFAULT_IFRAME_PATH = '/signer'
-const DEFAULT_REQUEST_TIMEOUT_MS = 30_000
+const DEFAULT_REQUEST_TIMEOUT_MS = 120_000
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 10_000
 
 export interface SigmaCWIConfig {
@@ -139,17 +139,23 @@ export function createSigmaCWI(config: SigmaCWIConfig): SigmaCWIResult {
 
 		if (isState(data)) {
 			const { status, hasPermission } = data.cwiState
-
-			// Show iframe for password entry, biometric prompt, or permission prompts
-			if (
+			const isInteractive =
 				status === 'need_password' ||
 				status === 'need_biometric' ||
-				hasPermission
-			) {
-				updateIframeVisibility(true)
-			} else {
-				updateIframeVisibility(false)
+				!!hasPermission
+
+			// Reset pending request timeouts while user is interacting
+			if (isInteractive) {
+				for (const [id, req] of pending) {
+					clearTimeout(req.timeoutId)
+					req.timeoutId = setTimeout(() => {
+						pending.delete(id)
+						req.reject(new Error(`Sigma CWI request timed out: ${id}`))
+					}, requestTimeout)
+				}
 			}
+
+			updateIframeVisibility(isInteractive)
 
 			if (!handshakeComplete) {
 				handshakeComplete = true
