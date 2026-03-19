@@ -19,6 +19,7 @@ export {
 	completeSigmaOAuth,
 	initiateSigmaOAuth,
 	isSigmaCallback,
+	SIGMA_URL,
 	type SigmaOAuthConfig,
 	type SigmaOAuthResult,
 } from './sigma-oauth'

@@ -6,9 +6,13 @@
  * callback route handles the token exchange.
  */
 
+/** Sigma Identity server URL */
+export const SIGMA_URL = 'https://auth.sigmaidentity.com'
+
+/** Standard Sigma authorize endpoint (custom gate that checks wallet status first) */
+const SIGMA_AUTHORIZE_PATH = '/oauth2/authorize'
+
 export interface SigmaOAuthConfig {
-	/** Sigma auth server URL (e.g. https://auth.sigmaidentity.com) */
-	sigmaUrl: string
 	/** OAuth client ID registered with Sigma */
 	clientId: string
 	/** Local callback URL path (default: /auth/sigma/callback) */
@@ -97,7 +101,7 @@ export async function initiateSigmaOAuth(
 		scope: scopes.join(' '),
 	})
 
-	const authorizeUrl = `${config.sigmaUrl}/api/auth/authorize?${params.toString()}`
+	const authorizeUrl = `${SIGMA_URL}${SIGMA_AUTHORIZE_PATH}?${params.toString()}`
 	window.location.href = authorizeUrl
 
 	// Page navigates away — return a never-resolving promise

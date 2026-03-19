@@ -6,7 +6,7 @@ import {
 } from '@1sat/wallet'
 import { WalletClient } from '@bsv/sdk'
 import type { WalletInterface } from '@bsv/sdk'
-import { initiateSigmaOAuth } from './sigma-oauth'
+import { SIGMA_URL, initiateSigmaOAuth } from './sigma-oauth'
 
 export interface WalletProviderConfig {
 	/** Provider identifier — 'onesat', 'sigma', or a custom string */
@@ -53,7 +53,6 @@ export interface AvailableProvider extends WalletProviderConfig {
 export type ConnectWalletOptions = ConnectWalletConfig
 
 const DEFAULT_ONESAT_URL = 'https://1sat.market'
-const DEFAULT_SIGMA_URL = 'https://auth.sigmaidentity.com'
 
 /**
  * Reconnect to a Sigma wallet after OAuth has completed.
@@ -66,7 +65,7 @@ export async function reconnectSigma(
 	config: SigmaProviderConfig,
 	bapId: string,
 ): Promise<ConnectWalletResult> {
-	const sigmaUrl = config.url ?? DEFAULT_SIGMA_URL
+	const sigmaUrl = config.url ?? SIGMA_URL
 	const cwiConfig: SigmaCWIConfig = { sigmaUrl }
 	const { wallet, destroy, sendCustomMessage } = createSigmaCWI(cwiConfig)
 
@@ -125,7 +124,6 @@ function createProviderConnector(
 				// Initiate OAuth redirect — this navigates the browser away
 				// and returns a never-resolving promise
 				return initiateSigmaOAuth({
-					sigmaUrl: config.url ?? DEFAULT_SIGMA_URL,
 					clientId: sigmaConfig.clientId,
 					callbackURL: sigmaConfig.callbackURL,
 				})
