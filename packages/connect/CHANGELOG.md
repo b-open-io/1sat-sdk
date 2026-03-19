@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.18] - 2026-03-19
+
+### Fixed
+- `connectSigmaWallet` now awaits `sendCustomMessage` to ensure `SET_IDENTITY` is delivered after CWI handshake
+
 ## [0.0.13] - 2026-03-18
 
 ### Added
