@@ -37,9 +37,11 @@ export function SigmaCallback({
 
 	useEffect(() => {
 		const searchParams = new URLSearchParams(window.location.search)
+		localStorage.setItem('__sigma_debug', JSON.stringify({ stage: 'start', search: window.location.search }))
 
 		completeSigmaOAuth(searchParams)
 			.then((result) => {
+				localStorage.setItem('__sigma_debug', JSON.stringify({ stage: 'success', bapId: result.bapId, pubkey: result.pubkey, hasUser: !!result.user }))
 				localStorage.setItem(
 					STORAGE_KEY,
 					JSON.stringify({
@@ -54,6 +56,7 @@ export function SigmaCallback({
 				window.location.href = redirectTo
 			})
 			.catch((err) => {
+				localStorage.setItem('__sigma_debug', JSON.stringify({ stage: 'error', error: typeof err === 'object' ? JSON.stringify(err) : String(err) }))
 				console.error('Sigma OAuth callback error:', err)
 				const msg =
 					err instanceof Error
