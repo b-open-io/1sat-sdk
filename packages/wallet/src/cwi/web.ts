@@ -7,13 +7,13 @@ import type { WalletInterface } from '@bsv/sdk'
 import { type CWITransport, createCWI } from './factory'
 import type { CWIEventName } from './types'
 
-const DEFAULT_WALLET_URL = 'https://1sat.market'
+const DEFAULT_WALLET_URL = 'https://1satwallet.com'
 const DEFAULT_IFRAME_PATH = '/wallet/cwi'
 const DEFAULT_REQUEST_TIMEOUT_MS = 120_000
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 5_000
 
 export interface WebCWIConfig {
-	/** Base URL for wallet host (default: https://1sat.market) */
+	/** Base URL for wallet host (default: https://1satwallet.com) */
 	walletUrl?: string
 	/** Iframe path on wallet host (default: /wallet/cwi) */
 	iframePath?: string
