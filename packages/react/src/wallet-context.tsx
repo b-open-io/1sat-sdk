@@ -2,7 +2,6 @@ import {
 	type AvailableProvider,
 	type ConnectWalletResult,
 	type WalletProviderConfig,
-	connectSigmaWallet,
 	connectWallet,
 	getAvailableProviders,
 } from '@1sat/connect'
@@ -44,36 +43,6 @@ export interface WalletProviderProps {
 
 const STORAGE_KEY = 'onesat_wallet_provider'
 
-interface StoredConnection {
-	providerType: string
-	identityKey: string
-	/** BAP ID — stored when provider is sigma */
-	bapId?: string
-	/** User profile data from OAuth */
-	user?: Record<string, unknown>
-	/** Access token from OAuth */
-	accessToken?: string
-}
-
-function loadStored(): StoredConnection | null {
-	if (typeof window === 'undefined') return null
-	try {
-		const raw = localStorage.getItem(STORAGE_KEY)
-		if (!raw) return null
-		return JSON.parse(raw) as StoredConnection
-	} catch {
-		return null
-	}
-}
-
-function saveStored(providerType: string, identityKey: string): void {
-	if (typeof window === 'undefined') return
-	localStorage.setItem(
-		STORAGE_KEY,
-		JSON.stringify({ providerType, identityKey }),
-	)
-}
-
 function clearStored(): void {
 	if (typeof window === 'undefined') return
 	localStorage.removeItem(STORAGE_KEY)
@@ -105,7 +74,6 @@ export function WalletProvider({
 		setStatus('connected')
 		setError(null)
 		disconnectRef.current = result.disconnect
-		saveStored(result.provider, result.identityKey)
 	}, [])
 
 	const disconnect = useCallback(() => {
@@ -168,46 +136,9 @@ export function WalletProvider({
 		applyResult,
 	}
 
-	// Auto-detect or reconnect on mount
+	// Auto-detect on mount
 	useEffect(() => {
-		const {
-			autoDetect: auto,
-			availableProviders: available,
-			connect: doConnect,
-			applyResult: apply,
-		} = mountRef.current
-
-		const stored = loadStored()
-
-		if (stored) {
-			setStatus('connecting')
-
-			// Sigma reconnect: create CWI iframe with stored bapId
-			if (stored.providerType === 'sigma' && stored.bapId) {
-				connectSigmaWallet(stored.bapId)
-					.then(apply)
-					.catch(() => {
-						clearStored()
-						if (auto) doConnect()
-						else setStatus('selecting')
-					})
-				return
-			}
-
-			// Non-sigma provider reconnect
-			const provider = available.find((p) => p.type === stored.providerType)
-			if (provider) {
-				provider
-					.connect()
-					.then(apply)
-					.catch(() => {
-						clearStored()
-						if (auto) doConnect()
-						else setStatus('selecting')
-					})
-				return
-			}
-		}
+		const { autoDetect: auto, connect: doConnect } = mountRef.current
 
 		if (auto) {
 			doConnect()
