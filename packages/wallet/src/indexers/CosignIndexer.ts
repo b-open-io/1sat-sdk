@@ -21,7 +21,8 @@ export class CosignIndexer extends Indexer {
 		const lockingScript = txo.output.lockingScript
 
 		// Use template decode
-		const decoded = Cosign.decode(lockingScript, this.network === 'mainnet')
+		// biome-ignore lint/suspicious/noExplicitAny: cross-version @bsv/sdk Script type mismatch
+		const decoded = Cosign.decode(lockingScript as any, this.network === 'mainnet')
 		if (!decoded) return
 
 		return {
