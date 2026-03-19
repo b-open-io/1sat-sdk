@@ -13,6 +13,19 @@ export {
 // Sigma OAuth callback
 export { SigmaCallback, type SigmaCallbackProps } from './SigmaCallback'
 
+// Connect dialog
+export {
+	ConnectDialog,
+	type ConnectDialogProps,
+	type ConnectDialogProviderInfo,
+	type ConnectDialogRenderProps,
+} from './ConnectDialog'
+export {
+	ConnectDialogProvider,
+	useConnectDialog,
+	type ConnectDialogProviderProps,
+} from './ConnectDialogProvider'
+
 // Components
 export { ConnectButton, type ConnectButtonProps } from './ConnectButton'
 export {
