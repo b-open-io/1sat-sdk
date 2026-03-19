@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.12] - 2026-03-18
+
+### Added
+- `connectWallet()` — BRC-100 wallet auto-detection with configurable provider fallback chain
+- `getAvailableProviders()` — enumerate available wallet providers for selection UI
+- `WalletProviderConfig`, `ConnectWalletConfig`, `ConnectWalletResult`, `AvailableProvider` types
+- Provider registry supporting `onesat` (1satwallet.com iframe), `sigma` (Sigma Identity), and custom providers
+- Auto-detection tries `WalletClient("auto")` first (finds `window.CWI` from Yours Wallet v4 or any BRC-100 extension)
+
+### Fixed
+- Lint cleanup
+
 ## [0.0.9] - 2026-03-06
 
 ### Changed
