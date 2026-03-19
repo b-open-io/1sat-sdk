@@ -1,42 +1,42 @@
-import {
-	type SigmaCWIConfig,
-	type WebCWIConfig,
-	createSigmaCWI,
-	createWebCWI,
-} from '@1sat/wallet'
+import { type WebCWIConfig, createWebCWI } from '@1sat/wallet'
 import { WalletClient } from '@bsv/sdk'
 import type { WalletInterface } from '@bsv/sdk'
-import { SIGMA_URL, initiateSigmaOAuth, setSigmaIdentity } from './sigma-oauth'
 
+/**
+ * Configuration for a wallet provider.
+ *
+ * Two ways to configure:
+ * - `url` — CWI iframe bridge to any host that implements CWI over postMessage
+ * - `connect` — custom connect function for any transport
+ *
+ * If both are provided, `connect` takes priority.
+ */
 export interface WalletProviderConfig {
-	/** Provider identifier — 'onesat', 'sigma', or a custom string */
+	/** Unique identifier for this provider */
 	type: string
 	/** Display name for UI */
 	name: string
 	/** Icon URL or data URI */
 	icon?: string
-	/** Base URL for iframe-based providers */
+	/** CWI iframe bridge URL — any host that implements CWI over postMessage */
 	url?: string
-}
-
-export interface SigmaProviderConfig extends WalletProviderConfig {
-	type: 'sigma'
-	/** OAuth client ID registered with Sigma */
-	clientId: string
-	/** Local callback URL path (default: /auth/sigma/callback) */
-	callbackURL?: string
+	/** Custom connect function — overrides url-based iframe bridge */
+	connect?: () => Promise<ConnectWalletResult>
 }
 
 export interface ConnectWalletConfig {
-	/** Try WalletClient('auto') first (default: true) */
+	/** Include WalletClient('auto') in the race (default: true).
+	 *  Detects any BRC-100 wallet: browser extensions (window.CWI),
+	 *  desktop wallets (localhost), XDM, React Native. */
 	autoDetect?: boolean
-	/** Available providers for manual selection or fallback */
+	/** Wallet providers to race alongside auto-detect.
+	 *  No defaults — the consumer configures which providers to offer. */
 	providers?: WalletProviderConfig[]
 }
 
 export interface ConnectWalletResult {
 	wallet: WalletInterface
-	/** Which provider connected ('brc100', 'onesat', 'sigma', or custom) */
+	/** Which provider connected (e.g. 'brc100' for auto-detect, or the provider's type) */
 	provider: string
 	identityKey: string
 	disconnect: () => void
@@ -52,36 +52,32 @@ export interface AvailableProvider extends WalletProviderConfig {
 /** @deprecated Use ConnectWalletConfig instead */
 export type ConnectWalletOptions = ConnectWalletConfig
 
-const DEFAULT_ONESAT_URL = 'https://1sat.market'
+const LAST_PROVIDER_KEY = 'cwi_last_provider'
 
-/**
- * Connect to a Sigma wallet via CWI iframe.
- *
- * Creates the CWI iframe, sends SET_IDENTITY with the bapId,
- * and waits for authentication (user grants permission via iframe).
- * The user is not signed in until waitForAuthentication completes.
- */
-export async function connectSigmaWallet(
-	bapId: string,
-): Promise<ConnectWalletResult> {
-	const cwiConfig: SigmaCWIConfig = { sigmaUrl: SIGMA_URL }
-	const { wallet, destroy, sendCustomMessage } = createSigmaCWI(cwiConfig)
-
-	setSigmaIdentity(bapId)
-	await sendCustomMessage('SET_IDENTITY', { bapId })
-
-	await wallet.waitForAuthentication({})
-	const { publicKey } = await wallet.getPublicKey({ identityKey: true })
-
-	return {
-		wallet,
-		provider: 'sigma',
-		identityKey: publicKey,
-		disconnect: destroy,
+function saveLastProvider(providerType: string): void {
+	if (typeof window === 'undefined') return
+	try {
+		localStorage.setItem(LAST_PROVIDER_KEY, providerType)
+	} catch {
+		// localStorage unavailable
 	}
 }
 
-async function connectBrc100AutoDetect(): Promise<ConnectWalletResult> {
+export function loadLastProvider(): string | null {
+	if (typeof window === 'undefined') return null
+	try {
+		return localStorage.getItem(LAST_PROVIDER_KEY)
+	} catch {
+		return null
+	}
+}
+
+/**
+ * BRC-100 auto-detect via WalletClient('auto').
+ * Finds any wallet exposing a BRC-100 substrate: browser extensions
+ * (window.CWI), desktop wallets (localhost HTTP), XDM, React Native.
+ */
+async function connectAutoDetect(): Promise<ConnectWalletResult> {
 	const client = new WalletClient('auto')
 	await client.connectToSubstrate()
 	await client.waitForAuthentication({})
@@ -94,87 +90,91 @@ async function connectBrc100AutoDetect(): Promise<ConnectWalletResult> {
 	}
 }
 
-function createProviderConnector(
+/**
+ * Build a connect function for a provider config.
+ * Custom connect > url (CWI iframe bridge) > reject.
+ */
+function buildConnector(
 	config: WalletProviderConfig,
 ): () => Promise<ConnectWalletResult> {
-	switch (config.type) {
-		case 'onesat':
-			return async () => {
-				const webConfig: WebCWIConfig = {}
-				if (config.url) webConfig.walletUrl = config.url
-				const { wallet, destroy } = createWebCWI(webConfig)
-				await wallet.waitForAuthentication({})
-				const { publicKey } = await wallet.getPublicKey({
-					identityKey: true,
-				})
-				return {
-					wallet,
-					provider: 'onesat',
-					identityKey: publicKey,
-					disconnect: destroy,
-				}
-			}
-		case 'sigma':
-			return async () => {
-				const sigmaConfig = config as SigmaProviderConfig
-				if (!sigmaConfig.clientId) {
-					throw new Error('Sigma provider requires clientId in config')
-				}
-				// Initiate OAuth redirect — this navigates the browser away
-				// and returns a never-resolving promise
-				return initiateSigmaOAuth({
-					clientId: sigmaConfig.clientId,
-					callbackURL: sigmaConfig.callbackURL,
-				})
-			}
-		default:
-			return () =>
-				Promise.reject(
-					new Error(`No built-in connector for provider type: ${config.type}`),
-				)
+	if (config.connect) {
+		return config.connect
 	}
+
+	if (config.url) {
+		return async () => {
+			const webConfig: WebCWIConfig = { walletUrl: config.url }
+			const { wallet, destroy } = createWebCWI(webConfig)
+			await wallet.waitForAuthentication({})
+			const { publicKey } = await wallet.getPublicKey({
+				identityKey: true,
+			})
+			return {
+				wallet,
+				provider: config.type,
+				identityKey: publicKey,
+				disconnect: destroy,
+			}
+		}
+	}
+
+	return () =>
+		Promise.reject(
+			new Error(
+				`Provider "${config.type}" has no url or connect function`,
+			),
+		)
 }
 
 /**
  * Get the list of available wallet providers with connect functions.
  *
- * Use this when you need to present a provider selection UI.
- * Each provider has a `connect()` function that returns a ConnectWalletResult.
+ * Returns an empty array if no providers are configured.
  */
 export function getAvailableProviders(
 	config?: ConnectWalletConfig,
 ): AvailableProvider[] {
-	const providerConfigs = config?.providers ?? [
-		{ type: 'onesat', name: 'OneSat Wallet', url: DEFAULT_ONESAT_URL },
-	]
+	const providerConfigs = config?.providers ?? []
 
 	return providerConfigs.map((p) => ({
 		...p,
 		detected: false,
-		connect: createProviderConnector(p),
+		connect: buildConnector(p),
 	}))
 }
 
 /**
- * Auto-detect a BRC-100 wallet via WalletClient("auto").
+ * Connect to a BRC-100 wallet by racing all options in parallel.
  *
- * Finds browser extensions, Cicada, localhost wallet, XDM.
- * Returns null if no wallet is detected. Does NOT fall through
- * to redirect-based providers (Sigma, OneSat popup) — those
- * require explicit user selection via getAvailableProviders().
+ * Auto-detect and all configured providers start simultaneously via
+ * Promise.any(). First to authenticate wins. The winning provider
+ * type is saved to localStorage for warm reconnects.
+ *
+ * Returns null if no wallet connects.
  */
 export async function connectWallet(
 	config?: ConnectWalletConfig,
 ): Promise<ConnectWalletResult | null> {
 	const autoDetect = config?.autoDetect ?? true
+	const providers = config?.providers ?? []
+
+	const attempts: Promise<ConnectWalletResult>[] = []
 
 	if (autoDetect) {
-		try {
-			return await connectBrc100AutoDetect()
-		} catch {
-			// No BRC-100 wallet found via auto-detection
-		}
+		attempts.push(connectAutoDetect())
 	}
 
-	return null
+	for (const provider of providers) {
+		attempts.push(buildConnector(provider)())
+	}
+
+	if (attempts.length === 0) return null
+
+	try {
+		const result = await Promise.any(attempts)
+		saveLastProvider(result.provider)
+		return result
+	} catch {
+		return null
+	}
 }

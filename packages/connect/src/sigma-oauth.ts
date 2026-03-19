@@ -105,3 +105,48 @@ export async function completeSigmaOAuth(
 export function setSigmaIdentity(bapId: string): void {
 	sigmaAuthClient.sigma.setIdentity(bapId)
 }
+
+// --- Sigma wallet connection (CWI iframe after OAuth) ---
+
+import {
+	type SigmaCWIConfig,
+	createSigmaCWI,
+} from '@1sat/wallet'
+import type { ConnectWalletResult, WalletProviderConfig } from './connectWallet'
+
+/**
+ * Sigma provider config — extends base with OAuth fields.
+ */
+export interface SigmaProviderConfig extends WalletProviderConfig {
+	type: 'sigma'
+	/** OAuth client ID registered with Sigma */
+	clientId: string
+	/** Local callback URL path (default: /auth/sigma/callback) */
+	callbackURL?: string
+}
+
+/**
+ * Connect to a Sigma wallet via CWI iframe after OAuth.
+ *
+ * Creates the CWI iframe, sends SET_IDENTITY with the bapId,
+ * and waits for authentication.
+ */
+export async function connectSigmaWallet(
+	bapId: string,
+): Promise<ConnectWalletResult> {
+	const cwiConfig: SigmaCWIConfig = { sigmaUrl: SIGMA_URL }
+	const { wallet, destroy, sendCustomMessage } = createSigmaCWI(cwiConfig)
+
+	setSigmaIdentity(bapId)
+	await sendCustomMessage('SET_IDENTITY', { bapId })
+
+	await wallet.waitForAuthentication({})
+	const { publicKey } = await wallet.getPublicKey({ identityKey: true })
+
+	return {
+		wallet,
+		provider: 'sigma',
+		identityKey: publicKey,
+		disconnect: destroy,
+	}
+}

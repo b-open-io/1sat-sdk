@@ -1,34 +1,39 @@
 import { OneSatBrowserProvider } from './provider'
 import type { OneSatConfig, OneSatProvider } from './types'
 
-// Export connectWallet — recommended entry point for BRC-100 wallet detection
+// --- Core: generic wallet connection ---
+
 export {
 	connectWallet,
 	getAvailableProviders,
-	connectSigmaWallet,
+	loadLastProvider,
 	type AvailableProvider,
 	type ConnectWalletConfig,
 	type ConnectWalletOptions,
 	type ConnectWalletResult,
-	type SigmaProviderConfig,
 	type WalletProviderConfig,
 } from './connectWallet'
 
-// Export Sigma OAuth flow
+// --- Sigma: OAuth flow + CWI wallet connection ---
+
 export {
 	completeSigmaOAuth,
+	connectSigmaWallet,
 	initiateSigmaOAuth,
 	setSigmaIdentity,
 	sigmaAuthClient,
 	SIGMA_URL,
 	type SigmaOAuthConfig,
 	type SigmaOAuthResult,
+	type SigmaProviderConfig,
 } from './sigma-oauth'
 
-// Export BRC-77 request signing
+// --- BRC-77 request signing ---
+
 export { signRequest } from './auth'
 
-// Export errors
+// --- Errors ---
+
 export {
 	AuthorizationTimeoutError,
 	CodeReplayError,
@@ -47,7 +52,26 @@ export {
 	WalletLockedError,
 	WalletNotConnectedError,
 } from './errors'
-// Export messages
+
+// --- Legacy popup provider ---
+// @deprecated Use connectWallet() + @1sat/actions instead.
+// Kept for backward compatibility with existing consumers (droplit, extension).
+
+export { OneSatBrowserProvider } from './provider'
+export { type PendingRequest, type PopupConfig, PopupManager } from './popup'
+export {
+	clearConnection,
+	hasStoredConnection,
+	loadConnection,
+	type StoredConnection,
+	saveConnection,
+} from './storage'
+export {
+	AutoTransport,
+	createAutoTransport,
+	createRedirectTransport,
+	RedirectTransport,
+} from './transport'
 export {
 	type BaseMessage,
 	createErrorResponse,
@@ -62,25 +86,6 @@ export {
 	type RequestMessage,
 	type ResponseMessage,
 } from './messages'
-export { type PendingRequest, type PopupConfig, PopupManager } from './popup'
-// Export provider
-export { OneSatBrowserProvider } from './provider'
-
-// Export storage utilities
-export {
-	clearConnection,
-	hasStoredConnection,
-	loadConnection,
-	type StoredConnection,
-	saveConnection,
-} from './storage'
-export {
-	AutoTransport,
-	createAutoTransport,
-	createRedirectTransport,
-	RedirectTransport,
-} from './transport'
-// Export types
 export type {
 	BalanceResult,
 	CancelListingRequest,
@@ -121,7 +126,6 @@ export type {
 	Utxo,
 } from './types'
 export { RpcMethods } from './types'
-// Export wallet-side utilities (for popup pages)
 export {
 	closePopup,
 	getPopupContext,
@@ -136,8 +140,28 @@ export {
 } from './wallet'
 
 /**
- * Check if the OneSat provider is injected by browser extension
- * Extensions inject window.onesat with isOneSat: true
+ * @deprecated Use connectWallet() with a provider config instead.
+ * The popup provider is a legacy pre-CWI interface.
+ */
+export function createOneSat(config?: OneSatConfig): OneSatProvider {
+	const injected = getInjectedOneSat()
+	if (injected) return injected
+	const provider = new OneSatBrowserProvider(config)
+	if (typeof window !== 'undefined' && !window.onesat) {
+		window.onesat = provider
+	}
+	return provider
+}
+
+/**
+ * @deprecated Use connectWallet() instead.
+ */
+export function getOneSat(config?: OneSatConfig): OneSatProvider {
+	return createOneSat(config)
+}
+
+/**
+ * @deprecated Use connectWallet() with autoDetect instead.
  */
 export function isOneSatInjected(): boolean {
 	return (
@@ -147,96 +171,31 @@ export function isOneSatInjected(): boolean {
 	)
 }
 
-/**
- * Get the injected OneSat provider from browser extension
- * Returns undefined if no extension is installed
- */
+/** @deprecated */
 export function getInjectedOneSat(): OneSatProvider | undefined {
-	if (isOneSatInjected()) {
-		return window.onesat
-	}
+	if (isOneSatInjected()) return window.onesat
 	return undefined
 }
 
-/**
- * Create or get a OneSat provider
- *
- * Detection priority:
- * 1. If browser extension is installed (window.onesat.isOneSat), use it
- * 2. Otherwise, create a popup-based provider
- *
- * @example
- * ```typescript
- * import { createOneSat } from '@1sat/connect'
- *
- * const onesat = createOneSat({
- *   appName: 'My dApp',
- * })
- *
- * // Connect to wallet (opens popup if no extension)
- * const { paymentAddress, ordinalAddress } = await onesat.connect()
- *
- * // Sign a transaction
- * const result = await onesat.signTransaction({ rawtx })
- * ```
- */
-export function createOneSat(config?: OneSatConfig): OneSatProvider {
-	// Check for injected extension provider first
-	const injected = getInjectedOneSat()
-	if (injected) {
-		return injected
-	}
-
-	// Fall back to popup-based provider
-	const provider = new OneSatBrowserProvider(config)
-
-	// Inject into window (so subsequent calls find it)
-	if (typeof window !== 'undefined' && !window.onesat) {
-		window.onesat = provider
-	}
-
-	return provider
-}
-
-/**
- * Get the existing provider from window.onesat or create a new popup provider
- * @deprecated Use createOneSat() instead - it handles detection automatically
- */
-export function getOneSat(config?: OneSatConfig): OneSatProvider {
-	return createOneSat(config)
-}
-
-/**
- * Check if any OneSat provider is available (extension or popup)
- */
+/** @deprecated */
 export function isOneSatAvailable(): boolean {
 	return typeof window !== 'undefined' && window.onesat?.isOneSat === true
 }
 
-/**
- * Wait for the OneSat extension to be injected
- * Useful for detecting extension after page load
- *
- * @param timeout - Max time to wait in ms (default: 3000)
- * @returns The injected provider, or throws if timeout
- */
+/** @deprecated Use connectWallet() with autoDetect instead. */
 export function waitForOneSat(timeout = 3000): Promise<OneSatProvider> {
 	return new Promise((resolve, reject) => {
-		// Already available
 		if (isOneSatInjected()) {
 			resolve(window.onesat!)
 			return
 		}
-
 		const startTime = Date.now()
-
 		const checkInterval = setInterval(() => {
 			if (isOneSatInjected()) {
 				clearInterval(checkInterval)
 				resolve(window.onesat!)
 				return
 			}
-
 			if (Date.now() - startTime > timeout) {
 				clearInterval(checkInterval)
 				reject(new Error('OneSat extension not detected'))
