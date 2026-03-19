@@ -43,6 +43,23 @@ export interface WalletProviderProps {
 
 const STORAGE_KEY = 'onesat_wallet_provider'
 
+export function loadStoredProvider(): string | null {
+	if (typeof window === 'undefined') return null
+	try {
+		const raw = localStorage.getItem(STORAGE_KEY)
+		if (!raw) return null
+		const parsed = JSON.parse(raw)
+		return parsed?.providerType ?? null
+	} catch {
+		return null
+	}
+}
+
+function saveStored(providerType: string): void {
+	if (typeof window === 'undefined') return
+	localStorage.setItem(STORAGE_KEY, JSON.stringify({ providerType }))
+}
+
 function clearStored(): void {
 	if (typeof window === 'undefined') return
 	localStorage.removeItem(STORAGE_KEY)
@@ -74,6 +91,7 @@ export function WalletProvider({
 		setStatus('connected')
 		setError(null)
 		disconnectRef.current = result.disconnect
+		saveStored(result.provider)
 	}, [])
 
 	const disconnect = useCallback(() => {

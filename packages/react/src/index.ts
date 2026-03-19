@@ -5,6 +5,7 @@ export * from '@1sat/connect'
 export {
 	WalletProvider,
 	useWallet,
+	loadStoredProvider,
 	type WalletContextValue,
 	type WalletProviderProps,
 	type WalletStatus,
