@@ -6,6 +6,7 @@ import {
 } from '@1sat/wallet'
 import { WalletClient } from '@bsv/sdk'
 import type { WalletInterface } from '@bsv/sdk'
+import { initiateSigmaOAuth } from './sigma-oauth'
 
 export interface WalletProviderConfig {
 	/** Provider identifier — 'onesat', 'sigma', or a custom string */
@@ -16,6 +17,14 @@ export interface WalletProviderConfig {
 	icon?: string
 	/** Base URL for iframe-based providers */
 	url?: string
+}
+
+export interface SigmaProviderConfig extends WalletProviderConfig {
+	type: 'sigma'
+	/** OAuth client ID registered with Sigma */
+	clientId: string
+	/** Local callback URL path (default: /auth/sigma/callback) */
+	callbackURL?: string
 }
 
 export interface ConnectWalletConfig {
@@ -45,6 +54,34 @@ export type ConnectWalletOptions = ConnectWalletConfig
 
 const DEFAULT_ONESAT_URL = 'https://1sat.market'
 const DEFAULT_SIGMA_URL = 'https://auth.sigmaidentity.com'
+
+/**
+ * Reconnect to a Sigma wallet after OAuth has completed.
+ *
+ * Creates the CWI iframe, sends SET_IDENTITY with the stored bapId,
+ * and waits for authentication. Use this on page load when a stored
+ * sigma connection exists.
+ */
+export async function reconnectSigma(
+	config: SigmaProviderConfig,
+	bapId: string,
+): Promise<ConnectWalletResult> {
+	const sigmaUrl = config.url ?? DEFAULT_SIGMA_URL
+	const cwiConfig: SigmaCWIConfig = { sigmaUrl }
+	const { wallet, destroy, sendCustomMessage } = createSigmaCWI(cwiConfig)
+
+	sendCustomMessage('SET_IDENTITY', { bapId })
+
+	await wallet.waitForAuthentication({})
+	const { publicKey } = await wallet.getPublicKey({ identityKey: true })
+
+	return {
+		wallet,
+		provider: 'sigma',
+		identityKey: publicKey,
+		disconnect: destroy,
+	}
+}
 
 async function connectBrc100AutoDetect(): Promise<ConnectWalletResult> {
 	const client = new WalletClient('auto')
@@ -81,20 +118,17 @@ function createProviderConnector(
 			}
 		case 'sigma':
 			return async () => {
-				const sigmaConfig: SigmaCWIConfig = {
+				const sigmaConfig = config as SigmaProviderConfig
+				if (!sigmaConfig.clientId) {
+					throw new Error('Sigma provider requires clientId in config')
+				}
+				// Initiate OAuth redirect — this navigates the browser away
+				// and returns a never-resolving promise
+				return initiateSigmaOAuth({
 					sigmaUrl: config.url ?? DEFAULT_SIGMA_URL,
-				}
-				const { wallet, destroy } = createSigmaCWI(sigmaConfig)
-				await wallet.waitForAuthentication({})
-				const { publicKey } = await wallet.getPublicKey({
-					identityKey: true,
+					clientId: sigmaConfig.clientId,
+					callbackURL: sigmaConfig.callbackURL,
 				})
-				return {
-					wallet,
-					provider: 'sigma',
-					identityKey: publicKey,
-					disconnect: destroy,
-				}
 			}
 		default:
 			return () =>

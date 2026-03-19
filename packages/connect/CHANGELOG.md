@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.0.13] - 2026-03-18
+
+### Added
+- `signRequest(wallet, requestPath, body?, scheme?)` — BRC-77 request signing using any WalletInterface
+- `initiateSigmaOAuth(config)` — PKCE OAuth flow to Sigma Identity (redirects browser)
+- `completeSigmaOAuth(searchParams, serverCallbackUrl)` — exchange OAuth code for identity
+- `isSigmaCallback(searchParams)` — detect Sigma OAuth callback parameters
+- `reconnectSigma(config, bapId)` — reconnect to Sigma CWI iframe after OAuth
+- `SigmaProviderConfig` type extending WalletProviderConfig with `clientId` and `callbackURL`
+
+### Changed
+- Sigma provider factory now initiates OAuth redirect instead of directly creating CWI iframe
+
 ## [0.0.12] - 2026-03-18
 
 ### Added

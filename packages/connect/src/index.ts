@@ -5,12 +5,26 @@ import type { OneSatConfig, OneSatProvider } from './types'
 export {
 	connectWallet,
 	getAvailableProviders,
+	reconnectSigma,
 	type AvailableProvider,
 	type ConnectWalletConfig,
 	type ConnectWalletOptions,
 	type ConnectWalletResult,
+	type SigmaProviderConfig,
 	type WalletProviderConfig,
 } from './connectWallet'
+
+// Export Sigma OAuth flow
+export {
+	completeSigmaOAuth,
+	initiateSigmaOAuth,
+	isSigmaCallback,
+	type SigmaOAuthConfig,
+	type SigmaOAuthResult,
+} from './sigma-oauth'
+
+// Export BRC-77 request signing
+export { signRequest } from './auth'
 
 // Export errors
 export {
