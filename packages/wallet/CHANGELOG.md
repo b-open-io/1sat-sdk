@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.27
+
+### Fixed
+- `sendCustomMessage` now awaits CWI handshake before posting, preventing messages lost in transit
+- Removed unused `waitForReady` from `SigmaCWIResult` interface
+
 ## 0.0.26
 
 ### Added

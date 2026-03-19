@@ -68,7 +68,7 @@ export async function connectSigmaWallet(
 	const { wallet, destroy, sendCustomMessage } = createSigmaCWI(cwiConfig)
 
 	setSigmaIdentity(bapId)
-	sendCustomMessage('SET_IDENTITY', { bapId })
+	await sendCustomMessage('SET_IDENTITY', { bapId })
 
 	await wallet.waitForAuthentication({})
 	const { publicKey } = await wallet.getPublicKey({ identityKey: true })

@@ -26,8 +26,8 @@ export interface SigmaCWIConfig {
 export interface SigmaCWIResult {
 	wallet: WalletInterface
 	destroy: () => void
-	/** Send a non-CWI message to the sigma iframe (e.g. SET_IDENTITY) */
-	sendCustomMessage: (type: string, payload: unknown) => void
+	/** Send a non-CWI message to the sigma iframe (e.g. SET_IDENTITY). Awaits handshake first. */
+	sendCustomMessage: (type: string, payload: unknown) => Promise<void>
 }
 
 interface PendingRequest {
@@ -268,7 +268,11 @@ export function createSigmaCWI(config: SigmaCWIConfig): SigmaCWIResult {
 		})
 	}
 
-	const sendCustomMessage = (type: string, payload: unknown): void => {
+	const sendCustomMessage = async (
+		type: string,
+		payload: unknown,
+	): Promise<void> => {
+		await waitForHandshake()
 		const target = iframe?.contentWindow
 		if (!target) return
 		target.postMessage({ type, payload }, sigmaOrigin)
