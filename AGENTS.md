@@ -69,6 +69,19 @@ Primary domain: 1Sat + BSV protocols (ordinals, BSV21 tokens, MAP, Sigma, OrdLoc
   - update README/examples if behavior changed
 - Keep temporary artifacts out of commits (`dist`, scratch files, debug scripts).
 
+## Publishing Packages
+
+When bumping a package version and publishing to npm:
+
+1. **Bump the version** in `package.json`
+2. **Delete `bun.lock`** and run `bun install` to regenerate it. `workspace:*` references resolve from the lockfile — if the lockfile is stale, `bun publish` will resolve to the old version even though `package.json` has the new one.
+3. **Clean `dist/`** before building (`rm -rf packages/<pkg>/dist`). Old `.d.ts` files from previous builds persist and get included in the published tarball.
+4. **Build** the package (`bun run --filter '@1sat/<pkg>' build`)
+5. **Verify the lockfile** has the correct version: `grep -A3 '"name": "@1sat/<pkg>"' bun.lock`
+6. **Commit and push** before publishing
+7. **Publish connect before react** — react depends on connect via `workspace:*`. The resolved version at publish time comes from the lockfile.
+8. **After publishing**, verify the dependency chain: `npm view @1sat/react@<ver> dependencies`
+
 ## Validation Checklist
 Run after meaningful changes:
 
