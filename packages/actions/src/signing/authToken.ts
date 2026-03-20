@@ -3,7 +3,7 @@ import type { Action, OneSatContext } from '../types'
 
 const { toArray, toHex } = Utils
 
-const AUTH_PROTOCOL_ID: [0 | 1 | 2, string] = [2, 'bitcoin-auth']
+const AUTH_PROTOCOL_ID: [0 | 1 | 2, string] = [2, 'bitcoinauth']
 const AUTH_KEY_ID = 'auth-0'
 
 export interface AuthTokenRequest {
