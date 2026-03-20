@@ -1,68 +1,69 @@
 /**
- * BRC-77 request signing using WalletInterface directly.
+ * BRC-77 request signing using WalletInterface.
  *
- * Same logic as getAuthToken action but without OneSatContext —
- * takes a WalletInterface so any connected wallet can sign.
+ * Produces a proper BRC-77 message envelope (version + sender pubkey +
+ * recipient indicator + keyID + DER signature) that go-bitcoin-auth and
+ * @bsv/sdk SignedMessage.verify can both verify.
  */
 
-import { BSM, BigNumber, Hash, PublicKey, Signature, Utils } from '@bsv/sdk'
+import { Hash, Random, Utils } from '@bsv/sdk'
 import type { WalletInterface } from '@bsv/sdk'
 
-const { toArray, toHex } = Utils
+const { toArray, toBase64, toHex } = Utils
 
-const AUTH_PROTOCOL_ID: [0 | 1 | 2, string] = [2, 'bitcoinauth']
-const AUTH_KEY_ID = 'auth-0'
-
-function compactSign(
-	derSig: number[],
-	msgHash: number[],
-	pubKeyHex: string,
-): string {
-	const sig = Signature.fromDER(toHex(derSig), 'hex')
-	const pubKey = PublicKey.fromString(pubKeyHex)
-	const recovery = sig.CalculateRecoveryFactor(pubKey, new BigNumber(msgHash))
-	return sig.toCompact(recovery, true, 'base64') as string
-}
+const BRC77_VERSION = [0x42, 0x42, 0x33, 0x01]
+const BRC77_PROTOCOL_ID: [0 | 1 | 2, string] = [2, 'message signing']
 
 /**
  * Sign an HTTP request with BRC-77 auth, returning the auth token string.
  *
- * The token format is: `pubkey|scheme|timestamp|requestPath|signature`
+ * The token format is: `pubkey|brc77|timestamp|requestPath|signature`
+ * where signature is a base64-encoded BRC-77 message envelope.
  *
  * @param wallet - Any BRC-100 WalletInterface (Sigma CWI, OneSat, extension, etc.)
  * @param requestPath - API endpoint path including query params
  * @param body - Optional request body to include in signature
- * @param scheme - Signature scheme: 'brc77' (default) or 'bsm'
  */
 export async function signRequest(
 	wallet: WalletInterface,
 	requestPath: string,
 	body?: string,
-	scheme: 'brc77' | 'bsm' = 'brc77',
 ): Promise<string> {
 	const timestamp = new Date().toISOString()
-
 	const bodyHash = body ? toHex(Hash.sha256(toArray(body, 'utf8'))) : ''
-
 	const message = `${requestPath}|${timestamp}|${bodyHash}`
 	const messageBytes = toArray(message, 'utf8')
 
-	const msgHash =
-		scheme === 'bsm' ? BSM.magicHash(messageBytes) : Hash.sha256(messageBytes)
+	// Random 32-byte keyID — matches BRC-77 SignedMessage.sign behavior
+	const keyID = Random(32)
+	const keyIDBase64 = toBase64(keyID)
 
-	const { publicKey: pubKeyHex } = await wallet.getPublicKey({
-		protocolID: AUTH_PROTOCOL_ID,
-		keyID: AUTH_KEY_ID,
-		forSelf: true,
+	// Get the sender's identity public key (root, not derived)
+	const { publicKey: senderPubKeyHex } = await wallet.getPublicKey({
+		identityKey: true,
 	})
 
+	// Sign with BRC-42 derivation matching BRC-77:
+	// invoice = "2-message signing-{keyIDBase64}"
+	// counterparty = "anyone" (pubkey for private key = 1)
 	const { signature: derSig } = await wallet.createSignature({
-		protocolID: AUTH_PROTOCOL_ID,
-		keyID: AUTH_KEY_ID,
-		counterparty: 'self',
-		hashToDirectlySign: Array.from(msgHash),
+		protocolID: BRC77_PROTOCOL_ID,
+		keyID: keyIDBase64,
+		counterparty: 'anyone',
+		data: Array.from(messageBytes),
 	})
 
-	const signature = compactSign(derSig, msgHash, pubKeyHex)
-	return `${pubKeyHex}|${scheme}|${timestamp}|${requestPath}|${signature}`
+	// Build BRC-77 envelope:
+	// [4 bytes version][33 bytes sender pubkey][1 byte 0x00 = anyone][32 bytes keyID][DER signature]
+	const senderPubKeyBytes = toArray(senderPubKeyHex, 'hex')
+	const envelope = [
+		...BRC77_VERSION,
+		...senderPubKeyBytes,
+		0x00, // anyone can verify
+		...keyID,
+		...derSig,
+	]
+
+	const signatureBase64 = toBase64(envelope)
+	return `${senderPubKeyHex}|brc77|${timestamp}|${requestPath}|${signatureBase64}`
 }
