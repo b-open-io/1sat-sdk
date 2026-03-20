@@ -5,9 +5,11 @@ import {
 	createContext,
 	useCallback,
 	useContext,
+	useEffect,
 	useState,
 } from 'react'
 import { ConnectDialog, type ConnectDialogRenderProps } from './ConnectDialog'
+import { useWallet } from './wallet-context'
 
 interface ConnectDialogContextValue {
 	openConnectDialog: () => void
@@ -44,7 +46,15 @@ export function ConnectDialogProvider({
 	children,
 	renderDialog,
 }: ConnectDialogProviderProps) {
+	const { status } = useWallet()
 	const [open, setOpen] = useState(false)
+
+	// Auto-open when wallet status becomes 'selecting' (auto-detect found nothing)
+	useEffect(() => {
+		if (status === 'selecting') {
+			setOpen(true)
+		}
+	}, [status])
 
 	const openConnectDialog = useCallback(() => {
 		setOpen(true)
