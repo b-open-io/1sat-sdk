@@ -37,7 +37,7 @@ export interface WalletContextValue {
 }
 
 export interface WalletProviderProps {
-	autoDetect?: boolean
+	autoReconnect?: boolean
 	providers?: WalletProviderConfig[]
 	children: ReactNode
 }
@@ -66,10 +66,27 @@ function clearStored(): void {
 	localStorage.removeItem(STORAGE_KEY)
 }
 
+const SIGMA_GUARD_KEY = 'onesat_sigma_reconnecting'
+
+function setSigmaGuard(): void {
+	if (typeof window === 'undefined') return
+	sessionStorage.setItem(SIGMA_GUARD_KEY, 'true')
+}
+
+function hasSigmaGuard(): boolean {
+	if (typeof window === 'undefined') return false
+	return sessionStorage.getItem(SIGMA_GUARD_KEY) === 'true'
+}
+
+export function clearSigmaGuard(): void {
+	if (typeof window === 'undefined') return
+	sessionStorage.removeItem(SIGMA_GUARD_KEY)
+}
+
 const WalletContext = createContext<WalletContextValue | null>(null)
 
 export function WalletProvider({
-	autoDetect = true,
+	autoReconnect = false,
 	providers,
 	children,
 }: WalletProviderProps) {
@@ -143,27 +160,59 @@ export function WalletProvider({
 
 	// Capture current callbacks in a ref so the mount effect has no deps
 	const mountRef = useRef({
-		autoDetect,
+		autoReconnect,
 		availableProviders,
 		connect,
 		applyResult,
 	})
 	mountRef.current = {
-		autoDetect,
+		autoReconnect,
 		availableProviders,
 		connect,
 		applyResult,
 	}
 
-	// Auto-detect on mount
+	// Auto-reconnect on mount
 	useEffect(() => {
-		const { autoDetect: auto, connect: doConnect } = mountRef.current
+		const { autoReconnect: shouldReconnect, availableProviders: configured, connect: doConnect } = mountRef.current
 
-		if (auto) {
-			doConnect()
-		} else {
-			setStatus('selecting')
+		if (!shouldReconnect) {
+			setStatus('disconnected')
+			return
 		}
+
+		const stored = loadStoredProvider()
+		if (!stored) {
+			setStatus('disconnected')
+			return
+		}
+
+		// Validate stored provider is in configured list
+		const isConfigured = configured.some((p) => p.type === stored)
+		if (!isConfigured) {
+			clearStored()
+			setStatus('disconnected')
+			return
+		}
+
+		// Sigma redirect guard — if we already tried and failed, don't loop
+		if (stored === 'sigma' && hasSigmaGuard()) {
+			clearStored()
+			clearSigmaGuard()
+			setStatus('disconnected')
+			return
+		}
+
+		// Set guard before sigma redirect (it navigates away)
+		if (stored === 'sigma') {
+			setSigmaGuard()
+		}
+
+		doConnect(stored).catch(() => {
+			clearStored()
+			if (stored === 'sigma') clearSigmaGuard()
+			setStatus('disconnected')
+		})
 	}, [])
 
 	const value = useMemo<WalletContextValue>(
