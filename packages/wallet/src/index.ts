@@ -96,3 +96,6 @@ export {
 
 // Note: Storage utilities (StorageIdb, WalletStorageManager, Chain) should be
 // imported directly from '@bsv/wallet-toolbox/mobile'
+
+// Factory utilities
+export { parsePrivateKey } from './parsePrivateKey'
