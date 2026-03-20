@@ -2,7 +2,7 @@
 
 import { completeSigmaOAuth, connectSigmaWallet } from '@1sat/connect'
 import { type ReactNode, useEffect, useState } from 'react'
-import { useWallet } from './wallet-context'
+import { useWallet, clearSigmaGuard } from './wallet-context'
 
 export interface SigmaCallbackProps {
 	/** Where to redirect after successful auth (default: '/') */
@@ -44,6 +44,7 @@ export function SigmaCallback({
 
 			const walletResult = await connectSigmaWallet(oauthResult.bapId)
 			applyResult(walletResult)
+			clearSigmaGuard()
 
 			if (onComplete) {
 				onComplete()
@@ -54,6 +55,7 @@ export function SigmaCallback({
 
 		completeSignIn().catch((err) => {
 			console.error('Sigma sign-in error:', err)
+			clearSigmaGuard()
 			const msg =
 				err instanceof Error
 					? err.message
