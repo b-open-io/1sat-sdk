@@ -187,6 +187,15 @@ export function WalletProvider({
 			return
 		}
 
+		// BRC-100 means "auto-detected last time" — re-run auto-detect
+		if (stored === 'brc100') {
+			doConnect().catch(() => {
+				clearStored()
+				setStatus('disconnected')
+			})
+			return
+		}
+
 		// Validate stored provider is in configured list
 		const isConfigured = configured.some((p) => p.type === stored)
 		if (!isConfigured) {
