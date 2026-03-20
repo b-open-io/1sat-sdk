@@ -6,6 +6,7 @@ export {
 	WalletProvider,
 	useWallet,
 	loadStoredProvider,
+	clearSigmaGuard,
 	type WalletContextValue,
 	type WalletProviderProps,
 	type WalletStatus,
