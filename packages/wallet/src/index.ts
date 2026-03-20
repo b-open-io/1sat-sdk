@@ -99,3 +99,13 @@ export {
 
 // Factory utilities
 export { parsePrivateKey } from './parsePrivateKey'
+
+// Factory core
+export {
+	createWalletCore,
+	DEFAULT_FEE_MODEL,
+	DEFAULT_CONNECTION_TIMEOUT,
+	type Chain,
+	type WalletCoreConfig,
+	type WalletCoreResult,
+} from './factory'
