@@ -53,7 +53,7 @@ async function main() {
 	const { wallet, destroy } = await createRemoteWallet({
 		privateKey: wifStr,
 		chain: 'main',
-		remoteStorageUrl: REMOTE_STORAGE_URL,
+		activeRemote: REMOTE_STORAGE_URL,
 	})
 
 	try {

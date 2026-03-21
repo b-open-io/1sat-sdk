@@ -28,7 +28,7 @@ import {
 const SETTABLE_KEYS: Array<keyof OneSatCliConfig> = [
 	'chain',
 	'dataDir',
-	'remoteStorageUrl',
+	'activeRemote',
 	'storageIdentityKey',
 ]
 
@@ -69,7 +69,7 @@ function configShow(opts: GlobalFlags): void {
 	printKeyValue({
 		chain: config.chain,
 		dataDir: config.dataDir,
-		remoteStorageUrl: config.remoteStorageUrl ?? '(not set)',
+		activeRemote: config.activeRemote ?? '(not set)',
 		storageIdentityKey: config.storageIdentityKey ?? '(not set)',
 	})
 	console.log()

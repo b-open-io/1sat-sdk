@@ -44,10 +44,10 @@ export async function loadContext(
 			},
 			useNullAsDefault: true,
 		},
-		remoteStorageUrl: config.remoteStorageUrl,
+		activeRemote: config.activeRemote,
 	})
 
-	walletResult.monitor.startTasks()
+	walletResult.monitor?.startTasks()
 
 	const ctx = createContext(walletResult.wallet, {
 		services: walletResult.services,

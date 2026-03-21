@@ -16,8 +16,8 @@ export interface OneSatCliConfig {
 	chain: 'main' | 'test'
 	/** Data directory for wallet databases */
 	dataDir: string
-	/** Remote storage URL for wallet backup */
-	remoteStorageUrl?: string
+	/** Remote storage URL for wallet sync */
+	activeRemote?: string
 	/** Storage identity key for wallet persistence */
 	storageIdentityKey?: string
 }

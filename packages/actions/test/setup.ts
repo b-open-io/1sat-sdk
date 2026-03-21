@@ -58,13 +58,13 @@ export async function createTestContext(label: string): Promise<TestContext> {
 	}
 
 	const chain = (process.env.TEST_CHAIN ?? 'main') as 'main' | 'test'
-	const remoteStorageUrl =
+	const activeRemote =
 		process.env.TEST_REMOTE_STORAGE_URL ?? DEFAULT_REMOTE_STORAGE_URL
 
 	const result = await createRemoteWallet({
 		privateKey: wif,
 		chain,
-		remoteStorageUrl,
+		activeRemote,
 	})
 
 	const ctx = createContext(result.wallet, { services: result.services, chain })
