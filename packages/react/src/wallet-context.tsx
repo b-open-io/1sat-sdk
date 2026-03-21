@@ -187,12 +187,25 @@ export function WalletProvider({
 			return
 		}
 
-		// BRC-100 means "auto-detected last time" — re-run auto-detect
+		// BRC-100 means "auto-detected last time" — re-run auto-detect silently.
+		// Don't use connect() here — that sets status to 'selecting' on failure,
+		// which opens the connect dialog. AutoReconnect failure should just
+		// stay disconnected and let the user click login explicitly.
 		if (stored === 'brc100') {
-			doConnect().catch(() => {
-				clearStored()
-				setStatus('disconnected')
-			})
+			setStatus('detecting')
+			connectWallet({ autoDetect: true, providers: configured.map(p => ({ type: p.type, name: p.name, icon: p.icon, url: p.url })) })
+				.then((result) => {
+					if (result) {
+						mountRef.current.applyResult(result)
+					} else {
+						clearStored()
+						setStatus('disconnected')
+					}
+				})
+				.catch(() => {
+					clearStored()
+					setStatus('disconnected')
+				})
 			return
 		}
 
