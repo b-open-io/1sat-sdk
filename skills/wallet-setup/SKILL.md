@@ -57,6 +57,15 @@ await destroy()
 | `storage` | `WalletStorageManager` | For diagnostics |
 | `remoteStorage` | `StorageClient \| undefined` | For diagnostics |
 
+## Checking Balance
+
+```typescript
+const balance = await wallet.balance()
+// Returns satoshis as a number (0 if empty wallet, never throws)
+```
+
+If `createAction` is called with insufficient funds, it throws `WERR_INSUFFICIENT_FUNDS` with `totalSatoshisNeeded` and `moreSatoshisNeeded` properties.
+
 ## Remote Wallet
 
 No local storage. The server handles transaction lifecycle.
@@ -250,6 +259,46 @@ if (await isSupported()) {
 - **Platform**: macOS arm64 only (fails informatively elsewhere)
 - **No entitlements, no code signing, no .app bundle needed**
 - Used by BAP CLI (`bap touchid enable`) and ClawNet CLI (`clawnet setup-key`)
+
+### Vault Configuration
+
+Configure the display name for Touch ID prompts:
+
+```typescript
+import { configureVault } from '@1sat/vault'
+configureVault({ name: 'MyApp' })
+// Touch ID now shows "MyApp wants to access your wallet"
+```
+
+### Checking Availability
+
+```typescript
+import { checkAvailability } from '@1sat/vault'
+
+const info = await checkAvailability()
+// info.secureEnclave: boolean
+// info.biometryType: 'TouchID' | 'FaceID' | 'None'
+// info.biometryAvailable: boolean
+```
+
+### Native Deposit Window
+
+Show a native macOS window with QR code for wallet funding:
+
+```typescript
+import { showDepositWindow, signalDepositReceived } from '@1sat/vault'
+
+const handle = showDepositWindow(address, estimatedSats)
+// Native window with QR code, copyable address, Copy/Cancel buttons
+
+// Poll for funds, then dismiss
+const interval = setInterval(async () => {
+  if (await wallet.balance() >= estimatedSats) {
+    signalDepositReceived(handle.pid)
+    clearInterval(interval)
+  }
+}, 5000)
+```
 
 
 ## Alternative: CLI Setup
