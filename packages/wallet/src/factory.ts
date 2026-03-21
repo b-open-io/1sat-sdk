@@ -56,14 +56,8 @@ export async function createWalletCore(
 	const fallbackServices = new toolbox.Services(chain)
 	const oneSatServices = new OneSatServices(chain, undefined, fallbackServices)
 
-	// 2. Create storage manager
-	let storage: InstanceType<typeof toolbox.WalletStorageManager>
-	if (localStorage) {
-		storage = new toolbox.WalletStorageManager(identityPubKey, localStorage, [])
-		await storage.makeAvailable()
-	} else {
-		storage = new toolbox.WalletStorageManager(identityPubKey)
-	}
+	// 2. Create storage manager — empty initially
+	const storage = new toolbox.WalletStorageManager(identityPubKey)
 
 	// 3. Create wallet (needed for StorageClient auth)
 	const wallet = new toolbox.Wallet({
@@ -95,13 +89,19 @@ export async function createWalletCore(
 		return client
 	}
 
-	// Connect active remote
 	if (config.activeRemote) {
+		// Remote-primary: connect remote first, set active, then add local as backup
 		const activeClient = await connectRemote(config.activeRemote)
 		const settings = activeClient.getSettings()
 		if (settings?.storageIdentityKey) {
 			await storage.setActive(settings.storageIdentityKey)
 		}
+		if (localStorage) {
+			await storage.addWalletStorageProvider(localStorage)
+		}
+	} else if (localStorage) {
+		// Local-primary: no remote, local is the active store
+		await storage.addWalletStorageProvider(localStorage)
 	}
 
 	// Connect backup remotes
