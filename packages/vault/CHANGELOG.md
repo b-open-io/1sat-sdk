@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.4
+
+### Added
+- `configureVault({ name })` to brand error messages with consumer app name
+- `VaultConfig` type exported from package root
+
+### Changed
+- All error messages use configurable name prefix instead of hardcoded `@1sat/vault`
+- Replaced internal `se-helper` references with `Secure Enclave helper` in user-facing messages
+
 ## 0.0.3
 
 ### Added
