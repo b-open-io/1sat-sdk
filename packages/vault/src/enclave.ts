@@ -140,7 +140,7 @@ export async function decrypt(
 	label: string,
 	ciphertext: string,
 ): Promise<string> {
-	const r = await callHelper(['decrypt', label, ciphertext])
+	const r = await callHelper(['decrypt', label, ciphertext, config.name])
 	if (!r.data)
 		throw new Error(`${config.name}: Secure Enclave returned no data for decrypt`)
 	return r.data

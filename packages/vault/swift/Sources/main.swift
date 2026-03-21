@@ -359,17 +359,21 @@ struct App {
                 ])
 
             case "decrypt":
-                guard args.count >= 4 else { fail("Usage: se-helper decrypt <label> <ciphertext_base64>"); return }
+                guard args.count >= 4 else { fail("Usage: se-helper decrypt <label> <ciphertext_base64> [app_name]"); return }
                 let label = args[2]
                 validateLabel(label)
                 let b64 = args[3]
+                let appName = args.count >= 5 ? args[4] : nil
 
                 guard let ciphertext = Data(base64Encoded: b64) else {
                     fail("Invalid base64 ciphertext"); return
                 }
 
                 // Touch ID gate — authenticate before accessing SE key
-                try await authenticateWithTouchID(reason: "Unlock key \"\(label)\"")
+                let reason = appName != nil
+                    ? "\(appName!) wants to access your wallet"
+                    : "Unlock key \"\(label)\""
+                try await authenticateWithTouchID(reason: reason)
 
                 // Decryption uses SE PRIVATE key — ECDH happens inside the chip
                 let privKey = try loadPrivateKey(label: label)
