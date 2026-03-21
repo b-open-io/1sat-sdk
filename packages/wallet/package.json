@@ -28,11 +28,11 @@
 		"fflate": "^0.8.2"
 	},
 	"peerDependencies": {
-		"@bsv/sdk": "^2.0.4",
-		"@bsv/wallet-toolbox": "^2.0.20"
+		"@bsv/sdk": "^2.0.6",
+		"@bsv/wallet-toolbox": "^2.1.8"
 	},
 	"devDependencies": {
-		"@bsv/sdk": "^2.0.4",
+		"@bsv/sdk": "^2.0.6",
 		"@types/chrome": "^0.1.32",
 		"typescript": "^5.9.3"
 	}

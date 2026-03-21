@@ -20,7 +20,7 @@
 		"@1sat/client": "workspace:*",
 		"@1sat/types": "workspace:*",
 		"@1sat/wallet-node": ">=0.0.13",
-		"@bsv/sdk": "^2.0.4",
+		"@bsv/sdk": "^2.0.6",
 		"chalk": "^5.0.0",
 		"@clack/prompts": "^0.8.0",
 		"bitcoin-backup": "^0.0.11",

@@ -27,14 +27,14 @@
 		"@1sat/types": "workspace:*"
 	},
 	"peerDependencies": {
-		"@bsv/sdk": "^2.0.4",
+		"@bsv/sdk": "^2.0.6",
 		"sigma-protocol": "^0.1.9"
 	},
 	"peerDependenciesMeta": {
 		"sigma-protocol": { "optional": true }
 	},
 	"devDependencies": {
-		"@bsv/sdk": "^2.0.4",
+		"@bsv/sdk": "^2.0.6",
 		"sigma-protocol": "^0.1.9",
 		"typescript": "^5.9.3"
 	}
