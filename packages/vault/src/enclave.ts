@@ -151,6 +151,58 @@ export async function deleteKey(label: string): Promise<void> {
 	await callHelper(['delete', label])
 }
 
+/**
+ * Show a native deposit window with QR code and address.
+ * Returns a handle to signal when funds are received.
+ *
+ * The window runs as a separate process. Send SIGUSR1 to dismiss
+ * it when the deposit is confirmed. If the user clicks Cancel,
+ * the process exits with a cancellation error.
+ */
+export function showDepositWindow(
+	address: string,
+	amountSats?: number,
+): { pid: number; waitForClose: () => Promise<'funded' | 'cancelled'> } {
+	assertSupported()
+
+	const helperPath = getHelperPath()
+	const args = ['deposit', address]
+	if (amountSats != null) args.push(String(amountSats))
+
+	const proc = Bun.spawn([helperPath, ...args], {
+		stdout: 'pipe',
+		stderr: 'pipe',
+	})
+
+	return {
+		pid: proc.pid,
+		async waitForClose(): Promise<'funded' | 'cancelled'> {
+			const stdout = await new Response(proc.stdout).text()
+			await proc.exited
+
+			try {
+				const result = JSON.parse(stdout.trim())
+				if (result.success && result.data === 'funded') return 'funded'
+			} catch {
+				// Not JSON — process was killed or cancelled
+			}
+			return 'cancelled'
+		},
+	}
+}
+
+/**
+ * Signal a deposit window that funds have been received.
+ * Sends SIGUSR1 to the window process.
+ */
+export function signalDepositReceived(pid: number): void {
+	try {
+		process.kill(pid, 'SIGUSR1')
+	} catch {
+		// Process already exited
+	}
+}
+
 /** List all SE keys managed by this vault */
 export async function listKeys(): Promise<
 	Array<{ label: string; publicKey: string }>

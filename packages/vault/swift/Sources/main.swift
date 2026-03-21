@@ -1,3 +1,5 @@
+import AppKit
+import CoreImage
 import CryptoKit
 import Foundation
 import LocalAuthentication
@@ -274,6 +276,168 @@ func decryptWithSEKey(privateKey: SecureEnclave.P256.KeyAgreement.PrivateKey, ci
     return plaintext
 }
 
+// MARK: - Deposit Window
+
+class DepositWindowController: NSObject, NSWindowDelegate {
+    let window: NSWindow
+    let statusField: NSTextField
+
+    init(address: String, amount: String?) {
+        // Generate QR code
+        let qrImage = Self.generateQR(from: "bitcoin:\(address)")
+
+        // Window size
+        let width: CGFloat = 360
+        let height: CGFloat = amount != nil ? 460 : 440
+
+        window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: width, height: height),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Deposit BSV"
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.level = .floating
+
+        let content = NSView(frame: NSRect(x: 0, y: 0, width: width, height: height))
+
+        // QR code image
+        let imageView = NSImageView(frame: NSRect(x: (width - 200) / 2, y: height - 230, width: 200, height: 200))
+        imageView.image = qrImage
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        content.addSubview(imageView)
+
+        // Address label
+        let addrLabel = NSTextField(wrappingLabelWithString: address)
+        addrLabel.frame = NSRect(x: 20, y: height - 270, width: width - 40, height: 30)
+        addrLabel.alignment = .center
+        addrLabel.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        addrLabel.isSelectable = true
+        content.addSubview(addrLabel)
+
+        // Amount label (if provided)
+        if let amount = amount {
+            let amountLabel = NSTextField(labelWithString: "Estimated cost: \(amount) sats")
+            amountLabel.frame = NSRect(x: 20, y: height - 300, width: width - 40, height: 20)
+            amountLabel.alignment = .center
+            amountLabel.font = NSFont.systemFont(ofSize: 12)
+            amountLabel.textColor = .secondaryLabelColor
+            content.addSubview(amountLabel)
+        }
+
+        // Status field
+        statusField = NSTextField(labelWithString: "Waiting for deposit...")
+        statusField.frame = NSRect(x: 20, y: 70, width: width - 40, height: 20)
+        statusField.alignment = .center
+        statusField.font = NSFont.systemFont(ofSize: 12)
+        statusField.textColor = .secondaryLabelColor
+        content.addSubview(statusField)
+
+        // Copy button
+        let copyBtn = NSButton(frame: NSRect(x: (width - 240) / 2, y: 25, width: 110, height: 32))
+        copyBtn.title = "Copy Address"
+        copyBtn.bezelStyle = .rounded
+        copyBtn.target = nil
+        copyBtn.action = #selector(Self.copyAddress(_:))
+        copyBtn.tag = 1
+        content.addSubview(copyBtn)
+
+        // Cancel button
+        let cancelBtn = NSButton(frame: NSRect(x: (width - 240) / 2 + 130, y: 25, width: 110, height: 32))
+        cancelBtn.title = "Cancel"
+        cancelBtn.bezelStyle = .rounded
+        cancelBtn.target = nil
+        cancelBtn.action = #selector(Self.cancelDeposit(_:))
+        content.addSubview(cancelBtn)
+
+        window.contentView = content
+
+        // Store address for copy
+        window.representedFilename = address
+
+        super.init()
+        window.delegate = self
+        copyBtn.target = self
+        cancelBtn.target = self
+    }
+
+    @objc func copyAddress(_ sender: Any) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(window.representedFilename, forType: .string)
+        statusField.stringValue = "Address copied!"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            self?.statusField.stringValue = "Waiting for deposit..."
+        }
+    }
+
+    @objc func cancelDeposit(_ sender: Any) {
+        NSApplication.shared.terminate(nil)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        NSApplication.shared.terminate(nil)
+    }
+
+    func show() {
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    func setFunded() {
+        statusField.stringValue = "Deposit received!"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            NSApplication.shared.terminate(nil)
+        }
+    }
+
+    static func generateQR(from string: String) -> NSImage {
+        let data = string.data(using: .utf8)!
+        let filter = CIFilter(name: "CIQRCodeGenerator")!
+        filter.setValue(data, forKey: "inputMessage")
+        filter.setValue("M", forKey: "inputCorrectionLevel")
+
+        let transform = CGAffineTransform(scaleX: 10, y: 10)
+        guard let ciImage = filter.outputImage?.transformed(by: transform) else {
+            return NSImage(size: NSSize(width: 200, height: 200))
+        }
+
+        let rep = NSCIImageRep(ciImage: ciImage)
+        let image = NSImage(size: rep.size)
+        image.addRepresentation(rep)
+        return image
+    }
+}
+
+func runDepositWindow(address: String, amount: String?) {
+    let app = NSApplication.shared
+    app.setActivationPolicy(.regular)
+
+    let controller = DepositWindowController(address: address, amount: amount)
+    controller.show()
+
+    app.activate(ignoringOtherApps: true)
+
+    // Listen for SIGUSR1 to indicate funds received
+    signal(SIGUSR1) { _ in
+        DispatchQueue.main.async {
+            // Print success and exit
+            let json = #"{"success":true,"data":"funded"}"#
+            FileHandle.standardOutput.write(json.data(using: .utf8)!)
+            FileHandle.standardOutput.write("\n".data(using: .utf8)!)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                NSApplication.shared.terminate(nil)
+            }
+        }
+    }
+
+    app.run()
+
+    // If we get here, user cancelled
+    let json = #"{"success":false,"error":"User cancelled deposit"}"#
+    print(json)
+}
+
 // MARK: - Main
 
 @main
@@ -400,8 +564,16 @@ struct App {
                     ok(data: "[\(items.joined(separator: ","))]", meta: ["count": "\(keys.count)"])
                 }
 
+            case "deposit":
+                guard args.count >= 3 else { fail("Usage: se-helper deposit <address> [amount_sats]"); return }
+                let address = args[2]
+                let amount = args.count >= 4 ? args[3] : nil
+                runDepositWindow(address: address, amount: amount)
+                // If runDepositWindow returns, user cancelled (exit code handled by NSApp.terminate)
+                return
+
             default:
-                fail("Unknown command: \(command). Use: check, generate, encrypt, decrypt, delete, list")
+                fail("Unknown command: \(command). Use: check, generate, encrypt, decrypt, delete, list, deposit")
             }
         } catch {
             fail("\(error)")
