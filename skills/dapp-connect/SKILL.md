@@ -1,36 +1,155 @@
 ---
 name: dapp-connect
-description: "This skill should be used when building a dApp that connects to a 1Sat wallet — using @1sat/connect for wallet connection via popup or browser extension, @1sat/react for React hooks and ConnectButton, or @1sat/extension for building browser wallet extensions. Triggers on 'connect wallet', 'dApp integration', 'wallet provider', 'ConnectButton', 'React hooks', 'useBalance', 'useOrdinals', 'browser extension', 'popup wallet', 'window.onesat', or 'OneSatProvider'."
+description: "This skill should be used when building a dApp that connects to a 1Sat wallet — using @1sat/connect for wallet connection via popup or browser extension, @1sat/react for React hooks and components, or integrating with the BigBlocks shadcn registry. Triggers on 'connect wallet', 'dApp integration', 'wallet provider', 'ConnectButton', 'WalletProvider', 'useWallet', 'ConnectDialog', 'SigmaCallback', 'browser extension', 'popup wallet', 'BRC-100', 'Sigma OAuth', 'BigBlocks registry', or 'shadcn wallet components'."
 ---
 
 # dApp Connect
 
 Build dApps that connect to 1Sat wallets using `@1sat/connect` (vanilla JS) and `@1sat/react` (React).
 
+## Architecture
+
+```
+@1sat/react (React components + hooks)
+  └── @1sat/connect (Core connection logic)
+        ├── BRC-100 auto-detection (extensions, Cicada, localhost, XDM)
+        ├── Sigma OAuth (browser redirect flow)
+        └── OneSat popup (iframe/redirect transport)
+```
+
 ## Quick Start (React)
 
 ```tsx
-import { OneSatProvider, ConnectButton, useBalance, useOrdinals } from '@1sat/react'
+import { WalletProvider, ConnectButton } from '@1sat/react'
 
 function App() {
   return (
-    <OneSatProvider appName="My dApp">
+    <WalletProvider appName="My dApp">
       <ConnectButton />
       <Dashboard />
-    </OneSatProvider>
+    </WalletProvider>
   )
 }
 
 function Dashboard() {
-  const { satoshis } = useBalance()
-  const { ordinals } = useOrdinals()
+  const { wallet, status, identityKey } = useWallet()
+  if (status !== 'connected' || !wallet) return <p>Not connected</p>
+  return <p>Connected: {identityKey?.slice(0, 8)}...</p>
+}
+```
 
-  return (
+## React Components
+
+All components from `@1sat/react` are **deliberately unstyled** — they provide functional primitives with minimal inline styles. Themed UI wrappers are distributed via the [BigBlocks registry](https://registry.bigblocks.dev) as shadcn-compatible registry items.
+
+### WalletProvider
+
+App-level context provider. Wrap the application root.
+
+```tsx
+<WalletProvider
+  appName="My dApp"               // Shown in wallet approval
+  autoReconnect={true}             // Auto-reconnect on mount
+  providers={customProviders}      // Custom wallet providers (optional)
+>
+  {children}
+</WalletProvider>
+```
+
+### ConnectButton
+
+Unstyled button that triggers wallet connection. Supports render-prop children for full customization.
+
+```tsx
+<ConnectButton
+  className="my-button"
+  connectLabel="Connect"
+  connectingLabel="Connecting..."
+  connectedLabel={(key) => `${key.slice(0,6)}...${key.slice(-4)}`}
+  onConnect={(result) => console.log(result)}
+  onDisconnect={() => console.log('disconnected')}
+  disconnectOnClick={true}          // Click to disconnect when connected
+/>
+```
+
+### ConnectDialog
+
+Controlled dialog for wallet provider selection. Requires `open` and `onOpenChange` props.
+
+```tsx
+<ConnectDialog
+  open={isOpen}
+  onOpenChange={setIsOpen}
+>
+  {({ providers, connect }) => (
     <div>
-      <p>Balance: {satoshis} sats</p>
-      <p>Ordinals: {ordinals?.length}</p>
+      {providers.map(p => (
+        <button key={p.type} onClick={() => connect(p.type)}>
+          {p.name} {p.detected ? '(detected)' : ''}
+        </button>
+      ))}
     </div>
+  )}
+</ConnectDialog>
+```
+
+### ConnectDialogProvider + useConnectDialog
+
+App-level provider that auto-opens the dialog when status becomes 'selecting'.
+
+```tsx
+<WalletProvider appName="My dApp">
+  <ConnectDialogProvider>
+    <App />
+  </ConnectDialogProvider>
+</WalletProvider>
+
+// In any child component:
+function ConnectTrigger() {
+  const { openConnectDialog } = useConnectDialog()
+  return <button onClick={openConnectDialog}>Connect</button>
+}
+```
+
+### WalletSelector
+
+Render-prop only component (no default UI). Lists providers with detection status.
+
+### SigmaCallback
+
+Page component for Sigma OAuth redirect. Place at the OAuth callback route.
+
+```tsx
+// app/auth/callback/page.tsx
+import { SigmaCallback } from '@1sat/react'
+
+export default function AuthCallback() {
+  return (
+    <SigmaCallback
+      redirectTo="/"
+      onComplete={(result) => console.log('Connected:', result)}
+      loadingContent={<p>Completing authentication...</p>}
+      renderError={(error) => <p>Error: {error.message}</p>}
+    />
   )
+}
+```
+
+## useWallet Hook
+
+Primary hook for accessing wallet context:
+
+```typescript
+interface WalletContextValue {
+  wallet: WalletInterface | null          // @bsv/sdk WalletInterface
+  status: WalletStatus                    // 'disconnected'|'detecting'|'selecting'|'connecting'|'connected'
+  identityKey: string | null              // Identity pubkey
+  providerType: string | null             // 'brc100'|'onesat'|'sigma'|custom
+  availableProviders: AvailableProvider[]
+  connect: (providerType?: string) => Promise<void>
+  applyResult: (result: ConnectWalletResult) => void
+  disconnect: () => void
+  error: Error | null
 }
 ```
 
@@ -39,112 +158,64 @@ function Dashboard() {
 ```typescript
 import { createOneSat } from '@1sat/connect'
 
-// Auto-detects extension or falls back to popup
 const onesat = createOneSat({ appName: 'My dApp' })
 
-// Connect (opens popup if no extension)
+// Connect (auto-detects extension or opens popup)
 const { paymentAddress, ordinalAddress, identityPubKey } = await onesat.connect()
 
-// Check balance
+// Operations
 const { satoshis } = await onesat.getBalance()
+const { signature } = await onesat.signMessage('Hello world')
+const { rawtx, txid } = await onesat.signTransaction({ rawtx, description: 'Payment' })
 
-// Sign a message
-const { signature, address } = await onesat.signMessage('Hello world')
-
-// Sign a transaction
-const { rawtx, txid } = await onesat.signTransaction({
-  rawtx: rawTransactionHex,
-  description: 'Payment transaction',
-})
-
-// Disconnect
 await onesat.disconnect()
 ```
 
+## Connection Flow
+
+`WalletProvider` uses a two-tier detection flow:
+
+1. **BRC-100 auto-detect** — scans for extensions, Cicada, localhost wallets, XDM
+2. **Manual selection** — if nothing detected, status becomes `'selecting'` and `ConnectDialogProvider` auto-opens the provider selector
+3. **Sigma OAuth** — redirect-based flow for Sigma Identity wallets, completed by `SigmaCallback`
+
 ## Provider Detection
-
-`createOneSat()` detects the wallet automatically:
-
-1. **Browser extension** — If `window.onesat.isOneSat` is true, uses the injected provider
-2. **Popup fallback** — Otherwise, creates a popup-based provider
 
 ```typescript
 import { isOneSatInjected, waitForOneSat, createOneSat } from '@1sat/connect'
 
-// Check immediately
-if (isOneSatInjected()) {
-  console.log('Extension detected!')
-}
+if (isOneSatInjected()) { /* Extension present */ }
 
-// Wait for extension to load (max 3s)
-try {
-  const provider = await waitForOneSat(3000)
-} catch {
-  console.log('No extension, using popup')
-}
+// Wait up to 3s for extension
+const provider = await waitForOneSat(3000)
 
-// Or just use createOneSat() which handles detection automatically
+// Or let createOneSat handle detection
 const onesat = createOneSat()
 ```
 
-## React Hooks
-
-All hooks from `@1sat/react`:
-
-| Hook | Returns | Description |
-|------|---------|-------------|
-| `useOneSatContext()` | `OneSatContextValue` | Provider connection state |
-| `useBalance()` | `{ satoshis, usd? }` | BSV balance |
-| `useOrdinals()` | `OrdinalOutput[]` | List ordinals |
-| `useTokens()` | `TokenOutput[]` | List token outputs |
-| `useUtxos()` | `Utxo[]` | List payment UTXOs |
-| `useSignTransaction()` | `(req) => Promise<result>` | Sign transactions |
-| `useSignMessage()` | `(msg) => Promise<result>` | Sign messages (BSM) |
-| `useInscribe()` | `(req) => Promise<result>` | Create inscriptions |
-| `useSendOrdinals()` | `(req) => Promise<result>` | Send ordinals |
-| `useTransferToken()` | `(req) => Promise<result>` | Transfer tokens |
-| `useCreateListing()` | `(req) => Promise<result>` | List ordinals for sale |
-| `usePurchaseListing()` | `(req) => Promise<result>` | Buy listed ordinals |
-| `useCancelListing()` | `(req) => Promise<result>` | Cancel listings |
-
 ## OneSatProvider Interface
 
-The full provider interface available to dApps:
+Full provider interface for dApp operations:
 
 ```typescript
 interface OneSatProvider {
-  // Connection
   connect(): Promise<ConnectResult>
   disconnect(): Promise<void>
   isConnected(): boolean
-
-  // Signing
   signTransaction(request: SignTransactionRequest): Promise<SignTransactionResult>
   signMessage(message: string): Promise<SignMessageResult>
-
-  // Ordinals
   inscribe(request: InscribeRequest): Promise<InscribeResult>
   sendOrdinals(request: SendOrdinalsRequest): Promise<SendResult>
-
-  // Marketplace
   createListing(request: CreateListingRequest): Promise<ListingResult>
   purchaseListing(request: PurchaseListingRequest): Promise<SendResult>
   cancelListing(request: CancelListingRequest): Promise<SendResult>
-
-  // Tokens
   transferToken(request: TransferTokenRequest): Promise<SendResult>
-
-  // Read-only
   getBalance(): Promise<BalanceResult>
   getOrdinals(options?: ListOptions): Promise<OrdinalOutput[]>
   getTokens(options?: ListOptions): Promise<TokenOutput[]>
   getUtxos(): Promise<Utxo[]>
-
-  // Events
   on(event: OneSatEvent, handler: EventHandler): void
   off(event: OneSatEvent, handler: EventHandler): void
-
-  // Utility
   getAddresses(): { paymentAddress: string; ordinalAddress: string } | null
   getIdentityPubKey(): string | null
 }
@@ -153,94 +224,47 @@ interface OneSatProvider {
 ## Events
 
 ```typescript
-onesat.on('connect', (result) => {
-  console.log('Connected:', result.paymentAddress)
-})
-
-onesat.on('disconnect', () => {
-  console.log('Disconnected')
-})
-
-onesat.on('accountChange', (result) => {
-  console.log('Account changed:', result.paymentAddress)
-})
-```
-
-## Transport Modes
-
-For popup-based connections, configure the transport:
-
-```typescript
-import { createOneSat, createEmbedTransport, createRedirectTransport } from '@1sat/connect'
-
-// Auto-detect best transport
-const onesat = createOneSat({ appName: 'My dApp' })
-
-// Or force embed (iframe) transport
-const embedTransport = createEmbedTransport({ walletUrl: 'https://1sat.market' })
-
-// Or force redirect transport (for mobile)
-const redirectTransport = createRedirectTransport({ walletUrl: 'https://1sat.market' })
-```
-
-## Building a Browser Extension
-
-Use `@1sat/extension` to build wallet extensions:
-
-```typescript
-// inject.ts - Injects window.onesat into web pages
-import { injectOneSatProvider } from '@1sat/extension'
-injectOneSatProvider()
-
-// content.ts - Bridges messages between page and extension
-import { createContentBridge } from '@1sat/extension'
-createContentBridge()
-
-// background.ts - Handles wallet operations
-import { createBackgroundHandler, openApprovalPopup } from '@1sat/extension'
-
-const handler = createBackgroundHandler({
-  handlers: {
-    async connect(request, sender) {
-      const approved = await openApprovalPopup('/popup/connect.html')
-      if (!approved) throw new UserRejectedError()
-      return { paymentAddress, ordinalAddress, identityPubKey }
-    },
-    async signTransaction(request, sender) { /* ... */ },
-    async getBalance(request, sender) { /* ... */ },
-    // ... implement all OneSatProvider methods
-  }
-})
+onesat.on('connect', (result) => console.log('Connected:', result.paymentAddress))
+onesat.on('disconnect', () => console.log('Disconnected'))
+onesat.on('accountChange', (result) => console.log('Account:', result.paymentAddress))
 ```
 
 ## Persistent Connection
 
 ```typescript
-import { saveConnection, loadConnection, clearConnection } from '@1sat/connect'
+import { saveConnection, loadConnection, clearConnection, hasStoredConnection } from '@1sat/connect'
 
-// Save after connecting
 const result = await onesat.connect()
-saveConnection({ paymentAddress: result.paymentAddress, ... })
+saveConnection({ paymentAddress: result.paymentAddress, ordinalAddress: result.ordinalAddress, identityPubKey: result.identityPubKey, timestamp: Date.now() })
 
-// Restore on page load
-const stored = loadConnection()
-if (stored) {
-  // Auto-reconnect
+// On page load
+if (hasStoredConnection()) {
+  const stored = loadConnection()
+  // Auto-reconnect using stored.providerType
 }
 
-// Clear on disconnect
-clearConnection()
+clearConnection() // On disconnect
 ```
+
+## BigBlocks Registry Integration
+
+`@1sat/react` components are unstyled primitives. The [BigBlocks registry](https://registry.bigblocks.dev) serves shadcn-themed versions installable via:
+
+```bash
+bunx shadcn@latest add https://registry.bigblocks.dev/r/connect-wallet.json
+```
+
+BigBlocks components wrap `@1sat/react` primitives in shadcn UI (Button, Dialog, Drawer, DropdownMenu) with full theme support. The source for `@1sat/react` stays in this repo — BigBlocks serves them without duplicating code.
 
 ## Requirements
 
 ```bash
-# For vanilla JS dApps
+# Vanilla JS
 bun add @1sat/connect
 
-# For React dApps
+# React
 bun add @1sat/react  # includes @1sat/connect
 
-# For building extensions
+# Browser extensions
 bun add @1sat/extension
 ```
