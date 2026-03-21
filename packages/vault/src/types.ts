@@ -33,3 +33,8 @@ export interface UnlockResult {
 export interface ProtectResult {
 	publicKey: string
 }
+
+export interface VaultConfig {
+	/** Display name for error messages (default: "@1sat/vault"). */
+	name?: string
+}

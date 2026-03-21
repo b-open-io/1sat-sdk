@@ -1,6 +1,9 @@
 // Platform detection
 export { assertSupported, isSupported } from './platform'
 
+// Configuration
+export { configureVault } from './enclave'
+
 // Low-level Secure Enclave operations
 export {
 	checkAvailability,
@@ -25,6 +28,7 @@ export type {
 	ProtectResult,
 	SEAvailability,
 	UnlockResult,
+	VaultConfig,
 	VaultEntry,
 	VaultSummary,
 } from './types'

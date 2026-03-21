@@ -10,9 +10,30 @@ import { existsSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { assertSupported } from './platform'
-import type { HelperResult, SEAvailability } from './types'
+import type { HelperResult, SEAvailability, VaultConfig } from './types'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
+
+let config: Required<VaultConfig> = {
+	name: '@1sat/vault',
+}
+
+/**
+ * Configure the vault before use.
+ *
+ * ```ts
+ * import { configureVault } from '@1sat/vault'
+ * configureVault({ name: 'clawnet' })
+ * ```
+ */
+export function configureVault(userConfig: VaultConfig): void {
+	if (userConfig.name) config.name = userConfig.name
+}
+
+/** @internal Get the configured display name for error messages. */
+export function getVaultName(): string {
+	return config.name
+}
 
 function getHelperPath(): string {
 	// Works from both src/ (dev) and dist/ (published):
@@ -33,7 +54,7 @@ async function callHelper(
 		const buildScript = resolve(__dirname, '../swift/build.sh')
 		if (!existsSync(buildScript)) {
 			throw new Error(
-				`@1sat/vault: Neither se-helper binary nor build.sh found. Package may be corrupt.`,
+				`${config.name}: Secure Enclave helper not found. Run: cd node_modules/@1sat/vault && ./swift/build.sh`,
 			)
 		}
 		const build = Bun.spawnSync(['sh', buildScript], {
@@ -43,7 +64,7 @@ async function callHelper(
 		})
 		if (build.exitCode !== 0 || !existsSync(helperPath)) {
 			const err = new TextDecoder().decode(build.stderr)
-			throw new Error(`@1sat/vault: Failed to compile se-helper. ${err}`)
+			throw new Error(`${config.name}: Failed to compile Secure Enclave helper. ${err}`)
 		}
 	}
 
@@ -60,7 +81,7 @@ async function callHelper(
 	if (!stdout.trim()) {
 		const hint = stderr ? ` stderr: ${stderr.trim()}` : ''
 		throw new Error(
-			`@1sat/vault: se-helper produced no output.${hint} Is it compiled? Run: ./swift/build.sh`,
+			`${config.name}: Secure Enclave helper produced no output.${hint} Is it compiled? Run: ./swift/build.sh`,
 		)
 	}
 
@@ -89,7 +110,7 @@ export async function generateKey(label: string): Promise<{
 }> {
 	const r = await callHelper(['generate', label])
 	if (!r.data)
-		throw new Error('@1sat/vault: SE helper returned no data for generate')
+		throw new Error(`${config.name}: Secure Enclave returned no data for generate`)
 	return {
 		publicKey: r.data,
 		keyFile: r.meta?.keyFile ?? '',
@@ -107,7 +128,7 @@ export async function encrypt(
 ): Promise<string> {
 	const r = await callHelper(['encrypt', label], plaintext)
 	if (!r.data)
-		throw new Error('@1sat/vault: SE helper returned no data for encrypt')
+		throw new Error(`${config.name}: Secure Enclave returned no data for encrypt`)
 	return r.data
 }
 
@@ -121,7 +142,7 @@ export async function decrypt(
 ): Promise<string> {
 	const r = await callHelper(['decrypt', label, ciphertext])
 	if (!r.data)
-		throw new Error('@1sat/vault: SE helper returned no data for decrypt')
+		throw new Error(`${config.name}: Secure Enclave returned no data for decrypt`)
 	return r.data
 }
 

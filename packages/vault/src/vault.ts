@@ -24,6 +24,7 @@ import {
 	deleteKey,
 	encrypt,
 	generateKey,
+	getVaultName,
 	listKeys,
 } from './enclave'
 import type {
@@ -41,7 +42,7 @@ const SAFE_LABEL = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$/
 function validateLabel(label: string): void {
 	if (!SAFE_LABEL.test(label)) {
 		throw new Error(
-			`@1sat/vault: Invalid label "${label}". Labels must be 1-63 chars, alphanumeric/hyphens/underscores/dots, starting with alphanumeric.`,
+			`${getVaultName()}: Invalid label "${label}". Labels must be 1-63 chars, alphanumeric/hyphens/underscores/dots, starting with alphanumeric.`,
 		)
 	}
 }
@@ -99,7 +100,7 @@ export async function unlockSecret(label: string): Promise<UnlockResult> {
 	validateLabel(label)
 	const path = entryPath(label)
 	if (!existsSync(path)) {
-		throw new Error(`@1sat/vault: No vault entry for "${label}"`)
+		throw new Error(`${getVaultName()}: No vault entry for "${label}"`)
 	}
 
 	const entry: VaultEntry = JSON.parse(readFileSync(path, 'utf-8'))
