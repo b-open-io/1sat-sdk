@@ -218,6 +218,19 @@ const content = await fetch('https://api.1sat.app/1sat/content/txid_0')
 | `origin:{outpoint}` | Origin outpoint of the ordinal |
 | `name:{value}` | Name from MAP metadata |
 
+## BigBlocks Registry Blocks
+
+The [BigBlocks registry](https://registry.bigblocks.dev) provides ready-to-use shadcn blocks that wrap the hook patterns from this SDK into polished, theme-aware UI:
+
+| Block | Description | Install |
+|-------|-------------|---------|
+| `create-listing` | List ordinals for sale via OrdLock | `bunx shadcn@latest add https://registry.bigblocks.dev/r/create-listing.json` |
+| `buy-listing` | Purchase ordinals from the global orderbook | `bunx shadcn@latest add https://registry.bigblocks.dev/r/buy-listing.json` |
+| `inscribe-file` | Full inscription flow with File / BSV20 / BSV21 tabs | `bunx shadcn@latest add https://registry.bigblocks.dev/r/inscribe-file.json` |
+| `deploy-token` | BSV21 token deployment | `bunx shadcn@latest add https://registry.bigblocks.dev/r/deploy-token.json` |
+
+These blocks depend on `@1sat/react` for wallet context and `@1sat/actions` for transaction building. Install them into any Next.js project with shadcn configured.
+
 ## Requirements
 
 ```bash
