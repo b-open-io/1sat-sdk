@@ -172,7 +172,7 @@ export async function create(
 ): Promise<void> {
 	const v = getVault()
 	const rootKey = deriveRootKey(mnemonic)
-	const rootKeyHex = rootKey.toString()
+	const rootKeyHex = rootKey.toHex()
 	const identityKey = rootKey.toPublicKey().toString()
 
 	// Protect root key in vault (Touch ID enrollment on macOS)
@@ -198,7 +198,7 @@ export async function create(
 export async function unlock(_passphrase: string): Promise<void> {
 	const v = getVault()
 	const rootKeyHex = await retrieveRootKey(v)
-	const rootKey = new PrivateKey(rootKeyHex)
+	const rootKey = PrivateKey.fromHex(rootKeyHex)
 	const identityKey = rootKey.toPublicKey().toString()
 
 	walletResult = await createNodeWallet({
