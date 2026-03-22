@@ -683,7 +683,7 @@ import type {
 ## Related
 
 - [@1sat/connect](../connect) - Popup wallet connection
-- [@1sat/core](../core) - Transaction building and protocol implementations
+- [@1sat/templates](../templates) - Transaction building and protocol implementations
 - [@1sat/client](../client) - API clients for indexer and broadcast
 - [1sat.market](https://1sat.market) - Reference wallet implementation
 

@@ -6,10 +6,12 @@ import type { WalletInterface } from '@bsv/sdk'
  * - HTTP  on 127.0.0.1:3321
  * - HTTPS on 127.0.0.1:2121 (self-signed cert, trusted on first run)
  *
+ * Sensitive methods route through the WebView for user approval.
  * Compatible with `new WalletClient('auto')` from `@bsv/sdk`.
  */
 import type { Server } from 'bun'
-import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
+import type { PermissionRequest } from '../shared/types'
 import { getWallet } from './wallet-manager'
 
 const HTTP_PORT = 3321
@@ -98,6 +100,121 @@ const NO_ARG_METHODS = new Set<WalletMethod>([
 
 const walletMethodSet = new Set<string>(WALLET_METHODS)
 
+/** Methods that require user approval via the WebView permission dialog. */
+const SENSITIVE_METHODS = new Set<WalletMethod>([
+	'createAction',
+	'signAction',
+	'encrypt',
+	'decrypt',
+	'createSignature',
+	'createHmac',
+	'acquireCertificate',
+])
+
+const PERMISSION_TIMEOUT_MS = 60_000
+
+interface PendingPermission {
+	resolve: (result: unknown) => void
+	reject: (error: Error) => void
+	method: string
+	args: unknown
+	origin: string
+	timer: ReturnType<typeof setTimeout>
+}
+
+const pendingPermissions = new Map<string, PendingPermission>()
+
+type PermissionPusher = (request: PermissionRequest) => void
+let permissionPusher: PermissionPusher | undefined
+
+/** Set the callback that pushes permission requests to the WebView. */
+export function setPermissionPusher(fn: PermissionPusher): void {
+	permissionPusher = fn
+}
+
+/**
+ * Resolve a pending permission request.
+ * Called from the RPC handler when the WebView responds.
+ */
+export function resolvePermission(params: {
+	requestId: string
+	approved: boolean
+	error?: string
+}): { success: boolean } {
+	const pending = pendingPermissions.get(params.requestId)
+	if (!pending) {
+		console.warn(
+			`[BRC-100] resolvePermission: unknown requestId ${params.requestId}`,
+		)
+		return { success: false }
+	}
+
+	clearTimeout(pending.timer)
+	pendingPermissions.delete(params.requestId)
+
+	if (!params.approved) {
+		pending.reject(new Error(params.error ?? 'User denied permission'))
+		return { success: true }
+	}
+
+	// User approved — execute the wallet method
+	const wallet: WalletInterface | undefined = getWallet()?.wallet
+	if (!wallet) {
+		pending.reject(new Error('Wallet is locked'))
+		return { success: true }
+	}
+
+	const fn = wallet[pending.method as WalletMethod] as (
+		args: unknown,
+		originator: string,
+	) => Promise<unknown>
+
+	fn.call(wallet, pending.args, pending.origin)
+		.then((result) => pending.resolve(result))
+		.catch((err) =>
+			pending.reject(
+				err instanceof Error ? err : new Error(String(err)),
+			),
+		)
+
+	return { success: true }
+}
+
+/**
+ * Request user permission for a sensitive wallet method.
+ * Returns a Promise that resolves with the wallet method result or rejects on denial/timeout.
+ */
+function requestPermission(
+	requestId: string,
+	method: string,
+	origin: string,
+	args: unknown,
+): Promise<unknown> {
+	if (!permissionPusher) {
+		return Promise.reject(
+			new Error('Permission system not initialized — WebView not connected'),
+		)
+	}
+
+	return new Promise<unknown>((resolve, reject) => {
+		const timer = setTimeout(() => {
+			pendingPermissions.delete(requestId)
+			reject(new Error('Permission request timed out (60s)'))
+		}, PERMISSION_TIMEOUT_MS)
+
+		pendingPermissions.set(requestId, {
+			resolve,
+			reject,
+			method,
+			args,
+			origin,
+			timer,
+		})
+
+		permissionPusher!({ requestId, method, origin, args })
+	})
+}
+
 function jsonResponse(body: unknown, status = 200): Response {
 	return new Response(JSON.stringify(body), {
 		status,
@@ -178,18 +295,28 @@ async function handleRequest(req: Request): Promise<Response> {
 	return jsonResponse({ error: `Not found: ${pathname}` }, 404)
 }
 
-/**
- * Ensure a self-signed TLS certificate exists in ~/.1sat-wallet/certs/.
- * Generated via openssl on first run.
- */
-async function ensureCert(): Promise<{ cert: string; key: string }> {
-	if (existsSync(CERT_PATH) && existsSync(KEY_PATH)) {
-		return {
-			cert: readFileSync(CERT_PATH, 'utf-8'),
-			key: readFileSync(KEY_PATH, 'utf-8'),
-		}
-	}
+/** Check if the certificate is expired or within 7 days of expiry. */
+function isCertExpired(certPath: string): boolean {
+	const proc = Bun.spawnSync([
+		'openssl',
+		'x509',
+		'-enddate',
+		'-noout',
+		'-in',
+		certPath,
+	])
+	if (proc.exitCode !== 0) return true
+	const output = new TextDecoder().decode(proc.stdout)
+	// output: "notAfter=Mar 22 15:43:16 2027 GMT\n"
+	const match = output.match(/notAfter=(.+)/)
+	if (!match) return true
+	const expiry = new Date(match[1])
+	const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+	return expiry < sevenDaysFromNow
+}
 
+/** Generate a new self-signed TLS certificate in ~/.1sat-wallet/certs/. */
+function generateCert(): void {
 	mkdirSync(CERT_DIR, { recursive: true })
 
 	const proc = Bun.spawnSync([
@@ -216,6 +343,32 @@ async function ensureCert(): Promise<{ cert: string; key: string }> {
 			`Failed to generate SSL cert: ${new TextDecoder().decode(proc.stderr)}`,
 		)
 	}
+}
+
+/**
+ * Ensure a valid self-signed TLS certificate exists in ~/.1sat-wallet/certs/.
+ * Generates a new cert on first run or when the existing one is expired
+ * (or within 7 days of expiry).
+ */
+async function ensureCert(): Promise<{ cert: string; key: string }> {
+	const certExists = existsSync(CERT_PATH) && existsSync(KEY_PATH)
+
+	if (certExists && !isCertExpired(CERT_PATH)) {
+		return {
+			cert: readFileSync(CERT_PATH, 'utf-8'),
+			key: readFileSync(KEY_PATH, 'utf-8'),
+		}
+	}
+
+	if (certExists) {
+		console.log('[BRC-100] Certificate expired or expiring soon, regenerating...')
+		// Delete the trust flag so the new cert is re-trusted
+		if (existsSync(SSL_PROMPTED_FLAG)) {
+			unlinkSync(SSL_PROMPTED_FLAG)
+		}
+	}
+
+	generateCert()
 
 	return {
 		cert: readFileSync(CERT_PATH, 'utf-8'),
