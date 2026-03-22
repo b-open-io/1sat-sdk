@@ -4,11 +4,11 @@
  * Creates the desktop window, wires RPC handlers, sets up the
  * application menu, and boots the wallet lifecycle.
  */
-import {
+import Electrobun, {
 	ApplicationMenu,
 	BrowserView,
 	BrowserWindow,
-	Electrobun,
+	Utils,
 	Updater,
 } from 'electrobun/bun'
 import type { WalletDesktopRPC } from '../shared/types'
@@ -113,7 +113,7 @@ ApplicationMenu.setApplicationMenu([
 
 Electrobun.events.on('application-menu-clicked', (e) => {
 	if (e.data.action === 'quit') {
-		process.exit(0)
+		Utils.quit()
 	}
 })
 
