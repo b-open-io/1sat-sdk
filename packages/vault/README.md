@@ -1,6 +1,6 @@
 # @1sat/vault
 
-![1sat vault — Hardware Security for BSV](../../vault-infographic.png)
+![1sat vault — Hardware Security for BSV](../../assets/vault-infographic.png)
 
 Secure Enclave hardware vault for protecting secrets with Touch ID on macOS Apple Silicon.
 
