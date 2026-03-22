@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.0.6
+
+### Breaking Changes
+- **Provider-based architecture**: `protectSecret`, `unlockSecret`, `removeSecret`, `listSecrets` are no longer direct exports. Use `createVault(provider, storage)` factory instead.
+- `configureVault`, `checkAvailability`, `encrypt`, `decrypt`, `generateKey`, `deleteKey`, `listKeys` removed from this package. Use `@1sat/wallet-mac` for macOS Secure Enclave operations.
+- `isSupported`, `assertSupported` removed. Platform detection is now the provider's responsibility.
+- `showDepositWindow`, `signalDepositReceived` moved to `@1sat/wallet-mac`.
+
+### Added
+- `VaultProvider` interface for per-platform implementations
+- `VaultStorage` interface for pluggable storage backends
+- `FileVaultStorage` — default filesystem-backed storage
+- `createVault(provider, storage)` factory function
+- `Vault` interface type
+
+### Removed
+- All macOS Secure Enclave code (moved to `@1sat/wallet-mac`)
+- `HelperResult`, `SEAvailability` types (macOS-specific)
+
 ## 0.0.5
 
 ### Added
