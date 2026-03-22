@@ -1,37 +1,120 @@
-import { BrowserWindow, Updater } from "electrobun/bun";
+/**
+ * 1Sat Wallet — Bun process entry point.
+ *
+ * Creates the desktop window, wires RPC handlers, sets up the
+ * application menu, and boots the wallet lifecycle.
+ */
+import {
+	ApplicationMenu,
+	BrowserView,
+	BrowserWindow,
+	Updater,
+} from "electrobun/bun"
+import type { WalletDesktopRPC } from "../shared/types"
+import { createRpcHandlers } from "./rpc-handlers"
+import { checkVault, setStatusChangedCallback } from "./wallet-manager"
 
-const DEV_SERVER_PORT = 5173;
-const DEV_SERVER_URL = `http://localhost:${DEV_SERVER_PORT}`;
+// ============================================================================
+// Dev server detection (HMR support)
+// ============================================================================
 
-// Check if Vite dev server is running for HMR
+const DEV_SERVER_PORT = 5173
+const DEV_SERVER_URL = `http://localhost:${DEV_SERVER_PORT}`
+
 async function getMainViewUrl(): Promise<string> {
-	const channel = await Updater.localInfo.channel();
+	const channel = await Updater.localInfo.channel()
 	if (channel === "dev") {
 		try {
-			await fetch(DEV_SERVER_URL, { method: "HEAD" });
-			console.log(`HMR enabled: Using Vite dev server at ${DEV_SERVER_URL}`);
-			return DEV_SERVER_URL;
+			await fetch(DEV_SERVER_URL, { method: "HEAD" })
+			console.log(`HMR enabled: Using Vite dev server at ${DEV_SERVER_URL}`)
+			return DEV_SERVER_URL
 		} catch {
 			console.log(
 				"Vite dev server not running. Run 'bun run dev:hmr' for HMR support.",
-			);
+			)
 		}
 	}
-	return "views://mainview/index.html";
+	return "views://mainview/index.html"
 }
 
-// Create the main application window
-const url = await getMainViewUrl();
+// ============================================================================
+// RPC
+// ============================================================================
+
+const handlers = createRpcHandlers()
+
+const rpc = BrowserView.defineRPC<WalletDesktopRPC>({
+	handlers: {
+		requests: handlers,
+		messages: {},
+	},
+})
+
+// ============================================================================
+// Application window
+// ============================================================================
+
+const url = await getMainViewUrl()
 
 const mainWindow = new BrowserWindow({
-	title: "React + Tailwind + Vite",
+	title: "1Sat Wallet",
 	url,
-	frame: {
-		width: 900,
-		height: 700,
-		x: 200,
-		y: 200,
-	},
-});
+	frame: { width: 420, height: 680, x: 200, y: 200 },
+	titleBarStyle: "hiddenInset",
+	rpc,
+})
 
-console.log("React Tailwind Vite app started!");
+// ============================================================================
+// Application menu
+// ============================================================================
+
+ApplicationMenu.setApplicationMenu([
+	{
+		label: "1Sat Wallet",
+		submenu: [
+			{ label: "About 1Sat Wallet", role: "hide" },
+			{ type: "separator" },
+			{ role: "hide" },
+			{ role: "hideOthers" },
+			{ role: "showAll" },
+			{ type: "separator" },
+			{ label: "Quit", role: "quit" },
+		],
+	},
+	{
+		label: "Edit",
+		submenu: [
+			{ role: "undo" },
+			{ role: "redo" },
+			{ type: "separator" },
+			{ role: "cut" },
+			{ role: "copy" },
+			{ role: "paste" },
+			{ role: "selectAll" },
+		],
+	},
+	{
+		label: "View",
+		submenu: [{ role: "toggleFullScreen" }],
+	},
+])
+
+// ============================================================================
+// Wallet lifecycle
+// ============================================================================
+
+// Push wallet status changes to the WebView
+setStatusChangedCallback((status) => {
+	mainWindow.webview.rpc.send.walletStateChanged({ status })
+})
+
+// Check vault on launch — triggers setStatusChangedCallback which pushes to WebView.
+// Also send the initial state once the webview DOM is ready.
+const hasKey = checkVault()
+mainWindow.webview.on("dom-ready", () => {
+	mainWindow.webview.rpc.send.walletStateChanged({
+		status: hasKey ? "locked" : "no-wallet",
+	})
+})
+
+console.log("1Sat Wallet started")
