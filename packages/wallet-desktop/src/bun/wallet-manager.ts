@@ -170,21 +170,28 @@ export async function create(
 	mnemonic: string,
 	_passphrase: string,
 ): Promise<void> {
+	console.log("[wallet-manager] create() starting")
 	const v = getVault()
+
+	console.log("[wallet-manager] deriving root key from mnemonic")
 	const rootKey = deriveRootKey(mnemonic)
 	const rootKeyHex = rootKey.toHex()
 	const identityKey = rootKey.toPublicKey().toString()
+	console.log("[wallet-manager] rootKeyHex length:", rootKeyHex.length, "identityKey:", identityKey.substring(0, 10) + "...")
 
-	// Protect root key in vault (Touch ID enrollment on macOS)
+	console.log("[wallet-manager] protecting root key in vault")
 	await protectRootKey(v, rootKeyHex)
+	console.log("[wallet-manager] root key protected")
 
-	// Boot the wallet
+	const wif = rootKey.toWif()
+	console.log("[wallet-manager] calling createNodeWallet")
 	walletResult = await createNodeWallet({
-		privateKey: rootKeyHex,
+		privateKey: wif,
 		chain: "main",
-		storageIdentityKey: identityKey,
+		storageIdentityKey: `1sat-wallet:${identityKey}`,
 		filename: dbPath(),
 	})
+	console.log("[wallet-manager] wallet created successfully")
 
 	setStatus("unlocked")
 	wireMonitorEvents()
@@ -196,17 +203,31 @@ export async function create(
  * On macOS this triggers Touch ID.
  */
 export async function unlock(_passphrase: string): Promise<void> {
+	console.log("[wallet-manager] unlock() starting")
 	const v = getVault()
 	const rootKeyHex = await retrieveRootKey(v)
-	const rootKey = PrivateKey.fromHex(rootKeyHex)
-	const identityKey = rootKey.toPublicKey().toString()
+	console.log("[wallet-manager] retrieved key, length:", rootKeyHex.length, "first10:", rootKeyHex.substring(0, 10), "isHex:", /^[0-9a-fA-F]{64}$/.test(rootKeyHex))
+	try {
+		const rootKey = PrivateKey.fromHex(rootKeyHex)
+		console.log("[wallet-manager] PrivateKey.fromHex OK")
+		const identityKey = rootKey.toPublicKey().toString()
+		console.log("[wallet-manager] identityKey:", identityKey.substring(0, 10) + "...")
 
-	walletResult = await createNodeWallet({
-		privateKey: rootKeyHex,
-		chain: "main",
-		storageIdentityKey: identityKey,
-		filename: dbPath(),
-	})
+		const wif = rootKey.toWif()
+		console.log("[wallet-manager] calling createNodeWallet with filename:", dbPath())
+		walletResult = await createNodeWallet({
+			privateKey: wif,
+			chain: "main",
+			storageIdentityKey: `1sat-wallet:${identityKey}`,
+			filename: dbPath(),
+		})
+		console.log("[wallet-manager] createNodeWallet succeeded")
+	} catch (err) {
+		console.error("[wallet-manager] unlock error:", err)
+		console.error("[wallet-manager] error message:", (err as Error).message)
+		console.error("[wallet-manager] error stack:", (err as Error).stack?.split("\n").slice(0, 5).join("\n"))
+		throw err
+	}
 
 	setStatus("unlocked")
 	wireMonitorEvents()

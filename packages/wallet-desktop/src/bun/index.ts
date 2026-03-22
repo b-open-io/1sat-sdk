@@ -12,6 +12,7 @@ import {
 } from "electrobun/bun"
 import type { WalletDesktopRPC } from "../shared/types"
 import { createRpcHandlers } from "./rpc-handlers"
+import { startWalletServer } from "./http-server"
 import {
 	checkVault,
 	setBalanceUpdatedCallback,
@@ -131,5 +132,11 @@ mainWindow.webview.on("dom-ready", () => {
 		status: hasKey ? "locked" : "no-wallet",
 	})
 })
+
+// ============================================================================
+// BRC-100 HTTP server for dApp connectivity
+// ============================================================================
+
+startWalletServer()
 
 console.log("1Sat Wallet started")
