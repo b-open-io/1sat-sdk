@@ -97,6 +97,12 @@ export async function createWalletCore(
 			await storage.setActive(settings.storageIdentityKey)
 		}
 		if (localStorage) {
+			await localStorage.makeAvailable()
+			const { user } = await localStorage.findOrInsertUser(identityPubKey)
+			await (localStorage as any).setActive(
+				{ identityKey: identityPubKey, userId: user.userId },
+				settings.storageIdentityKey,
+			)
 			await storage.addWalletStorageProvider(localStorage)
 		}
 	} else if (localStorage) {
