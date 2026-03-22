@@ -12,11 +12,13 @@
 	},
 	"iconLibrary": "lucide",
 	"aliases": {
-		"components": "@/components",
-		"utils": "@/lib/utils",
-		"ui": "@/components/ui",
-		"lib": "@/lib",
-		"hooks": "@/hooks"
+		"components": "src/mainview/components",
+		"utils": "src/mainview/lib/utils",
+		"ui": "src/mainview/components/ui",
+		"lib": "src/mainview/lib",
+		"hooks": "src/mainview/hooks"
 	},
-	"registries": {}
+	"registries": {
+		"bigblocks": "https://registry.bigblocks.dev"
+	}
 }
