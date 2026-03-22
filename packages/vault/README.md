@@ -1,5 +1,7 @@
 # @1sat/vault
 
+![1sat vault — Hardware Security for BSV](../../vault-infographic.png)
+
 Secure Enclave hardware vault for protecting secrets with Touch ID on macOS Apple Silicon.
 
 P-256 keys are generated **inside the Secure Enclave chip** and never leave it. Encryption uses
