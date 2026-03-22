@@ -3,7 +3,7 @@ import type { ElectrobunConfig } from "electrobun";
 export default {
 	app: {
 		name: "1Sat Wallet",
-		identifier: "com.1sat.wallet",
+		identifier: "com.1satwallet",
 		version: "0.0.1",
 	},
 	build: {
