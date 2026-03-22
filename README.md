@@ -418,12 +418,12 @@ if (
 │  - Inscription, OrdLock, Lock   │  - Indexer API             │
 │  - BSV20, BSV21, AIP, BAP      │  - Broadcast (Arcade)      │
 │  - MAP, Sigma, BSocial          │  - UTXO fetch, ORDFS       │
-├─────────────────────────────────┴────────────────────────────┤
-│  @1sat/cli                      │  @1sat/vault               │
-│  - Terminal wallet & ops        │  - VaultProvider interface  │
-│  - Binary: 1sat                 │  - VaultStorage            │
-│  - 30+ commands                 │  - Platform-agnostic       │
-├─────────────────────────────────┴────────────────────────────┤
+├────────────────────┬───────────────────┬─────────────────────┤
+│  @1sat/cli         │  @1sat/vault      │ @1sat/wallet-desktop│
+│  - Terminal wallet │  - Vault API      │ - Electrobun app    │
+│  - Binary: 1sat    │  - VaultStorage   │ - BRC-100 server    │
+│  - 30+ commands    │  - Secure Enclave │ - Touch ID unlock   │
+├────────────────────┴───────────────────┴─────────────────────┤
 │  @1sat/types            │  @1sat/utils                       │
 │  - Type definitions     │  - Encoding & validation           │
 │  - Protocol constants   │  - Key derivation                  │
@@ -449,6 +449,7 @@ if (
 | `@1sat/wallet-remote` | 0.0.11 | Remote-only wallet factory (no local storage) |
 | `@1sat/vault` | 0.0.3 | Platform-agnostic vault interface (VaultProvider, VaultStorage) |
 | `@1sat/wallet-mac` | 0.0.1 | macOS Secure Enclave provider + native deposit window |
+| `@1sat/wallet-desktop` | 0.0.1 | Native desktop wallet app (Electrobun + Bun + system WebView) |
 
 ## Protocols
 
