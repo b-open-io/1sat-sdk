@@ -9,6 +9,10 @@ import type {
 	LockBsvParams,
 	LockDataInfo,
 	LockResult,
+	MintCollectionItemParams,
+	MintCollectionItemResult,
+	MintCollectionParams,
+	MintCollectionResult,
 	OpnsNameInfo,
 	OpnsOperationParams,
 	OpnsOperationResult,
@@ -71,6 +75,8 @@ interface UseWalletReturn {
 	publishIdentity: () => Promise<PublishIdentityResult>
 	opnsRegister: (params: OpnsOperationParams) => Promise<OpnsOperationResult>
 	opnsDeregister: (params: OpnsOperationParams) => Promise<OpnsOperationResult>
+	mintCollection: (params: MintCollectionParams) => Promise<MintCollectionResult>
+	mintCollectionItem: (params: MintCollectionItemParams) => Promise<MintCollectionItemResult>
 }
 
 export function useWallet(): UseWalletReturn {
@@ -229,6 +235,20 @@ export function useWallet(): UseWalletReturn {
 		return rpc.request.opnsDeregister(params)
 	}, [])
 
+	const mintCollectionAction = useCallback(
+		async (params: MintCollectionParams) => {
+			return rpc.request.mintCollection(params)
+		},
+		[],
+	)
+
+	const mintCollectionItemAction = useCallback(
+		async (params: MintCollectionItemParams) => {
+			return rpc.request.mintCollectionItem(params)
+		},
+		[],
+	)
+
 	return {
 		status,
 		balance,
@@ -257,5 +277,7 @@ export function useWallet(): UseWalletReturn {
 		publishIdentity: publishIdentityAction,
 		opnsRegister,
 		opnsDeregister,
+		mintCollection: mintCollectionAction,
+		mintCollectionItem: mintCollectionItemAction,
 	}
 }

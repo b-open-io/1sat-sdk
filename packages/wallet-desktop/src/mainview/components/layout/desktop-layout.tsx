@@ -11,6 +11,7 @@ import { useWallet } from '../../hooks/use-wallet'
 import { SyncTerminal } from '@/components/blocks/sync-terminal'
 import { HistoryView } from '../../views/history/index'
 import { IdentityView } from '../../views/identity/index'
+import { CollectionsView } from '../../views/collections/index'
 import { InscribeView } from '../../views/inscribe/index'
 import { LocksView } from '../../views/locks/index'
 import { OpnsView } from '../../views/opns/index'
@@ -28,6 +29,7 @@ type Route =
 	| 'tokens'
 	| 'history'
 	| 'inscribe'
+	| 'collections'
 	| 'locks'
 	| 'opns'
 	| 'social'
@@ -83,6 +85,8 @@ export function DesktopLayout() {
 				return <HistoryView />
 			case 'inscribe':
 				return <InscribeView />
+			case 'collections':
+				return <CollectionsView />
 			case 'locks':
 				return <LocksView />
 			case 'opns':

@@ -180,6 +180,44 @@ export interface FileReadResult {
 	sizeBytes: number
 }
 
+// Mint collection params
+export interface MintCollectionParams {
+	base64Content: string
+	contentType: string
+	name: string
+	description: string
+	quantity: number
+	traits?: Record<string, { values: string[]; occurancePercentages: string[] }>
+	rarityLabels?: Array<Record<string, string>>
+	royalties?: Array<{ type: string; destination: string; percentage: string }>
+	app?: string
+}
+
+// Mint collection result
+export interface MintCollectionResult {
+	txid?: string
+	collectionId?: string
+	error?: string
+}
+
+// Mint collection item params
+export interface MintCollectionItemParams {
+	base64Content: string
+	contentType: string
+	name: string
+	collectionId: string
+	mintNumber?: number
+	rank?: number
+	traits?: Array<{ name: string; value: string }>
+	app?: string
+}
+
+// Mint collection item result
+export interface MintCollectionItemResult {
+	txid?: string
+	error?: string
+}
+
 // ---- RPC Schema ----
 // Requests the webview can make to bun
 type BunRequests = {
@@ -290,6 +328,14 @@ type BunRequests = {
 	opnsDeregister: {
 		params: OpnsOperationParams
 		response: OpnsOperationResult
+	}
+	mintCollection: {
+		params: MintCollectionParams
+		response: MintCollectionResult
+	}
+	mintCollectionItem: {
+		params: MintCollectionItemParams
+		response: MintCollectionItemResult
 	}
 }
 

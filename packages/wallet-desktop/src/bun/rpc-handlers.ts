@@ -37,6 +37,8 @@ import type {
 	InscribeFileParams,
 	LockBsvParams,
 	LockDataInfo,
+	MintCollectionItemParams,
+	MintCollectionParams,
 	OpnsNameInfo,
 	OpnsOperationParams,
 	OrdinalInfo,
@@ -568,6 +570,32 @@ export function createRpcHandlers() {
 				ordinal,
 				inputBEEF: listResult.BEEF as number[] | undefined,
 			})
+			return { txid: result.txid, error: result.error }
+		},
+
+		mintCollection: async (params: MintCollectionParams) => {
+			const w = requireWallet()
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
+			const { mintCollection } = await import('@1sat/actions')
+			const result = await mintCollection.execute(ctx, params)
+			return {
+				txid: result.txid,
+				collectionId: result.collectionId,
+				error: result.error,
+			}
+		},
+
+		mintCollectionItem: async (params: MintCollectionItemParams) => {
+			const w = requireWallet()
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
+			const { mintCollectionItem } = await import('@1sat/actions')
+			const result = await mintCollectionItem.execute(ctx, params)
 			return { txid: result.txid, error: result.error }
 		},
 	}
