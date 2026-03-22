@@ -445,7 +445,7 @@ struct App {
     static func main() async {
         let args = CommandLine.arguments
         guard args.count >= 2 else {
-            fail("Usage: se-helper <check|generate|encrypt|decrypt|delete|list> [args...]")
+            fail("Usage: enclave <check|generate|encrypt|decrypt|delete|list> [args...]")
             return
         }
 
@@ -478,7 +478,7 @@ struct App {
                 ])
 
             case "generate":
-                guard args.count >= 3 else { fail("Usage: se-helper generate <label>"); return }
+                guard args.count >= 3 else { fail("Usage: enclave generate <label>"); return }
                 guard SecureEnclave.isAvailable else { fail("SECURE_ENCLAVE_NOT_AVAILABLE"); return }
 
                 let label = args[2]
@@ -494,7 +494,7 @@ struct App {
                 ])
 
             case "encrypt":
-                guard args.count >= 3 else { fail("Usage: se-helper encrypt <label> (plaintext via stdin)"); return }
+                guard args.count >= 3 else { fail("Usage: enclave encrypt <label> (plaintext via stdin)"); return }
                 let label = args[2]
                 validateLabel(label)
                 // Read plaintext from stdin, not CLI args (args visible in ps)
@@ -523,7 +523,7 @@ struct App {
                 ])
 
             case "decrypt":
-                guard args.count >= 4 else { fail("Usage: se-helper decrypt <label> <ciphertext_base64> [app_name]"); return }
+                guard args.count >= 4 else { fail("Usage: enclave decrypt <label> <ciphertext_base64> [app_name]"); return }
                 let label = args[2]
                 validateLabel(label)
                 let b64 = args[3]
@@ -550,7 +550,7 @@ struct App {
                 ])
 
             case "delete":
-                guard args.count >= 3 else { fail("Usage: se-helper delete <label>"); return }
+                guard args.count >= 3 else { fail("Usage: enclave delete <label>"); return }
                 validateLabel(args[2])
                 try deleteKey(label: args[2])
                 ok(meta: ["label": args[2]])
@@ -565,7 +565,7 @@ struct App {
                 }
 
             case "deposit":
-                guard args.count >= 3 else { fail("Usage: se-helper deposit <address> [amount_sats]"); return }
+                guard args.count >= 3 else { fail("Usage: enclave deposit <address> [amount_sats]"); return }
                 let address = args[2]
                 let amount = args.count >= 4 ? args[3] : nil
                 runDepositWindow(address: address, amount: amount)
