@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.5
+
+### Added
+- **Native deposit window**: `showDepositWindow(address, amountSats?)` shows a macOS window with QR code, copyable address, estimated cost, and Copy/Cancel buttons
+- `signalDepositReceived(pid)` dismisses the deposit window when funds are confirmed
+- App name passed to Touch ID prompt via `decrypt` command — shows "{appName} wants to access your wallet" instead of generic text
+- `checkAvailability()` returns SE and biometry status
+
+### Changed
+- Touch ID `localizedReason` uses configured app name when available
+
 ## 0.0.4
 
 ### Added
