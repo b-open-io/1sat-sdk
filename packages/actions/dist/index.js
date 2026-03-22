@@ -7,7 +7,7 @@
 // Export action types and helpers
 export { createContext, } from './types';
 // Export action registry
-export { ActionRegistry, actionRegistry } from './registry';
+export { ActionRegistry, actionRegistry } from './action-registry';
 // Export constants
 export * from './constants';
 // Export shared utilities
@@ -31,6 +31,8 @@ export * from './opns';
 export * from './sweep';
 // Export sync module
 export * from './sync';
+// Export registry module (on-chain package builder)
+export * from './registry';
 import { addressesActions } from './addresses';
 import { identityActions } from './identity';
 import { inscriptionsActions } from './inscriptions';
@@ -38,7 +40,7 @@ import { locksActions } from './locks';
 import { opnsActions } from './opns';
 import { ordinalsActions } from './ordinals';
 import { paymentsActions } from './payments';
-import { actionRegistry } from './registry';
+import { actionRegistry } from './action-registry';
 import { signingActions } from './signing';
 import { socialActions } from './social';
 import { sweepActions } from './sweep';
