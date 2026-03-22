@@ -1,32 +1,16 @@
-// Platform detection
-export { assertSupported, isSupported } from './platform'
+// Vault factory
+export { createVault, type Vault } from './vault'
 
-// Configuration
-export { configureVault } from './enclave'
+// Provider interface (implement per-platform)
+export type { VaultProvider, VaultAvailability } from './provider'
 
-// Low-level Secure Enclave operations
-export {
-	checkAvailability,
-	decrypt,
-	deleteKey,
-	encrypt,
-	generateKey,
-	listKeys,
-} from './enclave'
+// Storage interface + default filesystem implementation
+export type { VaultStorage } from './storage'
+export { FileVaultStorage } from './file-storage'
 
-// High-level vault
-export {
-	listSecrets,
-	protectSecret,
-	removeSecret,
-	unlockSecret,
-} from './vault'
-
-// Types
+// Domain types
 export type {
-	HelperResult,
 	ProtectResult,
-	SEAvailability,
 	UnlockResult,
 	VaultConfig,
 	VaultEntry,

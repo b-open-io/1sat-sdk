@@ -1,17 +1,3 @@
-export interface HelperResult {
-	success: boolean
-	data?: string
-	error?: string
-	meta?: Record<string, string>
-}
-
-export interface SEAvailability {
-	secureEnclave: boolean
-	biometryType: string
-	biometryAvailable: boolean
-	vaultDir: string
-}
-
 export interface VaultEntry {
 	ciphertext: string
 	metadata?: Record<string, string>
