@@ -1,49 +1,54 @@
-import { WalletOverviewUI, type WalletBalance } from '@/components/blocks/wallet-overview'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useWallet } from '../../hooks/use-wallet'
 
 export function OverviewView() {
-	const { balance, getReceiveInfo } = useWallet()
-	const [paymentAddress, setPaymentAddress] = useState<string | null>(null)
+	const { balance } = useWallet()
 
-	useEffect(() => {
-		getReceiveInfo().then(
-			(info) => setPaymentAddress(info.address),
-			(err) => console.error('Failed to get receive info:', err),
-		)
-	}, [getReceiveInfo])
-
-	const walletBalance: WalletBalance = useMemo(
-		() => ({
-			confirmed: balance.confirmed,
-			unconfirmed: balance.unconfirmed,
-			total: balance.confirmed + balance.unconfirmed,
-		}),
-		[balance],
-	)
-
-	const handleRefresh = useCallback(() => {
-		// Balance is automatically refreshed via RPC subscription
-	}, [])
+	const bsvAmount = (balance.confirmed / 1e8).toFixed(8)
 
 	return (
 		<div className="space-y-6 max-w-2xl">
 			<div>
-				<h2 className="text-xl font-bold text-foreground">Welcome</h2>
+				<h2 className="text-xl font-bold text-foreground">Overview</h2>
 				<p className="text-sm text-muted-foreground mt-1">
 					Your wallet at a glance
 				</p>
 			</div>
 
-			<WalletOverviewUI
-				balance={walletBalance}
-				paymentAddress={paymentAddress}
-				ordinalAddress={null}
-				identityKey={null}
-				isLoading={false}
-				error={null}
-				onRefresh={handleRefresh}
-			/>
+			<div className="grid grid-cols-3 gap-4">
+				<Card>
+					<CardHeader className="pb-2">
+						<CardTitle className="text-sm font-medium text-muted-foreground">
+							BSV Balance
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<p className="text-2xl font-bold font-mono">{bsvAmount}</p>
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader className="pb-2">
+						<CardTitle className="text-sm font-medium text-muted-foreground">
+							Ordinals
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<p className="text-2xl font-bold font-mono">--</p>
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader className="pb-2">
+						<CardTitle className="text-sm font-medium text-muted-foreground">
+							Tokens
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<p className="text-2xl font-bold font-mono">--</p>
+					</CardContent>
+				</Card>
+			</div>
 		</div>
 	)
 }
