@@ -12,7 +12,11 @@ import Electrobun, {
 	Updater,
 } from 'electrobun/bun'
 import type { WalletDesktopRPC } from '../shared/types'
-import { startWalletServer } from './http-server'
+import {
+	resolvePermission,
+	setPermissionPusher,
+	startWalletServer,
+} from './http-server'
 import { createRpcHandlers } from './rpc-handlers'
 import {
 	checkVault,
@@ -53,7 +57,10 @@ const handlers = createRpcHandlers()
 const rpc = BrowserView.defineRPC<WalletDesktopRPC>({
 	maxRequestTime: 60000, // 60s — wallet ops + Touch ID can be slow
 	handlers: {
-		requests: handlers,
+		requests: {
+			...handlers,
+			resolvePermission,
+		},
 		messages: {},
 	},
 })
@@ -148,6 +155,12 @@ mainWindow.webview.on('dom-ready', () => {
 // ============================================================================
 // BRC-100 HTTP server for dApp connectivity
 // ============================================================================
+
+// Wire the permission pusher so the HTTP server can route approval requests
+// through the WebView permission dialog.
+setPermissionPusher((request) => {
+	mainWindow.webview.rpc.send.permissionRequest(request)
+})
 
 startWalletServer()
 

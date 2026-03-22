@@ -309,6 +309,10 @@ type BunRequests = {
 		params: { wif: string; assets: SweepScanResult }
 		response: SweepResultInfo
 	}
+	resolvePermission: {
+		params: { requestId: string; approved: boolean; error?: string }
+		response: { success: boolean }
+	}
 	createSocialPost: {
 		params: CreateSocialPostParams
 		response: SocialPostResult
@@ -339,12 +343,21 @@ type BunRequests = {
 	}
 }
 
+// Permission request from BRC-100 HTTP server
+export interface PermissionRequest {
+	requestId: string
+	method: string
+	origin: string
+	args: unknown
+}
+
 // Messages bun can send to the webview (push notifications)
 type BunMessages = {
 	walletStateChanged: { status: WalletStatus }
 	balanceUpdated: BalanceInfo
 	syncEvent: SyncEvent
 	ordinalsUpdated: { ordinals: OrdinalInfo[] }
+	permissionRequest: PermissionRequest
 }
 
 // Requests bun can make to the webview (currently none)

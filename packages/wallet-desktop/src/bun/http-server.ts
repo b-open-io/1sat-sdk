@@ -279,6 +279,19 @@ async function handleRequest(req: Request): Promise<Response> {
 		try {
 			const args = NO_ARG_METHODS.has(methodName) ? {} : await req.json()
 
+			// Sensitive methods require user approval via the WebView
+			if (SENSITIVE_METHODS.has(methodName)) {
+				const requestId = crypto.randomUUID()
+				const result = await requestPermission(
+					requestId,
+					methodName,
+					origin,
+					args,
+				)
+				return jsonResponse(result)
+			}
+
+			// Non-sensitive methods execute directly
 			const fn = wallet[methodName] as (
 				args: unknown,
 				originator: string,

@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { useState } from 'react'
 import { BigBlocksProvider } from '@/components/blocks/bigblocks-provider'
+import { PermissionDialog } from './components/permission-dialog'
 import { DesktopLayout } from './components/layout/desktop-layout'
 import { useWallet } from './hooks/use-wallet'
 import { CreateWallet } from './views/onboarding/create-wallet'
@@ -76,6 +77,7 @@ function App() {
 		return (
 			<BigBlocksProvider>
 				<DesktopLayout />
+				<PermissionDialog />
 			</BigBlocksProvider>
 		)
 	}

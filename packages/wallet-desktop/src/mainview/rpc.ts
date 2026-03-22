@@ -2,6 +2,7 @@ import { Electroview } from 'electrobun/view'
 import type {
 	BalanceInfo,
 	OrdinalInfo,
+	PermissionRequest,
 	SyncEvent,
 	WalletDesktopRPC,
 	WalletStatus,
@@ -47,6 +48,9 @@ const rpc = Electroview.defineRPC<WalletDesktopRPC>({
 			ordinalsUpdated: (payload: { ordinals: OrdinalInfo[] }) => {
 				emit('ordinalsUpdated', payload)
 			},
+			permissionRequest: (payload: PermissionRequest) => {
+				emit('permissionRequest', payload)
+			},
 		},
 	},
 })
@@ -75,6 +79,10 @@ function onOrdinalsUpdated(
 	return subscribe('ordinalsUpdated', fn)
 }
 
+function onPermissionRequest(fn: Listener<PermissionRequest>): Unsubscribe {
+	return subscribe('permissionRequest', fn)
+}
+
 export {
 	electroview,
 	rpc,
@@ -83,4 +91,5 @@ export {
 	onBalanceUpdated,
 	onSyncEvent,
 	onOrdinalsUpdated,
+	onPermissionRequest,
 }
