@@ -1,11 +1,15 @@
 import { Button } from '@/components/ui/button'
 import {
+	Clock,
 	Coins,
+	Globe,
 	History,
 	Image,
 	LayoutDashboard,
+	MessageCircle,
 	PenTool,
 	Settings,
+	UserCircle,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -15,6 +19,10 @@ const NAV_ITEMS = [
 	{ id: 'tokens', label: 'Tokens', icon: Coins },
 	{ id: 'history', label: 'History', icon: History },
 	{ id: 'inscribe', label: 'Inscribe', icon: PenTool },
+	{ id: 'locks', label: 'Locks', icon: Clock },
+	{ id: 'opns', label: 'OpNS', icon: Globe },
+	{ id: 'social', label: 'Social', icon: MessageCircle },
+	{ id: 'identity', label: 'Identity', icon: UserCircle },
 	{ id: 'settings', label: 'Settings', icon: Settings },
 ] as const
 

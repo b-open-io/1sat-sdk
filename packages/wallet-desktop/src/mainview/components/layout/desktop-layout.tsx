@@ -10,9 +10,13 @@ import { useSyncEvents } from '../../hooks/use-sync-events'
 import { useWallet } from '../../hooks/use-wallet'
 import { SyncTerminal } from '@/components/blocks/sync-terminal'
 import { HistoryView } from '../../views/history/index'
+import { IdentityView } from '../../views/identity/index'
 import { InscribeView } from '../../views/inscribe/index'
+import { LocksView } from '../../views/locks/index'
+import { OpnsView } from '../../views/opns/index'
 import { OrdinalsView } from '../../views/ordinals/index'
 import { SettingsView } from '../../views/settings/index'
+import { SocialView } from '../../views/social/index'
 import { TokensView } from '../../views/tokens/index'
 import { OverviewView } from '../../views/dashboard/index'
 import { SidebarNav } from './sidebar-nav'
@@ -24,6 +28,10 @@ type Route =
 	| 'tokens'
 	| 'history'
 	| 'inscribe'
+	| 'locks'
+	| 'opns'
+	| 'social'
+	| 'identity'
 	| 'settings'
 
 export function DesktopLayout() {
@@ -75,6 +83,14 @@ export function DesktopLayout() {
 				return <HistoryView />
 			case 'inscribe':
 				return <InscribeView />
+			case 'locks':
+				return <LocksView />
+			case 'opns':
+				return <OpnsView />
+			case 'social':
+				return <SocialView />
+			case 'identity':
+				return <IdentityView />
 			case 'settings':
 				return <SettingsView />
 		}

@@ -1,58 +1,53 @@
-import { useEffect, useState } from 'react'
-import type { HistoryEntry } from '../../../shared/types'
-import { HistoryRow } from '../../components/history-row'
+import { useCallback, useEffect, useState } from 'react'
+import {
+	TransactionHistoryUI,
+	type HistoryEntry,
+} from '@/components/blocks/transaction-history'
 import { rpc } from '../../rpc'
 
 export function HistoryView() {
 	const [entries, setEntries] = useState<HistoryEntry[]>([])
 	const [loading, setLoading] = useState(true)
+	const [error, setError] = useState<Error | null>(null)
 
 	useEffect(() => {
 		rpc.request
 			.getTransactionHistory({ limit: 50 })
 			.then((result) => {
-				setEntries(result.entries)
+				setEntries(
+					result.entries.map((e) => ({
+						txid: e.txid,
+						description: e.description,
+						satoshis: e.satoshis,
+						status: e.status as HistoryEntry['status'],
+						dateCreated: e.dateCreated,
+					})),
+				)
 			})
 			.catch((err) => {
-				console.error('Failed to load transaction history:', err)
+				setError(
+					err instanceof Error
+						? err
+						: new Error('Failed to load transaction history'),
+				)
 			})
 			.finally(() => {
 				setLoading(false)
 			})
 	}, [])
 
-	if (loading) {
-		return (
-			<div className="p-6">
-				<div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-4">
-					History
-				</div>
-				<p className="text-sm text-muted-foreground">Loading history...</p>
-			</div>
-		)
-	}
-
-	if (entries.length === 0) {
-		return (
-			<div className="p-6">
-				<div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-4">
-					History
-				</div>
-				<p className="text-sm text-muted-foreground">No transactions yet</p>
-			</div>
-		)
-	}
+	const handleRowClick = useCallback((txid: string) => {
+		console.log('Transaction clicked:', txid)
+	}, [])
 
 	return (
 		<div className="p-6">
-			<div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-4">
-				History
-			</div>
-			<div className="border border-border bg-card">
-				{entries.map((entry) => (
-					<HistoryRow key={entry.txid} entry={entry} />
-				))}
-			</div>
+			<TransactionHistoryUI
+				entries={entries}
+				isLoading={loading}
+				error={error}
+				onRowClick={handleRowClick}
+			/>
 		</div>
 	)
 }

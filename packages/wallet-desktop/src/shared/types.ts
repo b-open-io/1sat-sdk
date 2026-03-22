@@ -72,6 +72,106 @@ export interface InscribeFileParams {
 	map?: Record<string, string>
 }
 
+// Lock data summary
+export interface LockDataInfo {
+	totalLocked: number
+	unlockable: number
+	nextUnlock: number
+}
+
+// Lock BSV params
+export interface LockBsvParams {
+	satoshis: number
+	until: number
+}
+
+// Lock/Unlock result
+export interface LockResult {
+	txid?: string
+	error?: string
+}
+
+// Send BSV21 params
+export interface SendBsv21Params {
+	tokenId: string
+	amount: string
+	address: string
+}
+
+// Send BSV21 result
+export interface SendBsv21Result {
+	txid?: string
+	error?: string
+}
+
+// Sweep scan result
+export interface SweepScanResult {
+	funding: Array<{
+		outpoint: string
+		satoshis: number
+		lockingScript: string
+	}>
+	ordinals: Array<{
+		outpoint: string
+		satoshis: number
+		lockingScript: string
+		contentType?: string
+		name?: string
+	}>
+	tokens: Array<{
+		tokenId: string
+		symbol?: string
+		utxos: Array<{
+			outpoint: string
+			satoshis: number
+			lockingScript: string
+			amount: string
+		}>
+	}>
+	totalSats: number
+}
+
+// Sweep result
+export interface SweepResultInfo {
+	txid?: string
+	error?: string
+}
+
+// Social post params
+export interface CreateSocialPostParams {
+	content: string
+}
+
+// Social post result
+export interface SocialPostResult {
+	txid?: string
+	error?: string
+}
+
+// Identity info
+export interface IdentityInfo {
+	bapId: string | null
+	profile: Record<string, unknown> | null
+}
+
+// Publish identity result
+export interface PublishIdentityResult {
+	txid?: string
+	bapId?: string
+	error?: string
+}
+
+// OpNS register/deregister params
+export interface OpnsOperationParams {
+	outpoint: string
+}
+
+// OpNS operation result
+export interface OpnsOperationResult {
+	txid?: string
+	error?: string
+}
+
 // File read result from native file picker
 export interface FileReadResult {
 	base64Content: string
@@ -146,6 +246,50 @@ type BunRequests = {
 	pickFile: {
 		params: { allowedFileTypes?: string }
 		response: FileReadResult | { error: string }
+	}
+	getLockData: {
+		params: undefined
+		response: LockDataInfo
+	}
+	lockBsv: {
+		params: LockBsvParams
+		response: LockResult
+	}
+	unlockBsv: {
+		params: undefined
+		response: LockResult
+	}
+	sendBsv21: {
+		params: SendBsv21Params
+		response: SendBsv21Result
+	}
+	sweepScan: {
+		params: { wif: string }
+		response: SweepScanResult
+	}
+	sweepBsv: {
+		params: { wif: string; assets: SweepScanResult }
+		response: SweepResultInfo
+	}
+	createSocialPost: {
+		params: CreateSocialPostParams
+		response: SocialPostResult
+	}
+	getIdentity: {
+		params: undefined
+		response: IdentityInfo
+	}
+	publishIdentity: {
+		params: undefined
+		response: PublishIdentityResult
+	}
+	opnsRegister: {
+		params: OpnsOperationParams
+		response: OpnsOperationResult
+	}
+	opnsDeregister: {
+		params: OpnsOperationParams
+		response: OpnsOperationResult
 	}
 }
 

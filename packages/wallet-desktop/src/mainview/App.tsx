@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { useState } from 'react'
+import { BigBlocksProvider } from '@/components/blocks/bigblocks-provider'
 import { DesktopLayout } from './components/layout/desktop-layout'
 import { useWallet } from './hooks/use-wallet'
 import { CreateWallet } from './views/onboarding/create-wallet'
@@ -72,7 +73,11 @@ function App() {
 	}
 
 	if (status === 'unlocked') {
-		return <DesktopLayout />
+		return (
+			<BigBlocksProvider>
+				<DesktopLayout />
+			</BigBlocksProvider>
+		)
 	}
 
 	// status === "no-wallet"

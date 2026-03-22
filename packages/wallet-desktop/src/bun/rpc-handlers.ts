@@ -6,23 +6,42 @@
  * `electroview.rpc.request.<name>(params)`.
  */
 import {
+	computeBapId,
 	createContext,
+	createSocialPost,
 	getBsv21Balances,
+	getLockData,
 	getOpnsNames,
 	getOrdinals,
+	getProfile,
 	inscribe,
+	lockBsv,
+	opnsDeregister,
+	opnsRegister,
+	publishIdentity,
+	resolveBapId,
 	sendBsv,
+	sendBsv21,
+	sweepBsv,
+	unlockBsv,
 } from '@1sat/actions'
 import { BRC29_PROTOCOL_ID } from '@1sat/types'
 import { generateMnemonic, isValidMnemonic } from '@1sat/utils'
-import { PublicKey, Utils as SdkUtils } from '@bsv/sdk'
+import { OPNS_BASKET } from '@1sat/actions'
+import { PrivateKey, PublicKey, Transaction, Utils as SdkUtils } from '@bsv/sdk'
 import { Utils } from 'electrobun/bun'
 import type {
+	CreateSocialPostParams,
 	FileReadResult,
 	HistoryEntry,
 	InscribeFileParams,
+	LockBsvParams,
+	LockDataInfo,
 	OpnsNameInfo,
+	OpnsOperationParams,
 	OrdinalInfo,
+	SendBsv21Params,
+	SweepScanResult,
 	TokenBalance,
 } from '../shared/types'
 import {
@@ -337,6 +356,219 @@ export function createRpcHandlers() {
 					error: err instanceof Error ? err.message : String(err),
 				} as { error: string }
 			}
+		},
+
+		getLockData: async () => {
+			const w = requireWallet()
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
+			const data = await getLockData.execute(ctx, {} as Record<string, never>)
+			return data as LockDataInfo
+		},
+
+		lockBsv: async ({ satoshis, until }: LockBsvParams) => {
+			const w = requireWallet()
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
+			const result = await lockBsv.execute(ctx, {
+				requests: [{ satoshis, until }],
+			})
+			return { txid: result.txid, error: result.error }
+		},
+
+		unlockBsv: async () => {
+			const w = requireWallet()
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
+			const result = await unlockBsv.execute(ctx, {} as Record<string, never>)
+			return { txid: result.txid, error: result.error }
+		},
+
+		sendBsv21: async ({ tokenId, amount, address }: SendBsv21Params) => {
+			const w = requireWallet()
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
+			const result = await sendBsv21.execute(ctx, {
+				tokenId,
+				amount,
+				address,
+			})
+			return { txid: result.txid, error: result.error }
+		},
+
+		sweepScan: async ({ wif }: { wif: string }) => {
+			try {
+				const pk = PrivateKey.fromWif(wif)
+				const address = pk.toPublicKey().toAddress()
+				const w = requireWallet()
+				if (!w.services) throw new Error('Services required for sweep scan')
+
+				// Collect unspent outputs via the SSE stream
+				const funding: SweepScanResult['funding'] = []
+				let totalSats = 0
+				for await (const event of w.services.owner.getTxos(address, {
+					unspent: true,
+					limit: 1000,
+				})) {
+					if (event.type === 'txo') {
+						const sats = event.data.satoshis ?? 0
+						if (sats > 1) {
+							// Fetch the raw tx to get the locking script
+							const [txid, voutStr] = event.data.outpoint.split('.')
+							const vout = Number.parseInt(voutStr, 10)
+							const rawTx = await w.services.beef.getRawTx(txid)
+							let lockingScript = ''
+							if (rawTx && rawTx.length > 0) {
+								const tx = Transaction.fromBinary(Array.from(rawTx))
+								lockingScript = tx.outputs[vout]?.lockingScript?.toHex() ?? ''
+							}
+							funding.push({
+								outpoint: event.data.outpoint,
+								satoshis: sats,
+								lockingScript,
+							})
+							totalSats += sats
+						}
+					}
+					if (event.type === 'done' || event.type === 'error') break
+				}
+				return {
+					funding,
+					ordinals: [],
+					tokens: [],
+					totalSats,
+				} as SweepScanResult
+			} catch (err) {
+				throw new Error(
+					err instanceof Error ? err.message : 'Sweep scan failed',
+				)
+			}
+		},
+
+		sweepBsv: async ({
+			wif,
+			assets,
+		}: { wif: string; assets: SweepScanResult }) => {
+			const w = requireWallet()
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
+			const inputs = assets.funding.map((f) => ({
+				outpoint: f.outpoint,
+				satoshis: f.satoshis,
+				lockingScript: f.lockingScript,
+			}))
+			const result = await sweepBsv.execute(ctx, { inputs, wif })
+			return { txid: result.txid, error: result.error }
+		},
+
+		createSocialPost: async ({ content }: CreateSocialPostParams) => {
+			const w = requireWallet()
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
+			const result = await createSocialPost.execute(ctx, {
+				app: '1sat-desktop',
+				content,
+			})
+			return { txid: result.txid, error: result.error }
+		},
+
+		getIdentity: async () => {
+			const w = requireWallet()
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
+			const bapId = await resolveBapId(ctx)
+			let profile: Record<string, unknown> | null = null
+			if (bapId) {
+				const profileResult = await getProfile.execute(
+					ctx,
+					{} as Record<string, never>,
+				)
+				if (profileResult.profile) {
+					profile = profileResult.profile
+				}
+			}
+			return { bapId, profile }
+		},
+
+		publishIdentity: async () => {
+			const w = requireWallet()
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
+			const result = await publishIdentity.execute(ctx, {})
+			return {
+				txid: result.txid,
+				bapId: result.bapId,
+				error: result.error,
+			}
+		},
+
+		opnsRegister: async ({ outpoint }: OpnsOperationParams) => {
+			const w = requireWallet()
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
+			// Find the specific ordinal output by outpoint
+			const listResult = await w.wallet.listOutputs({
+				basket: OPNS_BASKET,
+				includeTags: true,
+				includeCustomInstructions: true,
+				include: 'entire transactions',
+				limit: 1000,
+			})
+			const ordinal = listResult.outputs.find(
+				(o) => o.outpoint === outpoint,
+			)
+			if (!ordinal) {
+				return { error: 'OpNS name not found' }
+			}
+			const result = await opnsRegister.execute(ctx, {
+				ordinal,
+				inputBEEF: listResult.BEEF as number[] | undefined,
+			})
+			return { txid: result.txid, error: result.error }
+		},
+
+		opnsDeregister: async ({ outpoint }: OpnsOperationParams) => {
+			const w = requireWallet()
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
+			const listResult = await w.wallet.listOutputs({
+				basket: OPNS_BASKET,
+				includeTags: true,
+				includeCustomInstructions: true,
+				include: 'entire transactions',
+				limit: 1000,
+			})
+			const ordinal = listResult.outputs.find(
+				(o) => o.outpoint === outpoint,
+			)
+			if (!ordinal) {
+				return { error: 'OpNS name not found' }
+			}
+			const result = await opnsDeregister.execute(ctx, {
+				ordinal,
+				inputBEEF: listResult.BEEF as number[] | undefined,
+			})
+			return { txid: result.txid, error: result.error }
 		},
 	}
 }

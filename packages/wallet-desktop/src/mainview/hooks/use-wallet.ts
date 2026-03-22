@@ -1,12 +1,25 @@
 import { useCallback, useEffect, useState } from 'react'
 import type {
 	BalanceInfo,
+	CreateSocialPostParams,
 	FileReadResult,
 	HistoryEntry,
+	IdentityInfo,
 	InscribeFileParams,
+	LockBsvParams,
+	LockDataInfo,
+	LockResult,
 	OpnsNameInfo,
+	OpnsOperationParams,
+	OpnsOperationResult,
 	OrdinalInfo,
+	PublishIdentityResult,
 	ReceiveInfo,
+	SendBsv21Params,
+	SendBsv21Result,
+	SocialPostResult,
+	SweepResultInfo,
+	SweepScanResult,
 	TokenBalance,
 	WalletStatus,
 } from '../../shared/types'
@@ -47,6 +60,17 @@ interface UseWalletReturn {
 	pickFile: (
 		allowedFileTypes?: string,
 	) => Promise<FileReadResult | { error: string }>
+	getLockData: () => Promise<LockDataInfo>
+	lockBsv: (params: LockBsvParams) => Promise<LockResult>
+	unlockBsv: () => Promise<LockResult>
+	sendBsv21: (params: SendBsv21Params) => Promise<SendBsv21Result>
+	sweepScan: (wif: string) => Promise<SweepScanResult>
+	sweepBsv: (wif: string, assets: SweepScanResult) => Promise<SweepResultInfo>
+	createSocialPost: (params: CreateSocialPostParams) => Promise<SocialPostResult>
+	getIdentity: () => Promise<IdentityInfo>
+	publishIdentity: () => Promise<PublishIdentityResult>
+	opnsRegister: (params: OpnsOperationParams) => Promise<OpnsOperationResult>
+	opnsDeregister: (params: OpnsOperationParams) => Promise<OpnsOperationResult>
 }
 
 export function useWallet(): UseWalletReturn {
@@ -155,6 +179,56 @@ export function useWallet(): UseWalletReturn {
 		return rpc.request.pickFile({ allowedFileTypes })
 	}, [])
 
+	const getLockData = useCallback(async () => {
+		return rpc.request.getLockData()
+	}, [])
+
+	const lockBsvAction = useCallback(async (params: LockBsvParams) => {
+		return rpc.request.lockBsv(params)
+	}, [])
+
+	const unlockBsvAction = useCallback(async () => {
+		return rpc.request.unlockBsv()
+	}, [])
+
+	const sendBsv21Action = useCallback(async (params: SendBsv21Params) => {
+		return rpc.request.sendBsv21(params)
+	}, [])
+
+	const sweepScan = useCallback(async (wif: string) => {
+		return rpc.request.sweepScan({ wif })
+	}, [])
+
+	const sweepBsvAction = useCallback(
+		async (wif: string, assets: SweepScanResult) => {
+			return rpc.request.sweepBsv({ wif, assets })
+		},
+		[],
+	)
+
+	const createSocialPostAction = useCallback(
+		async (params: CreateSocialPostParams) => {
+			return rpc.request.createSocialPost(params)
+		},
+		[],
+	)
+
+	const getIdentity = useCallback(async () => {
+		return rpc.request.getIdentity()
+	}, [])
+
+	const publishIdentityAction = useCallback(async () => {
+		return rpc.request.publishIdentity()
+	}, [])
+
+	const opnsRegister = useCallback(async (params: OpnsOperationParams) => {
+		return rpc.request.opnsRegister(params)
+	}, [])
+
+	const opnsDeregister = useCallback(async (params: OpnsOperationParams) => {
+		return rpc.request.opnsDeregister(params)
+	}, [])
+
 	return {
 		status,
 		balance,
@@ -172,5 +246,16 @@ export function useWallet(): UseWalletReturn {
 		inscribeFile,
 		getOpnsNames,
 		pickFile,
+		getLockData,
+		lockBsv: lockBsvAction,
+		unlockBsv: unlockBsvAction,
+		sendBsv21: sendBsv21Action,
+		sweepScan,
+		sweepBsv: sweepBsvAction,
+		createSocialPost: createSocialPostAction,
+		getIdentity,
+		publishIdentity: publishIdentityAction,
+		opnsRegister,
+		opnsDeregister,
 	}
 }
