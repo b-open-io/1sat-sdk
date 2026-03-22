@@ -67,6 +67,9 @@ export * from './sweep'
 // Export sync module
 export * from './sync'
 
+// Export registry module (on-chain package builder)
+export * from './registry'
+
 import { addressesActions } from './addresses'
 import { identityActions } from './identity'
 import { inscriptionsActions } from './inscriptions'
