@@ -67,7 +67,7 @@ const url = await getMainViewUrl()
 const mainWindow = new BrowserWindow({
 	title: '1Sat Wallet',
 	url,
-	frame: { width: 1024, height: 700, x: 200, y: 200 },
+	frame: { width: 1440, height: 900, x: 100, y: 100 },
 	titleBarStyle: 'hiddenInset',
 	rpc,
 })
