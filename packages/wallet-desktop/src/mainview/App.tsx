@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { useState } from 'react'
+import { DesktopLayout } from './components/layout/desktop-layout'
 import { useWallet } from './hooks/use-wallet'
-import { Dashboard } from './views/dashboard/index'
 import { CreateWallet } from './views/onboarding/create-wallet'
 import { ImportWallet } from './views/onboarding/import-wallet'
 import { UnlockWallet } from './views/onboarding/unlock-wallet'
@@ -72,7 +72,7 @@ function App() {
 	}
 
 	if (status === 'unlocked') {
-		return <Dashboard />
+		return <DesktopLayout />
 	}
 
 	// status === "no-wallet"

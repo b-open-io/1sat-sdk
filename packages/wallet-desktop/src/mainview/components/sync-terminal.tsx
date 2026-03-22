@@ -28,7 +28,7 @@ export function SyncTerminal({ events }: SyncTerminalProps) {
 	}, [events])
 
 	return (
-		<div className="border border-border bg-[oklch(0.1_0.005_96)] flex flex-col">
+		<div className="border-t border-border bg-card flex flex-col">
 			<div className="px-3 py-2 border-b border-border text-xs font-mono uppercase tracking-wider text-muted-foreground">
 				Sync Log
 			</div>
