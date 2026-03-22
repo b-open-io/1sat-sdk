@@ -248,13 +248,28 @@ clearConnection() // On disconnect
 
 ## BigBlocks Registry Integration
 
-`@1sat/react` components are unstyled primitives. The [BigBlocks registry](https://registry.bigblocks.dev) serves shadcn-themed versions installable via:
+`@1sat/react` components are unstyled primitives. The [BigBlocks registry](https://registry.bigblocks.dev) serves 30 shadcn-themed blocks installable via:
 
 ```bash
-bunx shadcn@latest add https://registry.bigblocks.dev/r/connect-wallet.json
+npx bigblocks add <block>
+# or
+bunx shadcn@latest add https://registry.bigblocks.dev/r/<block>.json
 ```
 
-BigBlocks components wrap `@1sat/react` primitives in shadcn UI (Button, Dialog, Drawer, DropdownMenu) with full theme support. The source for `@1sat/react` stays in this repo — BigBlocks serves them without duplicating code.
+Connection and wallet blocks that wrap `@1sat/react`:
+
+| Block | Description |
+|-------|-------------|
+| `connect-wallet` | Wallet connection button with provider selection dialog and connected-state dropdown |
+| `wallet-overview` | Dashboard card with balance, addresses, identity key, and send/receive actions |
+| `send-bsv` | Send BSV dialog with sats/BSV toggle, fee estimate, and confirmation |
+| `receive-address` | QR code and deposit address with copy and optional rotation |
+| `transaction-history` | Transaction list with status indicators and pagination |
+| `mnemonic-flow` | Multi-mode seed phrase create/display/import/verify |
+| `unlock-wallet` | Passphrase and Touch ID unlock screen |
+| `bigblocks-provider` | Context provider for web-mode (API) or custom-mode (desktop RPC) data fetching |
+
+BigBlocks components wrap `@1sat/react` primitives in shadcn UI (Button, Dialog, Drawer, DropdownMenu) with full theme support. The source for `@1sat/react` stays in this repo — BigBlocks serves them without duplicating code. See the full 30-block registry at https://bigblocks.dev.
 
 ## Requirements
 

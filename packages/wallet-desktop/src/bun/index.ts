@@ -8,6 +8,7 @@ import {
 	ApplicationMenu,
 	BrowserView,
 	BrowserWindow,
+	Electrobun,
 	Updater,
 } from 'electrobun/bun'
 import type { WalletDesktopRPC } from '../shared/types'
@@ -85,7 +86,7 @@ ApplicationMenu.setApplicationMenu([
 			{ role: 'hideOthers' },
 			{ role: 'showAll' },
 			{ type: 'separator' },
-			{ label: 'Quit', role: 'quit' },
+			{ label: 'Quit 1Sat Wallet', action: 'quit', accelerator: 'q' },
 		],
 	},
 	{

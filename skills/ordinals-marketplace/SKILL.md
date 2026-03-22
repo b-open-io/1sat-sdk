@@ -220,16 +220,29 @@ const content = await fetch('https://api.1sat.app/1sat/content/txid_0')
 
 ## BigBlocks Registry Blocks
 
-The [BigBlocks registry](https://registry.bigblocks.dev) provides ready-to-use shadcn blocks that wrap the hook patterns from this SDK into polished, theme-aware UI:
+The [BigBlocks registry](https://registry.bigblocks.dev) provides 30 ready-to-use shadcn blocks that wrap the hook patterns from this SDK into polished, theme-aware UI. Install via CLI:
 
-| Block | Description | Install |
-|-------|-------------|---------|
-| `create-listing` | List ordinals for sale via OrdLock | `bunx shadcn@latest add https://registry.bigblocks.dev/r/create-listing.json` |
-| `buy-listing` | Purchase ordinals from the global orderbook | `bunx shadcn@latest add https://registry.bigblocks.dev/r/buy-listing.json` |
-| `inscribe-file` | Full inscription flow with File / BSV20 / BSV21 tabs | `bunx shadcn@latest add https://registry.bigblocks.dev/r/inscribe-file.json` |
-| `deploy-token` | BSV21 token deployment | `bunx shadcn@latest add https://registry.bigblocks.dev/r/deploy-token.json` |
+```bash
+npx bigblocks add <block>
+# or
+bunx shadcn@latest add https://registry.bigblocks.dev/r/<block>.json
+```
 
-These blocks depend on `@1sat/react` for wallet context and `@1sat/actions` for transaction building. Install them into any Next.js project with shadcn configured.
+Marketplace-related blocks:
+
+| Block | Description |
+|-------|-------------|
+| `create-listing` | List ordinals for sale via OrdLock |
+| `buy-listing` | Purchase ordinals from the global orderbook |
+| `market-grid` | Responsive grid of NFT listings with ORDFS thumbnails and buy actions |
+| `ordinals-grid` | Owned ordinals grid with content type badges and selection |
+| `inscribe-file` | Full inscription flow with File / BSV20 / BSV21 tabs |
+| `deploy-token` | BSV21 token deployment |
+| `send-bsv21` | BSV21 token send form with decimal-aware amount input |
+| `token-list` | BSV20/BSV21 token holdings list with balances and icons |
+| `opns-manager` | OpNS name management with register/deregister |
+
+These blocks depend on `@1sat/react` for wallet context and `@1sat/actions` for transaction building. Install them into any Next.js project with shadcn configured. See the full 30-block registry at https://bigblocks.dev.
 
 ## Requirements
 
