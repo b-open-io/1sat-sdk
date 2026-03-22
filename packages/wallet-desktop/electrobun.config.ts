@@ -36,4 +36,7 @@ export default {
 			bundleCEF: false,
 		},
 	},
+	runtime: {
+		exitOnLastWindowClosed: true,
+	},
 } satisfies ElectrobunConfig;

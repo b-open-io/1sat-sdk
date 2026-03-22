@@ -50,6 +50,7 @@ async function getMainViewUrl(): Promise<string> {
 const handlers = createRpcHandlers()
 
 const rpc = BrowserView.defineRPC<WalletDesktopRPC>({
+	maxRequestTime: 60000, // 60s — wallet ops + Touch ID can be slow
 	handlers: {
 		requests: handlers,
 		messages: {},
