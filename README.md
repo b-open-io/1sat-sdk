@@ -71,7 +71,7 @@ bun add @1sat/connect
 bun add @1sat/react
 
 # Server / scripts — direct key access
-bun add @1sat/core @1sat/client @1sat/types
+bun add @1sat/actions @1sat/client @1sat/types
 
 # Bitcoin script templates
 bun add @1sat/templates
@@ -170,7 +170,7 @@ function WalletInfo() {
 For backends or scripts where you control the keys directly:
 
 ```typescript
-import { createOrdinals, fetchPayUtxos } from '@1sat/core'
+import { createOrdinals, fetchPayUtxos } from '@1sat/actions'
 import { ArcadeClient } from '@1sat/client'
 import { ONESAT_MAINNET_URL } from '@1sat/types'
 import { PrivateKey, Utils } from '@bsv/sdk'
@@ -345,7 +345,7 @@ try {
 ## Token Transfers (Server-Side)
 
 ```typescript
-import { fetchPayUtxos, fetchTokenUtxos, selectTokenUtxos, transferOrdTokens, TokenType } from '@1sat/core'
+import { fetchPayUtxos, fetchTokenUtxos, selectTokenUtxos, transferOrdTokens, TokenType } from '@1sat/actions'
 import { ArcadeClient } from '@1sat/client'
 import { ONESAT_MAINNET_URL } from '@1sat/types'
 import { PrivateKey } from '@bsv/sdk'
@@ -414,15 +414,15 @@ if (
 │  - Indexers & sync      │  - Agent tooling                   │
 │  - Backup / CWI         │  - Self-describing ops             │
 ├─────────────────────────┴────────────────────────────────────┤
-│  @1sat/core                     │  @1sat/client              │
-│  - TxBuilder, Ordinal ops       │  - Indexer API             │
-│  - Protocols: MAP, Sigma,       │  - Broadcast (Arcade)      │
-│    OrdP2PKH, OrdLock            │  - UTXO fetch, ORDFS       │
+│  @1sat/templates                │  @1sat/client              │
+│  - Inscription, OrdLock, Lock   │  - Indexer API             │
+│  - BSV20, BSV21, AIP, BAP      │  - Broadcast (Arcade)      │
+│  - MAP, Sigma, BSocial          │  - UTXO fetch, ORDFS       │
 ├─────────────────────────────────┴────────────────────────────┤
-│  @1sat/templates                │  @1sat/cli                 │
-│  - Inscription, OrdLock, Lock   │  - Terminal wallet & ops   │
-│  - BSV20, BSV21, AIP, BAP      │  - Binary: 1sat            │
-│  - MAP, Sigma, BSocial          │  - 30+ commands            │
+│  @1sat/cli                      │  @1sat/vault               │
+│  - Terminal wallet & ops        │  - VaultProvider interface  │
+│  - Binary: 1sat                 │  - VaultStorage            │
+│  - 30+ commands                 │  - Platform-agnostic       │
 ├─────────────────────────────────┴────────────────────────────┤
 │  @1sat/types            │  @1sat/utils                       │
 │  - Type definitions     │  - Encoding & validation           │
@@ -437,7 +437,6 @@ if (
 | `@1sat/connect` | 0.0.9 | Popup wallet connection, postMessage protocol, session management |
 | `@1sat/react` | 0.0.7 | React hooks and ConnectButton component |
 | `@1sat/extension` | 0.0.4 | Build browser wallet extensions that implement `window.onesat` |
-| `@1sat/core` | 0.0.10 | TxBuilder, ordinal operations, MAP, Sigma, OrdP2PKH, OrdLock |
 | `@1sat/client` | 0.0.16 | API clients for indexer, broadcast (Arcade), and ORDFS |
 | `@1sat/templates` | 0.0.2 | Bitcoin script templates: Inscription, OrdLock, Lock, BSV20, BSV21, AIP, BAP, MAP, Sigma, BSocial |
 | `@1sat/types` | 0.0.13 | TypeScript type definitions and protocol constants |
@@ -448,7 +447,8 @@ if (
 | `@1sat/actions` | 0.0.54 | Self-describing wallet actions for agents and tooling |
 | `@1sat/cli` | 0.0.11 | Command-line interface (`1sat` binary) with 30+ commands |
 | `@1sat/wallet-remote` | 0.0.11 | Remote-only wallet factory (no local storage) |
-| `@1sat/vault` | 0.0.3 | Secure Enclave key storage for macOS (Touch ID / Keychain) |
+| `@1sat/vault` | 0.0.3 | Platform-agnostic vault interface (VaultProvider, VaultStorage) |
+| `@1sat/wallet-mac` | 0.0.1 | macOS Secure Enclave provider + native deposit window |
 
 ## Protocols
 
@@ -488,10 +488,10 @@ bun run lint
 bun dev
 
 # Build a single package
-bun run --filter '@1sat/core' build
+bun run --filter '@1sat/actions' build
 ```
 
-Dependency order for new code: `types` → `utils` → `client` → `core` → `actions/wallet` → `sdk` → `examples`
+Dependency order for new code: `types` → `utils` → `client` → `templates` → `actions/wallet` → `sdk` → `examples`
 
 ## Related
 
