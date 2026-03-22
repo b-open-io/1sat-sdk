@@ -11,7 +11,7 @@
 		"build:canary": "vite build && electrobun build --env=canary"
 	},
 	"dependencies": {
-		"@1sat/actions": "workspace:*",
+		"@1sat/actions": "^0.0.62",
 		"@1sat/client": "workspace:*",
 		"@1sat/react": "^0.0.36",
 		"@1sat/types": "workspace:*",
@@ -20,9 +20,11 @@
 		"@1sat/wallet-mac": "workspace:*",
 		"@1sat/wallet-node": "workspace:*",
 		"@radix-ui/react-dialog": "^1.1.15",
+		"@radix-ui/react-icons": "^1.3.2",
 		"@radix-ui/react-label": "^2.1.8",
 		"@radix-ui/react-slot": "^1.2.4",
 		"@radix-ui/react-tabs": "^1.1.13",
+		"@theme-token/sdk": "^0.0.12",
 		"bitcoin-image": "^0.0.3",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
