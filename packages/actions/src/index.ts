@@ -18,7 +18,7 @@ export {
 } from './types'
 
 // Export action registry
-export { ActionRegistry, actionRegistry, type McpTool } from './registry'
+export { ActionRegistry, actionRegistry, type McpTool } from './action-registry'
 
 // Export constants
 export * from './constants'
@@ -74,7 +74,7 @@ import { locksActions } from './locks'
 import { opnsActions } from './opns'
 import { ordinalsActions } from './ordinals'
 import { paymentsActions } from './payments'
-import { actionRegistry } from './registry'
+import { actionRegistry } from './action-registry'
 import { signingActions } from './signing'
 import { socialActions } from './social'
 import { sweepActions } from './sweep'
