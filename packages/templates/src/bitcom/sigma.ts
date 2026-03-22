@@ -12,7 +12,6 @@ import {
 	type UnlockingScript,
 	Utils,
 } from '@bsv/sdk'
-import { Algorithm } from 'sigma-protocol'
 import BitCom, { type Protocol, type BitComDecoded } from './bitcom.js'
 
 /**
@@ -21,9 +20,12 @@ import BitCom, { type Protocol, type BitComDecoded } from './bitcom.js'
 export const SIGMA_PREFIX = 'SIGMA'
 
 /**
- * Re-export Algorithm from sigma-protocol for consistency
+ * Signing algorithm for SIGMA signatures
  */
-export { Algorithm as SigmaAlgorithm }
+export enum SigmaAlgorithm {
+	BSM = 'BSM',
+	BRC77 = 'BRC77',
+}
 
 /**
  * SIGMA signature data structure
@@ -32,7 +34,7 @@ export interface SigmaData {
 	/** BitCom protocol index */
 	bitcomIndex?: number
 	/** Signing algorithm (BSM or BRC77) */
-	algorithm: Algorithm
+	algorithm: SigmaAlgorithm
 	/** Bitcoin address of signer */
 	address: string
 	/** Cryptographic signature as number array */
@@ -48,7 +50,7 @@ export interface SigmaData {
  */
 export interface SigmaOptions {
 	/** Signing algorithm (default: BSM) */
-	algorithm?: Algorithm
+	algorithm?: SigmaAlgorithm
 	/** Input index to anchor signature (default: 0) */
 	vin?: number
 	/** For BRC-77: specific verifier public key (private signature) */
@@ -94,7 +96,7 @@ export default class Sigma implements ScriptTemplate {
 
 					const sigma = new Sigma({
 						bitcomIndex: protoIdx,
-						algorithm: Utils.toUTF8(chunks[0].data ?? []) as Algorithm,
+						algorithm: Utils.toUTF8(chunks[0].data ?? []) as SigmaAlgorithm,
 						address: Utils.toUTF8(chunks[1].data ?? []),
 						signature: Array.from(chunks[2].data ?? []),
 						vin: Number.parseInt(Utils.toUTF8(chunks[3].data ?? []), 10),
@@ -134,16 +136,16 @@ export default class Sigma implements ScriptTemplate {
 		privateKey: PrivateKey,
 		options: SigmaOptions = {},
 	): Sigma {
-		const algorithm = options.algorithm ?? Algorithm.BSM
+		const algorithm = options.algorithm ?? SigmaAlgorithm.BSM
 		const vin = options.vin ?? 0
 		const address = privateKey.toAddress().toString()
 
-		// Combine hashes to create message (same as sigma-protocol)
+		// Combine hashes to create the message
 		const messageHash = [...inputHash, ...dataHash]
 
 		let signatureArray: number[]
 
-		if (algorithm === Algorithm.BRC77) {
+		if (algorithm === SigmaAlgorithm.BRC77) {
 			// BRC-77 signing using SignedMessage
 			const brc77Sig = SignedMessage.sign(
 				messageHash,
@@ -187,7 +189,7 @@ export default class Sigma implements ScriptTemplate {
 		try {
 			const messageHash = [...inputHash, ...dataHash]
 
-			if (this.data.algorithm === Algorithm.BRC77) {
+			if (this.data.algorithm === SigmaAlgorithm.BRC77) {
 				// BRC-77 verification using SignedMessage
 				this.data.valid = SignedMessage.verify(
 					messageHash,

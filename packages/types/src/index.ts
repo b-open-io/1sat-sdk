@@ -25,7 +25,7 @@ export interface LocalSigner {
 export interface RemoteSigner {
 	keyHost: string
 	authToken?: AuthToken
-	/** How to deliver the auth token over HTTP (for sigma-protocol) */
+	/** How to deliver the auth token over HTTP (for SIGMA protocol) */
 	transport?: AuthTransport
 }
 
@@ -54,7 +54,7 @@ export interface AuthToken {
 }
 
 /**
- * HTTP transport configuration for auth tokens (used by sigma-protocol)
+ * HTTP transport configuration for auth tokens (used by SIGMA protocol)
  */
 export interface AuthTransport {
 	type: 'header' | 'query'

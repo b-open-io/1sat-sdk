@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'bun:test'
+import { Sigma } from '@1sat/templates'
 import {
 	BigNumber,
 	ECDSA,
+	Hash,
 	P2PKH,
 	PrivateKey,
 	Script,
-	Transaction,
 	Utils,
 } from '@bsv/sdk'
-import { Sigma } from 'sigma-protocol'
 import { applySigma } from '../src/signing/sigma'
 import type { OneSatContext } from '../src/types'
 
@@ -38,37 +38,71 @@ function createMockContext(): OneSatContext {
 
 const DUMMY_TXID = 'a'.repeat(64)
 
+/** Compute input hash: SHA256 of outpoint (txid bytes + vout LE) */
+function getInputHash(txid: string, vout: number): number[] {
+	const txidBytes: number[] = []
+	for (let i = 0; i < txid.length; i += 2) {
+		txidBytes.push(Number.parseInt(txid.substring(i, i + 2), 16))
+	}
+	const voutLE = [
+		vout & 0xff,
+		(vout >> 8) & 0xff,
+		(vout >> 16) & 0xff,
+		(vout >> 24) & 0xff,
+	]
+	return Hash.sha256([...txidBytes, ...voutLE])
+}
+
+/** Compute data hash: SHA256 of the original locking script binary */
+function getDataHash(lockingScript: Script): number[] {
+	return Hash.sha256(lockingScript.toBinary())
+}
+
+/**
+ * Compute the combined message hash the way applySigma does:
+ * SHA256(inputHash || dataHash)
+ *
+ * Note: applySigma applies an extra SHA256 over the concatenated hashes,
+ * matching the sigma-protocol library behavior. The templates Sigma.verifyWithHashes
+ * simply concatenates its two arguments, so we pass the combined hash as
+ * inputHash with an empty dataHash.
+ */
+function getCombinedHash(inputHash: number[], dataHash: number[]): number[] {
+	const combined = new Uint8Array(inputHash.length + dataHash.length)
+	combined.set(inputHash, 0)
+	combined.set(dataHash, inputHash.length)
+	return Hash.sha256(Array.from(combined))
+}
+
 describe('applySigma', () => {
-	it('produces a signature verifiable by sigma-protocol (P2PKH output)', async () => {
+	it('produces a verifiable SIGMA signature (P2PKH output)', async () => {
 		const ctx = createMockContext()
 		const lockingScript = new P2PKH().lock(testAddress)
 
 		const inputOutpoint = { txid: DUMMY_TXID, vout: 0 }
-		const targetVout = 0
-		const refVin = 0
 
 		const signedScript = await applySigma(
 			ctx,
 			lockingScript,
 			inputOutpoint,
-			targetVout,
-			refVin,
+			0,
+			0,
 		)
 
-		// Build a transaction that sigma-protocol can verify
-		const tx = new Transaction()
-		tx.addInput({
-			sourceTXID: inputOutpoint.txid,
-			sourceOutputIndex: inputOutpoint.vout,
-			unlockingScript: new Script(),
-		})
-		tx.addOutput({
-			satoshis: 1,
-			lockingScript: signedScript,
-		})
+		// Decode the sigma from the signed script
+		const sigmas = Sigma.decodeFromScript(signedScript)
+		expect(sigmas.length).toBe(1)
 
-		const sigma = new Sigma(tx, targetVout, 0, refVin)
-		expect(sigma.verify()).toBe(true)
+		const sigma = sigmas[0]
+		expect(sigma.data.algorithm).toBe('BSM')
+		expect(sigma.data.address).toBe(testAddress)
+		expect(sigma.data.vin).toBe(0)
+
+		// Verify the signature using the combined hash approach
+		const inputHash = getInputHash(inputOutpoint.txid, inputOutpoint.vout)
+		const dataHash = getDataHash(lockingScript)
+		const combinedHash = getCombinedHash(inputHash, dataHash)
+		expect(sigma.verifyWithHashes(combinedHash, [])).toBe(true)
 	})
 
 	it('uses pipe separator when script already contains OP_RETURN', async () => {
@@ -94,20 +128,17 @@ describe('applySigma', () => {
 		expect(sigmaIdx).toBeGreaterThan(0)
 		expect(parts[sigmaIdx - 1]).toBe('7c')
 
-		// Verify with sigma-protocol
-		const tx = new Transaction()
-		tx.addInput({
-			sourceTXID: inputOutpoint.txid,
-			sourceOutputIndex: inputOutpoint.vout,
-			unlockingScript: new Script(),
-		})
-		tx.addOutput({ satoshis: 1, lockingScript: signedScript })
+		// Decode and verify
+		const sigmas = Sigma.decodeFromScript(signedScript)
+		expect(sigmas.length).toBe(1)
 
-		const sigma = new Sigma(tx, 0, 0, 0)
-		expect(sigma.verify()).toBe(true)
+		const inputHash = getInputHash(inputOutpoint.txid, inputOutpoint.vout)
+		const dataHash = getDataHash(lockingScript)
+		const combinedHash = getCombinedHash(inputHash, dataHash)
+		expect(sigmas[0].verifyWithHashes(combinedHash, [])).toBe(true)
 	})
 
-	it('produces equivalent results to sigma-protocol direct signing', async () => {
+	it('produces consistent signing results', async () => {
 		const ctx = createMockContext()
 		const lockingScript = new P2PKH().lock(testAddress)
 		const inputOutpoint = { txid: DUMMY_TXID, vout: 0 }
@@ -115,37 +146,20 @@ describe('applySigma', () => {
 		// Sign with our applySigma
 		const ourScript = await applySigma(ctx, lockingScript, inputOutpoint)
 
-		// Sign with sigma-protocol directly using the same key
-		const directTx = new Transaction()
-		directTx.addInput({
-			sourceTXID: inputOutpoint.txid,
-			sourceOutputIndex: inputOutpoint.vout,
-			unlockingScript: new Script(),
-		})
-		directTx.addOutput({ satoshis: 1, lockingScript })
+		// Decode the sigma from the signed script
+		const sigmas = Sigma.decodeFromScript(ourScript)
+		expect(sigmas.length).toBe(1)
 
-		const directSigma = new Sigma(directTx, 0, 0, 0)
-		const directResult = directSigma.sign(testKey)
+		const sigma = sigmas[0]
+		expect(sigma.data.address).toBe(testAddress)
+		expect(sigma.data.algorithm).toBe('BSM')
+		expect(sigma.data.vin).toBe(0)
 
-		// Both should have the same address
-		const ourTx = new Transaction()
-		ourTx.addInput({
-			sourceTXID: inputOutpoint.txid,
-			sourceOutputIndex: inputOutpoint.vout,
-			unlockingScript: new Script(),
-		})
-		ourTx.addOutput({ satoshis: 1, lockingScript: ourScript })
-
-		const ourSigma = new Sigma(ourTx, 0, 0, 0)
-		expect(ourSigma.sig?.address).toBe(directResult.address)
-		expect(ourSigma.sig?.algorithm).toBe('BSM')
-		expect(ourSigma.sig?.vin).toBe(0)
-
-		// Both should verify
-		expect(ourSigma.verify()).toBe(true)
-
-		const directVerifySigma = new Sigma(directResult.signedTx, 0, 0, 0)
-		expect(directVerifySigma.verify()).toBe(true)
+		// Verify signature
+		const inputHash = getInputHash(inputOutpoint.txid, inputOutpoint.vout)
+		const dataHash = getDataHash(lockingScript)
+		const combinedHash = getCombinedHash(inputHash, dataHash)
+		expect(sigma.verifyWithHashes(combinedHash, [])).toBe(true)
 	})
 
 	it('handles refVin=-1 by using targetVout as vin', async () => {
@@ -162,26 +176,17 @@ describe('applySigma', () => {
 			-1, // refVin = -1
 		)
 
-		// Build tx: input at index 2 must match the outpoint we signed over
-		const tx = new Transaction()
-		for (let i = 0; i <= targetVout; i++) {
-			tx.addInput({
-				sourceTXID: inputOutpoint.txid,
-				sourceOutputIndex: inputOutpoint.vout,
-				unlockingScript: new Script(),
-			})
-		}
-		for (let i = 0; i < targetVout; i++) {
-			tx.addOutput({
-				satoshis: 1,
-				lockingScript: new P2PKH().lock(testAddress),
-			})
-		}
-		tx.addOutput({ satoshis: 1, lockingScript: signedScript })
+		// Decode the sigma from the signed script
+		const sigmas = Sigma.decodeFromScript(signedScript)
+		expect(sigmas.length).toBe(1)
 
 		// The vin in SIGMA should equal targetVout (2)
-		const sigma = new Sigma(tx, targetVout, 0, -1)
-		expect(sigma.sig?.vin).toBe(targetVout)
-		expect(sigma.verify()).toBe(true)
+		expect(sigmas[0].data.vin).toBe(targetVout)
+
+		// Verify signature
+		const inputHash = getInputHash(inputOutpoint.txid, inputOutpoint.vout)
+		const dataHash = getDataHash(lockingScript)
+		const combinedHash = getCombinedHash(inputHash, dataHash)
+		expect(sigmas[0].verifyWithHashes(combinedHash, [])).toBe(true)
 	})
 })
