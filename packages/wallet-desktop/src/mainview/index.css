@@ -1,3 +1,65 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@300..700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+	--radius: 0rem;
+	--background: oklch(0.12 0.01 96);
+	--foreground: oklch(0.98 0.002 96);
+	--card: oklch(0.15 0.015 96);
+	--card-foreground: oklch(0.98 0.002 96);
+	--popover: oklch(0.14 0.015 96);
+	--popover-foreground: oklch(0.98 0.002 96);
+	--primary: oklch(0.82 0.22 96);
+	--primary-foreground: oklch(0.1 0.01 96);
+	--secondary: oklch(0.25 0.03 96);
+	--secondary-foreground: oklch(0.95 0.05 96);
+	--muted: oklch(0.2 0.02 96);
+	--muted-foreground: oklch(0.65 0.02 96);
+	--accent: oklch(0.25 0.03 96);
+	--accent-foreground: oklch(0.82 0.22 96);
+	--destructive: oklch(0.55 0.22 25);
+	--destructive-foreground: oklch(0.98 0.005 25);
+	--border: oklch(0.22 0.01 96);
+	--input: oklch(0.22 0.01 96);
+	--ring: oklch(0.82 0.22 96);
+	--chart-1: oklch(0.82 0.22 96);
+	--chart-2: oklch(0.65 0.2 45);
+	--chart-3: oklch(0.6 0.18 260);
+	--chart-4: oklch(0.7 0.15 150);
+	--chart-5: oklch(0.65 0.18 320);
+	--sidebar: oklch(0.205 0 0);
+	--sidebar-foreground: oklch(0.985 0 0);
+	--sidebar-primary: oklch(0.488 0.243 264.376);
+	--sidebar-primary-foreground: oklch(0.985 0 0);
+	--sidebar-accent: oklch(0.269 0 0);
+	--sidebar-accent-foreground: oklch(0.985 0 0);
+	--sidebar-border: oklch(1 0 0 / 10%);
+	--sidebar-ring: oklch(0.556 0 0);
+	--font-sans: "Space Grotesk", ui-sans-serif, system-ui, -apple-system,
+		BlinkMacSystemFont, sans-serif;
+	--font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, SF Mono, Menlo,
+		Consolas, monospace;
+	--tracking-normal: 0em;
+	--spacing: 0.25rem;
+}
+
+@layer base {
+	* {
+		@apply border-[var(--border)];
+	}
+
+	body {
+		background-color: var(--background);
+		color: var(--foreground);
+		font-family: var(--font-sans);
+		letter-spacing: var(--tracking-normal);
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+		margin: 0;
+		padding: 0;
+		min-height: 100vh;
+	}
+}

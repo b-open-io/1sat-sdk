@@ -88,13 +88,17 @@ type WebviewRequests = Record<never, never>;
 type WebviewMessages = Record<never, never>;
 
 // Combined RPC schema
+// bun.requests = what the bun process handles (webview calls these)
+// bun.messages = what the bun process receives as messages (webview sends these)
+// webview.requests = what the webview handles (bun calls these)
+// webview.messages = what the webview receives as messages (bun sends these)
 export interface WalletDesktopRPC extends ElectrobunRPCSchema {
 	bun: RPCSchema<{
-		requests: WebviewRequests;
+		requests: BunRequests;
 		messages: WebviewMessages;
 	}>;
 	webview: RPCSchema<{
-		requests: BunRequests;
+		requests: WebviewRequests;
 		messages: BunMessages;
 	}>;
 }

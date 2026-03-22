@@ -1,115 +1,88 @@
 import { useState } from "react";
+import { useWallet } from "./hooks/use-wallet";
+import { Dashboard } from "./views/dashboard/index";
+import { CreateWallet } from "./views/onboarding/create-wallet";
+import { ImportWallet } from "./views/onboarding/import-wallet";
+import { UnlockWallet } from "./views/onboarding/unlock-wallet";
 
-function App() {
-	const [count, setCount] = useState(0);
+type OnboardingChoice = "none" | "create" | "import";
 
+function LoadingScreen() {
 	return (
-		<div className="min-h-screen bg-gradient-to-br from-indigo-500 to-purple-600 text-gray-900">
-			<div className="container mx-auto px-4 py-10 max-w-3xl">
-				<h1 className="text-5xl font-bold text-center text-white mb-2 drop-shadow-lg">
-					React + Tailwind + Vite
-				</h1>
-				<p className="text-xl text-center text-white/90 mb-10">
-					A fast Electrobun app with hot module replacement
-				</p>
-
-				<div className="bg-white rounded-xl shadow-xl p-8 mb-8">
-					<h2 className="text-2xl font-semibold text-indigo-600 mb-4">
-						Interactive Counter
-					</h2>
-					<p className="mb-4 text-gray-600">
-						Click the button below to test React state. With HMR enabled, you
-						can edit this component and see changes instantly without losing
-						state.
-					</p>
-					<div className="flex items-center gap-4">
-						<button
-							onClick={() => setCount((c) => c + 1)}
-							className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-md hover:shadow-lg"
-						>
-							Count: {count}
-						</button>
-						<button
-							onClick={() => setCount(0)}
-							className="px-4 py-3 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition-colors"
-						>
-							Reset
-						</button>
-					</div>
+		<div className="min-h-screen flex items-center justify-center">
+			<div className="text-center">
+				<div className="text-lg font-bold text-foreground mb-2">
+					1Sat Wallet
 				</div>
-
-				<div className="bg-white rounded-xl shadow-xl p-8 mb-8">
-					<h2 className="text-2xl font-semibold text-indigo-600 mb-4">
-						Getting Started
-					</h2>
-					<ul className="space-y-3 text-gray-700">
-						<li className="flex items-start gap-2">
-							<span className="text-indigo-500 font-bold">1.</span>
-							<span>
-								Run{" "}
-								<code className="bg-gray-100 px-2 py-1 rounded text-sm">
-									bun run dev
-								</code>{" "}
-								for development without HMR
-							</span>
-						</li>
-						<li className="flex items-start gap-2">
-							<span className="text-indigo-500 font-bold">2.</span>
-							<span>
-								Run{" "}
-								<code className="bg-gray-100 px-2 py-1 rounded text-sm">
-									bun run dev:hmr
-								</code>{" "}
-								for development with hot reload
-							</span>
-						</li>
-						<li className="flex items-start gap-2">
-							<span className="text-indigo-500 font-bold">3.</span>
-							<span>
-								Run{" "}
-								<code className="bg-gray-100 px-2 py-1 rounded text-sm">
-									bun run build
-								</code>{" "}
-								to build for production
-							</span>
-						</li>
-					</ul>
-				</div>
-
-				<div className="bg-white rounded-xl shadow-xl p-8">
-					<h2 className="text-2xl font-semibold text-indigo-600 mb-4">Stack</h2>
-					<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-						<div className="text-center p-4 bg-gray-50 rounded-lg">
-							<div className="text-3xl mb-2">⚡</div>
-							<div className="font-medium">Electrobun</div>
-						</div>
-						<div className="text-center p-4 bg-gray-50 rounded-lg">
-							<div className="text-3xl mb-2">⚛️</div>
-							<div className="font-medium">React</div>
-						</div>
-						<div className="text-center p-4 bg-gray-50 rounded-lg">
-							<div className="text-3xl mb-2">🎨</div>
-							<div className="font-medium">Tailwind</div>
-						</div>
-						<div className="text-center p-4 bg-gray-50 rounded-lg">
-							<div className="text-3xl mb-2">🔥</div>
-							<div className="font-medium">Vite HMR</div>
-						</div>
-					</div>
-				</div>
-
-				<div className="text-center text-white/80 mt-10 p-6 bg-white/10 rounded-lg backdrop-blur">
-					<p>
-						Edit{" "}
-						<code className="bg-white/20 px-2 py-1 rounded text-sm">
-							src/mainview/App.tsx
-						</code>{" "}
-						and save to see HMR in action
-					</p>
+				<div className="text-sm text-muted-foreground font-mono">
+					Initializing...
 				</div>
 			</div>
 		</div>
 	);
+}
+
+function OnboardingChoice({
+	onChoose,
+}: { onChoose: (choice: OnboardingChoice) => void }) {
+	return (
+		<div className="min-h-screen flex items-center justify-center">
+			<div className="max-w-sm w-full p-6">
+				<h1 className="text-2xl font-bold text-foreground mb-1 text-center">
+					1Sat Wallet
+				</h1>
+				<p className="text-sm text-muted-foreground mb-8 text-center">
+					Get started with your BSV wallet
+				</p>
+
+				<div className="space-y-3">
+					<button
+						type="button"
+						onClick={() => onChoose("create")}
+						className="w-full py-3 bg-primary text-primary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
+					>
+						Create New Wallet
+					</button>
+					<button
+						type="button"
+						onClick={() => onChoose("import")}
+						className="w-full py-3 bg-secondary text-secondary-foreground font-medium text-sm border border-border hover:opacity-90 transition-opacity"
+					>
+						Import Existing Wallet
+					</button>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+function App() {
+	const { status } = useWallet();
+	const [onboardingChoice, setOnboardingChoice] =
+		useState<OnboardingChoice>("none");
+
+	if (status === "initializing") {
+		return <LoadingScreen />;
+	}
+
+	if (status === "locked") {
+		return <UnlockWallet />;
+	}
+
+	if (status === "unlocked") {
+		return <Dashboard />;
+	}
+
+	// status === "no-wallet"
+	if (onboardingChoice === "create") {
+		return <CreateWallet />;
+	}
+
+	if (onboardingChoice === "import") {
+		return <ImportWallet />;
+	}
+
+	return <OnboardingChoice onChoose={setOnboardingChoice} />;
 }
 
 export default App;
