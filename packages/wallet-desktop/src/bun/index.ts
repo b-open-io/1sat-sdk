@@ -8,8 +8,6 @@ import {
 	ApplicationMenu,
 	BrowserView,
 	BrowserWindow,
-	Electrobun,
-	Utils,
 	Updater,
 } from 'electrobun/bun'
 import type { WalletDesktopRPC } from '../shared/types'
@@ -133,25 +131,6 @@ mainWindow.webview.on('dom-ready', () => {
 	mainWindow.webview.rpc.send.walletStateChanged({
 		status: hasKey ? 'locked' : 'no-wallet',
 	})
-})
-
-// ============================================================================
-// Window close → hide (keep running in background)
-// ============================================================================
-
-mainWindow.on('close', (e) => {
-	// Hide instead of closing — the wallet stays running for dApp connections
-	mainWindow.minimize()
-})
-
-// ============================================================================
-// Graceful quit
-// ============================================================================
-
-Electrobun.events.on('before-quit', async () => {
-	// Lock the wallet before quitting to clear keys from memory
-	const { lock } = await import('./wallet-manager')
-	await lock()
 })
 
 // ============================================================================
