@@ -77,6 +77,7 @@ export interface JsonSchemaProperty {
 export type ActionCategory =
 	| 'addresses'
 	| 'balance'
+	| 'collections'
 	| 'payments'
 	| 'ordinals'
 	| 'tokens'

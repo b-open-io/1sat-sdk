@@ -51,6 +51,7 @@ export {
 
 // Export module actions and types
 export * from './addresses'
+export * from './collections'
 export * from './payments'
 export * from './ordinals'
 export * from './tokens'
@@ -70,14 +71,15 @@ export * from './sync'
 // Export registry module (on-chain package builder)
 export * from './registry'
 
+import { actionRegistry } from './action-registry'
 import { addressesActions } from './addresses'
+import { collectionsActions } from './collections'
 import { identityActions } from './identity'
 import { inscriptionsActions } from './inscriptions'
 import { locksActions } from './locks'
 import { opnsActions } from './opns'
 import { ordinalsActions } from './ordinals'
 import { paymentsActions } from './payments'
-import { actionRegistry } from './action-registry'
 import { signingActions } from './signing'
 import { socialActions } from './social'
 import { sweepActions } from './sweep'
@@ -86,6 +88,7 @@ import { tokensActions } from './tokens'
 
 actionRegistry.registerAll([
 	...addressesActions,
+	...collectionsActions,
 	...identityActions,
 	...paymentsActions,
 	...ordinalsActions,
