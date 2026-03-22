@@ -1,0 +1,41 @@
+{
+	"name": "@1sat/wallet-desktop",
+	"version": "0.0.1",
+	"description": "1Sat Wallet desktop app built with Electrobun",
+	"private": true,
+	"scripts": {
+		"start": "vite build && electrobun dev",
+		"dev": "electrobun dev --watch",
+		"dev:hmr": "concurrently \"bun run hmr\" \"bun run start\"",
+		"hmr": "vite --port 5173",
+		"build:canary": "vite build && electrobun build --env=canary"
+	},
+	"dependencies": {
+		"@1sat/actions": "workspace:*",
+		"@1sat/client": "workspace:*",
+		"@1sat/types": "workspace:*",
+		"@1sat/utils": "workspace:*",
+		"@1sat/vault": "workspace:*",
+		"@1sat/wallet-mac": "workspace:*",
+		"@1sat/wallet-node": "workspace:*",
+		"electrobun": "1.16.0",
+		"react": "^18.3.1",
+		"react-dom": "^18.3.1"
+	},
+	"peerDependencies": {
+		"@bsv/sdk": "^2.0.6"
+	},
+	"devDependencies": {
+		"@bsv/sdk": "^2.0.6",
+		"@types/bun": "latest",
+		"@types/react": "^18.3.12",
+		"@types/react-dom": "^18.3.1",
+		"@vitejs/plugin-react": "^4.3.4",
+		"autoprefixer": "^10.4.20",
+		"concurrently": "^9.1.0",
+		"postcss": "^8.4.49",
+		"tailwindcss": "^3.4.16",
+		"typescript": "^5.7.2",
+		"vite": "^6.0.3"
+	}
+}
