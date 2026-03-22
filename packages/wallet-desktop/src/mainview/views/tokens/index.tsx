@@ -1,58 +1,50 @@
 import { useEffect, useState } from 'react'
 import type { TokenBalance } from '../../../shared/types'
-import { TokenRow } from '../../components/token-row'
+import { TokenListUI, type TokenHolding } from '@/components/blocks/token-list'
 import { rpc } from '../../rpc'
 
+/** Map the RPC TokenBalance shape to the BigBlocks TokenHolding shape */
+function toTokenHolding(b: TokenBalance): TokenHolding {
+	return {
+		tokenId: b.id,
+		symbol: b.sym ?? b.id.slice(0, 8),
+		type: 'BSV21',
+		balance: b.amt,
+		decimals: b.dec,
+		iconUrl: b.icon ? `https://ordfs.network/${b.icon}` : null,
+	}
+}
+
 export function TokensView() {
-	const [balances, setBalances] = useState<TokenBalance[]>([])
+	const [tokens, setTokens] = useState<TokenHolding[]>([])
 	const [loading, setLoading] = useState(true)
+	const [error, setError] = useState<Error | null>(null)
 
 	useEffect(() => {
 		rpc.request
 			.getTokenBalances()
 			.then((result) => {
-				setBalances(result.balances)
+				setTokens(result.balances.map(toTokenHolding))
 			})
 			.catch((err) => {
-				console.error('Failed to load token balances:', err)
+				setError(
+					err instanceof Error
+						? err
+						: new Error('Failed to load tokens'),
+				)
 			})
 			.finally(() => {
 				setLoading(false)
 			})
 	}, [])
 
-	if (loading) {
-		return (
-			<div className="p-6">
-				<div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-4">
-					Tokens
-				</div>
-				<p className="text-sm text-muted-foreground">Loading tokens...</p>
-			</div>
-		)
-	}
-
-	if (balances.length === 0) {
-		return (
-			<div className="p-6">
-				<div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-4">
-					Tokens
-				</div>
-				<p className="text-sm text-muted-foreground">No tokens found</p>
-			</div>
-		)
-	}
-
 	return (
 		<div className="p-6">
-			<div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-4">
-				Tokens
-			</div>
-			<div className="border border-border bg-card">
-				{balances.map((balance) => (
-					<TokenRow key={balance.id} balance={balance} />
-				))}
-			</div>
+			<TokenListUI
+				tokens={tokens}
+				isLoading={loading}
+				error={error}
+			/>
 		</div>
 	)
 }

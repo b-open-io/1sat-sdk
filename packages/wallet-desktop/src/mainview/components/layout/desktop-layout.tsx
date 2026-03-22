@@ -8,7 +8,7 @@ import {
 import { useCallback, useEffect, useState } from 'react'
 import { useSyncEvents } from '../../hooks/use-sync-events'
 import { useWallet } from '../../hooks/use-wallet'
-import { SyncTerminal } from '../sync-terminal'
+import { SyncTerminal } from '@/components/blocks/sync-terminal'
 import { HistoryView } from '../../views/history/index'
 import { InscribeView } from '../../views/inscribe/index'
 import { OrdinalsView } from '../../views/ordinals/index'

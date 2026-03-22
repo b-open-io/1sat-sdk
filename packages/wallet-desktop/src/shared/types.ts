@@ -18,7 +18,7 @@ export interface ReceiveInfo {
 export interface SyncEvent {
 	timestamp: number
 	source: string
-	level: 'log' | 'warn' | 'error'
+	level: 'log' | 'warn' | 'error' | 'success'
 	message: string
 }
 

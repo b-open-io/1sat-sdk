@@ -1,73 +1,66 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { OrdinalInfo } from '../../../shared/types'
-import { OrdinalCard } from '../../components/ordinal-card'
-import { OrdinalDetailModal } from '../../components/ordinal-detail-modal'
+import { OrdinalsGridUI, type OrdinalOutput } from '@/components/blocks/ordinals-grid'
 import { rpc } from '../../rpc'
 
+/** Map the RPC OrdinalInfo shape to the BigBlocks OrdinalOutput shape */
+function toOrdinalOutput(o: OrdinalInfo): OrdinalOutput {
+	const getTag = (prefix: string) => {
+		const tag = o.tags.find((t) => t.startsWith(prefix))
+		return tag ? tag.slice(prefix.length) : undefined
+	}
+
+	const origin = getTag('origin:') ?? o.outpoint
+	const contentType = getTag('type:') ?? ''
+	const name = getTag('name:')
+
+	return {
+		outpoint: o.outpoint.replace('.', '_'),
+		contentType,
+		name,
+		origin: origin.replace('.', '_'),
+		satoshis: o.satoshis,
+		tags: o.tags,
+	}
+}
+
 export function OrdinalsView() {
-	const [ordinals, setOrdinals] = useState<OrdinalInfo[]>([])
+	const [ordinals, setOrdinals] = useState<OrdinalOutput[]>([])
 	const [loading, setLoading] = useState(true)
-	const [selectedOrdinal, setSelectedOrdinal] = useState<OrdinalInfo | null>(
-		null,
-	)
+	const [error, setError] = useState<Error | null>(null)
 
 	useEffect(() => {
 		rpc.request
 			.getOrdinals({ limit: 50 })
 			.then((result) => {
-				setOrdinals(result.ordinals)
+				setOrdinals(result.ordinals.map(toOrdinalOutput))
 			})
 			.catch((err) => {
-				console.error('Failed to load ordinals:', err)
+				setError(
+					err instanceof Error
+						? err
+						: new Error('Failed to load ordinals'),
+				)
 			})
 			.finally(() => {
 				setLoading(false)
 			})
 	}, [])
 
-	const handleClose = useCallback(() => {
-		setSelectedOrdinal(null)
+	const handleSelect = useCallback((ordinal: OrdinalOutput) => {
+		console.log('Selected ordinal:', ordinal.outpoint)
 	}, [])
-
-	if (loading) {
-		return (
-			<div className="p-6">
-				<div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-4">
-					Ordinals
-				</div>
-				<p className="text-sm text-muted-foreground">Loading ordinals...</p>
-			</div>
-		)
-	}
-
-	if (ordinals.length === 0) {
-		return (
-			<div className="p-6">
-				<div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-4">
-					Ordinals
-				</div>
-				<p className="text-sm text-muted-foreground">No ordinals found</p>
-			</div>
-		)
-	}
 
 	return (
 		<div className="p-4">
-			<div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-4 px-2">
-				Ordinals
-			</div>
-			<div className="grid grid-cols-3 gap-2">
-				{ordinals.map((ordinal) => (
-					<OrdinalCard
-						key={ordinal.outpoint}
-						ordinal={ordinal}
-						onClick={() => setSelectedOrdinal(ordinal)}
-					/>
-				))}
-			</div>
-			{selectedOrdinal && (
-				<OrdinalDetailModal ordinal={selectedOrdinal} onClose={handleClose} />
-			)}
+			<OrdinalsGridUI
+				items={ordinals}
+				isLoading={loading}
+				error={error}
+				count={ordinals.length}
+				onSelect={handleSelect}
+				showCount
+			/>
 		</div>
 	)
 }

@@ -1,80 +1,54 @@
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
 import { useCallback, useEffect, useState } from 'react'
-import { MnemonicGrid } from '../../components/mnemonic-grid'
+import { MnemonicFlow } from '@/components/blocks/mnemonic-flow'
 import { useWallet } from '../../hooks/use-wallet'
 
 export function CreateWallet() {
 	const { createWallet, generateMnemonic } = useWallet()
-	const [mnemonic, setMnemonic] = useState<string[]>([])
-	const [confirmed, setConfirmed] = useState(false)
-	const [error, setError] = useState('')
+	const [words, setWords] = useState<string[]>([])
+	const [error, setError] = useState<string | null>(null)
 	const [loading, setLoading] = useState(false)
 
 	useEffect(() => {
 		generateMnemonic().then(
-			(m) => setMnemonic(m.split(' ')),
+			(m) => setWords(m.split(' ')),
 			(err) => setError(`Failed to generate mnemonic: ${err}`),
 		)
 	}, [generateMnemonic])
 
-	const handleSubmit = useCallback(async () => {
-		setError('')
-		setLoading(true)
-		try {
-			const result = await createWallet(mnemonic.join(' '), '')
-			if (!result.success) {
-				setError(result.error ?? 'Failed to create wallet')
+	const handleComplete = useCallback(
+		async (completedWords: string[]) => {
+			setError(null)
+			setLoading(true)
+			try {
+				const result = await createWallet(completedWords.join(' '), '')
+				if (!result.success) {
+					setError(result.error ?? 'Failed to create wallet')
+				}
+			} catch (err) {
+				setError(String(err))
+			} finally {
+				setLoading(false)
 			}
-		} catch (err) {
-			setError(String(err))
-		} finally {
-			setLoading(false)
-		}
-	}, [mnemonic, createWallet])
+		},
+		[createWallet],
+	)
 
 	return (
 		<div className="max-w-lg mx-auto p-6">
-			<h1 className="text-2xl font-bold text-foreground mb-1">Create Wallet</h1>
+			<h1 className="text-2xl font-bold text-foreground mb-1">
+				Create Wallet
+			</h1>
 			<p className="text-sm text-muted-foreground mb-6">
 				Write down your recovery phrase and store it safely.
 			</p>
 
-			{mnemonic.length > 0 ? (
-				<MnemonicGrid words={mnemonic} />
-			) : (
-				<div className="text-muted-foreground text-sm">
-					Generating mnemonic...
-				</div>
-			)}
-
-			<div className="flex items-center gap-2 mt-6">
-				<input
-					id="confirmed"
-					type="checkbox"
-					checked={confirmed}
-					onChange={(e) => setConfirmed(e.target.checked)}
-					className="accent-primary"
-				/>
-				<Label htmlFor="confirmed" className="cursor-pointer select-none">
-					I have saved my recovery phrase
-				</Label>
-			</div>
-
-			{error && (
-				<div className="mt-4 p-3 border border-destructive text-destructive text-sm font-mono">
-					{error}
-				</div>
-			)}
-
-			<Button
-				className="mt-4 w-full"
-				size="lg"
-				disabled={!confirmed || mnemonic.length === 0 || loading}
-				onClick={handleSubmit}
-			>
-				{loading ? 'Creating...' : 'Create Wallet'}
-			</Button>
+			<MnemonicFlow
+				mode="create"
+				words={words}
+				onComplete={handleComplete}
+				isLoading={loading}
+				error={error}
+			/>
 		</div>
 	)
 }
