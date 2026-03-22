@@ -12,7 +12,12 @@ import {
 } from "electrobun/bun"
 import type { WalletDesktopRPC } from "../shared/types"
 import { createRpcHandlers } from "./rpc-handlers"
-import { checkVault, setStatusChangedCallback } from "./wallet-manager"
+import {
+	checkVault,
+	setBalanceUpdatedCallback,
+	setStatusChangedCallback,
+	setSyncEventCallback,
+} from "./wallet-manager"
 
 // ============================================================================
 // Dev server detection (HMR support)
@@ -106,6 +111,16 @@ ApplicationMenu.setApplicationMenu([
 // Push wallet status changes to the WebView
 setStatusChangedCallback((status) => {
 	mainWindow.webview.rpc.send.walletStateChanged({ status })
+})
+
+// Push balance updates to the WebView
+setBalanceUpdatedCallback((balance) => {
+	mainWindow.webview.rpc.send.balanceUpdated(balance)
+})
+
+// Push sync events to the WebView
+setSyncEventCallback((event) => {
+	mainWindow.webview.rpc.send.syncEvent(event)
 })
 
 // Check vault on launch — triggers setStatusChangedCallback which pushes to WebView.

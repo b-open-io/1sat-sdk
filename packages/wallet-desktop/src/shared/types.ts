@@ -33,24 +33,75 @@ export interface SendBsvResult {
 	txid: string;
 }
 
+// Ordinal info for display
+export interface OrdinalInfo {
+	outpoint: string;
+	tags: string[];
+	satoshis: number;
+}
+
+// Token balance info
+export interface TokenBalance {
+	id: string;
+	sym?: string;
+	icon?: string;
+	dec: number;
+	amt: string;
+}
+
+// Transaction history entry
+export interface HistoryEntry {
+	txid: string;
+	description: string;
+	satoshis: number;
+	status: string;
+	dateCreated: string;
+}
+
+// OpNS name info
+export interface OpnsNameInfo {
+	outpoint: string;
+	name: string;
+	tags: string[];
+}
+
+// Inscribe file params
+export interface InscribeFileParams {
+	base64Content: string;
+	contentType: string;
+	map?: Record<string, string>;
+}
+
+// File read result from native file picker
+export interface FileReadResult {
+	base64Content: string;
+	contentType: string;
+	filename: string;
+	sizeBytes: number;
+}
+
 // ---- RPC Schema ----
 // Requests the webview can make to bun
 type BunRequests = {
 	createWallet: {
-		params: { mnemonic: string; passphrase: string };
+		params: { mnemonic: string; passphrase?: string };
 		response: { success: boolean; error?: string };
 	};
 	importWallet: {
-		params: { mnemonic: string; passphrase: string };
+		params: { mnemonic: string; passphrase?: string };
 		response: { success: boolean; error?: string };
 	};
 	unlockWallet: {
-		params: { passphrase: string };
+		params: { passphrase?: string };
 		response: { success: boolean; error?: string };
 	};
 	lockWallet: {
 		params: undefined;
 		response: { success: boolean };
+	};
+	deleteWallet: {
+		params: undefined;
+		response: { success: boolean; error?: string };
 	};
 	generateMnemonic: {
 		params: undefined;
@@ -72,6 +123,30 @@ type BunRequests = {
 		params: undefined;
 		response: { status: WalletStatus };
 	};
+	getOrdinals: {
+		params: { limit?: number; offset?: number };
+		response: { ordinals: OrdinalInfo[] };
+	};
+	getTokenBalances: {
+		params: undefined;
+		response: { balances: TokenBalance[] };
+	};
+	getTransactionHistory: {
+		params: { limit?: number; offset?: number };
+		response: { entries: HistoryEntry[] };
+	};
+	inscribeFile: {
+		params: InscribeFileParams;
+		response: { txid?: string; error?: string };
+	};
+	getOpnsNames: {
+		params: undefined;
+		response: { names: OpnsNameInfo[] };
+	};
+	pickFile: {
+		params: { allowedFileTypes?: string };
+		response: FileReadResult | { error: string };
+	};
 };
 
 // Messages bun can send to the webview (push notifications)
@@ -79,6 +154,7 @@ type BunMessages = {
 	walletStateChanged: { status: WalletStatus };
 	balanceUpdated: BalanceInfo;
 	syncEvent: SyncEvent;
+	ordinalsUpdated: { ordinals: OrdinalInfo[] };
 };
 
 // Requests bun can make to the webview (currently none)

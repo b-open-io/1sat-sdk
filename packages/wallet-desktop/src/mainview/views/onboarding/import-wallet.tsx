@@ -5,7 +5,6 @@ import { useWallet } from "../../hooks/use-wallet";
 export function ImportWallet() {
 	const { importWallet } = useWallet();
 	const [words, setWords] = useState<string[]>(Array(12).fill(""));
-	const [passphrase, setPassphrase] = useState("");
 	const [error, setError] = useState("");
 	const [loading, setLoading] = useState(false);
 
@@ -19,19 +18,9 @@ export function ImportWallet() {
 			return;
 		}
 
-		if (!passphrase) {
-			setError("Passphrase is required");
-			return;
-		}
-
-		if (passphrase.length < 8) {
-			setError("Passphrase must be at least 8 characters");
-			return;
-		}
-
 		setLoading(true);
 		try {
-			const result = await importWallet(words.join(" "), passphrase);
+			const result = await importWallet(words.join(" "), "");
 			if (!result.success) {
 				setError(result.error ?? "Failed to import wallet");
 			}
@@ -40,7 +29,7 @@ export function ImportWallet() {
 		} finally {
 			setLoading(false);
 		}
-	}, [words, passphrase, allWordsFilled, importWallet]);
+	}, [words, allWordsFilled, importWallet]);
 
 	return (
 		<div className="max-w-lg mx-auto p-6">
@@ -52,22 +41,6 @@ export function ImportWallet() {
 			</p>
 
 			<MnemonicGrid words={words} editable onChange={setWords} />
-
-			<div className="mt-6">
-				<label className="block text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1">
-					Passphrase
-				</label>
-				<input
-					type="password"
-					value={passphrase}
-					onChange={(e) => setPassphrase(e.target.value)}
-					className="w-full p-3 bg-muted border border-border text-foreground font-mono text-sm outline-none focus:border-primary"
-					placeholder="Enter passphrase (min 8 characters)"
-					onKeyDown={(e) => {
-						if (e.key === "Enter") handleSubmit();
-					}}
-				/>
-			</div>
 
 			{error && (
 				<div className="mt-4 p-3 border border-destructive text-destructive text-sm font-mono">

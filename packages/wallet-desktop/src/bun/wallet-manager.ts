@@ -11,7 +11,7 @@ import type { NodeWalletResult } from "@1sat/wallet-node"
 import { createNodeWallet } from "@1sat/wallet-node"
 import { HD, Mnemonic, PrivateKey } from "@bsv/sdk"
 import { Utils } from "electrobun/bun"
-import type { WalletStatus } from "../shared/types"
+import type { BalanceInfo, SyncEvent, WalletStatus } from "../shared/types"
 import {
 	createDesktopVault,
 	hasStoredKey,
@@ -30,6 +30,12 @@ let currentStatus: WalletStatus = "initializing"
 
 /** Callback fired whenever the wallet status changes. */
 let onStatusChanged: ((status: WalletStatus) => void) | undefined
+
+/** Callback fired whenever the balance changes. */
+let onBalanceUpdated: ((balance: BalanceInfo) => void) | undefined
+
+/** Callback fired for sync events (monitor activity). */
+let onSyncEvent: ((event: SyncEvent) => void) | undefined
 
 // ============================================================================
 // Helpers
@@ -57,6 +63,52 @@ function deriveRootKey(mnemonic: string): PrivateKey {
 	return master.privKey
 }
 
+/** Compute and push the current balance. */
+async function pushBalance(): Promise<void> {
+	if (!walletResult || !onBalanceUpdated) return
+	try {
+		const result = await walletResult.wallet.listOutputs({
+			basket: "default",
+			include: "locking scripts",
+		})
+		let confirmed = 0
+		for (const output of result.outputs) {
+			if (output.spendable) {
+				confirmed += output.satoshis
+			}
+		}
+		onBalanceUpdated({ confirmed, unconfirmed: 0 })
+	} catch (err) {
+		console.error("Failed to push initial balance:", err)
+	}
+}
+
+/** Wire monitor callbacks to emit sync events. */
+function wireMonitorEvents(): void {
+	if (!walletResult?.monitor || !onSyncEvent) return
+	const monitor = walletResult.monitor
+
+	monitor.onTransactionBroadcasted = async (result) => {
+		onSyncEvent?.({
+			timestamp: Date.now(),
+			source: "monitor",
+			level: "log",
+			message: result.txid
+				? `Transaction broadcasted: ${result.txid}`
+				: "Transaction broadcast attempted",
+		})
+	}
+
+	monitor.onTransactionProven = async (status) => {
+		onSyncEvent?.({
+			timestamp: Date.now(),
+			source: "monitor",
+			level: "log",
+			message: `Transaction proven at block ${status.blockHeight}: ${status.txid}`,
+		})
+	}
+}
+
 // ============================================================================
 // Public API
 // ============================================================================
@@ -65,6 +117,18 @@ export function setStatusChangedCallback(
 	cb: (status: WalletStatus) => void,
 ): void {
 	onStatusChanged = cb
+}
+
+export function setBalanceUpdatedCallback(
+	cb: (balance: BalanceInfo) => void,
+): void {
+	onBalanceUpdated = cb
+}
+
+export function setSyncEventCallback(
+	cb: (event: SyncEvent) => void,
+): void {
+	onSyncEvent = cb
 }
 
 export function getStatus(): WalletStatus {
@@ -123,6 +187,8 @@ export async function create(
 	})
 
 	setStatus("unlocked")
+	wireMonitorEvents()
+	await pushBalance()
 }
 
 /**
@@ -143,6 +209,8 @@ export async function unlock(_passphrase: string): Promise<void> {
 	})
 
 	setStatus("unlocked")
+	wireMonitorEvents()
+	await pushBalance()
 }
 
 /**

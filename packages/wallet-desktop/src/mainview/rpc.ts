@@ -1,6 +1,7 @@
 import { Electroview } from "electrobun/view";
 import type {
 	BalanceInfo,
+	OrdinalInfo,
 	SyncEvent,
 	WalletDesktopRPC,
 	WalletStatus,
@@ -38,6 +39,9 @@ const rpc = Electroview.defineRPC<WalletDesktopRPC>({
 			syncEvent: (payload: SyncEvent) => {
 				emit("syncEvent", payload);
 			},
+			ordinalsUpdated: (payload: { ordinals: OrdinalInfo[] }) => {
+				emit("ordinalsUpdated", payload);
+			},
 		},
 	},
 });
@@ -60,6 +64,12 @@ function onSyncEvent(fn: Listener<SyncEvent>): Unsubscribe {
 	return subscribe("syncEvent", fn);
 }
 
+function onOrdinalsUpdated(
+	fn: Listener<{ ordinals: OrdinalInfo[] }>,
+): Unsubscribe {
+	return subscribe("ordinalsUpdated", fn);
+}
+
 export {
 	electroview,
 	rpc,
@@ -67,4 +77,5 @@ export {
 	onWalletStateChanged,
 	onBalanceUpdated,
 	onSyncEvent,
+	onOrdinalsUpdated,
 };

@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import type { BalanceInfo, ReceiveInfo, WalletStatus } from "../../shared/types";
+import type {
+	BalanceInfo,
+	FileReadResult,
+	HistoryEntry,
+	InscribeFileParams,
+	OpnsNameInfo,
+	OrdinalInfo,
+	ReceiveInfo,
+	TokenBalance,
+	WalletStatus,
+} from "../../shared/types";
 import { onBalanceUpdated, onWalletStateChanged, rpc } from "../rpc";
 
 interface UseWalletReturn {
@@ -9,9 +19,16 @@ interface UseWalletReturn {
 	importWallet: (mnemonic: string, passphrase: string) => Promise<{ success: boolean; error?: string }>;
 	unlockWallet: (passphrase: string) => Promise<{ success: boolean; error?: string }>;
 	lockWallet: () => Promise<{ success: boolean }>;
+	deleteWallet: () => Promise<{ success: boolean; error?: string }>;
 	sendBsv: (address: string, amount: number) => Promise<{ txid: string }>;
 	getReceiveInfo: () => Promise<ReceiveInfo>;
 	generateMnemonic: () => Promise<string>;
+	getOrdinals: (limit?: number, offset?: number) => Promise<{ ordinals: OrdinalInfo[] }>;
+	getTokenBalances: () => Promise<{ balances: TokenBalance[] }>;
+	getTransactionHistory: (limit?: number, offset?: number) => Promise<{ entries: HistoryEntry[] }>;
+	inscribeFile: (params: InscribeFileParams) => Promise<{ txid?: string; error?: string }>;
+	getOpnsNames: () => Promise<{ names: OpnsNameInfo[] }>;
+	pickFile: (allowedFileTypes?: string) => Promise<FileReadResult | { error: string }>;
 }
 
 export function useWallet(): UseWalletReturn {
@@ -76,6 +93,10 @@ export function useWallet(): UseWalletReturn {
 		return rpc.request.lockWallet();
 	}, []);
 
+	const deleteWallet = useCallback(async () => {
+		return rpc.request.deleteWallet();
+	}, []);
+
 	const sendBsv = useCallback(async (address: string, amount: number) => {
 		return rpc.request.sendBsv({ address, amount });
 	}, []);
@@ -89,6 +110,36 @@ export function useWallet(): UseWalletReturn {
 		return result.mnemonic;
 	}, []);
 
+	const getOrdinals = useCallback(
+		async (limit?: number, offset?: number) => {
+			return rpc.request.getOrdinals({ limit, offset });
+		},
+		[],
+	);
+
+	const getTokenBalances = useCallback(async () => {
+		return rpc.request.getTokenBalances();
+	}, []);
+
+	const getTransactionHistory = useCallback(
+		async (limit?: number, offset?: number) => {
+			return rpc.request.getTransactionHistory({ limit, offset });
+		},
+		[],
+	);
+
+	const inscribeFile = useCallback(async (params: InscribeFileParams) => {
+		return rpc.request.inscribeFile(params);
+	}, []);
+
+	const getOpnsNames = useCallback(async () => {
+		return rpc.request.getOpnsNames();
+	}, []);
+
+	const pickFile = useCallback(async (allowedFileTypes?: string) => {
+		return rpc.request.pickFile({ allowedFileTypes });
+	}, []);
+
 	return {
 		status,
 		balance,
@@ -96,8 +147,15 @@ export function useWallet(): UseWalletReturn {
 		importWallet,
 		unlockWallet,
 		lockWallet,
+		deleteWallet,
 		sendBsv,
 		getReceiveInfo,
 		generateMnemonic,
+		getOrdinals,
+		getTokenBalances,
+		getTransactionHistory,
+		inscribeFile,
+		getOpnsNames,
+		pickFile,
 	};
 }
