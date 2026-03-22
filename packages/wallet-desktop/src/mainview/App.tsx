@@ -1,11 +1,12 @@
-import { useState } from "react";
-import { useWallet } from "./hooks/use-wallet";
-import { Dashboard } from "./views/dashboard/index";
-import { CreateWallet } from "./views/onboarding/create-wallet";
-import { ImportWallet } from "./views/onboarding/import-wallet";
-import { UnlockWallet } from "./views/onboarding/unlock-wallet";
+import { Button } from '@/components/ui/button'
+import { useState } from 'react'
+import { useWallet } from './hooks/use-wallet'
+import { Dashboard } from './views/dashboard/index'
+import { CreateWallet } from './views/onboarding/create-wallet'
+import { ImportWallet } from './views/onboarding/import-wallet'
+import { UnlockWallet } from './views/onboarding/unlock-wallet'
 
-type OnboardingChoice = "none" | "create" | "import";
+type OnboardingChoice = 'none' | 'create' | 'import'
 
 function LoadingScreen() {
 	return (
@@ -19,7 +20,7 @@ function LoadingScreen() {
 				</div>
 			</div>
 		</div>
-	);
+	)
 }
 
 function OnboardingChoice({
@@ -36,53 +37,54 @@ function OnboardingChoice({
 				</p>
 
 				<div className="space-y-3">
-					<button
-						type="button"
-						onClick={() => onChoose("create")}
-						className="w-full py-3 bg-primary text-primary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
+					<Button
+						className="w-full"
+						size="lg"
+						onClick={() => onChoose('create')}
 					>
 						Create New Wallet
-					</button>
-					<button
-						type="button"
-						onClick={() => onChoose("import")}
-						className="w-full py-3 bg-secondary text-secondary-foreground font-medium text-sm border border-border hover:opacity-90 transition-opacity"
+					</Button>
+					<Button
+						variant="secondary"
+						className="w-full"
+						size="lg"
+						onClick={() => onChoose('import')}
 					>
 						Import Existing Wallet
-					</button>
+					</Button>
 				</div>
 			</div>
 		</div>
-	);
+	)
 }
 
 function App() {
-	const { status } = useWallet();
+	const { status } = useWallet()
 	const [onboardingChoice, setOnboardingChoice] =
-		useState<OnboardingChoice>("none");
+		useState<OnboardingChoice>('none')
 
-	if (status === "initializing") {
-		return <LoadingScreen />;
+	if (status === 'initializing') {
+		return <LoadingScreen />
 	}
 
-	if (status === "locked") {
-		return <UnlockWallet />;
+	if (status === 'locked') {
+		return <UnlockWallet />
 	}
 
-	if (status === "unlocked") {
-		return <Dashboard />;
+	if (status === 'unlocked') {
+		return <Dashboard />
 	}
 
 	// status === "no-wallet"
-	if (onboardingChoice === "create") {
-		return <CreateWallet />;
+	if (onboardingChoice === 'create') {
+		return <CreateWallet />
 	}
 
-	if (onboardingChoice === "import") {
-		return <ImportWallet />;
+	if (onboardingChoice === 'import') {
+		return <ImportWallet />
 	}
 
-	return <OnboardingChoice onChoose={setOnboardingChoice} />;
+	return <OnboardingChoice onChoose={setOnboardingChoice} />
 }
 
-export default App;
+export default App

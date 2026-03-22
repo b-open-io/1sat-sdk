@@ -1,30 +1,30 @@
-import type { TokenBalance } from "../../shared/types";
+import type { TokenBalance } from '../../shared/types'
 
 interface TokenRowProps {
-	balance: TokenBalance;
+	balance: TokenBalance
 }
 
 function formatTokenAmount(amt: string, dec: number): string {
-	if (dec === 0) return amt;
+	if (dec === 0) return amt
 	if (amt.length <= dec) {
-		return `0.${amt.padStart(dec, "0")}`;
+		return `0.${amt.padStart(dec, '0')}`
 	}
-	const intPart = amt.slice(0, amt.length - dec);
-	const fracPart = amt.slice(amt.length - dec);
-	return `${intPart}.${fracPart}`;
+	const intPart = amt.slice(0, amt.length - dec)
+	const fracPart = amt.slice(amt.length - dec)
+	return `${intPart}.${fracPart}`
 }
 
 function truncateMiddle(str: string, startLen = 8, endLen = 8): string {
-	if (str.length <= startLen + endLen + 3) return str;
-	return `${str.slice(0, startLen)}...${str.slice(-endLen)}`;
+	if (str.length <= startLen + endLen + 3) return str
+	return `${str.slice(0, startLen)}...${str.slice(-endLen)}`
 }
 
 export function TokenRow({ balance }: TokenRowProps) {
 	const iconUrl = balance.icon
-		? `https://ordfs.network/content/${balance.icon.replace(".", "_")}`
-		: undefined;
+		? `https://ordfs.network/content/${balance.icon.replace('.', '_')}`
+		: undefined
 
-	const symbol = balance.sym ?? "???";
+	const symbol = balance.sym ?? '???'
 
 	return (
 		<div className="flex items-center gap-3 p-3 border-b border-border">
@@ -57,5 +57,5 @@ export function TokenRow({ balance }: TokenRowProps) {
 				{formatTokenAmount(balance.amt, balance.dec)}
 			</div>
 		</div>
-	);
+	)
 }

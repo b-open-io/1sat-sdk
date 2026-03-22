@@ -9,16 +9,16 @@ import {
 	BrowserView,
 	BrowserWindow,
 	Updater,
-} from "electrobun/bun"
-import type { WalletDesktopRPC } from "../shared/types"
-import { createRpcHandlers } from "./rpc-handlers"
-import { startWalletServer } from "./http-server"
+} from 'electrobun/bun'
+import type { WalletDesktopRPC } from '../shared/types'
+import { startWalletServer } from './http-server'
+import { createRpcHandlers } from './rpc-handlers'
 import {
 	checkVault,
 	setBalanceUpdatedCallback,
 	setStatusChangedCallback,
 	setSyncEventCallback,
-} from "./wallet-manager"
+} from './wallet-manager'
 
 // ============================================================================
 // Dev server detection (HMR support)
@@ -29,9 +29,9 @@ const DEV_SERVER_URL = `http://localhost:${DEV_SERVER_PORT}`
 
 async function getMainViewUrl(): Promise<string> {
 	const channel = await Updater.localInfo.channel()
-	if (channel === "dev") {
+	if (channel === 'dev') {
 		try {
-			await fetch(DEV_SERVER_URL, { method: "HEAD" })
+			await fetch(DEV_SERVER_URL, { method: 'HEAD' })
 			console.log(`HMR enabled: Using Vite dev server at ${DEV_SERVER_URL}`)
 			return DEV_SERVER_URL
 		} catch {
@@ -40,7 +40,7 @@ async function getMainViewUrl(): Promise<string> {
 			)
 		}
 	}
-	return "views://mainview/index.html"
+	return 'views://mainview/index.html'
 }
 
 // ============================================================================
@@ -63,10 +63,10 @@ const rpc = BrowserView.defineRPC<WalletDesktopRPC>({
 const url = await getMainViewUrl()
 
 const mainWindow = new BrowserWindow({
-	title: "1Sat Wallet",
+	title: '1Sat Wallet',
 	url,
 	frame: { width: 420, height: 680, x: 200, y: 200 },
-	titleBarStyle: "hiddenInset",
+	titleBarStyle: 'hiddenInset',
 	rpc,
 })
 
@@ -76,32 +76,32 @@ const mainWindow = new BrowserWindow({
 
 ApplicationMenu.setApplicationMenu([
 	{
-		label: "1Sat Wallet",
+		label: '1Sat Wallet',
 		submenu: [
-			{ label: "About 1Sat Wallet", role: "hide" },
-			{ type: "separator" },
-			{ role: "hide" },
-			{ role: "hideOthers" },
-			{ role: "showAll" },
-			{ type: "separator" },
-			{ label: "Quit", role: "quit" },
+			{ label: 'About 1Sat Wallet', role: 'hide' },
+			{ type: 'separator' },
+			{ role: 'hide' },
+			{ role: 'hideOthers' },
+			{ role: 'showAll' },
+			{ type: 'separator' },
+			{ label: 'Quit', role: 'quit' },
 		],
 	},
 	{
-		label: "Edit",
+		label: 'Edit',
 		submenu: [
-			{ role: "undo" },
-			{ role: "redo" },
-			{ type: "separator" },
-			{ role: "cut" },
-			{ role: "copy" },
-			{ role: "paste" },
-			{ role: "selectAll" },
+			{ role: 'undo' },
+			{ role: 'redo' },
+			{ type: 'separator' },
+			{ role: 'cut' },
+			{ role: 'copy' },
+			{ role: 'paste' },
+			{ role: 'selectAll' },
 		],
 	},
 	{
-		label: "View",
-		submenu: [{ role: "toggleFullScreen" }],
+		label: 'View',
+		submenu: [{ role: 'toggleFullScreen' }],
 	},
 ])
 
@@ -127,9 +127,9 @@ setSyncEventCallback((event) => {
 // Check vault on launch — triggers setStatusChangedCallback which pushes to WebView.
 // Also send the initial state once the webview DOM is ready.
 const hasKey = checkVault()
-mainWindow.webview.on("dom-ready", () => {
+mainWindow.webview.on('dom-ready', () => {
 	mainWindow.webview.rpc.send.walletStateChanged({
-		status: hasKey ? "locked" : "no-wallet",
+		status: hasKey ? 'locked' : 'no-wallet',
 	})
 })
 
@@ -139,4 +139,4 @@ mainWindow.webview.on("dom-ready", () => {
 
 startWalletServer()
 
-console.log("1Sat Wallet started")
+console.log('1Sat Wallet started')

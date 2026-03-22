@@ -1,26 +1,26 @@
-import type { OrdinalInfo } from "../../shared/types";
+import type { OrdinalInfo } from '../../shared/types'
 
 interface OrdinalCardProps {
-	ordinal: OrdinalInfo;
-	onClick: () => void;
+	ordinal: OrdinalInfo
+	onClick: () => void
 }
 
 function extractTag(tags: string[], prefix: string): string | undefined {
-	const tag = tags.find((t) => t.startsWith(`${prefix}:`));
-	return tag ? tag.slice(prefix.length + 1) : undefined;
+	const tag = tags.find((t) => t.startsWith(`${prefix}:`))
+	return tag ? tag.slice(prefix.length + 1) : undefined
 }
 
 export function OrdinalCard({ ordinal, onClick }: OrdinalCardProps) {
-	const origin = extractTag(ordinal.tags, "origin");
-	const name = extractTag(ordinal.tags, "name");
-	const type = extractTag(ordinal.tags, "type");
+	const origin = extractTag(ordinal.tags, 'origin')
+	const name = extractTag(ordinal.tags, 'name')
+	const type = extractTag(ordinal.tags, 'type')
 
-	const originForUrl = origin?.replace(".", "_");
+	const originForUrl = origin?.replace('.', '_')
 	const imageUrl = originForUrl
 		? `https://ordfs.network/content/${originForUrl}`
-		: undefined;
+		: undefined
 
-	const isImage = type?.startsWith("image/") ?? false;
+	const isImage = type?.startsWith('image/') ?? false
 
 	return (
 		<button
@@ -32,13 +32,13 @@ export function OrdinalCard({ ordinal, onClick }: OrdinalCardProps) {
 				{isImage && imageUrl ? (
 					<img
 						src={imageUrl}
-						alt={name ?? "Ordinal"}
+						alt={name ?? 'Ordinal'}
 						loading="lazy"
 						className="w-full h-full object-cover"
 					/>
 				) : (
 					<span className="text-xs font-mono text-muted-foreground px-2 text-center">
-						{type ?? "unknown"}
+						{type ?? 'unknown'}
 					</span>
 				)}
 			</div>
@@ -53,5 +53,5 @@ export function OrdinalCard({ ordinal, onClick }: OrdinalCardProps) {
 				</span>
 			</div>
 		</button>
-	);
+	)
 }

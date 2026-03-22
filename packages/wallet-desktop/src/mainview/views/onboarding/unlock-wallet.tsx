@@ -1,25 +1,26 @@
-import { useCallback, useState } from "react";
-import { useWallet } from "../../hooks/use-wallet";
+import { Button } from '@/components/ui/button'
+import { useCallback, useState } from 'react'
+import { useWallet } from '../../hooks/use-wallet'
 
 export function UnlockWallet() {
-	const { unlockWallet } = useWallet();
-	const [error, setError] = useState("");
-	const [loading, setLoading] = useState(false);
+	const { unlockWallet } = useWallet()
+	const [error, setError] = useState('')
+	const [loading, setLoading] = useState(false)
 
 	const handleUnlock = useCallback(async () => {
-		setError("");
-		setLoading(true);
+		setError('')
+		setLoading(true)
 		try {
-			const result = await unlockWallet("");
+			const result = await unlockWallet('')
 			if (!result.success) {
-				setError(result.error ?? "Failed to unlock wallet");
+				setError(result.error ?? 'Failed to unlock wallet')
 			}
 		} catch (err) {
-			setError(String(err));
+			setError(String(err))
 		} finally {
-			setLoading(false);
+			setLoading(false)
 		}
-	}, [unlockWallet]);
+	}, [unlockWallet])
 
 	return (
 		<div className="max-w-sm mx-auto p-6 flex flex-col items-center justify-center min-h-screen">
@@ -36,14 +37,14 @@ export function UnlockWallet() {
 				</div>
 			)}
 
-			<button
-				type="button"
+			<Button
+				className="w-full"
+				size="lg"
 				disabled={loading}
 				onClick={handleUnlock}
-				className="w-full py-3 bg-primary text-primary-foreground font-medium text-sm disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
 			>
-				{loading ? "Unlocking..." : "Unlock with Touch ID"}
-			</button>
+				{loading ? 'Unlocking...' : 'Unlock with Touch ID'}
+			</Button>
 		</div>
-	);
+	)
 }

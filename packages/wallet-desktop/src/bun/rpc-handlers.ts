@@ -12,19 +12,19 @@ import {
 	getOrdinals,
 	inscribe,
 	sendBsv,
-} from "@1sat/actions"
-import { generateMnemonic, isValidMnemonic } from "@1sat/utils"
-import { BRC29_PROTOCOL_ID } from "@1sat/types"
-import { PublicKey, Utils as SdkUtils } from "@bsv/sdk"
-import { Utils } from "electrobun/bun"
+} from '@1sat/actions'
+import { BRC29_PROTOCOL_ID } from '@1sat/types'
+import { generateMnemonic, isValidMnemonic } from '@1sat/utils'
+import { PublicKey, Utils as SdkUtils } from '@bsv/sdk'
+import { Utils } from 'electrobun/bun'
 import type {
 	FileReadResult,
 	HistoryEntry,
 	InscribeFileParams,
-	OrdinalInfo,
 	OpnsNameInfo,
+	OrdinalInfo,
 	TokenBalance,
-} from "../shared/types"
+} from '../shared/types'
 import {
 	create,
 	deleteWallet,
@@ -32,33 +32,33 @@ import {
 	getWallet,
 	lock,
 	unlock,
-} from "./wallet-manager"
+} from './wallet-manager'
 
 // ============================================================================
 // MIME type lookup
 // ============================================================================
 
 const MIME_MAP: Record<string, string> = {
-	".png": "image/png",
-	".jpg": "image/jpeg",
-	".jpeg": "image/jpeg",
-	".gif": "image/gif",
-	".webp": "image/webp",
-	".svg": "image/svg+xml",
-	".mp3": "audio/mpeg",
-	".mp4": "video/mp4",
-	".webm": "video/webm",
-	".json": "application/json",
-	".txt": "text/plain",
-	".html": "text/html",
-	".css": "text/css",
-	".js": "application/javascript",
-	".pdf": "application/pdf",
+	'.png': 'image/png',
+	'.jpg': 'image/jpeg',
+	'.jpeg': 'image/jpeg',
+	'.gif': 'image/gif',
+	'.webp': 'image/webp',
+	'.svg': 'image/svg+xml',
+	'.mp3': 'audio/mpeg',
+	'.mp4': 'video/mp4',
+	'.webm': 'video/webm',
+	'.json': 'application/json',
+	'.txt': 'text/plain',
+	'.html': 'text/html',
+	'.css': 'text/css',
+	'.js': 'application/javascript',
+	'.pdf': 'application/pdf',
 }
 
 function guessMimeType(filename: string): string {
-	const ext = filename.slice(filename.lastIndexOf(".")).toLowerCase()
-	return MIME_MAP[ext] ?? "application/octet-stream"
+	const ext = filename.slice(filename.lastIndexOf('.')).toLowerCase()
+	return MIME_MAP[ext] ?? 'application/octet-stream'
 }
 
 // ============================================================================
@@ -68,7 +68,7 @@ function guessMimeType(filename: string): string {
 function requireWallet() {
 	const w = getWallet()
 	if (!w) {
-		throw new Error("Wallet is not unlocked")
+		throw new Error('Wallet is not unlocked')
 	}
 	return w
 }
@@ -96,7 +96,7 @@ export function createRpcHandlers() {
 			passphrase,
 		}: { mnemonic: string; passphrase?: string }) => {
 			try {
-				await create(mnemonic, passphrase ?? "")
+				await create(mnemonic, passphrase ?? '')
 				return { success: true }
 			} catch (err) {
 				return {
@@ -112,9 +112,9 @@ export function createRpcHandlers() {
 		}: { mnemonic: string; passphrase?: string }) => {
 			try {
 				if (!isValidMnemonic(mnemonic)) {
-					return { success: false, error: "Invalid mnemonic phrase" }
+					return { success: false, error: 'Invalid mnemonic phrase' }
 				}
-				await create(mnemonic, passphrase ?? "")
+				await create(mnemonic, passphrase ?? '')
 				return { success: true }
 			} catch (err) {
 				return {
@@ -126,7 +126,7 @@ export function createRpcHandlers() {
 
 		unlockWallet: async ({ passphrase }: { passphrase?: string } = {}) => {
 			try {
-				await unlock(passphrase ?? "")
+				await unlock(passphrase ?? '')
 				return { success: true }
 			} catch (err) {
 				return {
@@ -156,8 +156,8 @@ export function createRpcHandlers() {
 		getBalance: async () => {
 			const { wallet } = requireWallet()
 			const result = await wallet.listOutputs({
-				basket: "default",
-				include: "locking scripts",
+				basket: 'default',
+				include: 'locking scripts',
 			})
 			let confirmed = 0
 			for (const output of result.outputs) {
@@ -171,7 +171,7 @@ export function createRpcHandlers() {
 		getReceiveInfo: async () => {
 			const { wallet } = requireWallet()
 			const prefix = SdkUtils.toBase64(
-				Array.from(new TextEncoder().encode("1sat")),
+				Array.from(new TextEncoder().encode('1sat')),
 			)
 			const suffix = SdkUtils.toBase64([0, 0, 0, 0])
 			const { publicKey } = await wallet.getPublicKey({
@@ -190,7 +190,7 @@ export function createRpcHandlers() {
 			const w = requireWallet()
 			const ctx = createContext(w.wallet, {
 				services: w.services,
-				chain: "main",
+				chain: 'main',
 			})
 			const result = await sendBsv.execute(ctx, {
 				requests: [{ address, satoshis: amount }],
@@ -208,7 +208,7 @@ export function createRpcHandlers() {
 			const w = requireWallet()
 			const ctx = createContext(w.wallet, {
 				services: w.services,
-				chain: "main",
+				chain: 'main',
 			})
 			const result = await getOrdinals.execute(ctx, {
 				limit: limit ?? 100,
@@ -226,7 +226,7 @@ export function createRpcHandlers() {
 			const w = requireWallet()
 			const ctx = createContext(w.wallet, {
 				services: w.services,
-				chain: "main",
+				chain: 'main',
 			})
 			const balances = await getBsv21Balances.execute(ctx, {})
 			const mapped: TokenBalance[] = balances.map((b) => ({
@@ -251,11 +251,13 @@ export function createRpcHandlers() {
 				includeLabels: true,
 			})
 			const entries: HistoryEntry[] = (result.actions ?? []).map((a) => ({
-				txid: a.txid ?? "",
-				description: a.description ?? "",
+				txid: a.txid ?? '',
+				description: a.description ?? '',
 				satoshis: a.satoshis ?? 0,
-				status: a.status ?? "unknown",
-				dateCreated: a.isOutgoing ? `sent ${a.description}` : a.description ?? "",
+				status: a.status ?? 'unknown',
+				dateCreated: a.isOutgoing
+					? `sent ${a.description}`
+					: (a.description ?? ''),
 			}))
 			return { entries }
 		},
@@ -268,7 +270,7 @@ export function createRpcHandlers() {
 			const w = requireWallet()
 			const ctx = createContext(w.wallet, {
 				services: w.services,
-				chain: "main",
+				chain: 'main',
 			})
 			const result = await inscribe.execute(ctx, {
 				base64Content,
@@ -285,14 +287,14 @@ export function createRpcHandlers() {
 			const w = requireWallet()
 			const ctx = createContext(w.wallet, {
 				services: w.services,
-				chain: "main",
+				chain: 'main',
 			})
 			const result = await getOpnsNames.execute(ctx, {})
 			const names: OpnsNameInfo[] = result.outputs.map((o) => {
-				const nameTag = (o.tags ?? []).find((t) => t.startsWith("name:"))
+				const nameTag = (o.tags ?? []).find((t) => t.startsWith('name:'))
 				return {
 					outpoint: o.outpoint,
-					name: nameTag ? nameTag.slice(5) : "",
+					name: nameTag ? nameTag.slice(5) : '',
 					tags: o.tags ?? [],
 				}
 			})
@@ -304,14 +306,14 @@ export function createRpcHandlers() {
 		}: { allowedFileTypes?: string } = {}) => {
 			try {
 				const filePaths = await Utils.openFileDialog({
-					allowedFileTypes: allowedFileTypes ?? "*",
+					allowedFileTypes: allowedFileTypes ?? '*',
 					canChooseFiles: true,
 					canChooseDirectory: false,
 					allowsMultipleSelection: false,
 				})
 
 				if (!filePaths || filePaths.length === 0 || !filePaths[0]) {
-					return { error: "No file selected" } as { error: string }
+					return { error: 'No file selected' } as { error: string }
 				}
 
 				const filePath = filePaths[0]
@@ -321,7 +323,7 @@ export function createRpcHandlers() {
 				// Convert to base64 without Buffer
 				const base64Content = SdkUtils.toBase64(Array.from(bytes))
 
-				const filename = filePath.split("/").pop() ?? filePath
+				const filename = filePath.split('/').pop() ?? filePath
 				const contentType = guessMimeType(filename)
 
 				return {

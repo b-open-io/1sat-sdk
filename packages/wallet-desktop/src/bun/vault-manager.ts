@@ -5,11 +5,11 @@
  * On macOS the Secure Enclave + Touch ID protects the root key.
  * Non-macOS platforms throw immediately — add a provider when ready.
  */
-import { FileVaultStorage, type Vault, createVault } from "@1sat/vault"
-import { SecureEnclaveProvider, isMacOS } from "@1sat/wallet-mac"
-import { Utils } from "electrobun/bun"
+import { FileVaultStorage, type Vault, createVault } from '@1sat/vault'
+import { SecureEnclaveProvider, isMacOS } from '@1sat/wallet-mac'
+import { Utils } from 'electrobun/bun'
 
-const VAULT_LABEL = "1sat-wallet-root-key"
+const VAULT_LABEL = '1sat-wallet-root-key'
 
 export function createDesktopVault(): Vault {
 	const vaultDir = `${Utils.paths.userData}/vault`
@@ -17,11 +17,11 @@ export function createDesktopVault(): Vault {
 
 	if (!isMacOS()) {
 		throw new Error(
-			"Non-macOS vault provider not yet implemented. Currently macOS-only.",
+			'Non-macOS vault provider not yet implemented. Currently macOS-only.',
 		)
 	}
 
-	const provider = new SecureEnclaveProvider({ name: "1Sat Wallet" })
+	const provider = new SecureEnclaveProvider({ name: '1Sat Wallet' })
 	return createVault(provider, storage)
 }
 

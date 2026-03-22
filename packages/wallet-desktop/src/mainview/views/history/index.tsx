@@ -1,25 +1,25 @@
-import { useEffect, useState } from "react";
-import type { HistoryEntry } from "../../../shared/types";
-import { HistoryRow } from "../../components/history-row";
-import { rpc } from "../../rpc";
+import { useEffect, useState } from 'react'
+import type { HistoryEntry } from '../../../shared/types'
+import { HistoryRow } from '../../components/history-row'
+import { rpc } from '../../rpc'
 
 export function HistoryView() {
-	const [entries, setEntries] = useState<HistoryEntry[]>([]);
-	const [loading, setLoading] = useState(true);
+	const [entries, setEntries] = useState<HistoryEntry[]>([])
+	const [loading, setLoading] = useState(true)
 
 	useEffect(() => {
 		rpc.request
 			.getTransactionHistory({ limit: 50 })
 			.then((result) => {
-				setEntries(result.entries);
+				setEntries(result.entries)
 			})
 			.catch((err) => {
-				console.error("Failed to load transaction history:", err);
+				console.error('Failed to load transaction history:', err)
 			})
 			.finally(() => {
-				setLoading(false);
-			});
-	}, []);
+				setLoading(false)
+			})
+	}, [])
 
 	if (loading) {
 		return (
@@ -29,7 +29,7 @@ export function HistoryView() {
 				</div>
 				<p className="text-sm text-muted-foreground">Loading history...</p>
 			</div>
-		);
+		)
 	}
 
 	if (entries.length === 0) {
@@ -40,7 +40,7 @@ export function HistoryView() {
 				</div>
 				<p className="text-sm text-muted-foreground">No transactions yet</p>
 			</div>
-		);
+		)
 	}
 
 	return (
@@ -54,5 +54,5 @@ export function HistoryView() {
 				))}
 			</div>
 		</div>
-	);
+	)
 }

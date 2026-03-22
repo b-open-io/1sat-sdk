@@ -5,20 +5,20 @@
  * The root key is only in memory during create/unlock — once
  * `createNodeWallet` is called, the local reference is cleared.
  */
-import type { OneSatServices } from "@1sat/client"
-import type { Vault } from "@1sat/vault"
-import type { NodeWalletResult } from "@1sat/wallet-node"
-import { createNodeWallet } from "@1sat/wallet-node"
-import { HD, Mnemonic, PrivateKey } from "@bsv/sdk"
-import { Utils } from "electrobun/bun"
-import type { BalanceInfo, SyncEvent, WalletStatus } from "../shared/types"
+import type { OneSatServices } from '@1sat/client'
+import type { Vault } from '@1sat/vault'
+import type { NodeWalletResult } from '@1sat/wallet-node'
+import { createNodeWallet } from '@1sat/wallet-node'
+import { HD, Mnemonic, PrivateKey } from '@bsv/sdk'
+import { Utils } from 'electrobun/bun'
+import type { BalanceInfo, SyncEvent, WalletStatus } from '../shared/types'
 import {
 	createDesktopVault,
 	hasStoredKey,
 	protectRootKey,
 	removeStoredKey,
 	retrieveRootKey,
-} from "./vault-manager"
+} from './vault-manager'
 
 // ============================================================================
 // Module state
@@ -26,7 +26,7 @@ import {
 
 let vault: Vault | undefined
 let walletResult: NodeWalletResult | undefined
-let currentStatus: WalletStatus = "initializing"
+let currentStatus: WalletStatus = 'initializing'
 
 /** Callback fired whenever the wallet status changes. */
 let onStatusChanged: ((status: WalletStatus) => void) | undefined
@@ -68,8 +68,8 @@ async function pushBalance(): Promise<void> {
 	if (!walletResult || !onBalanceUpdated) return
 	try {
 		const result = await walletResult.wallet.listOutputs({
-			basket: "default",
-			include: "locking scripts",
+			basket: 'default',
+			include: 'locking scripts',
 		})
 		let confirmed = 0
 		for (const output of result.outputs) {
@@ -79,7 +79,7 @@ async function pushBalance(): Promise<void> {
 		}
 		onBalanceUpdated({ confirmed, unconfirmed: 0 })
 	} catch (err) {
-		console.error("Failed to push initial balance:", err)
+		console.error('Failed to push initial balance:', err)
 	}
 }
 
@@ -91,19 +91,19 @@ function wireMonitorEvents(): void {
 	monitor.onTransactionBroadcasted = async (result) => {
 		onSyncEvent?.({
 			timestamp: Date.now(),
-			source: "monitor",
-			level: "log",
+			source: 'monitor',
+			level: 'log',
 			message: result.txid
 				? `Transaction broadcasted: ${result.txid}`
-				: "Transaction broadcast attempted",
+				: 'Transaction broadcast attempted',
 		})
 	}
 
 	monitor.onTransactionProven = async (status) => {
 		onSyncEvent?.({
 			timestamp: Date.now(),
-			source: "monitor",
-			level: "log",
+			source: 'monitor',
+			level: 'log',
 			message: `Transaction proven at block ${status.blockHeight}: ${status.txid}`,
 		})
 	}
@@ -125,9 +125,7 @@ export function setBalanceUpdatedCallback(
 	onBalanceUpdated = cb
 }
 
-export function setSyncEventCallback(
-	cb: (event: SyncEvent) => void,
-): void {
+export function setSyncEventCallback(cb: (event: SyncEvent) => void): void {
 	onSyncEvent = cb
 }
 
@@ -154,10 +152,13 @@ export function getMonitor() {
 export function checkVault(): boolean {
 	const v = getVault()
 	const stored = hasStoredKey(v)
-	if (stored && (currentStatus === "initializing" || currentStatus === "no-wallet")) {
-		setStatus("locked")
+	if (
+		stored &&
+		(currentStatus === 'initializing' || currentStatus === 'no-wallet')
+	) {
+		setStatus('locked')
 	} else if (!stored) {
-		setStatus("no-wallet")
+		setStatus('no-wallet')
 	}
 	return stored
 }
@@ -170,30 +171,35 @@ export async function create(
 	mnemonic: string,
 	_passphrase: string,
 ): Promise<void> {
-	console.log("[wallet-manager] create() starting")
+	console.log('[wallet-manager] create() starting')
 	const v = getVault()
 
-	console.log("[wallet-manager] deriving root key from mnemonic")
+	console.log('[wallet-manager] deriving root key from mnemonic')
 	const rootKey = deriveRootKey(mnemonic)
 	const rootKeyHex = rootKey.toHex()
 	const identityKey = rootKey.toPublicKey().toString()
-	console.log("[wallet-manager] rootKeyHex length:", rootKeyHex.length, "identityKey:", identityKey.substring(0, 10) + "...")
+	console.log(
+		'[wallet-manager] rootKeyHex length:',
+		rootKeyHex.length,
+		'identityKey:',
+		`${identityKey.substring(0, 10)}...`,
+	)
 
-	console.log("[wallet-manager] protecting root key in vault")
+	console.log('[wallet-manager] protecting root key in vault')
 	await protectRootKey(v, rootKeyHex)
-	console.log("[wallet-manager] root key protected")
+	console.log('[wallet-manager] root key protected')
 
 	const wif = rootKey.toWif()
-	console.log("[wallet-manager] calling createNodeWallet")
+	console.log('[wallet-manager] calling createNodeWallet')
 	walletResult = await createNodeWallet({
 		privateKey: wif,
-		chain: "main",
+		chain: 'main',
 		storageIdentityKey: `1sat-wallet:${identityKey}`,
 		filename: dbPath(),
 	})
-	console.log("[wallet-manager] wallet created successfully")
+	console.log('[wallet-manager] wallet created successfully')
 
-	setStatus("unlocked")
+	setStatus('unlocked')
 	wireMonitorEvents()
 	await pushBalance()
 }
@@ -203,33 +209,49 @@ export async function create(
  * On macOS this triggers Touch ID.
  */
 export async function unlock(_passphrase: string): Promise<void> {
-	console.log("[wallet-manager] unlock() starting")
+	console.log('[wallet-manager] unlock() starting')
 	const v = getVault()
 	const rootKeyHex = await retrieveRootKey(v)
-	console.log("[wallet-manager] retrieved key, length:", rootKeyHex.length, "first10:", rootKeyHex.substring(0, 10), "isHex:", /^[0-9a-fA-F]{64}$/.test(rootKeyHex))
+	console.log(
+		'[wallet-manager] retrieved key, length:',
+		rootKeyHex.length,
+		'first10:',
+		rootKeyHex.substring(0, 10),
+		'isHex:',
+		/^[0-9a-fA-F]{64}$/.test(rootKeyHex),
+	)
 	try {
 		const rootKey = PrivateKey.fromHex(rootKeyHex)
-		console.log("[wallet-manager] PrivateKey.fromHex OK")
+		console.log('[wallet-manager] PrivateKey.fromHex OK')
 		const identityKey = rootKey.toPublicKey().toString()
-		console.log("[wallet-manager] identityKey:", identityKey.substring(0, 10) + "...")
+		console.log(
+			'[wallet-manager] identityKey:',
+			`${identityKey.substring(0, 10)}...`,
+		)
 
 		const wif = rootKey.toWif()
-		console.log("[wallet-manager] calling createNodeWallet with filename:", dbPath())
+		console.log(
+			'[wallet-manager] calling createNodeWallet with filename:',
+			dbPath(),
+		)
 		walletResult = await createNodeWallet({
 			privateKey: wif,
-			chain: "main",
+			chain: 'main',
 			storageIdentityKey: `1sat-wallet:${identityKey}`,
 			filename: dbPath(),
 		})
-		console.log("[wallet-manager] createNodeWallet succeeded")
+		console.log('[wallet-manager] createNodeWallet succeeded')
 	} catch (err) {
-		console.error("[wallet-manager] unlock error:", err)
-		console.error("[wallet-manager] error message:", (err as Error).message)
-		console.error("[wallet-manager] error stack:", (err as Error).stack?.split("\n").slice(0, 5).join("\n"))
+		console.error('[wallet-manager] unlock error:', err)
+		console.error('[wallet-manager] error message:', (err as Error).message)
+		console.error(
+			'[wallet-manager] error stack:',
+			(err as Error).stack?.split('\n').slice(0, 5).join('\n'),
+		)
 		throw err
 	}
 
-	setStatus("unlocked")
+	setStatus('unlocked')
 	wireMonitorEvents()
 	await pushBalance()
 }
@@ -242,7 +264,7 @@ export async function lock(): Promise<void> {
 		await walletResult.destroy()
 		walletResult = undefined
 	}
-	setStatus("locked")
+	setStatus('locked')
 }
 
 /**
@@ -263,18 +285,18 @@ export async function deleteWallet(): Promise<void> {
 	}
 
 	// Remove the SQLite database file
-	const { unlinkSync, existsSync } = await import("node:fs")
+	const { unlinkSync, existsSync } = await import('node:fs')
 	const path = dbPath()
 	if (existsSync(path)) {
 		unlinkSync(path)
 	}
 	// Also remove WAL/SHM files if present (SQLite journal)
-	for (const suffix of ["-wal", "-shm"]) {
+	for (const suffix of ['-wal', '-shm']) {
 		const journalPath = `${path}${suffix}`
 		if (existsSync(journalPath)) {
 			unlinkSync(journalPath)
 		}
 	}
 
-	setStatus("no-wallet")
+	setStatus('no-wallet')
 }

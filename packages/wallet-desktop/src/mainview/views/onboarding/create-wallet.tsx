@@ -1,41 +1,41 @@
-import { useCallback, useEffect, useState } from "react";
-import { MnemonicGrid } from "../../components/mnemonic-grid";
-import { useWallet } from "../../hooks/use-wallet";
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { useCallback, useEffect, useState } from 'react'
+import { MnemonicGrid } from '../../components/mnemonic-grid'
+import { useWallet } from '../../hooks/use-wallet'
 
 export function CreateWallet() {
-	const { createWallet, generateMnemonic } = useWallet();
-	const [mnemonic, setMnemonic] = useState<string[]>([]);
-	const [confirmed, setConfirmed] = useState(false);
-	const [error, setError] = useState("");
-	const [loading, setLoading] = useState(false);
+	const { createWallet, generateMnemonic } = useWallet()
+	const [mnemonic, setMnemonic] = useState<string[]>([])
+	const [confirmed, setConfirmed] = useState(false)
+	const [error, setError] = useState('')
+	const [loading, setLoading] = useState(false)
 
 	useEffect(() => {
 		generateMnemonic().then(
-			(m) => setMnemonic(m.split(" ")),
+			(m) => setMnemonic(m.split(' ')),
 			(err) => setError(`Failed to generate mnemonic: ${err}`),
-		);
-	}, [generateMnemonic]);
+		)
+	}, [generateMnemonic])
 
 	const handleSubmit = useCallback(async () => {
-		setError("");
-		setLoading(true);
+		setError('')
+		setLoading(true)
 		try {
-			const result = await createWallet(mnemonic.join(" "), "");
+			const result = await createWallet(mnemonic.join(' '), '')
 			if (!result.success) {
-				setError(result.error ?? "Failed to create wallet");
+				setError(result.error ?? 'Failed to create wallet')
 			}
 		} catch (err) {
-			setError(String(err));
+			setError(String(err))
 		} finally {
-			setLoading(false);
+			setLoading(false)
 		}
-	}, [mnemonic, createWallet]);
+	}, [mnemonic, createWallet])
 
 	return (
 		<div className="max-w-lg mx-auto p-6">
-			<h1 className="text-2xl font-bold text-foreground mb-1">
-				Create Wallet
-			</h1>
+			<h1 className="text-2xl font-bold text-foreground mb-1">Create Wallet</h1>
 			<p className="text-sm text-muted-foreground mb-6">
 				Write down your recovery phrase and store it safely.
 			</p>
@@ -48,15 +48,18 @@ export function CreateWallet() {
 				</div>
 			)}
 
-			<label className="flex items-center gap-2 mt-6 text-sm text-foreground cursor-pointer select-none">
+			<div className="flex items-center gap-2 mt-6">
 				<input
+					id="confirmed"
 					type="checkbox"
 					checked={confirmed}
 					onChange={(e) => setConfirmed(e.target.checked)}
 					className="accent-primary"
 				/>
-				I have saved my recovery phrase
-			</label>
+				<Label htmlFor="confirmed" className="cursor-pointer select-none">
+					I have saved my recovery phrase
+				</Label>
+			</div>
 
 			{error && (
 				<div className="mt-4 p-3 border border-destructive text-destructive text-sm font-mono">
@@ -64,14 +67,14 @@ export function CreateWallet() {
 				</div>
 			)}
 
-			<button
-				type="button"
+			<Button
+				className="mt-4 w-full"
+				size="lg"
 				disabled={!confirmed || mnemonic.length === 0 || loading}
 				onClick={handleSubmit}
-				className="mt-4 w-full py-3 bg-primary text-primary-foreground font-medium text-sm disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
 			>
-				{loading ? "Creating..." : "Create Wallet"}
-			</button>
+				{loading ? 'Creating...' : 'Create Wallet'}
+			</Button>
 		</div>
-	);
+	)
 }

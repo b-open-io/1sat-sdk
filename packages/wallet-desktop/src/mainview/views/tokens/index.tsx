@@ -1,25 +1,25 @@
-import { useEffect, useState } from "react";
-import type { TokenBalance } from "../../../shared/types";
-import { TokenRow } from "../../components/token-row";
-import { rpc } from "../../rpc";
+import { useEffect, useState } from 'react'
+import type { TokenBalance } from '../../../shared/types'
+import { TokenRow } from '../../components/token-row'
+import { rpc } from '../../rpc'
 
 export function TokensView() {
-	const [balances, setBalances] = useState<TokenBalance[]>([]);
-	const [loading, setLoading] = useState(true);
+	const [balances, setBalances] = useState<TokenBalance[]>([])
+	const [loading, setLoading] = useState(true)
 
 	useEffect(() => {
 		rpc.request
 			.getTokenBalances()
 			.then((result) => {
-				setBalances(result.balances);
+				setBalances(result.balances)
 			})
 			.catch((err) => {
-				console.error("Failed to load token balances:", err);
+				console.error('Failed to load token balances:', err)
 			})
 			.finally(() => {
-				setLoading(false);
-			});
-	}, []);
+				setLoading(false)
+			})
+	}, [])
 
 	if (loading) {
 		return (
@@ -29,7 +29,7 @@ export function TokensView() {
 				</div>
 				<p className="text-sm text-muted-foreground">Loading tokens...</p>
 			</div>
-		);
+		)
 	}
 
 	if (balances.length === 0) {
@@ -40,7 +40,7 @@ export function TokensView() {
 				</div>
 				<p className="text-sm text-muted-foreground">No tokens found</p>
 			</div>
-		);
+		)
 	}
 
 	return (
@@ -54,5 +54,5 @@ export function TokensView() {
 				))}
 			</div>
 		</div>
-	);
+	)
 }

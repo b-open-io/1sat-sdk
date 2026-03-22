@@ -1,70 +1,72 @@
-import { useCallback, useState } from "react";
-import type { FileReadResult } from "../../../shared/types";
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { useCallback, useState } from 'react'
+import type { FileReadResult } from '../../../shared/types'
 import {
 	MetadataEditor,
 	type MetadataEntry,
-} from "../../components/metadata-editor";
-import { rpc } from "../../rpc";
+} from '../../components/metadata-editor'
+import { rpc } from '../../rpc'
 
 function formatBytes(bytes: number): string {
-	if (bytes < 1024) return `${bytes} B`;
-	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+	if (bytes < 1024) return `${bytes} B`
+	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 export function InscribeView() {
-	const [file, setFile] = useState<FileReadResult | null>(null);
+	const [file, setFile] = useState<FileReadResult | null>(null)
 	const [metadata, setMetadata] = useState<MetadataEntry[]>([
-		{ key: "app", value: "1sat-wallet" },
-	]);
-	const [loading, setLoading] = useState(false);
+		{ key: 'app', value: '1sat-wallet' },
+	])
+	const [loading, setLoading] = useState(false)
 	const [result, setResult] = useState<{
-		txid?: string;
-		error?: string;
-	} | null>(null);
+		txid?: string
+		error?: string
+	} | null>(null)
 
 	const handlePickFile = useCallback(async () => {
-		setResult(null);
+		setResult(null)
 		try {
-			const res = await rpc.request.pickFile({ allowedFileTypes: "*" });
-			if ("error" in res) {
-				setResult({ error: res.error });
-				return;
+			const res = await rpc.request.pickFile({ allowedFileTypes: '*' })
+			if ('error' in res) {
+				setResult({ error: res.error })
+				return
 			}
-			setFile(res);
+			setFile(res)
 		} catch (err) {
-			setResult({ error: String(err) });
+			setResult({ error: String(err) })
 		}
-	}, []);
+	}, [])
 
 	const handleInscribe = useCallback(async () => {
-		if (!file) return;
+		if (!file) return
 
-		setLoading(true);
-		setResult(null);
+		setLoading(true)
+		setResult(null)
 
 		const map = Object.fromEntries(
 			metadata.filter((e) => e.key).map((e) => [e.key, e.value]),
-		);
+		)
 
 		try {
 			const res = await rpc.request.inscribeFile({
 				base64Content: file.base64Content,
 				contentType: file.contentType,
 				map: Object.keys(map).length > 0 ? map : undefined,
-			});
-			setResult(res);
+			})
+			setResult(res)
 			if (res.txid) {
-				setFile(null);
+				setFile(null)
 			}
 		} catch (err) {
-			setResult({ error: String(err) });
+			setResult({ error: String(err) })
 		} finally {
-			setLoading(false);
+			setLoading(false)
 		}
-	}, [file, metadata]);
+	}, [file, metadata])
 
-	const isImage = file?.contentType.startsWith("image/") ?? false;
+	const isImage = file?.contentType.startsWith('image/') ?? false
 
 	return (
 		<div className="p-6 space-y-6">
@@ -73,52 +75,56 @@ export function InscribeView() {
 			</div>
 
 			{/* File selection */}
-			<div className="border border-border bg-card p-4 space-y-4">
-				<button
-					type="button"
-					onClick={handlePickFile}
-					className="w-full py-3 border border-border text-sm font-mono text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
-				>
-					{file ? "Change File" : "Select File"}
-				</button>
+			<Card>
+				<CardContent className="p-4 space-y-4">
+					<Button
+						variant="outline"
+						className="w-full font-mono"
+						onClick={handlePickFile}
+					>
+						{file ? 'Change File' : 'Select File'}
+					</Button>
 
-				{/* File preview */}
-				{file && (
-					<div className="space-y-3">
-						{isImage ? (
-							<div className="flex justify-center">
-								<img
-									src={`data:${file.contentType};base64,${file.base64Content}`}
-									alt={file.filename}
-									className="max-h-48 object-contain border border-border"
-								/>
-							</div>
-						) : (
-							<div className="p-3 bg-muted border border-border text-center">
-								<div className="text-sm font-mono text-foreground">
-									{file.filename}
+					{/* File preview */}
+					{file && (
+						<div className="space-y-3">
+							{isImage ? (
+								<div className="flex justify-center">
+									<img
+										src={`data:${file.contentType};base64,${file.base64Content}`}
+										alt={file.filename}
+										className="max-h-48 object-contain border border-border"
+									/>
 								</div>
-								<div className="text-xs text-muted-foreground mt-1">
-									{file.contentType} &middot; {formatBytes(file.sizeBytes)}
+							) : (
+								<div className="p-3 bg-muted border border-border text-center">
+									<div className="text-sm font-mono text-foreground">
+										{file.filename}
+									</div>
+									<div className="text-xs text-muted-foreground mt-1">
+										{file.contentType} &middot; {formatBytes(file.sizeBytes)}
+									</div>
 								</div>
-							</div>
-						)}
+							)}
 
-						{isImage && (
-							<div className="text-xs text-muted-foreground text-center">
-								{file.filename} &middot; {file.contentType} &middot;{" "}
-								{formatBytes(file.sizeBytes)}
-							</div>
-						)}
-					</div>
-				)}
-			</div>
+							{isImage && (
+								<div className="text-xs text-muted-foreground text-center">
+									{file.filename} &middot; {file.contentType} &middot;{' '}
+									{formatBytes(file.sizeBytes)}
+								</div>
+							)}
+						</div>
+					)}
+				</CardContent>
+			</Card>
 
 			{/* Metadata editor */}
 			{file && (
-				<div className="border border-border bg-card p-4">
-					<MetadataEditor entries={metadata} onChange={setMetadata} />
-				</div>
+				<Card>
+					<CardContent className="p-4">
+						<MetadataEditor entries={metadata} onChange={setMetadata} />
+					</CardContent>
+				</Card>
 			)}
 
 			{/* Result */}
@@ -135,15 +141,15 @@ export function InscribeView() {
 
 			{/* Inscribe button */}
 			{file && (
-				<button
-					type="button"
+				<Button
+					className="w-full"
+					size="lg"
 					disabled={loading}
 					onClick={handleInscribe}
-					className="w-full py-3 bg-primary text-primary-foreground font-medium text-sm disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
 				>
-					{loading ? "Inscribing..." : "Inscribe"}
-				</button>
+					{loading ? 'Inscribing...' : 'Inscribe'}
+				</Button>
 			)}
 		</div>
-	);
+	)
 }

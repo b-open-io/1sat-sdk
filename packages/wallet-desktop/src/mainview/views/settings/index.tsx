@@ -1,30 +1,31 @@
-import { useCallback, useState } from "react";
-import { useWallet } from "../../hooks/use-wallet";
+import { Button } from '@/components/ui/button'
+import { useCallback, useState } from 'react'
+import { useWallet } from '../../hooks/use-wallet'
 
 export function SettingsView() {
-	const { lockWallet, deleteWallet } = useWallet();
-	const [confirmDelete, setConfirmDelete] = useState(false);
-	const [error, setError] = useState("");
+	const { lockWallet, deleteWallet } = useWallet()
+	const [confirmDelete, setConfirmDelete] = useState(false)
+	const [error, setError] = useState('')
 
 	const handleLock = useCallback(async () => {
-		await lockWallet();
-	}, [lockWallet]);
+		await lockWallet()
+	}, [lockWallet])
 
 	const handleDelete = useCallback(async () => {
 		if (!confirmDelete) {
-			setConfirmDelete(true);
-			return;
+			setConfirmDelete(true)
+			return
 		}
-		setError("");
+		setError('')
 		try {
-			const result = await deleteWallet();
+			const result = await deleteWallet()
 			if (!result.success) {
-				setError(result.error ?? "Failed to delete wallet");
+				setError(result.error ?? 'Failed to delete wallet')
 			}
 		} catch (err) {
-			setError(String(err));
+			setError(String(err))
 		}
-	}, [confirmDelete, deleteWallet]);
+	}, [confirmDelete, deleteWallet])
 
 	return (
 		<div className="p-6 space-y-6">
@@ -33,32 +34,34 @@ export function SettingsView() {
 			</div>
 
 			<div className="space-y-3">
-				<button
-					type="button"
+				<Button
+					variant="secondary"
+					className="w-full"
+					size="lg"
 					onClick={handleLock}
-					className="w-full py-3 bg-secondary text-secondary-foreground font-medium text-sm border border-border hover:opacity-90 transition-opacity"
 				>
 					Lock Wallet
-				</button>
+				</Button>
 
-				<button
-					type="button"
+				<Button
+					variant="destructive"
+					className="w-full"
+					size="lg"
 					onClick={handleDelete}
-					className="w-full py-3 bg-destructive text-destructive-foreground font-medium text-sm hover:opacity-90 transition-opacity"
 				>
 					{confirmDelete
-						? "Confirm Delete -- This Cannot Be Undone"
-						: "Delete Wallet"}
-				</button>
+						? 'Confirm Delete -- This Cannot Be Undone'
+						: 'Delete Wallet'}
+				</Button>
 
 				{confirmDelete && (
-					<button
-						type="button"
+					<Button
+						variant="ghost"
+						className="w-full"
 						onClick={() => setConfirmDelete(false)}
-						className="w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
 					>
 						Cancel
-					</button>
+					</Button>
 				)}
 			</div>
 
@@ -68,5 +71,5 @@ export function SettingsView() {
 				</div>
 			)}
 		</div>
-	);
+	)
 }

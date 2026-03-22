@@ -1,29 +1,29 @@
-import { useEffect, useRef, useState } from "react";
-import type { SyncEvent } from "../../shared/types";
-import { onSyncEvent } from "../rpc";
+import { useEffect, useRef, useState } from 'react'
+import type { SyncEvent } from '../../shared/types'
+import { onSyncEvent } from '../rpc'
 
-const MAX_EVENTS = 100;
+const MAX_EVENTS = 100
 
 interface UseSyncEventsReturn {
-	events: SyncEvent[];
+	events: SyncEvent[]
 }
 
 export function useSyncEvents(): UseSyncEventsReturn {
-	const [events, setEvents] = useState<SyncEvent[]>([]);
-	const eventsRef = useRef<SyncEvent[]>([]);
+	const [events, setEvents] = useState<SyncEvent[]>([])
+	const eventsRef = useRef<SyncEvent[]>([])
 
 	useEffect(() => {
 		const unsub = onSyncEvent((event) => {
-			const next = [...eventsRef.current, event];
+			const next = [...eventsRef.current, event]
 			if (next.length > MAX_EVENTS) {
-				next.splice(0, next.length - MAX_EVENTS);
+				next.splice(0, next.length - MAX_EVENTS)
 			}
-			eventsRef.current = next;
-			setEvents(next);
-		});
+			eventsRef.current = next
+			setEvents(next)
+		})
 
-		return unsub;
-	}, []);
+		return unsub
+	}, [])
 
-	return { events };
+	return { events }
 }
