@@ -8,3 +8,9 @@ bun.lock
 *.db
 *.db-shm
 *.db-wal
+
+# Build artifacts
+artifacts/
+icon-build/
+store/
+*.p12
