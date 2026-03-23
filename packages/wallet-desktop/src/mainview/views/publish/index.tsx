@@ -1,231 +1,292 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-	CheckCircle,
-	Code,
-	Copy,
+	AlertCircle,
+	AlertTriangle,
+	ArrowLeft,
+	ArrowRight,
+	Check,
+	ChevronRight,
+	Clipboard,
+	ExternalLink,
+	FileCode,
+	FileCog,
+	FileImage,
+	FileJson,
 	FileText,
-	Image as ImageIcon,
-	Loader2,
-	UploadCloud,
-	Video,
+	Folder,
+	FolderUp,
+	Info,
+	RefreshCw,
+	Rocket,
+	Share2,
+	Wallet,
+	X,
 } from 'lucide-react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from '../../components/ui/button'
-import { rpc } from '../../rpc'
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-type PublishStep = 1 | 2 | 3 | 4 | 5 | 6
+type WizardStep = 'select' | 'build' | 'configure' | 'publish'
 
-type PublishType = 'image' | 'video' | 'document' | 'html'
+/** Sub-states within the publish step */
+type PublishSubState = 'review' | 'insufficient' | 'broadcasting' | 'success'
 
-interface MetadataField {
-	id: string
-	key: string
-	value: string
+type ProjectType = 'Vite' | 'CRA' | 'Bot' | 'Skill' | 'Static'
+
+interface RecentProject {
+	name: string
+	path: string
+	type: ProjectType
 }
 
-interface FileData {
-	base64Content: string
-	contentType: string
-	filename: string
-	sizeBytes: number
-	previewUrl?: string
+interface BuildFile {
+	name: string
+	mime: string
+	sizeKb: number
 }
 
-interface PublishResult {
-	txid: string
+interface ConfigureFormData {
+	appName: string
+	description: string
+	opnsName: string
+	identity: string
+	permissions: string[]
 }
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
+// ─── Mock data ────────────────────────────────────────────────────────────────
 
-const STEP_LABELS: Record<PublishStep, string> = {
-	1: 'Type',
-	2: 'Upload',
-	3: 'Metadata',
-	4: 'Review',
-	5: 'Broadcast',
-	6: 'Done',
-}
+const RECENT_PROJECTS_KEY = '1sat-publish-recent'
 
-const MIME_FILTERS: Record<PublishType, string> = {
-	image: 'image/*',
-	video: 'video/*',
-	document: 'application/pdf,text/plain,text/html,application/json',
-	html: 'text/html',
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatBytes(bytes: number): string {
-	if (bytes < 1024) return `${bytes} B`
-	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-	return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
-}
-
-function generateId(): string {
-	return `field-${Math.random().toString(36).slice(2, 9)}`
-}
-
-function truncateTxid(txid: string): string {
-	if (txid.length <= 16) return txid
-	return `${txid.slice(0, 8)}...${txid.slice(-8)}`
-}
-
-// ---------------------------------------------------------------------------
-// Progress bar
-// ---------------------------------------------------------------------------
-
-function WizardProgress({ step }: { step: PublishStep }) {
-	const steps: PublishStep[] = [1, 2, 3, 4, 5, 6]
-
-	return (
-		<div className="px-6 pt-5 pb-4 flex flex-col gap-2 shrink-0">
-			{/* Segments */}
-			<div className="flex gap-1">
-				{steps.map((s) => (
-					<div
-						key={s}
-						className={cn(
-							'h-1 flex-1 rounded-full transition-colors',
-							s < step && 'bg-primary',
-							s === step && 'bg-primary/40',
-							s > step && 'bg-border',
-						)}
-					/>
-				))}
-			</div>
-			{/* Labels */}
-			<div className="flex">
-				{steps.map((s) => (
-					<div key={s} className="flex-1 flex justify-center">
-						<span
-							className={cn(
-								'text-[10px] font-medium transition-colors select-none',
-								s <= step ? 'text-foreground' : 'text-muted-foreground',
-							)}
-						>
-							{STEP_LABELS[s]}
-						</span>
-					</div>
-				))}
-			</div>
-		</div>
-	)
-}
-
-// ---------------------------------------------------------------------------
-// Step 1: Select Type
-// ---------------------------------------------------------------------------
-
-const TYPE_OPTIONS: { type: PublishType; label: string; icon: React.ReactNode }[] = [
-	{
-		type: 'image',
-		label: 'Image',
-		icon: <ImageIcon size={28} strokeWidth={1.5} />,
-	},
-	{
-		type: 'video',
-		label: 'Video',
-		icon: <Video size={28} strokeWidth={1.5} />,
-	},
-	{
-		type: 'document',
-		label: 'Document',
-		icon: <FileText size={28} strokeWidth={1.5} />,
-	},
-	{
-		type: 'html',
-		label: 'HTML App',
-		icon: <Code size={28} strokeWidth={1.5} />,
-	},
+const DEFAULT_RECENT: RecentProject[] = [
+	{ name: 'bitbattle-arena', path: '~/code/bitbattle-arena', type: 'Vite' },
+	{ name: 'ordinal-gallery', path: '~/code/ordinal-gallery', type: 'CRA' },
+	{ name: 'research-agent', path: '~/code/research-agent', type: 'Bot' },
+	{ name: 'bsv-pricing-skill', path: '~/code/bsv-pricing-skill', type: 'Skill' },
 ]
 
-function SelectTypeStep({
-	selected,
-	onSelect,
-}: {
-	selected: PublishType | null
-	onSelect: (t: PublishType) => void
-}) {
+const MOCK_BUILD_FILES: BuildFile[] = [
+	{ name: 'index.html', mime: 'text/html', sizeKb: 2.1 },
+	{ name: 'index-Da4x.js', mime: 'text/javascript', sizeKb: 98.4 },
+	{ name: 'index-Bk2m.css', mime: 'text/css', sizeKb: 38.7 },
+	{ name: 'favicon.svg', mime: 'image/svg+xml', sizeKb: 2.8 },
+]
+
+const MOCK_BUILD_ERROR_LOG = `$ bun run build
+vite v6.0.3 building for production...
+transforming (1247 modules)...
+
+ERROR  src/App.tsx:42:18
+  Property 'wallet' does not exist on type
+  'IntrinsicAttributes & Props'
+
+ERROR  src/components/Game.tsx:89:5
+  Cannot find module './assets/sprite.png'`
+
+const MOCK_IDENTITIES = [
+	{ id: 'satchmo.bsv', label: 'satchmo.bsv', color: '#6366f1' },
+	{ id: 'alt-identity', label: 'alt-identity.bsv', color: '#10b981' },
+]
+
+const DEFAULT_PERMISSIONS = ['getPublicKey', 'createAction']
+
+// Cost constants (mock)
+const COST_INSCRIPTION = 0.00142
+const COST_MAP = 0.00001
+const COST_AIP = 0.00001
+const COST_MINER = 0.00003
+const COST_TOTAL = COST_INSCRIPTION + COST_MAP + COST_AIP + COST_MINER
+
+// Mock balance — set below COST_TOTAL to demonstrate insufficient-funds state.
+// In production this would be fetched from the wallet.
+const MOCK_BALANCE = 0.001
+
+const MOCK_TXID = 'a7b3e9f2...c4d81e06'
+
+// ─── Step indicator ───────────────────────────────────────────────────────────
+
+const STEPS: { id: WizardStep; label: string; number: number }[] = [
+	{ id: 'select', label: 'Select', number: 1 },
+	{ id: 'build', label: 'Build', number: 2 },
+	{ id: 'configure', label: 'Configure', number: 3 },
+	{ id: 'publish', label: 'Publish', number: 4 },
+]
+
+type StepStatus = 'complete' | 'active' | 'error' | 'pending' | 'warning'
+
+interface PublishStepIndicatorProps {
+	current: WizardStep
+	buildFailed?: boolean
+	publishSubState?: PublishSubState
+}
+
+function PublishStepIndicator({
+	current,
+	buildFailed,
+	publishSubState,
+}: PublishStepIndicatorProps) {
+	const currentIndex = STEPS.findIndex((s) => s.id === current)
+	const allComplete =
+		publishSubState === 'broadcasting' || publishSubState === 'success'
+
 	return (
-		<div className="flex flex-col gap-4 px-6 pb-4 flex-1">
-			<p className="text-base font-semibold text-foreground">Choose what to publish</p>
-			<div className="grid grid-cols-2 gap-3">
-				{TYPE_OPTIONS.map(({ type, label, icon }) => (
-					<button
-						key={type}
-						type="button"
-						onClick={() => onSelect(type)}
-						className={cn(
-							'flex flex-col items-center justify-center gap-3 p-6 rounded-lg',
-							'bg-card border text-center transition-colors',
-							'hover:border-primary',
-							selected === type
-								? 'border-primary border-2 text-primary'
-								: 'border-border text-muted-foreground',
+		<div className="flex items-center gap-0 px-6 py-4 border-b border-border">
+			{STEPS.map((step, idx) => {
+				let status: StepStatus
+				if (allComplete) {
+					status = 'complete'
+				} else if (idx < currentIndex) {
+					status = step.id === 'build' && buildFailed ? 'error' : 'complete'
+				} else if (idx === currentIndex) {
+					if (step.id === 'build' && buildFailed) {
+						status = 'error'
+					} else if (step.id === 'publish' && publishSubState === 'insufficient') {
+						status = 'warning'
+					} else {
+						status = 'active'
+					}
+				} else {
+					status = 'pending'
+				}
+
+				return (
+					<React.Fragment key={step.id}>
+						<div className="flex items-center gap-2">
+							<div
+								className={cn(
+									'w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 transition-colors',
+									status === 'complete' &&
+										'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40',
+									status === 'active' &&
+										'bg-blue-500 text-white shadow-sm shadow-blue-500/30',
+									status === 'error' &&
+										'bg-red-500/20 text-red-400 ring-1 ring-red-500/40',
+									status === 'warning' &&
+										'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/40',
+									status === 'pending' && 'bg-muted text-muted-foreground',
+								)}
+							>
+								{status === 'complete' ? (
+									<Check size={14} strokeWidth={2.5} aria-label="Complete" />
+								) : status === 'error' ? (
+									<X size={14} strokeWidth={2.5} aria-label="Error" />
+								) : status === 'warning' ? (
+									<AlertTriangle size={13} strokeWidth={2.5} aria-label="Warning" />
+								) : (
+									<span>{step.number}</span>
+								)}
+							</div>
+							<span
+								className={cn(
+									'text-sm font-medium',
+									status === 'active' && 'text-foreground font-semibold',
+									(status === 'pending' || status === 'complete') &&
+										'text-muted-foreground',
+									status === 'error' && 'text-red-400',
+									status === 'warning' && 'text-amber-400 font-semibold',
+								)}
+							>
+								{step.label}
+							</span>
+						</div>
+						{idx < STEPS.length - 1 && (
+							<ChevronRight
+								size={14}
+								className="text-muted-foreground/40 mx-3 shrink-0"
+							/>
 						)}
-					>
-						{icon}
-						<span className="text-sm font-medium text-foreground">{label}</span>
-					</button>
-				))}
-			</div>
+					</React.Fragment>
+				)
+			})}
 		</div>
 	)
 }
 
-// ---------------------------------------------------------------------------
-// Step 2: Upload
-// ---------------------------------------------------------------------------
+// ─── Project type badge ───────────────────────────────────────────────────────
 
-function UploadStep({
-	publishType,
-	fileData,
-	onFileLoaded,
-}: {
-	publishType: PublishType
-	fileData: FileData | null
-	onFileLoaded: (data: FileData) => void
-}) {
+const TYPE_COLORS: Record<ProjectType, string> = {
+	Vite: 'bg-blue-500/20 text-blue-300 ring-1 ring-blue-500/30',
+	CRA: 'bg-zinc-500/20 text-zinc-300 ring-1 ring-zinc-500/30',
+	Bot: 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/30',
+	Skill: 'bg-purple-500/20 text-purple-300 ring-1 ring-purple-500/30',
+	Static: 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/30',
+}
+
+const FOLDER_COLORS: Record<ProjectType, string> = {
+	Vite: 'text-blue-400',
+	CRA: 'text-zinc-400',
+	Bot: 'text-emerald-400',
+	Skill: 'text-purple-400',
+	Static: 'text-amber-400',
+}
+
+function TypeBadge({ type }: { type: ProjectType }) {
+	return (
+		<span
+			className={cn(
+				'inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium shrink-0',
+				TYPE_COLORS[type],
+			)}
+		>
+			{type}
+		</span>
+	)
+}
+
+// ─── File type icon ───────────────────────────────────────────────────────────
+
+function FileTypeIcon({ mime, name }: { mime: string; name: string }) {
+	if (mime.includes('html')) return <FileCode size={15} className="text-blue-400" />
+	if (mime.includes('javascript')) return <FileJson size={15} className="text-yellow-400" />
+	if (mime.includes('css')) return <FileCog size={15} className="text-purple-400" />
+	if (mime.includes('svg') || mime.includes('image'))
+		return <FileImage size={15} className="text-emerald-400" />
+	if (name.endsWith('.json')) return <FileJson size={15} className="text-orange-400" />
+	return <FileText size={15} className="text-muted-foreground" />
+}
+
+// ─── Tooltip icon ─────────────────────────────────────────────────────────────
+
+function TooltipIcon({ label }: { label: string }) {
+	return (
+		<span
+			title={label}
+			className="inline-flex items-center text-muted-foreground/50 cursor-help"
+		>
+			<Info size={13} strokeWidth={1.75} />
+		</span>
+	)
+}
+
+// ─── Step 1: Select ───────────────────────────────────────────────────────────
+
+interface SelectStepProps {
+	onSelect: (project: RecentProject) => void
+}
+
+function SelectStep({ onSelect }: SelectStepProps) {
+	const [recentProjects, setRecentProjects] = useState<RecentProject[]>([])
 	const [isDragging, setIsDragging] = useState(false)
-	const [isLoading, setIsLoading] = useState(false)
-	const [error, setError] = useState<string | null>(null)
 
-	const handlePickFile = useCallback(async () => {
-		setIsLoading(true)
-		setError(null)
+	useEffect(() => {
 		try {
-			const result = await rpc.request.pickFile({
-				allowedFileTypes: MIME_FILTERS[publishType],
-			})
-			if ('error' in result) {
-				setError(result.error)
-				return
+			const stored = localStorage.getItem(RECENT_PROJECTS_KEY)
+			if (stored) {
+				const parsed = JSON.parse(stored) as RecentProject[]
+				setRecentProjects(parsed)
+			} else {
+				setRecentProjects(DEFAULT_RECENT)
 			}
-			const previewUrl =
-				result.contentType.startsWith('image/')
-					? `data:${result.contentType};base64,${result.base64Content}`
-					: undefined
-			onFileLoaded({
-				base64Content: result.base64Content,
-				contentType: result.contentType,
-				filename: result.filename,
-				sizeBytes: result.sizeBytes,
-				previewUrl,
-			})
-		} catch (err) {
-			setError(err instanceof Error ? err.message : 'Failed to pick file')
-		} finally {
-			setIsLoading(false)
+		} catch {
+			setRecentProjects(DEFAULT_RECENT)
 		}
-	}, [publishType, onFileLoaded])
+	}, [])
+
+	const handleDropzoneClick = useCallback(() => {
+		if (recentProjects.length > 0) {
+			onSelect(recentProjects[0])
+		}
+	}, [recentProjects, onSelect])
 
 	const handleDragOver = useCallback((e: React.DragEvent) => {
 		e.preventDefault()
@@ -240,518 +301,956 @@ function UploadStep({
 		(e: React.DragEvent) => {
 			e.preventDefault()
 			setIsDragging(false)
-			// Native file drop not supported in this Electrobun environment —
-			// fall through to the native file picker for consistency.
-			handlePickFile()
+			if (recentProjects.length > 0) {
+				onSelect(recentProjects[0])
+			}
 		},
-		[handlePickFile],
+		[recentProjects, onSelect],
 	)
 
-	if (fileData) {
-		return (
-			<div className="flex flex-col gap-4 px-6 pb-4 flex-1">
-				<p className="text-base font-semibold text-foreground">File selected</p>
-				{fileData.previewUrl ? (
-					<div className="rounded-lg overflow-hidden border border-border bg-card flex items-center justify-center" style={{ maxHeight: 220 }}>
-						<img
-							src={fileData.previewUrl}
-							alt={fileData.filename}
-							className="max-h-[220px] max-w-full object-contain"
-						/>
-					</div>
-				) : (
-					<div className="flex items-center gap-4 p-4 rounded-lg border border-border bg-card">
-						<FileText size={32} strokeWidth={1.5} className="text-muted-foreground shrink-0" />
-						<div className="flex flex-col gap-1 min-w-0">
-							<span className="text-sm font-medium text-foreground truncate">
-								{fileData.filename}
-							</span>
-							<span className="text-xs text-muted-foreground font-mono">
-								{fileData.contentType} &middot; {formatBytes(fileData.sizeBytes)}
-							</span>
-						</div>
-					</div>
-				)}
-				<button
-					type="button"
-					onClick={handlePickFile}
-					className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 self-start transition-colors"
-				>
-					Choose a different file
-				</button>
-				{error && <p className="text-xs text-destructive">{error}</p>}
-			</div>
-		)
-	}
+	const handleRecentClick = useCallback(
+		(project: RecentProject) => {
+			onSelect(project)
+		},
+		[onSelect],
+	)
 
 	return (
-		<div className="flex flex-col gap-4 px-6 pb-4 flex-1">
-			<p className="text-base font-semibold text-foreground">Upload your file</p>
+		<div className="flex flex-col gap-5 p-6 flex-1 overflow-y-auto">
+			{/* Dropzone */}
 			<div
 				role="button"
 				tabIndex={0}
-				aria-label="Drop file here or click to browse"
-				onClick={handlePickFile}
+				aria-label="Select a project folder"
+				onClick={handleDropzoneClick}
 				onKeyDown={(e) => {
-					if (e.key === 'Enter' || e.key === ' ') handlePickFile()
+					if (e.key === 'Enter' || e.key === ' ') handleDropzoneClick()
 				}}
 				onDragOver={handleDragOver}
 				onDragLeave={handleDragLeave}
 				onDrop={handleDrop}
 				className={cn(
-					'flex flex-col items-center justify-center gap-3 rounded-lg p-12',
-					'border-2 border-dashed cursor-pointer select-none transition-colors',
+					'flex flex-col items-center justify-center gap-3 py-10 px-6',
+					'border border-dashed cursor-pointer transition-colors select-none',
 					isDragging
-						? 'border-primary bg-primary/5'
-						: 'border-border hover:border-primary/50 bg-card',
+						? 'border-blue-500/60 bg-blue-500/5'
+						: 'border-border hover:border-border/80 hover:bg-muted/30 bg-muted/10',
 				)}
 			>
-				{isLoading ? (
-					<Loader2 size={40} strokeWidth={1.5} className="animate-spin text-muted-foreground" />
-				) : (
-					<UploadCloud
-						size={40}
-						strokeWidth={1.5}
-						className={cn(
-							'transition-colors',
-							isDragging ? 'text-primary' : 'text-muted-foreground',
-						)}
-					/>
-				)}
+				<FolderUp
+					size={40}
+					strokeWidth={1.25}
+					className={cn(
+						'transition-colors',
+						isDragging ? 'text-blue-400' : 'text-muted-foreground',
+					)}
+				/>
 				<div className="flex flex-col items-center gap-1">
-					<p className="text-sm font-medium text-foreground">Drop file here or click to browse</p>
-					<p className="text-xs text-muted-foreground">{MIME_FILTERS[publishType]}</p>
+					<p className="text-base font-medium text-foreground">
+						Select a project folder
+					</p>
+					<p className="text-sm text-muted-foreground">
+						Drag a folder here or click to browse
+					</p>
+				</div>
+				<div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted/60 border border-border text-xs text-muted-foreground font-mono">
+					React&nbsp;&middot;&nbsp;Skill&nbsp;&middot;&nbsp;Bot&nbsp;&middot;&nbsp;Static
+					Site&nbsp;&middot;&nbsp;Media
 				</div>
 			</div>
-			{error && <p className="text-xs text-destructive">{error}</p>}
-		</div>
-	)
-}
 
-// ---------------------------------------------------------------------------
-// Step 3: Metadata
-// ---------------------------------------------------------------------------
-
-function MetadataStep({
-	name,
-	description,
-	fields,
-	onNameChange,
-	onDescriptionChange,
-	onFieldsChange,
-}: {
-	name: string
-	description: string
-	fields: MetadataField[]
-	onNameChange: (v: string) => void
-	onDescriptionChange: (v: string) => void
-	onFieldsChange: (fields: MetadataField[]) => void
-}) {
-	const handleAddField = useCallback(() => {
-		onFieldsChange([...fields, { id: generateId(), key: '', value: '' }])
-	}, [fields, onFieldsChange])
-
-	const handleFieldKeyChange = useCallback(
-		(id: string, key: string) => {
-			onFieldsChange(fields.map((f) => (f.id === id ? { ...f, key } : f)))
-		},
-		[fields, onFieldsChange],
-	)
-
-	const handleFieldValueChange = useCallback(
-		(id: string, value: string) => {
-			onFieldsChange(fields.map((f) => (f.id === id ? { ...f, value } : f)))
-		},
-		[fields, onFieldsChange],
-	)
-
-	const handleRemoveField = useCallback(
-		(id: string) => {
-			onFieldsChange(fields.filter((f) => f.id !== id))
-		},
-		[fields, onFieldsChange],
-	)
-
-	return (
-		<div className="flex flex-col gap-4 px-6 pb-4 flex-1 overflow-y-auto">
-			<p className="text-base font-semibold text-foreground">Add metadata</p>
-
-			{/* Name */}
-			<div className="flex flex-col gap-1.5">
-				<label
-					htmlFor="publish-name"
-					className="text-xs font-medium text-muted-foreground uppercase tracking-wider"
-				>
-					Name <span className="normal-case tracking-normal">(optional)</span>
-				</label>
-				<input
-					id="publish-name"
-					type="text"
-					value={name}
-					onChange={(e) => onNameChange(e.target.value)}
-					placeholder="e.g. My Artwork"
-					className={cn(
-						'w-full px-3 py-2 rounded-md text-sm',
-						'bg-card border border-border text-foreground',
-						'placeholder:text-muted-foreground',
-						'focus:outline-none focus:ring-1 focus:ring-primary',
-					)}
-				/>
-			</div>
-
-			{/* Description */}
-			<div className="flex flex-col gap-1.5">
-				<label
-					htmlFor="publish-description"
-					className="text-xs font-medium text-muted-foreground uppercase tracking-wider"
-				>
-					Description <span className="normal-case tracking-normal">(optional)</span>
-				</label>
-				<textarea
-					id="publish-description"
-					value={description}
-					onChange={(e) => onDescriptionChange(e.target.value)}
-					placeholder="Describe your inscription..."
-					rows={3}
-					className={cn(
-						'w-full px-3 py-2 rounded-md text-sm resize-none',
-						'bg-card border border-border text-foreground',
-						'placeholder:text-muted-foreground',
-						'focus:outline-none focus:ring-1 focus:ring-primary',
-					)}
-				/>
-			</div>
-
-			{/* Dynamic fields */}
-			{fields.length > 0 && (
+			{/* Recent projects */}
+			{recentProjects.length > 0 && (
 				<div className="flex flex-col gap-2">
-					<p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-						Custom Fields
+					<p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground px-0.5">
+						Recent Projects
 					</p>
-					{fields.map((field) => (
-						<div key={field.id} className="flex gap-2 items-center">
-							<input
-								type="text"
-								value={field.key}
-								onChange={(e) => handleFieldKeyChange(field.id, e.target.value)}
-								placeholder="Key"
-								className={cn(
-									'flex-1 px-3 py-2 rounded-md text-sm',
-									'bg-card border border-border text-foreground',
-									'placeholder:text-muted-foreground',
-									'focus:outline-none focus:ring-1 focus:ring-primary',
-								)}
-							/>
-							<input
-								type="text"
-								value={field.value}
-								onChange={(e) => handleFieldValueChange(field.id, e.target.value)}
-								placeholder="Value"
-								className={cn(
-									'flex-1 px-3 py-2 rounded-md text-sm',
-									'bg-card border border-border text-foreground',
-									'placeholder:text-muted-foreground',
-									'focus:outline-none focus:ring-1 focus:ring-primary',
-								)}
-							/>
+					<div className="flex flex-col border border-border divide-y divide-border">
+						{recentProjects.map((project) => (
 							<button
+								key={project.path}
 								type="button"
-								onClick={() => handleRemoveField(field.id)}
-								aria-label="Remove field"
-								className="text-muted-foreground hover:text-destructive transition-colors p-1 shrink-0"
+								onClick={() => handleRecentClick(project)}
+								className="flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors group"
 							>
-								<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-									<path d="M1 1L13 13M13 1L1 13" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-								</svg>
+								<Folder
+									size={18}
+									strokeWidth={1.5}
+									className={cn('shrink-0 transition-colors', FOLDER_COLORS[project.type])}
+								/>
+								<div className="flex flex-col gap-0.5 flex-1 min-w-0">
+									<span className="text-sm font-medium text-foreground leading-none">
+										{project.name}
+									</span>
+									<span
+										className="text-xs text-muted-foreground leading-none mt-1"
+										style={{ fontFamily: 'var(--font-mono)' }}
+									>
+										{project.path}
+									</span>
+								</div>
+								<TypeBadge type={project.type} />
 							</button>
-						</div>
-					))}
-				</div>
-			)}
-
-			<button
-				type="button"
-				onClick={handleAddField}
-				className={cn(
-					'self-start text-xs font-medium px-3 py-1.5 rounded-md',
-					'border border-dashed border-border',
-					'text-muted-foreground hover:text-foreground hover:border-primary/50',
-					'transition-colors',
-				)}
-			>
-				+ Add Field
-			</button>
-		</div>
-	)
-}
-
-// ---------------------------------------------------------------------------
-// Step 4: Review
-// ---------------------------------------------------------------------------
-
-function ReviewStep({
-	publishType,
-	fileData,
-	name,
-	description,
-	fields,
-}: {
-	publishType: PublishType
-	fileData: FileData
-	name: string
-	description: string
-	fields: MetadataField[]
-}) {
-	const mapEntries: Array<[string, string]> = [
-		...(name ? [['name', name] as [string, string]] : []),
-		...(description ? [['description', description] as [string, string]] : []),
-		...fields.filter((f) => f.key.trim()).map((f) => [f.key.trim(), f.value] as [string, string]),
-	]
-
-	const typeLabel =
-		publishType === 'image'
-			? 'Image'
-			: publishType === 'video'
-				? 'Video'
-				: publishType === 'document'
-					? 'Document'
-					: 'HTML App'
-
-	return (
-		<div className="flex flex-col gap-4 px-6 pb-4 flex-1 overflow-y-auto">
-			<p className="text-base font-semibold text-foreground">Review before broadcasting</p>
-
-			{/* File preview card */}
-			<div className="rounded-lg border border-border bg-card overflow-hidden">
-				{fileData.previewUrl ? (
-					<div className="flex items-center justify-center bg-muted/30 p-3" style={{ maxHeight: 140 }}>
-						<img
-							src={fileData.previewUrl}
-							alt={fileData.filename}
-							className="max-h-[140px] max-w-full object-contain"
-						/>
-					</div>
-				) : null}
-				<div className="flex flex-col gap-2 p-4">
-					<div className="flex items-center justify-between">
-						<span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-							Type
-						</span>
-						<span className="text-sm text-foreground">{typeLabel}</span>
-					</div>
-					<div className="flex items-center justify-between">
-						<span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-							File
-						</span>
-						<span className="text-sm text-foreground font-mono truncate max-w-[60%]">
-							{fileData.filename}
-						</span>
-					</div>
-					<div className="flex items-center justify-between">
-						<span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-							Size
-						</span>
-						<span className="text-sm text-foreground font-mono">
-							{formatBytes(fileData.sizeBytes)}
-						</span>
-					</div>
-					<div className="flex items-center justify-between">
-						<span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-							Content-Type
-						</span>
-						<span className="text-sm text-foreground font-mono">{fileData.contentType}</span>
-					</div>
-				</div>
-			</div>
-
-			{/* Metadata table */}
-			{mapEntries.length > 0 && (
-				<div className="flex flex-col gap-2">
-					<p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-						MAP Metadata
-					</p>
-					<div className="rounded-lg border border-border bg-card divide-y divide-border">
-						{mapEntries.map(([key, value]) => (
-							<div key={key} className="flex items-center gap-4 px-4 py-2.5">
-								<span className="text-xs font-mono text-muted-foreground w-24 shrink-0">{key}</span>
-								<span className="text-xs text-foreground truncate">{value}</span>
-							</div>
 						))}
 					</div>
 				</div>
 			)}
-
-			{/* Estimated cost */}
-			<div className="flex items-center justify-between px-4 py-3 rounded-lg border border-border bg-muted/20">
-				<span className="text-sm text-muted-foreground">Estimated cost</span>
-				<span className="text-sm font-mono text-foreground">~1 sat + fee</span>
-			</div>
 		</div>
 	)
 }
 
-// ---------------------------------------------------------------------------
-// Step 5: Broadcasting
-// ---------------------------------------------------------------------------
+// ─── Step 2: Build ────────────────────────────────────────────────────────────
 
-function BroadcastStep({
-	publishType,
-	fileData,
-	name,
-	description,
-	fields,
-	onSuccess,
-	onError,
-}: {
-	publishType: PublishType
-	fileData: FileData
-	name: string
-	description: string
-	fields: MetadataField[]
-	onSuccess: (result: PublishResult) => void
-	onError: (err: string) => void
-}) {
-	const calledRef = useRef(false)
+type BuildStatus = 'success' | 'error'
 
-	useEffect(() => {
-		if (calledRef.current) return
-		calledRef.current = true
-
-		const map: Record<string, string> = {}
-		if (name.trim()) map.name = name.trim()
-		if (description.trim()) map.description = description.trim()
-		for (const field of fields) {
-			if (field.key.trim()) map[field.key.trim()] = field.value
-		}
-
-		rpc.request
-			.inscribeFile({
-				base64Content: fileData.base64Content,
-				contentType: fileData.contentType,
-				map: Object.keys(map).length > 0 ? map : undefined,
-			})
-			.then((result) => {
-				if ('error' in result && result.error) {
-					onError(result.error)
-				} else if (result.txid) {
-					onSuccess({ txid: result.txid })
-				} else {
-					onError('Broadcast succeeded but no txid was returned')
-				}
-			})
-			.catch((err: unknown) => {
-				onError(err instanceof Error ? err.message : 'Broadcast failed')
-			})
-	}, [publishType, fileData, name, description, fields, onSuccess, onError])
-
-	return (
-		<div className="flex flex-col items-center justify-center flex-1 gap-3 px-6 pb-4">
-			<Loader2 size={48} strokeWidth={1.5} className="animate-spin text-muted-foreground" />
-			<p className="text-sm text-muted-foreground">Broadcasting to network...</p>
-		</div>
-	)
-}
-
-// ---------------------------------------------------------------------------
-// Step 6: Success
-// ---------------------------------------------------------------------------
-
-function SuccessStep({
-	result,
-	onNavigate,
-	onReset,
-}: {
-	result: PublishResult
-	onNavigate?: (url: string) => void
-	onReset: () => void
-}) {
-	const [copied, setCopied] = useState(false)
-
-	const handleCopy = useCallback(() => {
-		navigator.clipboard.writeText(result.txid).then(() => {
-			setCopied(true)
-			setTimeout(() => setCopied(false), 1500)
-		})
-	}, [result.txid])
-
-	return (
-		<div className="flex flex-col items-center justify-center flex-1 gap-5 px-6 pb-4">
-			<CheckCircle size={48} strokeWidth={1.5} className="text-emerald-500" />
-			<div className="flex flex-col items-center gap-1">
-				<p className="text-lg font-semibold text-foreground">Published!</p>
-				<p className="text-xs text-muted-foreground">Your inscription is on-chain</p>
-			</div>
-
-			{/* Txid */}
-			<div className="flex items-center gap-2 px-3 py-2 rounded-md border border-border bg-card">
-				<span className="text-xs font-mono text-muted-foreground">
-					{truncateTxid(result.txid)}
-				</span>
-				<button
-					type="button"
-					onClick={handleCopy}
-					aria-label="Copy transaction ID"
-					className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
-				>
-					{copied ? (
-						<CheckCircle size={13} className="text-emerald-500" />
-					) : (
-						<Copy size={13} />
-					)}
-				</button>
-			</div>
-
-			{/* Actions */}
-			<div className="flex flex-col gap-2 w-full max-w-[240px]">
-				<Button
-					className="w-full"
-					onClick={() => onNavigate?.('1sat://ordinals/gallery')}
-				>
-					View Inscription
-				</Button>
-				<Button variant="outline" className="w-full" onClick={onReset}>
-					Publish Another
-				</Button>
-			</div>
-		</div>
-	)
-}
-
-// ---------------------------------------------------------------------------
-// Footer
-// ---------------------------------------------------------------------------
-
-function WizardFooter({
-	step,
-	canNext,
-	onBack,
-	onNext,
-}: {
-	step: PublishStep
-	canNext: boolean
+interface BuildStepProps {
+	project: RecentProject
 	onBack: () => void
 	onNext: () => void
-}) {
-	// Footer is not shown on Broadcast or Done steps
-	if (step === 5 || step === 6) return null
+}
+
+function BuildStep({ project, onBack, onNext }: BuildStepProps) {
+	const buildStatus: BuildStatus = project.type === 'CRA' ? 'error' : 'success'
+
+	const totalSizeKb = MOCK_BUILD_FILES.reduce((sum, f) => sum + f.sizeKb, 0)
+	const totalSizeDisplay =
+		totalSizeKb >= 1000
+			? `${(totalSizeKb / 1000).toFixed(1)} MB`
+			: `${totalSizeKb.toFixed(1)} KB`
 
 	return (
-		<div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border shrink-0">
-			{step > 1 && (
-				<Button variant="outline" size="sm" onClick={onBack}>
+		<>
+			<div className="flex flex-col gap-5 p-6 flex-1 overflow-y-auto">
+				{buildStatus === 'success' ? (
+					<div className="flex items-center gap-3 px-4 py-3 border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+						<Check size={15} strokeWidth={2.5} className="shrink-0" />
+						<span className="text-sm font-medium">
+							Build succeeded &mdash; {MOCK_BUILD_FILES.length} files,{' '}
+							{totalSizeDisplay} total
+						</span>
+					</div>
+				) : (
+					<div className="flex items-center gap-3 px-4 py-3 border border-red-500/30 bg-red-500/10 text-red-400">
+						<AlertCircle size={15} strokeWidth={2.5} className="shrink-0" />
+						<span className="text-sm font-medium">Build failed with 2 errors</span>
+					</div>
+				)}
+
+				{buildStatus === 'success' ? (
+					<div className="flex flex-col gap-2">
+						<p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+							Build Output
+						</p>
+						<div className="border border-border">
+							<div className="flex items-center px-4 py-2 bg-muted/30 border-b border-border">
+								<span className="flex-1 text-xs font-medium text-muted-foreground">
+									File
+								</span>
+								<span
+									className="w-32 text-right text-xs font-medium text-muted-foreground"
+									style={{ fontFamily: 'var(--font-mono)' }}
+								>
+									Type
+								</span>
+								<span
+									className="w-20 text-right text-xs font-medium text-muted-foreground"
+									style={{ fontFamily: 'var(--font-mono)' }}
+								>
+									Size
+								</span>
+							</div>
+							{MOCK_BUILD_FILES.map((file) => (
+								<div
+									key={file.name}
+									className="flex items-center px-4 py-3 border-b border-border last:border-b-0 hover:bg-muted/20 transition-colors"
+								>
+									<div className="flex-1 flex items-center gap-2.5 min-w-0">
+										<FileTypeIcon mime={file.mime} name={file.name} />
+										<span
+											className="text-sm text-foreground truncate"
+											style={{ fontFamily: 'var(--font-mono)' }}
+										>
+											{file.name}
+										</span>
+									</div>
+									<span
+										className="w-32 text-right text-xs text-muted-foreground"
+										style={{ fontFamily: 'var(--font-mono)' }}
+									>
+										{file.mime}
+									</span>
+									<span
+										className="w-20 text-right text-sm text-foreground tabular-nums"
+										style={{ fontFamily: 'var(--font-mono)' }}
+									>
+										{file.sizeKb.toFixed(1)} KB
+									</span>
+								</div>
+							))}
+						</div>
+					</div>
+				) : (
+					<div className="flex flex-col gap-2">
+						<p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+							Build Log
+						</p>
+						<div
+							className="border border-border bg-card p-4 overflow-x-auto"
+							style={{ fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.7 }}
+						>
+							{MOCK_BUILD_ERROR_LOG.split('\n').map((line, i) => {
+								const isError =
+									line.startsWith('ERROR') ||
+									line.startsWith('  Property') ||
+									line.startsWith('  Cannot')
+								return (
+									<div
+										key={`line-${i}-${line.slice(0, 8)}`}
+										className={cn(
+											'whitespace-pre',
+											isError ? 'text-red-400' : 'text-muted-foreground',
+										)}
+									>
+										{line || '\u00a0'}
+									</div>
+								)
+							})}
+						</div>
+					</div>
+				)}
+			</div>
+
+			<div className="flex items-center justify-between px-6 py-4 border-t border-border shrink-0">
+				<Button variant="outline" size="sm" onClick={onBack} className="gap-2">
+					<ArrowLeft size={14} />
 					Back
 				</Button>
-			)}
-			<Button size="sm" onClick={onNext} disabled={!canNext}>
-				{step === 4 ? 'Broadcast' : 'Next'}
-			</Button>
-		</div>
+				{buildStatus === 'success' ? (
+					<Button
+						size="sm"
+						onClick={onNext}
+						className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+					>
+						Configure
+						<ArrowRight size={14} />
+					</Button>
+				) : (
+					<Button
+						size="sm"
+						onClick={() => {}}
+						className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+					>
+						<RefreshCw size={14} />
+						Retry Build
+					</Button>
+				)}
+			</div>
+		</>
 	)
 }
 
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
+// ─── Step 3: Configure ────────────────────────────────────────────────────────
+
+interface ConfigureStepProps {
+	project: RecentProject
+	formData: ConfigureFormData
+	onChange: (data: ConfigureFormData) => void
+	onBack: () => void
+	onNext: () => void
+}
+
+function ConfigureStep({
+	project,
+	formData,
+	onChange,
+	onBack,
+	onNext,
+}: ConfigureStepProps) {
+	const [opnsStatus, setOpnsStatus] = useState<
+		'idle' | 'checking' | 'available' | 'taken'
+	>('idle')
+	const [opnsTimer, setOpnsTimer] = useState<ReturnType<typeof setTimeout> | null>(
+		null,
+	)
+
+	const handleOpnsChange = useCallback(
+		(value: string) => {
+			onChange({ ...formData, opnsName: value })
+			if (opnsTimer) clearTimeout(opnsTimer)
+			if (!value.trim()) {
+				setOpnsStatus('idle')
+				return
+			}
+			setOpnsStatus('checking')
+			const t = setTimeout(() => {
+				// Mock: 'taken' if user types 'taken', otherwise available.
+				setOpnsStatus(value.toLowerCase() === 'taken' ? 'taken' : 'available')
+			}, 600)
+			setOpnsTimer(t)
+		},
+		[formData, onChange, opnsTimer],
+	)
+
+	const handleRemovePermission = useCallback(
+		(perm: string) => {
+			onChange({
+				...formData,
+				permissions: formData.permissions.filter((p) => p !== perm),
+			})
+		},
+		[formData, onChange],
+	)
+
+	const handleAddPermission = useCallback(() => {
+		const name = prompt('Permission name (e.g. signTransaction):')
+		if (name && name.trim() && !formData.permissions.includes(name.trim())) {
+			onChange({ ...formData, permissions: [...formData.permissions, name.trim()] })
+		}
+	}, [formData, onChange])
+
+	const isValid = formData.appName.trim().length > 0
+
+	return (
+		<>
+			<div className="flex flex-col gap-5 p-6 flex-1 overflow-y-auto">
+				{/* App Name */}
+				<div className="flex flex-col gap-1.5">
+					<label
+						htmlFor="cfg-app-name"
+						className="text-sm font-medium text-foreground"
+					>
+						App Name
+					</label>
+					<input
+						id="cfg-app-name"
+						type="text"
+						value={formData.appName}
+						onChange={(e) => onChange({ ...formData, appName: e.target.value })}
+						placeholder={project.name}
+						className={cn(
+							'w-full px-3 py-2 text-sm bg-card border border-border text-foreground',
+							'placeholder:text-muted-foreground/50',
+							'focus:outline-none focus:ring-1 focus:ring-blue-500/60 focus:border-blue-500/60',
+							'transition-colors',
+						)}
+					/>
+				</div>
+
+				{/* Description */}
+				<div className="flex flex-col gap-1.5">
+					<label
+						htmlFor="cfg-description"
+						className="text-sm font-medium text-foreground"
+					>
+						Description
+					</label>
+					<input
+						id="cfg-description"
+						type="text"
+						value={formData.description}
+						onChange={(e) =>
+							onChange({ ...formData, description: e.target.value })
+						}
+						placeholder="Short description of your app"
+						className={cn(
+							'w-full px-3 py-2 text-sm bg-card border border-border text-foreground',
+							'placeholder:text-muted-foreground/50',
+							'focus:outline-none focus:ring-1 focus:ring-blue-500/60 focus:border-blue-500/60',
+							'transition-colors',
+						)}
+					/>
+				</div>
+
+				{/* OpNS Name */}
+				<div className="flex flex-col gap-1.5">
+					<div className="flex items-center gap-1.5">
+						<label
+							htmlFor="cfg-opns"
+							className="text-sm font-medium text-foreground"
+						>
+							OpNS Name
+						</label>
+						<span className="text-xs text-muted-foreground">(optional)</span>
+						<TooltipIcon label="OpNS (Ordinals Name System) gives your app a human-readable 1sat:// address on-chain." />
+					</div>
+					<div className="flex items-center border border-border bg-card focus-within:ring-1 focus-within:ring-blue-500/60 focus-within:border-blue-500/60 transition-colors">
+						<span
+							className="px-3 py-2 text-sm font-medium text-blue-400 select-none shrink-0 border-r border-border bg-muted/20"
+							style={{ fontFamily: 'var(--font-mono)' }}
+						>
+							1sat://
+						</span>
+						<input
+							id="cfg-opns"
+							type="text"
+							value={formData.opnsName}
+							onChange={(e) => handleOpnsChange(e.target.value)}
+							placeholder="yourname"
+							className={cn(
+								'flex-1 px-3 py-2 text-sm bg-transparent text-foreground',
+								'placeholder:text-muted-foreground/50',
+								'focus:outline-none',
+							)}
+							style={{ fontFamily: 'var(--font-mono)' }}
+						/>
+					</div>
+					{opnsStatus === 'checking' && (
+						<p className="text-xs text-muted-foreground flex items-center gap-1.5">
+							<RefreshCw size={11} className="animate-spin" />
+							Checking availability...
+						</p>
+					)}
+					{opnsStatus === 'available' && (
+						<p className="text-xs text-emerald-400 flex items-center gap-1.5">
+							<Check size={11} strokeWidth={2.5} />
+							{formData.opnsName} is available
+						</p>
+					)}
+					{opnsStatus === 'taken' && (
+						<p className="text-xs text-red-400 flex items-center gap-1.5">
+							<X size={11} strokeWidth={2.5} />
+							{formData.opnsName} is already taken
+						</p>
+					)}
+				</div>
+
+				{/* Signing Identity */}
+				<div className="flex flex-col gap-1.5">
+					<div className="flex items-center gap-1.5">
+						<label
+							htmlFor="cfg-identity"
+							className="text-sm font-medium text-foreground"
+						>
+							Signing Identity (BAP)
+						</label>
+						<TooltipIcon label="Bitcoin Attestation Protocol identity used to sign the inscription. The public key is embedded in the AIP signature." />
+					</div>
+					<div className="relative">
+						<select
+							id="cfg-identity"
+							value={formData.identity}
+							onChange={(e) => onChange({ ...formData, identity: e.target.value })}
+							className={cn(
+								'w-full appearance-none pl-10 pr-8 py-2 text-sm bg-card border border-border text-foreground',
+								'focus:outline-none focus:ring-1 focus:ring-blue-500/60 focus:border-blue-500/60',
+								'transition-colors cursor-pointer',
+							)}
+						>
+							{MOCK_IDENTITIES.map((id) => (
+								<option key={id.id} value={id.id}>
+									{id.label}
+								</option>
+							))}
+						</select>
+						<div
+							className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full shrink-0 pointer-events-none"
+							style={{
+								background:
+									MOCK_IDENTITIES.find((i) => i.id === formData.identity)?.color ??
+									'#6366f1',
+							}}
+							aria-hidden="true"
+						/>
+						<div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground">
+							<ChevronRight size={14} className="rotate-90" />
+						</div>
+					</div>
+					<div className="flex justify-end">
+						<button
+							type="button"
+							className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+						>
+							+ Create new identity
+						</button>
+					</div>
+				</div>
+
+				{/* Requested Permissions */}
+				<div className="flex flex-col gap-1.5">
+					<div className="flex items-center gap-1.5">
+						<span className="text-sm font-medium text-foreground">
+							Requested Permissions
+						</span>
+						<TooltipIcon label="Permissions your app will request from the user's wallet when they first open it." />
+					</div>
+					<div className="flex flex-wrap items-center gap-2">
+						{formData.permissions.map((perm) => (
+							<span
+								key={perm}
+								className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono font-medium bg-blue-600/25 text-blue-300 ring-1 ring-blue-500/40"
+							>
+								{perm}
+								<button
+									type="button"
+									onClick={() => handleRemovePermission(perm)}
+									className="text-blue-300/60 hover:text-blue-200 transition-colors"
+									aria-label={`Remove ${perm}`}
+								>
+									<X size={10} strokeWidth={2.5} />
+								</button>
+							</span>
+						))}
+						<button
+							type="button"
+							onClick={handleAddPermission}
+							className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-muted-foreground border border-dashed border-border hover:border-border/80 hover:text-foreground transition-colors"
+						>
+							+ Add
+						</button>
+					</div>
+				</div>
+			</div>
+
+			{/* Footer */}
+			<div className="flex items-center justify-between px-6 py-4 border-t border-border shrink-0">
+				<Button variant="outline" size="sm" onClick={onBack} className="gap-2">
+					<ArrowLeft size={14} />
+					Back
+				</Button>
+				<Button
+					size="sm"
+					onClick={onNext}
+					disabled={!isValid}
+					className="gap-2 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+				>
+					Review &amp; Publish
+					<ArrowRight size={14} />
+				</Button>
+			</div>
+		</>
+	)
+}
+
+// ─── Step 4: Publish ──────────────────────────────────────────────────────────
+
+interface PublishStepProps {
+	project: RecentProject
+	formData: ConfigureFormData
+	subState: PublishSubState
+	onSubStateChange: (s: PublishSubState) => void
+	onBack: () => void
+}
+
+function PublishStep({
+	project,
+	formData,
+	subState,
+	onSubStateChange,
+	onBack,
+}: PublishStepProps) {
+	const [copied, setCopied] = useState(false)
+
+	const totalSizeKb = MOCK_BUILD_FILES.reduce((sum, f) => sum + f.sizeKb, 0)
+	const totalSizeDisplay =
+		totalSizeKb >= 1000
+			? `${(totalSizeKb / 1000).toFixed(1)} MB`
+			: `${totalSizeKb.toFixed(1)} KB`
+
+	const opnsLabel = formData.opnsName || project.name.split('-')[0]
+
+	const handleCopyUrl = useCallback(() => {
+		const url = `1sat://${opnsLabel}`
+		navigator.clipboard.writeText(url).catch(() => {})
+		setCopied(true)
+		setTimeout(() => setCopied(false), 1500)
+	}, [opnsLabel])
+
+	const handlePublish = useCallback(() => {
+		if (MOCK_BALANCE < COST_TOTAL) {
+			onSubStateChange('insufficient')
+			return
+		}
+		onSubStateChange('broadcasting')
+		setTimeout(() => {
+			onSubStateChange('success')
+		}, 2500)
+	}, [onSubStateChange])
+
+	// ── Broadcasting ──────────────────────────────────────────────────────────
+	if (subState === 'broadcasting') {
+		return (
+			<div className="flex flex-col items-center justify-center flex-1 gap-6 p-6">
+				<div
+					className="w-20 h-20 rounded-full flex items-center justify-center"
+					style={{
+						background:
+							'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%)',
+						boxShadow: '0 0 32px rgba(99,102,241,0.35)',
+					}}
+				>
+					{/* Radio-wave icon */}
+					<svg
+						width="36"
+						height="36"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="white"
+						strokeWidth="1.75"
+						strokeLinecap="round"
+						strokeLinejoin="round"
+						aria-hidden="true"
+					>
+						<path d="M5 12.55a11 11 0 0 1 14.08 0" />
+						<path d="M1.42 9a16 16 0 0 1 21.16 0" />
+						<path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+						<circle cx="12" cy="20" r="1" fill="white" stroke="none" />
+					</svg>
+				</div>
+
+				<div className="flex flex-col items-center gap-2 text-center">
+					<h2 className="text-xl font-bold text-foreground">
+						Broadcasting to network...
+					</h2>
+					<p className="text-sm text-muted-foreground">
+						Your inscription is being written to the blockchain.
+					</p>
+				</div>
+
+				<div className="w-full max-w-sm border border-border bg-card/50">
+					<div className="flex items-center justify-between px-4 py-3 border-b border-border">
+						<span className="text-sm text-muted-foreground">Transaction</span>
+						<span
+							className="text-sm font-medium text-blue-400"
+							style={{ fontFamily: 'var(--font-mono)' }}
+						>
+							Signing...
+						</span>
+					</div>
+					<div className="flex items-center justify-between px-4 py-3 border-b border-border">
+						<span className="text-sm text-muted-foreground">Files</span>
+						<span
+							className="text-sm font-medium text-emerald-400"
+							style={{ fontFamily: 'var(--font-mono)' }}
+						>
+							{MOCK_BUILD_FILES.length} of {MOCK_BUILD_FILES.length} inscribed
+						</span>
+					</div>
+					<div className="flex items-center justify-between px-4 py-3">
+						<span className="text-sm text-muted-foreground">Estimated time</span>
+						<span
+							className="text-sm text-foreground"
+							style={{ fontFamily: 'var(--font-mono)' }}
+						>
+							~30 seconds
+						</span>
+					</div>
+				</div>
+			</div>
+		)
+	}
+
+	// ── Success ───────────────────────────────────────────────────────────────
+	if (subState === 'success') {
+		return (
+			<div className="flex flex-col items-center justify-center flex-1 gap-6 p-6">
+				<div
+					className="w-20 h-20 rounded-full flex items-center justify-center"
+					style={{
+						background: 'rgba(16,185,129,0.15)',
+						boxShadow: '0 0 0 1px rgba(16,185,129,0.3)',
+					}}
+				>
+					<Check size={32} strokeWidth={2.5} className="text-emerald-400" />
+				</div>
+
+				<div className="flex flex-col items-center gap-2 text-center">
+					<h2 className="text-2xl font-bold text-foreground">Published to Chain</h2>
+					<p className="text-sm text-muted-foreground">
+						Your app is now live and permanently on-chain.
+					</p>
+				</div>
+
+				<div className="w-full max-w-sm border border-border bg-card/60 p-5 flex flex-col items-center gap-3">
+					<p className="text-xs text-muted-foreground">Your app is live at</p>
+					<div className="flex items-center gap-2">
+						<span
+							className="px-2 py-1 text-sm font-bold text-white bg-blue-600"
+							style={{ fontFamily: 'var(--font-mono)' }}
+						>
+							1sat://
+						</span>
+						<span
+							className="text-xl font-semibold text-foreground"
+							style={{ fontFamily: 'var(--font-mono)' }}
+						>
+							{opnsLabel}
+						</span>
+						<button
+							type="button"
+							onClick={handleCopyUrl}
+							aria-label="Copy URL"
+							className="text-muted-foreground hover:text-foreground transition-colors"
+						>
+							{copied ? (
+								<Check size={15} strokeWidth={2.5} className="text-emerald-400" />
+							) : (
+								<Clipboard size={15} />
+							)}
+						</button>
+					</div>
+					<p
+						className="text-xs text-muted-foreground"
+						style={{ fontFamily: 'var(--font-mono)' }}
+					>
+						txid: {MOCK_TXID}
+					</p>
+				</div>
+
+				<div className="flex items-center gap-3">
+					<Button
+						size="sm"
+						className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+					>
+						<ExternalLink size={14} />
+						Open in Browser
+					</Button>
+					<Button variant="outline" size="sm" className="gap-2">
+						<Share2 size={14} />
+						Share
+					</Button>
+				</div>
+			</div>
+		)
+	}
+
+	// ── Insufficient funds ────────────────────────────────────────────────────
+	if (subState === 'insufficient') {
+		const shortfall = COST_TOTAL - MOCK_BALANCE
+		return (
+			<>
+				<div className="flex flex-col gap-5 p-6 flex-1 overflow-y-auto">
+					<div className="flex items-start gap-3 px-4 py-3 border border-amber-500/30 bg-amber-500/10">
+						<AlertTriangle
+							size={15}
+							strokeWidth={2}
+							className="shrink-0 mt-0.5 text-amber-400"
+						/>
+						<div className="flex flex-col gap-0.5">
+							<span className="text-sm font-semibold text-amber-400">
+								Insufficient funds
+							</span>
+							<span className="text-xs text-muted-foreground">
+								You need {shortfall.toFixed(5)} BSV more to publish. Current balance:{' '}
+								{MOCK_BALANCE.toFixed(5)} BSV
+							</span>
+						</div>
+					</div>
+
+					<div className="flex flex-col gap-2">
+						<p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+							Cost Breakdown
+						</p>
+						<div className="border border-border bg-card/50">
+							<div className="flex items-center justify-between px-4 py-3 border-b border-border">
+								<span className="text-sm text-muted-foreground">
+									Inscription ({MOCK_BUILD_FILES.length} files)
+								</span>
+								<span
+									className="text-sm text-foreground tabular-nums"
+									style={{ fontFamily: 'var(--font-mono)' }}
+								>
+									{COST_INSCRIPTION.toFixed(5)} BSV
+								</span>
+							</div>
+							<div className="flex items-center justify-between px-4 py-3 border-b border-border">
+								<span className="text-sm text-muted-foreground">
+									MAP + AIP + Miner fee
+								</span>
+								<span
+									className="text-sm text-foreground tabular-nums"
+									style={{ fontFamily: 'var(--font-mono)' }}
+								>
+									{(COST_MAP + COST_AIP + COST_MINER).toFixed(5)} BSV
+								</span>
+							</div>
+							<div className="flex items-center justify-between px-4 py-3 border-b border-border">
+								<span className="text-sm font-semibold text-foreground">
+									Total required
+								</span>
+								<span
+									className="text-sm font-semibold text-foreground tabular-nums"
+									style={{ fontFamily: 'var(--font-mono)' }}
+								>
+									{COST_TOTAL.toFixed(5)} BSV
+								</span>
+							</div>
+							<div className="flex items-center justify-between px-4 py-3 border-b border-border">
+								<span className="text-sm text-muted-foreground">Your balance</span>
+								<span
+									className="text-sm font-medium text-red-400 tabular-nums"
+									style={{ fontFamily: 'var(--font-mono)' }}
+								>
+									{MOCK_BALANCE.toFixed(5)} BSV
+								</span>
+							</div>
+							<div className="flex items-center justify-between px-4 py-3">
+								<span className="text-sm font-semibold text-amber-400">Shortfall</span>
+								<span
+									className="text-sm font-semibold text-amber-400 tabular-nums"
+									style={{ fontFamily: 'var(--font-mono)' }}
+								>
+									-{shortfall.toFixed(5)} BSV
+								</span>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<div className="flex items-center justify-between px-6 py-4 border-t border-border shrink-0">
+					<Button variant="outline" size="sm" onClick={onBack} className="gap-2">
+						<ArrowLeft size={14} />
+						Back
+					</Button>
+					<div className="flex items-center gap-2">
+						<Button
+							size="sm"
+							className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+						>
+							<Wallet size={14} />
+							Deposit BSV
+						</Button>
+						<Button
+							size="sm"
+							disabled
+							className="gap-2 opacity-40 cursor-not-allowed"
+						>
+							<Rocket size={14} />
+							Publish
+						</Button>
+					</div>
+				</div>
+			</>
+		)
+	}
+
+	// ── Review (default) ──────────────────────────────────────────────────────
+	const appName = formData.appName || project.name
+	const opnsDisplay = formData.opnsName ? `1sat://${formData.opnsName}` : '\u2014'
+
+	return (
+		<>
+			<div className="flex flex-col gap-5 p-6 flex-1 overflow-y-auto">
+				{/* Summary card */}
+				<div className="border border-border bg-card/50">
+					<div className="flex items-center justify-between px-4 py-3 border-b border-border">
+						<span className="text-sm text-muted-foreground">App Name</span>
+						<span className="text-sm font-semibold text-foreground">{appName}</span>
+					</div>
+					<div className="flex items-center justify-between px-4 py-3 border-b border-border">
+						<span className="text-sm text-muted-foreground">Identity</span>
+						<span
+							className="text-sm font-medium text-blue-400"
+							style={{ fontFamily: 'var(--font-mono)' }}
+						>
+							{formData.identity}
+						</span>
+					</div>
+					<div className="flex items-center justify-between px-4 py-3 border-b border-border">
+						<span className="text-sm text-muted-foreground">OpNS</span>
+						<span
+							className={cn(
+								'text-sm font-medium',
+								formData.opnsName ? 'text-blue-400' : 'text-muted-foreground',
+							)}
+							style={{ fontFamily: 'var(--font-mono)' }}
+						>
+							{opnsDisplay}
+						</span>
+					</div>
+					<div className="flex items-center justify-between px-4 py-3">
+						<span className="text-sm text-muted-foreground">Files</span>
+						<span
+							className="text-sm text-foreground"
+							style={{ fontFamily: 'var(--font-mono)' }}
+						>
+							{MOCK_BUILD_FILES.length} files ({totalSizeDisplay})
+						</span>
+					</div>
+				</div>
+
+				{/* Cost breakdown */}
+				<div className="flex flex-col gap-2">
+					<p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+						Cost Breakdown
+					</p>
+					<div className="border border-border bg-card/50">
+						<div className="flex items-center justify-between px-4 py-3 border-b border-border">
+							<span className="text-sm text-muted-foreground">
+								Inscription ({MOCK_BUILD_FILES.length} files)
+							</span>
+							<span
+								className="text-sm text-foreground tabular-nums"
+								style={{ fontFamily: 'var(--font-mono)' }}
+							>
+								{COST_INSCRIPTION.toFixed(5)} BSV
+							</span>
+						</div>
+						<div className="flex items-center justify-between px-4 py-3 border-b border-border">
+							<span className="text-sm text-muted-foreground">MAP metadata</span>
+							<span
+								className="text-sm text-foreground tabular-nums"
+								style={{ fontFamily: 'var(--font-mono)' }}
+							>
+								{COST_MAP.toFixed(5)} BSV
+							</span>
+						</div>
+						<div className="flex items-center justify-between px-4 py-3 border-b border-border">
+							<span className="text-sm text-muted-foreground">AIP signature</span>
+							<span
+								className="text-sm text-foreground tabular-nums"
+								style={{ fontFamily: 'var(--font-mono)' }}
+							>
+								{COST_AIP.toFixed(5)} BSV
+							</span>
+						</div>
+						<div className="flex items-center justify-between px-4 py-3 border-b border-border">
+							<span className="text-sm text-muted-foreground">Miner fee</span>
+							<span
+								className="text-sm text-foreground tabular-nums"
+								style={{ fontFamily: 'var(--font-mono)' }}
+							>
+								{COST_MINER.toFixed(5)} BSV
+							</span>
+						</div>
+						{/* Total row */}
+						<div className="flex items-center px-4 py-3 border-t border-border">
+							<span className="text-sm font-bold text-foreground w-24">Total</span>
+							<span
+								className="flex-1 text-center text-sm font-bold text-foreground tabular-nums"
+								style={{ fontFamily: 'var(--font-mono)' }}
+							>
+								{COST_TOTAL.toFixed(5)} BSV
+							</span>
+							<span
+								className="text-xs text-muted-foreground tabular-nums"
+								style={{ fontFamily: 'var(--font-mono)' }}
+							>
+								&asymp; $0.09
+							</span>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div className="flex items-center justify-between px-6 py-4 border-t border-border shrink-0">
+				<Button variant="outline" size="sm" onClick={onBack} className="gap-2">
+					<ArrowLeft size={14} />
+					Back
+				</Button>
+				<Button
+					size="sm"
+					onClick={handlePublish}
+					className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+				>
+					<Rocket size={14} />
+					Publish to Chain
+				</Button>
+			</div>
+		</>
+	)
+}
+
+// ─── Wizard shell ─────────────────────────────────────────────────────────────
 
 export interface PublishViewProps {
 	params?: Record<string, string>
@@ -759,130 +1258,158 @@ export interface PublishViewProps {
 }
 
 export function PublishView({ onNavigate }: PublishViewProps) {
-	const [step, setStep] = useState<PublishStep>(1)
-	const [selectedType, setSelectedType] = useState<PublishType | null>(null)
-	const [fileData, setFileData] = useState<FileData | null>(null)
-	const [name, setName] = useState('')
-	const [description, setDescription] = useState('')
-	const [metadataFields, setMetadataFields] = useState<MetadataField[]>([])
-	const [result, setResult] = useState<PublishResult | null>(null)
-	const [broadcastError, setBroadcastError] = useState<string | null>(null)
+	const [step, setStep] = useState<WizardStep>('select')
+	const [selectedProject, setSelectedProject] = useState<RecentProject | null>(null)
+	const [publishSubState, setPublishSubState] = useState<PublishSubState>('review')
+	const [configForm, setConfigForm] = useState<ConfigureFormData>({
+		appName: '',
+		description: '',
+		opnsName: '',
+		identity: MOCK_IDENTITIES[0].id,
+		permissions: [...DEFAULT_PERMISSIONS],
+	})
 
-	const canNext: boolean = (() => {
-		if (step === 1) return selectedType !== null
-		if (step === 2) return fileData !== null
-		// Metadata and Review steps always allow proceeding
-		return true
+	const handleClose = useCallback(() => {
+		onNavigate?.('1sat://browser/new')
+	}, [onNavigate])
+
+	const handleSelectProject = useCallback((project: RecentProject) => {
+		setSelectedProject(project)
+		// Seed app name from project slug
+		setConfigForm((prev) => ({
+			...prev,
+			appName: project.name
+				.split('-')
+				.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+				.join(' '),
+		}))
+		try {
+			const stored = localStorage.getItem(RECENT_PROJECTS_KEY)
+			const existing: RecentProject[] = stored ? (JSON.parse(stored) as RecentProject[]) : []
+			const filtered = existing.filter((p) => p.path !== project.path)
+			const updated = [project, ...filtered].slice(0, 8)
+			localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(updated))
+		} catch {
+			// Storage unavailable — proceed without persisting
+		}
+		setStep('build')
+	}, [])
+
+	const handleBackToBuild = useCallback(() => {
+		setStep('select')
+	}, [])
+
+	const handleNextFromBuild = useCallback(() => {
+		setStep('configure')
+	}, [])
+
+	const handleBackToConfigure = useCallback(() => {
+		setStep('build')
+	}, [])
+
+	const handleNextFromConfigure = useCallback(() => {
+		setPublishSubState('review')
+		setStep('publish')
+	}, [])
+
+	const handleBackFromPublish = useCallback(() => {
+		setPublishSubState('review')
+		setStep('configure')
+	}, [])
+
+	const buildFailed = step === 'build' && selectedProject?.type === 'CRA'
+
+	const subtitle = (() => {
+		if (step === 'select') return 'Deploy any project as an on-chain inscription'
+		if (step === 'build' && selectedProject)
+			return `${selectedProject.name} \u2014 Build & Preview`
+		if (step === 'configure' && selectedProject)
+			return `${selectedProject.name} \u2014 Configure Metadata`
+		if (step === 'publish' && selectedProject) {
+			if (publishSubState === 'broadcasting')
+				return `${selectedProject.name} \u2014 Broadcasting...`
+			if (publishSubState === 'success')
+				return `${selectedProject.name} \u2014 Published!`
+			return `${selectedProject.name} \u2014 Review & Confirm`
+		}
+		return ''
 	})()
 
-	const handleNext = useCallback(() => {
-		if (step < 6) setStep((s) => (s + 1) as PublishStep)
-	}, [step])
+	const subtitleClass = (() => {
+		if (step === 'build' && buildFailed) return 'text-red-400'
+		if (step === 'publish' && publishSubState === 'broadcasting') return 'text-blue-400'
+		if (step === 'publish' && publishSubState === 'success') return 'text-emerald-400'
+		return 'text-muted-foreground'
+	})()
 
-	const handleBack = useCallback(() => {
-		if (step > 1) setStep((s) => (s - 1) as PublishStep)
-	}, [step])
-
-	const handleBroadcastSuccess = useCallback((res: PublishResult) => {
-		setResult(res)
-		setStep(6)
-	}, [])
-
-	const handleBroadcastError = useCallback((err: string) => {
-		setBroadcastError(err)
-		// Step back to review with error visible
-		setStep(4)
-	}, [])
-
-	const handleReset = useCallback(() => {
-		setStep(1)
-		setSelectedType(null)
-		setFileData(null)
-		setName('')
-		setDescription('')
-		setMetadataFields([])
-		setResult(null)
-		setBroadcastError(null)
-	}, [])
+	// Hide step indicator during broadcasting / success — full-screen state
+	const hideStepIndicator =
+		step === 'publish' &&
+		(publishSubState === 'broadcasting' || publishSubState === 'success')
 
 	return (
 		<div className="flex items-center justify-center h-full bg-background p-6">
 			<div
-				className="flex flex-col w-full bg-card border border-border shadow-xl overflow-hidden"
-				style={{ maxWidth: 560, minHeight: 520, maxHeight: 700 }}
+				className="flex flex-col w-full bg-card border border-border shadow-xl"
+				style={{ maxWidth: 620, minHeight: 540, maxHeight: 680 }}
 			>
-				{/* Progress bar */}
-				<WizardProgress step={step} />
-
-				{/* Divider */}
-				<div className="h-px bg-border shrink-0" />
-
-				{/* Step content */}
-				<div className="flex flex-col flex-1 overflow-hidden pt-4">
-					{step === 1 && (
-						<SelectTypeStep selected={selectedType} onSelect={setSelectedType} />
-					)}
-
-					{step === 2 && selectedType && (
-						<UploadStep
-							publishType={selectedType}
-							fileData={fileData}
-							onFileLoaded={setFileData}
-						/>
-					)}
-
-					{step === 3 && (
-						<MetadataStep
-							name={name}
-							description={description}
-							fields={metadataFields}
-							onNameChange={setName}
-							onDescriptionChange={setDescription}
-							onFieldsChange={setMetadataFields}
-						/>
-					)}
-
-					{step === 4 && selectedType && fileData && (
-						<>
-							<ReviewStep
-								publishType={selectedType}
-								fileData={fileData}
-								name={name}
-								description={description}
-								fields={metadataFields}
-							/>
-							{broadcastError && (
-								<div className="mx-6 mb-4 px-4 py-3 rounded-md border border-destructive/30 bg-destructive/10 text-xs text-destructive">
-									{broadcastError}
-								</div>
-							)}
-						</>
-					)}
-
-					{step === 5 && selectedType && fileData && (
-						<BroadcastStep
-							publishType={selectedType}
-							fileData={fileData}
-							name={name}
-							description={description}
-							fields={metadataFields}
-							onSuccess={handleBroadcastSuccess}
-							onError={handleBroadcastError}
-						/>
-					)}
-
-					{step === 6 && result && (
-						<SuccessStep result={result} onNavigate={onNavigate} onReset={handleReset} />
-					)}
+				{/* Header */}
+				<div className="flex items-start justify-between px-6 py-5 border-b border-border shrink-0">
+					<div className="flex flex-col gap-0.5">
+						<h1 className="text-lg font-semibold text-foreground leading-none">
+							Publish to Chain
+						</h1>
+						<p className={cn('text-sm leading-none mt-1', subtitleClass)}>
+							{subtitle}
+						</p>
+					</div>
+					<button
+						type="button"
+						onClick={handleClose}
+						className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
+						aria-label="Close"
+					>
+						<X size={16} strokeWidth={2} />
+					</button>
 				</div>
 
-				{/* Footer */}
-				<WizardFooter
-					step={step}
-					canNext={canNext}
-					onBack={handleBack}
-					onNext={handleNext}
-				/>
+				{!hideStepIndicator && (
+					<PublishStepIndicator
+						current={step}
+						buildFailed={buildFailed}
+						publishSubState={publishSubState}
+					/>
+				)}
+
+				{step === 'select' && <SelectStep onSelect={handleSelectProject} />}
+
+				{step === 'build' && selectedProject && (
+					<BuildStep
+						project={selectedProject}
+						onBack={handleBackToBuild}
+						onNext={handleNextFromBuild}
+					/>
+				)}
+
+				{step === 'configure' && selectedProject && (
+					<ConfigureStep
+						project={selectedProject}
+						formData={configForm}
+						onChange={setConfigForm}
+						onBack={handleBackToConfigure}
+						onNext={handleNextFromConfigure}
+					/>
+				)}
+
+				{step === 'publish' && selectedProject && (
+					<PublishStep
+						project={selectedProject}
+						formData={configForm}
+						subState={publishSubState}
+						onSubStateChange={setPublishSubState}
+						onBack={handleBackFromPublish}
+					/>
+				)}
 			</div>
 		</div>
 	)
