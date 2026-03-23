@@ -1,3 +1,4 @@
+import { WALLET_HTTP_URL } from '../../../shared/constants'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import {
@@ -131,7 +132,7 @@ export function AiChatView({ initialQuery, pageContext, onNavigate }: AiChatView
 	const transport = useMemo(
 		() =>
 			new DefaultChatTransport({
-				api: 'http://localhost:3321/api/chat',
+				api: WALLET_HTTP_URL + '/api/chat',
 				headers: { 'X-Requested-With': '1SatBrowser' },
 				body: {
 					context: pageContext,

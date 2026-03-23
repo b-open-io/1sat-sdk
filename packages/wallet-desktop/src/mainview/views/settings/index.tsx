@@ -1,3 +1,4 @@
+import { WALLET_HTTP_URL } from '../../../shared/constants'
 import { MnemonicGridUi } from '@/components/blocks/mnemonic-flow/mnemonic-grid-ui'
 import {
 	type ScanResult,
@@ -531,7 +532,7 @@ function AiTab() {
 		setFetchingModels(true)
 		setFetchError('')
 		try {
-			const res = await fetch('http://localhost:3321/api/models', {
+			const res = await fetch(WALLET_HTTP_URL + '/api/models', {
 				signal: AbortSignal.timeout(5000),
 			})
 			if (!res.ok) {

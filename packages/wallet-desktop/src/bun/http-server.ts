@@ -19,9 +19,11 @@ import {
 } from './ai-chat-handler'
 import { getWallet } from './wallet-manager'
 
-const HTTP_PORT = 3321
-const HTTPS_PORT = 2121
-const HOST = '127.0.0.1'
+import { WALLET_HTTP_PORT, WALLET_HTTPS_PORT, WALLET_HOST } from '../shared/constants'
+
+const HTTP_PORT = WALLET_HTTP_PORT
+const HTTPS_PORT = WALLET_HTTPS_PORT
+const HOST = WALLET_HOST
 
 const CERT_DIR = `${process.env.HOME}/.1sat-wallet/certs`
 const CERT_PATH = `${CERT_DIR}/server.crt`
