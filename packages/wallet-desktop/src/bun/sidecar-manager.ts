@@ -243,10 +243,10 @@ export function getStackUrl(): string {
  */
 export async function isStackSetupComplete(): Promise<boolean> {
 	try {
-		// Check that the wallet auth endpoint is actually available,
-		// not just that the server is running (it could be in wizard mode)
-		const res = await fetch(`${STACK_URL}/.well-known/auth`, { signal: AbortSignal.timeout(2000) })
-		return res.ok
+		const res = await fetch(`${STACK_URL}/1sat/admin/setup/status`, { signal: AbortSignal.timeout(2000) })
+		if (!res.ok) return false
+		const data = await res.json() as { configured?: boolean }
+		return data.configured === true
 	} catch {
 		return false
 	}
