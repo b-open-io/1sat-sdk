@@ -19,6 +19,7 @@ import {
 } from 'react'
 import type { ParsedRoute } from '../../../shared/url-types'
 import { getDisplayLabel } from '../../../shared/url-types'
+import { ORDFS_BASE } from '../../lib/url-parser'
 import { AgentPopover } from '../browser/agent-popover'
 import { MenuPopover } from '../browser/menu-popover'
 import { WalletPopover } from '../browser/wallet-popover'
@@ -390,6 +391,66 @@ function Toolbar({
 }
 
 // ---------------------------------------------------------------------------
+// WebView content renderer for non-internal routes
+// ---------------------------------------------------------------------------
+
+function resolveWebViewUrl(route: ParsedRoute): string | null {
+	switch (route.type) {
+		case 'web':
+			return route.url
+		case 'search':
+			return route.url
+		case 'onchain-outpoint':
+			return `${ORDFS_BASE}${route.txid}_${route.vout}${route.path ?? ''}`
+		case 'onchain-opns':
+			return `${ORDFS_BASE}${route.name}${route.path ?? ''}`
+		default:
+			return null
+	}
+}
+
+function WebViewContent({ route }: { route: ParsedRoute }) {
+	const containerRef = useRef<HTMLDivElement>(null)
+	const webviewRef = useRef<HTMLElement | null>(null)
+
+	useEffect(() => {
+		const container = containerRef.current
+		if (!container) return
+
+		const url = resolveWebViewUrl(route)
+		if (!url) return
+
+		// Create electrobun-webview element
+		const webview = document.createElement('electrobun-webview')
+		webview.setAttribute('src', url)
+		webview.style.position = 'absolute'
+		webview.style.inset = '0'
+		webview.style.width = '100%'
+		webview.style.height = '100%'
+
+		// Set partition for on-chain content (origin isolation)
+		if (route.type === 'onchain-outpoint' || route.type === 'onchain-opns') {
+			const partition = route.type === 'onchain-opns'
+				? route.name
+				: `${route.txid}_${route.vout}`
+			webview.setAttribute('partition', `persist:1sat-${partition}`)
+		}
+
+		container.appendChild(webview)
+		webviewRef.current = webview
+
+		return () => {
+			webview.remove()
+			webviewRef.current = null
+		}
+	}, [route])
+
+	return (
+		<div ref={containerRef} className="absolute inset-0" />
+	)
+}
+
+// ---------------------------------------------------------------------------
 // BrowserLayout
 // ---------------------------------------------------------------------------
 
@@ -654,10 +715,16 @@ export function BrowserLayout() {
 			<main
 				key={`${activeTabId}-${activeTab.reloadKey}`}
 				className={
-					isFullHeight ? 'flex-1 overflow-hidden' : 'flex-1 overflow-y-auto p-6'
+					isFullHeight || route.type !== 'internal'
+						? 'flex-1 overflow-hidden relative'
+						: 'flex-1 overflow-y-auto p-6'
 				}
 			>
-				{renderPage(route, navigate)}
+				{route.type === 'internal' ? (
+					renderPage(route, navigate)
+				) : (
+					<WebViewContent route={route} />
+				)}
 			</main>
 
 			{/* Sync terminal */}
