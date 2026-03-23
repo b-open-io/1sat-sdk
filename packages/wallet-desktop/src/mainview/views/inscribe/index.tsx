@@ -905,7 +905,7 @@ export function InscribeView() {
 		if (activeTab === 'bsv21')
 			return bsv21.symbol.length > 0 && bsv21.icon !== null && bsv21.maxSupply.length > 0
 		return false
-	}, [activeTab, file, bsv20.ticker, bsv21])
+	}, [activeTab, file, bsv20.ticker, bsv21.symbol, bsv21.icon, bsv21.maxSupply])
 
 	const buttonLabel = useMemo(() => {
 		if (activeTab === 'bsv20') return bsv20.mode === 'mint' ? 'Mint Tokens' : 'Deploy Ticker'

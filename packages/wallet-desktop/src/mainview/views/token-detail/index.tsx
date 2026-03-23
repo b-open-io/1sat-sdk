@@ -514,11 +514,6 @@ export function TokenDetailView({ params, onNavigate }: TokenDetailViewProps) {
 		)
 	}
 
-	const tabs: { id: ActiveTab; label: string }[] = [
-		{ id: 'history', label: 'History' },
-		{ id: 'info', label: 'Info' },
-	]
-
 	return (
 		<div className="mx-auto w-full max-w-[800px]">
 			{/* Back button */}
@@ -573,7 +568,7 @@ export function TokenDetailView({ params, onNavigate }: TokenDetailViewProps) {
 
 			{/* Tab bar */}
 			<div className="flex border-b border-border px-6">
-				{tabs.map((tab) => (
+				{TOKEN_TABS.map((tab) => (
 					<button
 						key={tab.id}
 						type="button"
