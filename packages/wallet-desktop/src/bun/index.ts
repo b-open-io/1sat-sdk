@@ -330,9 +330,20 @@ Electrobun.events.on('open-url', (e) => {
 	if (url.startsWith('1sat://')) {
 		mainWindow.webview.rpc.send.navigateToUrl({ url })
 	} else if (url.startsWith('bap://')) {
-		// bap://bapId → open that user's profile (DM can be initiated from there)
-		const bapId = url.slice('bap://'.length).split('/')[0].split('?')[0]
-		if (bapId) {
+		// bap://bapId[/action] — identity deep links
+		const path = url.slice('bap://'.length)
+		const segments = path.split('?')[0].split('/')
+		const bapId = segments[0]
+		const action = segments[1] // 'message', 'follow', or undefined
+
+		if (!bapId || !/^[1-9A-HJ-NP-Za-km-z]{10,50}$/.test(bapId)) return
+
+		if (action === 'message') {
+			mainWindow.webview.rpc.send.navigateToUrl({
+				url: `1sat://dm?bapId=${bapId}`,
+			})
+		} else {
+			// Default: open profile (follow action initiated from profile UI)
 			mainWindow.webview.rpc.send.navigateToUrl({
 				url: `1sat://identity/profile?bapId=${bapId}`,
 			})
