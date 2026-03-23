@@ -22,6 +22,7 @@ import type { ParsedRoute } from '../../../shared/url-types'
 import { getDisplayLabel } from '../../../shared/url-types'
 import { ORDFS_BASE } from '../../lib/url-parser'
 import { AgentPopover } from '../browser/agent-popover'
+import { BrowserContextMenu } from '../browser/browser-context-menu'
 import { MenuPopover } from '../browser/menu-popover'
 import { WalletPopover } from '../browser/wallet-popover'
 import {
@@ -529,6 +530,27 @@ function WebViewContent({ route }: { route: ParsedRoute }) {
 }
 
 // ---------------------------------------------------------------------------
+// URL helpers
+// ---------------------------------------------------------------------------
+
+function getFullUrl(route: ParsedRoute): string {
+	switch (route.type) {
+		case 'internal':
+			return `1sat://${route.page}`
+		case 'web':
+			return route.url
+		case 'search':
+			return route.url
+		case 'onchain-outpoint':
+			return `1sat://${route.partition}/${route.txid}_${route.vout}${route.path ?? ''}`
+		case 'onchain-opns':
+			return `1sat://${route.partition}/${route.name}${route.path ?? ''}`
+		default:
+			return ''
+	}
+}
+
+// ---------------------------------------------------------------------------
 // BrowserLayout
 // ---------------------------------------------------------------------------
 
@@ -766,20 +788,29 @@ export function BrowserLayout() {
 			)}
 
 			{/* Content area — keyed by reloadKey to force re-mount on reload */}
-			<main
-				key={`${activeTabId}-${activeTab.reloadKey}`}
-				className={
-					isFullHeight || route.type !== 'internal'
-						? 'flex-1 overflow-hidden relative'
-						: 'flex-1 overflow-y-auto p-6'
-				}
+			<BrowserContextMenu
+				onBack={goBack}
+				onForward={goForward}
+				onReload={reload}
+				canGoBack={activeNav.canGoBack}
+				canGoForward={activeNav.canGoForward}
+				currentUrl={getFullUrl(route)}
 			>
-				{route.type === 'internal' ? (
-					renderPage(route, navigate)
-				) : (
-					<WebViewContent route={route} />
-				)}
-			</main>
+				<main
+					key={`${activeTabId}-${activeTab.reloadKey}`}
+					className={
+						isFullHeight || route.type !== 'internal'
+							? 'flex-1 overflow-hidden relative'
+							: 'flex-1 overflow-y-auto p-6'
+					}
+				>
+					{route.type === 'internal' ? (
+						renderPage(route, navigate)
+					) : (
+						<WebViewContent route={route} />
+					)}
+				</main>
+			</BrowserContextMenu>
 
 			{/* Sync terminal */}
 			<SyncTerminal events={events} />
