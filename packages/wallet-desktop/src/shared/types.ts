@@ -356,6 +356,10 @@ type BunRequests = {
 		params: undefined
 		response: { running: boolean; url: string }
 	}
+	openOrdfsContent: {
+		params: { path: string }
+		response: { success: boolean }
+	}
 	getChatMessages: {
 		params: { channel: string; limit?: number }
 		response: { messages: ChatMessage[] }

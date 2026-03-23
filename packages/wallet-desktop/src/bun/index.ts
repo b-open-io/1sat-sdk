@@ -62,6 +62,17 @@ const rpc = BrowserView.defineRPC<WalletDesktopRPC>({
 		requests: {
 			...handlers,
 			resolvePermission,
+			openOrdfsContent: ({ path }: { path: string }) => {
+				const stackUrl = getStackUrl()
+				const contentUrl = `${stackUrl}/content/${path}`
+				console.log(`Opening ORDFS content: ${contentUrl}`)
+				new BrowserWindow({
+					title: `1Sat: ${path.substring(0, 16)}...`,
+					url: contentUrl,
+					frame: { width: 900, height: 700, x: 150, y: 150 },
+				})
+				return { success: true }
+			},
 		},
 		messages: {},
 	},
@@ -202,6 +213,33 @@ startWalletServer()
 // Errors are non-fatal: the wallet continues if the binary is unavailable.
 startStack().catch((err) => {
 	console.error('1sat-stack failed to start:', err.message)
+})
+
+// ============================================================================
+// 1sat:// deep link handler + ORDFS content viewer
+// ============================================================================
+
+function openOrdfsWindow(path: string): void {
+	const stackUrl = getStackUrl()
+	const contentUrl = `${stackUrl}/content/${path}`
+	console.log(`Opening ORDFS content: ${contentUrl}`)
+
+	new BrowserWindow({
+		title: `1Sat: ${path.substring(0, 16)}...`,
+		url: contentUrl,
+		frame: { width: 900, height: 700, x: 150, y: 150 },
+	})
+}
+
+// Handle 1sat:// deep links from the OS (registered via urlSchemes in config)
+Electrobun.events.on('open-url', (e) => {
+	const url = e.data.url
+	console.log(`Deep link received: ${url}`)
+
+	if (url.startsWith('1sat://')) {
+		const path = url.slice('1sat://'.length)
+		if (path) openOrdfsWindow(path)
+	}
 })
 
 console.log('1Sat Wallet started')
