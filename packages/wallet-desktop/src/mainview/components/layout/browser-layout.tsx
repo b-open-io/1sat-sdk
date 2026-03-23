@@ -863,6 +863,7 @@ export function BrowserLayout() {
 		{ hotkey: 'Mod+Shift+S', callback: () => toggleTabMode() },
 		{ hotkey: 'Mod+Shift+A', callback: () => toggleAgentSidebar() },
 		{ hotkey: 'Mod+,', callback: () => navigate('1sat://settings') },
+		{ hotkey: 'Mod+D', callback: () => { const url = getFullUrl(activeNav.current); bookmarksApi.addBookmark(url, getDisplayLabel(activeNav.current)) } },
 		{ hotkey: 'Mod+1', callback: () => switchToTab(0) },
 		{ hotkey: 'Mod+2', callback: () => switchToTab(1) },
 		{ hotkey: 'Mod+3', callback: () => switchToTab(2) },
@@ -877,41 +878,51 @@ export function BrowserLayout() {
 	// ── Derived render properties ──────────────────────────────────────────
 
 	const route = activeNav.current
+	const currentUrl = getFullUrl(route)
+	const currentTitle = getDisplayLabel(route)
 	const isFullHeight =
 		route.type === 'ai-chat' ||
 		(route.type === 'internal' &&
 			(route.page === 'chat' || route.page === 'browser/new'))
 
-	// Shared content area used in both layouts
+	// Content area with optional docked agent sidebar
 	const contentArea = (
-		<BrowserContextMenu
-			onBack={goBack}
-			onForward={goForward}
-			onReload={reload}
-			canGoBack={activeNav.canGoBack}
-			canGoForward={activeNav.canGoForward}
-			currentUrl={getFullUrl(route)}
-		>
-			<main
-				key={`${activeTabId}-${activeTab.reloadKey}`}
-				className={
-					isFullHeight || route.type !== 'internal'
-						? 'flex-1 overflow-hidden relative'
-						: 'flex-1 overflow-y-auto p-6'
-				}
+		<div className="flex flex-row flex-1 overflow-hidden min-h-0">
+			<BrowserContextMenu
+				onBack={goBack}
+				onForward={goForward}
+				onReload={reload}
+				canGoBack={activeNav.canGoBack}
+				canGoForward={activeNav.canGoForward}
+				currentUrl={getFullUrl(route)}
 			>
-				{route.type === 'internal' ? (
-					renderPage(route, navigate)
-				) : route.type === 'ai-chat' ? (
-					<AiChatView
-						initialQuery={route.query}
-						onNavigate={navigate}
-					/>
-				) : (
-					<WebViewContent route={route} />
-				)}
-			</main>
-		</BrowserContextMenu>
+				<main
+					key={`${activeTabId}-${activeTab.reloadKey}`}
+					className={
+						isFullHeight || route.type !== 'internal'
+							? 'flex-1 overflow-hidden relative'
+							: 'flex-1 overflow-y-auto p-6'
+					}
+				>
+					{route.type === 'internal' ? (
+						renderPage(route, navigate)
+					) : route.type === 'ai-chat' ? (
+						<AiChatView
+							initialQuery={route.query}
+							onNavigate={navigate}
+						/>
+					) : (
+						<WebViewContent route={route} />
+					)}
+				</main>
+			</BrowserContextMenu>
+			<AgentSidebar
+				open={agentSidebarOpen}
+				onClose={closeAgentSidebar}
+				currentRoute={route}
+				onNavigate={navigate}
+			/>
+		</div>
 	)
 
 	// Shared onboarding banner
