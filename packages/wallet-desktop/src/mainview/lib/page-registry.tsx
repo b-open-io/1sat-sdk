@@ -15,10 +15,13 @@ import { OpnsView } from '../views/opns/index'
 import { OrdinalsView } from '../views/ordinals/index'
 import { MarketView } from '../views/market/index'
 import { PublishView } from '../views/publish/index'
+import { OrdinalDetailView } from '../views/ordinal-detail/index'
 import { SettingsView } from '../views/settings/index'
 import { SocialView } from '../views/social/index'
+import { SweepView } from '../views/sweep/index'
 import { TokensView } from '../views/tokens/index'
 import { TokenDetailView } from '../views/token-detail/index'
+import { TxDetailView } from '../views/tx-detail/index'
 import { CreateWallet } from '../views/onboarding/create-wallet'
 import { ImportWallet } from '../views/onboarding/import-wallet'
 import { UnlockWallet } from '../views/onboarding/unlock-wallet'
@@ -51,24 +54,12 @@ function ReceiveView(): ReactElement {
 	return <ComingSoonView page="wallet/receive" />
 }
 
-function WalletTxView(): ReactElement {
-	return <ComingSoonView page="wallet/tx" />
-}
-
-function WalletSweepView(): ReactElement {
-	return <ComingSoonView page="wallet/sweep" />
-}
-
-function OrdinalDetailView(): ReactElement {
-	return <ComingSoonView page="ordinals/detail" />
-}
-
 function SettingsSecurityView(): ReactElement {
-	return <ComingSoonView page="settings/security" />
+	return <SettingsView params={{ tab: 'security' }} />
 }
 
 function SettingsNetworkView(): ReactElement {
-	return <ComingSoonView page="settings/network" />
+	return <SettingsView params={{ tab: 'network' }} />
 }
 
 // ─── Onboarding pages ─────────────────────────────────────────────────────────
@@ -149,8 +140,8 @@ const PAGE_REGISTRY: Record<InternalPage, PageComponent> = {
 	'wallet/send': SendView,
 	'wallet/receive': ReceiveView,
 	'wallet/history': HistoryView,
-	'wallet/tx': WalletTxView,
-	'wallet/sweep': WalletSweepView,
+	'wallet/tx': TxDetailView,
+	'wallet/sweep': SweepView,
 	'ordinals/gallery': OrdinalsView,
 	'ordinals/detail': OrdinalDetailView,
 	'ordinals/inscribe': InscribeView,
