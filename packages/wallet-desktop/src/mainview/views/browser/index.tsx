@@ -155,7 +155,7 @@ export function BrowserView() {
 				<CardHeader>
 					<CardTitle className="text-sm flex items-center gap-2">
 						<Globe size={16} />
-						Open in New Window
+						Navigate
 					</CardTitle>
 				</CardHeader>
 				<CardContent>

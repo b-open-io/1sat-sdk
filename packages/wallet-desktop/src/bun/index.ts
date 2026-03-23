@@ -82,11 +82,20 @@ const rpc = BrowserView.defineRPC<WalletDesktopRPC>({
 				url,
 				title,
 			}: { url: string; title?: string }) => {
-				new BrowserWindow({
-					title: title ?? url.substring(0, 40),
-					url,
-					frame: { width: 1024, height: 700, x: 150, y: 150 },
-				})
+				if (!browserWindow || browserWindow.isMinimized?.()) {
+					browserWindow = new BrowserWindow({
+						title: title ?? url.substring(0, 40),
+						url,
+						frame: { width: 1200, height: 800, x: 150, y: 100 },
+					})
+					browserWindow.on('close', () => {
+						browserWindow = undefined
+					})
+				} else {
+					browserWindow.webview.loadURL(url)
+					if (title) browserWindow.setTitle(title)
+					browserWindow.focus()
+				}
 				return { success: true }
 			},
 		},
@@ -97,6 +106,9 @@ const rpc = BrowserView.defineRPC<WalletDesktopRPC>({
 // ============================================================================
 // Application window
 // ============================================================================
+
+// Persistent browser window — reused for all URL opens
+let browserWindow: BrowserWindow | undefined
 
 const url = await getMainViewUrl()
 
