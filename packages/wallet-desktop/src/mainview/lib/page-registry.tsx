@@ -1,0 +1,104 @@
+import type { ReactElement } from 'react'
+import type { InternalPage, ParsedRoute } from '../../shared/url-types'
+import { BrowserView } from '../views/browser/index'
+import { ChatView } from '../views/chat/index'
+import { CollectionsView } from '../views/collections/index'
+import { OverviewView } from '../views/dashboard/index'
+import { HistoryView } from '../views/history/index'
+import { IdentityView } from '../views/identity/index'
+import { InscribeView } from '../views/inscribe/index'
+import { LocksView } from '../views/locks/index'
+import { OpnsView } from '../views/opns/index'
+import { OrdinalsView } from '../views/ordinals/index'
+import { SettingsView } from '../views/settings/index'
+import { SocialView } from '../views/social/index'
+import { TokensView } from '../views/tokens/index'
+
+// ─── Placeholder components for pages without dedicated views ─────────────────
+
+function ComingSoonView({ page }: { page: InternalPage }): ReactElement {
+	return (
+		<div
+			style={{
+				display: 'flex',
+				flexDirection: 'column',
+				alignItems: 'center',
+				justifyContent: 'center',
+				height: '100%',
+				gap: '8px',
+			}}
+		>
+			<p style={{ fontSize: '1.125rem', fontWeight: 600 }}>Coming Soon</p>
+			<p style={{ fontSize: '0.875rem', opacity: 0.6 }}>{page}</p>
+		</div>
+	)
+}
+
+function SendView(): ReactElement {
+	return <ComingSoonView page="wallet/send" />
+}
+
+function ReceiveView(): ReactElement {
+	return <ComingSoonView page="wallet/receive" />
+}
+
+function PublishView(): ReactElement {
+	return <ComingSoonView page="publish/new" />
+}
+
+function AppsView(): ReactElement {
+	return <ComingSoonView page="apps" />
+}
+
+function OnboardingCreateView(): ReactElement {
+	return <ComingSoonView page="onboarding/create" />
+}
+
+function OnboardingImportView(): ReactElement {
+	return <ComingSoonView page="onboarding/import" />
+}
+
+function OnboardingUnlockView(): ReactElement {
+	return <ComingSoonView page="onboarding/unlock" />
+}
+
+// ─── Registry ────────────────────────────────────────────────────────────────
+
+type PageComponent = () => ReactElement
+
+const PAGE_REGISTRY: Record<InternalPage, PageComponent> = {
+	'wallet/overview': OverviewView,
+	'wallet/send': SendView,
+	'wallet/receive': ReceiveView,
+	'wallet/history': HistoryView,
+	'ordinals/gallery': OrdinalsView,
+	'ordinals/inscribe': InscribeView,
+	'tokens/all': TokensView,
+	'collections/all': CollectionsView,
+	'locks/all': LocksView,
+	'opns/all': OpnsView,
+	'social/feed': SocialView,
+	chat: ChatView,
+	'identity/profile': IdentityView,
+	settings: SettingsView,
+	'browser/new': BrowserView,
+	'publish/new': PublishView,
+	apps: AppsView,
+	'onboarding/create': OnboardingCreateView,
+	'onboarding/import': OnboardingImportView,
+	'onboarding/unlock': OnboardingUnlockView,
+}
+
+/**
+ * Render the React element for the given parsed route.
+ *
+ * Returns the page element when route.type === 'internal' and the page is
+ * in the registry. Returns null for all other route types (web, onchain,
+ * search) — BrowserLayout is responsible for rendering those.
+ */
+export function renderPage(route: ParsedRoute): ReactElement | null {
+	if (route.type !== 'internal') return null
+	const Component = PAGE_REGISTRY[route.page]
+	if (!Component) return null
+	return <Component />
+}
