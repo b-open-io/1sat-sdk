@@ -76,6 +76,7 @@ export function AgentSidebar({
 	const { messages, sendMessage, status, error } = useChat({
 		transport: new DefaultChatTransport({
 			api: 'http://localhost:3321/api/chat',
+			headers: { 'X-Requested-With': '1SatBrowser' },
 			body: {
 				model: 'llama3:latest',
 				context: { url: currentUrl },

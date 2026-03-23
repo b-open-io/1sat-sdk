@@ -1,184 +1,189 @@
-import {
-	Gamepad2,
-	Gem,
-	Globe,
-	MessageCircle,
-	Search,
-	Server,
-	ShieldCheck,
-	Store,
-} from 'lucide-react'
-import { useCallback, useRef, useState } from 'react'
+import { ExternalLink, LayoutGrid, Search } from 'lucide-react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface AppEntry {
+interface CatalogApp {
 	id: string
 	name: string
+	domain: string
 	description: string
-	icon: React.ElementType
 	color: string
-	url: string
-	verified?: boolean
+	category: string
 }
 
-// ─── Static data (hoisted to module level per rendering-hoist-jsx) ────────────
+type Category =
+	| 'All'
+	| 'On-Chain'
+	| 'DeFi'
+	| 'Social'
+	| 'Games'
+	| 'Tools'
+	| 'Earn'
+	| 'Wallet'
 
-const ON_CHAIN_APPS: AppEntry[] = [
-	{
-		id: 'bitchat-nitro',
-		name: 'BitChat Nitro',
-		description: 'Encrypted on-chain messaging',
-		icon: MessageCircle,
-		color: '#22c55e',
-		url: '1sat://bitchat',
-		verified: true,
-	},
-	{
-		id: '1sat-market',
-		name: '1Sat Market',
-		description: 'Ordinal marketplace',
-		icon: Store,
-		color: '#8b5cf6',
-		url: '1sat://market',
-		verified: true,
-	},
-	{
-		id: 'bitbattle',
-		name: 'BitBattle',
-		description: 'On-chain PvP battles',
-		icon: Gamepad2,
-		color: '#f97316',
-		url: '1sat://bitbattle',
-	},
-]
+// ─── Static catalog (hoisted to module level — rendering-hoist-jsx) ───────────
 
-const WEB_APPS: AppEntry[] = [
+const CATALOG_APPS: CatalogApp[] = [
 	{
-		id: 'whatsonchain',
-		name: 'WhatsOnChain',
-		description: 'BSV blockchain explorer',
-		icon: Globe,
+		id: 'relayx',
+		name: 'RelayX',
+		domain: 'relayx.com',
+		description: 'DEX and token trading',
 		color: '#3b82f6',
-		url: 'https://whatsonchain.com',
+		category: 'DeFi',
 	},
 	{
 		id: '1satordinals',
-		name: '1SatOrdinals',
-		description: 'Ordinals marketplace and tools',
-		icon: Gem,
-		color: '#3b82f6',
-		url: 'https://1satordinals.com',
-		verified: true,
+		name: '1Sat Ordinals',
+		domain: '1satordinals.com',
+		description: 'NFT marketplace',
+		color: '#8b5cf6',
+		category: 'On-Chain',
 	},
 	{
-		id: 'gorillapool',
-		name: 'GorillaPool',
-		description: 'Mining pool and services',
-		icon: Server,
+		id: 'bitchat-nitro',
+		name: 'BitChat Nitro',
+		domain: 'bitchatnitro.com',
+		description: 'On-chain encrypted chat',
 		color: '#22c55e',
-		url: 'https://gorillapool.io',
+		category: 'Social',
 	},
+	{
+		id: 'tonicpow',
+		name: 'TonicPow',
+		domain: 'tonicpow.com',
+		description: 'Earn BSV for engagement',
+		color: '#f97316',
+		category: 'Earn',
+	},
+	{
+		id: 'handcash',
+		name: 'HandCash',
+		domain: 'handcash.io',
+		description: 'BSV wallet and payments',
+		color: '#eab308',
+		category: 'Wallet',
+	},
+	{
+		id: 'cryptofights',
+		name: 'CryptoFights',
+		domain: 'cryptofights.io',
+		description: 'PvP blockchain game',
+		color: '#ef4444',
+		category: 'Games',
+	},
+	{
+		id: 'canonic',
+		name: 'Canonic',
+		domain: 'canonic.xyz',
+		description: 'On-chain publishing',
+		color: '#06b6d4',
+		category: 'On-Chain',
+	},
+	{
+		id: 'whatsonchain',
+		name: 'WhatsOnChain',
+		domain: 'whatsonchain.com',
+		description: 'BSV block explorer',
+		color: '#9ca3af',
+		category: 'Tools',
+	},
+]
+
+const CATEGORIES: Category[] = [
+	'All',
+	'On-Chain',
+	'DeFi',
+	'Social',
+	'Games',
+	'Tools',
+	'Earn',
+	'Wallet',
 ]
 
 // ─── App Card ─────────────────────────────────────────────────────────────────
 
 interface AppCardProps {
-	app: AppEntry
+	app: CatalogApp
 	onNavigate?: (url: string) => void
 }
 
 function AppCard({ app, onNavigate }: AppCardProps) {
-	const Icon = app.icon
+	const url = `https://${app.domain}`
 
 	const handleClick = useCallback(() => {
-		onNavigate?.(app.url)
-	}, [app.url, onNavigate])
-
-	const handleKeyDown = useCallback(
-		(e: React.KeyboardEvent) => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				e.preventDefault()
-				onNavigate?.(app.url)
-			}
-		},
-		[app.url, onNavigate],
-	)
+		onNavigate?.(url)
+	}, [url, onNavigate])
 
 	return (
-		<div
-			role="button"
-			tabIndex={0}
-			className="flex flex-col gap-3 bg-card border border-border hover:border-primary transition-colors duration-150 cursor-pointer p-4 text-left"
+		<button
+			type="button"
+			className="group flex flex-col items-center gap-2 bg-card border border-border hover:border-primary transition-colors duration-150 cursor-pointer rounded-lg p-4 text-center w-full"
 			onClick={handleClick}
-			onKeyDown={handleKeyDown}
 			aria-label={`Open ${app.name}`}
 		>
-			{/* Icon + name row */}
-			<div className="flex items-center gap-3">
-				<div
-					className="flex items-center justify-center shrink-0"
-					style={{
-						width: 48,
-						height: 48,
-						borderRadius: 8,
-						backgroundColor: `${app.color}1a`,
-					}}
-				>
-					<Icon size={22} strokeWidth={1.75} style={{ color: app.color }} />
-				</div>
-
-				<div className="flex flex-col gap-0.5 min-w-0 flex-1">
-					<div className="flex items-center gap-1.5">
-						<span className="text-[12px] font-bold leading-tight text-foreground truncate">
-							{app.name}
-						</span>
-						{app.verified && (
-							<ShieldCheck
-								size={12}
-								className="shrink-0 text-primary"
-								strokeWidth={2}
-								aria-label="Verified"
-							/>
-						)}
-					</div>
-				</div>
+			{/* Letter icon */}
+			<div
+				className="flex items-center justify-center shrink-0 rounded-lg"
+				style={{
+					width: 40,
+					height: 40,
+					backgroundColor: `${app.color}22`,
+					color: app.color,
+				}}
+			>
+				<span className="text-[15px] font-bold leading-none select-none">
+					{app.name.charAt(0)}
+				</span>
 			</div>
 
+			{/* Name */}
+			<span className="text-[12px] font-semibold leading-tight text-foreground truncate w-full">
+				{app.name}
+			</span>
+
 			{/* Description */}
-			<p
-				className="text-[10px] text-muted-foreground leading-snug line-clamp-2"
-				style={{ fontFamily: 'var(--font-sans)' }}
-			>
+			<p className="text-[10px] text-muted-foreground leading-snug line-clamp-2 w-full">
 				{app.description}
 			</p>
-		</div>
+
+			{/* External link indicator — visible on hover */}
+			<ExternalLink
+				size={10}
+				className="text-muted-foreground opacity-0 group-hover:opacity-60 transition-opacity shrink-0"
+				strokeWidth={1.75}
+				aria-hidden
+			/>
+		</button>
 	)
 }
 
-// ─── Section ──────────────────────────────────────────────────────────────────
+// ─── Category pill ─────────────────────────────────────────────────────────────
 
-interface SectionProps {
-	title: string
-	apps: AppEntry[]
-	onNavigate?: (url: string) => void
+interface CategoryPillProps {
+	label: Category
+	active: boolean
+	onClick: (category: Category) => void
 }
 
-function AppSection({ title, apps, onNavigate }: SectionProps) {
+function CategoryPill({ label, active, onClick }: CategoryPillProps) {
+	const handleClick = useCallback(() => onClick(label), [label, onClick])
+
 	return (
-		<section>
-			<div className="flex items-center gap-3 mb-3">
-				<p className="text-[10px] uppercase tracking-widest text-muted-foreground leading-none">
-					{title}
-				</p>
-				<div className="flex-1 h-px bg-border" />
-			</div>
-			<div className="grid grid-cols-3 gap-4">
-				{apps.map((app) => (
-					<AppCard key={app.id} app={app} onNavigate={onNavigate} />
-				))}
-			</div>
-		</section>
+		<button
+			type="button"
+			onClick={handleClick}
+			aria-pressed={active}
+			className={[
+				'px-3 h-6 flex items-center rounded-full text-[11px] font-medium cursor-pointer border transition-colors duration-100 select-none shrink-0',
+				active
+					? 'bg-primary text-primary-foreground border-primary'
+					: 'bg-card text-muted-foreground border-border hover:border-border/80 hover:text-foreground',
+			].join(' ')}
+		>
+			{label}
+		</button>
 	)
 }
 
@@ -191,34 +196,46 @@ export interface AppsViewProps {
 
 export function AppsView({ onNavigate }: AppsViewProps) {
 	const [query, setQuery] = useState('')
+	const [activeCategory, setActiveCategory] = useState<Category>('All')
 	const inputRef = useRef<HTMLInputElement>(null)
 
-	const filteredOnChain = query
-		? ON_CHAIN_APPS.filter(
-				(a) =>
-					a.name.toLowerCase().includes(query.toLowerCase()) ||
-					a.description.toLowerCase().includes(query.toLowerCase()),
+	const filtered = useMemo(() => {
+		const q = query.trim().toLowerCase()
+		return CATALOG_APPS.filter((app) => {
+			const matchesCategory =
+				activeCategory === 'All' || app.category === activeCategory
+			if (!matchesCategory) return false
+			if (!q) return true
+			return (
+				app.name.toLowerCase().includes(q) ||
+				app.description.toLowerCase().includes(q) ||
+				app.category.toLowerCase().includes(q)
 			)
-		: ON_CHAIN_APPS
-
-	const filteredWeb = query
-		? WEB_APPS.filter(
-				(a) =>
-					a.name.toLowerCase().includes(query.toLowerCase()) ||
-					a.description.toLowerCase().includes(query.toLowerCase()),
-			)
-		: WEB_APPS
+		})
+	}, [query, activeCategory])
 
 	return (
-		<div className="flex flex-col w-full px-6 py-4 gap-6">
+		<div className="flex flex-col w-full px-6 py-4 gap-4">
 			{/* Header */}
-			<div className="flex items-center gap-4">
-				<h1 className="text-[20px] font-bold leading-none text-foreground shrink-0">
-					Apps
+			<div className="flex items-center gap-3">
+				<LayoutGrid
+					size={16}
+					className="text-muted-foreground shrink-0"
+					strokeWidth={1.75}
+				/>
+				<h1 className="text-[14px] font-bold leading-none text-foreground">
+					App Catalog
 				</h1>
+			</div>
 
-				<div className="flex items-center gap-2 flex-1 bg-card border border-border px-3 h-8 max-w-xs">
-					<Search size={13} className="text-muted-foreground shrink-0" strokeWidth={1.75} />
+			{/* Search bar — centered, max-w-md */}
+			<div className="flex justify-center">
+				<div className="flex items-center gap-2 bg-card border border-border px-3 h-8 w-full max-w-md rounded">
+					<Search
+						size={13}
+						className="text-muted-foreground shrink-0"
+						strokeWidth={1.75}
+					/>
 					<input
 						ref={inputRef}
 						type="search"
@@ -230,26 +247,26 @@ export function AppsView({ onNavigate }: AppsViewProps) {
 				</div>
 			</div>
 
-			{/* On-chain section */}
-			{filteredOnChain.length > 0 && (
-				<AppSection
-					title="On-Chain"
-					apps={filteredOnChain}
-					onNavigate={onNavigate}
-				/>
-			)}
+			{/* Category pills */}
+			<div className="flex flex-row items-center gap-2 flex-wrap">
+				{CATEGORIES.map((cat) => (
+					<CategoryPill
+						key={cat}
+						label={cat}
+						active={activeCategory === cat}
+						onClick={setActiveCategory}
+					/>
+				))}
+			</div>
 
-			{/* Web section */}
-			{filteredWeb.length > 0 && (
-				<AppSection
-					title="Web"
-					apps={filteredWeb}
-					onNavigate={onNavigate}
-				/>
-			)}
-
-			{/* Empty state when search yields nothing */}
-			{filteredOnChain.length === 0 && filteredWeb.length === 0 && (
+			{/* App grid — 4 columns */}
+			{filtered.length > 0 ? (
+				<div className="grid grid-cols-4 gap-3">
+					{filtered.map((app) => (
+						<AppCard key={app.id} app={app} onNavigate={onNavigate} />
+					))}
+				</div>
+			) : (
 				<div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
 					<Search size={32} strokeWidth={1.5} />
 					<span className="text-sm">No apps match &ldquo;{query}&rdquo;</span>

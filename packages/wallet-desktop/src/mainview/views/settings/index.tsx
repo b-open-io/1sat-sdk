@@ -30,7 +30,7 @@ import {
 } from '@/components/blocks/theme-token-provider'
 import { rpc } from '../../rpc'
 import { useWallet } from '../../hooks/use-wallet'
-import { AlertTriangle, ExternalLink, Lock, RefreshCw, Server } from 'lucide-react'
+import { AlertTriangle, ExternalLink, Globe, Lock, ShieldCheck } from 'lucide-react'
 import { MnemonicGridUi } from '@/components/blocks/mnemonic-flow/mnemonic-grid-ui'
 
 // ---------------------------------------------------------------------------
@@ -80,8 +80,9 @@ function saveAiSettings(settings: AiSettings) {
 
 interface StackHealth {
 	blockHeight: number | null
-	uptime: string | null
+	uptimeSeconds: number | null
 	running: boolean
+	syncPercent: number | null
 }
 
 async function fetchStackHealth(): Promise<StackHealth> {
@@ -89,15 +90,50 @@ async function fetchStackHealth(): Promise<StackHealth> {
 		const res = await fetch('http://127.0.0.1:8080/1sat/health', {
 			signal: AbortSignal.timeout(4000),
 		})
-		if (!res.ok) return { blockHeight: null, uptime: null, running: false }
+		if (!res.ok) return { blockHeight: null, uptimeSeconds: null, running: false, syncPercent: null }
 		const data = await res.json()
+		const rawUptime = data.uptime ?? data.uptimeSeconds ?? null
+		const uptimeSeconds = typeof rawUptime === 'number' ? rawUptime : null
+		const syncPercent: number | null =
+			typeof data.syncPercent === 'number'
+				? data.syncPercent
+				: typeof data.sync_percent === 'number'
+					? data.sync_percent
+					: null
 		return {
 			blockHeight: data.blockHeight ?? data.block_height ?? null,
-			uptime: data.uptime ?? null,
+			uptimeSeconds,
 			running: true,
+			syncPercent,
 		}
 	} catch {
-		return { blockHeight: null, uptime: null, running: false }
+		return { blockHeight: null, uptimeSeconds: null, running: false, syncPercent: null }
+	}
+}
+
+function formatUptime(seconds: number): string {
+	const h = Math.floor(seconds / 3600)
+	const m = Math.floor((seconds % 3600) / 60)
+	if (h > 0) return `${h}h ${m}m`
+	return `${m}m`
+}
+
+interface ServiceStatus {
+	name: string
+	port: number
+	reachable: boolean | null
+}
+
+async function checkService(port: number): Promise<boolean> {
+	try {
+		await fetch(`http://127.0.0.1:${port}`, {
+			signal: AbortSignal.timeout(2000),
+			mode: 'no-cors',
+		})
+		// no-cors fetch resolves (opaque response) when the server is up
+		return true
+	} catch {
+		return false
 	}
 }
 
@@ -106,7 +142,6 @@ async function fetchStackHealth(): Promise<StackHealth> {
 // ---------------------------------------------------------------------------
 
 function SecurityTab() {
-	const [touchIdEnabled, setTouchIdEnabled] = useState(false)
 	const [autoLock, setAutoLock] = useState('15')
 	const [seedDialogOpen, setSeedDialogOpen] = useState(false)
 	const [seedConfirmed, setSeedConfirmed] = useState(false)
@@ -125,6 +160,20 @@ function SecurityTab() {
 
 	return (
 		<div className="space-y-8 py-4">
+			{/* Vault Status card */}
+			<div className="bg-card rounded-lg p-4 flex items-center gap-3">
+				<div className="flex items-center justify-center size-10 rounded-full bg-green-500/10 shrink-0">
+					<ShieldCheck className="size-5 text-green-500" />
+				</div>
+				<div className="flex-1 min-w-0">
+					<p className="text-sm font-semibold">Vault Protected</p>
+					<p className="text-sm text-muted-foreground">Touch ID (Secure Enclave)</p>
+				</div>
+				<span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full shrink-0">
+					Active
+				</span>
+			</div>
+
 			{/* Backup section */}
 			<div>
 				<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
@@ -212,7 +261,7 @@ function SecurityTab() {
 
 			<Separator />
 
-			{/* Authentication section */}
+			{/* Auto-Lock section */}
 			<div>
 				<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
 					Authentication
@@ -220,40 +269,13 @@ function SecurityTab() {
 
 				<div className="flex items-center justify-between py-3">
 					<div>
-						<p className="text-sm font-medium">Touch ID</p>
+						<p className="text-sm font-medium">Auto-Lock</p>
 						<p className="text-xs text-muted-foreground">
-							Use Touch ID to unlock your wallet
-						</p>
-					</div>
-					{/* Simple toggle — visual only */}
-					<button
-						type="button"
-						role="switch"
-						aria-checked={touchIdEnabled}
-						onClick={() => setTouchIdEnabled((v) => !v)}
-						className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-							touchIdEnabled ? 'bg-primary' : 'bg-input'
-						}`}
-					>
-						<span
-							className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform ${
-								touchIdEnabled ? 'translate-x-4' : 'translate-x-0'
-							}`}
-						/>
-					</button>
-				</div>
-
-				<Separator />
-
-				<div className="flex items-center justify-between py-3">
-					<div>
-						<p className="text-sm font-medium">Auto-Lock Timeout</p>
-						<p className="text-xs text-muted-foreground">
-							Automatically lock the wallet after inactivity
+							Lock wallet after inactivity
 						</p>
 					</div>
 					<Select value={autoLock} onValueChange={setAutoLock}>
-						<SelectTrigger size="sm" className="w-28">
+						<SelectTrigger size="sm" className="w-32 bg-card border-border">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -266,6 +288,22 @@ function SecurityTab() {
 					</Select>
 				</div>
 			</div>
+
+			<Separator />
+
+			{/* Connected Apps section */}
+			<div>
+				<p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+					Connected Apps
+				</p>
+				<div className="flex flex-col items-center justify-center py-8 gap-2 text-center">
+					<Globe className="size-8 text-muted-foreground/40" />
+					<p className="text-sm text-muted-foreground">No connected apps yet</p>
+					<p className="text-xs text-muted-foreground/60 max-w-xs">
+						Apps you authorize will appear here. You can revoke access at any time.
+					</p>
+				</div>
+			</div>
 		</div>
 	)
 }
@@ -274,13 +312,33 @@ function SecurityTab() {
 // Network Tab
 // ---------------------------------------------------------------------------
 
+const SERVICES: { name: string; port: number }[] = [
+	{ name: 'BRC-100 HTTP', port: 3321 },
+	{ name: 'BRC-100 HTTPS', port: 2121 },
+	{ name: 'MCP Server', port: 3322 },
+]
+
 function NetworkTab() {
 	const [health, setHealth] = useState<StackHealth>({
 		blockHeight: null,
-		uptime: null,
+		uptimeSeconds: null,
 		running: false,
+		syncPercent: null,
 	})
 	const [lastChecked, setLastChecked] = useState<Date | null>(null)
+	const [services, setServices] = useState<ServiceStatus[]>(
+		SERVICES.map((s) => ({ ...s, reachable: null })),
+	)
+
+	const refreshServices = useCallback(async () => {
+		const results = await Promise.all(
+			SERVICES.map(async (s) => ({
+				...s,
+				reachable: await checkService(s.port),
+			})),
+		)
+		setServices(results)
+	}, [])
 
 	const refresh = useCallback(async () => {
 		const result = await fetchStackHealth()
@@ -290,17 +348,25 @@ function NetworkTab() {
 
 	useEffect(() => {
 		refresh()
-		const interval = setInterval(refresh, 10_000)
+		refreshServices()
+		const interval = setInterval(() => {
+			refresh()
+			refreshServices()
+		}, 10_000)
 		return () => clearInterval(interval)
-	}, [refresh])
+	}, [refresh, refreshServices])
+
+	const syncPercent = health.syncPercent ?? (health.running ? 100 : null)
+	const uptimeDisplay =
+		health.uptimeSeconds !== null ? formatUptime(health.uptimeSeconds) : '—'
 
 	return (
 		<div className="space-y-8 py-4">
-			{/* Stack status section */}
+			{/* Stack Health grid */}
 			<div>
 				<div className="flex items-center justify-between mb-3">
 					<p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-						1Sat Stack
+						Stack Health
 					</p>
 					{lastChecked && (
 						<p className="text-[10px] text-muted-foreground">
@@ -309,94 +375,100 @@ function NetworkTab() {
 					)}
 				</div>
 
-				<div className="flex items-center justify-between py-3">
-					<p className="text-sm font-medium">Status</p>
-					<div className="flex items-center gap-2">
-						<span
-							className={`inline-block size-2 rounded-full ${
-								health.running ? 'bg-green-500' : 'bg-red-500'
-							}`}
-						/>
-						<span className="text-sm text-muted-foreground">
-							{health.running ? 'Running' : 'Stopped'}
-						</span>
+				<div className="grid grid-cols-3 gap-3">
+					{/* Block Height */}
+					<div className="bg-card rounded-lg p-4">
+						<p className="text-xs text-muted-foreground mb-1">Block Height</p>
+						<p className="text-xl font-bold font-mono">
+							{health.blockHeight !== null
+								? health.blockHeight.toLocaleString()
+								: '—'}
+						</p>
 					</div>
-				</div>
 
-				<Separator />
+					{/* Uptime */}
+					<div className="bg-card rounded-lg p-4">
+						<p className="text-xs text-muted-foreground mb-1">Uptime</p>
+						<p className="text-xl font-bold font-mono">{uptimeDisplay}</p>
+					</div>
 
-				<div className="flex items-center justify-between py-3">
-					<p className="text-sm font-medium">Block Height</p>
-					<p className="text-sm text-muted-foreground font-mono">
-						{health.blockHeight !== null
-							? health.blockHeight.toLocaleString()
-							: '—'}
-					</p>
-				</div>
-
-				<Separator />
-
-				<div className="flex items-center justify-between py-3">
-					<p className="text-sm font-medium">Uptime</p>
-					<p className="text-sm text-muted-foreground font-mono">
-						{health.uptime ?? '—'}
-					</p>
+					{/* Status */}
+					<div className="bg-card rounded-lg p-4">
+						<p className="text-xs text-muted-foreground mb-1">Status</p>
+						<p
+							className={`text-xl font-bold ${
+								health.running ? 'text-green-400' : 'text-red-400'
+							}`}
+						>
+							{health.running ? 'Running' : 'Offline'}
+						</p>
+					</div>
 				</div>
 			</div>
 
-			<Separator />
+			{/* Sync Progress */}
+			<div>
+				<div className="flex items-center justify-between mb-2">
+					<p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+						Sync
+					</p>
+					<p className="text-xs text-muted-foreground font-mono">
+						{syncPercent !== null ? `${syncPercent}%` : '—'}
+					</p>
+				</div>
+				<div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
+					<div
+						className="h-full rounded-full bg-primary transition-all duration-500"
+						style={{ width: syncPercent !== null ? `${syncPercent}%` : '0%' }}
+					/>
+				</div>
+				{syncPercent === 100 && (
+					<p className="text-xs text-muted-foreground mt-1.5">Synced</p>
+				)}
+			</div>
 
-			{/* Configuration section */}
+			{/* Services list */}
 			<div>
 				<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
-					Configuration
+					Services
 				</p>
+				<div className="bg-card rounded-lg divide-y divide-border overflow-hidden">
+					{services.map((svc) => (
+						<div key={svc.port} className="flex items-center gap-3 px-4 py-3">
+							<span
+								className={`size-2 rounded-full shrink-0 ${
+									svc.reachable === null
+										? 'bg-muted-foreground/30'
+										: svc.reachable
+											? 'bg-green-500'
+											: 'bg-red-500'
+								}`}
+							/>
+							<span className="flex-1 text-sm">{svc.name}</span>
+							<span className="text-xs text-muted-foreground font-mono">
+								:{svc.port}
+							</span>
+						</div>
+					))}
+				</div>
+			</div>
 
-				<div className="flex items-center justify-between py-3">
-					<p className="text-sm font-medium">JungleBus URL</p>
-					<p className="text-sm text-muted-foreground font-mono text-right max-w-[280px] truncate">
-						https://junglebus.gorillapool.io
+			{/* Open Stack Admin button */}
+			<div className="flex items-center justify-between py-1">
+				<div>
+					<p className="text-sm font-medium">Stack Admin</p>
+					<p className="text-xs text-muted-foreground">
+						Manage the local 1Sat stack
 					</p>
 				</div>
-
-				<Separator />
-
-				<div className="flex items-center justify-between py-3">
-					<p className="text-sm font-medium">Stack Data Path</p>
-					<p className="text-sm text-muted-foreground font-mono">
-						~/.1sat-wallet/stack/
-					</p>
-				</div>
-
-				<Separator />
-
-				<div className="flex items-center justify-between py-3">
-					<p className="text-sm font-medium">Admin Panel</p>
-					<a
-						href="http://127.0.0.1:8080"
-						target="_blank"
-						rel="noreferrer"
-						className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-					>
-						Open Admin Panel
-						<ExternalLink className="size-3.5" />
-					</a>
-				</div>
-
-				<Separator />
-
-				<div className="flex items-center justify-between py-3">
-					<div>
-						<p className="text-sm font-medium">Restart Stack</p>
-						<p className="text-xs text-muted-foreground">
-							Restart all 1sat-stack services
-						</p>
-					</div>
-					<Button variant="secondary" size="sm" disabled>
-						<RefreshCw className="size-3.5 mr-1.5" />
-						Restart
-					</Button>
-				</div>
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() => window.open('http://127.0.0.1:8080/1sat/admin')}
+				>
+					<ExternalLink className="size-3.5 mr-1.5" />
+					Open Stack Admin
+				</Button>
 			</div>
 		</div>
 	)

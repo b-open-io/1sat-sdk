@@ -12,6 +12,11 @@ import type { WalletInterface } from '@bsv/sdk'
  */
 import type { Server } from 'bun'
 import type { PermissionRequest } from '../shared/types'
+import {
+	CHAT_REQUIRED_HEADER,
+	handleChatRequest,
+	validateChatAuth,
+} from './ai-chat-handler'
 import { getWallet } from './wallet-manager'
 
 const HTTP_PORT = 3321
@@ -28,6 +33,24 @@ const CORS_HEADERS: Record<string, string> = {
 	'Access-Control-Allow-Methods': '*',
 	'Access-Control-Allow-Headers': '*',
 	'Access-Control-Allow-Private-Network': 'true',
+}
+
+/**
+ * Restricted CORS for the AI chat endpoint.
+ * Only the app's own localhost origin is allowed, and the custom
+ * X-Requested-With header must be explicitly permitted so the browser
+ * triggers a preflight that external sites cannot satisfy.
+ */
+function chatCorsHeaders(req: Request): Record<string, string> {
+	const origin = req.headers.get('Origin') ?? ''
+	// Allow any localhost/127.0.0.1 origin (any port) — these are the app's own webviews
+	const isLocalOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+	return {
+		'Access-Control-Allow-Origin': isLocalOrigin ? origin : 'null',
+		'Access-Control-Allow-Methods': 'POST, OPTIONS',
+		'Access-Control-Allow-Headers': `Content-Type, ${CHAT_REQUIRED_HEADER}`,
+		'Access-Control-Max-Age': '86400',
+	}
 }
 
 const MANIFEST = {
@@ -327,23 +350,36 @@ function parseOrigin(req: Request): string {
 
 /** Shared fetch handler for both HTTP and HTTPS servers. */
 async function handleRequest(req: Request): Promise<Response> {
-	// Handle CORS preflight
+	const url = new URL(req.url)
+	const pathname = url.pathname
+
+	// /api/chat uses restricted CORS — handle separately before the wildcard CORS preflight
+	if (pathname === '/api/chat') {
+		const corsHeaders = chatCorsHeaders(req)
+		if (req.method === 'OPTIONS') {
+			return new Response(null, { status: 204, headers: corsHeaders })
+		}
+		if (req.method === 'POST') {
+			// Validate auth header
+			const authError = validateChatAuth(req)
+			if (authError) return authError
+			const response = await handleChatRequest(req)
+			// Append CORS headers to the streaming response
+			for (const [k, v] of Object.entries(corsHeaders)) {
+				response.headers.set(k, v)
+			}
+			return response
+		}
+	}
+
+	// Handle CORS preflight for all other routes
 	if (req.method === 'OPTIONS') {
 		return new Response(null, { status: 204, headers: CORS_HEADERS })
 	}
 
-	const url = new URL(req.url)
-	const pathname = url.pathname
-
 	// GET /manifest.json
 	if (req.method === 'GET' && pathname === '/manifest.json') {
 		return jsonResponse(MANIFEST)
-	}
-
-	// POST /api/chat — AI chat endpoint (proxies to Ollama)
-	if (req.method === 'POST' && pathname === '/api/chat') {
-		const { handleChatRequest } = await import('./ai-chat-handler')
-		return handleChatRequest(req)
 	}
 
 	// POST /<walletMethod>
