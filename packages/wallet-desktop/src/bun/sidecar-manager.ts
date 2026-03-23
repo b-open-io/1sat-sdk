@@ -271,6 +271,19 @@ export async function startStack(): Promise<void> {
 		return
 	}
 
+	// Check if something is already running on the stack port
+	try {
+		const res = await fetch(`http://${STACK_HOST}:${STACK_PORT}/1sat/health`, {
+			signal: AbortSignal.timeout(1000),
+		})
+		if (res.ok) {
+			console.log(`1sat-stack: already running on port ${STACK_PORT} (external instance)`)
+			return
+		}
+	} catch {
+		// Not running — proceed to start
+	}
+
 	const dataDir = `${process.env.HOME}/.1sat-wallet/stack`
 	const configPath = `${dataDir}/config.yaml`
 
@@ -317,7 +330,14 @@ export function stopStack(): void {
  * Returns true if the sidecar process is currently running.
  */
 export function isStackRunning(): boolean {
-	return stackProcess !== undefined && !stackProcess.killed
+	// Check both our own process and any external instance on the port
+	if (stackProcess && !stackProcess.killed) return true
+	try {
+		// Synchronous check not possible — callers should use isStackSetupComplete() for async check
+		return false
+	} catch {
+		return false
+	}
 }
 
 /**
@@ -333,7 +353,6 @@ export function getStackUrl(): string {
  * setup is complete.
  */
 export async function isStackSetupComplete(): Promise<boolean> {
-	if (!isStackRunning()) return false
 	try {
 		// Check that the wallet auth endpoint is actually available,
 		// not just that the server is running (it could be in wizard mode)
