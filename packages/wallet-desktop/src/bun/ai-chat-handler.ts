@@ -1,7 +1,7 @@
 /**
  * AI Chat API handler for the BRC-100 HTTP server.
  * Proxies chat requests to a local Ollama instance via the AI SDK
- * using the dedicated ollama-ai-provider community provider.
+ * using ai-sdk-ollama (wraps official ollama-js library).
  *
  * Security:
  * - Requires `X-Requested-With: 1SatBrowser` header (enforced by CORS preflight)
@@ -9,16 +9,16 @@
  * - Rate limited to 1 request per second per client
  */
 import { convertToModelMessages, streamText, type UIMessage } from 'ai'
-import { ollama } from 'ollama-ai-provider'
+import { ollama } from 'ai-sdk-ollama'
 
 const DEFAULT_MODEL = 'llama3'
 
-/** Required custom header value — external sites cannot send this without CORS preflight approval. */
+/** Required custom header value */
 export const CHAT_REQUIRED_HEADER = 'X-Requested-With'
 export const CHAT_REQUIRED_HEADER_VALUE = '1SatBrowser'
 
 // ---------------------------------------------------------------------------
-// Rate limiting (simple per-second timestamp check)
+// Rate limiting
 // ---------------------------------------------------------------------------
 
 let lastRequestTime = 0
@@ -30,7 +30,6 @@ const MIN_REQUEST_INTERVAL_MS = 1_000
 
 const CONTEXT_MAX_LENGTH = 500
 
-/** Patterns that look like prompt injection attempts */
 const INSTRUCTION_PATTERNS = [
 	/ignore\s+(all\s+)?(previous|above|prior)\s+(instructions|prompts)/i,
 	/you\s+are\s+now\s+/i,
@@ -51,13 +50,9 @@ function sanitizeContextField(value: unknown): string {
 }
 
 // ---------------------------------------------------------------------------
-// Request handler
+// Auth
 // ---------------------------------------------------------------------------
 
-/**
- * Validate the required auth header.
- * Returns an error Response if invalid, or null if OK.
- */
 export function validateChatAuth(req: Request): Response | null {
 	const headerValue = req.headers.get(CHAT_REQUIRED_HEADER)
 	if (headerValue !== CHAT_REQUIRED_HEADER_VALUE) {
@@ -71,13 +66,11 @@ export function validateChatAuth(req: Request): Response | null {
 	return null
 }
 
-/**
- * Handle a POST request to /api/chat.
- * Expects JSON body: { messages: UIMessage[], model?: string, context?: { url?: string, content?: string } }
- * Returns a streaming response compatible with useChat's DefaultChatTransport.
- */
+// ---------------------------------------------------------------------------
+// Handler
+// ---------------------------------------------------------------------------
+
 export async function handleChatRequest(req: Request): Promise<Response> {
-	// Rate limit check
 	const now = Date.now()
 	if (now - lastRequestTime < MIN_REQUEST_INTERVAL_MS) {
 		return new Response(
@@ -95,11 +88,9 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 			| { url?: unknown; content?: unknown }
 			| undefined
 
-		// Sanitize context fields
 		const contextUrl = sanitizeContextField(rawContext?.url)
 		const contextContent = sanitizeContextField(rawContext?.content)
 
-		// Build system prompt with page context if available
 		let systemPrompt =
 			'You are a helpful AI assistant built into the 1Sat Browser, a BSV blockchain wallet and on-chain content browser. You help users understand blockchain content, transactions, inscriptions, and navigate the BSV ecosystem.'
 
@@ -121,7 +112,6 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 		const message =
 			error instanceof Error ? error.message : 'Unknown error'
 
-		// Check if Ollama is running
 		if (
 			message.includes('ECONNREFUSED') ||
 			message.includes('fetch failed')
