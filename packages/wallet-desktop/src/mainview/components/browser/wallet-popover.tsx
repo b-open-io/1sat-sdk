@@ -174,11 +174,11 @@ export function WalletPopover({ onNavigate }: WalletPopoverProps) {
 		<SendDialog open={sendOpen} onOpenChange={setSendOpen} />
 		<ReceiveDialog open={receiveOpen} onOpenChange={setReceiveOpen} />
 		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger asChild>
+			<PopoverTrigger>
 				<Button
 					variant="ghost"
 					size="icon-xs"
-					className="text-muted-foreground disabled:opacity-30"
+					className="text-muted-foreground"
 					style={{ borderRadius: 5 }}
 					aria-label="Wallet"
 				>

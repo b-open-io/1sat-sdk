@@ -896,17 +896,9 @@ export function BrowserLayout() {
 	// ── Keyboard shortcuts via TanStack Hotkeys ──────────────────────────
 
 	useHotkeys([
+		// Tab management
 		{ hotkey: 'Mod+T', callback: () => createNewTab() },
 		{ hotkey: 'Mod+W', callback: () => closeCurrentTab() },
-		{ hotkey: 'Mod+L', callback: () => focusAddressBar() },
-		{ hotkey: 'Mod+K', callback: () => focusAddressBar() },
-		{ hotkey: 'Mod+[', callback: () => goBack() },
-		{ hotkey: 'Mod+]', callback: () => goForward() },
-		{ hotkey: 'Mod+R', callback: () => reload() },
-		{ hotkey: 'Mod+Shift+S', callback: () => toggleTabMode() },
-		{ hotkey: 'Mod+Shift+A', callback: () => toggleAgentSidebar() },
-		{ hotkey: 'Mod+,', callback: () => navigate('1sat://settings') },
-		{ hotkey: 'Mod+D', callback: () => { const url = getFullUrl(activeNav.current); bookmarksApi.addBookmark(url, getDisplayLabel(activeNav.current)) } },
 		{ hotkey: 'Mod+1', callback: () => switchToTab(0) },
 		{ hotkey: 'Mod+2', callback: () => switchToTab(1) },
 		{ hotkey: 'Mod+3', callback: () => switchToTab(2) },
@@ -916,6 +908,29 @@ export function BrowserLayout() {
 		{ hotkey: 'Mod+7', callback: () => switchToTab(6) },
 		{ hotkey: 'Mod+8', callback: () => switchToTab(7) },
 		{ hotkey: 'Mod+9', callback: () => switchToTab(8) },
+		{ hotkey: 'Mod+Shift+]', callback: () => { /* next tab */ const idx = tabs.findIndex(t => t.id === activeTabId); if (idx < tabs.length - 1) switchToTab(idx + 1) } },
+		{ hotkey: 'Mod+Shift+[', callback: () => { /* prev tab */ const idx = tabs.findIndex(t => t.id === activeTabId); if (idx > 0) switchToTab(idx - 1) } },
+
+		// Navigation
+		{ hotkey: 'Mod+[', callback: () => goBack() },
+		{ hotkey: 'Mod+]', callback: () => goForward() },
+		{ hotkey: 'Mod+ArrowLeft', callback: () => goBack() },
+		{ hotkey: 'Mod+ArrowRight', callback: () => goForward() },
+		{ hotkey: 'Mod+R', callback: () => reload() },
+		{ hotkey: 'Mod+Shift+R', callback: () => reload() },
+
+		// Address bar
+		{ hotkey: 'Mod+L', callback: () => focusAddressBar() },
+		{ hotkey: 'Mod+K', callback: () => focusAddressBar() },
+
+		// Features
+		{ hotkey: 'Mod+D', callback: () => { const url = getFullUrl(activeNav.current); bookmarksApi.addBookmark(url, getDisplayLabel(activeNav.current)) } },
+		{ hotkey: 'Mod+Shift+S', callback: () => toggleTabMode() },
+		{ hotkey: 'Mod+Shift+A', callback: () => toggleAgentSidebar() },
+		{ hotkey: 'Mod+,', callback: () => navigate('1sat://settings') },
+
+		// Home
+		{ hotkey: 'Mod+Shift+H', callback: () => navigate('1sat://browser/new') },
 	], { preventDefault: true })
 
 	// ── Derived render properties ──────────────────────────────────────────

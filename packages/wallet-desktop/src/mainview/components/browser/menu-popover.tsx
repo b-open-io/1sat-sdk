@@ -149,11 +149,11 @@ export function MenuPopover({ onNavigate, onToggleAgent, onOpenBookmarks }: Menu
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger asChild>
+			<PopoverTrigger>
 				<Button
 					variant="ghost"
 					size="icon-xs"
-					className="text-muted-foreground disabled:opacity-30"
+					className="text-muted-foreground"
 					style={{ borderRadius: 5 }}
 					aria-label="Menu"
 				>

@@ -142,12 +142,12 @@ export function BookmarksPopover({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+      <PopoverTrigger>
         <Button
           variant="ghost"
           size="icon-xs"
           className={cn(
-            'text-muted-foreground disabled:opacity-30',
+            'text-muted-foreground',
             alreadyBookmarked && 'text-yellow-400',
           )}
           style={{ borderRadius: 5 }}
