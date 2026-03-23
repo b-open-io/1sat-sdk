@@ -1,15 +1,6 @@
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import {
-	AlertCircle,
-	Hash,
-	Loader2,
-	MessageCircle,
-	RefreshCw,
-	Send,
-} from 'lucide-react'
+import { AlertCircle, ArrowUp, Loader2, Plus, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChatMessage } from '../../../shared/types'
 import { useChat } from '../../hooks/use-chat'
@@ -26,11 +17,11 @@ function formatTimestamp(timestampSeconds: number): string {
 	if (diff < 60) return 'now'
 	if (diff < 3600) {
 		const mins = Math.floor(diff / 60)
-		return `${mins}m`
+		return `${mins}m ago`
 	}
 	if (diff < 86400) {
 		const hours = Math.floor(diff / 3600)
-		return `${hours}h`
+		return `${hours}h ago`
 	}
 
 	const date = new Date(timestampSeconds * 1000)
@@ -52,57 +43,73 @@ function getDisplayName(msg: ChatMessage): string {
 	return 'Anonymous'
 }
 
-function getInitials(name: string): string {
+function getInitial(name: string): string {
 	if (name === 'Anonymous') return '?'
-	if (name.includes('...')) return name.slice(0, 2).toUpperCase()
-	const parts = name.trim().split(/\s+/)
-	if (parts.length >= 2) {
-		return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+	return name.charAt(0).toUpperCase()
+}
+
+/** Deterministic hue from a display name string */
+function getAvatarHue(name: string): number {
+	let hash = 0
+	for (let i = 0; i < name.length; i++) {
+		hash = (hash << 5) - hash + name.charCodeAt(i)
+		hash |= 0
 	}
-	return name.slice(0, 2).toUpperCase()
+	return Math.abs(hash) % 360
 }
 
 // ============================================================================
-// Message Bubble
+// Message Row
 // ============================================================================
 
-function ChatBubble({ message }: { message: ChatMessage }) {
+function MessageRow({ message }: { message: ChatMessage }) {
 	const displayName = getDisplayName(message)
-	const initials = getInitials(displayName)
+	const initial = getInitial(displayName)
+	const hue = getAvatarHue(displayName)
 
 	return (
-		<div className="group flex gap-3 px-4 py-2 hover:bg-accent/30 transition-colors duration-100">
-			<div className="shrink-0 pt-0.5">
-				<Avatar className="size-8">
-					<AvatarFallback className="text-xs">{initials}</AvatarFallback>
-				</Avatar>
+		<div className="flex items-start gap-2.5 px-4 py-2 border-b border-border last:border-b-0 hover:bg-muted/20 transition-colors duration-75">
+			{/* Avatar */}
+			<div
+				className="flex shrink-0 items-center justify-center rounded-full text-[11px] font-bold leading-none"
+				style={{
+					width: 28,
+					height: 28,
+					marginTop: 1,
+					backgroundColor: `oklch(0.35 0.12 ${hue})`,
+					color: `oklch(0.92 0.06 ${hue})`,
+				}}
+			>
+				{initial}
 			</div>
+
+			{/* Content */}
 			<div className="flex-1 min-w-0">
-				<div className="flex items-baseline gap-2 min-w-0">
-					<span className="text-sm font-semibold text-foreground truncate">
+				<div className="flex items-baseline gap-1.5 mb-0.5">
+					<span className="text-[11px] font-bold text-foreground leading-none">
 						{displayName}
 					</span>
 					<time
 						dateTime={new Date(message.timestamp * 1000).toISOString()}
-						className="shrink-0 text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
 						title={formatFullTimestamp(message.timestamp)}
+						className="text-[9px] text-muted-foreground leading-none shrink-0"
 					>
 						{formatTimestamp(message.timestamp)}
 					</time>
 				</div>
-				<div className="text-sm text-foreground whitespace-pre-wrap break-words leading-relaxed">
+				<p className="text-[11px] text-foreground/90 whitespace-pre-wrap break-words leading-relaxed m-0">
 					{message.content}
-				</div>
+				</p>
 			</div>
 		</div>
 	)
 }
 
 // ============================================================================
-// Channel List
+// Channel Sidebar
 // ============================================================================
 
-function ChannelList({
+function ChannelSidebar({
 	channels,
 	activeChannel,
 	onSelectChannel,
@@ -112,28 +119,58 @@ function ChannelList({
 	onSelectChannel: (channel: string) => void
 }) {
 	return (
-		<div className="flex flex-col w-48 shrink-0 border-r border-border bg-card">
-			<div className="px-3 py-3 border-b border-border">
-				<span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+		<div
+			className="flex flex-col shrink-0 border-r border-border bg-card overflow-hidden"
+			style={{ width: 220 }}
+		>
+			{/* Header */}
+			<div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0">
+				<span
+					className="text-[10px] font-semibold uppercase tracking-widest"
+					style={{ color: 'var(--muted-foreground)', fontFamily: 'var(--font-mono)' }}
+				>
 					Channels
 				</span>
+				<button
+					type="button"
+					aria-label="Browse channels"
+					className="flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+					style={{ width: 18, height: 18 }}
+				>
+					<Plus size={11} />
+				</button>
 			</div>
+
+			{/* Channel list */}
 			<ScrollArea className="flex-1">
-				<div className="flex flex-col gap-0.5 p-2">
+				<div className="flex flex-col px-1.5 pb-2">
 					{channels.map((ch) => (
 						<button
 							key={ch}
 							type="button"
-							className={cn(
-								'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm text-left transition-colors',
-								activeChannel === ch
-									? 'bg-secondary text-secondary-foreground font-medium'
-									: 'text-muted-foreground hover:text-foreground hover:bg-accent',
-							)}
 							onClick={() => onSelectChannel(ch)}
+							className={cn(
+								'flex items-center gap-1.5 w-full px-2 py-1.5 text-left transition-colors rounded-sm',
+								activeChannel === ch
+									? 'bg-muted/50 text-foreground'
+									: 'text-muted-foreground hover:text-foreground hover:bg-muted/30',
+							)}
 						>
-							<Hash className="size-3.5 shrink-0" />
-							<span className="truncate">{ch}</span>
+							<span
+								className="shrink-0 text-[12px] font-bold leading-none"
+								style={{
+									color: activeChannel === ch ? 'oklch(0.7 0.2 150)' : 'oklch(0.5 0.12 150)',
+									fontFamily: 'var(--font-mono)',
+								}}
+							>
+								#
+							</span>
+							<span
+								className="text-[12px] font-medium truncate leading-none"
+								style={{ fontFamily: 'var(--font-mono)' }}
+							>
+								{ch}
+							</span>
 						</button>
 					))}
 				</div>
@@ -156,7 +193,7 @@ function ComposeBar({
 	onSend: (content: string) => Promise<void>
 }) {
 	const [content, setContent] = useState('')
-	const inputRef = useRef<HTMLInputElement>(null)
+	const inputRef = useRef<HTMLTextAreaElement>(null)
 
 	const handleSubmit = useCallback(async () => {
 		if (!content.trim() || isSending) return
@@ -177,31 +214,47 @@ function ComposeBar({
 	)
 
 	return (
-		<div className="flex-none border-t border-border bg-card px-4 py-3">
-			<div className="flex items-center gap-2">
-				<Input
-					ref={inputRef}
-					value={content}
-					onChange={(e) => setContent(e.target.value)}
-					onKeyDown={handleKeyDown}
-					placeholder={`Message #${channel}`}
-					disabled={isSending}
-					className="flex-1"
-					autoComplete="off"
-				/>
-				<Button
-					size="icon"
-					onClick={handleSubmit}
-					disabled={!content.trim() || isSending}
-					aria-label="Send message"
-				>
-					{isSending ? (
-						<Loader2 className="size-4 animate-spin" />
-					) : (
-						<Send className="size-4" />
-					)}
-				</Button>
-			</div>
+		<div className="flex-none flex items-end gap-2 px-4 py-3 border-t border-border">
+			<textarea
+				ref={inputRef}
+				value={content}
+				rows={1}
+				onChange={(e) => setContent(e.target.value)}
+				onKeyDown={handleKeyDown}
+				placeholder={`Message #${channel}...`}
+				disabled={isSending}
+				autoComplete="off"
+				className={cn(
+					'flex-1 resize-none bg-muted/30 border border-border rounded-sm px-3 py-2',
+					'text-[12px] text-foreground placeholder:text-muted-foreground',
+					'focus:outline-none focus:ring-1 focus:ring-ring/50',
+					'min-h-[34px] max-h-[120px] leading-relaxed',
+					'disabled:opacity-50',
+				)}
+				style={{ fontFamily: 'var(--font-sans)' }}
+			/>
+			<button
+				type="button"
+				onClick={handleSubmit}
+				disabled={!content.trim() || isSending}
+				aria-label="Send message"
+				className={cn(
+					'flex shrink-0 items-center justify-center rounded-full transition-colors',
+					'disabled:opacity-40 disabled:cursor-not-allowed',
+				)}
+				style={{
+					width: 34,
+					height: 34,
+					backgroundColor: 'oklch(0.55 0.18 150)',
+					color: 'oklch(0.98 0.01 150)',
+				}}
+			>
+				{isSending ? (
+					<Loader2 size={14} className="animate-spin" />
+				) : (
+					<ArrowUp size={14} />
+				)}
+			</button>
 		</div>
 	)
 }
@@ -213,38 +266,55 @@ function ComposeBar({
 export function ChatView() {
 	const chat = useChat('general')
 	const messagesEndRef = useRef<HTMLDivElement>(null)
-	const scrollAreaRef = useRef<HTMLDivElement>(null)
 
-	// Auto-scroll to bottom when new messages arrive
+	// Apply rerender-dependencies rule: use primitive messageCount, not array
 	const messageCount = chat.messages.length
+
 	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll on message count change
 	useEffect(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
 	}, [messageCount])
 
 	return (
-		<div className="flex h-full">
-			{/* Channel sidebar */}
-			<ChannelList
+		<div className="flex h-full overflow-hidden">
+			{/* Channel sidebar — 220px, bg-card, border-right */}
+			<ChannelSidebar
 				channels={chat.channels}
 				activeChannel={chat.channel}
 				onSelectChannel={chat.setChannel}
 			/>
 
-			{/* Main chat area */}
-			<div className="flex flex-1 flex-col min-w-0">
-				{/* Channel header */}
-				<div className="flex-none flex items-center justify-between border-b border-border bg-card px-4 py-2.5">
+			{/* Main area */}
+			<div className="flex flex-1 flex-col min-w-0 bg-background overflow-hidden">
+				{/* Header */}
+				<div className="flex shrink-0 items-center justify-between px-4 py-2.5 border-b border-border">
 					<div className="flex items-center gap-2">
-						<Hash className="size-4 text-muted-foreground" />
-						<span className="text-sm font-semibold text-foreground">
+						<span
+							className="text-[14px] font-bold text-foreground leading-none"
+						>
+							<span style={{ color: 'oklch(0.7 0.2 150)', fontFamily: 'var(--font-mono)' }}>
+								#
+							</span>
 							{chat.channel}
 						</span>
+						{chat.messages.length > 0 && (
+							<span
+								className="inline-flex items-center justify-center rounded-full text-[9px] font-semibold px-1.5 leading-none"
+								style={{
+									height: 16,
+									backgroundColor: 'var(--muted)',
+									color: 'var(--muted-foreground)',
+								}}
+							>
+								{chat.messages.length}
+							</span>
+						)}
 					</div>
+
 					<div className="flex items-center gap-1">
 						{chat.error && (
-							<span className="text-xs text-destructive mr-2 flex items-center gap-1">
-								<AlertCircle className="size-3" />
+							<span className="flex items-center gap-1 text-[11px] text-destructive mr-2">
+								<AlertCircle size={12} />
 								{chat.error}
 							</span>
 						)}
@@ -254,42 +324,42 @@ export function ChatView() {
 							onClick={chat.refresh}
 							disabled={chat.isLoading}
 							aria-label="Refresh messages"
-							className="size-8"
+							className="size-7"
 						>
 							<RefreshCw
-								className={cn('size-3.5', chat.isLoading && 'animate-spin')}
+								size={13}
+								className={cn(chat.isLoading && 'animate-spin')}
 							/>
 						</Button>
 					</div>
 				</div>
 
-				{/* Messages area */}
-				<ScrollArea ref={scrollAreaRef} className="flex-1">
-					{chat.isLoading && chat.messages.length === 0 ? (
-						<div className="flex items-center justify-center h-full py-16">
-							<div className="flex flex-col items-center gap-2 text-muted-foreground">
-								<Loader2 className="size-6 animate-spin" />
-								<span className="text-sm">Loading messages...</span>
-							</div>
+				{/* Messages — fills remaining space */}
+				<ScrollArea className="flex-1">
+					{chat.isLoading && messageCount === 0 ? (
+						<div className="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
+							<Loader2 size={20} className="animate-spin" />
+							<span className="text-[12px]">Loading messages...</span>
 						</div>
-					) : chat.messages.length === 0 ? (
-						<div className="flex items-center justify-center h-full py-16">
-							<div className="flex flex-col items-center gap-2 text-center">
-								<div className="flex size-12 items-center justify-center rounded-full bg-muted">
-									<MessageCircle className="size-6 text-muted-foreground" />
-								</div>
-								<p className="text-sm font-medium text-foreground">
-									No messages yet
-								</p>
-								<p className="text-sm text-muted-foreground">
-									Be the first to say something in #{chat.channel}
-								</p>
-							</div>
+					) : messageCount === 0 ? (
+						<div className="flex flex-col items-center justify-center gap-1.5 py-16 text-center px-6">
+							<p className="text-[13px] font-semibold text-foreground">
+								No messages yet
+							</p>
+							<p className="text-[12px] text-muted-foreground">
+								Be the first to say something in{' '}
+								<span
+									className="font-medium"
+									style={{ fontFamily: 'var(--font-mono)', color: 'oklch(0.7 0.2 150)' }}
+								>
+									#{chat.channel}
+								</span>
+							</p>
 						</div>
 					) : (
-						<div className="flex flex-col py-2">
+						<div className="flex flex-col">
 							{chat.messages.map((msg) => (
-								<ChatBubble key={msg.txid} message={msg} />
+								<MessageRow key={msg.txid} message={msg} />
 							))}
 							<div ref={messagesEndRef} aria-hidden="true" />
 						</div>
