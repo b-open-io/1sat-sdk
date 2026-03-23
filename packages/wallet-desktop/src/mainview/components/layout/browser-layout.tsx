@@ -686,6 +686,9 @@ export function BrowserLayout() {
 		null,
 	)
 
+	// ── Bookmarks ──────────────────────────────────────────────────────────
+	const bookmarksApi = useBookmarks()
+
 	// ── Agent sidebar ──────────────────────────────────────────────────────
 	const [agentSidebarOpen, setAgentSidebarOpen] = useState(false)
 
