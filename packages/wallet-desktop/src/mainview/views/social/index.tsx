@@ -18,8 +18,6 @@ export function SocialView() {
 
 	const handleLike = useCallback(
 		async (txid: string): Promise<LikeResult> => {
-			// Like is a social action - for now we create a social post referencing the txid
-			// A dedicated like RPC could be added later
 			const result = await rpc.request.createSocialPost({
 				content: `liked:${txid}`,
 			})
@@ -40,11 +38,22 @@ export function SocialView() {
 	}, [])
 
 	return (
-		<div className="p-6 max-w-2xl">
-			<div className="flex items-center justify-between mb-4">
-				<div className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
-					Social Feed
-				</div>
+		<div
+			className="mx-auto w-full py-8"
+			style={{ maxWidth: 800 }}
+		>
+			{/* Header row */}
+			<div className="flex items-center justify-between px-6 mb-6">
+				<h1
+					className="text-foreground font-semibold"
+					style={{
+						fontFamily: 'var(--font-sans)',
+						fontSize: 20,
+						lineHeight: 1,
+					}}
+				>
+					Social
+				</h1>
 				<PostButton
 					onPost={handlePost}
 					onPosted={(result) => {
@@ -52,18 +61,22 @@ export function SocialView() {
 					}}
 				/>
 			</div>
-			<SocialFeed
-				onPostClick={handlePostClick}
-				onAuthorClick={handleAuthorClick}
-				renderLikeButton={(post) => (
-					<LikeButton
-						txid={post.txid}
-						count={post.likes ?? 0}
-						variant="text"
-						onLike={handleLike}
-					/>
-				)}
-			/>
+
+			{/* Feed */}
+			<div className="border-t border-border">
+				<SocialFeed
+					onPostClick={handlePostClick}
+					onAuthorClick={handleAuthorClick}
+					renderLikeButton={(post) => (
+						<LikeButton
+							txid={post.txid}
+							count={post.likes ?? 0}
+							variant="text"
+							onLike={handleLike}
+						/>
+					)}
+				/>
+			</div>
 		</div>
 	)
 }
