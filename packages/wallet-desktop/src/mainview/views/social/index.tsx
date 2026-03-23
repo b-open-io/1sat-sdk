@@ -2,9 +2,14 @@ import { useCallback } from 'react'
 import { SocialFeed, type SocialPost } from '@/components/blocks/social-feed'
 import { PostButton, type PostResult } from '@/components/blocks/post-button'
 import { LikeButton, type LikeResult } from '@/components/blocks/like-button'
+import { FollowButton, type FollowResult } from '@/components/blocks/follow-button'
 import { rpc } from '../../rpc'
 
-export function SocialView() {
+export interface SocialViewProps {
+	onNavigate?: (url: string) => void
+}
+
+export function SocialView({ onNavigate }: SocialViewProps) {
 	const handlePost = useCallback(
 		async (content: string): Promise<PostResult> => {
 			const result = await rpc.request.createSocialPost({ content })
@@ -29,13 +34,32 @@ export function SocialView() {
 		[],
 	)
 
-	const handlePostClick = useCallback((post: SocialPost) => {
-		console.log('Post clicked:', post.txid)
+	const handleFollow = useCallback(
+		async (bapId: string): Promise<FollowResult> => {
+			const result = await rpc.request.createSocialPost({
+				content: `follow:${bapId}`,
+			})
+			if (result.error) {
+				throw new Error(result.error)
+			}
+			return { txid: result.txid ?? '' }
+		},
+		[],
+	)
+
+	const handlePostClick = useCallback((_post: SocialPost) => {
+		// V1: no-op — post detail view not yet implemented
 	}, [])
 
-	const handleAuthorClick = useCallback((post: SocialPost) => {
-		console.log('Author clicked:', post.signers?.[0]?.bapId)
-	}, [])
+	const handleAuthorClick = useCallback(
+		(post: SocialPost) => {
+			const bapId = post.signers?.[0]?.bapId
+			if (bapId) {
+				onNavigate?.(`1sat://identity/profile?bapId=${bapId}`)
+			}
+		},
+		[onNavigate],
+	)
 
 	return (
 		<div
@@ -75,6 +99,16 @@ export function SocialView() {
 							onLike={handleLike}
 						/>
 					)}
+					renderFollowButton={(post) => {
+						const bapId = post.signers?.[0]?.bapId
+						if (!bapId) return null
+						return (
+							<FollowButton
+								bapId={bapId}
+								onFollow={handleFollow}
+							/>
+						)
+					}}
 				/>
 			</div>
 		</div>

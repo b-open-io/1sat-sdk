@@ -38,6 +38,8 @@ export interface SocialFeedUIProps {
   infiniteScroll?: boolean
   /** Render function for a custom like button per post */
   renderLikeButton?: (post: SocialPost) => React.ReactNode
+  /** Render function for a custom follow button per post */
+  renderFollowButton?: (post: SocialPost) => React.ReactNode
   /** Render function for custom post card content */
   renderPostCard?: (
     post: SocialPost,
@@ -145,6 +147,7 @@ export function SocialFeedUI({
   onReplyClick,
   infiniteScroll = true,
   renderLikeButton,
+  renderFollowButton,
   renderPostCard,
 }: SocialFeedUIProps) {
   // Infinite scroll via IntersectionObserver
@@ -212,6 +215,7 @@ export function SocialFeedUI({
             onAuthorClick,
             onReplyClick,
             likeButtonSlot: renderLikeButton?.(post),
+            followButtonSlot: renderFollowButton?.(post),
           }
 
           return renderPostCard ? (

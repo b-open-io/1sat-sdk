@@ -21,6 +21,8 @@ export interface PostCardUIProps {
   onAuthorClick?: (post: SocialPost) => void
   /** Slot for a custom like button component (e.g. the LikeButton block) */
   likeButtonSlot?: React.ReactNode
+  /** Slot for a custom follow button component (e.g. the FollowButton block) */
+  followButtonSlot?: React.ReactNode
   /** Whether to show the reply button */
   showReplyButton?: boolean
   /** Called when the reply button is clicked */
@@ -100,6 +102,7 @@ export function PostCardUI({
   onPostClick,
   onAuthorClick,
   likeButtonSlot,
+  followButtonSlot,
   showReplyButton = true,
   onReplyClick,
 }: PostCardUIProps) {
@@ -222,6 +225,9 @@ export function PostCardUI({
               )}
             </span>
           )}
+
+          {/* Follow button slot */}
+          {followButtonSlot}
 
           {/* Reply button */}
           {showReplyButton && (

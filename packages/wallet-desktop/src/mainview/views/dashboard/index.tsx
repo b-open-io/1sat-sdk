@@ -95,11 +95,15 @@ interface AssetCardProps {
 	iconBg: string
 	name: string
 	value: string
+	onClick?: () => void
 }
 
-function AssetCard({ icon, iconBg, name, value }: AssetCardProps) {
+function AssetCard({ icon, iconBg, name, value, onClick }: AssetCardProps) {
 	return (
-		<div className="border border-border p-4 space-y-3">
+		<div
+			className={`border border-border p-4 space-y-3 transition-colors${onClick ? ' cursor-pointer hover:border-primary' : ''}`}
+			onClick={onClick}
+		>
 			<div className="flex items-center gap-2">
 				<div
 					className={`size-8 flex items-center justify-center ${iconBg}`}
@@ -282,18 +286,21 @@ export function OverviewView({ onNavigate }: OverviewViewProps) {
 							iconBg="bg-blue-950"
 							name="Ordinals"
 							value={String(ordinalCount ?? 0)}
+							onClick={() => onNavigate?.('1sat://ordinals/gallery')}
 						/>
 						<AssetCard
 							icon={<Coins size={16} className="text-yellow-300" />}
 							iconBg="bg-yellow-950"
 							name="BSV21 Tokens"
 							value={String(tokenCount ?? 0)}
+							onClick={() => onNavigate?.('1sat://tokens/all')}
 						/>
 						<AssetCard
 							icon={<Timer size={16} className="text-purple-300" />}
 							iconBg="bg-purple-950"
 							name="Locked BSV"
 							value={lockData ? `${satsToBsv(lockData.totalLocked)} BSV` : '0 BSV'}
+							onClick={() => onNavigate?.('1sat://locks/all')}
 						/>
 					</div>
 				)}
@@ -342,7 +349,10 @@ export function OverviewView({ onNavigate }: OverviewViewProps) {
 							return (
 								<div key={tx.txid}>
 									{idx > 0 && <div className="h-px bg-border" />}
-									<div className="flex items-center gap-3 py-3">
+									<div
+										className="flex items-center gap-3 py-3 cursor-pointer hover:bg-muted/40 transition-colors -mx-2 px-2"
+										onClick={() => onNavigate?.(`1sat://wallet/tx?txid=${tx.txid}`)}
+									>
 										<div
 											className={`size-2 shrink-0 ${statusColor(status)}`}
 											style={{ borderRadius: 0 }}
