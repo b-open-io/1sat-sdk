@@ -109,12 +109,16 @@ Run 1sat-stack as a child process alongside the wallet. Provides local indexing 
 - Modify: `src/bun/index.ts` — start sidecar on launch
 - Modify: `src/bun/wallet-manager.ts` — configure services URL to local stack
 
-### Open Questions
-- What port does 1sat-stack listen on?
-- What database does it use? (SQLite? PostgreSQL?)
-- Can it run as a single Bun process or does it need Go/Docker?
-- How much disk space does a full index need?
-- Can we run a partial index (just the user's addresses)?
+### Sidecar Details (from research)
+- **Port**: 8080 (configurable via `server.port` in config.yaml)
+- **Database**: BadgerDB v4 (embedded key-value store, no external process)
+- **Binary**: Go compiled binary, ~30MB. Cross-compile: `GOOS=darwin GOARCH=arm64 go build -o server ./cmd/server`
+- **Storage**: `~/.1sat/store/` for indexes, `~/.1sat/chaintracks/` for headers. Desktop: redirect to `Utils.paths.userData/stack/`
+- **Memory**: 200-500MB for minimal config (no Redis, no MongoDB, LRU-only BEEF)
+- **Sync**: JungleBus subscription IDs for live blockchain sync. Can run without sync (query-only mode)
+- **ORDFS**: Content served at `/content/{outpoint}` — this powers the built-in browser's on-chain content resolution
+- **Minimal config**: Disable MongoDB, Redis, BAP/BSocial overlays. Enable: indexer, ORDFS, chaintracks, owner sync
+- **Launch**: `Bun.spawn(['./server', '-config', configPath])`, kill with SIGTERM on quit
 
 ---
 
