@@ -220,9 +220,12 @@ mainWindow.webview.on('host-message', (e) => {
 // Wire the permission pusher so the HTTP server can route approval requests
 // through the WebView permission dialog.
 setPermissionPusher((request) => {
-	// Bring wallet window to front so the permission dialog is visible
+	// Bring wallet window above all other windows so the permission dialog is visible
+	mainWindow.setAlwaysOnTop(true)
 	mainWindow.show()
 	mainWindow.focus()
+	// Release always-on-top after a brief moment so it doesn't stay pinned
+	setTimeout(() => mainWindow.setAlwaysOnTop(false), 500)
 	mainWindow.webview.rpc.send.permissionRequest(request)
 })
 
