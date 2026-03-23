@@ -86,13 +86,15 @@ function App() {
 		)
 	}
 
+	const cancelOnboarding = () => setOnboardingChoice('none')
+
 	// status === "no-wallet"
 	if (onboardingChoice === 'create') {
-		return <CreateWallet />
+		return <CreateWallet onCancel={cancelOnboarding} />
 	}
 
 	if (onboardingChoice === 'import') {
-		return <ImportWallet />
+		return <ImportWallet onCancel={cancelOnboarding} />
 	}
 
 	return <OnboardingChoice onChoose={setOnboardingChoice} />

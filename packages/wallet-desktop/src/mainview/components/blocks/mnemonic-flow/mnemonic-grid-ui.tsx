@@ -72,7 +72,7 @@ function WordSlot({
         {position}.
       </span>
       {slotMode === "readonly" ? (
-        <span className="text-sm font-mono text-foreground select-all truncate">
+        <span className="text-sm font-mono text-foreground select-all">
           {word}
         </span>
       ) : (

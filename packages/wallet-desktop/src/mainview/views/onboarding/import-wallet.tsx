@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { MnemonicFlow } from '@/components/blocks/mnemonic-flow'
 import { useWallet } from '../../hooks/use-wallet'
 
-export function ImportWallet() {
+export function ImportWallet({ onCancel }: { onCancel: () => void }) {
 	const { importWallet } = useWallet()
 	const [error, setError] = useState<string | null>(null)
 	const [loading, setLoading] = useState(false)
@@ -37,6 +37,7 @@ export function ImportWallet() {
 			<MnemonicFlow
 				mode="import"
 				onComplete={handleComplete}
+				onCancel={onCancel}
 				isLoading={loading}
 				error={error}
 			/>

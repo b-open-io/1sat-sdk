@@ -892,12 +892,9 @@ export class StorageBunSqlite extends StorageProvider {
 	 * INSERT a row and return the last inserted rowid.
 	 */
 	private insertRow(table: string, entity: Record<string, unknown>): number {
-		const keys = Object.keys(entity).filter(
-			(k) =>
-				(entity[k] !== undefined && entity[k] !== null) || entity[k] === null,
+		const filteredKeys = Object.keys(entity).filter(
+			(k) => entity[k] != null,
 		)
-		// Filter out keys whose value is undefined
-		const filteredKeys = keys.filter((k) => entity[k] !== undefined)
 		if (filteredKeys.length === 0)
 			throw new WERR_INTERNAL(`Cannot insert empty entity into ${table}`)
 

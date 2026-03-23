@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { MnemonicFlow } from '@/components/blocks/mnemonic-flow'
 import { useWallet } from '../../hooks/use-wallet'
 
-export function CreateWallet() {
+export function CreateWallet({ onCancel }: { onCancel: () => void }) {
 	const { createWallet, generateMnemonic } = useWallet()
-	const [words, setWords] = useState<string[]>([])
+	const [words, setWords] = useState<string[] | null>(null)
 	const [error, setError] = useState<string | null>(null)
 	const [loading, setLoading] = useState(false)
 
@@ -33,6 +33,19 @@ export function CreateWallet() {
 		[createWallet],
 	)
 
+	if (!words) {
+		return (
+			<div className="max-w-lg mx-auto p-6">
+				<h1 className="text-2xl font-bold text-foreground mb-1">
+					Create Wallet
+				</h1>
+				<p className="text-sm text-muted-foreground mb-6">
+					{error ?? 'Generating recovery phrase...'}
+				</p>
+			</div>
+		)
+	}
+
 	return (
 		<div className="max-w-lg mx-auto p-6">
 			<h1 className="text-2xl font-bold text-foreground mb-1">
@@ -46,6 +59,7 @@ export function CreateWallet() {
 				mode="create"
 				words={words}
 				onComplete={handleComplete}
+				onCancel={onCancel}
 				isLoading={loading}
 				error={error}
 			/>
