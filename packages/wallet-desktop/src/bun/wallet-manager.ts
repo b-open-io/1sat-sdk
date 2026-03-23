@@ -12,7 +12,7 @@ import { createNodeWallet } from '@1sat/wallet-node'
 import { HD, Mnemonic, PrivateKey } from '@bsv/sdk'
 import { Utils } from 'electrobun/bun'
 import type { BalanceInfo, SyncEvent, WalletStatus } from '../shared/types'
-import { isStackSetupComplete, getStackUrl } from './sidecar-manager'
+import { getStackUrl, isStackSetupComplete } from './sidecar-manager'
 import {
 	createDesktopVault,
 	hasStoredKey,
@@ -110,6 +110,47 @@ function wireMonitorEvents(): void {
 	}
 }
 
+/** Periodic interval handle for cleanup on lock. */
+let syncStatusInterval: ReturnType<typeof setInterval> | undefined
+
+/** Push periodic sync status from the 1sat-stack health endpoint. */
+function startSyncStatusPusher(): void {
+	// Clear any previous interval
+	if (syncStatusInterval) {
+		clearInterval(syncStatusInterval)
+	}
+
+	syncStatusInterval = setInterval(async () => {
+		try {
+			const res = await fetch('http://127.0.0.1:8080/1sat/health', {
+				signal: AbortSignal.timeout(2000),
+			})
+			if (res.ok) {
+				const data = (await res.json()) as {
+					height?: number
+					uptime?: number
+				}
+				onSyncEvent?.({
+					timestamp: Date.now(),
+					source: 'stack',
+					level: 'log',
+					message: `Block height: ${data.height ?? '?'} | Uptime: ${data.uptime ?? '?'}s`,
+				})
+			}
+		} catch {
+			// Stack unreachable — skip this tick
+		}
+	}, 10000)
+}
+
+/** Stop the periodic sync status pusher. */
+function stopSyncStatusPusher(): void {
+	if (syncStatusInterval) {
+		clearInterval(syncStatusInterval)
+		syncStatusInterval = undefined
+	}
+}
+
 // ============================================================================
 // Public API
 // ============================================================================
@@ -192,6 +233,24 @@ export async function create(
 
 	setStatus('unlocked')
 	wireMonitorEvents()
+	startSyncStatusPusher()
+
+	onSyncEvent?.({
+		timestamp: Date.now(),
+		source: 'wallet',
+		level: 'success',
+		message: 'Wallet created',
+	})
+
+	if (stackRemote) {
+		onSyncEvent?.({
+			timestamp: Date.now(),
+			source: 'wallet',
+			level: 'log',
+			message: 'Connected to 1sat-stack',
+		})
+	}
+
 	await pushBalance()
 }
 
@@ -218,6 +277,31 @@ export async function unlock(_passphrase: string): Promise<void> {
 
 	setStatus('unlocked')
 	wireMonitorEvents()
+	startSyncStatusPusher()
+
+	onSyncEvent?.({
+		timestamp: Date.now(),
+		source: 'wallet',
+		level: 'success',
+		message: 'Wallet unlocked via Touch ID',
+	})
+
+	onSyncEvent?.({
+		timestamp: Date.now(),
+		source: 'wallet',
+		level: 'log',
+		message: 'Monitor started',
+	})
+
+	if (stackRemote) {
+		onSyncEvent?.({
+			timestamp: Date.now(),
+			source: 'wallet',
+			level: 'log',
+			message: 'Connected to 1sat-stack',
+		})
+	}
+
 	await pushBalance()
 }
 
@@ -225,10 +309,17 @@ export async function unlock(_passphrase: string): Promise<void> {
  * Lock the wallet — destroys the in-memory instance.
  */
 export async function lock(): Promise<void> {
+	stopSyncStatusPusher()
 	if (walletResult) {
 		await walletResult.destroy()
 		walletResult = undefined
 	}
+	onSyncEvent?.({
+		timestamp: Date.now(),
+		source: 'wallet',
+		level: 'log',
+		message: 'Wallet locked',
+	})
 	setStatus('locked')
 }
 
@@ -236,6 +327,7 @@ export async function lock(): Promise<void> {
  * Delete the wallet entirely — removes the vault entry and the SQLite DB.
  */
 export async function deleteWallet(): Promise<void> {
+	stopSyncStatusPusher()
 	// Destroy running wallet first
 	if (walletResult) {
 		await walletResult.destroy()

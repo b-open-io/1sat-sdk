@@ -19,14 +19,70 @@ import { onStackOnboardingRequired, rpc } from '../../rpc'
 const STACK_URL = 'http://127.0.0.1:8080'
 const OUTPOINT_RE = /^[0-9a-fA-F]{64}[_.]?\d*$/
 
+// ---- 1sat:// URL parsing ----
+
+const OPNS_RE = /^[a-zA-Z0-9][a-zA-Z0-9-]*$/
+const OUTPOINT_STRICT_RE = /^[0-9a-fA-F]{64}_\d+$/
+
+export type OneSatUrl =
+	| { type: 'opns'; name: string; path?: string }
+	| { type: 'outpoint'; txid: string; vout: number; path?: string }
+	| null
+
+/**
+ * Parse a `1sat://` URL into a structured result.
+ *
+ * - OpNS names: alphanumeric + hyphens only (starts alphanumeric)
+ * - Outpoints: 64 hex chars + '_' + numeric vout
+ * - Returns null for anything that doesn't match either pattern.
+ */
+export function parse1SatUrl(input: string): OneSatUrl {
+	const trimmed = input.trim()
+	const body = trimmed.startsWith('1sat://')
+		? trimmed.slice('1sat://'.length)
+		: trimmed
+
+	if (!body) return null
+
+	// Split into authority (first segment) and optional path (rest)
+	const slashIdx = body.indexOf('/')
+	const authority = slashIdx === -1 ? body : body.slice(0, slashIdx)
+	const path =
+		slashIdx === -1 ? undefined : body.slice(slashIdx + 1) || undefined
+
+	if (!authority) return null
+
+	// Outpoint: 64 hex + '_' + digits
+	if (OUTPOINT_STRICT_RE.test(authority)) {
+		const underIdx = authority.lastIndexOf('_')
+		return {
+			type: 'outpoint',
+			txid: authority.slice(0, underIdx),
+			vout: Number(authority.slice(underIdx + 1)),
+			path,
+		}
+	}
+
+	// OpNS name: alphanumeric start, then alphanumeric + hyphens
+	if (OPNS_RE.test(authority)) {
+		return { type: 'opns', name: authority, path }
+	}
+
+	return null
+}
+
 function resolveUrl(input: string): string {
 	const trimmed = input.trim()
 	if (!trimmed) return ''
 
 	// 1sat:// deep links -> resolve through local ORDFS
 	if (trimmed.startsWith('1sat://')) {
-		const path = trimmed.slice('1sat://'.length)
-		return `${STACK_URL}/content/${path}`
+		const parsed = parse1SatUrl(trimmed)
+		if (!parsed) return ''
+		const authority =
+			parsed.type === 'outpoint' ? `${parsed.txid}_${parsed.vout}` : parsed.name
+		const suffix = parsed.path ? `/${parsed.path}` : ''
+		return `${STACK_URL}/content/${authority}${suffix}`
 	}
 
 	// ordfs:// scheme -> local ORDFS
@@ -109,48 +165,63 @@ export function BrowserView() {
 		}
 	}, [activeTabId])
 
-	const createWebview = useCallback((tabId: string, url: string) => {
-		const container = containerRef.current
-		if (!container) return
+	const createWebview = useCallback(
+		(tabId: string, url: string, originalInput?: string) => {
+			const container = containerRef.current
+			if (!container) return
 
-		const webview = document.createElement('electrobun-webview')
-		webview.setAttribute('src', url)
-		webview.setAttribute('id', `webview-${tabId}`)
-		webview.style.cssText =
-			'position: absolute; inset: 0; width: 100%; height: 100%;'
+			const webview = document.createElement('electrobun-webview')
+			webview.setAttribute('src', url)
+			webview.setAttribute('id', `webview-${tabId}`)
+			webview.style.cssText =
+				'position: absolute; inset: 0; width: 100%; height: 100%;'
 
-		// Listen for navigation events to update URL bar
-		webview.addEventListener('did-navigate', ((e: CustomEvent) => {
-			const newUrl = e.detail?.url
-			if (newUrl) {
-				setTabs((prev) =>
-					prev.map((t) => (t.id === tabId ? { ...t, url: newUrl } : t)),
-				)
+			// Origin-isolated partitions for 1sat:// URLs
+			if (originalInput) {
+				const parsed = parse1SatUrl(originalInput)
+				if (parsed) {
+					const origin =
+						parsed.type === 'opns'
+							? parsed.name
+							: `${parsed.txid}_${parsed.vout}`
+					webview.setAttribute('partition', `persist:1sat-${origin}`)
+				}
 			}
-		}) as EventListener)
 
-		webview.addEventListener('did-navigate-in-page', ((e: CustomEvent) => {
-			const newUrl = e.detail?.url
-			if (newUrl) {
-				setTabs((prev) =>
-					prev.map((t) => (t.id === tabId ? { ...t, url: newUrl } : t)),
-				)
-			}
-		}) as EventListener)
+			// Listen for navigation events to update URL bar
+			webview.addEventListener('did-navigate', ((e: CustomEvent) => {
+				const newUrl = e.detail?.url
+				if (newUrl) {
+					setTabs((prev) =>
+						prev.map((t) => (t.id === tabId ? { ...t, url: newUrl } : t)),
+					)
+				}
+			}) as EventListener)
 
-		// Listen for title changes
-		webview.addEventListener('page-title-updated', ((e: CustomEvent) => {
-			const title = e.detail?.title
-			if (title) {
-				setTabs((prev) =>
-					prev.map((t) => (t.id === tabId ? { ...t, title } : t)),
-				)
-			}
-		}) as EventListener)
+			webview.addEventListener('did-navigate-in-page', ((e: CustomEvent) => {
+				const newUrl = e.detail?.url
+				if (newUrl) {
+					setTabs((prev) =>
+						prev.map((t) => (t.id === tabId ? { ...t, url: newUrl } : t)),
+					)
+				}
+			}) as EventListener)
 
-		container.appendChild(webview)
-		webviewsRef.current.set(tabId, webview)
-	}, [])
+			// Listen for title changes
+			webview.addEventListener('page-title-updated', ((e: CustomEvent) => {
+				const title = e.detail?.title
+				if (title) {
+					setTabs((prev) =>
+						prev.map((t) => (t.id === tabId ? { ...t, title } : t)),
+					)
+				}
+			}) as EventListener)
+
+			container.appendChild(webview)
+			webviewsRef.current.set(tabId, webview)
+		},
+		[],
+	)
 
 	const createTab = useCallback(
 		(url?: string) => {
@@ -166,9 +237,10 @@ export function BrowserView() {
 			setActiveTabId(id)
 
 			if (resolvedUrl) {
+				const originalInput = url
 				// Defer DOM manipulation to after React render
 				requestAnimationFrame(() => {
-					createWebview(id, resolvedUrl)
+					createWebview(id, resolvedUrl, originalInput)
 				})
 			}
 
@@ -218,7 +290,7 @@ export function BrowserView() {
 				webview.src = resolved
 			} else {
 				// Tab exists but has no webview yet (new tab page)
-				createWebview(activeTabId, resolved)
+				createWebview(activeTabId, resolved, url)
 			}
 
 			setTabs((prev) =>
