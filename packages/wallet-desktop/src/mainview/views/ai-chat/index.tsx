@@ -132,6 +132,7 @@ export function AiChatView({ initialQuery, pageContext, onNavigate }: AiChatView
 		() =>
 			new DefaultChatTransport({
 				api: 'http://localhost:3321/api/chat',
+				headers: { 'X-Requested-With': '1SatBrowser' },
 				body: {
 					model: selectedModel,
 					context: pageContext,
@@ -183,10 +184,10 @@ export function AiChatView({ initialQuery, pageContext, onNavigate }: AiChatView
 						className="flex items-center justify-center w-6 h-6"
 						style={{
 							borderRadius: 12,
-							background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
+							background: 'linear-gradient(135deg, var(--agent-gradient-from), var(--agent-gradient-to))',
 						}}
 					>
-						<Bot size={12} className="text-white" />
+						<Bot size={12} className="text-primary-foreground" />
 					</div>
 					<span className={cn('text-xs font-semibold text-foreground', SANS)}>
 						AI Chat
@@ -224,10 +225,10 @@ export function AiChatView({ initialQuery, pageContext, onNavigate }: AiChatView
 							className="flex items-center justify-center w-12 h-12"
 							style={{
 								borderRadius: 24,
-								background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
+								background: 'linear-gradient(135deg, var(--agent-gradient-from), var(--agent-gradient-to))',
 							}}
 						>
-							<Bot size={24} className="text-white" />
+							<Bot size={24} className="text-primary-foreground" />
 						</div>
 						<p className={cn('text-sm font-medium text-foreground', SANS)}>
 							Ask anything
@@ -251,10 +252,10 @@ export function AiChatView({ initialQuery, pageContext, onNavigate }: AiChatView
 								className="shrink-0 flex items-center justify-center w-6 h-6 mt-0.5"
 								style={{
 									borderRadius: 12,
-									background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
+									background: 'linear-gradient(135deg, var(--agent-gradient-from), var(--agent-gradient-to))',
 								}}
 							>
-								<Bot size={11} className="text-white" />
+								<Bot size={11} className="text-primary-foreground" />
 							</div>
 						)}
 						<div
