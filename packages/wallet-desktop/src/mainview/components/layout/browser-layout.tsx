@@ -23,14 +23,18 @@ import { getDisplayLabel } from '../../../shared/url-types'
 import { ORDFS_BASE } from '../../lib/url-parser'
 import { AiChatView } from '../../views/ai-chat/index'
 import { AgentPopover } from '../browser/agent-popover'
+import { AgentSidebar } from '../browser/agent-sidebar'
+import { BookmarksPopover } from '../browser/bookmarks-popover'
 import { BrowserContextMenu } from '../browser/browser-context-menu'
 import { MenuPopover } from '../browser/menu-popover'
+import { PermissionOverlay } from '../browser/permission-overlay'
 import { WalletPopover } from '../browser/wallet-popover'
 import {
 	NAV_INITIAL_STATE,
 	type NavState,
 	applyNavAction,
 } from '../../hooks/use-browser-navigation'
+import { useBookmarks } from '../../hooks/use-bookmarks'
 import { useSyncEvents } from '../../hooks/use-sync-events'
 import { renderPage } from '../../lib/page-registry'
 import {
@@ -180,6 +184,97 @@ function TabBar({
 					/>
 				))}
 				<NewTabButton onClick={onNewTab} />
+			</div>
+		</div>
+	)
+}
+
+// ---------------------------------------------------------------------------
+// Vertical tab sidebar
+// ---------------------------------------------------------------------------
+
+const VERTICAL_SIDEBAR_WIDTH = 220
+
+interface VerticalTabSidebarProps {
+	tabs: TabState[]
+	activeTabId: string
+	onTabClick: (id: string) => void
+	onTabClose: (id: string) => void
+	onNewTab: () => void
+}
+
+function VerticalTabSidebar({
+	tabs,
+	activeTabId,
+	onTabClick,
+	onTabClose,
+	onNewTab,
+}: VerticalTabSidebarProps) {
+	return (
+		<div
+			className="electrobun-webkit-app-region-drag flex flex-col shrink-0 border-r border-border bg-card"
+			style={{ width: VERTICAL_SIDEBAR_WIDTH }}
+		>
+			{/* Traffic light spacer + header row */}
+			<div
+				className="flex items-center justify-between shrink-0 px-2"
+				style={{ height: TAB_BAR_HEIGHT + TOOLBAR_HEIGHT, paddingTop: TAB_BAR_HEIGHT }}
+			>
+				<span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground select-none electrobun-webkit-app-region-no-drag">
+					Tabs
+				</span>
+				<button
+					type="button"
+					onClick={onNewTab}
+					className="flex items-center justify-center p-1 text-muted-foreground hover:text-foreground hover:bg-muted/30 rounded transition-colors electrobun-webkit-app-region-no-drag"
+					aria-label="New tab"
+				>
+					<Plus size={12} />
+				</button>
+			</div>
+
+			{/* Tab list */}
+			<div
+				role="tablist"
+				aria-orientation="vertical"
+				className="flex flex-col flex-1 overflow-y-auto electrobun-webkit-app-region-no-drag"
+			>
+				{tabs.map((tab) => {
+					const active = tab.id === activeTabId
+					const label = getDisplayLabel(tab.nav.current)
+					return (
+						<div
+							key={tab.id}
+							role="tab"
+							aria-selected={active}
+							tabIndex={0}
+							onKeyDown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') onTabClick(tab.id)
+							}}
+							onClick={() => onTabClick(tab.id)}
+							className={cn(
+								'group flex items-center gap-2 px-3 py-1.5 select-none cursor-default transition-colors',
+								active
+									? 'bg-muted/50 text-foreground'
+									: 'text-muted-foreground hover:text-foreground hover:bg-muted/30',
+							)}
+						>
+							<Globe size={12} className="shrink-0 opacity-60" />
+							<span className="truncate text-[11px] font-medium flex-1 min-w-0">{label}</span>
+							<button
+								type="button"
+								onClick={(e) => {
+									e.stopPropagation()
+									onTabClose(tab.id)
+								}}
+								className="shrink-0 rounded-[3px] p-0.5 opacity-0 group-hover:opacity-70 hover:!opacity-100 hover:bg-muted/50 transition-opacity"
+								aria-label={`Close ${label}`}
+							>
+								<X size={10} />
+							</button>
+						</div>
+					)
+				})}
 			</div>
 		</div>
 	)
@@ -418,6 +513,8 @@ interface ToolbarProps {
 	onReload: () => void
 	onNavigate: (input: string) => void
 	addressBarRef: React.RefObject<HTMLInputElement | null>
+	trafficLightPad?: boolean
+	onOpenAgent: () => void
 }
 
 function Toolbar({
@@ -429,11 +526,13 @@ function Toolbar({
 	onReload,
 	onNavigate,
 	addressBarRef,
+	trafficLightPad = false,
+	onOpenAgent,
 }: ToolbarProps) {
 	return (
 		<div
 			className="flex items-center gap-1.5 px-2 shrink-0 bg-background"
-			style={{ height: TOOLBAR_HEIGHT }}
+			style={{ height: TOOLBAR_HEIGHT, paddingLeft: trafficLightPad ? TRAFFIC_LIGHT_PAD : undefined }}
 		>
 			{/* Navigation buttons */}
 			<div className="flex items-center gap-0.5">
@@ -467,7 +566,7 @@ function Toolbar({
 			<IdentityChip />
 			<div className="flex items-center gap-0.5">
 				<WalletPopover onNavigate={onNavigate} />
-				<AgentPopover />
+				<AgentPopover onOpenAgent={onOpenAgent} />
 				<MenuPopover onNavigate={onNavigate} />
 			</div>
 		</div>
@@ -573,6 +672,24 @@ export function BrowserLayout() {
 	const [stackOnboardingUrl, setStackOnboardingUrl] = useState<string | null>(
 		null,
 	)
+
+	// ── Agent sidebar ──────────────────────────────────────────────────────
+	const [agentSidebarOpen, setAgentSidebarOpen] = useState(false)
+
+	const toggleAgentSidebar = useCallback(() => {
+		setAgentSidebarOpen((prev) => !prev)
+	}, [])
+
+	const closeAgentSidebar = useCallback(() => {
+		setAgentSidebarOpen(false)
+	}, [])
+
+	// ── Tab mode ───────────────────────────────────────────────────────────
+	const [tabMode, setTabMode] = useState<'horizontal' | 'vertical'>('horizontal')
+
+	const toggleTabMode = useCallback(() => {
+		setTabMode((prev) => (prev === 'horizontal' ? 'vertical' : 'horizontal'))
+	}, [])
 
 	// ── Tab state ──────────────────────────────────────────────────────────
 	const [tabs, setTabs] = useState<TabState[]>([FIRST_TAB])
@@ -718,8 +835,8 @@ export function BrowserLayout() {
 		{ hotkey: 'Mod+[', callback: () => goBack() },
 		{ hotkey: 'Mod+]', callback: () => goForward() },
 		{ hotkey: 'Mod+R', callback: () => reload() },
-		{ hotkey: 'Mod+Shift+S', callback: () => { /* TODO: toggle vertical tabs */ } },
-		{ hotkey: 'Mod+Shift+A', callback: () => { /* TODO: toggle agent sidebar */ } },
+		{ hotkey: 'Mod+Shift+S', callback: () => toggleTabMode() },
+		{ hotkey: 'Mod+Shift+A', callback: () => toggleAgentSidebar() },
 		{ hotkey: 'Mod+,', callback: () => navigate('1sat://settings') },
 		{ hotkey: 'Mod+1', callback: () => switchToTab(0) },
 		{ hotkey: 'Mod+2', callback: () => switchToTab(1) },
@@ -739,6 +856,107 @@ export function BrowserLayout() {
 		route.type === 'ai-chat' ||
 		(route.type === 'internal' &&
 			(route.page === 'chat' || route.page === 'browser/new'))
+
+	// Shared content area used in both layouts
+	const contentArea = (
+		<BrowserContextMenu
+			onBack={goBack}
+			onForward={goForward}
+			onReload={reload}
+			canGoBack={activeNav.canGoBack}
+			canGoForward={activeNav.canGoForward}
+			currentUrl={getFullUrl(route)}
+		>
+			<main
+				key={`${activeTabId}-${activeTab.reloadKey}`}
+				className={
+					isFullHeight || route.type !== 'internal'
+						? 'flex-1 overflow-hidden relative'
+						: 'flex-1 overflow-y-auto p-6'
+				}
+			>
+				{route.type === 'internal' ? (
+					renderPage(route, navigate)
+				) : route.type === 'ai-chat' ? (
+					<AiChatView
+						initialQuery={route.query}
+						onNavigate={navigate}
+					/>
+				) : (
+					<WebViewContent route={route} />
+				)}
+			</main>
+		</BrowserContextMenu>
+	)
+
+	// Shared onboarding banner
+	const onboardingBanner = stackOnboardingUrl ? (
+		<div className="flex-none flex items-center justify-between px-4 py-2 border-b border-primary/30 bg-primary/5">
+			<div className="flex items-center gap-2">
+				<Server size={14} className="text-primary" />
+				<span className="text-xs font-medium text-foreground">
+					1Sat Stack needs setup to sync blockchain data
+				</span>
+			</div>
+			<div className="flex items-center gap-2">
+				<Button
+					size="sm"
+					className="h-7 text-xs"
+					onClick={handleOpenStackSetup}
+				>
+					Complete Setup
+				</Button>
+				<Button
+					variant="ghost"
+					size="sm"
+					className="h-7 text-xs text-muted-foreground"
+					onClick={dismissOnboarding}
+				>
+					Dismiss
+				</Button>
+			</div>
+		</div>
+	) : null
+
+	if (tabMode === 'vertical') {
+		return (
+			<div className="flex flex-row h-screen bg-background text-foreground overflow-hidden">
+				{/* Vertical tab sidebar */}
+				<VerticalTabSidebar
+					tabs={tabs}
+					activeTabId={activeTabId}
+					onTabClick={handleTabClick}
+					onTabClose={closeTab}
+					onNewTab={createNewTab}
+				/>
+
+				{/* Main column: toolbar + content */}
+				<div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+					{/* Toolbar — no traffic light pad, sidebar handles that region */}
+					<Toolbar
+						route={route}
+						canGoBack={activeNav.canGoBack}
+						canGoForward={activeNav.canGoForward}
+						onBack={goBack}
+						onForward={goForward}
+						onReload={reload}
+						onNavigate={navigate}
+						addressBarRef={addressBarRef}
+						trafficLightPad={false}
+					/>
+
+					{/* Divider */}
+					<div className="h-px bg-border shrink-0" />
+
+					{onboardingBanner}
+					{contentArea}
+
+					{/* Sync terminal */}
+					<SyncTerminal events={events} />
+				</div>
+			</div>
+		)
+	}
 
 	return (
 		<div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
@@ -761,69 +979,14 @@ export function BrowserLayout() {
 				onReload={reload}
 				onNavigate={navigate}
 				addressBarRef={addressBarRef}
+				trafficLightPad={false}
 			/>
 
 			{/* Divider */}
 			<div className="h-px bg-border shrink-0" />
 
-			{/* Stack onboarding banner */}
-			{stackOnboardingUrl && (
-				<div className="flex-none flex items-center justify-between px-4 py-2 border-b border-primary/30 bg-primary/5">
-					<div className="flex items-center gap-2">
-						<Server size={14} className="text-primary" />
-						<span className="text-xs font-medium text-foreground">
-							1Sat Stack needs setup to sync blockchain data
-						</span>
-					</div>
-					<div className="flex items-center gap-2">
-						<Button
-							size="sm"
-							className="h-7 text-xs"
-							onClick={handleOpenStackSetup}
-						>
-							Complete Setup
-						</Button>
-						<Button
-							variant="ghost"
-							size="sm"
-							className="h-7 text-xs text-muted-foreground"
-							onClick={dismissOnboarding}
-						>
-							Dismiss
-						</Button>
-					</div>
-				</div>
-			)}
-
-			{/* Content area — keyed by reloadKey to force re-mount on reload */}
-			<BrowserContextMenu
-				onBack={goBack}
-				onForward={goForward}
-				onReload={reload}
-				canGoBack={activeNav.canGoBack}
-				canGoForward={activeNav.canGoForward}
-				currentUrl={getFullUrl(route)}
-			>
-				<main
-					key={`${activeTabId}-${activeTab.reloadKey}`}
-					className={
-						isFullHeight || route.type !== 'internal'
-							? 'flex-1 overflow-hidden relative'
-							: 'flex-1 overflow-y-auto p-6'
-					}
-				>
-					{route.type === 'internal' ? (
-						renderPage(route, navigate)
-					) : route.type === 'ai-chat' ? (
-						<AiChatView
-							initialQuery={route.query}
-							onNavigate={navigate}
-						/>
-					) : (
-						<WebViewContent route={route} />
-					)}
-				</main>
-			</BrowserContextMenu>
+			{onboardingBanner}
+			{contentArea}
 
 			{/* Sync terminal */}
 			<SyncTerminal events={events} />
