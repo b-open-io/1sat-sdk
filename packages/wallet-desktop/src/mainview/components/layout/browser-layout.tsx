@@ -21,6 +21,7 @@ import { useHotkeys } from '@tanstack/react-hotkeys'
 import type { ParsedRoute } from '../../../shared/url-types'
 import { getDisplayLabel } from '../../../shared/url-types'
 import { ORDFS_BASE } from '../../lib/url-parser'
+import { AiChatView } from '../../views/ai-chat/index'
 import { AgentPopover } from '../browser/agent-popover'
 import { BrowserContextMenu } from '../browser/browser-context-menu'
 import { MenuPopover } from '../browser/menu-popover'
@@ -228,6 +229,8 @@ function getProtocolFromRoute(route: ParsedRoute): string {
 			return route.url.startsWith('http://') ? 'http://' : 'https://'
 		case 'search':
 			return 'https://'
+		case 'ai-chat':
+			return 'ai://'
 		default:
 			return '1sat://'
 	}
@@ -357,7 +360,9 @@ function AddressBar({ route, onNavigate, inputRef }: AddressBarProps) {
 				route={route}
 				onProtocolChange={(proto) => {
 					if (proto === 'ai://') {
-						// TODO: open AI chat mode
+						// Switch to AI chat with current address bar content as query
+						const stripped = fullUrl.replace(/^(1sat|https?|ordfs|ai):\/\//, '')
+						onNavigate(`ai://${stripped}`)
 						return
 					}
 					// Switch protocol: strip current scheme and prepend new one
@@ -545,6 +550,8 @@ function getFullUrl(route: ParsedRoute): string {
 			return `1sat://${route.partition}/${route.txid}_${route.vout}${route.path ?? ''}`
 		case 'onchain-opns':
 			return `1sat://${route.partition}/${route.name}${route.path ?? ''}`
+		case 'ai-chat':
+			return `ai://${route.query}`
 		default:
 			return ''
 	}
@@ -729,8 +736,9 @@ export function BrowserLayout() {
 
 	const route = activeNav.current
 	const isFullHeight =
-		route.type === 'internal' &&
-		(route.page === 'chat' || route.page === 'browser/new')
+		route.type === 'ai-chat' ||
+		(route.type === 'internal' &&
+			(route.page === 'chat' || route.page === 'browser/new'))
 
 	return (
 		<div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
@@ -806,6 +814,11 @@ export function BrowserLayout() {
 				>
 					{route.type === 'internal' ? (
 						renderPage(route, navigate)
+					) : route.type === 'ai-chat' ? (
+						<AiChatView
+							initialQuery={route.query}
+							onNavigate={navigate}
+						/>
 					) : (
 						<WebViewContent route={route} />
 					)}

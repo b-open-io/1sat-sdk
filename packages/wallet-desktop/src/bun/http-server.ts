@@ -340,6 +340,12 @@ async function handleRequest(req: Request): Promise<Response> {
 		return jsonResponse(MANIFEST)
 	}
 
+	// POST /api/chat — AI chat endpoint (proxies to Ollama)
+	if (req.method === 'POST' && pathname === '/api/chat') {
+		const { handleChatRequest } = await import('./ai-chat-handler')
+		return handleChatRequest(req)
+	}
+
 	// POST /<walletMethod>
 	if (req.method === 'POST') {
 		const method = pathname.slice(1) // strip leading /

@@ -37,6 +37,13 @@ export function parseUrl(input: string): ParsedRoute | null {
 	const trimmed = input.trim()
 	if (trimmed.length === 0) return null
 
+	// ── ai:// scheme ───────────────────────────────────────────────────
+	const aiMatch = trimmed.match(/^ai:\/\//i)
+	if (aiMatch) {
+		const query = trimmed.slice(aiMatch[0].length).trim()
+		return { type: 'ai-chat', query }
+	}
+
 	// ── 1sat:// scheme ──────────────────────────────────────────────────
 	const oneSatMatch = trimmed.match(/^1sat:\/\//i)
 	if (oneSatMatch) {

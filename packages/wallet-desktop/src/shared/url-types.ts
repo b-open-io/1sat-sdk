@@ -44,6 +44,7 @@ export type ParsedRoute =
 	  }
 	| { type: 'web'; url: string }
 	| { type: 'search'; query: string; url: string }
+	| { type: 'ai-chat'; query: string }
 
 export const INTERNAL_PAGES: Set<string> = new Set(INTERNAL_PAGE_LIST)
 
@@ -89,5 +90,7 @@ export function getDisplayLabel(route: ParsedRoute): string {
 		}
 		case 'search':
 			return route.query
+		case 'ai-chat':
+			return route.query || 'AI Chat'
 	}
 }
