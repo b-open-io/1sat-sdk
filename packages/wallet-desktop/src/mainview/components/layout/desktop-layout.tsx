@@ -1,3 +1,4 @@
+import { SyncTerminal } from '@/components/blocks/sync-terminal'
 import { Button } from '@/components/ui/button'
 import {
 	PanelLeftClose,
@@ -8,10 +9,12 @@ import {
 import { useCallback, useEffect, useState } from 'react'
 import { useSyncEvents } from '../../hooks/use-sync-events'
 import { useWallet } from '../../hooks/use-wallet'
-import { SyncTerminal } from '@/components/blocks/sync-terminal'
+import { BrowserView } from '../../views/browser/index'
+import { ChatView } from '../../views/chat/index'
+import { CollectionsView } from '../../views/collections/index'
+import { OverviewView } from '../../views/dashboard/index'
 import { HistoryView } from '../../views/history/index'
 import { IdentityView } from '../../views/identity/index'
-import { CollectionsView } from '../../views/collections/index'
 import { InscribeView } from '../../views/inscribe/index'
 import { LocksView } from '../../views/locks/index'
 import { OpnsView } from '../../views/opns/index'
@@ -19,8 +22,6 @@ import { OrdinalsView } from '../../views/ordinals/index'
 import { SettingsView } from '../../views/settings/index'
 import { SocialView } from '../../views/social/index'
 import { TokensView } from '../../views/tokens/index'
-import { OverviewView } from '../../views/dashboard/index'
-import { BrowserView } from '../../views/browser/index'
 import { SidebarNav } from './sidebar-nav'
 import { WalletPanel } from './wallet-panel'
 
@@ -35,6 +36,7 @@ type Route =
 	| 'locks'
 	| 'opns'
 	| 'social'
+	| 'chat'
 	| 'identity'
 	| 'settings'
 
@@ -99,6 +101,8 @@ export function DesktopLayout() {
 				return <OpnsView />
 			case 'social':
 				return <SocialView />
+			case 'chat':
+				return <ChatView />
 			case 'identity':
 				return <IdentityView />
 			case 'settings':
@@ -120,30 +124,20 @@ export function DesktopLayout() {
 				style={{ marginTop: TITLEBAR_HEIGHT }}
 			>
 				<div className="flex items-center gap-3">
-					<Button
-						variant="ghost"
-						size="icon"
-						onClick={toggleLeftSidebar}
-					>
+					<Button variant="ghost" size="icon" onClick={toggleLeftSidebar}>
 						{leftCollapsed ? (
 							<PanelLeftOpen size={18} />
 						) : (
 							<PanelLeftClose size={18} />
 						)}
 					</Button>
-					<span className="font-bold text-sm tracking-wider">
-						1Sat Wallet
-					</span>
+					<span className="font-bold text-sm tracking-wider">1Sat Wallet</span>
 				</div>
 				<div className="flex items-center gap-2">
 					<Button variant="outline" size="sm" onClick={handleLock}>
 						Lock
 					</Button>
-					<Button
-						variant="ghost"
-						size="icon"
-						onClick={toggleRightPanel}
-					>
+					<Button variant="ghost" size="icon" onClick={toggleRightPanel}>
 						{rightCollapsed ? (
 							<PanelRightOpen size={18} />
 						) : (
@@ -162,7 +156,7 @@ export function DesktopLayout() {
 				/>
 				<main
 					className={
-						route === 'browser'
+						route === 'browser' || route === 'chat'
 							? 'flex-1 overflow-hidden'
 							: 'flex-1 overflow-y-auto p-6'
 					}

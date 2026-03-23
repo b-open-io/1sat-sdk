@@ -71,11 +71,13 @@ function parseChatMessage(data: BmapTransaction): ChatMessage | null {
 	if (!content) return null
 
 	const channel = mapData?.channel ?? mapData?.context ?? 'general'
-	const author = aipData?.bapId ?? aipData?.address ?? sigmaData?.address ?? 'anonymous'
+	const author =
+		aipData?.bapId ?? aipData?.address ?? sigmaData?.address ?? 'anonymous'
 	const authorName = aipData?.bapId
 		? `${aipData.bapId.slice(0, 6)}...${aipData.bapId.slice(-4)}`
 		: undefined
-	const timestamp = data.blk?.t ?? data.timestamp ?? Math.floor(Date.now() / 1000)
+	const timestamp =
+		data.blk?.t ?? data.timestamp ?? Math.floor(Date.now() / 1000)
 
 	return {
 		txid,
@@ -96,7 +98,7 @@ type MessageCallback = (msg: ChatMessage) => void
 
 let activeAbortController: AbortController | null = null
 let messageCallback: MessageCallback | null = null
-let subscribedChannels: Set<string> = new Set()
+const subscribedChannels: Set<string> = new Set()
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
 /**
@@ -281,7 +283,9 @@ export async function fetchChannelMessages(
 
 	const response = await fetch(url)
 	if (!response.ok) {
-		throw new Error(`Failed to fetch messages: ${response.status} ${response.statusText}`)
+		throw new Error(
+			`Failed to fetch messages: ${response.status} ${response.statusText}`,
+		)
 	}
 
 	const data = await response.json()

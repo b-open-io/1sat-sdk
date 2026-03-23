@@ -1,6 +1,7 @@
 import { Electroview } from 'electrobun/view'
 import type {
 	BalanceInfo,
+	ChatMessage,
 	OrdinalInfo,
 	PermissionRequest,
 	SyncEvent,
@@ -51,6 +52,9 @@ const rpc = Electroview.defineRPC<WalletDesktopRPC>({
 			permissionRequest: (payload: PermissionRequest) => {
 				emit('permissionRequest', payload)
 			},
+			chatMessageReceived: (payload: ChatMessage) => {
+				emit('chatMessageReceived', payload)
+			},
 		},
 	},
 })
@@ -83,6 +87,10 @@ function onPermissionRequest(fn: Listener<PermissionRequest>): Unsubscribe {
 	return subscribe('permissionRequest', fn)
 }
 
+function onChatMessageReceived(fn: Listener<ChatMessage>): Unsubscribe {
+	return subscribe('chatMessageReceived', fn)
+}
+
 export {
 	electroview,
 	rpc,
@@ -92,4 +100,5 @@ export {
 	onSyncEvent,
 	onOrdinalsUpdated,
 	onPermissionRequest,
+	onChatMessageReceived,
 }

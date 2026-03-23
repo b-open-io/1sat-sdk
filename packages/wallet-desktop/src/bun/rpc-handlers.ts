@@ -6,7 +6,6 @@
  * `electroview.rpc.request.<name>(params)`.
  */
 import {
-	computeBapId,
 	createContext,
 	createSocialPost,
 	getBsv21Balances,
@@ -25,10 +24,10 @@ import {
 	sweepBsv,
 	unlockBsv,
 } from '@1sat/actions'
+import { OPNS_BASKET } from '@1sat/actions'
 import { BRC29_PROTOCOL_ID } from '@1sat/types'
 import { generateMnemonic, isValidMnemonic } from '@1sat/utils'
-import { OPNS_BASKET } from '@1sat/actions'
-import { PrivateKey, PublicKey, Transaction, Utils as SdkUtils } from '@bsv/sdk'
+import { PrivateKey, PublicKey, Utils as SdkUtils, Transaction } from '@bsv/sdk'
 import { Utils } from 'electrobun/bun'
 import type {
 	CreateSocialPostParams,
@@ -47,6 +46,13 @@ import type {
 	TokenBalance,
 } from '../shared/types'
 import {
+	fetchChannelMessages,
+	getChatChannels,
+	subscribeChannel,
+	unsubscribeChannel,
+} from './chat-manager'
+import { getStackUrl, isStackRunning } from './sidecar-manager'
+import {
 	create,
 	deleteWallet,
 	getStatus,
@@ -54,13 +60,6 @@ import {
 	lock,
 	unlock,
 } from './wallet-manager'
-import { getStackUrl, isStackRunning } from './sidecar-manager'
-import {
-	fetchChannelMessages,
-	getChatChannels,
-	subscribeChannel,
-	unsubscribeChannel,
-} from './chat-manager'
 
 // ============================================================================
 // MIME type lookup
@@ -541,9 +540,7 @@ export function createRpcHandlers() {
 				include: 'entire transactions',
 				limit: 1000,
 			})
-			const ordinal = listResult.outputs.find(
-				(o) => o.outpoint === outpoint,
-			)
+			const ordinal = listResult.outputs.find((o) => o.outpoint === outpoint)
 			if (!ordinal) {
 				return { error: 'OpNS name not found' }
 			}
@@ -567,9 +564,7 @@ export function createRpcHandlers() {
 				include: 'entire transactions',
 				limit: 1000,
 			})
-			const ordinal = listResult.outputs.find(
-				(o) => o.outpoint === outpoint,
-			)
+			const ordinal = listResult.outputs.find((o) => o.outpoint === outpoint)
 			if (!ordinal) {
 				return { error: 'OpNS name not found' }
 			}

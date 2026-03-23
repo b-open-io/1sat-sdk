@@ -12,20 +12,20 @@ import Electrobun, {
 	Updater,
 } from 'electrobun/bun'
 import type { WalletDesktopRPC } from '../shared/types'
+import { setChatMessageCallback, shutdownChatManager } from './chat-manager'
 import {
 	resolvePermission,
 	setPermissionPusher,
 	startWalletServer,
 } from './http-server'
 import { createRpcHandlers } from './rpc-handlers'
+import { startStack, stopStack } from './sidecar-manager'
 import {
 	checkVault,
 	setBalanceUpdatedCallback,
 	setStatusChangedCallback,
 	setSyncEventCallback,
 } from './wallet-manager'
-import { startStack, stopStack } from './sidecar-manager'
-import { setChatMessageCallback, shutdownChatManager } from './chat-manager'
 
 // ============================================================================
 // Dev server detection (HMR support)

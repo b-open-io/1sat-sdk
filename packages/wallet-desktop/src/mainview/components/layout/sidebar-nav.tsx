@@ -4,6 +4,7 @@ import {
 	Coins,
 	Compass,
 	Globe,
+	Hash,
 	History,
 	Image,
 	Layers,
@@ -26,6 +27,7 @@ const NAV_ITEMS = [
 	{ id: 'locks', label: 'Locks', icon: Clock },
 	{ id: 'opns', label: 'OpNS', icon: Globe },
 	{ id: 'social', label: 'Social', icon: MessageCircle },
+	{ id: 'chat', label: 'Chat', icon: Hash },
 	{ id: 'identity', label: 'Identity', icon: UserCircle },
 	{ id: 'settings', label: 'Settings', icon: Settings },
 ] as const
