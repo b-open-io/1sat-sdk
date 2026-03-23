@@ -536,6 +536,8 @@ function Toolbar({
 	currentUrl,
 	currentTitle,
 }: ToolbarProps) {
+	const [bookmarksOpen, setBookmarksOpen] = useState(false)
+
 	return (
 		<div
 			className="flex items-center gap-1.5 px-2 shrink-0 bg-background"
@@ -578,9 +580,14 @@ function Toolbar({
 					currentUrl={currentUrl}
 					currentTitle={currentTitle}
 					onNavigate={onNavigate}
+					open={bookmarksOpen}
+					onOpenChange={setBookmarksOpen}
 				/>
 				<AgentPopover onOpenAgent={onOpenAgent} />
-				<MenuPopover onNavigate={onNavigate} />
+				<MenuPopover
+					onNavigate={onNavigate}
+					onOpenBookmarks={() => setBookmarksOpen(true)}
+				/>
 			</div>
 		</div>
 	)
@@ -894,7 +901,8 @@ export function BrowserLayout() {
 				onReload={reload}
 				canGoBack={activeNav.canGoBack}
 				canGoForward={activeNav.canGoForward}
-				currentUrl={getFullUrl(route)}
+				currentUrl={currentUrl}
+				onBookmark={() => bookmarksApi.addBookmark(currentUrl, currentTitle)}
 			>
 				<main
 					key={`${activeTabId}-${activeTab.reloadKey}`}
@@ -979,6 +987,10 @@ export function BrowserLayout() {
 						onNavigate={navigate}
 						addressBarRef={addressBarRef}
 						trafficLightPad={false}
+						onOpenAgent={toggleAgentSidebar}
+						bookmarksApi={bookmarksApi}
+						currentUrl={currentUrl}
+						currentTitle={currentTitle}
 					/>
 
 					{/* Divider */}
@@ -1019,6 +1031,10 @@ export function BrowserLayout() {
 				onNavigate={navigate}
 				addressBarRef={addressBarRef}
 				trafficLightPad={false}
+				onOpenAgent={toggleAgentSidebar}
+				bookmarksApi={bookmarksApi}
+				currentUrl={currentUrl}
+				currentTitle={currentTitle}
 			/>
 
 			{/* Divider */}
