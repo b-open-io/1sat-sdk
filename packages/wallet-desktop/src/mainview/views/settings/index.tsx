@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCallback, useState } from 'react'
-import { useWallet } from '../../hooks/use-wallet'
 import {
 	SweepWallet,
 	type ScanResult,
@@ -11,6 +12,8 @@ import {
 	ThemeTokenSettings,
 } from '@/components/blocks/theme-token-provider'
 import { rpc } from '../../rpc'
+import { useWallet } from '../../hooks/use-wallet'
+import { Lock, Server, ExternalLink } from 'lucide-react'
 
 export function SettingsView() {
 	const { lockWallet, deleteWallet } = useWallet()
@@ -81,86 +84,168 @@ export function SettingsView() {
 	)
 
 	return (
-		<div className="p-6 space-y-8 max-w-2xl">
-			<div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-4">
-				Settings
-			</div>
+		<div className="mx-auto max-w-[800px] w-full py-8 px-6">
+			<h1 className="text-2xl font-bold mb-6">Settings</h1>
 
-			{/* Wallet Actions */}
-			<div className="space-y-3">
-				<h3 className="text-sm font-medium text-foreground">
-					Wallet
-				</h3>
-				<Button
-					variant="secondary"
-					className="w-full"
-					size="lg"
-					onClick={handleLock}
-				>
-					Lock Wallet
-				</Button>
+			<Tabs defaultValue="general">
+				<TabsList variant="line" className="w-full justify-start border-b border-border rounded-none pb-0 mb-6 h-auto">
+					<TabsTrigger value="general" className="rounded-none pb-3">General</TabsTrigger>
+					<TabsTrigger value="security" className="rounded-none pb-3">Security</TabsTrigger>
+					<TabsTrigger value="network" className="rounded-none pb-3">Network</TabsTrigger>
+					<TabsTrigger value="about" className="rounded-none pb-3">About</TabsTrigger>
+				</TabsList>
 
-				<Button
-					variant="destructive"
-					className="w-full"
-					size="lg"
-					onClick={handleDelete}
-				>
-					{confirmDelete
-						? 'Confirm Delete -- This Cannot Be Undone'
-						: 'Delete Wallet'}
-				</Button>
+				{/* General Tab */}
+				<TabsContent value="general" className="space-y-8">
+					{/* Wallet section */}
+					<div>
+						<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+							Wallet
+						</p>
+						<div className="flex items-center justify-between py-3">
+							<div>
+								<p className="text-sm font-medium">Lock Wallet</p>
+								<p className="text-xs text-muted-foreground">
+									Lock your wallet and require a password to unlock
+								</p>
+							</div>
+							<Button variant="secondary" size="sm" onClick={handleLock}>
+								Lock
+							</Button>
+						</div>
+						<Separator />
+						<div className="flex items-center justify-between py-3">
+							<div>
+								<p className="text-sm font-medium">Delete Wallet</p>
+								<p className="text-xs text-muted-foreground">
+									Permanently remove this wallet from this device
+								</p>
+							</div>
+							<div className="flex items-center gap-2">
+								{confirmDelete && (
+									<Button
+										variant="ghost"
+										size="sm"
+										onClick={() => setConfirmDelete(false)}
+									>
+										Cancel
+									</Button>
+								)}
+								<Button
+									variant="ghost"
+									size="sm"
+									className="text-destructive hover:text-destructive hover:bg-destructive/10"
+									onClick={handleDelete}
+								>
+									{confirmDelete ? 'Confirm Delete' : 'Delete'}
+								</Button>
+							</div>
+						</div>
+						{error && (
+							<div className="mt-2 p-3 border border-destructive text-destructive text-sm font-mono">
+								{error}
+							</div>
+						)}
+					</div>
 
-				{confirmDelete && (
-					<Button
-						variant="ghost"
-						className="w-full"
-						onClick={() => setConfirmDelete(false)}
-					>
-						Cancel
-					</Button>
-				)}
-			</div>
+					{/* Theme section */}
+					<div>
+						<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+							Theme
+						</p>
+						<div className="flex items-center justify-between py-3">
+							<div>
+								<p className="text-sm font-medium">Theme Token</p>
+								<p className="text-xs text-muted-foreground">
+									Apply an on-chain theme token to customize the wallet appearance
+								</p>
+							</div>
+							<ThemeTokenProvider>
+								<ThemeTokenSettings />
+							</ThemeTokenProvider>
+						</div>
+					</div>
 
-			{error && (
-				<div className="p-3 border border-destructive text-destructive text-sm font-mono">
-					{error}
-				</div>
-			)}
+					{/* Sweep section */}
+					<div>
+						<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+							Sweep
+						</p>
+						<Separator className="mb-4" />
+						<SweepWallet
+							onScan={handleSweepScan}
+							onSweep={handleSweepExecute}
+							onSuccess={(result) => {
+								if (result.txid) {
+									console.log('Sweep complete:', result.txid)
+								}
+							}}
+						/>
+					</div>
+				</TabsContent>
 
-			{/* Sweep Private Key */}
-			<div className="space-y-3">
-				<h3 className="text-sm font-medium text-foreground">
-					Sweep Private Key
-				</h3>
-				<p className="text-xs text-muted-foreground">
-					Import funds from an external private key (WIF) into this
-					wallet.
-				</p>
-				<SweepWallet
-					onScan={handleSweepScan}
-					onSweep={handleSweepExecute}
-					onSuccess={(result) => {
-						if (result.txid) {
-							console.log('Sweep complete:', result.txid)
-						}
-					}}
-				/>
-			</div>
+				{/* Security Tab */}
+				<TabsContent value="security">
+					<div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+						<Lock className="size-10 text-muted-foreground" />
+						<p className="text-sm text-muted-foreground">Coming soon</p>
+					</div>
+				</TabsContent>
 
-			{/* Theme */}
-			<div className="space-y-3">
-				<h3 className="text-sm font-medium text-foreground">
-					Theme
-				</h3>
-				<p className="text-xs text-muted-foreground">
-					Apply an on-chain theme token to customize the wallet
-					appearance.
-				</p>
-				<ThemeTokenProvider>
-					<ThemeTokenSettings />
-				</ThemeTokenProvider>
-			</div>
+				{/* Network Tab */}
+				<TabsContent value="network">
+					<div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+						<Server className="size-10 text-muted-foreground" />
+						<p className="text-sm text-muted-foreground">Coming soon</p>
+						<p className="text-xs text-muted-foreground">
+							Will show 1sat-stack status
+						</p>
+					</div>
+				</TabsContent>
+
+				{/* About Tab */}
+				<TabsContent value="about">
+					<div className="space-y-6 py-4">
+						<div>
+							<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+								Application
+							</p>
+							<div className="flex items-center justify-between py-3">
+								<p className="text-sm font-medium">App</p>
+								<p className="text-sm text-muted-foreground">1Sat Wallet</p>
+							</div>
+							<Separator />
+							<div className="flex items-center justify-between py-3">
+								<p className="text-sm font-medium">Version</p>
+								<p className="text-sm text-muted-foreground">0.0.1</p>
+							</div>
+							<Separator />
+							<div className="flex items-center justify-between py-3">
+								<p className="text-sm font-medium">Framework</p>
+								<p className="text-sm text-muted-foreground">Electrobun</p>
+							</div>
+						</div>
+
+						<div>
+							<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+								Links
+							</p>
+							<div className="flex items-center justify-between py-3">
+								<p className="text-sm font-medium">GitHub</p>
+								<a
+									href="https://github.com/bitcoin-sv/1sat-sdk"
+									target="_blank"
+									rel="noreferrer"
+									className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+								>
+									View on GitHub
+									<ExternalLink className="size-3.5" />
+								</a>
+							</div>
+						</div>
+					</div>
+				</TabsContent>
+			</Tabs>
 		</div>
 	)
 }
