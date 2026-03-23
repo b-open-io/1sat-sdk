@@ -110,6 +110,16 @@ jobs:
             fi
 
       - run:
+          name: Build workspace dependencies
+          command: |
+            cd ~/project
+            bun run --filter '@1sat/types' build
+            bun run --filter '@1sat/utils' build
+            bun run --filter '@1sat/client' build
+            bun run --filter '@1sat/actions' build
+            bun run --filter '@1sat/react' build
+
+      - run:
           name: Build Vite + ElectroBun
           command: bun run build
           no_output_timeout: 30m
