@@ -209,19 +209,85 @@ function NavButton({ icon, label, disabled = false, onClick }: NavButtonProps) {
 	)
 }
 
-function ProtocolBadge({ protocol }: { protocol: string }) {
+const PROTOCOLS = [
+	{ value: '1sat://', label: '1sat://', bg: 'oklch(0.35 0.12 260)', fg: 'oklch(0.78 0.14 260)' },
+	{ value: 'https://', label: 'https://', bg: 'oklch(0.25 0.08 150)', fg: 'oklch(0.7 0.15 150)' },
+	{ value: 'http://', label: 'http://', bg: 'oklch(0.25 0.05 50)', fg: 'oklch(0.7 0.1 50)' },
+	{ value: 'ai://', label: 'ai://', bg: 'oklch(0.3 0.12 300)', fg: 'oklch(0.75 0.15 300)' },
+] as const
+
+function getProtocolFromRoute(route: ParsedRoute): string {
+	switch (route.type) {
+		case 'internal':
+		case 'onchain-outpoint':
+		case 'onchain-opns':
+			return '1sat://'
+		case 'web':
+			return route.url.startsWith('http://') ? 'http://' : 'https://'
+		case 'search':
+			return 'https://'
+		default:
+			return '1sat://'
+	}
+}
+
+interface ProtocolBadgeProps {
+	route: ParsedRoute
+	onProtocolChange: (protocol: string) => void
+}
+
+function ProtocolBadge({ route, onProtocolChange }: ProtocolBadgeProps) {
+	const [open, setOpen] = useState(false)
+	const current = getProtocolFromRoute(route)
+	const style = PROTOCOLS.find((p) => p.value === current) ?? PROTOCOLS[0]
+
 	return (
-		<span
-			className="inline-flex items-center px-1.5 text-[10px] font-mono font-semibold shrink-0"
-			style={{
-				borderRadius: 4,
-				backgroundColor: 'oklch(0.35 0.12 260)',
-				color: 'oklch(0.78 0.14 260)',
-				lineHeight: '16px',
-			}}
-		>
-			{protocol}
-		</span>
+		<div className="relative shrink-0">
+			<button
+				type="button"
+				onClick={() => setOpen(!open)}
+				className="inline-flex items-center gap-0.5 px-1.5 text-[10px] font-mono font-semibold cursor-pointer hover:opacity-80 transition-opacity"
+				style={{
+					borderRadius: 4,
+					backgroundColor: style.bg,
+					color: style.fg,
+					lineHeight: '16px',
+				}}
+			>
+				{style.label}
+				<ChevronDown size={8} style={{ color: style.fg }} />
+			</button>
+			{open && (
+				<>
+					<div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+					<div
+						className="absolute top-full left-0 mt-1 z-50 border border-border bg-card shadow-lg"
+						style={{ borderRadius: 4, minWidth: 100 }}
+					>
+						{PROTOCOLS.map((p) => (
+							<button
+								key={p.value}
+								type="button"
+								onClick={() => {
+									onProtocolChange(p.value)
+									setOpen(false)
+								}}
+								className={cn(
+									'flex items-center w-full px-2 py-1.5 text-[10px] font-mono font-semibold hover:bg-muted/50 transition-colors',
+									p.value === current ? 'text-foreground' : 'text-muted-foreground',
+								)}
+							>
+								<span
+									className="inline-block w-2 h-2 mr-2 shrink-0"
+									style={{ backgroundColor: p.bg }}
+								/>
+								{p.label}
+							</button>
+						))}
+					</div>
+				</>
+			)}
+		</div>
 	)
 }
 
@@ -285,7 +351,18 @@ function AddressBar({ route, onNavigate, inputRef }: AddressBarProps) {
 			className="flex items-center gap-1.5 flex-1 min-w-0 px-2 border border-border bg-muted/40"
 			style={{ height: 26, borderRadius: 6 }}
 		>
-			<ProtocolBadge protocol="1sat://" />
+			<ProtocolBadge
+				route={route}
+				onProtocolChange={(proto) => {
+					if (proto === 'ai://') {
+						// TODO: open AI chat mode
+						return
+					}
+					// Switch protocol: strip current scheme and prepend new one
+					const stripped = fullUrl.replace(/^(1sat|https?|ordfs|ai):\/\//, '')
+					onNavigate(`${proto}${stripped}`)
+				}}
+			/>
 			{editing ? (
 				<input
 					ref={inputRef}
