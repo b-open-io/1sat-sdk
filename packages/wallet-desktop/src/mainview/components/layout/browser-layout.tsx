@@ -27,7 +27,6 @@ import {
 import { useHotkeys } from '@tanstack/react-hotkeys'
 import type { ParsedRoute } from '../../../shared/url-types'
 import { getDisplayLabel } from '../../../shared/url-types'
-import type { WalletStatus } from '../../../shared/types'
 import { ORDFS_BASE } from '../../lib/url-parser'
 import { AiChatView } from '../../views/ai-chat/index'
 import { AgentPopover } from '../browser/agent-popover'
@@ -706,7 +705,7 @@ const FIRST_TAB: TabState = {
 	nav: NAV_INITIAL_STATE,
 }
 
-export function BrowserLayout({ walletStatus }: { walletStatus: WalletStatus }) {
+export function BrowserLayout() {
 	const { events } = useSyncEvents()
 	const [stackOnboardingUrl, setStackOnboardingUrl] = useState<string | null>(
 		null,
@@ -892,25 +891,7 @@ export function BrowserLayout({ walletStatus }: { walletStatus: WalletStatus }) 
 		return unsub
 	}, [navigate])
 
-	// ── Onboarding gate: force-navigate based on wallet status ─────────
-
-	useEffect(() => {
-		if (walletStatus === 'initializing') {
-			// Don't navigate — just show loading in the minimal chrome
-			return
-		}
-		if (walletStatus === 'locked') {
-			navigate('1sat://onboarding/unlock')
-		} else if (walletStatus === 'no-wallet') {
-			navigate('1sat://onboarding/create')
-		} else if (walletStatus === 'unlocked') {
-			// Wallet just unlocked — go to overview (unless already on a real page)
-			const current = activeNav.current
-			if (current.type === 'internal' && current.page.startsWith('onboarding/')) {
-				navigate('1sat://wallet/overview')
-			}
-		}
-	}, [walletStatus])
+	// Onboarding is handled by App.tsx — BrowserLayout only renders when unlocked
 
 	// ── Keyboard shortcuts via TanStack Hotkeys ──────────────────────────
 
@@ -1018,39 +999,6 @@ export function BrowserLayout({ walletStatus }: { walletStatus: WalletStatus }) 
 	) : null
 
 	// ── Minimal chrome for onboarding states ───────────────────────────────
-
-	if (walletStatus !== 'unlocked') {
-		return (
-			<div key={walletStatus} className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
-				{/* Draggable title bar — no controls, just enough space for traffic lights */}
-				<div
-					className="electrobun-webkit-app-region-drag flex items-center justify-center shrink-0"
-					style={{
-						height: TAB_BAR_HEIGHT + TOOLBAR_HEIGHT,
-						paddingLeft: TRAFFIC_LIGHT_PAD,
-						backgroundColor: 'var(--tab-bar-bg, oklch(0.17 0.012 96))',
-					}}
-				>
-					<span className="text-[11px] font-semibold tracking-wide text-muted-foreground select-none electrobun-webkit-app-region-no-drag">
-						1Sat Wallet
-					</span>
-				</div>
-				<Separator className="shrink-0" />
-				<main className="flex-1 overflow-y-auto p-6">
-					{walletStatus === 'initializing' ? (
-						<div className="flex items-center justify-center h-full">
-							<div className="text-center">
-								<div className="text-lg font-bold text-foreground mb-2">1Sat Wallet</div>
-								<div className="text-sm text-muted-foreground font-mono">Initializing...</div>
-							</div>
-						</div>
-					) : (
-						renderPage(activeNav.current, navigate)
-					)}
-				</main>
-			</div>
-		)
-	}
 
 	if (tabMode === 'vertical') {
 		return (
