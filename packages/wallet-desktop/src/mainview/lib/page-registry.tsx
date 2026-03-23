@@ -1,10 +1,11 @@
-import type { ReactElement } from 'react'
+import React, { type ReactElement } from 'react'
 import type { InternalPage, ParsedRoute } from '../../shared/url-types'
 import { BrowserView } from '../views/browser/index'
 import { ChatView } from '../views/chat/index'
 import { CollectionsView } from '../views/collections/index'
 import { OverviewView } from '../views/dashboard/index'
 import { HistoryView } from '../views/history/index'
+import { HomeView } from '../views/home/index'
 import { IdentityView } from '../views/identity/index'
 import { InscribeView } from '../views/inscribe/index'
 import { LocksView } from '../views/locks/index'
@@ -64,7 +65,18 @@ function OnboardingUnlockView(): ReactElement {
 
 // ─── Registry ────────────────────────────────────────────────────────────────
 
-type PageComponent = () => ReactElement
+/**
+ * Props passed by renderPage to every registered page component.
+ * Individual views may declare only the props they need — extra props
+ * are silently ignored by React at runtime.
+ */
+export interface PageProps {
+	params: Record<string, string>
+	onNavigate?: (url: string) => void
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PageComponent = React.ComponentType<any>
 
 const PAGE_REGISTRY: Record<InternalPage, PageComponent> = {
 	'wallet/overview': OverviewView,
@@ -81,7 +93,7 @@ const PAGE_REGISTRY: Record<InternalPage, PageComponent> = {
 	chat: ChatView,
 	'identity/profile': IdentityView,
 	settings: SettingsView,
-	'browser/new': BrowserView,
+	'browser/new': HomeView,
 	'publish/new': PublishView,
 	apps: AppsView,
 	'onboarding/create': OnboardingCreateView,
@@ -96,9 +108,13 @@ const PAGE_REGISTRY: Record<InternalPage, PageComponent> = {
  * in the registry. Returns null for all other route types (web, onchain,
  * search) — BrowserLayout is responsible for rendering those.
  */
-export function renderPage(route: ParsedRoute): ReactElement | null {
+export function renderPage(
+	route: ParsedRoute,
+	onNavigate?: (url: string) => void,
+): ReactElement | null {
 	if (route.type !== 'internal') return null
 	const Component = PAGE_REGISTRY[route.page]
 	if (!Component) return null
-	return <Component />
+	const params = route.params ?? {}
+	return <Component params={params} onNavigate={onNavigate} />
 }

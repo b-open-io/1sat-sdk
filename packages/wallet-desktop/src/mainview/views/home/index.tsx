@@ -1,0 +1,208 @@
+import {
+	Coins,
+	Gem,
+	LayoutGrid,
+	MessageCircle,
+	Pickaxe,
+	ScanFace,
+	Search,
+	Store,
+	Upload,
+} from 'lucide-react'
+import { useCallback, useRef } from 'react'
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface HomeViewProps {
+	onNavigate?: (url: string) => void
+	params?: Record<string, string>
+}
+
+// ─── Static data (hoisted to module level — rerender-memo / rendering-hoist-jsx) ──
+
+interface Shortcut {
+	label: string
+	icon: React.ElementType
+	color: string
+	url: string
+}
+
+const SHORTCUTS: Shortcut[] = [
+	{
+		label: 'Ordinals',
+		icon: Gem,
+		color: '#3b82f6',
+		url: '1sat://ordinals/gallery',
+	},
+	{
+		label: 'BSV21',
+		icon: Coins,
+		color: '#eab308',
+		url: '1sat://tokens/all',
+	},
+	{
+		label: 'Market',
+		icon: Store,
+		color: '#8b5cf6',
+		url: '1sat://market',
+	},
+	{
+		label: 'BitChat',
+		icon: MessageCircle,
+		color: '#22c55e',
+		url: '1sat://chat',
+	},
+	{
+		label: 'Mine',
+		icon: Pickaxe,
+		color: '#f97316',
+		url: '1sat://ordinals/inscribe',
+	},
+	{
+		label: 'Identity',
+		icon: ScanFace,
+		color: '#ec4899',
+		url: '1sat://identity/profile',
+	},
+	{
+		label: 'Apps',
+		icon: LayoutGrid,
+		color: '#06b6d4',
+		url: '1sat://apps',
+	},
+	{
+		label: 'Publish',
+		icon: Upload,
+		color: '#f43f5e',
+		url: '1sat://publish/new',
+	},
+]
+
+// ─── Shortcut tile ────────────────────────────────────────────────────────────
+
+interface ShortcutTileProps {
+	shortcut: Shortcut
+	onNavigate?: (url: string) => void
+}
+
+function ShortcutTile({ shortcut, onNavigate }: ShortcutTileProps) {
+	const Icon = shortcut.icon
+
+	const handleClick = useCallback(() => {
+		onNavigate?.(shortcut.url)
+	}, [shortcut.url, onNavigate])
+
+	const handleKeyDown = useCallback(
+		(e: React.KeyboardEvent) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault()
+				onNavigate?.(shortcut.url)
+			}
+		},
+		[shortcut.url, onNavigate],
+	)
+
+	return (
+		<div
+			role="button"
+			tabIndex={0}
+			className="flex flex-col items-center gap-2 cursor-pointer group"
+			style={{ width: 72 }}
+			onClick={handleClick}
+			onKeyDown={handleKeyDown}
+			aria-label={`Navigate to ${shortcut.label}`}
+		>
+			{/* Icon container */}
+			<div
+				className="flex items-center justify-center bg-card border border-border transition-colors group-hover:border-border/80 group-hover:bg-muted/60"
+				style={{ width: 48, height: 48, borderRadius: 8 }}
+			>
+				<Icon size={20} color={shortcut.color} strokeWidth={1.75} />
+			</div>
+
+			{/* Label */}
+			<span
+				className="text-muted-foreground text-center leading-none select-none"
+				style={{ fontSize: 10 }}
+			>
+				{shortcut.label}
+			</span>
+		</div>
+	)
+}
+
+// ─── HomeView ─────────────────────────────────────────────────────────────────
+
+export function HomeView({ onNavigate }: HomeViewProps) {
+	const inputRef = useRef<HTMLInputElement>(null)
+
+	const handleSearchSubmit = useCallback(
+		(e: React.FormEvent<HTMLFormElement>) => {
+			e.preventDefault()
+			const value = inputRef.current?.value.trim()
+			if (!value) return
+			onNavigate?.(value)
+		},
+		[onNavigate],
+	)
+
+	return (
+		<div className="flex flex-col items-center justify-center h-full gap-8 bg-background">
+			{/* Logo */}
+			<div className="flex flex-col items-center gap-2">
+				<div
+					style={{
+						width: 48,
+						height: 48,
+						borderRadius: '50%',
+						background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+						flexShrink: 0,
+					}}
+				/>
+				<span className="text-muted-foreground" style={{ fontSize: 14 }}>
+					1Sat
+				</span>
+			</div>
+
+			{/* Search bar */}
+			<form
+				onSubmit={handleSearchSubmit}
+				className="w-full"
+				style={{ maxWidth: 560 }}
+			>
+				<div
+					className="flex items-center gap-3 bg-card border border-border"
+					style={{ padding: 14, borderRadius: 8 }}
+				>
+					<Search
+						size={16}
+						className="text-muted-foreground shrink-0"
+						strokeWidth={1.75}
+					/>
+					<input
+						ref={inputRef}
+						type="text"
+						placeholder="Search ordinals, dApps, or enter address..."
+						className="flex-1 bg-transparent text-foreground placeholder:text-muted-foreground outline-none border-none"
+						style={{
+							fontFamily: "'Space Grotesk', sans-serif",
+							fontSize: 13,
+						}}
+						autoFocus
+					/>
+				</div>
+			</form>
+
+			{/* Shortcut grid */}
+			<div className="flex flex-row items-start gap-4 flex-wrap justify-center">
+				{SHORTCUTS.map((shortcut) => (
+					<ShortcutTile
+						key={shortcut.url}
+						shortcut={shortcut}
+						onNavigate={onNavigate}
+					/>
+				))}
+			</div>
+		</div>
+	)
+}
