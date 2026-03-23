@@ -405,6 +405,7 @@ type BunMessages = {
 	stackOnboardingRequired: { adminUrl: string }
 	stackOnboardingComplete: {}
 	navigateToUrl: { url: string }
+	toggleSyncLog: {}
 }
 
 // Tab info for MCP browser automation

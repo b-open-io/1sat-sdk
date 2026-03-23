@@ -107,6 +107,9 @@ const rpc = Electroview.defineRPC<WalletDesktopRPC>({
 			navigateToUrl: (payload: { url: string }) => {
 				emit('navigateToUrl', payload)
 			},
+			toggleSyncLog: (_payload: Record<string, never>) => {
+				emit('toggleSyncLog', {})
+			},
 		},
 	},
 })
@@ -158,6 +161,10 @@ function onNavigateToUrl(fn: Listener<{ url: string }>): Unsubscribe {
 	return subscribe('navigateToUrl', fn)
 }
 
+function onToggleSyncLog(fn: Listener<Record<string, never>>): Unsubscribe {
+	return subscribe('toggleSyncLog', fn)
+}
+
 export {
 	electroview,
 	rpc,
@@ -171,4 +178,5 @@ export {
 	onStackOnboardingRequired,
 	onStackOnboardingComplete,
 	onNavigateToUrl,
+	onToggleSyncLog,
 }

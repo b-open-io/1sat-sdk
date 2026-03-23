@@ -49,6 +49,7 @@ import {
 	onNavigateToUrl,
 	onStackOnboardingComplete,
 	onStackOnboardingRequired,
+	onToggleSyncLog,
 	rpc,
 } from '../../rpc'
 
@@ -725,6 +726,18 @@ export function BrowserLayout({ walletStatus }: { walletStatus: WalletStatus }) 
 		setAgentSidebarOpen(false)
 	}, [])
 
+	// ── Sync log visibility ───────────────────────────────────────────────
+	const [syncLogEnabled, setSyncLogEnabled] = useState(true)
+
+	useEffect(() => {
+		return onToggleSyncLog(() => {
+			setSyncLogEnabled((prev) => !prev)
+		})
+	}, [])
+
+	// ── Link hover tooltip (Chrome-style status bar) ──────────────────────
+	const [hoveredLink, setHoveredLink] = useState<string | null>(null)
+
 	// ── Tab mode ───────────────────────────────────────────────────────────
 	const [tabMode, setTabMode] = useState<'horizontal' | 'vertical'>('horizontal')
 
@@ -1061,8 +1074,15 @@ export function BrowserLayout({ walletStatus }: { walletStatus: WalletStatus }) 
 					{onboardingBanner}
 					{contentArea}
 
-					{/* Sync terminal */}
-					<SyncTerminal events={events} />
+					{/* Sync terminal — toggled via Cmd+Shift+J */}
+					{syncLogEnabled && <SyncTerminal events={events} />}
+
+					{/* Link hover tooltip — Chrome-style status bar */}
+					{hoveredLink && (
+						<div className="absolute bottom-0 left-0 max-w-[60%] px-2 py-1 text-xs text-muted-foreground bg-card/95 border border-border rounded-tr-md truncate z-50">
+							{hoveredLink}
+						</div>
+					)}
 				</div>
 
 				{/* Permission overlay — modal dialog for wallet access requests */}
@@ -1105,8 +1125,15 @@ export function BrowserLayout({ walletStatus }: { walletStatus: WalletStatus }) 
 			{onboardingBanner}
 			{contentArea}
 
-			{/* Sync terminal */}
-			<SyncTerminal events={events} />
+			{/* Sync terminal — toggled via Cmd+Shift+J */}
+			{syncLogEnabled && <SyncTerminal events={events} />}
+
+			{/* Link hover tooltip — Chrome-style status bar */}
+			{hoveredLink && (
+				<div className="absolute bottom-0 left-0 max-w-[60%] px-2 py-1 text-xs text-muted-foreground bg-card/95 border border-border rounded-tr-md truncate z-50">
+					{hoveredLink}
+				</div>
+			)}
 
 			{/* Permission overlay — modal dialog for wallet access requests */}
 			<PermissionOverlay />
