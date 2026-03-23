@@ -159,6 +159,35 @@ jobs:
             gh release upload "$CIRCLE_TAG" "$DMG_PATH" latest.json --clobber --repo b-open-io/1sat-sdk
 
       - run:
+          name: Upload download.json to Vercel Blob
+          command: |
+            if [ -z "$BLOB_READ_WRITE_TOKEN" ]; then
+              echo "No BLOB_READ_WRITE_TOKEN — skipping download.json upload"
+              exit 0
+            fi
+
+            VERSION="${CIRCLE_TAG#v}"
+            DMG_NAME=$(basename "$DMG_PATH")
+            DMG_SIZE=$(stat -f%z "$DMG_PATH")
+            DOWNLOAD_JSON=$(printf '{"macos":{"version":"%s","filename":"%s","url":"https://github.com/b-open-io/1sat-sdk/releases/download/%s/%s","size":%s,"updatedAt":"%s"},"windows":null}' \
+              "$VERSION" "$DMG_NAME" "$CIRCLE_TAG" "$DMG_NAME" "$DMG_SIZE" "$(date -u +%Y-%m-%dT%H:%M:%SZ)")
+
+            RESPONSE=$(curl -s -X PUT \
+              "https://blob.vercel-storage.com/releases/download.json" \
+              -H "Authorization: Bearer $BLOB_READ_WRITE_TOKEN" \
+              -H "x-content-type: application/json" \
+              -H "x-add-random-suffix: false" \
+              --data "$DOWNLOAD_JSON")
+
+            URL=$(echo "$RESPONSE" | grep -o '"url":"[^"]*"' | cut -d'"' -f4)
+            if [[ -z "$URL" ]]; then
+              echo "Warning: Failed to upload download.json"
+              echo "$RESPONSE"
+            else
+              echo "Uploaded download.json: $URL"
+            fi
+
+      - run:
           name: Upload ElectroBun update artifacts
           command: |
             PLATFORM_PREFIX="stable-macos-arm64"
