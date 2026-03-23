@@ -20,6 +20,7 @@ import {
 import { useHotkeys } from '@tanstack/react-hotkeys'
 import type { ParsedRoute } from '../../../shared/url-types'
 import { getDisplayLabel } from '../../../shared/url-types'
+import type { WalletStatus } from '../../../shared/types'
 import { ORDFS_BASE } from '../../lib/url-parser'
 import { AiChatView } from '../../views/ai-chat/index'
 import { AgentPopover } from '../browser/agent-popover'
@@ -687,7 +688,7 @@ const FIRST_TAB: TabState = {
 	nav: NAV_INITIAL_STATE,
 }
 
-export function BrowserLayout() {
+export function BrowserLayout({ walletStatus }: { walletStatus: WalletStatus }) {
 	const { events } = useSyncEvents()
 	const [stackOnboardingUrl, setStackOnboardingUrl] = useState<string | null>(
 		null,
