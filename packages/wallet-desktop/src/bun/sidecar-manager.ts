@@ -333,7 +333,9 @@ export function getStackUrl(): string {
 export async function isStackSetupComplete(): Promise<boolean> {
 	if (!isStackRunning()) return false
 	try {
-		const res = await fetch(`${STACK_URL}/1sat/health`, { signal: AbortSignal.timeout(2000) })
+		// Check that the wallet auth endpoint is actually available,
+		// not just that the server is running (it could be in wizard mode)
+		const res = await fetch(`${STACK_URL}/.well-known/auth`, { signal: AbortSignal.timeout(2000) })
 		return res.ok
 	} catch {
 		return false
