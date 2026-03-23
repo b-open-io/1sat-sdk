@@ -279,8 +279,15 @@ async function handleRequest(req: Request): Promise<Response> {
 		try {
 			const args = NO_ARG_METHODS.has(methodName) ? {} : await req.json()
 
-			// Sensitive methods require user approval via the WebView
-			if (SENSITIVE_METHODS.has(methodName)) {
+			// Auto-approve localhost origins (our own sidecar, admin UI, etc.)
+			const isLocalhost =
+				origin === '127.0.0.1' ||
+				origin === 'localhost' ||
+				origin === '127.0.0.1:8080' ||
+				origin === 'unknown'
+
+			// Sensitive methods require user approval — unless from localhost
+			if (SENSITIVE_METHODS.has(methodName) && !isLocalhost) {
 				const requestId = crypto.randomUUID()
 				const result = await requestPermission(
 					requestId,
@@ -291,7 +298,7 @@ async function handleRequest(req: Request): Promise<Response> {
 				return jsonResponse(result)
 			}
 
-			// Non-sensitive methods execute directly
+			// Non-sensitive methods (or auto-approved localhost) execute directly
 			const fn = wallet[methodName] as (
 				args: unknown,
 				originator: string,
