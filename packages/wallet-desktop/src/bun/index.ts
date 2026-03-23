@@ -318,17 +318,25 @@ function openOrdfsWindow(path: string): void {
 	})
 }
 
-// Handle 1sat:// deep links from the OS (registered via urlSchemes in config)
+// Handle 1sat:// and bap:// deep links from the OS
 Electrobun.events.on('open-url', (e) => {
 	const url = e.data.url
 	console.log(`Deep link received: ${url}`)
 
+	// Bring the wallet window to the front
+	mainWindow.show()
+	mainWindow.focus()
+
 	if (url.startsWith('1sat://')) {
-		// Bring the wallet window to the front so the user sees the navigation
-		mainWindow.show()
-		mainWindow.focus()
-		// Forward the URL to the WebView's tab navigation system
 		mainWindow.webview.rpc.send.navigateToUrl({ url })
+	} else if (url.startsWith('bap://')) {
+		// bap://bapId → open that user's profile (DM can be initiated from there)
+		const bapId = url.slice('bap://'.length).split('/')[0].split('?')[0]
+		if (bapId) {
+			mainWindow.webview.rpc.send.navigateToUrl({
+				url: `1sat://identity/profile?bapId=${bapId}`,
+			})
+		}
 	}
 })
 

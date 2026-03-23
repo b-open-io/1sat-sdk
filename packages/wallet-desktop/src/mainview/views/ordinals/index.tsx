@@ -141,7 +141,12 @@ function SkeletonGrid() {
 // Main view
 // ---------------------------------------------------------------------------
 
-export function OrdinalsView() {
+interface OrdinalsViewProps {
+	params?: Record<string, string>
+	onNavigate?: (url: string) => void
+}
+
+export function OrdinalsView({ onNavigate }: OrdinalsViewProps = {}) {
 	const [allOrdinals, setAllOrdinals] = useState<OrdinalCard[]>([])
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<Error | null>(null)
@@ -166,8 +171,8 @@ export function OrdinalsView() {
 	}, [])
 
 	const handleClick = useCallback((outpoint: string) => {
-		console.log('Selected ordinal:', outpoint)
-	}, [])
+		onNavigate?.(`1sat://ordinals/detail?outpoint=${outpoint}`)
+	}, [onNavigate])
 
 	const sorted = sortOrdinals(allOrdinals, sortMode)
 

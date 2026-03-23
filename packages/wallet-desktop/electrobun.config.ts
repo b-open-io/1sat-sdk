@@ -5,7 +5,7 @@ export default {
 		name: "1Sat Wallet",
 		identifier: "com.1satwallet",
 		version: "0.0.1",
-		urlSchemes: ["1sat"],
+		urlSchemes: ["1sat", "bap"],
 	},
 	build: {
 		bun: {

@@ -4,6 +4,10 @@ import { rpc } from '../../rpc'
 
 type FilterTab = 'all' | 'sent' | 'received'
 
+interface HistoryViewProps {
+	onNavigate?: (url: string) => void
+}
+
 const FILTER_TABS: { id: FilterTab; label: string }[] = [
 	{ id: 'all', label: 'All' },
 	{ id: 'sent', label: 'Sent' },
@@ -63,7 +67,7 @@ function SkeletonRow() {
 	)
 }
 
-export function HistoryView() {
+export function HistoryView({ onNavigate }: HistoryViewProps) {
 	const [entries, setEntries] = useState<HistoryEntry[]>([])
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<Error | null>(null)
@@ -156,7 +160,15 @@ export function HistoryView() {
 				filtered.map((entry) => (
 					<div
 						key={entry.txid}
-						className="flex items-center gap-4 px-6 h-12 border-b border-border hover:bg-muted/30 transition-colors"
+						className="flex items-center gap-4 px-6 h-12 border-b border-border cursor-pointer hover:bg-card transition-colors"
+						onClick={() => onNavigate?.(`1sat://wallet/tx?txid=${entry.txid}`)}
+						onKeyDown={(e) => {
+							if (e.key === 'Enter' || e.key === ' ') {
+								onNavigate?.(`1sat://wallet/tx?txid=${entry.txid}`)
+							}
+						}}
+						role="button"
+						tabIndex={0}
 					>
 						{/* Status dot (square) */}
 						<div

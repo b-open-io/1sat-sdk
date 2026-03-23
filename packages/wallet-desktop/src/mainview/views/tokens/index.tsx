@@ -129,14 +129,18 @@ function SendDialog({ token, open, onOpenChange, onSend }: SendDialogProps) {
 interface TokenRowProps {
 	token: TokenBalance
 	onSendClick: (token: TokenBalance) => void
+	onRowClick: (token: TokenBalance) => void
 }
 
-function TokenRow({ token, onSendClick }: TokenRowProps) {
+function TokenRow({ token, onSendClick, onRowClick }: TokenRowProps) {
 	const symbol = token.sym ?? token.id.slice(0, 8)
 	const balance = formatBalance(token.amt, token.dec)
 
 	return (
-		<div className="flex items-center gap-4 px-6 py-3 hover:bg-accent/30 transition-colors">
+		<div
+			className="flex items-center gap-4 px-6 py-3 hover:bg-accent/30 transition-colors cursor-pointer"
+			onClick={() => onRowClick(token)}
+		>
 			<TokenIcon iconOutpoint={token.icon} symbol={symbol} />
 
 			<div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -160,7 +164,10 @@ function TokenRow({ token, onSendClick }: TokenRowProps) {
 			<Button
 				variant="outline"
 				size="xs"
-				onClick={() => onSendClick(token)}
+				onClick={(e) => {
+					e.stopPropagation()
+					onSendClick(token)
+				}}
 				aria-label={`Send ${symbol}`}
 			>
 				<Send aria-hidden="true" />
@@ -199,7 +206,12 @@ function SkeletonRows() {
 // TokensView
 // ---------------------------------------------------------------------------
 
-export function TokensView() {
+interface TokensViewProps {
+	params?: Record<string, string>
+	onNavigate?: (url: string) => void
+}
+
+export function TokensView({ onNavigate }: TokensViewProps = {}) {
 	const [balances, setBalances] = useState<TokenBalance[]>([])
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<Error | null>(null)
@@ -224,6 +236,16 @@ export function TokensView() {
 		setSendTarget(token)
 		setDialogOpen(true)
 	}, [])
+
+	const handleRowClick = useCallback(
+		(token: TokenBalance) => {
+			const symbol = token.sym ?? token.id.slice(0, 8)
+			onNavigate?.(
+				`1sat://tokens/detail?tokenId=${token.id}&symbol=${symbol}&balance=${token.amt}&decimals=${token.dec}`,
+			)
+		},
+		[onNavigate],
+	)
 
 	const handleSend = useCallback(
 		async (params: SendBsv21Params): Promise<SendBsv21Result> => {
@@ -272,7 +294,7 @@ export function TokensView() {
 							key={token.id}
 							className={index < balances.length - 1 ? 'border-b border-border' : ''}
 						>
-							<TokenRow token={token} onSendClick={handleSendClick} />
+							<TokenRow token={token} onSendClick={handleSendClick} onRowClick={handleRowClick} />
 						</div>
 					))}
 			</div>
