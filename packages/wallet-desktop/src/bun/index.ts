@@ -18,6 +18,7 @@ import {
 	setPermissionPusher,
 	startWalletServer,
 } from './http-server'
+import { startMcpServer, stopMcpServer } from './mcp/server'
 import { createRpcHandlers } from './rpc-handlers'
 import {
 	getStackUrl,
@@ -162,6 +163,7 @@ ApplicationMenu.setApplicationMenu([
 Electrobun.events.on('application-menu-clicked', (e) => {
 	if (e.data.action === 'quit') {
 		shutdownChatManager()
+		stopMcpServer()
 		stopStack()
 		Utils.quit()
 	}
@@ -242,6 +244,7 @@ setPermissionPusher((request) => {
 })
 
 startWalletServer()
+startMcpServer(mainWindow)
 
 // Start the 1sat-stack sidecar (local indexer + ORDFS server).
 // Errors are non-fatal: the wallet continues if the binary is unavailable.

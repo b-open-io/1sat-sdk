@@ -4,8 +4,6 @@
  * The BrowserView component registers its imperative operations here.
  * RPC handlers call these to control tabs from the Bun process (via MCP tools).
  */
-import type { WebviewTagElement } from 'electrobun/view'
-
 export interface BrowserTab {
 	id: string
 	url: string
