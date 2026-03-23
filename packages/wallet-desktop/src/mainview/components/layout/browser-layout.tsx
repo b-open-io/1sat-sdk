@@ -17,6 +17,7 @@ import {
 	useRef,
 	useState,
 } from 'react'
+import { useHotkeys } from '@tanstack/react-hotkeys'
 import type { ParsedRoute } from '../../../shared/url-types'
 import { getDisplayLabel } from '../../../shared/url-types'
 import { ORDFS_BASE } from '../../lib/url-parser'
@@ -678,53 +679,29 @@ export function BrowserLayout() {
 		setStackOnboardingUrl(null)
 	}, [])
 
-	// ── Global keyboard shortcuts ──────────────────────────────────────────
+	// ── Keyboard shortcuts via TanStack Hotkeys ──────────────────────────
 
-	useEffect(() => {
-		function handleKeyDown(e: KeyboardEvent) {
-			// Don't intercept when user is typing in an input or textarea
-			if (
-				e.target instanceof HTMLInputElement ||
-				e.target instanceof HTMLTextAreaElement
-			) {
-				return
-			}
-
-			if (!e.metaKey) return
-
-			switch (e.key) {
-				case 't':
-					e.preventDefault()
-					createNewTab()
-					break
-				case 'w':
-					e.preventDefault()
-					closeCurrentTab()
-					break
-				case 'l':
-					e.preventDefault()
-					focusAddressBar()
-					break
-				case '[':
-					e.preventDefault()
-					goBack()
-					break
-				case ']':
-					e.preventDefault()
-					goForward()
-					break
-				default:
-					if (e.key >= '1' && e.key <= '9') {
-						e.preventDefault()
-						switchToTab(Number.parseInt(e.key) - 1)
-					}
-					break
-			}
-		}
-
-		window.addEventListener('keydown', handleKeyDown)
-		return () => window.removeEventListener('keydown', handleKeyDown)
-	}, [createNewTab, closeCurrentTab, focusAddressBar, goBack, goForward, switchToTab])
+	useHotkeys([
+		{ hotkey: 'Mod+T', callback: () => createNewTab() },
+		{ hotkey: 'Mod+W', callback: () => closeCurrentTab() },
+		{ hotkey: 'Mod+L', callback: () => focusAddressBar() },
+		{ hotkey: 'Mod+K', callback: () => focusAddressBar() },
+		{ hotkey: 'Mod+[', callback: () => goBack() },
+		{ hotkey: 'Mod+]', callback: () => goForward() },
+		{ hotkey: 'Mod+R', callback: () => reload() },
+		{ hotkey: 'Mod+Shift+S', callback: () => { /* TODO: toggle vertical tabs */ } },
+		{ hotkey: 'Mod+Shift+A', callback: () => { /* TODO: toggle agent sidebar */ } },
+		{ hotkey: 'Mod+,', callback: () => navigate('1sat://settings') },
+		{ hotkey: 'Mod+1', callback: () => switchToTab(0) },
+		{ hotkey: 'Mod+2', callback: () => switchToTab(1) },
+		{ hotkey: 'Mod+3', callback: () => switchToTab(2) },
+		{ hotkey: 'Mod+4', callback: () => switchToTab(3) },
+		{ hotkey: 'Mod+5', callback: () => switchToTab(4) },
+		{ hotkey: 'Mod+6', callback: () => switchToTab(5) },
+		{ hotkey: 'Mod+7', callback: () => switchToTab(6) },
+		{ hotkey: 'Mod+8', callback: () => switchToTab(7) },
+		{ hotkey: 'Mod+9', callback: () => switchToTab(8) },
+	], { preventDefault: true })
 
 	// ── Derived render properties ──────────────────────────────────────────
 

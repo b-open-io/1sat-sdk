@@ -27,6 +27,7 @@
 		"@radix-ui/react-label": "^2.1.8",
 		"@radix-ui/react-slot": "^1.2.4",
 		"@radix-ui/react-tabs": "^1.1.13",
+		"@tanstack/react-hotkeys": "^0.5.1",
 		"@theme-token/sdk": "^0.0.12",
 		"bitcoin-image": "^0.0.3",
 		"class-variance-authority": "^0.7.1",
