@@ -116,7 +116,10 @@ jobs:
             bun run --filter '@1sat/types' build
             bun run --filter '@1sat/utils' build
             bun run --filter '@1sat/client' build
+            bun run --filter '@1sat/templates' build
+            bun run --filter '@1sat/wallet' build
             bun run --filter '@1sat/actions' build
+            bun run --filter '@1sat/connect' build
             bun run --filter '@1sat/react' build
 
       - run:
