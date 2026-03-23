@@ -4,6 +4,7 @@ import type { InternalPage, ParsedRoute } from '../../shared/url-types'
 import { AppsView } from '../views/apps/index'
 import { BrowserView } from '../views/browser/index'
 import { ChatView } from '../views/chat/index'
+import { DmView } from '../views/dm/index'
 import { CollectionsView } from '../views/collections/index'
 import { OverviewView } from '../views/dashboard/index'
 import { HistoryView } from '../views/history/index'
@@ -15,6 +16,8 @@ import { OpnsView } from '../views/opns/index'
 import { OrdinalsView } from '../views/ordinals/index'
 import { MarketView } from '../views/market/index'
 import { PublishView } from '../views/publish/index'
+import { ReceiveView } from '../views/receive/index'
+import { SendView } from '../views/send/index'
 import { OrdinalDetailView } from '../views/ordinal-detail/index'
 import { SettingsView } from '../views/settings/index'
 import { SocialView } from '../views/social/index'
@@ -44,14 +47,6 @@ function ComingSoonView({ page }: { page: InternalPage }): ReactElement {
 			<p style={{ fontSize: '0.875rem', opacity: 0.6 }}>{page}</p>
 		</div>
 	)
-}
-
-function SendView(): ReactElement {
-	return <ComingSoonView page="wallet/send" />
-}
-
-function ReceiveView(): ReactElement {
-	return <ComingSoonView page="wallet/receive" />
 }
 
 function SettingsSecurityView(): ReactElement {
@@ -152,6 +147,7 @@ const PAGE_REGISTRY: Record<InternalPage, PageComponent> = {
 	'opns/all': OpnsView,
 	'social/feed': SocialView,
 	chat: ChatView,
+	dm: DmView,
 	'identity/profile': IdentityView,
 	settings: SettingsView,
 	'settings/security': SettingsSecurityView,

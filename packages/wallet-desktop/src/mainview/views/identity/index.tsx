@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
+import { MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { rpc } from '../../rpc'
+import type { BapProfile } from '../../components/blocks/profile-card/use-profile-card'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -20,6 +22,28 @@ function getBapHue(bapId: string): number {
 		hash = (hash * 31 + bapId.charCodeAt(i)) >>> 0
 	}
 	return hash % 360
+}
+
+function parseProfile(raw: Record<string, unknown>): BapProfile {
+	return {
+		name: typeof raw.name === 'string' ? raw.name : undefined,
+		alternateName:
+			typeof raw.alternateName === 'string' ? raw.alternateName : undefined,
+		givenName: typeof raw.givenName === 'string' ? raw.givenName : undefined,
+		familyName: typeof raw.familyName === 'string' ? raw.familyName : undefined,
+		description:
+			typeof raw.description === 'string' ? raw.description : undefined,
+		image: typeof raw.image === 'string' ? raw.image : undefined,
+		url: typeof raw.url === 'string' ? raw.url : undefined,
+	}
+}
+
+function buildDisplayName(profile: BapProfile): string | undefined {
+	if (profile.name) return profile.name
+	if (profile.givenName || profile.familyName) {
+		return [profile.givenName, profile.familyName].filter(Boolean).join(' ')
+	}
+	return undefined
 }
 
 // ─── Section header ───────────────────────────────────────────────────────────
@@ -76,8 +100,30 @@ function DetailRow({
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
-function BapAvatar({ bapId, size = 64 }: { bapId: string; size?: number }) {
+function BapAvatar({
+	bapId,
+	imageUrl,
+	size = 64,
+}: {
+	bapId: string
+	imageUrl?: string
+	size?: number
+}) {
 	const hue = getBapHue(bapId)
+	if (imageUrl) {
+		return (
+			<img
+				src={imageUrl}
+				alt="Profile avatar"
+				className="shrink-0 object-cover"
+				style={{
+					width: size,
+					height: size,
+					borderRadius: '50%',
+				}}
+			/>
+		)
+	}
 	return (
 		<div
 			className="flex items-center justify-center shrink-0 text-white font-semibold select-none"
@@ -96,10 +142,182 @@ function BapAvatar({ bapId, size = 64 }: { bapId: string; size?: number }) {
 	)
 }
 
+// ─── OtherProfileView ─────────────────────────────────────────────────────────
+
+interface OtherProfileViewProps {
+	targetBapId: string
+	onNavigate?: (url: string) => void
+}
+
+function OtherProfileView({ targetBapId, onNavigate }: OtherProfileViewProps) {
+	const [profile, setProfile] = useState<BapProfile | null>(null)
+	const [loading, setLoading] = useState(true)
+	const [error, setError] = useState<string | null>(null)
+
+	useEffect(() => {
+		let cancelled = false
+		setLoading(true)
+		setError(null)
+
+		async function fetchProfile() {
+			try {
+				const res = await fetch(
+					`http://127.0.0.1:8080/1sat/bap/profile/${encodeURIComponent(targetBapId)}`,
+				)
+				if (!res.ok) {
+					throw new Error(`Profile fetch failed: ${res.status}`)
+				}
+				const raw: Record<string, unknown> = await res.json()
+				if (cancelled) return
+				const parsed = parseProfile(raw)
+				if (!parsed.name) {
+					parsed.name = buildDisplayName(parsed)
+				}
+				setProfile(parsed)
+			} catch (err) {
+				if (!cancelled) {
+					setError(
+						err instanceof Error ? err.message : 'Failed to load profile',
+					)
+				}
+			} finally {
+				if (!cancelled) {
+					setLoading(false)
+				}
+			}
+		}
+
+		void fetchProfile()
+		return () => {
+			cancelled = true
+		}
+	}, [targetBapId])
+
+	const handleMessage = useCallback(() => {
+		onNavigate?.(`1sat://dm?bapId=${encodeURIComponent(targetBapId)}`)
+	}, [targetBapId, onNavigate])
+
+	const displayName =
+		profile?.name ?? profile?.alternateName ?? truncate(targetBapId, 10, 8)
+
+	return (
+		<div className="mx-auto w-full py-8 px-6" style={{ maxWidth: 800 }}>
+			{/* Page title */}
+			<h1
+				className="text-foreground font-semibold mb-6"
+				style={{
+					fontFamily: 'var(--font-sans)',
+					fontSize: 20,
+					lineHeight: 1,
+				}}
+			>
+				Profile
+			</h1>
+
+			{/* Error banner */}
+			{error && (
+				<div
+					className="border border-destructive text-destructive mb-6 px-3 py-2"
+					style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
+				>
+					{error}
+				</div>
+			)}
+
+			{loading ? (
+				<p
+					className="text-muted-foreground"
+					style={{ fontFamily: 'var(--font-sans)', fontSize: 12 }}
+				>
+					Loading profile...
+				</p>
+			) : (
+				<div>
+					{/* Profile header */}
+					<div className="flex items-center justify-between gap-4 mb-6">
+						<div className="flex items-center gap-4 min-w-0">
+							<BapAvatar
+								bapId={targetBapId}
+								imageUrl={profile?.image}
+								size={64}
+							/>
+							<div className="flex flex-col gap-1 min-w-0">
+								<span
+									className="text-foreground font-semibold"
+									style={{ fontFamily: 'var(--font-sans)', fontSize: 14 }}
+								>
+									{displayName}
+								</span>
+								{profile?.alternateName && profile.alternateName !== displayName && (
+									<span
+										className="text-muted-foreground"
+										style={{ fontFamily: 'var(--font-sans)', fontSize: 12 }}
+									>
+										{profile.alternateName}
+									</span>
+								)}
+								<span
+									className="text-muted-foreground"
+									style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}
+								>
+									BAP Identity
+								</span>
+							</div>
+						</div>
+
+						{/* Message button */}
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={handleMessage}
+							className="shrink-0 flex items-center gap-2"
+						>
+							<MessageCircle size={14} />
+							Message
+						</Button>
+					</div>
+
+					{/* Divider */}
+					<div className="border-t border-border mb-4" />
+
+					{/* Details section */}
+					{profile?.description && (
+						<div className="mb-4">
+							<SectionHeader label="About" />
+							<p
+								className="text-foreground mt-2"
+								style={{ fontFamily: 'var(--font-sans)', fontSize: 13, lineHeight: 1.5 }}
+							>
+								{profile.description}
+							</p>
+						</div>
+					)}
+
+					<div className="mb-4 mt-4">
+						<SectionHeader label="Details" />
+					</div>
+
+					<div className="border-t border-border">
+						<DetailRow label="BAP ID" value={truncate(targetBapId, 10, 8)} mono />
+						{profile?.url && (
+							<DetailRow label="Website" value={profile.url} />
+						)}
+					</div>
+				</div>
+			)}
+		</div>
+	)
+}
+
 // ─── IdentityView ─────────────────────────────────────────────────────────────
 
-export function IdentityView() {
-	const [bapId, setBapId] = useState<string | null>(null)
+interface IdentityViewProps {
+	params?: Record<string, string>
+	onNavigate?: (url: string) => void
+}
+
+export function IdentityView({ params, onNavigate }: IdentityViewProps = {}) {
+	const [ownBapId, setOwnBapId] = useState<string | null>(null)
 	const [loading, setLoading] = useState(true)
 	const [publishing, setPublishing] = useState(false)
 	const [error, setError] = useState<string | null>(null)
@@ -107,7 +325,7 @@ export function IdentityView() {
 	const fetchIdentity = useCallback(async () => {
 		try {
 			const result = await rpc.request.getIdentity()
-			setBapId(result.bapId)
+			setOwnBapId(result.bapId)
 			setError(null)
 		} catch (err) {
 			setError(
@@ -122,7 +340,33 @@ export function IdentityView() {
 		fetchIdentity()
 	}, [fetchIdentity])
 
-	const handlePublish = useCallback(async () => {
+	// If a bapId param is given and it's different from our own, show the other user's profile
+	const targetBapId = params?.bapId
+	const isViewingOther =
+		!loading && targetBapId !== undefined && targetBapId !== ownBapId
+
+	if (loading) {
+		return (
+			<div className="mx-auto w-full py-8 px-6" style={{ maxWidth: 800 }}>
+				<p
+					className="text-muted-foreground"
+					style={{ fontFamily: 'var(--font-sans)', fontSize: 12 }}
+				>
+					Loading identity...
+				</p>
+			</div>
+		)
+	}
+
+	if (isViewingOther && targetBapId) {
+		return (
+			<OtherProfileView targetBapId={targetBapId} onNavigate={onNavigate} />
+		)
+	}
+
+	// ── Own identity view ─────────────────────────────────────────────────────
+
+	const handlePublish = async () => {
 		setPublishing(true)
 		setError(null)
 		try {
@@ -130,7 +374,7 @@ export function IdentityView() {
 			if (result.error) {
 				setError(result.error)
 			} else if (result.bapId) {
-				setBapId(result.bapId)
+				setOwnBapId(result.bapId)
 			}
 		} catch (err) {
 			setError(
@@ -139,7 +383,7 @@ export function IdentityView() {
 		} finally {
 			setPublishing(false)
 		}
-	}, [])
+	}
 
 	return (
 		<div
@@ -168,14 +412,7 @@ export function IdentityView() {
 				</div>
 			)}
 
-			{loading ? (
-				<p
-					className="text-muted-foreground"
-					style={{ fontFamily: 'var(--font-sans)', fontSize: 12 }}
-				>
-					Loading identity...
-				</p>
-			) : !bapId ? (
+			{!ownBapId ? (
 				/* ── Empty state ─────────────────────────────────────────────── */
 				<div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
 					<p
@@ -194,13 +431,13 @@ export function IdentityView() {
 				<div>
 					{/* Profile header */}
 					<div className="flex items-center gap-4 mb-6">
-						<BapAvatar bapId={bapId} size={64} />
+						<BapAvatar bapId={ownBapId} size={64} />
 						<div className="flex flex-col gap-1 min-w-0">
 							<span
 								className="text-foreground font-semibold"
 								style={{ fontFamily: 'var(--font-sans)', fontSize: 14 }}
 							>
-								{truncate(bapId, 10, 8)}
+								{truncate(ownBapId, 10, 8)}
 							</span>
 							<span
 								className="text-muted-foreground"
@@ -220,7 +457,7 @@ export function IdentityView() {
 					</div>
 
 					<div className="border-t border-border">
-						<DetailRow label="BAP ID" value={truncate(bapId, 10, 8)} mono />
+						<DetailRow label="BAP ID" value={truncate(ownBapId, 10, 8)} mono />
 						<DetailRow label="Status" value="Published" />
 					</div>
 
