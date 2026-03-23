@@ -73,9 +73,10 @@ interface MenuPopoverProps {
 	onNavigate: (url: string) => void
 	onToggleAgent?: () => void
 	onOpenBookmarks?: () => void
+	onToggleTabMode?: () => void
 }
 
-export function MenuPopover({ onNavigate, onToggleAgent, onOpenBookmarks }: MenuPopoverProps) {
+export function MenuPopover({ onNavigate, onToggleAgent, onOpenBookmarks, onToggleTabMode }: MenuPopoverProps) {
 	const [open, setOpen] = useState(false)
 
 	const navigate = (url: string) => {
@@ -105,8 +106,7 @@ export function MenuPopover({ onNavigate, onToggleAgent, onOpenBookmarks }: Menu
 					icon: <Download size={13} />,
 					label: 'Downloads',
 					shortcut: '⌘J',
-					onClick: () => setOpen(false),
-					disabled: true,
+					onClick: () => navigate('1sat://wallet/history'),
 				},
 			],
 		},
@@ -134,8 +134,10 @@ export function MenuPopover({ onNavigate, onToggleAgent, onOpenBookmarks }: Menu
 					icon: <PanelLeftClose size={13} />,
 					label: 'Vertical Tabs',
 					shortcut: '⌘⇧S',
-					onClick: () => setOpen(false),
-					disabled: true,
+					onClick: () => {
+						setOpen(false)
+						onToggleTabMode?.()
+					},
 				},
 				{
 					icon: <Settings size={13} />,

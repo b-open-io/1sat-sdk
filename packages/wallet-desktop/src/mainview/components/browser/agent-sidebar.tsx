@@ -298,7 +298,7 @@ export function AgentSidebar({
 			{error && (
 				<div className="px-3 py-2 border-t border-destructive/30 bg-destructive/5 shrink-0">
 					<p className={cn('text-[10px] text-destructive', SANS)}>
-						{error.message.includes('ECONNREFUSED')
+						{error.message.includes('Ollama is not running') || error.message.includes('ECONNREFUSED')
 							? 'Ollama not running. Start with: ollama serve'
 							: error.message}
 					</p>

@@ -29,7 +29,7 @@ function useOllamaModels() {
 	useEffect(() => {
 		async function fetchModels() {
 			try {
-				const res = await fetch('http://localhost:11434/api/tags')
+				const res = await fetch(WALLET_HTTP_URL + '/api/models')
 				if (res.ok) {
 					const data = await res.json()
 					setModels(
@@ -40,7 +40,7 @@ function useOllamaModels() {
 					)
 				}
 			} catch {
-				// Ollama not running
+				// Ollama not running or wallet server not started
 			} finally {
 				setLoading(false)
 			}
@@ -165,7 +165,7 @@ export function AiChatView({ initialQuery, pageContext, onNavigate }: AiChatView
 	const handleSubmit = useCallback(() => {
 		const text = inputValueRef.current.trim()
 		if (!text || status !== 'ready') return
-		sendMessage({ text, body: { model: selectedModel } })
+		sendMessage({ text }, { body: { model: selectedModel } })
 		setInput('')
 	}, [status, sendMessage, selectedModel])
 
@@ -302,7 +302,7 @@ export function AiChatView({ initialQuery, pageContext, onNavigate }: AiChatView
 			{error && (
 				<div className="px-4 py-2 border-t border-destructive/30 bg-destructive/5 shrink-0">
 					<p className="text-[10px] text-destructive">
-						{error.message.includes('ECONNREFUSED')
+						{error.message.includes('Ollama is not running') || error.message.includes('ECONNREFUSED')
 							? 'Ollama is not running. Start it with: ollama serve'
 							: error.message}
 					</p>

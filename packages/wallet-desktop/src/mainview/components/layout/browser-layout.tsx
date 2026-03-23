@@ -264,7 +264,7 @@ function VerticalTabSidebar({
 							className={cn(
 								'group flex items-center gap-2 px-3 py-1.5 select-none cursor-default transition-colors',
 								active
-									? 'bg-muted/50 text-foreground'
+									? 'bg-background text-foreground'
 									: 'text-muted-foreground hover:text-foreground hover:bg-muted/30',
 							)}
 						>
@@ -464,7 +464,7 @@ function AddressBar({ route, onNavigate, inputRef }: AddressBarProps) {
 
 	return (
 		<div
-			className="flex items-center gap-1.5 flex-1 min-w-0 px-2 border border-border bg-muted/40"
+			className="flex items-center gap-1.5 flex-1 min-w-0 px-2 border border-border bg-muted/40 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1"
 			style={{ height: 26, borderRadius: 6 }}
 		>
 			<ProtocolBadge
@@ -531,6 +531,7 @@ interface ToolbarProps {
 	addressBarRef: React.RefObject<HTMLInputElement | null>
 	trafficLightPad?: boolean
 	onOpenAgent: () => void
+	onToggleTabMode?: () => void
 	bookmarksApi: ReturnType<typeof useBookmarks>
 	currentUrl: string
 	currentTitle: string
@@ -547,6 +548,7 @@ function Toolbar({
 	addressBarRef,
 	trafficLightPad = false,
 	onOpenAgent,
+	onToggleTabMode,
 	bookmarksApi,
 	currentUrl,
 	currentTitle,
@@ -574,7 +576,7 @@ function Toolbar({
 					onClick={onForward}
 				/>
 				<NavButton
-					icon={<RotateCw size={13} />}
+					icon={<RotateCw size={14} />}
 					label="Reload"
 					onClick={onReload}
 				/>
@@ -605,6 +607,7 @@ function Toolbar({
 				<MenuPopover
 					onNavigate={onNavigate}
 					onOpenBookmarks={() => setBookmarksOpen(true)}
+					onToggleTabMode={onToggleTabMode}
 				/>
 			</div>
 		</div>
@@ -1041,6 +1044,7 @@ export function BrowserLayout() {
 						addressBarRef={addressBarRef}
 						trafficLightPad={false}
 						onOpenAgent={toggleAgentSidebar}
+						onToggleTabMode={toggleTabMode}
 						bookmarksApi={bookmarksApi}
 						currentUrl={currentUrl}
 						currentTitle={currentTitle}
