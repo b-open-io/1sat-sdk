@@ -862,6 +862,20 @@ export function BrowserLayout({ walletStatus }: { walletStatus: WalletStatus }) 
 		return unsub
 	}, [navigate])
 
+	// ── Onboarding gate: force-navigate to the right onboarding page ───────
+
+	useEffect(() => {
+		if (walletStatus === 'initializing') {
+			navigate('1sat://onboarding/unlock')
+		} else if (walletStatus === 'locked') {
+			navigate('1sat://onboarding/unlock')
+		} else if (walletStatus === 'no-wallet') {
+			navigate('1sat://onboarding/create')
+		}
+	// Re-run whenever walletStatus changes so transitions work correctly
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [walletStatus])
+
 	// ── Keyboard shortcuts via TanStack Hotkeys ──────────────────────────
 
 	useHotkeys([
@@ -966,6 +980,32 @@ export function BrowserLayout({ walletStatus }: { walletStatus: WalletStatus }) 
 			</div>
 		</div>
 	) : null
+
+	// ── Minimal chrome for onboarding states ───────────────────────────────
+
+	if (walletStatus !== 'unlocked') {
+		return (
+			<div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
+				{/* Draggable title bar — no controls, just enough space for traffic lights */}
+				<div
+					className="electrobun-webkit-app-region-drag flex items-center justify-center shrink-0"
+					style={{
+						height: TAB_BAR_HEIGHT + TOOLBAR_HEIGHT,
+						paddingLeft: TRAFFIC_LIGHT_PAD,
+						backgroundColor: 'oklch(0.17 0.012 96)',
+					}}
+				>
+					<span className="text-[11px] font-semibold tracking-wide text-muted-foreground select-none electrobun-webkit-app-region-no-drag">
+						1Sat Wallet
+					</span>
+				</div>
+				<div className="h-px bg-border shrink-0" />
+				<main className="flex-1 overflow-y-auto p-6">
+					{renderPage(activeNav.current, navigate)}
+				</main>
+			</div>
+		)
+	}
 
 	if (tabMode === 'vertical') {
 		return (
