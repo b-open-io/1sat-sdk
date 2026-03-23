@@ -1,4 +1,4 @@
-import { Electroview } from 'electrobun/view'
+import Electrobun, { Electroview } from 'electrobun/view'
 import type {
 	BalanceInfo,
 	ChatMessage,
@@ -65,7 +65,8 @@ const rpc = Electroview.defineRPC<WalletDesktopRPC>({
 	},
 })
 
-// Create the Electroview instance which connects the RPC to the native transport
+// Create the Electroview instance — registers the electrobun-webview custom element
+// and connects the RPC to the native transport
 const electroview = new Electroview({ rpc })
 
 // Convenience subscription functions for each message type

@@ -1,18 +1,20 @@
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
+	ArrowLeft,
+	ArrowRight,
 	ExternalLink,
 	Globe,
+	Plus,
+	RotateCw,
 	Server,
-	Trash2,
+	X,
 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
-import { onStackOnboardingRequired } from '../../rpc'
-import { rpc } from '../../rpc'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { onStackOnboardingRequired, rpc } from '../../rpc'
 
-// ORDFS resolution — routes on-chain content through the local 1sat-stack sidecar
+// ORDFS resolution -- routes on-chain content through the local 1sat-stack sidecar
 const STACK_URL = 'http://127.0.0.1:8080'
 const OUTPOINT_RE = /^[0-9a-fA-F]{64}[_.]?\d*$/
 
@@ -50,25 +52,10 @@ function resolveUrl(input: string): string {
 	return `https://duckduckgo.com/?q=${encodeURIComponent(trimmed)}`
 }
 
-interface HistoryEntry {
+interface BrowserTab {
+	id: string
 	url: string
 	title: string
-	timestamp: number
-}
-
-const HISTORY_KEY = '1sat-browser-history'
-const MAX_HISTORY = 50
-
-function loadHistory(): HistoryEntry[] {
-	try {
-		const raw = localStorage.getItem(HISTORY_KEY)
-		if (raw) return JSON.parse(raw) as HistoryEntry[]
-	} catch {}
-	return []
-}
-
-function saveHistory(entries: HistoryEntry[]): void {
-	localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(0, MAX_HISTORY)))
 }
 
 const QUICK_LINKS = [
@@ -77,10 +64,19 @@ const QUICK_LINKS = [
 	{ label: 'WhatsOnChain', url: 'https://whatsonchain.com', icon: Globe },
 ]
 
+let tabIdCounter = 0
+function nextTabId(): string {
+	return `tab-${++tabIdCounter}-${Date.now()}`
+}
+
 export function BrowserView() {
+	const [tabs, setTabs] = useState<BrowserTab[]>([])
+	const [activeTabId, setActiveTabId] = useState<string | null>(null)
 	const [urlInput, setUrlInput] = useState('')
-	const [history, setHistory] = useState<HistoryEntry[]>(loadHistory)
 	const [onboardingUrl, setOnboardingUrl] = useState<string | null>(null)
+
+	const containerRef = useRef<HTMLDivElement>(null)
+	const webviewsRef = useRef<Map<string, HTMLElement>>(new Map())
 
 	// Listen for stack onboarding messages
 	useEffect(() => {
@@ -89,48 +85,198 @@ export function BrowserView() {
 		})
 	}, [])
 
-	const openUrl = useCallback(
-		(url: string, title?: string) => {
-			rpc.request.openBrowserWindow({ url, title })
+	// Sync URL bar when active tab changes
+	const activeTab = tabs.find((t) => t.id === activeTabId)
+	useEffect(() => {
+		if (activeTab) {
+			setUrlInput(activeTab.url)
+		}
+	}, [activeTab?.url, activeTabId])
 
-			const entry: HistoryEntry = {
-				url,
-				title: title ?? url,
-				timestamp: Date.now(),
+	// Toggle visibility of webviews based on active tab
+	useEffect(() => {
+		for (const [id, webview] of webviewsRef.current) {
+			if (id === activeTabId) {
+				webview.style.display = 'block'
+				if (typeof (webview as any).toggleHidden === 'function') {
+					;(webview as any).toggleHidden(false)
+					;(webview as any).togglePassthrough(false)
+				}
+			} else {
+				webview.style.display = 'none'
+				if (typeof (webview as any).toggleHidden === 'function') {
+					;(webview as any).toggleHidden(true)
+					;(webview as any).togglePassthrough(true)
+				}
 			}
-			setHistory((prev) => {
-				const next = [entry, ...prev.filter((h) => h.url !== url)].slice(
-					0,
-					MAX_HISTORY,
+		}
+	}, [activeTabId])
+
+	const createWebview = useCallback((tabId: string, url: string) => {
+		const container = containerRef.current
+		if (!container) return
+
+		const webview = document.createElement('electrobun-webview') as any
+		webview.setAttribute('src', url)
+		webview.setAttribute('id', `webview-${tabId}`)
+		webview.style.cssText =
+			'position: absolute; inset: 0; width: 100%; height: 100%;'
+
+		// Listen for navigation events to update URL bar
+		webview.addEventListener('did-navigate', (e: any) => {
+			const newUrl = e.detail?.url
+			if (newUrl) {
+				setTabs((prev) =>
+					prev.map((t) => (t.id === tabId ? { ...t, url: newUrl } : t)),
 				)
-				saveHistory(next)
+			}
+		})
+
+		webview.addEventListener('did-navigate-in-page', (e: any) => {
+			const newUrl = e.detail?.url
+			if (newUrl) {
+				setTabs((prev) =>
+					prev.map((t) => (t.id === tabId ? { ...t, url: newUrl } : t)),
+				)
+			}
+		})
+
+		// Listen for title changes
+		webview.addEventListener('page-title-updated', (e: any) => {
+			const title = e.detail?.title
+			if (title) {
+				setTabs((prev) =>
+					prev.map((t) => (t.id === tabId ? { ...t, title } : t)),
+				)
+			}
+		})
+
+		container.appendChild(webview)
+		webviewsRef.current.set(tabId, webview)
+	}, [])
+
+	const createTab = useCallback(
+		(url?: string) => {
+			const id = nextTabId()
+			const resolvedUrl = url ? resolveUrl(url) : ''
+			const tab: BrowserTab = {
+				id,
+				url: resolvedUrl,
+				title: url ? 'Loading...' : 'New Tab',
+			}
+
+			setTabs((prev) => [...prev, tab])
+			setActiveTabId(id)
+
+			if (resolvedUrl) {
+				// Defer DOM manipulation to after React render
+				requestAnimationFrame(() => {
+					createWebview(id, resolvedUrl)
+				})
+			}
+
+			return id
+		},
+		[createWebview],
+	)
+
+	const closeTab = useCallback(
+		(tabId: string) => {
+			// Remove webview from DOM
+			const webview = webviewsRef.current.get(tabId)
+			if (webview) {
+				webview.remove()
+				webviewsRef.current.delete(tabId)
+			}
+
+			setTabs((prev) => {
+				const next = prev.filter((t) => t.id !== tabId)
+
+				// If we closed the active tab, switch to the last remaining
+				if (activeTabId === tabId) {
+					const newActive = next.length > 0 ? next[next.length - 1].id : null
+					setActiveTabId(newActive)
+				}
+
 				return next
 			})
 		},
-		[],
+		[activeTabId],
 	)
 
-	function handleSubmit(e: React.FormEvent) {
+	const navigateTo = useCallback(
+		(url: string) => {
+			const resolved = resolveUrl(url)
+			if (!resolved) return
+
+			if (!activeTabId) {
+				// No active tab -- create one
+				createTab(url)
+				return
+			}
+
+			// Navigate existing webview
+			const webview = webviewsRef.current.get(activeTabId) as any
+			if (webview) {
+				webview.src = resolved
+			} else {
+				// Tab exists but has no webview yet (new tab page)
+				createWebview(activeTabId, resolved)
+			}
+
+			setTabs((prev) =>
+				prev.map((t) =>
+					t.id === activeTabId
+						? { ...t, url: resolved, title: 'Loading...' }
+						: t,
+				),
+			)
+		},
+		[activeTabId, createTab, createWebview],
+	)
+
+	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault()
-		const resolved = resolveUrl(urlInput)
-		if (!resolved) return
-		openUrl(resolved, urlInput)
-		setUrlInput('')
+		if (!urlInput.trim()) return
+		navigateTo(urlInput)
 	}
 
-	function clearHistory() {
-		setHistory([])
-		localStorage.removeItem(HISTORY_KEY)
-	}
+	const goBack = useCallback(() => {
+		if (!activeTabId) return
+		const webview = webviewsRef.current.get(activeTabId) as any
+		if (webview?.goBack) webview.goBack()
+	}, [activeTabId])
+
+	const goForward = useCallback(() => {
+		if (!activeTabId) return
+		const webview = webviewsRef.current.get(activeTabId) as any
+		if (webview?.goForward) webview.goForward()
+	}, [activeTabId])
+
+	const reload = useCallback(() => {
+		if (!activeTabId) return
+		const webview = webviewsRef.current.get(activeTabId) as any
+		if (webview?.reload) webview.reload()
+	}, [activeTabId])
+
+	const openExternal = useCallback(() => {
+		if (!activeTab) return
+		rpc.request.openBrowserWindow({ url: activeTab.url, title: activeTab.title })
+	}, [activeTab])
+
+	// Determine if the active tab is showing the new tab page (no webview)
+	const showNewTabPage = activeTabId
+		? !webviewsRef.current.has(activeTabId)
+		: tabs.length === 0
 
 	return (
-		<div className="flex flex-col h-full overflow-y-auto p-6 gap-6">
+		<div className="flex flex-col h-full overflow-hidden">
 			{/* Stack onboarding banner */}
 			{onboardingUrl && (
-				<Card className="border-primary/50 bg-primary/5">
-					<CardContent className="flex items-center justify-between py-4">
+				<Card className="border-primary/50 bg-primary/5 rounded-none border-x-0 border-t-0 shrink-0">
+					<CardContent className="flex items-center justify-between py-3 px-4">
 						<div className="flex items-center gap-3">
-							<Server size={20} className="text-primary" />
+							<Server size={18} className="text-primary" />
 							<div>
 								<p className="text-sm font-semibold text-foreground">
 									1Sat Stack Setup Required
@@ -140,129 +286,140 @@ export function BrowserView() {
 								</p>
 							</div>
 						</div>
-						<Button
-							size="sm"
-							onClick={() => openUrl(onboardingUrl, '1Sat Stack Setup')}
-						>
+						<Button size="sm" onClick={() => navigateTo(onboardingUrl)}>
 							Complete Setup
 						</Button>
 					</CardContent>
 				</Card>
 			)}
 
-			{/* URL input */}
-			<Card>
-				<CardHeader>
-					<CardTitle className="text-sm flex items-center gap-2">
-						<Globe size={16} />
-						Navigate
-					</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<form onSubmit={handleSubmit} className="flex gap-2">
-						<Input
-							autoFocus
-							value={urlInput}
-							onChange={(e) => setUrlInput(e.target.value)}
-							placeholder="Enter URL, outpoint, 1sat://, or search..."
-							className="flex-1"
-						/>
-						<Button type="submit">Open</Button>
-					</form>
-					<div className="flex flex-wrap gap-1.5 mt-3">
-						<Badge variant="secondary" className="text-[10px]">
-							1sat://
-						</Badge>
-						<Badge variant="secondary" className="text-[10px]">
-							ordfs://
-						</Badge>
-						<Badge variant="secondary" className="text-[10px]">
-							txid_vout
-						</Badge>
-						<Badge variant="secondary" className="text-[10px]">
-							https://
-						</Badge>
+			{/* Tab bar */}
+			<div className="flex items-center gap-1 px-2 h-10 border-b border-border bg-card shrink-0">
+				{tabs.map((tab) => (
+					<div
+						key={tab.id}
+						className={`flex items-center gap-1.5 px-3 h-7 rounded-md text-xs cursor-pointer select-none max-w-[200px] group transition-colors ${
+							tab.id === activeTabId
+								? 'bg-accent text-accent-foreground'
+								: 'text-muted-foreground hover:bg-accent/50'
+						}`}
+						onClick={() => setActiveTabId(tab.id)}
+						onKeyDown={(e) => {
+							if (e.key === 'Enter' || e.key === ' ') setActiveTabId(tab.id)
+						}}
+						role="tab"
+						tabIndex={0}
+						aria-selected={tab.id === activeTabId}
+					>
+						<Globe size={12} className="shrink-0" />
+						<span className="truncate flex-1">
+							{tab.title || 'New Tab'}
+						</span>
+						<button
+							type="button"
+							className="shrink-0 opacity-0 group-hover:opacity-100 hover:text-foreground transition-opacity"
+							onClick={(e) => {
+								e.stopPropagation()
+								closeTab(tab.id)
+							}}
+						>
+							<X size={12} />
+						</button>
 					</div>
-				</CardContent>
-			</Card>
+				))}
+				<Button
+					variant="ghost"
+					size="icon"
+					className="h-7 w-7 shrink-0"
+					onClick={() => createTab()}
+				>
+					<Plus size={14} />
+				</Button>
+			</div>
 
-			{/* Quick links */}
-			<Card>
-				<CardHeader>
-					<CardTitle className="text-sm">Quick Links</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-						{QUICK_LINKS.map((link) => (
-							<Button
-								key={link.url}
-								variant="outline"
-								className="justify-start gap-2 h-auto py-2.5"
-								onClick={() => openUrl(link.url, link.label)}
-							>
-								<link.icon size={14} className="text-muted-foreground shrink-0" />
-								<span className="truncate text-xs">{link.label}</span>
-								<ExternalLink
-									size={10}
-									className="ml-auto text-muted-foreground shrink-0"
-								/>
-							</Button>
-						))}
-					</div>
-				</CardContent>
-			</Card>
+			{/* Navigation bar */}
+			<div className="flex items-center gap-2 px-3 h-10 border-b border-border shrink-0">
+				<Button
+					variant="ghost"
+					size="icon"
+					className="h-7 w-7 shrink-0"
+					onClick={goBack}
+					disabled={!activeTabId}
+				>
+					<ArrowLeft size={16} />
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon"
+					className="h-7 w-7 shrink-0"
+					onClick={goForward}
+					disabled={!activeTabId}
+				>
+					<ArrowRight size={16} />
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon"
+					className="h-7 w-7 shrink-0"
+					onClick={reload}
+					disabled={!activeTabId}
+				>
+					<RotateCw size={16} />
+				</Button>
+				<form onSubmit={handleSubmit} className="flex-1 flex">
+					<Input
+						value={urlInput}
+						onChange={(e) => setUrlInput(e.target.value)}
+						placeholder="Enter URL, outpoint, 1sat://, or search..."
+						className="h-7 text-xs"
+					/>
+				</form>
+				<Button
+					variant="ghost"
+					size="icon"
+					className="h-7 w-7 shrink-0"
+					onClick={openExternal}
+					disabled={!activeTab?.url}
+				>
+					<ExternalLink size={16} />
+				</Button>
+			</div>
 
-			{/* History */}
-			{history.length > 0 && (
-				<Card>
-					<CardHeader>
-						<div className="flex items-center justify-between">
-							<CardTitle className="text-sm">Recently Opened</CardTitle>
-							<Button
-								variant="ghost"
-								size="sm"
-								className="h-7 text-xs text-muted-foreground"
-								onClick={clearHistory}
-							>
-								<Trash2 size={12} className="mr-1" />
-								Clear
-							</Button>
+			{/* Content area */}
+			<div className="flex-1 relative overflow-hidden">
+				{/* Webview container -- webviews are appended here imperatively */}
+				<div ref={containerRef} className="absolute inset-0" />
+
+				{/* New tab page / empty state */}
+				{showNewTabPage && (
+					<div className="absolute inset-0 flex flex-col items-center justify-center gap-8 bg-background">
+						<div className="text-center">
+							<h2 className="text-lg font-semibold text-foreground mb-1">
+								1Sat Browser
+							</h2>
+							<p className="text-sm text-muted-foreground">
+								Browse on-chain content, ordinals, and the web
+							</p>
 						</div>
-					</CardHeader>
-					<CardContent>
-						<div className="space-y-1">
-							{history.map((entry) => (
-								<button
-									key={`${entry.url}-${entry.timestamp}`}
-									type="button"
-									className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-left hover:bg-accent transition-colors"
-									onClick={() => openUrl(entry.url, entry.title)}
+						<div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-lg px-6">
+							{QUICK_LINKS.map((link) => (
+								<Button
+									key={link.url}
+									variant="outline"
+									className="justify-start gap-2 h-auto py-3"
+									onClick={() => navigateTo(link.url)}
 								>
-									<Globe size={14} className="text-muted-foreground shrink-0" />
-									<div className="flex-1 min-w-0">
-										<p className="text-xs font-medium text-foreground truncate">
-											{entry.title}
-										</p>
-										<p className="text-[10px] text-muted-foreground truncate">
-											{entry.url}
-										</p>
-									</div>
-									<span className="text-[10px] text-muted-foreground shrink-0">
-										{new Date(entry.timestamp).toLocaleTimeString([], {
-											hour: '2-digit',
-											minute: '2-digit',
-										})}
-									</span>
-									<ExternalLink
-										size={10}
+									<link.icon
+										size={16}
 										className="text-muted-foreground shrink-0"
 									/>
-								</button>
+									<span className="truncate text-xs">{link.label}</span>
+								</Button>
 							))}
 						</div>
-					</CardContent>
-				</Card>
-			)}
+					</div>
+				)}
+			</div>
 		</div>
 	)
 }
