@@ -10,10 +10,20 @@ import {
 	Globe,
 	Plus,
 	RotateCw,
+	Server,
 	Wallet,
 	X,
 } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { getDisplayLabel } from '../../../shared/url-types'
+import { useBrowserNavigation } from '../../hooks/use-browser-navigation'
 import { useSyncEvents } from '../../hooks/use-sync-events'
+import { renderPage } from '../../lib/page-registry'
+import {
+	onStackOnboardingComplete,
+	onStackOnboardingRequired,
+	rpc,
+} from '../../rpc'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -73,7 +83,11 @@ function NewTabButton() {
 	)
 }
 
-function TabBar() {
+interface TabBarProps {
+	label: string
+}
+
+function TabBar({ label }: TabBarProps) {
 	return (
 		<div
 			className="electrobun-webkit-app-region-drag flex items-end shrink-0"
@@ -84,8 +98,7 @@ function TabBar() {
 			}}
 		>
 			<div className="flex items-stretch h-full electrobun-webkit-app-region-no-drag">
-				<Tab label="1Sat Ordinals" active />
-				<Tab label="docs.1satordinals.com" active={false} />
+				<Tab label={label} active />
 				<NewTabButton />
 			</div>
 		</div>
@@ -99,7 +112,7 @@ function TabBar() {
 function NavButton({
 	icon,
 	label,
-	disabled = true,
+	disabled = false,
 }: { icon: React.ReactNode; label: string; disabled?: boolean }) {
 	return (
 		<Button
@@ -131,7 +144,11 @@ function ProtocolBadge({ protocol }: { protocol: string }) {
 	)
 }
 
-function AddressBar() {
+interface AddressBarProps {
+	label: string
+}
+
+function AddressBar({ label }: AddressBarProps) {
 	return (
 		<div
 			className="flex items-center gap-1.5 flex-1 min-w-0 px-2 border border-border bg-muted/40"
@@ -139,7 +156,7 @@ function AddressBar() {
 		>
 			<ProtocolBadge protocol="1sat://" />
 			<span className="truncate text-xs font-mono text-muted-foreground">
-				cb9355de...3d31988_0
+				{label}
 			</span>
 		</div>
 	)
@@ -158,7 +175,11 @@ function IdentityChip() {
 	)
 }
 
-function Toolbar() {
+interface ToolbarProps {
+	addressLabel: string
+}
+
+function Toolbar({ addressLabel }: ToolbarProps) {
 	return (
 		<div
 			className="flex items-center gap-1.5 px-2 shrink-0 bg-background"
@@ -172,7 +193,7 @@ function Toolbar() {
 			</div>
 
 			{/* Address bar */}
-			<AddressBar />
+			<AddressBar label={addressLabel} />
 
 			{/* Identity + action buttons */}
 			<IdentityChip />
@@ -194,39 +215,97 @@ function Toolbar() {
 }
 
 // ---------------------------------------------------------------------------
-// Content placeholder
-// ---------------------------------------------------------------------------
-
-function ContentPlaceholder() {
-	return (
-		<div className="flex flex-1 items-center justify-center bg-background">
-			<div className="text-center">
-				<div className="text-sm text-muted-foreground">Content goes here</div>
-			</div>
-		</div>
-	)
-}
-
-// ---------------------------------------------------------------------------
 // BrowserLayout
 // ---------------------------------------------------------------------------
 
 export function BrowserLayout() {
+	const { route } = useBrowserNavigation()
 	const { events } = useSyncEvents()
+	const [stackOnboardingUrl, setStackOnboardingUrl] = useState<string | null>(
+		null,
+	)
+
+	// Listen for stack onboarding requirement and completion
+	useEffect(() => {
+		const unsub1 = onStackOnboardingRequired(({ adminUrl }) => {
+			setStackOnboardingUrl(adminUrl)
+		})
+		const unsub2 = onStackOnboardingComplete(() => {
+			setStackOnboardingUrl(null)
+		})
+		return () => {
+			unsub1()
+			unsub2()
+		}
+	}, [])
+
+	const handleOpenStackSetup = useCallback(() => {
+		if (!stackOnboardingUrl) return
+		rpc.request.openBrowserWindow({
+			url: stackOnboardingUrl,
+			title: '1Sat Stack Setup',
+		})
+	}, [stackOnboardingUrl])
+
+	const dismissOnboarding = useCallback(() => {
+		setStackOnboardingUrl(null)
+	}, [])
+
+	const displayLabel = getDisplayLabel(route)
+
+	// Chat and browser views need overflow-hidden so their internal scroll areas work
+	const isFullHeight =
+		route.type === 'internal' &&
+		(route.page === 'chat' || route.page === 'browser/new')
 
 	return (
 		<div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
 			{/* Tab bar row — draggable for window movement */}
-			<TabBar />
+			<TabBar label={displayLabel} />
 
 			{/* Toolbar row */}
-			<Toolbar />
+			<Toolbar addressLabel={displayLabel} />
 
 			{/* Divider */}
 			<div className="h-px bg-border shrink-0" />
 
+			{/* Stack onboarding banner */}
+			{stackOnboardingUrl && (
+				<div className="flex-none flex items-center justify-between px-4 py-2 border-b border-primary/30 bg-primary/5">
+					<div className="flex items-center gap-2">
+						<Server size={14} className="text-primary" />
+						<span className="text-xs font-medium text-foreground">
+							1Sat Stack needs setup to sync blockchain data
+						</span>
+					</div>
+					<div className="flex items-center gap-2">
+						<Button
+							size="sm"
+							className="h-7 text-xs"
+							onClick={handleOpenStackSetup}
+						>
+							Complete Setup
+						</Button>
+						<Button
+							variant="ghost"
+							size="sm"
+							className="h-7 text-xs text-muted-foreground"
+							onClick={dismissOnboarding}
+						>
+							Dismiss
+						</Button>
+					</div>
+				</div>
+			)}
+
 			{/* Content area */}
-			<ContentPlaceholder />
+			<main
+				className={
+					isFullHeight ? 'flex-1 overflow-hidden' : 'flex-1 overflow-y-auto p-6'
+				}
+			>
+				{renderPage(route)}
+			</main>
 
 			{/* Sync terminal */}
 			<SyncTerminal events={events} />

@@ -1,4 +1,8 @@
-import { INTERNAL_PAGES, type ParsedRoute } from '../../shared/url-types'
+import {
+	INTERNAL_PAGES,
+	type InternalPage,
+	type ParsedRoute,
+} from '../../shared/url-types'
 
 const TXID_RE = /^[0-9a-fA-F]{64}$/
 const OUTPOINT_RE = /^([0-9a-fA-F]{64})_(\d+)$/
@@ -105,11 +109,7 @@ function parseOneSatBody(body: string): ParsedRoute | null {
 	if (INTERNAL_PAGES.has(pathPart)) {
 		return {
 			type: 'internal',
-			page: pathPart as ParsedRoute & { type: 'internal' } extends {
-				page: infer P
-			}
-				? P
-				: never,
+			page: pathPart as InternalPage,
 			params: parseQueryParams(queryPart),
 		}
 	}

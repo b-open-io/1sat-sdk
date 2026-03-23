@@ -1,24 +1,27 @@
-export type InternalPage =
-	| 'wallet/overview'
-	| 'wallet/send'
-	| 'wallet/receive'
-	| 'wallet/history'
-	| 'ordinals/gallery'
-	| 'ordinals/inscribe'
-	| 'tokens/all'
-	| 'collections/all'
-	| 'locks/all'
-	| 'opns/all'
-	| 'social/feed'
-	| 'chat'
-	| 'identity/profile'
-	| 'settings'
-	| 'browser/new'
-	| 'publish/new'
-	| 'apps'
-	| 'onboarding/create'
-	| 'onboarding/import'
-	| 'onboarding/unlock'
+const INTERNAL_PAGE_LIST = [
+	'wallet/overview',
+	'wallet/send',
+	'wallet/receive',
+	'wallet/history',
+	'ordinals/gallery',
+	'ordinals/inscribe',
+	'tokens/all',
+	'collections/all',
+	'locks/all',
+	'opns/all',
+	'social/feed',
+	'chat',
+	'identity/profile',
+	'settings',
+	'browser/new',
+	'publish/new',
+	'apps',
+	'onboarding/create',
+	'onboarding/import',
+	'onboarding/unlock',
+] as const
+
+export type InternalPage = (typeof INTERNAL_PAGE_LIST)[number]
 
 export type ParsedRoute =
 	| {
@@ -42,30 +45,9 @@ export type ParsedRoute =
 	| { type: 'web'; url: string }
 	| { type: 'search'; query: string; url: string }
 
-export const INTERNAL_PAGES: Set<string> = new Set([
-	'wallet/overview',
-	'wallet/send',
-	'wallet/receive',
-	'wallet/history',
-	'ordinals/gallery',
-	'ordinals/inscribe',
-	'tokens/all',
-	'collections/all',
-	'locks/all',
-	'opns/all',
-	'social/feed',
-	'chat',
-	'identity/profile',
-	'settings',
-	'browser/new',
-	'publish/new',
-	'apps',
-	'onboarding/create',
-	'onboarding/import',
-	'onboarding/unlock',
-])
+export const INTERNAL_PAGES: Set<string> = new Set(INTERNAL_PAGE_LIST)
 
-const DISPLAY_LABELS: Record<string, string> = {
+const DISPLAY_LABELS: Record<InternalPage, string> = {
 	'wallet/overview': 'Wallet',
 	'wallet/send': 'Send',
 	'wallet/receive': 'Receive',
@@ -91,7 +73,7 @@ const DISPLAY_LABELS: Record<string, string> = {
 export function getDisplayLabel(route: ParsedRoute): string {
 	switch (route.type) {
 		case 'internal':
-			return DISPLAY_LABELS[route.page] ?? route.page
+			return DISPLAY_LABELS[route.page]
 		case 'onchain-outpoint': {
 			const txid = route.txid
 			return `${txid.slice(0, 6)}...${txid.slice(-3)}_${route.vout}`
