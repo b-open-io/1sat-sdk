@@ -4,6 +4,12 @@ import { rpc } from '../../rpc'
 
 type FilterTab = 'all' | 'sent' | 'received'
 
+const FILTER_TABS: { id: FilterTab; label: string }[] = [
+	{ id: 'all', label: 'All' },
+	{ id: 'sent', label: 'Sent' },
+	{ id: 'received', label: 'Received' },
+]
+
 function formatDate(iso: string): string {
 	const d = new Date(iso)
 	return d.toLocaleDateString('en-US', {
@@ -87,12 +93,6 @@ export function HistoryView() {
 		return entries.filter((e) => e.satoshis >= 0)
 	}, [entries, filter])
 
-	const tabs: { id: FilterTab; label: string }[] = [
-		{ id: 'all', label: 'All' },
-		{ id: 'sent', label: 'Sent' },
-		{ id: 'received', label: 'Received' },
-	]
-
 	return (
 		<div className="w-full">
 			{/* Header */}
@@ -101,7 +101,7 @@ export function HistoryView() {
 					Transaction History
 				</h1>
 				<div className="flex gap-1">
-					{tabs.map((tab) => (
+					{FILTER_TABS.map((tab) => (
 						<button
 							key={tab.id}
 							type="button"

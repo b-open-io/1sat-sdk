@@ -471,6 +471,11 @@ export interface TokenDetailViewProps {
 
 type ActiveTab = 'history' | 'info'
 
+const TOKEN_TABS: { id: ActiveTab; label: string }[] = [
+	{ id: 'history', label: 'History' },
+	{ id: 'info', label: 'Info' },
+]
+
 export function TokenDetailView({ params, onNavigate }: TokenDetailViewProps) {
 	const tokenId = params.tokenId ?? ''
 	const symbol = params.symbol ?? tokenId.slice(0, 8)

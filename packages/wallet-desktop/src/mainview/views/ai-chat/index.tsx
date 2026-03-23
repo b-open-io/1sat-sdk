@@ -134,11 +134,10 @@ export function AiChatView({ initialQuery, pageContext, onNavigate }: AiChatView
 				api: 'http://localhost:3321/api/chat',
 				headers: { 'X-Requested-With': '1SatBrowser' },
 				body: {
-					model: selectedModel,
 					context: pageContext,
 				},
 			}),
-		[selectedModel, pageContext],
+		[pageContext],
 	)
 
 	const { messages, sendMessage, status, error } = useChat({ transport })
@@ -150,18 +149,24 @@ export function AiChatView({ initialQuery, pageContext, onNavigate }: AiChatView
 		}
 	}, [messages.length])
 
-	// Send initial query if provided
+	// Send initial query exactly once
+	const sentInitialRef = useRef(false)
 	useEffect(() => {
-		if (initialQuery && messages.length === 0) {
+		if (initialQuery && !sentInitialRef.current) {
+			sentInitialRef.current = true
 			sendMessage({ text: initialQuery })
 		}
 	}, [initialQuery, sendMessage])
 
+	const inputValueRef = useRef(input)
+	inputValueRef.current = input
+
 	const handleSubmit = useCallback(() => {
-		if (!input.trim() || status !== 'ready') return
-		sendMessage({ text: input })
+		const text = inputValueRef.current.trim()
+		if (!text || status !== 'ready') return
+		sendMessage({ text, body: { model: selectedModel } })
 		setInput('')
-	}, [input, status, sendMessage])
+	}, [status, sendMessage, selectedModel])
 
 	const handleKeyDown = useCallback(
 		(e: React.KeyboardEvent<HTMLTextAreaElement>) => {

@@ -194,14 +194,16 @@ function ComposeBar({
 }) {
 	const [content, setContent] = useState('')
 	const inputRef = useRef<HTMLTextAreaElement>(null)
+	const contentRef = useRef(content)
+	contentRef.current = content
 
 	const handleSubmit = useCallback(async () => {
-		if (!content.trim() || isSending) return
-		const text = content
+		const text = contentRef.current.trim()
+		if (!text || isSending) return
 		setContent('')
 		await onSend(text)
 		inputRef.current?.focus()
-	}, [content, isSending, onSend])
+	}, [isSending, onSend])
 
 	const handleKeyDown = useCallback(
 		(e: React.KeyboardEvent) => {

@@ -29,11 +29,13 @@ const MONO = 'font-mono'
 // ---------------------------------------------------------------------------
 
 interface TraitRow {
+	id: string
 	name: string
 	value: string
 }
 
 interface RoyaltyRow {
+	id: string
 	type: string
 	destination: string
 	percentage: string
@@ -156,7 +158,7 @@ function CreateCollectionTab() {
 	}, [])
 
 	const addRoyalty = useCallback(() => {
-		setRoyalties((prev) => [...prev, { type: 'paymail', destination: '', percentage: '' }])
+		setRoyalties((prev) => [...prev, { id: crypto.randomUUID(), type: 'paymail', destination: '', percentage: '' }])
 	}, [])
 
 	const removeRoyalty = useCallback((index: number) => {
@@ -284,7 +286,7 @@ function CreateCollectionTab() {
 					<div className="flex flex-col gap-2">
 						{royalties.map((royalty, index) => (
 							<div
-								key={`royalty-${index}`}
+								key={royalty.id}
 								className="flex items-center gap-2"
 							>
 								<Input
@@ -392,7 +394,7 @@ function MintItemTab() {
 	}, [])
 
 	const addTrait = useCallback(() => {
-		setTraits((prev) => [...prev, { name: '', value: '' }])
+		setTraits((prev) => [...prev, { id: crypto.randomUUID(), name: '', value: '' }])
 	}, [])
 
 	const removeTrait = useCallback((index: number) => {
@@ -533,7 +535,7 @@ function MintItemTab() {
 				{traits.length > 0 && (
 					<div className="flex flex-col gap-2">
 						{traits.map((trait, index) => (
-							<div key={`trait-${index}`} className="flex items-center gap-2">
+							<div key={trait.id} className="flex items-center gap-2">
 								<Input
 									placeholder="Trait name"
 									value={trait.name}

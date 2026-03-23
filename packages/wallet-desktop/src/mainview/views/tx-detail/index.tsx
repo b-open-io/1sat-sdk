@@ -6,7 +6,7 @@ import {
 	Copy,
 	ExternalLink,
 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -302,6 +302,9 @@ export function TxDetailView({ onNavigate, params }: TxDetailViewProps) {
 	const [error, setError] = useState<string | null>(null)
 	const [hexExpanded, setHexExpanded] = useState(false)
 	const [copied, setCopied] = useState(false)
+	const copyTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
+
+	useEffect(() => () => clearTimeout(copyTimeoutRef.current), [])
 
 	useEffect(() => {
 		if (!txid) {
@@ -362,16 +365,18 @@ export function TxDetailView({ onNavigate, params }: TxDetailViewProps) {
 		const hex = txData?.rawhex
 		if (!hex) return
 		navigator.clipboard.writeText(hex).then(() => {
+			clearTimeout(copyTimeoutRef.current)
 			setCopied(true)
-			setTimeout(() => setCopied(false), 1500)
+			copyTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
 		})
 	}, [txData?.rawhex])
 
 	const handleCopyTxid = useCallback(() => {
 		if (!txid) return
 		navigator.clipboard.writeText(txid).then(() => {
+			clearTimeout(copyTimeoutRef.current)
 			setCopied(true)
-			setTimeout(() => setCopied(false), 1500)
+			copyTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
 		})
 	}, [txid])
 

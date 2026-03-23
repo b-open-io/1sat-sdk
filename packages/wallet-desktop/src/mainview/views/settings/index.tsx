@@ -510,12 +510,12 @@ function AiTab() {
 	const [fetchError, setFetchError] = useState('')
 
 	const updateSettings = useCallback((patch: Partial<AiSettings>) => {
-		setSettings((prev) => {
-			const next = { ...prev, ...patch }
-			saveAiSettings(next)
-			return next
-		})
+		setSettings((prev) => ({ ...prev, ...patch }))
 	}, [])
+
+	useEffect(() => {
+		saveAiSettings(settings)
+	}, [settings])
 
 	const handleProviderChange = useCallback(
 		(provider: AiProvider) => {

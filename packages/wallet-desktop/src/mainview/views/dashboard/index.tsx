@@ -151,31 +151,35 @@ export function OverviewView({ onNavigate }: OverviewViewProps) {
 		if (fetchedRef.current) return
 		fetchedRef.current = true
 
+		let cancelled = false
+
 		const ordinalsPromise = rpc.request
 			.getOrdinals({ limit: 1 })
-			.then((r) => setOrdinalCount(r.ordinals.length))
-			.catch(() => setOrdinalCount(0))
+			.then((r) => { if (!cancelled) setOrdinalCount(r.ordinals.length) })
+			.catch(() => { if (!cancelled) setOrdinalCount(0) })
 
 		const tokensPromise = rpc.request
 			.getTokenBalances()
-			.then((r: { balances: TokenBalance[] }) => setTokenCount(r.balances.length))
-			.catch(() => setTokenCount(0))
+			.then((r: { balances: TokenBalance[] }) => { if (!cancelled) setTokenCount(r.balances.length) })
+			.catch(() => { if (!cancelled) setTokenCount(0) })
 
 		const lockPromise = rpc.request
 			.getLockData()
-			.then((r: LockDataInfo) => setLockData(r))
-			.catch(() => setLockData({ totalLocked: 0, unlockable: 0, nextUnlock: 0 }))
+			.then((r: LockDataInfo) => { if (!cancelled) setLockData(r) })
+			.catch(() => { if (!cancelled) setLockData({ totalLocked: 0, unlockable: 0, nextUnlock: 0 }) })
 
 		const historyPromise = rpc.request
 			.getTransactionHistory({ limit: 3 })
-			.then((r) => setRecentTx(r.entries))
-			.catch(() => setRecentTx([]))
+			.then((r) => { if (!cancelled) setRecentTx(r.entries) })
+			.catch(() => { if (!cancelled) setRecentTx([]) })
 
 		// Fire and forget — we don't need Promise.all here since each sets state independently
 		void ordinalsPromise
 		void tokensPromise
 		void lockPromise
 		void historyPromise
+
+		return () => { cancelled = true }
 	}, [])
 
 	const bsvAmount = satsToBsv(balance.confirmed)

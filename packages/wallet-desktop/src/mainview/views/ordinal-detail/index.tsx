@@ -7,7 +7,7 @@ import {
 	FileQuestion,
 	ImageOff,
 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -160,6 +160,9 @@ function MetadataPanel({ outpoint, onNavigate }: MetadataPanelProps) {
 	const [loading, setLoading] = useState(true)
 	const [fetchError, setFetchError] = useState<string | null>(null)
 	const [copied, setCopied] = useState(false)
+	const copyTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
+
+	useEffect(() => () => clearTimeout(copyTimeoutRef.current), [])
 
 	useEffect(() => {
 		let cancelled = false
@@ -197,8 +200,9 @@ function MetadataPanel({ outpoint, onNavigate }: MetadataPanelProps) {
 
 	const handleCopy = useCallback(() => {
 		navigator.clipboard.writeText(outpoint).then(() => {
+			clearTimeout(copyTimeoutRef.current)
 			setCopied(true)
-			setTimeout(() => setCopied(false), 1500)
+			copyTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
 		})
 	}, [outpoint])
 
