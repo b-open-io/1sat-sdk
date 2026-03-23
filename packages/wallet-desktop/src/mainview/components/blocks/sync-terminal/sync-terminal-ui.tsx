@@ -1,6 +1,5 @@
 "use client"
 
-import { useRef, useEffect, useCallback } from "react"
 import { ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -57,6 +56,29 @@ function formatTimestamp(ts: number): string {
 }
 
 // ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function StatusDot({ status }: { status: SyncStatus }) {
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <span
+        className={cn(
+          "inline-block size-2 rounded-full",
+          status.connected ? "bg-chart-2" : "bg-muted-foreground"
+        )}
+        aria-label={status.connected ? "Connected" : "Disconnected"}
+      />
+      {status.connected && (
+        <span className="text-muted-foreground">
+          #{status.blockHeight.toLocaleString()}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // UI
 // ---------------------------------------------------------------------------
 
@@ -66,15 +88,8 @@ function formatTimestamp(ts: number): string {
  * Uses shadcn Collapsible (Radix) for accessible expand/collapse and
  * semantic theme tokens for full theme adaptability.
  *
- * @example
- * ```tsx
- * <SyncTerminalUI
- *   events={events}
- *   status={{ blockHeight: 850123, connected: true }}
- *   open={open}
- *   onOpenChange={setOpen}
- * />
- * ```
+ * Scroll behavior is owned by the `useSyncTerminal` hook — this component
+ * only renders the UI and attaches the `bottomRef` sentinel.
  */
 export function SyncTerminalUI({
   events,
@@ -87,35 +102,6 @@ export function SyncTerminalUI({
   bottomRef,
   className,
 }: SyncTerminalUIProps) {
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    if (open && bottomRef?.current) {
-      bottomRef.current.scrollIntoView({ behavior: "smooth" })
-    }
-  }, [events.length, bottomRef, open])
-
-  const renderStatusDot = useCallback(() => {
-    if (!status) return null
-
-    return (
-      <div className="flex items-center gap-2 text-xs">
-        <span
-          className={cn(
-            "inline-block size-2 rounded-full",
-            status.connected ? "bg-chart-2" : "bg-muted-foreground"
-          )}
-          aria-label={status.connected ? "Connected" : "Disconnected"}
-        />
-        {status.connected && (
-          <span className="text-muted-foreground">
-            #{status.blockHeight.toLocaleString()}
-          </span>
-        )}
-      </div>
-    )
-  }, [status])
-
   return (
     <Collapsible
       open={open}
@@ -125,7 +111,7 @@ export function SyncTerminalUI({
         className
       )}
     >
-      <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-1.5 hover:bg-accent/50 transition-colors cursor-pointer select-none">
+      <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-1.5 hover:bg-accent/50 transition-colors cursor-pointer select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
         <div className="flex items-center gap-2">
           <ChevronDown
             className={cn(
@@ -140,14 +126,12 @@ export function SyncTerminalUI({
             </span>
           )}
         </div>
-        {renderStatusDot()}
+        {status && <StatusDot status={status} />}
       </CollapsibleTrigger>
 
       <CollapsibleContent>
         <div
-          ref={scrollContainerRef}
-          className="overflow-y-auto p-3"
-          style={{ maxHeight: 200 }}
+          className="overflow-y-auto p-3 max-h-[200px]"
           role="log"
           aria-live="polite"
           aria-label={title}

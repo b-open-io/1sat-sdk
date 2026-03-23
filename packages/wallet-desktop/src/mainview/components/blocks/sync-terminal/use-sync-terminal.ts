@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -29,7 +29,7 @@ export interface SyncStatus {
 
 /** Options for the useSyncTerminal hook */
 export interface UseSyncTerminalOptions {
-  /** Initial events to populate the terminal with */
+  /** External events to sync into the buffer */
   events?: SyncEvent[]
   /** Maximum number of events to retain in the buffer (default: 200) */
   maxEvents?: number
@@ -66,14 +66,8 @@ export interface UseSyncTerminalReturn {
  * are pushed and `autoScroll` is enabled, the hook scrolls the sentinel ref
  * into view after each render.
  *
- * @example
- * ```ts
- * const { events, bottomRef, push, clear } = useSyncTerminal({
- *   maxEvents: 500,
- * })
- *
- * push({ timestamp: Date.now(), source: "sync", level: "log", message: "Block 850001" })
- * ```
+ * This hook owns all scroll behavior — the UI component should NOT add its
+ * own scroll effect to avoid double-scrolling.
  */
 export function useSyncTerminal(
   options: UseSyncTerminalOptions = {}
@@ -98,16 +92,11 @@ export function useSyncTerminal(
   }, [buffer, isAutoScroll])
 
   // Sync external events prop into buffer when it changes
-  const externalKey = useMemo(
-    () => (initialEvents ? initialEvents.length : -1),
-    [initialEvents]
-  )
-
   useEffect(() => {
     if (initialEvents) {
       setBuffer(initialEvents.slice(-maxEvents))
     }
-  }, [externalKey, maxEvents])
+  }, [initialEvents, maxEvents])
 
   const push = useCallback(
     (event: SyncEvent) => {
