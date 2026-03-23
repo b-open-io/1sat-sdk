@@ -1,5 +1,6 @@
 import React, { type ReactElement } from 'react'
 import type { InternalPage, ParsedRoute } from '../../shared/url-types'
+import { AppsView } from '../views/apps/index'
 import { BrowserView } from '../views/browser/index'
 import { ChatView } from '../views/chat/index'
 import { CollectionsView } from '../views/collections/index'
@@ -45,10 +46,6 @@ function ReceiveView(): ReactElement {
 
 function PublishView(): ReactElement {
 	return <ComingSoonView page="publish/new" />
-}
-
-function AppsView(): ReactElement {
-	return <ComingSoonView page="apps" />
 }
 
 function OnboardingCreateView(): ReactElement {

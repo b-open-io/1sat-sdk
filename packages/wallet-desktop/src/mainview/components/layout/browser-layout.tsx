@@ -38,6 +38,7 @@ import { useBookmarks } from '../../hooks/use-bookmarks'
 import { useSyncEvents } from '../../hooks/use-sync-events'
 import { renderPage } from '../../lib/page-registry'
 import {
+	onNavigateToUrl,
 	onStackOnboardingComplete,
 	onStackOnboardingRequired,
 	rpc,
@@ -515,6 +516,9 @@ interface ToolbarProps {
 	addressBarRef: React.RefObject<HTMLInputElement | null>
 	trafficLightPad?: boolean
 	onOpenAgent: () => void
+	bookmarksApi: ReturnType<typeof useBookmarks>
+	currentUrl: string
+	currentTitle: string
 }
 
 function Toolbar({
@@ -528,6 +532,9 @@ function Toolbar({
 	addressBarRef,
 	trafficLightPad = false,
 	onOpenAgent,
+	bookmarksApi,
+	currentUrl,
+	currentTitle,
 }: ToolbarProps) {
 	return (
 		<div
@@ -566,6 +573,12 @@ function Toolbar({
 			<IdentityChip />
 			<div className="flex items-center gap-0.5">
 				<WalletPopover onNavigate={onNavigate} />
+				<BookmarksPopover
+					bookmarksApi={bookmarksApi}
+					currentUrl={currentUrl}
+					currentTitle={currentTitle}
+					onNavigate={onNavigate}
+				/>
 				<AgentPopover onOpenAgent={onOpenAgent} />
 				<MenuPopover onNavigate={onNavigate} />
 			</div>
@@ -825,6 +838,15 @@ export function BrowserLayout() {
 		setStackOnboardingUrl(null)
 	}, [])
 
+	// ── Deep link handler (1sat:// URLs from macOS) ────────────────────────
+
+	useEffect(() => {
+		const unsub = onNavigateToUrl(({ url }) => {
+			navigate(url)
+		})
+		return unsub
+	}, [navigate])
+
 	// ── Keyboard shortcuts via TanStack Hotkeys ──────────────────────────
 
 	useHotkeys([
@@ -954,6 +976,9 @@ export function BrowserLayout() {
 					{/* Sync terminal */}
 					<SyncTerminal events={events} />
 				</div>
+
+				{/* Permission overlay — modal dialog for wallet access requests */}
+				<PermissionOverlay />
 			</div>
 		)
 	}
@@ -990,6 +1015,9 @@ export function BrowserLayout() {
 
 			{/* Sync terminal */}
 			<SyncTerminal events={events} />
+
+			{/* Permission overlay — modal dialog for wallet access requests */}
+			<PermissionOverlay />
 		</div>
 	)
 }
