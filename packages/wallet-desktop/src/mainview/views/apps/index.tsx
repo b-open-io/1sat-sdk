@@ -1,116 +1,40 @@
-import { ExternalLink, LayoutGrid, Search } from 'lucide-react'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { AppCatalog } from 'metanet-apps'
+import type { PublishedApp } from 'metanet-apps'
+import {
+	ExternalLink,
+	Globe,
+	LayoutGrid,
+	Loader2,
+	RefreshCw,
+	Search,
+} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface CatalogApp {
-	id: string
-	name: string
-	domain: string
-	description: string
-	color: string
-	category: string
-}
-
-type Category =
-	| 'All'
-	| 'On-Chain'
-	| 'DeFi'
-	| 'Social'
-	| 'Games'
-	| 'Tools'
-	| 'Earn'
-	| 'Wallet'
-
-// ─── Static catalog (hoisted to module level — rendering-hoist-jsx) ───────────
-
-const CATALOG_APPS: CatalogApp[] = [
-	{
-		id: 'relayx',
-		name: 'RelayX',
-		domain: 'relayx.com',
-		description: 'DEX and token trading',
-		color: '#3b82f6',
-		category: 'DeFi',
-	},
-	{
-		id: '1satordinals',
-		name: '1Sat Ordinals',
-		domain: '1satordinals.com',
-		description: 'NFT marketplace',
-		color: '#8b5cf6',
-		category: 'On-Chain',
-	},
-	{
-		id: 'bitchat-nitro',
-		name: 'BitChat Nitro',
-		domain: 'bitchatnitro.com',
-		description: 'On-chain encrypted chat',
-		color: '#22c55e',
-		category: 'Social',
-	},
-	{
-		id: 'tonicpow',
-		name: 'TonicPow',
-		domain: 'tonicpow.com',
-		description: 'Earn BSV for engagement',
-		color: '#f97316',
-		category: 'Earn',
-	},
-	{
-		id: 'handcash',
-		name: 'HandCash',
-		domain: 'handcash.io',
-		description: 'BSV wallet and payments',
-		color: '#eab308',
-		category: 'Wallet',
-	},
-	{
-		id: 'cryptofights',
-		name: 'CryptoFights',
-		domain: 'cryptofights.io',
-		description: 'PvP blockchain game',
-		color: '#ef4444',
-		category: 'Games',
-	},
-	{
-		id: 'canonic',
-		name: 'Canonic',
-		domain: 'canonic.xyz',
-		description: 'On-chain publishing',
-		color: '#06b6d4',
-		category: 'On-Chain',
-	},
-	{
-		id: 'whatsonchain',
-		name: 'WhatsOnChain',
-		domain: 'whatsonchain.com',
-		description: 'BSV block explorer',
-		color: '#9ca3af',
-		category: 'Tools',
-	},
-]
-
-const CATEGORIES: Category[] = [
+const CATEGORIES = [
 	'All',
-	'On-Chain',
 	'DeFi',
 	'Social',
 	'Games',
 	'Tools',
-	'Earn',
-	'Wallet',
-]
+	'Utility',
+	'NFT',
+] as const
+
+type Category = (typeof CATEGORIES)[number]
 
 // ─── App Card ─────────────────────────────────────────────────────────────────
 
 interface AppCardProps {
-	app: CatalogApp
+	app: PublishedApp
 	onNavigate?: (url: string) => void
 }
 
 function AppCard({ app, onNavigate }: AppCardProps) {
-	const url = `https://${app.domain}`
+	const { metadata } = app
+	const url = metadata.httpURL ?? `https://${metadata.domain}`
+	const [imgError, setImgError] = useState(false)
 
 	const handleClick = useCallback(() => {
 		onNavigate?.(url)
@@ -121,34 +45,43 @@ function AppCard({ app, onNavigate }: AppCardProps) {
 			type="button"
 			className="group flex flex-col items-center gap-2 bg-card border border-border hover:border-primary transition-colors duration-150 cursor-pointer rounded-lg p-4 text-center w-full"
 			onClick={handleClick}
-			aria-label={`Open ${app.name}`}
+			aria-label={`Open ${metadata.name}`}
 		>
-			{/* Letter icon */}
+			{/* Icon */}
 			<div
-				className="flex items-center justify-center shrink-0 rounded-lg"
-				style={{
-					width: 40,
-					height: 40,
-					backgroundColor: `${app.color}22`,
-					color: app.color,
-				}}
+				className="flex items-center justify-center shrink-0 rounded-lg overflow-hidden bg-muted"
+				style={{ width: 40, height: 40 }}
 			>
-				<span className="text-[15px] font-bold leading-none select-none">
-					{app.name.charAt(0)}
-				</span>
+				{metadata.icon && !imgError ? (
+					<img
+						src={metadata.icon}
+						alt=""
+						className="w-full h-full object-cover"
+						onError={() => setImgError(true)}
+					/>
+				) : (
+					<Globe size={18} className="text-muted-foreground" />
+				)}
 			</div>
 
 			{/* Name */}
 			<span className="text-[12px] font-semibold leading-tight text-foreground truncate w-full">
-				{app.name}
+				{metadata.name}
 			</span>
 
 			{/* Description */}
 			<p className="text-[10px] text-muted-foreground leading-snug line-clamp-2 w-full">
-				{app.description}
+				{metadata.description}
 			</p>
 
-			{/* External link indicator — visible on hover */}
+			{/* Category badge */}
+			{metadata.category && (
+				<span className="text-[9px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+					{metadata.category}
+				</span>
+			)}
+
+			{/* External link indicator */}
 			<ExternalLink
 				size={10}
 				className="text-muted-foreground opacity-0 group-hover:opacity-60 transition-opacity shrink-0"
@@ -159,7 +92,7 @@ function AppCard({ app, onNavigate }: AppCardProps) {
 	)
 }
 
-// ─── Category pill ─────────────────────────────────────────────────────────────
+// ─── Category pill ────────────────────────────────────────────────────────────
 
 interface CategoryPillProps {
 	label: Category
@@ -197,22 +130,54 @@ export interface AppsViewProps {
 export function AppsView({ onNavigate }: AppsViewProps) {
 	const [query, setQuery] = useState('')
 	const [activeCategory, setActiveCategory] = useState<Category>('All')
+	const [apps, setApps] = useState<PublishedApp[]>([])
+	const [loading, setLoading] = useState(true)
+	const [error, setError] = useState<string | null>(null)
 	const inputRef = useRef<HTMLInputElement>(null)
+
+	const fetchApps = useCallback(async () => {
+		setLoading(true)
+		setError(null)
+		try {
+			const catalog = new AppCatalog({})
+			const results = await catalog.findApps()
+			setApps(results)
+		} catch (err) {
+			setError(err instanceof Error ? err.message : 'Failed to load apps')
+		} finally {
+			setLoading(false)
+		}
+	}, [])
+
+	useEffect(() => {
+		fetchApps()
+	}, [fetchApps])
+
+	// Build dynamic category list from actual data
+	const availableCategories = useMemo(() => {
+		const cats = new Set<string>()
+		for (const app of apps) {
+			if (app.metadata.category) cats.add(app.metadata.category)
+		}
+		return ['All', ...Array.from(cats).sort()] as Category[]
+	}, [apps])
 
 	const filtered = useMemo(() => {
 		const q = query.trim().toLowerCase()
-		return CATALOG_APPS.filter((app) => {
+		return apps.filter((app) => {
+			const { metadata } = app
 			const matchesCategory =
-				activeCategory === 'All' || app.category === activeCategory
+				activeCategory === 'All' || metadata.category === activeCategory
 			if (!matchesCategory) return false
 			if (!q) return true
 			return (
-				app.name.toLowerCase().includes(q) ||
-				app.description.toLowerCase().includes(q) ||
-				app.category.toLowerCase().includes(q)
+				metadata.name.toLowerCase().includes(q) ||
+				metadata.description.toLowerCase().includes(q) ||
+				metadata.domain.toLowerCase().includes(q) ||
+				(metadata.tags ?? []).some((t) => t.toLowerCase().includes(q))
 			)
 		})
-	}, [query, activeCategory])
+	}, [query, activeCategory, apps])
 
 	return (
 		<div className="flex flex-col w-full px-6 py-4 gap-4">
@@ -226,9 +191,26 @@ export function AppsView({ onNavigate }: AppsViewProps) {
 				<h1 className="text-[14px] font-bold leading-none text-foreground">
 					App Catalog
 				</h1>
+				<span className="text-[11px] text-muted-foreground">
+					{apps.length > 0 && `${apps.length} apps`}
+				</span>
+				<div className="flex-1" />
+				<button
+					type="button"
+					onClick={fetchApps}
+					disabled={loading}
+					className="p-1.5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+					aria-label="Refresh apps"
+				>
+					<RefreshCw
+						size={14}
+						className={loading ? 'animate-spin' : ''}
+						strokeWidth={1.75}
+					/>
+				</button>
 			</div>
 
-			{/* Search bar — centered, max-w-md */}
+			{/* Search bar */}
 			<div className="flex justify-center">
 				<div className="flex items-center gap-2 bg-card border border-border px-3 h-8 w-full max-w-md rounded">
 					<Search
@@ -247,9 +229,9 @@ export function AppsView({ onNavigate }: AppsViewProps) {
 				</div>
 			</div>
 
-			{/* Category pills */}
+			{/* Category pills — built from actual data */}
 			<div className="flex flex-row items-center gap-2 flex-wrap">
-				{CATEGORIES.map((cat) => (
+				{availableCategories.map((cat) => (
 					<CategoryPill
 						key={cat}
 						label={cat}
@@ -259,17 +241,55 @@ export function AppsView({ onNavigate }: AppsViewProps) {
 				))}
 			</div>
 
-			{/* App grid — 4 columns */}
-			{filtered.length > 0 ? (
+			{/* Loading */}
+			{loading && (
+				<div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
+					<Loader2 size={24} className="animate-spin" strokeWidth={1.75} />
+					<span className="text-sm">Loading apps from blockchain...</span>
+				</div>
+			)}
+
+			{/* Error */}
+			{!loading && error && (
+				<div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
+					<Globe size={32} strokeWidth={1.5} />
+					<span className="text-sm text-destructive">{error}</span>
+					<button
+						type="button"
+						onClick={fetchApps}
+						className="text-xs text-primary hover:underline"
+					>
+						Try again
+					</button>
+				</div>
+			)}
+
+			{/* App grid */}
+			{!loading && !error && filtered.length > 0 && (
 				<div className="grid grid-cols-4 gap-3">
 					{filtered.map((app) => (
-						<AppCard key={app.id} app={app} onNavigate={onNavigate} />
+						<AppCard
+							key={`${app.token.txid}_${app.token.outputIndex}`}
+							app={app}
+							onNavigate={onNavigate}
+						/>
 					))}
 				</div>
-			) : (
+			)}
+
+			{/* Empty search */}
+			{!loading && !error && filtered.length === 0 && apps.length > 0 && (
 				<div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
 					<Search size={32} strokeWidth={1.5} />
-					<span className="text-sm">No apps match &ldquo;{query}&rdquo;</span>
+					<span className="text-sm">No apps match your search</span>
+				</div>
+			)}
+
+			{/* Empty catalog */}
+			{!loading && !error && apps.length === 0 && (
+				<div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
+					<Globe size={32} strokeWidth={1.5} />
+					<span className="text-sm">No apps published yet</span>
 				</div>
 			)}
 		</div>
