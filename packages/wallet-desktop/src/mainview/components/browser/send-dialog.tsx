@@ -2,7 +2,6 @@ import {
 	useCallback,
 	useEffect,
 	useMemo,
-	useRef,
 	useState,
 } from "react"
 import { Utils } from "@bsv/sdk"
@@ -12,7 +11,6 @@ import {
 	CheckCircle2,
 	Loader2,
 	SendHorizonal,
-	X,
 } from "lucide-react"
 import {
 	Dialog,
@@ -58,9 +56,8 @@ function isValidBsvAddress(address: string): boolean {
 	try {
 		const { prefix } = Utils.fromBase58Check(address)
 		// Mainnet P2PKH = 0x00, P2SH = 0x05
-		return Array.isArray(prefix)
-			? prefix[0] === 0x00 || prefix[0] === 0x05
-			: (prefix as unknown as number) === 0x00 || (prefix as unknown as number) === 0x05
+		const byte = Array.isArray(prefix) ? prefix[0] : (prefix as unknown as number)
+		return byte === 0x00 || byte === 0x05
 	} catch {
 		return false
 	}
@@ -256,14 +253,9 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 							</span>
 						</div>
 						{satoshis > 0 && (
-							<div className="flex items-center justify-between">
-								<span className="text-xs font-mono text-muted-foreground">
-									{satsToBsv(satoshis)} BSV
-								</span>
-								<span className="text-xs text-muted-foreground">
-									{satsToUsd(satoshis)}
-								</span>
-							</div>
+							<p className="text-xs font-mono text-muted-foreground">
+								{satsToBsv(satoshis)} BSV
+							</p>
 						)}
 					</div>
 
@@ -311,10 +303,9 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 	function renderReview() {
 		const rows: Array<{ label: string; value: string; mono?: boolean; bold?: boolean }> = [
 			{ label: "To", value: recipient.trim(), mono: true },
-			{ label: "Amount", value: `${formatSats(satoshis)} sats`, mono: true, bold: true },
+			{ label: "Amount", value: `${formatSats(satoshis)} sats (BSV)`, mono: true, bold: true },
 			{ label: "Fee", value: `${feeSats} sats`, mono: true },
 			{ label: "Total", value: `${formatSats(totalSats)} sats`, mono: true, bold: true },
-			{ label: "USD estimate", value: satsToUsd(satoshis) },
 		]
 
 		return (
