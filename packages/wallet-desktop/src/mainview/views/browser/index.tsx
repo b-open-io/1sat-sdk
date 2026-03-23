@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import type { WebviewTagElement } from 'electrobun/view'
 import {
 	ArrowLeft,
 	ArrowRight,
@@ -76,7 +77,7 @@ export function BrowserView() {
 	const [onboardingUrl, setOnboardingUrl] = useState<string | null>(null)
 
 	const containerRef = useRef<HTMLDivElement>(null)
-	const webviewsRef = useRef<Map<string, HTMLElement>>(new Map())
+	const webviewsRef = useRef<Map<string, WebviewTagElement>>(new Map())
 
 	// Listen for stack onboarding messages
 	useEffect(() => {
@@ -91,23 +92,19 @@ export function BrowserView() {
 		if (activeTab) {
 			setUrlInput(activeTab.url)
 		}
-	}, [activeTab?.url, activeTabId])
+	}, [activeTab])
 
 	// Toggle visibility of webviews based on active tab
 	useEffect(() => {
 		for (const [id, webview] of webviewsRef.current) {
 			if (id === activeTabId) {
 				webview.style.display = 'block'
-				if (typeof (webview as any).toggleHidden === 'function') {
-					;(webview as any).toggleHidden(false)
-					;(webview as any).togglePassthrough(false)
-				}
+				webview.toggleHidden(false)
+				webview.togglePassthrough(false)
 			} else {
 				webview.style.display = 'none'
-				if (typeof (webview as any).toggleHidden === 'function') {
-					;(webview as any).toggleHidden(true)
-					;(webview as any).togglePassthrough(true)
-				}
+				webview.toggleHidden(true)
+				webview.togglePassthrough(true)
 			}
 		}
 	}, [activeTabId])
@@ -116,40 +113,40 @@ export function BrowserView() {
 		const container = containerRef.current
 		if (!container) return
 
-		const webview = document.createElement('electrobun-webview') as any
+		const webview = document.createElement('electrobun-webview')
 		webview.setAttribute('src', url)
 		webview.setAttribute('id', `webview-${tabId}`)
 		webview.style.cssText =
 			'position: absolute; inset: 0; width: 100%; height: 100%;'
 
 		// Listen for navigation events to update URL bar
-		webview.addEventListener('did-navigate', (e: any) => {
+		webview.addEventListener('did-navigate', ((e: CustomEvent) => {
 			const newUrl = e.detail?.url
 			if (newUrl) {
 				setTabs((prev) =>
 					prev.map((t) => (t.id === tabId ? { ...t, url: newUrl } : t)),
 				)
 			}
-		})
+		}) as EventListener)
 
-		webview.addEventListener('did-navigate-in-page', (e: any) => {
+		webview.addEventListener('did-navigate-in-page', ((e: CustomEvent) => {
 			const newUrl = e.detail?.url
 			if (newUrl) {
 				setTabs((prev) =>
 					prev.map((t) => (t.id === tabId ? { ...t, url: newUrl } : t)),
 				)
 			}
-		})
+		}) as EventListener)
 
 		// Listen for title changes
-		webview.addEventListener('page-title-updated', (e: any) => {
+		webview.addEventListener('page-title-updated', ((e: CustomEvent) => {
 			const title = e.detail?.title
 			if (title) {
 				setTabs((prev) =>
 					prev.map((t) => (t.id === tabId ? { ...t, title } : t)),
 				)
 			}
-		})
+		}) as EventListener)
 
 		container.appendChild(webview)
 		webviewsRef.current.set(tabId, webview)
@@ -216,7 +213,7 @@ export function BrowserView() {
 			}
 
 			// Navigate existing webview
-			const webview = webviewsRef.current.get(activeTabId) as any
+			const webview = webviewsRef.current.get(activeTabId)
 			if (webview) {
 				webview.src = resolved
 			} else {
@@ -243,25 +240,28 @@ export function BrowserView() {
 
 	const goBack = useCallback(() => {
 		if (!activeTabId) return
-		const webview = webviewsRef.current.get(activeTabId) as any
-		if (webview?.goBack) webview.goBack()
+		const webview = webviewsRef.current.get(activeTabId)
+		if (webview) webview.goBack()
 	}, [activeTabId])
 
 	const goForward = useCallback(() => {
 		if (!activeTabId) return
-		const webview = webviewsRef.current.get(activeTabId) as any
-		if (webview?.goForward) webview.goForward()
+		const webview = webviewsRef.current.get(activeTabId)
+		if (webview) webview.goForward()
 	}, [activeTabId])
 
 	const reload = useCallback(() => {
 		if (!activeTabId) return
-		const webview = webviewsRef.current.get(activeTabId) as any
-		if (webview?.reload) webview.reload()
+		const webview = webviewsRef.current.get(activeTabId)
+		if (webview) webview.reload()
 	}, [activeTabId])
 
 	const openExternal = useCallback(() => {
 		if (!activeTab) return
-		rpc.request.openBrowserWindow({ url: activeTab.url, title: activeTab.title })
+		rpc.request.openBrowserWindow({
+			url: activeTab.url,
+			title: activeTab.title,
+		})
 	}, [activeTab])
 
 	// Determine if the active tab is showing the new tab page (no webview)
@@ -312,9 +312,7 @@ export function BrowserView() {
 						aria-selected={tab.id === activeTabId}
 					>
 						<Globe size={12} className="shrink-0" />
-						<span className="truncate flex-1">
-							{tab.title || 'New Tab'}
-						</span>
+						<span className="truncate flex-1">{tab.title || 'New Tab'}</span>
 						<button
 							type="button"
 							className="shrink-0 opacity-0 group-hover:opacity-100 hover:text-foreground transition-opacity"
