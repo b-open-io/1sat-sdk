@@ -35,6 +35,30 @@ const WALLET_METHODS = [
 
 type WalletMethod = (typeof WALLET_METHODS)[number]
 
+// ---------------------------------------------------------------------------
+// 1sat:// origin detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Derive the 1sat:// origin from the current page URL.
+ *
+ * - ORDFS content URLs: http://127.0.0.1:8080/content/<txid>_<vout>
+ * - Native 1sat:// protocol (when registered): 1sat://<outpoint>/...
+ * - Otherwise: fall back to standard HTTP origin.
+ */
+function deriveOrigin(): string {
+	const href = window.location.href
+	// If loaded from local ORDFS: http://127.0.0.1:8080/content/<outpoint>
+	const contentMatch = href.match(/\/content\/([0-9a-fA-F]{64}_\d+)/)
+	if (contentMatch) return `1sat://${contentMatch[1]}`
+	// If loaded directly as 1sat:// (when protocol is registered)
+	if (href.startsWith('1sat://')) return `1sat://${href.slice(7).split('/')[0]}`
+	// Fallback: use the HTTP origin
+	return window.location.origin
+}
+
+const CWI_ORIGIN = deriveOrigin()
+
 // Electrobun preload global — sends a message string to the host (parent) view.
 // The host view receives it via the `host-message` event on the electrobun-webview element.
 declare const __electrobunSendToHost: ((message: string) => void) | undefined
@@ -82,7 +106,9 @@ function buildMethod(method: WalletMethod) {
 		return new Promise((resolve, reject) => {
 			const id = crypto.randomUUID()
 			pending.set(id, { resolve, reject })
-			sendToHost(JSON.stringify({ type: 'cwi', id, method, args }))
+			sendToHost(
+				JSON.stringify({ type: 'cwi', id, method, args, origin: CWI_ORIGIN }),
+			)
 		})
 	}
 }

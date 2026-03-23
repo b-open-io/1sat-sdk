@@ -1,3 +1,4 @@
+import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
 import type { WalletInterface } from '@bsv/sdk'
 /**
  * BRC-100 HTTP server for dApp connectivity.
@@ -10,7 +11,6 @@ import type { WalletInterface } from '@bsv/sdk'
  * Compatible with `new WalletClient('auto')` from `@bsv/sdk`.
  */
 import type { Server } from 'bun'
-import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
 import type { PermissionRequest } from '../shared/types'
 import { getWallet } from './wallet-manager'
 
@@ -123,6 +123,32 @@ async function isOriginTrusted(origin: string): Promise<boolean> {
 		return trustedOriginCache.get(origin)!
 	}
 
+	// For 1sat:// origins, check ORDFS metadata for trust declarations
+	if (origin.startsWith('1sat://')) {
+		const path = origin.slice(7)
+		try {
+			const res = await fetch(
+				`http://127.0.0.1:8080/1sat/ordfs/metadata/${path}`,
+				{ signal: AbortSignal.timeout(3000) },
+			)
+			if (res.ok) {
+				const metadata = (await res.json()) as Record<string, unknown>
+				const map = metadata.map as Record<string, unknown> | undefined
+				const trust = map?.trust as Record<string, unknown> | undefined
+				// Check MAP metadata for trust declaration
+				if (trust?.publicKey) {
+					console.log(`[BRC-100] Trusted 1sat:// origin: ${origin}`)
+					trustedOriginCache.set(origin, true)
+					return true
+				}
+			}
+		} catch {
+			// ORDFS metadata not available — not trusted
+		}
+		trustedOriginCache.set(origin, false)
+		return false
+	}
+
 	// Try to fetch the origin's manifest
 	const schemes = origin.includes(':') ? [''] : ['https://', 'http://']
 	for (const scheme of schemes) {
@@ -138,9 +164,7 @@ async function isOriginTrusted(origin: string): Promise<boolean> {
 			const trust = babbage?.trust as Record<string, unknown> | undefined
 
 			if (trust?.name && trust?.publicKey) {
-				console.log(
-					`[BRC-100] Trusted origin: ${origin} (${trust.name})`,
-				)
+				console.log(`[BRC-100] Trusted origin: ${origin} (${trust.name})`)
 				trustedOriginCache.set(origin, true)
 				return true
 			}
@@ -225,9 +249,7 @@ export function resolvePermission(params: {
 	fn.call(wallet, pending.args, pending.origin)
 		.then((result) => pending.resolve(result))
 		.catch((err) =>
-			pending.reject(
-				err instanceof Error ? err : new Error(String(err)),
-			),
+			pending.reject(err instanceof Error ? err : new Error(String(err))),
 		)
 
 	return { success: true }
@@ -276,6 +298,11 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 function parseOrigin(req: Request): string {
+	// Check for 1sat:// origin from CWI preload relay
+	const satOrigin = req.headers.get('X-1Sat-Origin')
+	if (satOrigin?.startsWith('1sat://')) return satOrigin
+
+	// Standard HTTP origin
 	const origin = req.headers.get('Origin')
 	if (origin) {
 		try {
@@ -430,7 +457,9 @@ async function ensureCert(): Promise<{ cert: string; key: string }> {
 	}
 
 	if (certExists) {
-		console.log('[BRC-100] Certificate expired or expiring soon, regenerating...')
+		console.log(
+			'[BRC-100] Certificate expired or expiring soon, regenerating...',
+		)
 		// Delete the trust flag so the new cert is re-trusted
 		if (existsSync(SSL_PROMPTED_FLAG)) {
 			unlinkSync(SSL_PROMPTED_FLAG)
@@ -457,9 +486,7 @@ function promptCertTrust(): void {
 		return
 	}
 
-	console.log(
-		'[BRC-100] Requesting macOS trust for self-signed certificate...',
-	)
+	console.log('[BRC-100] Requesting macOS trust for self-signed certificate...')
 
 	const proc = Bun.spawnSync([
 		'security',

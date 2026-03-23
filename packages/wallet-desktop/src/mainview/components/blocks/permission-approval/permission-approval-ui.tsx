@@ -1,7 +1,7 @@
-"use client"
+'use client'
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
 	Dialog,
 	DialogContent,
@@ -9,9 +9,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog"
-import { ShieldAlert } from "lucide-react"
-import type { PermissionRequest } from "./use-permission-approval"
+} from '@/components/ui/dialog'
+import { ShieldAlert } from 'lucide-react'
+import type { PermissionRequest } from './use-permission-approval'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -37,21 +37,39 @@ export interface PermissionApprovalUiProps {
 // ---------------------------------------------------------------------------
 
 const METHOD_LABELS: Record<string, string> = {
-	createAction: "Create Transaction",
-	signAction: "Sign Transaction",
-	encrypt: "Encrypt Data",
-	decrypt: "Decrypt Data",
-	createSignature: "Create Signature",
-	createHmac: "Create HMAC",
-	acquireCertificate: "Acquire Certificate",
+	createAction: 'Create Transaction',
+	signAction: 'Sign Transaction',
+	encrypt: 'Encrypt Data',
+	decrypt: 'Decrypt Data',
+	createSignature: 'Create Signature',
+	createHmac: 'Create HMAC',
+	acquireCertificate: 'Acquire Certificate',
 }
 
 function formatMethodLabel(method: string): string {
 	return METHOD_LABELS[method] ?? method
 }
 
+/**
+ * Format a 1sat:// origin for display.
+ * - OpNS names (no underscore): show full, e.g. `1sat://satchmo`
+ * - Outpoints: truncate txid, e.g. `1sat://abc12345...6def_0`
+ * - HTTP origins: pass through unchanged.
+ */
+function formatOrigin(origin: string): string {
+	if (!origin.startsWith('1sat://')) return origin
+	const path = origin.slice(7)
+	// OpNS name — show full
+	if (!path.includes('_')) return origin
+	// Outpoint — truncate txid
+	const [txid, vout] = path.split('_')
+	if (txid.length === 64)
+		return `1sat://${txid.slice(0, 8)}...${txid.slice(-4)}_${vout}`
+	return origin
+}
+
 function summarizeArgs(method: string, args: unknown): string | null {
-	if (method !== "createAction" || !args || typeof args !== "object") {
+	if (method !== 'createAction' || !args || typeof args !== 'object') {
 		return null
 	}
 
@@ -61,21 +79,21 @@ function summarizeArgs(method: string, args: unknown): string | null {
 
 	const totalSats = outputs.reduce(
 		(sum: number, o: Record<string, unknown>) => {
-			return sum + (typeof o.satoshis === "number" ? o.satoshis : 0)
+			return sum + (typeof o.satoshis === 'number' ? o.satoshis : 0)
 		},
 		0,
 	)
 
-	const desc = typeof a.description === "string" ? a.description : null
+	const desc = typeof a.description === 'string' ? a.description : null
 	const parts: string[] = []
 	if (desc) parts.push(desc)
 	if (totalSats > 0)
 		parts.push(
-			`${outputs.length} output${outputs.length > 1 ? "s" : ""}, ${totalSats} satoshis`,
+			`${outputs.length} output${outputs.length > 1 ? 's' : ''}, ${totalSats} satoshis`,
 		)
-	else parts.push(`${outputs.length} output${outputs.length > 1 ? "s" : ""}`)
+	else parts.push(`${outputs.length} output${outputs.length > 1 ? 's' : ''}`)
 
-	return parts.join(" — ")
+	return parts.join(' — ')
 }
 
 // ---------------------------------------------------------------------------
@@ -113,7 +131,7 @@ export function PermissionApprovalUi({
 					<div className="space-y-4">
 						<div className="flex items-center gap-2">
 							<span className="text-sm text-muted-foreground">Origin:</span>
-							<Badge variant="secondary">{pending.origin}</Badge>
+							<Badge variant="secondary">{formatOrigin(pending.origin)}</Badge>
 						</div>
 
 						<div className="space-y-1">
@@ -140,11 +158,7 @@ export function PermissionApprovalUi({
 						Auto-deny in {secondsLeft}s
 					</span>
 					<div className="flex gap-2">
-						<Button
-							variant="outline"
-							onClick={onDeny}
-							disabled={responding}
-						>
+						<Button variant="outline" onClick={onDeny} disabled={responding}>
 							Deny
 						</Button>
 						<Button onClick={onApprove} disabled={responding}>
