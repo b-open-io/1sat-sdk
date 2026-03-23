@@ -72,7 +72,7 @@ function saveHistory(entries: HistoryEntry[]): void {
 }
 
 const QUICK_LINKS = [
-	{ label: '1Sat Stack Admin', url: STACK_URL, icon: Server },
+	{ label: '1Sat Stack Admin', url: `${STACK_URL}/1sat/admin`, icon: Server },
 	{ label: '1SatOrdinals.com', url: 'https://1satordinals.com', icon: Globe },
 	{ label: 'WhatsOnChain', url: 'https://whatsonchain.com', icon: Globe },
 ]

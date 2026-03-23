@@ -239,7 +239,7 @@ startStack().then(async () => {
 	const ready = await isStackSetupComplete()
 	if (!ready) {
 		mainWindow.webview.rpc.send.stackOnboardingRequired({
-			adminUrl: `${getStackUrl()}`,
+			adminUrl: `${getStackUrl()}/1sat/admin`,
 		})
 	}
 }).catch((err) => {
