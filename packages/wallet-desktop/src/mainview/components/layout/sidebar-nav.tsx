@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button'
 import {
 	Clock,
 	Coins,
+	Compass,
 	Globe,
 	History,
 	Image,
@@ -16,6 +17,7 @@ import { cn } from '../../lib/utils'
 
 const NAV_ITEMS = [
 	{ id: 'overview', label: 'Overview', icon: LayoutDashboard },
+	{ id: 'browser', label: 'Browser', icon: Compass },
 	{ id: 'ordinals', label: 'Ordinals', icon: Image },
 	{ id: 'tokens', label: 'Tokens', icon: Coins },
 	{ id: 'history', label: 'History', icon: History },

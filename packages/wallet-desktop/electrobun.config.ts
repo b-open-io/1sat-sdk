@@ -5,6 +5,7 @@ export default {
 		name: "1Sat Wallet",
 		identifier: "com.1satwallet",
 		version: "0.0.1",
+		urlSchemes: ["1sat"],
 	},
 	build: {
 		bun: {
@@ -24,6 +25,7 @@ export default {
 		copy: {
 			"dist/index.html": "views/mainview/index.html",
 			"dist/assets": "views/mainview/assets",
+			"src/preloads/cwi.ts": "views/cwi-preload/index.js",
 		},
 		watchIgnore: ["dist/**"],
 		mac: {

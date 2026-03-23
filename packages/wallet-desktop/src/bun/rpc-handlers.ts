@@ -55,6 +55,12 @@ import {
 	unlock,
 } from './wallet-manager'
 import { getStackUrl, isStackRunning } from './sidecar-manager'
+import {
+	fetchChannelMessages,
+	getChatChannels,
+	subscribeChannel,
+	unsubscribeChannel,
+} from './chat-manager'
 
 // ============================================================================
 // MIME type lookup
@@ -602,6 +608,45 @@ export function createRpcHandlers() {
 
 		getStackStatus: () => {
 			return { running: isStackRunning(), url: getStackUrl() }
+		},
+
+		getChatMessages: async ({
+			channel,
+			limit,
+		}: { channel: string; limit?: number }) => {
+			const messages = await fetchChannelMessages(channel, limit ?? 50)
+			return { messages }
+		},
+
+		sendChatMessage: async ({
+			channel,
+			content,
+		}: { channel: string; content: string }) => {
+			const w = requireWallet()
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
+			const result = await createSocialPost.execute(ctx, {
+				app: 'bitchatnitro.com',
+				content,
+				tags: [`channel:${channel}`],
+			})
+			return { txid: result.txid, error: result.error }
+		},
+
+		getChatChannels: () => {
+			return { channels: getChatChannels() }
+		},
+
+		subscribeChatChannel: ({ channel }: { channel: string }) => {
+			subscribeChannel(channel)
+			return { success: true }
+		},
+
+		unsubscribeChatChannel: ({ channel }: { channel: string }) => {
+			unsubscribeChannel(channel)
+			return { success: true }
 		},
 	}
 }

@@ -25,6 +25,7 @@ import {
 	setSyncEventCallback,
 } from './wallet-manager'
 import { startStack, stopStack } from './sidecar-manager'
+import { setChatMessageCallback, shutdownChatManager } from './chat-manager'
 
 // ============================================================================
 // Dev server detection (HMR support)

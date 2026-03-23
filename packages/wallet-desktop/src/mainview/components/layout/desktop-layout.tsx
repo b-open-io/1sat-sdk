@@ -20,11 +20,13 @@ import { SettingsView } from '../../views/settings/index'
 import { SocialView } from '../../views/social/index'
 import { TokensView } from '../../views/tokens/index'
 import { OverviewView } from '../../views/dashboard/index'
+import { BrowserView } from '../../views/browser/index'
 import { SidebarNav } from './sidebar-nav'
 import { WalletPanel } from './wallet-panel'
 
 type Route =
 	| 'overview'
+	| 'browser'
 	| 'ordinals'
 	| 'tokens'
 	| 'history'
@@ -77,6 +79,8 @@ export function DesktopLayout() {
 		switch (route) {
 			case 'overview':
 				return <OverviewView />
+			case 'browser':
+				return <BrowserView />
 			case 'ordinals':
 				return <OrdinalsView />
 			case 'tokens':
@@ -145,7 +149,13 @@ export function DesktopLayout() {
 					onRouteChange={(r) => setRoute(r as Route)}
 					collapsed={leftCollapsed}
 				/>
-				<main className="flex-1 overflow-y-auto p-6">
+				<main
+					className={
+						route === 'browser'
+							? 'flex-1 overflow-hidden'
+							: 'flex-1 overflow-y-auto p-6'
+					}
+				>
 					{renderRoute()}
 				</main>
 				{!rightCollapsed && <WalletPanel />}
