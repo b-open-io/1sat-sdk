@@ -12,6 +12,7 @@ import { InscribeView } from '../views/inscribe/index'
 import { LocksView } from '../views/locks/index'
 import { OpnsView } from '../views/opns/index'
 import { OrdinalsView } from '../views/ordinals/index'
+import { PublishView } from '../views/publish/index'
 import { SettingsView } from '../views/settings/index'
 import { SocialView } from '../views/social/index'
 import { TokensView } from '../views/tokens/index'
@@ -42,10 +43,6 @@ function SendView(): ReactElement {
 
 function ReceiveView(): ReactElement {
 	return <ComingSoonView page="wallet/receive" />
-}
-
-function PublishView(): ReactElement {
-	return <ComingSoonView page="publish/new" />
 }
 
 function OnboardingCreateView(): ReactElement {
