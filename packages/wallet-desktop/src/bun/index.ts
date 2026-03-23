@@ -122,6 +122,7 @@ ApplicationMenu.setApplicationMenu([
 
 Electrobun.events.on('application-menu-clicked', (e) => {
 	if (e.data.action === 'quit') {
+		shutdownChatManager()
 		stopStack()
 		Utils.quit()
 	}
@@ -146,6 +147,11 @@ setSyncEventCallback((event) => {
 	mainWindow.webview.rpc.send.syncEvent(event)
 })
 
+// Push incoming chat messages to the WebView
+setChatMessageCallback((msg) => {
+	mainWindow.webview.rpc.send.chatMessageReceived(msg)
+})
+
 // Check vault on launch — triggers setStatusChangedCallback which pushes to WebView.
 // Also send the initial state once the webview DOM is ready.
 const hasKey = checkVault()
@@ -153,6 +159,31 @@ mainWindow.webview.on('dom-ready', () => {
 	mainWindow.webview.rpc.send.walletStateChanged({
 		status: hasKey ? 'locked' : 'no-wallet',
 	})
+
+	// Double-click on titlebar area to maximize/unmaximize
+	mainWindow.webview.executeJavascript(`
+		document.addEventListener('dblclick', function(e) {
+			if (e.clientY < 38 && !e.target.closest('button, a, input, select, [role="button"]')) {
+				if (window.__electrobunSendToHost) {
+					window.__electrobunSendToHost(JSON.stringify({ type: 'titlebar-dblclick' }));
+				}
+			}
+		});
+	`)
+})
+
+// Handle titlebar double-click to toggle maximize
+mainWindow.webview.on('host-message', (e) => {
+	try {
+		const msg = JSON.parse(e.detail)
+		if (msg.type === 'titlebar-dblclick') {
+			if (mainWindow.isMaximized()) {
+				mainWindow.unmaximize()
+			} else {
+				mainWindow.maximize()
+			}
+		}
+	} catch {}
 })
 
 // ============================================================================

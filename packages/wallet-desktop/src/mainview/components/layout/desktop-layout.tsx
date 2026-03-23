@@ -38,6 +38,8 @@ type Route =
 	| 'identity'
 	| 'settings'
 
+const TITLEBAR_HEIGHT = 14 // px — space for macOS traffic lights
+
 export function DesktopLayout() {
 	const { lockWallet } = useWallet()
 	const { events } = useSyncEvents()
@@ -106,8 +108,17 @@ export function DesktopLayout() {
 
 	return (
 		<div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
+			{/* Invisible drag strip for macOS traffic lights */}
+			<div
+				className="electrobun-webkit-app-region-drag fixed top-0 left-0 right-0 z-[100]"
+				style={{ height: TITLEBAR_HEIGHT }}
+			/>
+
 			{/* Header */}
-			<header className="flex-none h-12 border-b border-border bg-card flex items-center justify-between px-4">
+			<header
+				className="electrobun-webkit-app-region-drag flex-none h-12 border-b border-border bg-card flex items-center justify-between px-4"
+				style={{ marginTop: TITLEBAR_HEIGHT }}
+			>
 				<div className="flex items-center gap-3">
 					<Button
 						variant="ghost"
