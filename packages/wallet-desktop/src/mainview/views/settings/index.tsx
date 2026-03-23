@@ -531,8 +531,7 @@ function AiTab() {
 		setFetchingModels(true)
 		setFetchError('')
 		try {
-			const ollamaBase = settings.baseUrl.replace('/v1', '')
-			const res = await fetch(`${ollamaBase}/api/tags`, {
+			const res = await fetch('http://localhost:3321/api/models', {
 				signal: AbortSignal.timeout(5000),
 			})
 			if (!res.ok) {

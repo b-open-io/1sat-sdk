@@ -377,6 +377,30 @@ async function handleRequest(req: Request): Promise<Response> {
 		return new Response(null, { status: 204, headers: CORS_HEADERS })
 	}
 
+	// GET /api/models — proxy Ollama model list for the Settings UI
+	if (req.method === 'GET' && pathname === '/api/models') {
+		try {
+			const res = await fetch('http://localhost:11434/api/tags', {
+				signal: AbortSignal.timeout(5000),
+			})
+			if (!res.ok) {
+				return jsonResponse({ error: `Ollama returned ${res.status}` }, res.status)
+			}
+			const data = await res.json() as { models?: Array<{ name: string; size: number }> }
+			return jsonResponse({
+				models: (data.models ?? []).map((m) => ({
+					name: m.name,
+					size: m.size,
+				})),
+			})
+		} catch {
+			return jsonResponse(
+				{ error: 'Could not connect to Ollama. Is it running?' },
+				503,
+			)
+		}
+	}
+
 	// GET /manifest.json
 	if (req.method === 'GET' && pathname === '/manifest.json') {
 		return jsonResponse(MANIFEST)
