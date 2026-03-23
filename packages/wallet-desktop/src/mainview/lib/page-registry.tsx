@@ -1,4 +1,5 @@
-import React, { type ReactElement } from 'react'
+import React, { type ReactElement, useState } from 'react'
+import { Button } from '@/components/ui/button'
 import type { InternalPage, ParsedRoute } from '../../shared/url-types'
 import { AppsView } from '../views/apps/index'
 import { BrowserView } from '../views/browser/index'
@@ -12,10 +13,15 @@ import { InscribeView } from '../views/inscribe/index'
 import { LocksView } from '../views/locks/index'
 import { OpnsView } from '../views/opns/index'
 import { OrdinalsView } from '../views/ordinals/index'
+import { MarketView } from '../views/market/index'
 import { PublishView } from '../views/publish/index'
 import { SettingsView } from '../views/settings/index'
 import { SocialView } from '../views/social/index'
 import { TokensView } from '../views/tokens/index'
+import { TokenDetailView } from '../views/token-detail/index'
+import { CreateWallet } from '../views/onboarding/create-wallet'
+import { ImportWallet } from '../views/onboarding/import-wallet'
+import { UnlockWallet } from '../views/onboarding/unlock-wallet'
 
 // ─── Placeholder components for pages without dedicated views ─────────────────
 
@@ -45,16 +51,82 @@ function ReceiveView(): ReactElement {
 	return <ComingSoonView page="wallet/receive" />
 }
 
-function OnboardingCreateView(): ReactElement {
-	return <ComingSoonView page="onboarding/create" />
+function WalletTxView(): ReactElement {
+	return <ComingSoonView page="wallet/tx" />
 }
 
-function OnboardingImportView(): ReactElement {
-	return <ComingSoonView page="onboarding/import" />
+function WalletSweepView(): ReactElement {
+	return <ComingSoonView page="wallet/sweep" />
+}
+
+function OrdinalDetailView(): ReactElement {
+	return <ComingSoonView page="ordinals/detail" />
+}
+
+function SettingsSecurityView(): ReactElement {
+	return <ComingSoonView page="settings/security" />
+}
+
+function SettingsNetworkView(): ReactElement {
+	return <ComingSoonView page="settings/network" />
+}
+
+// ─── Onboarding pages ─────────────────────────────────────────────────────────
+
+type OnboardingStep = 'choice' | 'create'
+
+function OnboardingCreateView({
+	onNavigate,
+}: { onNavigate?: (url: string) => void }): ReactElement {
+	const [step, setStep] = useState<OnboardingStep>('choice')
+
+	if (step === 'create') {
+		return (
+			<CreateWallet onCancel={() => setStep('choice')} />
+		)
+	}
+
+	return (
+		<div className="flex items-center justify-center h-full">
+			<div className="max-w-sm w-full p-6">
+				<h1 className="text-2xl font-bold text-foreground mb-1 text-center">
+					1Sat Wallet
+				</h1>
+				<p className="text-sm text-muted-foreground mb-8 text-center">
+					Get started with your BSV wallet
+				</p>
+				<div className="space-y-3">
+					<Button
+						className="w-full"
+						size="lg"
+						onClick={() => setStep('create')}
+					>
+						Create New Wallet
+					</Button>
+					<Button
+						variant="secondary"
+						className="w-full"
+						size="lg"
+						onClick={() => onNavigate?.('1sat://onboarding/import')}
+					>
+						Import Existing Wallet
+					</Button>
+				</div>
+			</div>
+		</div>
+	)
+}
+
+function OnboardingImportView({
+	onNavigate,
+}: { onNavigate?: (url: string) => void }): ReactElement {
+	return (
+		<ImportWallet onCancel={() => onNavigate?.('1sat://onboarding/create')} />
+	)
 }
 
 function OnboardingUnlockView(): ReactElement {
-	return <ComingSoonView page="onboarding/unlock" />
+	return <UnlockWallet />
 }
 
 // ─── Registry ────────────────────────────────────────────────────────────────
@@ -77,9 +149,13 @@ const PAGE_REGISTRY: Record<InternalPage, PageComponent> = {
 	'wallet/send': SendView,
 	'wallet/receive': ReceiveView,
 	'wallet/history': HistoryView,
+	'wallet/tx': WalletTxView,
+	'wallet/sweep': WalletSweepView,
 	'ordinals/gallery': OrdinalsView,
+	'ordinals/detail': OrdinalDetailView,
 	'ordinals/inscribe': InscribeView,
 	'tokens/all': TokensView,
+	'tokens/detail': TokenDetailView,
 	'collections/all': CollectionsView,
 	'locks/all': LocksView,
 	'opns/all': OpnsView,
@@ -87,9 +163,12 @@ const PAGE_REGISTRY: Record<InternalPage, PageComponent> = {
 	chat: ChatView,
 	'identity/profile': IdentityView,
 	settings: SettingsView,
+	'settings/security': SettingsSecurityView,
+	'settings/network': SettingsNetworkView,
 	'browser/new': HomeView,
 	'publish/new': PublishView,
 	apps: AppsView,
+	market: MarketView,
 	'onboarding/create': OnboardingCreateView,
 	'onboarding/import': OnboardingImportView,
 	'onboarding/unlock': OnboardingUnlockView,
