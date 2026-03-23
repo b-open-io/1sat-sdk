@@ -234,13 +234,25 @@ startWalletServer()
 // Start the 1sat-stack sidecar (local indexer + ORDFS server).
 // Errors are non-fatal: the wallet continues if the binary is unavailable.
 startStack().then(async () => {
-	// Give the stack a moment to initialize
-	await Bun.sleep(3000)
+	// Poll until the stack health endpoint responds (up to 30 seconds)
+	for (let i = 0; i < 15; i++) {
+		await Bun.sleep(2000)
+		try {
+			const res = await fetch(`${getStackUrl()}/1sat/health`, { signal: AbortSignal.timeout(1000) })
+			if (res.ok) break
+		} catch {
+			// Stack still starting
+		}
+	}
+
 	const ready = await isStackSetupComplete()
 	if (!ready) {
+		console.log('1sat-stack needs setup — pushing onboarding to WebView')
 		mainWindow.webview.rpc.send.stackOnboardingRequired({
 			adminUrl: `${getStackUrl()}/1sat/admin`,
 		})
+	} else {
+		console.log('1sat-stack setup is complete')
 	}
 }).catch((err) => {
 	console.error('1sat-stack failed to start:', err.message)
