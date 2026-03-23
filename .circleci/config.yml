@@ -1,0 +1,197 @@
+version: 2.1
+
+jobs:
+  build-macos:
+    macos:
+      xcode: "16.4.0"
+    resource_class: m4pro.medium
+    working_directory: ~/project/packages/wallet-desktop
+    steps:
+      - checkout:
+          path: ~/project
+
+      - restore_cache:
+          keys:
+            - bun-wallet-v1-{{ arch }}-{{ checksum "~/project/bun.lock" }}
+            - bun-wallet-v1-{{ arch }}-
+
+      - run:
+          name: Install Bun
+          command: |
+            if ! command -v bun &> /dev/null; then
+              curl -fsSL https://bun.sh/install | bash
+            fi
+            echo 'export PATH="$HOME/.bun/bin:$PATH"' >> $BASH_ENV
+
+      - run:
+          name: Install GitHub CLI
+          command: |
+            GH_VERSION="2.86.0"
+            curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_macOS_arm64.zip" -o gh.zip
+            unzip -q gh.zip
+            sudo mv gh_${GH_VERSION}_macOS_arm64/bin/gh /usr/local/bin/
+            rm -rf gh.zip gh_${GH_VERSION}_macOS_arm64
+
+      - run:
+          name: Install dependencies
+          command: |
+            cd ~/project
+            bun install
+
+      - save_cache:
+          key: bun-wallet-v1-{{ arch }}-{{ checksum "~/project/bun.lock" }}
+          paths:
+            - ~/project/node_modules
+            - ~/.bun
+
+      - run:
+          name: Sync version from tag
+          command: |
+            VERSION="${CIRCLE_TAG#v}"
+            cd ~/project/packages/wallet-desktop
+            cat package.json | python3 -c "
+            import json, sys
+            pkg = json.load(sys.stdin)
+            pkg['version'] = '$VERSION'
+            json.dump(pkg, sys.stdout, indent=2)
+            " > tmp.json && mv tmp.json package.json
+            echo "Version set to $VERSION"
+
+            # Also update electrobun.config.ts version
+            sed -i '' "s/version: \"[^\"]*\"/version: \"$VERSION\"/" electrobun.config.ts
+            echo "ElectroBun config version: $(grep 'version:' electrobun.config.ts | head -1)"
+
+      - run:
+          name: Setup code signing
+          command: |
+            KEYCHAIN="build.keychain"
+            KEYCHAIN_PASSWORD="ci-build-password"
+            security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+            security default-keychain -s "$KEYCHAIN"
+            security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+            security set-keychain-settings -t 3600 -u "$KEYCHAIN"
+            security list-keychains -d user -s "$KEYCHAIN" /Library/Keychains/System.keychain
+
+            # Download Apple certificate chain
+            curl -o AppleRootCA-G2.cer https://www.apple.com/certificateauthority/AppleRootCA-G2.cer
+            curl -o AppleWWDRCAG3.cer https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
+            curl -o AppleWWDRCAG4.cer https://www.apple.com/certificateauthority/AppleWWDRCAG4.cer
+            curl -o DeveloperIDG2CA.cer https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
+
+            for cert in AppleRootCA-G2.cer AppleWWDRCAG3.cer AppleWWDRCAG4.cer DeveloperIDG2CA.cer; do
+              security import "$cert" -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/productbuild
+              sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$cert" 2>/dev/null || true
+            done
+            rm *.cer
+
+            # Import developer certificate
+            echo $CSC_LINK | base64 -d > cert.p12
+            security import cert.p12 -k "$KEYCHAIN" -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
+            security set-key-partition-list -S apple-tool:,apple:,codesign:,productbuild: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+            rm cert.p12
+
+            # Extract developer identity
+            IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)".*/\1/')
+            echo "Developer identity: $IDENTITY"
+
+            echo "export ELECTROBUN_DEVELOPER_ID=\"$IDENTITY\"" >> "$BASH_ENV"
+            echo "export ELECTROBUN_APPLEID=\"$APPLE_ID\"" >> "$BASH_ENV"
+            echo "export ELECTROBUN_APPLEIDPASS=\"$APPLE_APP_SPECIFIC_PASSWORD\"" >> "$BASH_ENV"
+            echo "export ELECTROBUN_TEAMID=\"$APPLE_TEAM_ID\"" >> "$BASH_ENV"
+
+      - run:
+          name: Set updater bucket URL
+          command: |
+            if [ -n "$RELEASE_BUCKET_URL" ]; then
+              echo "export RELEASE_BUCKET_URL=\"$RELEASE_BUCKET_URL\"" >> "$BASH_ENV"
+              echo "Updater bucket URL configured"
+            else
+              echo "WARNING: RELEASE_BUCKET_URL not set - patch generation will be skipped"
+            fi
+
+      - run:
+          name: Build Vite + ElectroBun
+          command: bun run build
+          no_output_timeout: 30m
+
+      - run:
+          name: Locate build artifacts
+          command: |
+            DMG=$(find artifacts -name "*.dmg" | head -1)
+            if [[ -z "$DMG" ]]; then
+              echo "ERROR: No DMG found in artifacts/"
+              find artifacts -type f 2>/dev/null | head -30
+              exit 1
+            fi
+            echo "export DMG_PATH=$DMG" >> "$BASH_ENV"
+            echo "Found DMG: $DMG"
+            ls -la "$DMG"
+
+      - run:
+          name: Generate latest.json
+          command: |
+            VERSION="${CIRCLE_TAG#v}"
+            DMG_NAME=$(basename "$DMG_PATH")
+            printf '{\n  "version": "%s",\n  "url": "https://github.com/b-open-io/1sat-sdk/releases/download/%s/%s",\n  "pub_date": "%s"\n}\n' \
+              "$VERSION" "$CIRCLE_TAG" "$DMG_NAME" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > latest.json
+            cat latest.json
+
+      - run:
+          name: Create GitHub Release and Upload
+          command: |
+            gh release create "$CIRCLE_TAG" \
+              --title "1Sat Wallet $CIRCLE_TAG" \
+              --notes "Release ${CIRCLE_TAG#v}" \
+              --repo b-open-io/1sat-sdk || true
+            gh release upload "$CIRCLE_TAG" "$DMG_PATH" latest.json --clobber --repo b-open-io/1sat-sdk
+
+      - run:
+          name: Upload ElectroBun update artifacts
+          command: |
+            PLATFORM_PREFIX="stable-macos-arm64"
+
+            if [ ! -d "artifacts" ]; then
+              echo "No artifacts directory — skipping"
+              exit 0
+            fi
+
+            if [ -z "$BLOB_READ_WRITE_TOKEN" ]; then
+              echo "No BLOB_READ_WRITE_TOKEN — skipping Vercel Blob upload"
+              exit 0
+            fi
+
+            for file in artifacts/${PLATFORM_PREFIX}-*; do
+              [ -f "$file" ] || continue
+              filename=$(basename "$file")
+
+              if [[ "$filename" == *.dmg ]]; then
+                echo "Skipping $filename (uploaded to GitHub)"
+                continue
+              fi
+
+              echo "Uploading $filename..."
+              RESPONSE=$(curl -s -X PUT \
+                "https://blob.vercel-storage.com/releases/${filename}" \
+                -H "Authorization: Bearer $BLOB_READ_WRITE_TOKEN" \
+                -H "x-content-type: application/octet-stream" \
+                -H "x-add-random-suffix: false" \
+                --data-binary "@$file")
+
+              URL=$(echo "$RESPONSE" | grep -o '"url":"[^"]*"' | cut -d'"' -f4)
+              if [[ -z "$URL" ]]; then
+                echo "Warning: Failed to upload $filename"
+              else
+                echo "Uploaded: $URL"
+              fi
+            done
+
+workflows:
+  release:
+    jobs:
+      - build-macos:
+          context: 1sat-wallet-signing
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
