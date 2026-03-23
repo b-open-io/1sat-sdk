@@ -42,14 +42,14 @@ export function AgentPopover({ onOpenAgent }: AgentPopoverProps) {
 				<div className="flex items-center gap-2.5 px-4 py-3 border-b border-border">
 					<div
 						className="flex items-center justify-center size-6 rounded-[4px]"
-						style={{ background: 'oklch(0.35 0.15 290)' }}
+						style={{ background: 'var(--agent-accent-bg)' }}
 					>
-						<Bot size={13} style={{ color: 'oklch(0.78 0.18 290)' }} />
+						<Bot size={13} style={{ color: 'var(--agent-accent-fg)' }} />
 					</div>
 					<div>
 						<p
 							className="text-[12px] font-semibold text-foreground leading-tight"
-							style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+							style={{ fontFamily: 'var(--font-sans)' }}
 						>
 							AI Agent
 						</p>
@@ -64,12 +64,12 @@ export function AgentPopover({ onOpenAgent }: AgentPopoverProps) {
 					<div className="flex items-start gap-3 mb-4">
 						<Sparkles
 							size={14}
-							style={{ color: 'oklch(0.72 0.18 290)', marginTop: 1 }}
+							style={{ color: 'var(--agent-accent-muted)', marginTop: 1 }}
 							className="shrink-0"
 						/>
 						<p
 							className="text-xs text-muted-foreground leading-relaxed"
-							style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+							style={{ fontFamily: 'var(--font-sans)' }}
 						>
 							The AI Agent sidebar lets you interact with on-chain data, execute
 							wallet actions, and browse 1Sat Ordinals using natural language.
@@ -78,13 +78,13 @@ export function AgentPopover({ onOpenAgent }: AgentPopoverProps) {
 
 					<div
 						className="flex items-center gap-2 px-3 py-2 border border-dashed rounded-[3px] mb-4"
-						style={{ borderColor: 'oklch(0.35 0.08 290)' }}
+						style={{ borderColor: 'var(--agent-accent-border)' }}
 					>
 						<span
 							className="text-[10px] font-mono"
 							style={{
-								color: 'oklch(0.65 0.12 290)',
-								fontFamily: 'JetBrains Mono, monospace',
+								color: 'var(--agent-accent-dim)',
+								fontFamily: 'var(--font-mono)',
 							}}
 						>
 							coming soon
@@ -94,8 +94,8 @@ export function AgentPopover({ onOpenAgent }: AgentPopoverProps) {
 					<Button
 						className="w-full h-7 text-xs font-medium"
 						style={{
-							background: 'oklch(0.35 0.15 290)',
-							color: 'oklch(0.9 0.05 290)',
+							background: 'var(--agent-accent-bg)',
+							color: 'var(--agent-accent-subtle)',
 						}}
 						onClick={handleOpen}
 						disabled

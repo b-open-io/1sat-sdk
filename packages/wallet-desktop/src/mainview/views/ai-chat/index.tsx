@@ -72,7 +72,7 @@ function ModelSelector({
 				)}
 				style={{ borderRadius: 4 }}
 			>
-				<Sparkles size={10} className="text-purple-400" />
+				<Sparkles size={10} style={{ color: 'var(--agent-accent-muted)' }} />
 				<span className="text-muted-foreground">{value.replace(':latest', '')}</span>
 				<ChevronDown size={8} className="text-muted-foreground" />
 			</button>

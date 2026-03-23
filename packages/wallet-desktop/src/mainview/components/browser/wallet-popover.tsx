@@ -62,7 +62,7 @@ function BalanceDisplay({ sats }: { sats: number }) {
 			<div className="flex items-baseline gap-1">
 				<span
 					className="font-mono text-3xl font-semibold tracking-tight text-foreground"
-					style={{ fontFamily: 'JetBrains Mono, monospace' }}
+					style={{ fontFamily: 'var(--font-mono)' }}
 				>
 					{whole}.{frac}
 				</span>
@@ -105,7 +105,7 @@ function TxRow({ entry }: { entry: HistoryEntry }) {
 					'text-[11px] font-mono font-medium shrink-0',
 					positive ? 'text-emerald-400' : 'text-red-400',
 				)}
-				style={{ fontFamily: 'JetBrains Mono, monospace' }}
+				style={{ fontFamily: 'var(--font-mono)' }}
 			>
 				{positive ? '+' : ''}
 				{formatBsvAmount(entry.satoshis)}
@@ -197,7 +197,7 @@ export function WalletPopover({ onNavigate }: WalletPopoverProps) {
 						<Wallet size={13} className="text-muted-foreground" />
 						<span
 							className="text-[12px] font-semibold tracking-wide text-foreground"
-							style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+							style={{ fontFamily: 'var(--font-sans)' }}
 						>
 							Wallet
 						</span>
@@ -243,7 +243,7 @@ export function WalletPopover({ onNavigate }: WalletPopoverProps) {
 						<div className="flex items-center gap-2 px-2 py-1.5 bg-muted/40 border border-border rounded-[3px]">
 							<span
 								className="flex-1 text-[10px] font-mono text-muted-foreground truncate"
-								style={{ fontFamily: 'JetBrains Mono, monospace' }}
+								style={{ fontFamily: 'var(--font-mono)' }}
 							>
 								{receiveInfo.address}
 							</span>
@@ -279,7 +279,7 @@ export function WalletPopover({ onNavigate }: WalletPopoverProps) {
 					onClick={handleOpenWallet}
 					className="w-full flex items-center justify-between px-4 py-2.5 border-t border-border text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
 				>
-					<span style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+					<span style={{ fontFamily: 'var(--font-sans)' }}>
 						Open full wallet
 					</span>
 					<ChevronRight size={12} />

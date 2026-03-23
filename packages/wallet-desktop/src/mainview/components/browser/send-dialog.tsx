@@ -5,6 +5,7 @@ import {
 	useRef,
 	useState,
 } from "react"
+import { Utils } from "@bsv/sdk"
 import {
 	AlertCircle,
 	ArrowLeft,
@@ -40,9 +41,6 @@ const FEE_TIERS = {
 
 type FeeTier = keyof typeof FEE_TIERS
 
-// Rough USD price — in production this would come from an API
-const BSV_USD_ESTIMATE = 50
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -51,23 +49,28 @@ function satsToBsv(sats: number): string {
 	return (sats / SATS_PER_BSV).toFixed(8)
 }
 
-function satsToUsd(sats: number): string {
-	const usd = (sats / SATS_PER_BSV) * BSV_USD_ESTIMATE
-	if (usd < 0.01) return "< $0.01"
-	return `≈ $${usd.toFixed(2)}`
-}
-
 function formatSats(sats: number): string {
 	return sats.toLocaleString()
 }
 
-/** BSV address or paymail validation */
-const ADDRESS_RE = /^[13][1-9A-HJ-NP-Za-km-z]{24,33}$/
+/** Validate a BSV address by decoding Base58Check and verifying the checksum. */
+function isValidBsvAddress(address: string): boolean {
+	try {
+		const { prefix } = Utils.fromBase58Check(address)
+		// Mainnet P2PKH = 0x00, P2SH = 0x05
+		return Array.isArray(prefix)
+			? prefix[0] === 0x00 || prefix[0] === 0x05
+			: (prefix as unknown as number) === 0x00 || (prefix as unknown as number) === 0x05
+	} catch {
+		return false
+	}
+}
+
 const PAYMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function isValidRecipient(value: string): boolean {
 	const trimmed = value.trim()
-	return ADDRESS_RE.test(trimmed) || PAYMAIL_RE.test(trimmed)
+	return isValidBsvAddress(trimmed) || PAYMAIL_RE.test(trimmed)
 }
 
 // ---------------------------------------------------------------------------

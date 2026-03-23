@@ -95,6 +95,27 @@
 		Consolas, monospace;
 	--tracking-normal: 0em;
 	--spacing: 0.25rem;
+	/* Tab bar */
+	--tab-bar-bg: oklch(0.17 0.012 96);
+	/* Protocol badge colours */
+	--protocol-1sat-bg: oklch(0.35 0.12 260);
+	--protocol-1sat-fg: oklch(0.78 0.14 260);
+	--protocol-https-bg: oklch(0.25 0.08 150);
+	--protocol-https-fg: oklch(0.7 0.15 150);
+	--protocol-http-bg: oklch(0.25 0.05 50);
+	--protocol-http-fg: oklch(0.7 0.1 50);
+	--protocol-ai-bg: oklch(0.3 0.12 300);
+	--protocol-ai-fg: oklch(0.75 0.15 300);
+	/* Agent / AI gradient endpoints */
+	--agent-gradient-from: #8b5cf6;
+	--agent-gradient-to: #3b82f6;
+	/* Agent popover accent (purple-ish hue 290) */
+	--agent-accent-bg: oklch(0.35 0.15 290);
+	--agent-accent-fg: oklch(0.78 0.18 290);
+	--agent-accent-muted: oklch(0.72 0.18 290);
+	--agent-accent-dim: oklch(0.65 0.12 290);
+	--agent-accent-border: oklch(0.35 0.08 290);
+	--agent-accent-subtle: oklch(0.9 0.05 290);
 }
 
 @layer base {
