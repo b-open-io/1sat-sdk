@@ -1,16 +1,16 @@
 /**
  * AI Chat API handler for the BRC-100 HTTP server.
- * Proxies chat requests to a local Ollama instance via the AI SDK.
+ * Proxies chat requests to a local Ollama instance via the AI SDK
+ * using the dedicated ollama-ai-provider community provider.
  *
  * Security:
  * - Requires `X-Requested-With: 1SatBrowser` header (enforced by CORS preflight)
  * - Context fields are truncated and sanitized to limit prompt injection
  * - Rate limited to 1 request per second per client
  */
-import { createOpenAI } from '@ai-sdk/openai'
 import { convertToModelMessages, streamText, type UIMessage } from 'ai'
+import { ollama } from 'ollama-ai-provider'
 
-const OLLAMA_BASE_URL = 'http://localhost:11434/v1'
 const DEFAULT_MODEL = 'llama3'
 
 /** Required custom header value — external sites cannot send this without CORS preflight approval. */
@@ -51,18 +51,6 @@ function sanitizeContextField(value: unknown): string {
 }
 
 // ---------------------------------------------------------------------------
-// Provider
-// ---------------------------------------------------------------------------
-
-/** Create an Ollama-compatible provider via the OpenAI adapter */
-function getOllamaProvider() {
-	return createOpenAI({
-		baseURL: OLLAMA_BASE_URL,
-		apiKey: 'ollama', // Ollama doesn't need a real key but the SDK requires one
-	})
-}
-
-// ---------------------------------------------------------------------------
 // Request handler
 // ---------------------------------------------------------------------------
 
@@ -74,7 +62,9 @@ export function validateChatAuth(req: Request): Response | null {
 	const headerValue = req.headers.get(CHAT_REQUIRED_HEADER)
 	if (headerValue !== CHAT_REQUIRED_HEADER_VALUE) {
 		return new Response(
-			JSON.stringify({ error: 'Forbidden: missing or invalid X-Requested-With header' }),
+			JSON.stringify({
+				error: 'Forbidden: missing or invalid X-Requested-With header',
+			}),
 			{ status: 403, headers: { 'Content-Type': 'application/json' } },
 		)
 	}
@@ -83,10 +73,8 @@ export function validateChatAuth(req: Request): Response | null {
 
 /**
  * Handle a POST request to /api/chat.
- * Expects JSON body: { messages: UIMessage[], context?: { url?: string, content?: string } }
+ * Expects JSON body: { messages: UIMessage[], model?: string, context?: { url?: string, content?: string } }
  * Returns a streaming response compatible with useChat's DefaultChatTransport.
- *
- * Callers must run `validateChatAuth` before invoking this handler.
  */
 export async function handleChatRequest(req: Request): Promise<Response> {
 	// Rate limit check
@@ -102,6 +90,7 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 	try {
 		const body = await req.json()
 		const messages: UIMessage[] = body.messages ?? []
+		const modelName: string = body.model ?? DEFAULT_MODEL
 		const rawContext = body.context as
 			| { url?: unknown; content?: unknown }
 			| undefined
@@ -109,8 +98,6 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 		// Sanitize context fields
 		const contextUrl = sanitizeContextField(rawContext?.url)
 		const contextContent = sanitizeContextField(rawContext?.content)
-
-		const ollama = getOllamaProvider()
 
 		// Build system prompt with page context if available
 		let systemPrompt =
@@ -124,7 +111,7 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 		}
 
 		const result = streamText({
-			model: ollama(DEFAULT_MODEL),
+			model: ollama(modelName),
 			system: systemPrompt,
 			messages: await convertToModelMessages(messages),
 		})
@@ -135,13 +122,18 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 			error instanceof Error ? error.message : 'Unknown error'
 
 		// Check if Ollama is running
-		if (message.includes('ECONNREFUSED') || message.includes('fetch failed')) {
+		if (
+			message.includes('ECONNREFUSED') ||
+			message.includes('fetch failed')
+		) {
 			return new Response(
 				JSON.stringify({
-					error:
-						'Ollama is not running. Start it with: ollama serve',
+					error: 'Ollama is not running. Start it with: ollama serve',
 				}),
-				{ status: 503, headers: { 'Content-Type': 'application/json' } },
+				{
+					status: 503,
+					headers: { 'Content-Type': 'application/json' },
+				},
 			)
 		}
 
