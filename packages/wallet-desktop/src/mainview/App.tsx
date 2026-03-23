@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { BigBlocksProvider } from '@/components/blocks/bigblocks-provider'
 import { PermissionApproval } from '@/components/blocks/permission-approval'
 import { onPermissionRequest, rpc } from './rpc'
-import { DesktopLayout } from './components/layout/desktop-layout'
+import { BrowserLayout } from './components/layout/browser-layout'
 import { useWallet } from './hooks/use-wallet'
 import { CreateWallet } from './views/onboarding/create-wallet'
 import { ImportWallet } from './views/onboarding/import-wallet'
@@ -77,7 +77,7 @@ function App() {
 	if (status === 'unlocked') {
 		return (
 			<BigBlocksProvider>
-				<DesktopLayout />
+				<BrowserLayout />
 				<PermissionApproval
 					subscribe={onPermissionRequest}
 					resolve={(params) => rpc.request.resolvePermission(params)}
