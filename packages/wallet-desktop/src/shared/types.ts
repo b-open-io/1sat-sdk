@@ -137,6 +137,17 @@ export interface SweepResultInfo {
 	error?: string
 }
 
+// Chat message from BMAP API
+export interface ChatMessage {
+	txid: string
+	content: string
+	channel: string
+	author: string
+	authorName?: string
+	timestamp: number
+	encrypted: boolean
+}
+
 // Social post params
 export interface CreateSocialPostParams {
 	content: string
@@ -341,6 +352,30 @@ type BunRequests = {
 		params: MintCollectionItemParams
 		response: MintCollectionItemResult
 	}
+	getStackStatus: {
+		params: undefined
+		response: { running: boolean; url: string }
+	}
+	getChatMessages: {
+		params: { channel: string; limit?: number }
+		response: { messages: ChatMessage[] }
+	}
+	sendChatMessage: {
+		params: { channel: string; content: string }
+		response: { txid?: string; error?: string }
+	}
+	getChatChannels: {
+		params: undefined
+		response: { channels: string[] }
+	}
+	subscribeChatChannel: {
+		params: { channel: string }
+		response: { success: boolean }
+	}
+	unsubscribeChatChannel: {
+		params: { channel: string }
+		response: { success: boolean }
+	}
 }
 
 // Permission request from BRC-100 HTTP server
@@ -358,6 +393,7 @@ type BunMessages = {
 	syncEvent: SyncEvent
 	ordinalsUpdated: { ordinals: OrdinalInfo[] }
 	permissionRequest: PermissionRequest
+	chatMessageReceived: ChatMessage
 }
 
 // Requests bun can make to the webview (currently none)

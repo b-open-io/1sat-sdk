@@ -24,6 +24,7 @@ import {
 	setStatusChangedCallback,
 	setSyncEventCallback,
 } from './wallet-manager'
+import { startStack, stopStack } from './sidecar-manager'
 
 // ============================================================================
 // Dev server detection (HMR support)
@@ -120,6 +121,7 @@ ApplicationMenu.setApplicationMenu([
 
 Electrobun.events.on('application-menu-clicked', (e) => {
 	if (e.data.action === 'quit') {
+		stopStack()
 		Utils.quit()
 	}
 })
@@ -163,5 +165,11 @@ setPermissionPusher((request) => {
 })
 
 startWalletServer()
+
+// Start the 1sat-stack sidecar (local indexer + ORDFS server).
+// Errors are non-fatal: the wallet continues if the binary is unavailable.
+startStack().catch((err) => {
+	console.error('1sat-stack failed to start:', err.message)
+})
 
 console.log('1Sat Wallet started')

@@ -54,6 +54,7 @@ import {
 	lock,
 	unlock,
 } from './wallet-manager'
+import { getStackUrl, isStackRunning } from './sidecar-manager'
 
 // ============================================================================
 // MIME type lookup
@@ -597,6 +598,10 @@ export function createRpcHandlers() {
 			const { mintCollectionItem } = await import('@1sat/actions')
 			const result = await mintCollectionItem.execute(ctx, params)
 			return { txid: result.txid, error: result.error }
+		},
+
+		getStackStatus: () => {
+			return { running: isStackRunning(), url: getStackUrl() }
 		},
 	}
 }
