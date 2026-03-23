@@ -892,18 +892,24 @@ export function BrowserLayout({ walletStatus }: { walletStatus: WalletStatus }) 
 		return unsub
 	}, [navigate])
 
-	// ── Onboarding gate: force-navigate to the right onboarding page ───────
+	// ── Onboarding gate: force-navigate based on wallet status ─────────
 
 	useEffect(() => {
 		if (walletStatus === 'initializing') {
-			navigate('1sat://onboarding/unlock')
-		} else if (walletStatus === 'locked') {
+			// Don't navigate — just show loading in the minimal chrome
+			return
+		}
+		if (walletStatus === 'locked') {
 			navigate('1sat://onboarding/unlock')
 		} else if (walletStatus === 'no-wallet') {
 			navigate('1sat://onboarding/create')
+		} else if (walletStatus === 'unlocked') {
+			// Wallet just unlocked — go to overview (unless already on a real page)
+			const current = activeNav.current
+			if (current.type === 'internal' && current.page.startsWith('onboarding/')) {
+				navigate('1sat://wallet/overview')
+			}
 		}
-	// Re-run whenever walletStatus changes so transitions work correctly
-	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [walletStatus])
 
 	// ── Keyboard shortcuts via TanStack Hotkeys ──────────────────────────
@@ -1022,7 +1028,7 @@ export function BrowserLayout({ walletStatus }: { walletStatus: WalletStatus }) 
 					style={{
 						height: TAB_BAR_HEIGHT + TOOLBAR_HEIGHT,
 						paddingLeft: TRAFFIC_LIGHT_PAD,
-						backgroundColor: 'oklch(0.17 0.012 96)',
+						backgroundColor: 'var(--tab-bar-bg, oklch(0.17 0.012 96))',
 					}}
 				>
 					<span className="text-[11px] font-semibold tracking-wide text-muted-foreground select-none electrobun-webkit-app-region-no-drag">
@@ -1031,7 +1037,16 @@ export function BrowserLayout({ walletStatus }: { walletStatus: WalletStatus }) 
 				</div>
 				<Separator className="shrink-0" />
 				<main className="flex-1 overflow-y-auto p-6">
-					{renderPage(activeNav.current, navigate)}
+					{walletStatus === 'initializing' ? (
+						<div className="flex items-center justify-center h-full">
+							<div className="text-center">
+								<div className="text-lg font-bold text-foreground mb-2">1Sat Wallet</div>
+								<div className="text-sm text-muted-foreground font-mono">Initializing...</div>
+							</div>
+						</div>
+					) : (
+						renderPage(activeNav.current, navigate)
+					)}
 				</main>
 			</div>
 		)
