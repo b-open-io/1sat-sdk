@@ -8,7 +8,9 @@
 		"dev": "electrobun dev --watch",
 		"dev:hmr": "concurrently \"bun run hmr\" \"bun run start\"",
 		"hmr": "vite --port 5173",
-		"build:canary": "vite build && electrobun build --env=canary"
+		"build": "vite build && electrobun build --env=stable",
+		"build:canary": "vite build && electrobun build --env=canary",
+		"build:dev": "vite build && electrobun build"
 	},
 	"dependencies": {
 		"@1sat/actions": "^0.0.62",

@@ -31,6 +31,8 @@ export default {
 		mac: {
 			bundleCEF: false,
 			icons: "icon.iconset",
+			codesign: true,
+			notarize: true,
 		},
 		linux: {
 			bundleCEF: false,
@@ -38,5 +40,8 @@ export default {
 		win: {
 			bundleCEF: false,
 		},
+	},
+	release: {
+		baseUrl: process.env.RELEASE_BUCKET_URL || "",
 	},
 } satisfies ElectrobunConfig;
