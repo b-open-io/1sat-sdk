@@ -100,6 +100,59 @@ const NO_ARG_METHODS = new Set<WalletMethod>([
 
 const walletMethodSet = new Set<string>(WALLET_METHODS)
 
+// ---------------------------------------------------------------------------
+// Manifest-based trust
+// ---------------------------------------------------------------------------
+
+/** Cache of trusted origins (origin → true/false). TTL: session lifetime. */
+const trustedOriginCache = new Map<string, boolean>()
+
+/**
+ * Check if an origin has a trusted manifest.
+ *
+ * Fetches `http(s)://<origin>/manifest.json` and checks for a
+ * `babbage.trust` section. Origins with a valid trust manifest are
+ * auto-approved for sensitive wallet methods.
+ *
+ * Our own BRC-100 server also serves a manifest — the 1sat-stack
+ * sidecar at 127.0.0.1:8080 has one too. This replaces the old
+ * hardcoded localhost exception with proper manifest-based trust.
+ */
+async function isOriginTrusted(origin: string): Promise<boolean> {
+	if (trustedOriginCache.has(origin)) {
+		return trustedOriginCache.get(origin)!
+	}
+
+	// Try to fetch the origin's manifest
+	const schemes = origin.includes(':') ? [''] : ['https://', 'http://']
+	for (const scheme of schemes) {
+		const manifestUrl = `${scheme}${origin}/manifest.json`
+		try {
+			const res = await fetch(manifestUrl, {
+				signal: AbortSignal.timeout(3000),
+			})
+			if (!res.ok) continue
+
+			const manifest = (await res.json()) as Record<string, unknown>
+			const babbage = manifest.babbage as Record<string, unknown> | undefined
+			const trust = babbage?.trust as Record<string, unknown> | undefined
+
+			if (trust?.name && trust?.publicKey) {
+				console.log(
+					`[BRC-100] Trusted origin: ${origin} (${trust.name})`,
+				)
+				trustedOriginCache.set(origin, true)
+				return true
+			}
+		} catch {
+			// Manifest not available or invalid — not trusted
+		}
+	}
+
+	trustedOriginCache.set(origin, false)
+	return false
+}
+
 /** Methods that require user approval via the WebView permission dialog. */
 const SENSITIVE_METHODS = new Set<WalletMethod>([
 	'createAction',
@@ -279,15 +332,11 @@ async function handleRequest(req: Request): Promise<Response> {
 		try {
 			const args = NO_ARG_METHODS.has(methodName) ? {} : await req.json()
 
-			// Auto-approve localhost origins (our own sidecar, admin UI, etc.)
-			const isLocalhost =
-				origin === '127.0.0.1' ||
-				origin === 'localhost' ||
-				origin === '127.0.0.1:8080' ||
-				origin === 'unknown'
+			// Check if the requesting origin has a trusted manifest
+			const trusted = await isOriginTrusted(origin)
 
-			// Sensitive methods require user approval — unless from localhost
-			if (SENSITIVE_METHODS.has(methodName) && !isLocalhost) {
+			// Sensitive methods require user approval — unless origin is trusted via manifest
+			if (SENSITIVE_METHODS.has(methodName) && !trusted) {
 				const requestId = crypto.randomUUID()
 				const result = await requestPermission(
 					requestId,
@@ -298,7 +347,7 @@ async function handleRequest(req: Request): Promise<Response> {
 				return jsonResponse(result)
 			}
 
-			// Non-sensitive methods (or auto-approved localhost) execute directly
+			// Non-sensitive methods (or trusted origins) execute directly
 			const fn = wallet[methodName] as (
 				args: unknown,
 				originator: string,
