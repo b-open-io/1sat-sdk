@@ -8,7 +8,7 @@ import {
 	Settings,
 	Sparkles,
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -128,15 +128,19 @@ export function AiChatView({ initialQuery, pageContext, onNavigate }: AiChatView
 	const scrollRef = useRef<HTMLDivElement>(null)
 	const inputRef = useRef<HTMLTextAreaElement>(null)
 
-	const { messages, sendMessage, status, error } = useChat({
-		transport: new DefaultChatTransport({
-			api: 'http://localhost:3321/api/chat',
-			body: {
-				model: selectedModel,
-				context: pageContext,
-			},
-		}),
-	})
+	const transport = useMemo(
+		() =>
+			new DefaultChatTransport({
+				api: 'http://localhost:3321/api/chat',
+				body: {
+					model: selectedModel,
+					context: pageContext,
+				},
+			}),
+		[selectedModel, pageContext],
+	)
+
+	const { messages, sendMessage, status, error } = useChat({ transport })
 
 	// Auto-scroll on new messages
 	useEffect(() => {
@@ -150,7 +154,7 @@ export function AiChatView({ initialQuery, pageContext, onNavigate }: AiChatView
 		if (initialQuery && messages.length === 0) {
 			sendMessage({ text: initialQuery })
 		}
-	}, []) // Only on mount
+	}, [initialQuery, sendMessage])
 
 	const handleSubmit = useCallback(() => {
 		if (!input.trim() || status !== 'ready') return

@@ -168,7 +168,7 @@ function TabBar({
 			style={{
 				height: TAB_BAR_HEIGHT,
 				paddingLeft: TRAFFIC_LIGHT_PAD,
-				backgroundColor: 'oklch(0.17 0.012 96)',
+				backgroundColor: 'var(--tab-bar-bg)',
 			}}
 		>
 			<div
@@ -309,10 +309,10 @@ function NavButton({ icon, label, disabled = false, onClick }: NavButtonProps) {
 }
 
 const PROTOCOLS = [
-	{ value: '1sat://', label: '1sat://', bg: 'oklch(0.35 0.12 260)', fg: 'oklch(0.78 0.14 260)' },
-	{ value: 'https://', label: 'https://', bg: 'oklch(0.25 0.08 150)', fg: 'oklch(0.7 0.15 150)' },
-	{ value: 'http://', label: 'http://', bg: 'oklch(0.25 0.05 50)', fg: 'oklch(0.7 0.1 50)' },
-	{ value: 'ai://', label: 'ai://', bg: 'oklch(0.3 0.12 300)', fg: 'oklch(0.75 0.15 300)' },
+	{ value: '1sat://', label: '1sat://', bg: 'var(--protocol-1sat-bg)', fg: 'var(--protocol-1sat-fg)' },
+	{ value: 'https://', label: 'https://', bg: 'var(--protocol-https-bg)', fg: 'var(--protocol-https-fg)' },
+	{ value: 'http://', label: 'http://', bg: 'var(--protocol-http-bg)', fg: 'var(--protocol-http-fg)' },
+	{ value: 'ai://', label: 'ai://', bg: 'var(--protocol-ai-bg)', fg: 'var(--protocol-ai-fg)' },
 ] as const
 
 function getProtocolFromRoute(route: ParsedRoute): string {
@@ -725,19 +725,23 @@ export function BrowserLayout() {
 	// Address bar ref for programmatic focus
 	const addressBarRef = useRef<HTMLInputElement | null>(null)
 
+	// Ref to track the current active tab ID without closing over stale state
+	const activeTabIdRef = useRef(activeTabId)
+	activeTabIdRef.current = activeTabId
+
 	// ── Navigation helpers (operate on the active tab's nav state) ─────────
 
 	const dispatchNav = useCallback(
 		(action: Parameters<typeof applyNavAction>[1]) => {
 			setTabs((prev) =>
 				prev.map((tab) =>
-					tab.id === activeTabId
+					tab.id === activeTabIdRef.current
 						? { ...tab, nav: applyNavAction(tab.nav, action) }
 						: tab,
 				),
 			)
 		},
-		[activeTabId],
+		[], // stable — reads current tab ID from ref
 	)
 
 	const navigate = useCallback(
