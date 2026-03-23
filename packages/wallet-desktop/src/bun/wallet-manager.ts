@@ -12,6 +12,7 @@ import { createNodeWallet } from '@1sat/wallet-node'
 import { HD, Mnemonic, PrivateKey } from '@bsv/sdk'
 import { Utils } from 'electrobun/bun'
 import type { BalanceInfo, SyncEvent, WalletStatus } from '../shared/types'
+import { isStackRunning, getStackUrl } from './sidecar-manager'
 import {
 	createDesktopVault,
 	hasStoredKey,
@@ -178,11 +179,14 @@ export async function create(
 
 	await protectRootKey(v, rootKeyHex)
 
+	const stackRemote = isStackRunning() ? `${getStackUrl()}/1sat/wallet` : undefined
+
 	walletResult = await createNodeWallet({
 		privateKey: rootKey.toWif(),
 		chain: 'main',
 		storageIdentityKey: `1sat-wallet:${identityKey}`,
 		filename: dbPath(),
+		activeRemote: stackRemote,
 	})
 
 	setStatus('unlocked')
@@ -200,11 +204,14 @@ export async function unlock(_passphrase: string): Promise<void> {
 	const rootKey = PrivateKey.fromHex(rootKeyHex)
 	const identityKey = rootKey.toPublicKey().toString()
 
+	const stackRemote = isStackRunning() ? `${getStackUrl()}/1sat/wallet` : undefined
+
 	walletResult = await createNodeWallet({
 		privateKey: rootKey.toWif(),
 		chain: 'main',
 		storageIdentityKey: `1sat-wallet:${identityKey}`,
 		filename: dbPath(),
+		activeRemote: stackRemote,
 	})
 
 	setStatus('unlocked')
