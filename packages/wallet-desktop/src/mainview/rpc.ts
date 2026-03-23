@@ -8,6 +8,7 @@ import type {
 	WalletDesktopRPC,
 	WalletStatus,
 } from '../shared/types'
+import { getBrowserController } from './lib/browser-controller'
 
 // Pub/sub system for React hooks to subscribe to RPC messages
 type Listener<T> = (data: T) => void
@@ -32,10 +33,52 @@ function emit(event: string, data: unknown) {
 	}
 }
 
-// Define the webview-side RPC with message handlers that emit to subscribers
+// Define the webview-side RPC with request + message handlers
 const rpc = Electroview.defineRPC<WalletDesktopRPC>({
 	maxRequestTime: 30_000,
 	handlers: {
+		requests: {
+			tabList: () => {
+				const ctrl = getBrowserController()
+				if (!ctrl) return { tabs: [] }
+				return { tabs: ctrl.listTabs() }
+			},
+			tabCreate: ({ url }: { url?: string }) => {
+				const ctrl = getBrowserController()
+				if (!ctrl) return { tabId: '' }
+				return { tabId: ctrl.createTab(url) }
+			},
+			tabClose: ({ tabId }: { tabId: string }) => {
+				const ctrl = getBrowserController()
+				if (!ctrl) return { success: false }
+				return { success: ctrl.closeTab(tabId) }
+			},
+			tabNavigate: ({ tabId, url }: { tabId: string; url: string }) => {
+				const ctrl = getBrowserController()
+				if (!ctrl) return { success: false }
+				return { success: ctrl.navigateTab(tabId, url) }
+			},
+			tabActivate: ({ tabId }: { tabId: string }) => {
+				const ctrl = getBrowserController()
+				if (!ctrl) return { success: false }
+				return { success: ctrl.activateTab(tabId) }
+			},
+			tabGoBack: ({ tabId }: { tabId: string }) => {
+				const ctrl = getBrowserController()
+				if (!ctrl) return { success: false }
+				return { success: ctrl.goBack(tabId) }
+			},
+			tabGoForward: ({ tabId }: { tabId: string }) => {
+				const ctrl = getBrowserController()
+				if (!ctrl) return { success: false }
+				return { success: ctrl.goForward(tabId) }
+			},
+			tabReload: ({ tabId }: { tabId: string }) => {
+				const ctrl = getBrowserController()
+				if (!ctrl) return { success: false }
+				return { success: ctrl.reload(tabId) }
+			},
+		},
 		messages: {
 			walletStateChanged: (payload: { status: WalletStatus }) => {
 				emit('walletStateChanged', payload)

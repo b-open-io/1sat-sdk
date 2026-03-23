@@ -13,6 +13,10 @@ import {
 	X,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+	registerBrowserController,
+	unregisterBrowserController,
+} from '../../lib/browser-controller'
 import { onStackOnboardingRequired, rpc } from '../../rpc'
 
 // ORDFS resolution -- routes on-chain content through the local 1sat-stack sidecar
@@ -335,6 +339,59 @@ export function BrowserView() {
 			title: activeTab.title,
 		})
 	}, [activeTab])
+
+	// Register browser controller for MCP tab automation.
+	// Uses refs to avoid stale closure issues — the controller always
+	// accesses the latest state via the ref callbacks.
+	useEffect(() => {
+		registerBrowserController({
+			listTabs: () => tabs,
+			createTab: (url?: string) => createTab(url),
+			closeTab: (tabId: string) => {
+				closeTab(tabId)
+				return true
+			},
+			navigateTab: (tabId: string, url: string) => {
+				const webview = webviewsRef.current.get(tabId)
+				if (!webview) return false
+				const resolved = resolveUrl(url)
+				webview.src = resolved
+				setTabs((prev) =>
+					prev.map((t) =>
+						t.id === tabId
+							? { ...t, url: resolved, title: 'Loading...' }
+							: t,
+					),
+				)
+				return true
+			},
+			activateTab: (tabId: string) => {
+				if (!tabs.find((t) => t.id === tabId)) return false
+				setActiveTabId(tabId)
+				return true
+			},
+			goBack: (tabId: string) => {
+				const webview = webviewsRef.current.get(tabId)
+				if (!webview) return false
+				webview.goBack()
+				return true
+			},
+			goForward: (tabId: string) => {
+				const webview = webviewsRef.current.get(tabId)
+				if (!webview) return false
+				webview.goForward()
+				return true
+			},
+			reload: (tabId: string) => {
+				const webview = webviewsRef.current.get(tabId)
+				if (!webview) return false
+				webview.reload()
+				return true
+			},
+		})
+
+		return () => unregisterBrowserController()
+	}, [tabs, createTab, closeTab])
 
 	// Determine if the active tab is showing the new tab page (no webview)
 	const showNewTabPage = activeTabId

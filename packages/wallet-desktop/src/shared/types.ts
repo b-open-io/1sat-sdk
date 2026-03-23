@@ -406,8 +406,48 @@ type BunMessages = {
 	stackOnboardingComplete: {}
 }
 
-// Requests bun can make to the webview (currently none)
-type WebviewRequests = Record<never, never>
+// Tab info for MCP browser automation
+export interface TabInfo {
+	id: string
+	url: string
+	title: string
+}
+
+// Requests bun can make to the webview (browser tab automation for MCP)
+type WebviewRequests = {
+	tabList: {
+		params: undefined
+		response: { tabs: TabInfo[] }
+	}
+	tabCreate: {
+		params: { url?: string }
+		response: { tabId: string }
+	}
+	tabClose: {
+		params: { tabId: string }
+		response: { success: boolean }
+	}
+	tabNavigate: {
+		params: { tabId: string; url: string }
+		response: { success: boolean }
+	}
+	tabActivate: {
+		params: { tabId: string }
+		response: { success: boolean }
+	}
+	tabGoBack: {
+		params: { tabId: string }
+		response: { success: boolean }
+	}
+	tabGoForward: {
+		params: { tabId: string }
+		response: { success: boolean }
+	}
+	tabReload: {
+		params: { tabId: string }
+		response: { success: boolean }
+	}
+}
 
 // Messages webview can send to bun (currently none)
 type WebviewMessages = Record<never, never>
