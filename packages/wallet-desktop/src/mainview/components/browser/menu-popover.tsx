@@ -71,9 +71,10 @@ function MenuItemRow({ item }: { item: MenuItem }) {
 interface MenuPopoverProps {
 	onNavigate: (url: string) => void
 	onToggleAgent?: () => void
+	onOpenBookmarks?: () => void
 }
 
-export function MenuPopover({ onNavigate, onToggleAgent }: MenuPopoverProps) {
+export function MenuPopover({ onNavigate, onToggleAgent, onOpenBookmarks }: MenuPopoverProps) {
 	const [open, setOpen] = useState(false)
 
 	const navigate = (url: string) => {
@@ -88,8 +89,10 @@ export function MenuPopover({ onNavigate, onToggleAgent }: MenuPopoverProps) {
 					icon: <Bookmark size={13} />,
 					label: 'Bookmarks',
 					shortcut: '⌘B',
-					onClick: () => setOpen(false),
-					disabled: true,
+					onClick: () => {
+						setOpen(false)
+						onOpenBookmarks?.()
+					},
 				},
 				{
 					icon: <Clock size={13} />,

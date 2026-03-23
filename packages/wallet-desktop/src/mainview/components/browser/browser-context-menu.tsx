@@ -25,6 +25,7 @@ interface BrowserContextMenuProps {
   canGoBack: boolean
   canGoForward: boolean
   currentUrl: string
+  onBookmark?: () => void
 }
 
 export function BrowserContextMenu({
@@ -35,6 +36,7 @@ export function BrowserContextMenu({
   canGoBack,
   canGoForward,
   currentUrl,
+  onBookmark,
 }: BrowserContextMenuProps) {
   const isOnchain =
     currentUrl.startsWith('1sat://') &&
@@ -97,7 +99,7 @@ export function BrowserContextMenu({
         <ContextMenuSeparator />
 
         {/* Page actions */}
-        <ContextMenuItem className="flex items-center gap-2">
+        <ContextMenuItem onClick={onBookmark} className="flex items-center gap-2">
           <Bookmark size={14} />
           <span className="text-[11px]">Bookmark This Page</span>
         </ContextMenuItem>
