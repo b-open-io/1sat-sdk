@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useWallet } from '../../hooks/use-wallet'
 import { ReceiveAddress } from '@/components/blocks/receive-address'
 import { SendBsv, type SendBsvParams, type SendBsvResult } from '@/components/blocks/send-bsv'
-import { QrCode } from '../qr-code'
+import QRCode from 'qrcode'
 
 function formatBsv(satoshis: number): string {
 	return (satoshis / 1e8).toFixed(8)
@@ -39,7 +39,22 @@ export function WalletPanel() {
 	)
 
 	const renderQr = useCallback(
-		(address: string) => <QrCode value={address} size={160} />,
+		(address: string) => {
+			const canvasRef = (el: HTMLCanvasElement | null) => {
+				if (!el || !address) return
+				QRCode.toCanvas(el, address, {
+					width: 160,
+					margin: 2,
+					color: { dark: '#ffffff', light: '#000000' },
+					errorCorrectionLevel: 'M',
+				}).catch(() => {})
+			}
+			return (
+				<div className="inline-flex border border-border bg-black p-2">
+					<canvas ref={canvasRef} />
+				</div>
+			)
+		},
 		[],
 	)
 
