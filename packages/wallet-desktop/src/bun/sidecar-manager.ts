@@ -172,9 +172,11 @@ ordfs:
   routes:
     enabled: true
 
-# Admin API
+# Admin API + setup wizard
 admin:
+  mode: enabled
   routes:
+    enabled: true
     bearer_token: ""
 `
 }
