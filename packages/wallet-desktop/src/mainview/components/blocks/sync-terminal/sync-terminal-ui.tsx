@@ -19,6 +19,10 @@ export interface SyncTerminalUIProps {
   showTimestamps?: boolean
   /** Show source labels in each line (default: true) */
   showSource?: boolean
+  /** Whether the log area is collapsed (default: false) */
+  collapsed?: boolean
+  /** Callback when the header is clicked to toggle collapse */
+  onToggleCollapse?: () => void
   /** Ref to attach to the scroll sentinel at the bottom */
   bottomRef?: React.RefObject<HTMLDivElement | null>
   /** Optional CSS class name */
@@ -30,10 +34,10 @@ export interface SyncTerminalUIProps {
 // ---------------------------------------------------------------------------
 
 const LEVEL_COLORS: Record<SyncEventLevel, string> = {
-  log: "text-zinc-400",
-  warn: "text-amber-400",
-  error: "text-rose-400",
-  success: "text-emerald-400",
+  log: "text-muted-foreground",
+  warn: "text-chart-4",
+  error: "text-destructive",
+  success: "text-chart-2",
 }
 
 /** Format a unix-ms timestamp into HH:MM:SS.mmm */
@@ -53,14 +57,16 @@ function formatTimestamp(ts: number): string {
 /**
  * Terminal-style event log display with colour-coded severity levels.
  *
- * Uses a dark background (bg-zinc-950) and monospace font regardless of theme
- * since this intentionally emulates a terminal console.
+ * Uses semantic theme tokens so the terminal adapts to any shadcn theme.
+ * The header is clickable to collapse/expand the log area.
  *
  * @example
  * ```tsx
  * <SyncTerminalUI
  *   events={events}
  *   status={{ blockHeight: 850123, connected: true }}
+ *   collapsed={false}
+ *   onToggleCollapse={() => setCollapsed(c => !c)}
  * />
  * ```
  */
@@ -70,6 +76,8 @@ export function SyncTerminalUI({
   title = "Sync Log",
   showTimestamps = true,
   showSource = true,
+  collapsed = false,
+  onToggleCollapse,
   bottomRef,
   className,
 }: SyncTerminalUIProps) {
@@ -77,10 +85,10 @@ export function SyncTerminalUI({
 
   // Auto-scroll when events change if we have a bottomRef
   useEffect(() => {
-    if (bottomRef?.current) {
+    if (!collapsed && bottomRef?.current) {
       bottomRef.current.scrollIntoView({ behavior: "smooth" })
     }
-  }, [events.length, bottomRef])
+  }, [events.length, bottomRef, collapsed])
 
   const renderStatusDot = useCallback(() => {
     if (!status) return null
@@ -90,12 +98,12 @@ export function SyncTerminalUI({
         <span
           className={cn(
             "inline-block size-2 rounded-full",
-            status.connected ? "bg-emerald-400" : "bg-zinc-600"
+            status.connected ? "bg-chart-2" : "bg-muted-foreground"
           )}
           aria-label={status.connected ? "Connected" : "Disconnected"}
         />
         {status.connected && (
-          <span className="text-zinc-500">
+          <span className="text-muted-foreground">
             #{status.blockHeight.toLocaleString()}
           </span>
         )}
@@ -106,54 +114,84 @@ export function SyncTerminalUI({
   return (
     <div
       className={cn(
-        "flex flex-col overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950 font-mono text-xs",
+        "flex flex-col overflow-hidden border-t border-border bg-card font-mono text-xs",
         className
       )}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2">
-        <span className="font-semibold text-zinc-300">{title}</span>
-        {renderStatusDot()}
-      </div>
-
-      {/* Log area */}
-      <div
-        ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto p-3"
-        style={{ maxHeight: 400 }}
-        role="log"
-        aria-live="polite"
-        aria-label={title}
+      {/* Header — clickable to toggle collapse */}
+      <button
+        type="button"
+        className="flex items-center justify-between border-b border-border px-3 py-1.5 hover:bg-accent/50 transition-colors cursor-pointer select-none"
+        onClick={onToggleCollapse}
+        aria-expanded={!collapsed}
+        aria-controls="sync-terminal-log"
       >
-        {events.length === 0 ? (
-          <p className="text-zinc-600">No events yet.</p>
-        ) : (
-          <div className="flex flex-col gap-0.5">
-            {events.map((event, i) => (
-              <div
-                key={`${event.timestamp}-${i}`}
-                className="flex gap-2 leading-5"
-              >
-                {showTimestamps && (
-                  <span className="shrink-0 text-zinc-600">
-                    {formatTimestamp(event.timestamp)}
+        <div className="flex items-center gap-2">
+          <svg
+            className={cn(
+              "h-3 w-3 text-muted-foreground transition-transform",
+              collapsed ? "-rotate-90" : "rotate-0"
+            )}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+          <span className="font-semibold text-foreground text-xs">{title}</span>
+          {collapsed && events.length > 0 && (
+            <span className="text-muted-foreground">
+              ({events.length} events)
+            </span>
+          )}
+        </div>
+        {renderStatusDot()}
+      </button>
+
+      {/* Log area — hidden when collapsed */}
+      {!collapsed && (
+        <div
+          id="sync-terminal-log"
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto p-3"
+          style={{ maxHeight: 200 }}
+          role="log"
+          aria-live="polite"
+          aria-label={title}
+        >
+          {events.length === 0 ? (
+            <p className="text-muted-foreground">No events yet.</p>
+          ) : (
+            <div className="flex flex-col gap-0.5">
+              {events.map((event, i) => (
+                <div
+                  key={`${event.timestamp}-${i}`}
+                  className="flex gap-2 leading-5"
+                >
+                  {showTimestamps && (
+                    <span className="shrink-0 text-muted-foreground">
+                      {formatTimestamp(event.timestamp)}
+                    </span>
+                  )}
+                  {showSource && (
+                    <span className="shrink-0 text-muted-foreground">
+                      [{event.source}]
+                    </span>
+                  )}
+                  <span className={LEVEL_COLORS[event.level]}>
+                    {event.message}
                   </span>
-                )}
-                {showSource && (
-                  <span className="shrink-0 text-zinc-500">
-                    [{event.source}]
-                  </span>
-                )}
-                <span className={LEVEL_COLORS[event.level]}>
-                  {event.message}
-                </span>
-              </div>
-            ))}
-            {/* Scroll sentinel */}
-            <div ref={bottomRef} />
-          </div>
-        )}
-      </div>
+                </div>
+              ))}
+              {/* Scroll sentinel */}
+              <div ref={bottomRef} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
