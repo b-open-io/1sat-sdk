@@ -31,16 +31,40 @@ function newTab(url = ''): BrowserTab {
 	}
 }
 
-// Normalizes user input into a navigable URL. Bare terms become searches.
+// ORDFS resolution — routes on-chain content through the local 1sat-stack sidecar
+const STACK_URL = 'http://127.0.0.1:8080'
+const OUTPOINT_RE = /^[0-9a-fA-F]{64}[_.]?\d*$/
+
 function resolveUrl(input: string): string {
 	const trimmed = input.trim()
 	if (!trimmed) return ''
+
+	// 1sat:// deep links → resolve through local ORDFS
+	if (trimmed.startsWith('1sat://')) {
+		const path = trimmed.slice('1sat://'.length)
+		return `${STACK_URL}/content/${path}`
+	}
+
+	// ordfs:// scheme → local ORDFS
+	if (trimmed.startsWith('ordfs://')) {
+		const path = trimmed.slice('ordfs://'.length)
+		return `${STACK_URL}/content/${path}`
+	}
+
+	// Bare outpoint (64-hex txid with optional _vout) → ORDFS content
+	if (OUTPOINT_RE.test(trimmed)) {
+		const outpoint = trimmed.includes('_') ? trimmed : `${trimmed}_0`
+		return `${STACK_URL}/content/${outpoint}`
+	}
+
 	// Already has a scheme
 	if (/^[a-zA-Z][a-zA-Z0-9+\-.]*:\/\//.test(trimmed)) return trimmed
+
 	// Looks like a hostname (has a dot, no spaces)
 	if (!trimmed.includes(' ') && trimmed.includes('.')) {
 		return `https://${trimmed}`
 	}
+
 	// Fall through to DuckDuckGo search
 	return `https://duckduckgo.com/?q=${encodeURIComponent(trimmed)}`
 }

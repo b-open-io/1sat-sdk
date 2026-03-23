@@ -324,3 +324,31 @@ export function isStackRunning(): boolean {
 export function getStackUrl(): string {
 	return STACK_URL
 }
+
+/**
+ * Check if the 1sat-stack setup wizard has been completed.
+ * Polls the health endpoint — if the stack responds with capabilities,
+ * setup is complete.
+ */
+export async function isStackSetupComplete(): Promise<boolean> {
+	if (!isStackRunning()) return false
+	try {
+		const res = await fetch(`${STACK_URL}/1sat/health`, { signal: AbortSignal.timeout(2000) })
+		return res.ok
+	} catch {
+		return false
+	}
+}
+
+/**
+ * Wait for the stack setup to complete (polls every 3 seconds).
+ * Resolves when the stack health endpoint responds OK.
+ */
+export async function waitForStackSetup(timeoutMs = 300000): Promise<boolean> {
+	const start = Date.now()
+	while (Date.now() - start < timeoutMs) {
+		if (await isStackSetupComplete()) return true
+		await Bun.sleep(3000)
+	}
+	return false
+}

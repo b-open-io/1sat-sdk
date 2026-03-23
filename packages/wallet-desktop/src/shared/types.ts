@@ -394,6 +394,8 @@ type BunMessages = {
 	ordinalsUpdated: { ordinals: OrdinalInfo[] }
 	permissionRequest: PermissionRequest
 	chatMessageReceived: ChatMessage
+	stackOnboardingRequired: { adminUrl: string }
+	stackOnboardingComplete: {}
 }
 
 // Requests bun can make to the webview (currently none)
