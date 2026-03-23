@@ -13,6 +13,8 @@ import {
 import { useCallback, useEffect, useState } from 'react'
 import { useWallet } from '../../hooks/use-wallet'
 import { rpc } from '../../rpc'
+import { ReceiveDialog } from './receive-dialog'
+import { SendDialog } from './send-dialog'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -126,6 +128,8 @@ export function WalletPopover({ onNavigate }: WalletPopoverProps) {
 	const [history, setHistory] = useState<HistoryEntry[]>([])
 	const [copied, setCopied] = useState(false)
 	const [open, setOpen] = useState(false)
+	const [sendOpen, setSendOpen] = useState(false)
+	const [receiveOpen, setReceiveOpen] = useState(false)
 
 	const totalSats = balance.confirmed + balance.unconfirmed
 
@@ -152,12 +156,12 @@ export function WalletPopover({ onNavigate }: WalletPopoverProps) {
 
 	const handleSend = () => {
 		setOpen(false)
-		onNavigate('1sat://wallet/send')
+		setSendOpen(true)
 	}
 
 	const handleReceive = () => {
 		setOpen(false)
-		onNavigate('1sat://wallet/receive')
+		setReceiveOpen(true)
 	}
 
 	const handleOpenWallet = () => {
@@ -166,6 +170,9 @@ export function WalletPopover({ onNavigate }: WalletPopoverProps) {
 	}
 
 	return (
+		<>
+		<SendDialog open={sendOpen} onOpenChange={setSendOpen} />
+		<ReceiveDialog open={receiveOpen} onOpenChange={setReceiveOpen} />
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
 				<Button
@@ -279,5 +286,6 @@ export function WalletPopover({ onNavigate }: WalletPopoverProps) {
 				</button>
 			</PopoverContent>
 		</Popover>
+		</>
 	)
 }

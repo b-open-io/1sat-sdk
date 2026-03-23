@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Kbd } from '@/components/ui/kbd'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -57,12 +58,7 @@ function MenuItemRow({ item }: { item: MenuItem }) {
 				{item.label}
 			</span>
 			{item.shortcut && (
-				<kbd
-					className="text-[10px] font-mono text-muted-foreground/60 tracking-wide shrink-0"
-					style={{ fontFamily: 'JetBrains Mono, monospace' }}
-				>
-					{item.shortcut}
-				</kbd>
+				<Kbd className="shrink-0">{item.shortcut}</Kbd>
 			)}
 		</button>
 	)
