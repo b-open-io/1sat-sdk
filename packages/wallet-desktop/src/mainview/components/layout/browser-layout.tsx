@@ -4,25 +4,24 @@ import { cn } from '@/lib/utils'
 import {
 	ArrowLeft,
 	ArrowRight,
-	Bot,
 	ChevronDown,
-	EllipsisVertical,
 	Globe,
 	Plus,
 	RotateCw,
 	Server,
-	Wallet,
 	X,
 } from 'lucide-react'
 import {
 	useCallback,
 	useEffect,
-	useId,
 	useRef,
 	useState,
 } from 'react'
 import type { ParsedRoute } from '../../../shared/url-types'
 import { getDisplayLabel } from '../../../shared/url-types'
+import { AgentPopover } from '../browser/agent-popover'
+import { MenuPopover } from '../browser/menu-popover'
+import { WalletPopover } from '../browser/wallet-popover'
 import {
 	NAV_INITIAL_STATE,
 	type NavState,
@@ -382,9 +381,9 @@ function Toolbar({
 			{/* Identity + action buttons */}
 			<IdentityChip />
 			<div className="flex items-center gap-0.5">
-				<NavButton icon={<Wallet size={14} />} label="Wallet" />
-				<NavButton icon={<Bot size={14} />} label="Agent" />
-				<NavButton icon={<EllipsisVertical size={14} />} label="Menu" />
+				<WalletPopover onNavigate={onNavigate} />
+				<AgentPopover />
+				<MenuPopover onNavigate={onNavigate} />
 			</div>
 		</div>
 	)
