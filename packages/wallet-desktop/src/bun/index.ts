@@ -251,6 +251,16 @@ startStack().then(async () => {
 		mainWindow.webview.rpc.send.stackOnboardingRequired({
 			adminUrl: `${getStackUrl()}/1sat/admin`,
 		})
+
+		// Keep polling until setup completes (user finishes the wizard)
+		for (let attempt = 0; attempt < 300; attempt++) {
+			await Bun.sleep(3000)
+			if (await isStackSetupComplete()) {
+				console.log('1sat-stack setup completed — dismissing onboarding')
+				mainWindow.webview.rpc.send.stackOnboardingComplete({})
+				break
+			}
+		}
 	} else {
 		console.log('1sat-stack setup is complete')
 	}

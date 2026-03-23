@@ -10,7 +10,7 @@ import {
 import { useCallback, useEffect, useState } from 'react'
 import { useSyncEvents } from '../../hooks/use-sync-events'
 import { useWallet } from '../../hooks/use-wallet'
-import { onStackOnboardingRequired, rpc } from '../../rpc'
+import { onStackOnboardingComplete, onStackOnboardingRequired, rpc } from '../../rpc'
 import { BrowserView } from '../../views/browser/index'
 import { ChatView } from '../../views/chat/index'
 import { CollectionsView } from '../../views/collections/index'
@@ -65,11 +65,15 @@ export function DesktopLayout() {
 		await lockWallet()
 	}, [lockWallet])
 
-	// Listen for stack onboarding requirement
+	// Listen for stack onboarding requirement and completion
 	useEffect(() => {
-		return onStackOnboardingRequired(({ adminUrl }) => {
+		const unsub1 = onStackOnboardingRequired(({ adminUrl }) => {
 			setStackOnboardingUrl(adminUrl)
 		})
+		const unsub2 = onStackOnboardingComplete(() => {
+			setStackOnboardingUrl(null)
+		})
+		return () => { unsub1(); unsub2() }
 	}, [])
 
 	const handleOpenStackSetup = useCallback(() => {
