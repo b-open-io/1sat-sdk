@@ -1,14 +1,14 @@
-import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Input } from '@/components/ui/input'
+import { MnemonicGridUi } from '@/components/blocks/mnemonic-flow/mnemonic-grid-ui'
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from '@/components/ui/select'
+	type ScanResult,
+	type SweepResult,
+	SweepWallet,
+} from '@/components/blocks/sweep-wallet'
+import {
+	ThemeTokenProvider,
+	ThemeTokenSettings,
+} from '@/components/blocks/theme-token-provider'
+import { Button } from '@/components/ui/button'
 import {
 	Dialog,
 	DialogContent,
@@ -18,20 +18,26 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+	AlertTriangle,
+	ExternalLink,
+	Globe,
+	Lock,
+	ShieldCheck,
+} from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import {
-	SweepWallet,
-	type ScanResult,
-	type SweepResult,
-} from '@/components/blocks/sweep-wallet'
-import {
-	ThemeTokenProvider,
-	ThemeTokenSettings,
-} from '@/components/blocks/theme-token-provider'
-import { rpc } from '../../rpc'
 import { useWallet } from '../../hooks/use-wallet'
-import { AlertTriangle, ExternalLink, Globe, Lock, ShieldCheck } from 'lucide-react'
-import { MnemonicGridUi } from '@/components/blocks/mnemonic-flow/mnemonic-grid-ui'
+import { rpc } from '../../rpc'
 
 // ---------------------------------------------------------------------------
 // AI Settings types and helpers
@@ -48,7 +54,10 @@ interface AiSettings {
 
 const AI_SETTINGS_KEY = '1sat-ai-settings'
 
-const PROVIDER_DEFAULTS: Record<AiProvider, { baseUrl: string; label: string }> = {
+const PROVIDER_DEFAULTS: Record<
+	AiProvider,
+	{ baseUrl: string; label: string }
+> = {
 	ollama: { baseUrl: 'http://localhost:11434/v1', label: 'Ollama (Local)' },
 	openrouter: { baseUrl: 'https://openrouter.ai/api/v1', label: 'OpenRouter' },
 	openai: { baseUrl: 'https://api.openai.com/v1', label: 'OpenAI' },
@@ -90,7 +99,13 @@ async function fetchStackHealth(): Promise<StackHealth> {
 		const res = await fetch('http://127.0.0.1:8080/1sat/health', {
 			signal: AbortSignal.timeout(4000),
 		})
-		if (!res.ok) return { blockHeight: null, uptimeSeconds: null, running: false, syncPercent: null }
+		if (!res.ok)
+			return {
+				blockHeight: null,
+				uptimeSeconds: null,
+				running: false,
+				syncPercent: null,
+			}
 		const data = await res.json()
 		const rawUptime = data.uptime ?? data.uptimeSeconds ?? null
 		const uptimeSeconds = typeof rawUptime === 'number' ? rawUptime : null
@@ -107,7 +122,12 @@ async function fetchStackHealth(): Promise<StackHealth> {
 			syncPercent,
 		}
 	} catch {
-		return { blockHeight: null, uptimeSeconds: null, running: false, syncPercent: null }
+		return {
+			blockHeight: null,
+			uptimeSeconds: null,
+			running: false,
+			syncPercent: null,
+		}
 	}
 }
 
@@ -167,7 +187,9 @@ function SecurityTab() {
 				</div>
 				<div className="flex-1 min-w-0">
 					<p className="text-sm font-semibold">Vault Protected</p>
-					<p className="text-sm text-muted-foreground">Touch ID (Secure Enclave)</p>
+					<p className="text-sm text-muted-foreground">
+						Touch ID (Secure Enclave)
+					</p>
 				</div>
 				<span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full shrink-0">
 					Active
@@ -202,14 +224,14 @@ function SecurityTab() {
 									<DialogHeader>
 										<DialogTitle>Reveal Seed Phrase</DialogTitle>
 										<DialogDescription>
-											Anyone with these words can access your wallet and all funds
-											inside. Never share them with anyone.
+											Anyone with these words can access your wallet and all
+											funds inside. Never share them with anyone.
 										</DialogDescription>
 									</DialogHeader>
 									<div className="p-3 border border-amber-500/30 bg-amber-500/5 rounded-md">
 										<p className="text-xs text-amber-600 dark:text-amber-400">
-											Are you sure you want to reveal your seed phrase? Make sure
-											no one can see your screen.
+											Are you sure you want to reveal your seed phrase? Make
+											sure no one can see your screen.
 										</p>
 									</div>
 									<DialogFooter>
@@ -219,10 +241,7 @@ function SecurityTab() {
 										>
 											Cancel
 										</Button>
-										<Button
-											variant="destructive"
-											onClick={handleRevealConfirm}
-										>
+										<Button variant="destructive" onClick={handleRevealConfirm}>
 											Yes, Show My Seed Phrase
 										</Button>
 									</DialogFooter>
@@ -300,7 +319,8 @@ function SecurityTab() {
 					<Globe className="size-8 text-muted-foreground/40" />
 					<p className="text-sm text-muted-foreground">No connected apps yet</p>
 					<p className="text-xs text-muted-foreground/60 max-w-xs">
-						Apps you authorize will appear here. You can revoke access at any time.
+						Apps you authorize will appear here. You can revoke access at any
+						time.
 					</p>
 				</div>
 			</div>
@@ -520,12 +540,12 @@ function AiTab() {
 				return
 			}
 			const data = await res.json()
-			const models: OllamaModel[] = (
-				data.models ?? []
-			).map((m: { name: string; size: number }) => ({
-				name: m.name,
-				size: `${(m.size / 1e9).toFixed(1)} GB`,
-			}))
+			const models: OllamaModel[] = (data.models ?? []).map(
+				(m: { name: string; size: number }) => ({
+					name: m.name,
+					size: `${(m.size / 1e9).toFixed(1)} GB`,
+				}),
+			)
 			setFetchedModels(models)
 			if (models.length > 0 && !settings.model) {
 				updateSettings({ model: models[0].name })
@@ -729,28 +749,31 @@ export function SettingsView() {
 		data: Awaited<ReturnType<typeof rpc.request.sweepScan>>
 	} | null>(null)
 
-	const handleSweepScan = useCallback(async (wif: string): Promise<ScanResult> => {
-		const result = await rpc.request.sweepScan({ wif })
-		setLastScanRaw({ wif, data: result })
-		return {
-			funding: result.funding.map((f) => ({
-				outpoint: f.outpoint,
-				satoshis: f.satoshis,
-			})),
-			ordinals: result.ordinals.map((o) => ({
-				outpoint: o.outpoint,
-			})),
-			tokens: result.tokens.map((t) => ({
-				tokenId: t.tokenId,
-				symbol: t.symbol,
-				amount: t.utxos.reduce(
-					(sum, u) => (BigInt(sum) + BigInt(u.amount)).toString(),
-					'0',
-				),
-			})),
-			totalSats: result.totalSats,
-		}
-	}, [])
+	const handleSweepScan = useCallback(
+		async (wif: string): Promise<ScanResult> => {
+			const result = await rpc.request.sweepScan({ wif })
+			setLastScanRaw({ wif, data: result })
+			return {
+				funding: result.funding.map((f) => ({
+					outpoint: f.outpoint,
+					satoshis: f.satoshis,
+				})),
+				ordinals: result.ordinals.map((o) => ({
+					outpoint: o.outpoint,
+				})),
+				tokens: result.tokens.map((t) => ({
+					tokenId: t.tokenId,
+					symbol: t.symbol,
+					amount: t.utxos.reduce(
+						(sum, u) => (BigInt(sum) + BigInt(u.amount)).toString(),
+						'0',
+					),
+				})),
+				totalSats: result.totalSats,
+			}
+		},
+		[],
+	)
 
 	const handleSweepExecute = useCallback(
 		async (wif: string, _assets: ScanResult): Promise<SweepResult> => {
@@ -771,12 +794,25 @@ export function SettingsView() {
 			<h1 className="text-2xl font-bold mb-6">Settings</h1>
 
 			<Tabs defaultValue="general">
-				<TabsList variant="line" className="w-full justify-start border-b border-border rounded-none pb-0 mb-6 h-auto">
-					<TabsTrigger value="general" className="rounded-none pb-3">General</TabsTrigger>
-					<TabsTrigger value="security" className="rounded-none pb-3">Security</TabsTrigger>
-					<TabsTrigger value="network" className="rounded-none pb-3">Network</TabsTrigger>
-					<TabsTrigger value="ai" className="rounded-none pb-3">AI</TabsTrigger>
-					<TabsTrigger value="about" className="rounded-none pb-3">About</TabsTrigger>
+				<TabsList
+					variant="line"
+					className="w-full justify-start border-b border-border rounded-none pb-0 mb-6 h-auto"
+				>
+					<TabsTrigger value="general" className="rounded-none pb-3">
+						General
+					</TabsTrigger>
+					<TabsTrigger value="security" className="rounded-none pb-3">
+						Security
+					</TabsTrigger>
+					<TabsTrigger value="network" className="rounded-none pb-3">
+						Network
+					</TabsTrigger>
+					<TabsTrigger value="ai" className="rounded-none pb-3">
+						AI
+					</TabsTrigger>
+					<TabsTrigger value="about" className="rounded-none pb-3">
+						About
+					</TabsTrigger>
 				</TabsList>
 
 				{/* General Tab */}
@@ -841,7 +877,8 @@ export function SettingsView() {
 							<div>
 								<p className="text-sm font-medium">Theme Token</p>
 								<p className="text-xs text-muted-foreground">
-									Apply an on-chain theme token to customize the wallet appearance
+									Apply an on-chain theme token to customize the wallet
+									appearance
 								</p>
 							</div>
 							<ThemeTokenProvider>
