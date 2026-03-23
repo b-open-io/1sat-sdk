@@ -19,7 +19,12 @@ import {
 	startWalletServer,
 } from './http-server'
 import { createRpcHandlers } from './rpc-handlers'
-import { startStack, stopStack } from './sidecar-manager'
+import {
+	getStackUrl,
+	isStackSetupComplete,
+	startStack,
+	stopStack,
+} from './sidecar-manager'
 import {
 	checkVault,
 	setBalanceUpdatedCallback,
@@ -70,6 +75,17 @@ const rpc = BrowserView.defineRPC<WalletDesktopRPC>({
 					title: `1Sat: ${path.substring(0, 16)}...`,
 					url: contentUrl,
 					frame: { width: 900, height: 700, x: 150, y: 150 },
+				})
+				return { success: true }
+			},
+			openBrowserWindow: ({
+				url,
+				title,
+			}: { url: string; title?: string }) => {
+				new BrowserWindow({
+					title: title ?? url.substring(0, 40),
+					url,
+					frame: { width: 1024, height: 700, x: 150, y: 150 },
 				})
 				return { success: true }
 			},
@@ -211,7 +227,16 @@ startWalletServer()
 
 // Start the 1sat-stack sidecar (local indexer + ORDFS server).
 // Errors are non-fatal: the wallet continues if the binary is unavailable.
-startStack().catch((err) => {
+startStack().then(async () => {
+	// Give the stack a moment to initialize
+	await Bun.sleep(3000)
+	const ready = await isStackSetupComplete()
+	if (!ready) {
+		mainWindow.webview.rpc.send.stackOnboardingRequired({
+			adminUrl: `${getStackUrl()}`,
+		})
+	}
+}).catch((err) => {
 	console.error('1sat-stack failed to start:', err.message)
 })
 

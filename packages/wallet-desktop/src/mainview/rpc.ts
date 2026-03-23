@@ -55,6 +55,12 @@ const rpc = Electroview.defineRPC<WalletDesktopRPC>({
 			chatMessageReceived: (payload: ChatMessage) => {
 				emit('chatMessageReceived', payload)
 			},
+			stackOnboardingRequired: (payload: { adminUrl: string }) => {
+				emit('stackOnboardingRequired', payload)
+			},
+			stackOnboardingComplete: (_payload: Record<string, never>) => {
+				emit('stackOnboardingComplete', {})
+			},
 		},
 	},
 })
@@ -91,6 +97,16 @@ function onChatMessageReceived(fn: Listener<ChatMessage>): Unsubscribe {
 	return subscribe('chatMessageReceived', fn)
 }
 
+function onStackOnboardingRequired(
+	fn: Listener<{ adminUrl: string }>,
+): Unsubscribe {
+	return subscribe('stackOnboardingRequired', fn)
+}
+
+function onStackOnboardingComplete(fn: Listener<Record<string, never>>): Unsubscribe {
+	return subscribe('stackOnboardingComplete', fn)
+}
+
 export {
 	electroview,
 	rpc,
@@ -101,4 +117,6 @@ export {
 	onOrdinalsUpdated,
 	onPermissionRequest,
 	onChatMessageReceived,
+	onStackOnboardingRequired,
+	onStackOnboardingComplete,
 }

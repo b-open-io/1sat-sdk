@@ -360,6 +360,10 @@ type BunRequests = {
 		params: { path: string }
 		response: { success: boolean }
 	}
+	openBrowserWindow: {
+		params: { url: string; title?: string }
+		response: { success: boolean }
+	}
 	getChatMessages: {
 		params: { channel: string; limit?: number }
 		response: { messages: ChatMessage[] }

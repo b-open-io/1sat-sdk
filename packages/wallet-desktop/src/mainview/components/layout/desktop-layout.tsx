@@ -5,10 +5,12 @@ import {
 	PanelLeftOpen,
 	PanelRightClose,
 	PanelRightOpen,
+	Server,
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useSyncEvents } from '../../hooks/use-sync-events'
 import { useWallet } from '../../hooks/use-wallet'
+import { onStackOnboardingRequired, rpc } from '../../rpc'
 import { BrowserView } from '../../views/browser/index'
 import { ChatView } from '../../views/chat/index'
 import { CollectionsView } from '../../views/collections/index'
@@ -49,6 +51,7 @@ export function DesktopLayout() {
 	const [route, setRoute] = useState<Route>('overview')
 	const [leftCollapsed, setLeftCollapsed] = useState(false)
 	const [rightCollapsed, setRightCollapsed] = useState(false)
+	const [stackOnboardingUrl, setStackOnboardingUrl] = useState<string | null>(null)
 
 	const toggleLeftSidebar = useCallback(() => {
 		setLeftCollapsed((prev) => !prev)
@@ -61,6 +64,25 @@ export function DesktopLayout() {
 	const handleLock = useCallback(async () => {
 		await lockWallet()
 	}, [lockWallet])
+
+	// Listen for stack onboarding requirement
+	useEffect(() => {
+		return onStackOnboardingRequired(({ adminUrl }) => {
+			setStackOnboardingUrl(adminUrl)
+		})
+	}, [])
+
+	const handleOpenStackSetup = useCallback(() => {
+		if (!stackOnboardingUrl) return
+		rpc.request.openBrowserWindow({
+			url: stackOnboardingUrl,
+			title: '1Sat Stack Setup',
+		})
+	}, [stackOnboardingUrl])
+
+	const dismissOnboarding = useCallback(() => {
+		setStackOnboardingUrl(null)
+	}, [])
 
 	// Keyboard shortcuts: [ toggles left, ] toggles right
 	useEffect(() => {
@@ -146,6 +168,31 @@ export function DesktopLayout() {
 					</Button>
 				</div>
 			</header>
+
+			{/* Stack onboarding banner */}
+			{stackOnboardingUrl && (
+				<div className="flex-none flex items-center justify-between px-4 py-2 border-b border-primary/30 bg-primary/5">
+					<div className="flex items-center gap-2">
+						<Server size={14} className="text-primary" />
+						<span className="text-xs font-medium text-foreground">
+							1Sat Stack needs setup to sync blockchain data
+						</span>
+					</div>
+					<div className="flex items-center gap-2">
+						<Button size="sm" className="h-7 text-xs" onClick={handleOpenStackSetup}>
+							Complete Setup
+						</Button>
+						<Button
+							variant="ghost"
+							size="sm"
+							className="h-7 text-xs text-muted-foreground"
+							onClick={dismissOnboarding}
+						>
+							Dismiss
+						</Button>
+					</div>
+				</div>
+			)}
 
 			{/* Middle: sidebar + content + wallet panel */}
 			<div className="flex flex-1 overflow-hidden">
