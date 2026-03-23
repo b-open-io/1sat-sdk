@@ -104,6 +104,9 @@ const rpc = Electroview.defineRPC<WalletDesktopRPC>({
 			stackOnboardingComplete: (_payload: Record<string, never>) => {
 				emit('stackOnboardingComplete', {})
 			},
+			navigateToUrl: (payload: { url: string }) => {
+				emit('navigateToUrl', payload)
+			},
 		},
 	},
 })
@@ -151,6 +154,10 @@ function onStackOnboardingComplete(fn: Listener<Record<string, never>>): Unsubsc
 	return subscribe('stackOnboardingComplete', fn)
 }
 
+function onNavigateToUrl(fn: Listener<{ url: string }>): Unsubscribe {
+	return subscribe('navigateToUrl', fn)
+}
+
 export {
 	electroview,
 	rpc,
@@ -163,4 +170,5 @@ export {
 	onChatMessageReceived,
 	onStackOnboardingRequired,
 	onStackOnboardingComplete,
+	onNavigateToUrl,
 }

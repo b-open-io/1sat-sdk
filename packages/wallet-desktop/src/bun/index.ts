@@ -305,8 +305,11 @@ Electrobun.events.on('open-url', (e) => {
 	console.log(`Deep link received: ${url}`)
 
 	if (url.startsWith('1sat://')) {
-		const path = url.slice('1sat://'.length)
-		if (path) openOrdfsWindow(path)
+		// Bring the wallet window to the front so the user sees the navigation
+		mainWindow.show()
+		mainWindow.focus()
+		// Forward the URL to the WebView's tab navigation system
+		mainWindow.webview.rpc.send.navigateToUrl({ url })
 	}
 })
 

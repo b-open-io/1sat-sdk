@@ -404,6 +404,7 @@ type BunMessages = {
 	chatMessageReceived: ChatMessage
 	stackOnboardingRequired: { adminUrl: string }
 	stackOnboardingComplete: {}
+	navigateToUrl: { url: string }
 }
 
 // Tab info for MCP browser automation
