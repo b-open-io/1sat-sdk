@@ -1021,7 +1021,7 @@ export function BrowserLayout({ walletStatus }: { walletStatus: WalletStatus }) 
 
 	if (walletStatus !== 'unlocked') {
 		return (
-			<div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
+			<div key={walletStatus} className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
 				{/* Draggable title bar — no controls, just enough space for traffic lights */}
 				<div
 					className="electrobun-webkit-app-region-drag flex items-center justify-center shrink-0"
