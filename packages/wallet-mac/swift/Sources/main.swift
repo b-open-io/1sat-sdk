@@ -535,8 +535,8 @@ struct App {
 
                 // Touch ID gate — authenticate before accessing SE key
                 let reason = appName != nil
-                    ? "\(appName!) wants to access your wallet"
-                    : "Unlock key \"\(label)\""
+                    ? "access your \(appName!) wallet"
+                    : "unlock key \"\(label)\""
                 try await authenticateWithTouchID(reason: reason)
 
                 // Decryption uses SE PRIVATE key — ECDH happens inside the chip
