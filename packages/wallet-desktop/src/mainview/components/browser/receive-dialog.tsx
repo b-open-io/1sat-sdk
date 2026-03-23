@@ -4,6 +4,7 @@ import QRCode from "qrcode"
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog"
@@ -123,6 +124,9 @@ export function ReceiveDialog({ open, onOpenChange }: ReceiveDialogProps) {
 			<DialogContent className="sm:max-w-xs">
 				<DialogHeader>
 					<DialogTitle className="text-base">Receive BSV</DialogTitle>
+					<DialogDescription className="sr-only">
+						Your BSV receive address and QR code
+					</DialogDescription>
 				</DialogHeader>
 
 				<div className="flex flex-col items-center gap-5 py-2">

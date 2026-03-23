@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { Bookmark, Globe, Link, Plus, Search, Trash2 } from 'lucide-react'
 import { useState } from 'react'
@@ -56,7 +57,7 @@ function BookmarkRow({ url, title, onNavigate, onRemove }: BookmarkRowProps) {
         <span className="flex-1 min-w-0">
           <span
             className="block text-[11px] text-foreground truncate"
-            style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+            style={{ fontFamily: 'var(--font-sans)' }}
           >
             {title}
           </span>
@@ -88,7 +89,7 @@ function SectionLabel({ label }: { label: string }) {
     <div className="px-3 pt-2 pb-0.5">
       <span
         className="text-[9px] font-semibold tracking-widest text-muted-foreground/50 uppercase"
-        style={{ fontFamily: 'Space Grotesk, sans-serif', letterSpacing: '0.12em' }}
+        style={{ fontFamily: 'var(--font-sans)', letterSpacing: '0.12em' }}
       >
         {label}
       </span>
@@ -165,7 +166,7 @@ export function BookmarksPopover({
         <div className="flex items-center justify-between px-3 py-2 border-b border-border">
           <span
             className="text-[12px] font-semibold text-foreground"
-            style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+            style={{ fontFamily: 'var(--font-sans)' }}
           >
             Bookmarks
           </span>
@@ -199,13 +200,14 @@ export function BookmarksPopover({
         </div>
 
         {/* Bookmark list */}
-        <div className="py-1 max-h-[320px] overflow-y-auto">
+        <ScrollArea className="max-h-[320px]">
+        <div className="py-1">
           {!hasAny && (
             <div className="flex flex-col items-center justify-center py-8 gap-2">
               <Link size={20} className="text-muted-foreground/30" />
               <p
                 className="text-[11px] text-muted-foreground/50"
-                style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+                style={{ fontFamily: 'var(--font-sans)' }}
               >
                 {query.trim() ? 'No matches' : 'No bookmarks yet'}
               </p>
@@ -242,6 +244,7 @@ export function BookmarksPopover({
             </>
           )}
         </div>
+        </ScrollArea>
       </PopoverContent>
     </Popover>
   )

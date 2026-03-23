@@ -152,7 +152,20 @@ ApplicationMenu.setApplicationMenu([
 	},
 	{
 		label: 'View',
-		submenu: [{ role: 'toggleFullScreen' }],
+		submenu: [
+			{ role: 'toggleFullScreen' },
+			{ type: 'separator' },
+			{
+				label: 'Toggle Developer Tools',
+				action: 'toggle-devtools',
+				accelerator: 'shift+meta+i',
+			},
+			{
+				label: 'Toggle Sync Log',
+				action: 'toggle-sync-log',
+				accelerator: 'shift+meta+j',
+			},
+		],
 	},
 ])
 
@@ -166,6 +179,12 @@ Electrobun.events.on('application-menu-clicked', (e) => {
 		stopMcpServer()
 		stopStack()
 		Utils.quit()
+	}
+	if (e.data.action === 'toggle-devtools') {
+		mainWindow.webview.toggleDevTools()
+	}
+	if (e.data.action === 'toggle-sync-log') {
+		mainWindow.webview.rpc.send.toggleSyncLog({})
 	}
 })
 

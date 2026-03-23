@@ -3,6 +3,7 @@ import { AlertTriangle } from "lucide-react"
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -131,6 +132,9 @@ export function ConfirmDialog({
 						<AlertTriangle className="size-4 text-primary" aria-hidden="true" />
 						Confirm Transaction
 					</DialogTitle>
+					<DialogDescription className="sr-only">
+						Review and confirm your BSV transaction details before sending
+					</DialogDescription>
 				</DialogHeader>
 
 				<div className="divide-y divide-border border border-border">

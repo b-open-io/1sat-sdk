@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import type { ParsedRoute } from '../../../shared/url-types'
 import { getDisplayLabel } from '../../../shared/url-types'
@@ -131,10 +132,10 @@ export function AgentSidebar({
 					className="flex items-center justify-center size-6 shrink-0"
 					style={{
 						borderRadius: 12,
-						background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
+						background: 'linear-gradient(135deg, var(--agent-gradient-from), var(--agent-gradient-to))',
 					}}
 				>
-					<Bot size={12} className="text-white" />
+					<Bot size={12} className="text-primary-foreground" />
 				</div>
 
 				{/* Title */}
@@ -173,13 +174,13 @@ export function AgentSidebar({
 					className="flex items-center gap-1.5 px-2 py-0.5 max-w-full overflow-hidden"
 					style={{
 						borderRadius: 4,
-						background: 'oklch(0.22 0.05 260)',
-						border: '1px solid oklch(0.32 0.1 260)',
+						background: 'var(--agent-accent-bg)',
+						border: '1px solid var(--agent-accent-border)',
 					}}
 				>
 					<span
 						className={cn('text-[9px] truncate', MONO)}
-						style={{ color: 'oklch(0.72 0.18 260)' }}
+						style={{ color: 'var(--agent-accent-muted)' }}
 					>
 						{currentUrl || '1sat://browser/new'}
 					</span>
@@ -187,108 +188,110 @@ export function AgentSidebar({
 			</div>
 
 			{/* Messages area */}
-			<div
-				ref={scrollRef}
-				className="flex-1 overflow-y-auto px-3 py-3 space-y-3"
-			>
-				{messages.length === 0 && (
-					<div className="flex flex-col items-center justify-center h-full gap-3 text-center py-8">
-						<div
-							className="flex items-center justify-center size-10"
-							style={{
-								borderRadius: 20,
-								background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
-							}}
-						>
-							<Bot size={20} className="text-white" />
-						</div>
-						<div>
-							<p className={cn('text-xs font-medium text-foreground mb-1', SANS)}>
-								Research Agent
-							</p>
-							<p className={cn('text-[10px] text-muted-foreground max-w-[220px] leading-relaxed', SANS)}>
-								Ask me anything about this page or any on-chain content.
-							</p>
-						</div>
-						{/* Quick action chips */}
-						<div className="flex flex-wrap gap-1.5 justify-center mt-1">
-							{['Explain', 'Analyze', 'Summarize'].map((action) => (
-								<button
-									key={action}
-									type="button"
-									onClick={() => {
-										const text = `${action} ${currentLabel || 'this page'}`
-										setInput(text)
-										inputRef.current?.focus()
-									}}
-									className={cn(
-										'px-2 py-1 text-[10px] border border-border text-muted-foreground hover:text-foreground hover:border-border/80 hover:bg-muted/30 transition-colors',
-										SANS,
-									)}
-									style={{ borderRadius: 4 }}
-								>
-									{action}
-								</button>
-							))}
-						</div>
-					</div>
-				)}
-
-				{messages.map((message) => (
-					<div
-						key={message.id}
-						className={cn(
-							'flex gap-2',
-							message.role === 'user' ? 'justify-end' : 'justify-start',
-						)}
-					>
-						{message.role === 'assistant' && (
+			<ScrollArea className="flex-1">
+				<div
+					ref={scrollRef}
+					className="px-3 py-3 space-y-3"
+				>
+					{messages.length === 0 && (
+						<div className="flex flex-col items-center justify-center h-full gap-3 text-center py-8">
 							<div
-								className="shrink-0 flex items-center justify-center size-5 mt-0.5"
+								className="flex items-center justify-center size-10"
 								style={{
-									borderRadius: 10,
-									background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
+									borderRadius: 20,
+									background: 'linear-gradient(135deg, var(--agent-gradient-from), var(--agent-gradient-to))',
 								}}
 							>
-								<Bot size={10} className="text-white" />
+								<Bot size={20} className="text-primary-foreground" />
 							</div>
-						)}
-						<div
-							className={cn(
-								'max-w-[85%] px-2.5 py-1.5 text-[11px] leading-relaxed',
-								message.role === 'user'
-									? 'bg-primary text-primary-foreground'
-									: 'bg-muted/50 text-foreground',
-								SANS,
-							)}
-							style={{
-								borderRadius:
-									message.role === 'user'
-										? '8px 8px 2px 8px'
-										: '8px 8px 8px 2px',
-							}}
-						>
-							{message.parts.map((part, i) =>
-								part.type === 'text' ? (
-									<span
-										key={`${message.id}-${i}`}
-										className="whitespace-pre-wrap"
+							<div>
+								<p className={cn('text-xs font-medium text-foreground mb-1', SANS)}>
+									Research Agent
+								</p>
+								<p className={cn('text-[10px] text-muted-foreground max-w-[220px] leading-relaxed', SANS)}>
+									Ask me anything about this page or any on-chain content.
+								</p>
+							</div>
+							{/* Quick action chips */}
+							<div className="flex flex-wrap gap-1.5 justify-center mt-1">
+								{['Explain', 'Analyze', 'Summarize'].map((action) => (
+									<button
+										key={action}
+										type="button"
+										onClick={() => {
+											const text = `${action} ${currentLabel || 'this page'}`
+											setInput(text)
+											inputRef.current?.focus()
+										}}
+										className={cn(
+											'px-2 py-1 text-[10px] border border-border text-muted-foreground hover:text-foreground hover:border-border/80 hover:bg-muted/30 transition-colors',
+											SANS,
+										)}
+										style={{ borderRadius: 4 }}
 									>
-										{part.text}
-									</span>
-								) : null,
-							)}
+										{action}
+									</button>
+								))}
+							</div>
 						</div>
-					</div>
-				))}
+					)}
 
-				{isStreaming && messages[messages.length - 1]?.role !== 'assistant' && (
-					<div className="flex items-center gap-2 text-muted-foreground">
-						<Loader2 size={11} className="animate-spin" />
-						<span className={cn('text-[10px]', SANS)}>Thinking...</span>
-					</div>
-				)}
-			</div>
+					{messages.map((message) => (
+						<div
+							key={message.id}
+							className={cn(
+								'flex gap-2',
+								message.role === 'user' ? 'justify-end' : 'justify-start',
+							)}
+						>
+							{message.role === 'assistant' && (
+								<div
+									className="shrink-0 flex items-center justify-center size-5 mt-0.5"
+									style={{
+										borderRadius: 10,
+										background: 'linear-gradient(135deg, var(--agent-gradient-from), var(--agent-gradient-to))',
+									}}
+								>
+									<Bot size={10} className="text-primary-foreground" />
+								</div>
+							)}
+							<div
+								className={cn(
+									'max-w-[85%] px-2.5 py-1.5 text-[11px] leading-relaxed',
+									message.role === 'user'
+										? 'bg-primary text-primary-foreground'
+										: 'bg-muted/50 text-foreground',
+									SANS,
+								)}
+								style={{
+									borderRadius:
+										message.role === 'user'
+											? '8px 8px 2px 8px'
+											: '8px 8px 8px 2px',
+								}}
+							>
+								{message.parts.map((part, i) =>
+									part.type === 'text' ? (
+										<span
+											key={`${message.id}-${i}`}
+											className="whitespace-pre-wrap"
+										>
+											{part.text}
+										</span>
+									) : null,
+								)}
+							</div>
+						</div>
+					))}
+
+					{isStreaming && messages[messages.length - 1]?.role !== 'assistant' && (
+						<div className="flex items-center gap-2 text-muted-foreground">
+							<Loader2 size={11} className="animate-spin" />
+							<span className={cn('text-[10px]', SANS)}>Thinking...</span>
+						</div>
+					)}
+				</div>
+			</ScrollArea>
 
 			{/* Error banner */}
 			{error && (
@@ -309,14 +312,14 @@ export function AgentSidebar({
 						className="flex items-center gap-1 px-1.5 py-0.5"
 						style={{
 							borderRadius: 3,
-							background: 'oklch(0.22 0.05 260)',
-							border: '1px solid oklch(0.32 0.1 260)',
+							background: 'var(--agent-accent-bg)',
+							border: '1px solid var(--agent-accent-border)',
 						}}
 					>
-						<Bot size={8} style={{ color: 'oklch(0.72 0.18 260)' }} />
+						<Bot size={8} style={{ color: 'var(--agent-accent-muted)' }} />
 						<span
 							className={cn('text-[9px]', MONO)}
-							style={{ color: 'oklch(0.72 0.18 260)' }}
+							style={{ color: 'var(--agent-accent-muted)' }}
 						>
 							Research Agent
 						</span>

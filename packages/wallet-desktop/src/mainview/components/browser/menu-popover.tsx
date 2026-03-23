@@ -1,4 +1,5 @@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import {
 	Bookmark,
@@ -53,7 +54,7 @@ function MenuItemRow({ item }: { item: MenuItem }) {
 			</span>
 			<span
 				className="flex-1"
-				style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+				style={{ fontFamily: 'var(--font-sans)' }}
 			>
 				{item.label}
 			</span>
@@ -167,7 +168,7 @@ export function MenuPopover({ onNavigate, onToggleAgent, onOpenBookmarks }: Menu
 			>
 				{groups.map((group, gi) => (
 					<div key={gi}>
-						{gi > 0 && <div className="h-px bg-border mx-1 my-1.5" />}
+						{gi > 0 && <Separator className="mx-1 my-1.5" />}
 						<div className="flex flex-col gap-0.5">
 							{group.items.map((item) => (
 								<MenuItemRow key={item.label} item={item} />

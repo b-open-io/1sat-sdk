@@ -1,5 +1,12 @@
 import { SyncTerminal } from '@/components/blocks/sync-terminal'
 import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import {
 	ArrowLeft,
@@ -295,17 +302,24 @@ interface NavButtonProps {
 
 function NavButton({ icon, label, disabled = false, onClick }: NavButtonProps) {
 	return (
-		<Button
-			variant="ghost"
-			size="icon-xs"
-			disabled={disabled}
-			onClick={onClick}
-			className="text-muted-foreground disabled:opacity-30"
-			style={{ borderRadius: 5 }}
-			aria-label={label}
-		>
-			{icon}
-		</Button>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Button
+					variant="ghost"
+					size="icon-xs"
+					disabled={disabled}
+					onClick={onClick}
+					className="text-muted-foreground disabled:opacity-30"
+					style={{ borderRadius: 5 }}
+					aria-label={label}
+				>
+					{icon}
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent side="bottom" className="text-xs">
+				{label}
+			</TooltipContent>
+		</Tooltip>
 	)
 }
 
@@ -544,7 +558,8 @@ function Toolbar({
 			className="flex items-center gap-1.5 px-2 shrink-0 bg-background"
 			style={{ height: TOOLBAR_HEIGHT, paddingLeft: trafficLightPad ? TRAFFIC_LIGHT_PAD : undefined }}
 		>
-			{/* Navigation buttons */}
+			<TooltipProvider delayDuration={300}>
+		{/* Navigation buttons */}
 			<div className="flex items-center gap-0.5">
 				<NavButton
 					icon={<ArrowLeft size={14} />}
@@ -565,7 +580,9 @@ function Toolbar({
 				/>
 			</div>
 
-			{/* Address bar */}
+			</TooltipProvider>
+
+		{/* Address bar */}
 			<AddressBar
 				route={route}
 				onNavigate={onNavigate}
@@ -999,7 +1016,7 @@ export function BrowserLayout({ walletStatus }: { walletStatus: WalletStatus }) 
 						1Sat Wallet
 					</span>
 				</div>
-				<div className="h-px bg-border shrink-0" />
+				<Separator className="shrink-0" />
 				<main className="flex-1 overflow-y-auto p-6">
 					{renderPage(activeNav.current, navigate)}
 				</main>
@@ -1039,7 +1056,7 @@ export function BrowserLayout({ walletStatus }: { walletStatus: WalletStatus }) 
 					/>
 
 					{/* Divider */}
-					<div className="h-px bg-border shrink-0" />
+					<Separator className="shrink-0" />
 
 					{onboardingBanner}
 					{contentArea}
@@ -1083,7 +1100,7 @@ export function BrowserLayout({ walletStatus }: { walletStatus: WalletStatus }) 
 			/>
 
 			{/* Divider */}
-			<div className="h-px bg-border shrink-0" />
+			<Separator className="shrink-0" />
 
 			{onboardingBanner}
 			{contentArea}

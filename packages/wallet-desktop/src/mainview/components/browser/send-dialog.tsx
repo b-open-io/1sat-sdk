@@ -15,6 +15,7 @@ import {
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog"
@@ -449,6 +450,9 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 						)}
 						{titleMap[step]}
 					</DialogTitle>
+					<DialogDescription className="sr-only">
+						Send BSV to an address or paymail
+					</DialogDescription>
 				</DialogHeader>
 
 				{step === "input" && renderInput()}
