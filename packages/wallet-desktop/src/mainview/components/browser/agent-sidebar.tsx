@@ -8,7 +8,7 @@ import {
 	Loader2,
 	X,
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
@@ -75,15 +75,29 @@ export function AgentSidebar({
 	const currentUrl = getRouteUrl(currentRoute)
 	const currentLabel = getDisplayLabel(currentRoute)
 
+	// Load AI settings for provider/model
+	const aiSettings = useMemo(() => {
+		try {
+			const raw = localStorage.getItem('1sat-ai-settings')
+			if (raw) return JSON.parse(raw) as { provider?: string; baseUrl?: string; apiKey?: string; model?: string }
+		} catch {}
+		return {}
+	}, [])
+
+	const selectedModel = aiSettings.model ?? 'qwen3:14b'
+
 	const { messages, sendMessage, status, error } = useChat({
-		transport: new DefaultChatTransport({
+		transport: useMemo(() => new DefaultChatTransport({
 			api: WALLET_HTTP_URL + '/api/chat',
 			headers: { 'X-Requested-With': '1SatBrowser' },
 			body: {
-				model: 'llama3:latest',
+				model: selectedModel,
+				provider: aiSettings.provider,
+				baseUrl: aiSettings.baseUrl,
+				apiKey: aiSettings.apiKey,
 				context: { url: currentUrl },
 			},
-		}),
+		}), [selectedModel, aiSettings.provider, aiSettings.baseUrl, aiSettings.apiKey, currentUrl]),
 	})
 
 	// Auto-scroll on new messages
@@ -139,10 +153,15 @@ export function AgentSidebar({
 					<Bot size={12} className="text-primary-foreground" />
 				</div>
 
-				{/* Title */}
-				<span className={cn('text-xs font-semibold text-foreground flex-1 min-w-0', SANS)}>
-					Research Agent
-				</span>
+				{/* Title + model */}
+				<div className="flex flex-col flex-1 min-w-0">
+					<span className={cn('text-xs font-semibold text-foreground', SANS)}>
+						Research Agent
+					</span>
+					<span className={cn('text-[9px] text-muted-foreground truncate', MONO)}>
+						{selectedModel}
+					</span>
+				</div>
 
 				{/* Switch to full view button */}
 				<Button

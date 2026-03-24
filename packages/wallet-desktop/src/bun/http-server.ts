@@ -398,9 +398,22 @@ async function handleRequest(req: Request): Promise<Response> {
 				modelsUrl = 'http://localhost:11434/api/tags'
 			} else if (provider === 'lmstudio') {
 				modelsUrl = `${baseUrl || 'http://localhost:1234/v1'}/models`
-			} else {
-				// OpenAI-compatible: /v1/models
+			} else if (provider === 'anthropic') {
+				if (!apiKey) {
+					return jsonResponse({ error: 'API key required for Anthropic. Add it in Settings → AI.' }, 400)
+				}
+				modelsUrl = `${baseUrl || 'https://api.anthropic.com'}/v1/models`
+				headers['x-api-key'] = apiKey
+				headers['anthropic-version'] = '2023-06-01'
+			} else if (provider === 'openai') {
+				if (!apiKey) {
+					return jsonResponse({ error: 'API key required for OpenAI. Add it in Settings → AI.' }, 400)
+				}
 				modelsUrl = `${baseUrl || 'https://api.openai.com/v1'}/models`
+				headers.Authorization = `Bearer ${apiKey}`
+			} else {
+				// OpenRouter and other OpenAI-compatible providers
+				modelsUrl = `${baseUrl || 'https://openrouter.ai/api/v1'}/models`
 				if (apiKey) {
 					headers.Authorization = `Bearer ${apiKey}`
 				}
