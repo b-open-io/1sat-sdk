@@ -684,6 +684,19 @@ export function createRpcHandlers() {
 			return { txid: result.txid, error: result.error }
 		},
 
+		checkAiProvider: async ({ baseUrl }: { baseUrl?: string }) => {
+			const url = baseUrl ?? 'http://localhost:11434'
+			try {
+				const res = await fetch(`${url}/api/tags`, { signal: AbortSignal.timeout(3000) })
+				if (!res.ok) return { available: false, models: [] }
+				const data = await res.json()
+				const models = (data.models ?? []).map((m: { name: string }) => m.name)
+				return { available: true, models }
+			} catch {
+				return { available: false, models: [] }
+			}
+		},
+
 		getChatChannels: () => {
 			return { channels: getChatChannels() }
 		},

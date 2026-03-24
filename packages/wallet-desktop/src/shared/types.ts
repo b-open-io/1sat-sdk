@@ -397,6 +397,10 @@ type BunRequests = {
 		params: { channel: string; content: string }
 		response: { txid?: string; error?: string }
 	}
+	checkAiProvider: {
+		params: { baseUrl?: string }
+		response: { available: boolean; models: string[] }
+	}
 	getChatChannels: {
 		params: undefined
 		response: { channels: string[] }

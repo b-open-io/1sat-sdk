@@ -120,3 +120,28 @@ For manual testing: `1sat mcp-proxy`
 - `1sat://settings` — app settings
 - `1sat://social/feed` — BSV social timeline
 - `1sat://chat` — messaging
+
+## Troubleshooting
+
+### Tools not available
+
+If MCP tools aren't appearing in Claude Code:
+
+1. **Ensure the 1Sat wallet app is running.** The MCP server starts when the app launches.
+2. **Check the server is reachable:** `curl -s http://127.0.0.1:3322/`
+3. **Restart Claude Code** after installing the plugin to pick up `.mcp.json`.
+4. **Check for port conflicts** — another process may be using port 3322.
+
+### "Server not reachable" error
+
+The `1sat mcp-proxy` exits with code 1 if it can't reach `127.0.0.1:3322`:
+- The wallet app is not running, OR
+- The MCP server hasn't started yet (give it a few seconds after launch)
+
+Launch the 1Sat wallet app and unlock it, then restart Claude Code.
+
+### Wallet operations fail
+
+If `wallet_balance`, `wallet_ordinals`, etc. return errors:
+- The wallet may be **locked** — the MCP server runs but wallet ops require unlock
+- Use `wallet_status` to check — if `locked`, the user needs to unlock via Touch ID in the app
