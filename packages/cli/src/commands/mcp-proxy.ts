@@ -1,39 +1,103 @@
 /**
  * 1sat mcp-proxy — stdio-to-HTTP bridge for the wallet-desktop MCP server.
  *
- * Authenticates with BRC-103/104 via AuthFetch + ProtoWallet and proxies
- * JSON-RPC newline-delimited messages from stdin to the local MCP server
- * at :3322, writing responses to stdout.
- *
- * Used by Claude Code's .mcp.json to connect agents to the running
- * 1Sat desktop wallet.
+ * Performs BRC-31 handshake, then proxies JSON-RPC messages from stdin
+ * to the MCP server at :3322 with signed auth headers on each request.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { AuthFetch, PrivateKey, ProtoWallet } from '@bsv/sdk'
+import { Hash, KeyDeriver, PrivateKey, Signature, Utils } from '@bsv/sdk'
+import type { WalletProtocol } from '@bsv/sdk'
+
+const { toBase64, toArray } = Utils
 
 const MCP_URL = process.env.ONESAT_MCP_URL ?? 'http://127.0.0.1:3322'
 const KEY_DIR = `${process.env.HOME}/.1sat-wallet`
 const CLIENT_KEY_PATH = `${KEY_DIR}/mcp-agent.key`
+const AUTH_PROTOCOL_ID: WalletProtocol = [2, 'authrite message signature']
 
 function log(msg: string): void {
 	process.stderr.write(`[1sat mcp-proxy] ${msg}\n`)
 }
 
+function generateNonce(): string {
+	const bytes = new Uint8Array(32)
+	crypto.getRandomValues(bytes)
+	return toBase64(Array.from(bytes))
+}
+
 function getClientKey(): PrivateKey {
 	mkdirSync(KEY_DIR, { recursive: true })
-
 	if (existsSync(CLIENT_KEY_PATH)) {
 		return PrivateKey.fromWif(readFileSync(CLIENT_KEY_PATH, 'utf-8').trim())
 	}
-
 	const key = PrivateKey.fromRandom()
 	writeFileSync(CLIENT_KEY_PATH, key.toWif(), { mode: 0o600 })
 	log('Generated new agent identity key')
 	return key
 }
 
+interface Session {
+	serverIdentityKey: string
+	serverNonce: string
+	clientKey: PrivateKey
+}
+
+async function handshake(key: PrivateKey): Promise<Session> {
+	const pubkey = key.toPublicKey().toString()
+	const clientNonce = generateNonce()
+
+	const res = await fetch(`${MCP_URL}/.well-known/auth`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+			authrite: '0.1',
+			messageType: 'initialRequest',
+			identityKey: pubkey,
+			nonce: clientNonce,
+		}),
+	})
+
+	if (!res.ok) throw new Error(`Handshake failed: HTTP ${res.status}`)
+
+	const data = await res.json()
+	if (data.messageType !== 'initialResponse') throw new Error(`Unexpected: ${data.messageType}`)
+
+	const serverNonce = data.nonce as string
+	const deriver = new KeyDeriver(key)
+	const serverPub = deriver.derivePublicKey(
+		AUTH_PROTOCOL_ID, `${serverNonce} ${clientNonce}`, data.identityKey as string, false,
+	)
+
+	const clientNonceBytes = toArray(clientNonce, 'base64')
+	const serverNonceBytes = toArray(serverNonce, 'base64')
+	const msgHash = Hash.sha256(Array.from(new Uint8Array([...clientNonceBytes, ...serverNonceBytes])))
+
+	const sig = Signature.fromDER(data.signature as string, 'hex')
+	if (!serverPub.verify(Array.from(msgHash), sig)) throw new Error('Server signature verification failed')
+
+	log(`Authenticated with ${(data.identityKey as string).slice(0, 12)}...`)
+	return { serverIdentityKey: data.identityKey as string, serverNonce, clientKey: key }
+}
+
+function signHeaders(session: Session, pathname: string): Record<string, string> {
+	const { serverIdentityKey, serverNonce, clientKey: key } = session
+	const nonce = generateNonce()
+	const deriver = new KeyDeriver(key)
+	const derivedKey = deriver.derivePrivateKey(AUTH_PROTOCOL_ID, `${nonce} ${serverNonce}`, serverIdentityKey)
+	const payload = new TextEncoder().encode(pathname)
+	const msgHash = Hash.sha256(Array.from(payload))
+	const sig = derivedKey.sign(Array.from(msgHash))
+
+	return {
+		'x-bsv-auth-version': '0.1',
+		'x-bsv-auth-identity-key': key.toPublicKey().toString(),
+		'x-bsv-auth-nonce': nonce,
+		'x-bsv-auth-your-nonce': serverNonce,
+		'x-bsv-auth-signature': sig.toDER('hex') as string,
+	}
+}
+
 export async function handleMcpProxyCommand(): Promise<void> {
-	// Health check before doing anything else
 	try {
 		await fetch(MCP_URL, { signal: AbortSignal.timeout(2000) })
 	} catch {
@@ -42,13 +106,9 @@ export async function handleMcpProxyCommand(): Promise<void> {
 	}
 
 	const key = getClientKey()
-	const wallet = new ProtoWallet(key)
-	const authFetch = new AuthFetch(wallet)
-
-	log(`Connecting to ${MCP_URL}/mcp`)
+	const session = await handshake(key)
 
 	let mcpSessionId: string | null = null
-
 	const decoder = new TextDecoder()
 	const reader = Bun.stdin.stream().getReader()
 	let buffer = ''
@@ -63,12 +123,12 @@ export async function handleMcpProxyCommand(): Promise<void> {
 		while ((newlineIdx = buffer.indexOf('\n')) !== -1) {
 			const line = buffer.slice(0, newlineIdx).trim()
 			buffer = buffer.slice(newlineIdx + 1)
-
 			if (!line) continue
 
 			const headers: Record<string, string> = {
 				'Content-Type': 'application/json',
 				Accept: 'application/json, text/event-stream',
+				...signHeaders(session, '/mcp'),
 			}
 
 			if (mcpSessionId) {
@@ -76,11 +136,7 @@ export async function handleMcpProxyCommand(): Promise<void> {
 			}
 
 			try {
-				const res = await authFetch.fetch(`${MCP_URL}/mcp`, {
-					method: 'POST',
-					body: line,
-					headers,
-				})
+				const res = await fetch(`${MCP_URL}/mcp`, { method: 'POST', headers, body: line })
 
 				const sessionHeader = res.headers.get('mcp-session-id')
 				if (sessionHeader) mcpSessionId = sessionHeader
@@ -102,13 +158,11 @@ export async function handleMcpProxyCommand(): Promise<void> {
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err)
 				log(`Request failed: ${msg}`)
-				process.stdout.write(
-					`${JSON.stringify({
-						jsonrpc: '2.0',
-						error: { code: -32000, message: `MCP proxy error: ${msg}` },
-						id: null,
-					})}\n`,
-				)
+				process.stdout.write(`${JSON.stringify({
+					jsonrpc: '2.0',
+					error: { code: -32000, message: `MCP proxy error: ${msg}` },
+					id: null,
+				})}\n`)
 			}
 		}
 	}
