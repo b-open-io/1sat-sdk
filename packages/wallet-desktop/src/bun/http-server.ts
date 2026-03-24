@@ -52,8 +52,12 @@ function chatCorsHeaders(req: Request): Record<string, string> {
 		origin.startsWith('file://') ||
 		origin === 'null' ||
 		origin === ''
+	// Opaque origins (null, empty) from webviews need wildcard — browsers reject literal "null"
+	const allowOrigin = isLocalOrigin
+		? (origin && origin !== 'null' ? origin : '*')
+		: 'null'
 	return {
-		'Access-Control-Allow-Origin': isLocalOrigin ? (origin || '*') : 'null',
+		'Access-Control-Allow-Origin': allowOrigin,
 		'Access-Control-Allow-Methods': 'POST, OPTIONS',
 		'Access-Control-Allow-Headers': `Content-Type, ${CHAT_REQUIRED_HEADER}`,
 		'Access-Control-Max-Age': '86400',
