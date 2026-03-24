@@ -6,6 +6,7 @@
  */
 type HttpServer = ReturnType<typeof Bun.serve>
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { createLogger, createRequestLogger } from 'evlog'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import type { BrowserWindow } from 'electrobun/bun'
 import {
@@ -67,14 +68,20 @@ export function startMcpServer(mainWindow: BrowserWindow): void {
 		port: MCP_PORT,
 		async fetch(req: Request): Promise<Response> {
 			const url = new URL(req.url)
+			const log = createRequestLogger(req)
+			log.set({ route: url.pathname, method: req.method })
 
 			// CORS preflight
 			if (req.method === 'OPTIONS') {
+				log.set({ status: 204, type: 'preflight' })
+				log.emit()
 				return new Response(null, { status: 204, headers: CORS_HEADERS })
 			}
 
 			// Health check
 			if (url.pathname === '/' && req.method === 'GET') {
+				log.set({ status: 200, type: 'health' })
+				log.emit()
 				return Response.json({
 					name: '1sat-browser',
 					version: '0.0.1',
@@ -85,12 +92,17 @@ export function startMcpServer(mainWindow: BrowserWindow): void {
 
 			// BRC-31 auth discovery
 			if (url.pathname === '/.well-known/auth' && req.method === 'GET') {
+				log.set({ status: 200, type: 'auth_discovery' })
+				log.emit()
 				return handleAuthDiscovery()
 			}
 
 			// BRC-31 handshake
 			if (url.pathname === '/.well-known/auth' && req.method === 'POST') {
-				return handleHandshake(req)
+				const response = await handleHandshake(req)
+				log.set({ status: response.status, type: 'auth_handshake' })
+				log.emit()
+				return response
 			}
 
 			// MCP endpoint — requires BRC-31 auth on session creation,
@@ -103,8 +115,12 @@ export function startMcpServer(mainWindow: BrowserWindow): void {
 						const session = mcpSessions.get(sessionId)!
 						session.server.close()
 						mcpSessions.delete(sessionId)
+						log.set({ status: 204, type: 'session_delete', sessionId })
+						log.emit()
 						return new Response(null, { status: 204, headers: CORS_HEADERS })
 					}
+					log.set({ status: 404, error: 'session_not_found' })
+					log.emit()
 					return Response.json({ error: 'Session not found' }, { status: 404, headers: CORS_HEADERS })
 				}
 
@@ -113,12 +129,16 @@ export function startMcpServer(mainWindow: BrowserWindow): void {
 				if (sessionId && mcpSessions.has(sessionId)) {
 					const session = mcpSessions.get(sessionId)!
 					const response = await session.transport.handleRequest(req)
+					log.set({ status: response.status, type: 'mcp_request', sessionId })
+					log.emit()
 					return addCorsHeaders(response)
 				}
 
 				// New session — requires BRC-31 auth
 				const auth = await verifyRequest(req)
 				if (!auth) {
+					log.set({ status: 401, error: 'auth_required' })
+					log.emit()
 					return Response.json(
 						{ error: 'Unauthorized — BRC-31 auth required' },
 						{ status: 401, headers: CORS_HEADERS },
@@ -132,14 +152,21 @@ export function startMcpServer(mainWindow: BrowserWindow): void {
 					sessionIdGenerator: () => crypto.randomUUID(),
 					onsessioninitialized: (id: string) => {
 						mcpSessions.set(id, { server: mcpServer, transport })
+						const sessionLog = createLogger({ context: 'mcp' })
+						sessionLog.set({ event: 'session_created', sessionId: id })
+						sessionLog.emit()
 					},
 				})
 
 				await mcpServer.connect(transport)
 				const response = await transport.handleRequest(req)
+				log.set({ status: response.status, type: 'mcp_new_session' })
+				log.emit()
 				return addCorsHeaders(response)
 			}
 
+			log.set({ status: 404, error: 'not_found' })
+			log.emit()
 			return Response.json(
 				{ error: `Not found: ${url.pathname}` },
 				{ status: 404, headers: CORS_HEADERS },
@@ -147,9 +174,9 @@ export function startMcpServer(mainWindow: BrowserWindow): void {
 		},
 	})
 
-	console.log(
-		`[MCP] Browser MCP server listening on http://${HOST}:${MCP_PORT}`,
-	)
+	const startLog = createLogger({ context: 'startup' })
+	startLog.set({ event: 'mcp_listening', host: HOST, port: MCP_PORT })
+	startLog.emit()
 }
 
 export function stopMcpServer(): void {
@@ -166,7 +193,9 @@ export function stopMcpServer(): void {
 		mcpSessions.delete(id)
 	}
 
-	console.log('[MCP] Browser MCP server stopped')
+	const stopLog = createLogger({ context: 'shutdown' })
+	stopLog.set({ event: 'mcp_stopped' })
+	stopLog.emit()
 }
 
 function addCorsHeaders(response: Response): Response {

@@ -7,6 +7,7 @@ import {
 	Check,
 	ChevronRight,
 	Clipboard,
+	Code,
 	ExternalLink,
 	FileCode,
 	FileCog,
@@ -15,10 +16,12 @@ import {
 	FileText,
 	Folder,
 	FolderUp,
+	Image,
 	Info,
 	RefreshCw,
 	Rocket,
 	Share2,
+	Video,
 	Wallet,
 	X,
 } from 'lucide-react'
@@ -29,7 +32,10 @@ import { rpc } from '../../rpc'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type WizardStep = 'select' | 'build' | 'configure' | 'publish'
+type WizardStep = 'type-picker' | 'select' | 'build' | 'configure' | 'publish'
+
+type SingleFileContentType = 'image' | 'video' | 'document'
+type ContentType = SingleFileContentType | 'html-app'
 
 /** Sub-states within the publish step */
 type PublishSubState = 'review' | 'insufficient' | 'broadcasting' | 'success'
@@ -268,6 +274,157 @@ function TooltipIcon({ label }: { label: string }) {
 		>
 			<Info size={13} strokeWidth={1.75} />
 		</span>
+	)
+}
+
+// ─── Step 0: Content type picker ─────────────────────────────────────────────
+
+interface ContentTypeCard {
+	type: ContentType
+	icon: React.ReactNode
+	label: string
+	formats: string
+}
+
+const CONTENT_TYPE_CARDS: ContentTypeCard[] = [
+	{
+		type: 'image',
+		icon: <Image size={28} strokeWidth={1.5} />,
+		label: 'Image',
+		formats: 'JPG, PNG, GIF, WebP',
+	},
+	{
+		type: 'video',
+		icon: <Video size={28} strokeWidth={1.5} />,
+		label: 'Video',
+		formats: 'MP4, WebM, MOV',
+	},
+	{
+		type: 'document',
+		icon: <FileText size={28} strokeWidth={1.5} />,
+		label: 'Document',
+		formats: 'PDF, TXT, Markdown',
+	},
+	{
+		type: 'html-app',
+		icon: <Code size={28} strokeWidth={1.5} />,
+		label: 'HTML App',
+		formats: 'HTML, CSS, JavaScript',
+	},
+]
+
+const SINGLE_FILE_ACCEPT: Record<SingleFileContentType, string> = {
+	image: 'image/jpeg,image/png,image/gif,image/webp',
+	video: 'video/mp4,video/webm,video/quicktime',
+	document: 'application/pdf,text/plain,text/markdown,.md',
+}
+
+interface ContentTypePickerProps {
+	onPickType: (type: ContentType, file?: File) => void
+}
+
+function ContentTypePicker({ onPickType }: ContentTypePickerProps) {
+	const fileInputRef = useRef<HTMLInputElement>(null)
+	const pendingTypeRef = useRef<SingleFileContentType | null>(null)
+
+	const handleCardClick = useCallback(
+		(type: ContentType) => {
+			if (type === 'html-app') {
+				onPickType('html-app')
+				return
+			}
+			pendingTypeRef.current = type
+			if (fileInputRef.current) {
+				fileInputRef.current.accept = SINGLE_FILE_ACCEPT[type]
+				fileInputRef.current.value = ''
+				fileInputRef.current.click()
+			}
+		},
+		[onPickType],
+	)
+
+	const handleFileChange = useCallback(
+		(e: React.ChangeEvent<HTMLInputElement>) => {
+			const file = e.target.files?.[0]
+			const type = pendingTypeRef.current
+			if (!file || !type) return
+			pendingTypeRef.current = null
+			onPickType(type, file)
+		},
+		[onPickType],
+	)
+
+	return (
+		<div className="flex flex-col items-center gap-8 p-8 flex-1 overflow-y-auto">
+			{/* Hidden file input */}
+			<input
+				ref={fileInputRef}
+				type="file"
+				className="sr-only"
+				aria-hidden="true"
+				tabIndex={-1}
+				onChange={handleFileChange}
+			/>
+
+			{/* Heading */}
+			<div className="flex flex-col items-center gap-2 text-center">
+				<h2
+					className="text-2xl font-bold text-foreground leading-none"
+					style={{ fontFamily: 'var(--font-sans)' }}
+				>
+					Choose what to publish
+				</h2>
+				<p
+					className="text-sm text-muted-foreground"
+					style={{ fontFamily: 'var(--font-sans)' }}
+				>
+					Select the type of content you want to inscribe on-chain
+				</p>
+			</div>
+
+			{/* 2×2 grid */}
+			<div className="grid grid-cols-2 gap-3 w-full" style={{ maxWidth: 480 }}>
+				{CONTENT_TYPE_CARDS.map((card) => (
+					<button
+						key={card.type}
+						type="button"
+						onClick={() => handleCardClick(card.type)}
+						className={cn(
+							'flex flex-col items-center justify-center gap-3 py-8 px-4',
+							'bg-card border border-border cursor-pointer select-none',
+							'hover:border-primary/60 hover:bg-muted/30 transition-colors',
+							'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+						)}
+					>
+						<span className="text-muted-foreground">{card.icon}</span>
+						<div className="flex flex-col items-center gap-1">
+							<span
+								className="text-sm font-bold text-foreground leading-none"
+								style={{ fontFamily: 'var(--font-sans)' }}
+							>
+								{card.label}
+							</span>
+							<span
+								className="text-xs text-muted-foreground leading-none"
+								style={{ fontFamily: 'var(--font-mono)' }}
+							>
+								{card.formats}
+							</span>
+						</div>
+					</button>
+				))}
+			</div>
+
+			{/* Project folder link */}
+			<button
+				type="button"
+				onClick={() => onPickType('html-app')}
+				className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-4 transition-colors"
+				style={{ fontFamily: 'var(--font-sans)' }}
+			>
+				Or publish a project folder
+			</button>
+		</div>
 	)
 }
 
@@ -1409,7 +1566,10 @@ export interface PublishViewProps {
 }
 
 export function PublishView({ onNavigate }: PublishViewProps) {
-	const [step, setStep] = useState<WizardStep>('select')
+	const [step, setStep] = useState<WizardStep>('type-picker')
+	const [pickedFile, setPickedFile] = useState<File | null>(null)
+	const [pickedContentType, setPickedContentType] =
+		useState<ContentType | null>(null)
 	const [selectedProject, setSelectedProject] = useState<RecentProject | null>(
 		null,
 	)
@@ -1477,6 +1637,37 @@ export function PublishView({ onNavigate }: PublishViewProps) {
 		onNavigate?.('1sat://browser/new')
 	}, [onNavigate])
 
+	const handlePickType = useCallback(
+		(type: ContentType, file?: File) => {
+			setPickedContentType(type)
+			if (type === 'html-app') {
+				// Enter the project folder wizard
+				setStep('select')
+				return
+			}
+			// Single-file types: file was picked via native dialog
+			if (file) {
+				setPickedFile(file)
+				// Seed a synthetic "project" from the file and jump to configure
+				const syntheticProject: RecentProject = {
+					name: file.name.replace(/\.[^.]+$/, ''),
+					path: file.name,
+					type: 'Static',
+				}
+				setSelectedProject(syntheticProject)
+				setConfigForm((prev) => ({
+					...prev,
+					appName: syntheticProject.name
+						.split(/[-_\s]+/)
+						.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+						.join(' '),
+				}))
+				setStep('configure')
+			}
+		},
+		[],
+	)
+
 	const handleSelectProject = useCallback((project: RecentProject) => {
 		setSelectedProject(project)
 		// Seed app name from project slug
@@ -1528,6 +1719,7 @@ export function PublishView({ onNavigate }: PublishViewProps) {
 	const buildFailed = selectedProject?.type === 'CRA'
 
 	const subtitle = (() => {
+		if (step === 'type-picker') return ''
 		if (step === 'select')
 			return 'Deploy any project as an on-chain inscription'
 		if (step === 'build' && selectedProject)
@@ -1553,10 +1745,11 @@ export function PublishView({ onNavigate }: PublishViewProps) {
 		return 'text-muted-foreground'
 	})()
 
-	// Hide step indicator during broadcasting / success — full-screen state
+	// Hide step indicator on type-picker and during broadcasting / success
 	const hideStepIndicator =
-		step === 'publish' &&
-		(publishSubState === 'broadcasting' || publishSubState === 'success')
+		step === 'type-picker' ||
+		(step === 'publish' &&
+			(publishSubState === 'broadcasting' || publishSubState === 'success'))
 
 	return (
 		<div className="flex items-center justify-center h-full bg-background p-6">
@@ -1586,10 +1779,14 @@ export function PublishView({ onNavigate }: PublishViewProps) {
 
 				{!hideStepIndicator && (
 					<PublishStepIndicator
-						current={step}
+						current={step === 'type-picker' ? 'select' : step}
 						buildFailed={buildFailed}
 						publishSubState={publishSubState}
 					/>
+				)}
+
+				{step === 'type-picker' && (
+					<ContentTypePicker onPickType={handlePickType} />
 				)}
 
 				{step === 'select' && <SelectStep onSelect={handleSelectProject} />}

@@ -13,6 +13,7 @@
 import { convertToModelMessages, extractReasoningMiddleware, stepCountIs, streamText, wrapLanguageModel, type UIMessage } from 'ai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { ollama } from 'ai-sdk-ollama'
+import { createRequestLogger } from 'evlog'
 import { getMcpTools } from './mcp/client'
 
 const DEFAULT_MODEL = 'qwen3:14b' // Supports tool calling. minimax-m2.7:cloud also works.
@@ -132,8 +133,13 @@ export function validateChatAuth(req: Request): Response | null {
 // ---------------------------------------------------------------------------
 
 export async function handleChatRequest(req: Request): Promise<Response> {
+	const log = createRequestLogger(req)
+	log.set({ route: '/api/chat' })
+
 	const now = Date.now()
 	if (now - lastRequestTime < MIN_REQUEST_INTERVAL_MS) {
+		log.set({ status: 429, error: 'rate_limited' })
+		log.emit()
 		console.error('[chat] rate limited')
 		return new Response(
 			JSON.stringify({ error: 'Rate limited: max 1 request per second' }),
@@ -153,7 +159,7 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 			| { url?: unknown; content?: unknown }
 			| undefined
 
-		console.log(`[chat] ${provider}/${modelName} messages=${messages.length}`)
+		log.set({ provider, model: modelName, messageCount: messages.length })
 
 		const contextUrl = sanitizeContextField(rawContext?.url)
 		const contextContent = sanitizeContextField(rawContext?.content)
@@ -174,10 +180,10 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 		}
 
 		// Get MCP tools (authenticated via BRC-31 to local MCP server)
-		console.log('[chat] fetching MCP tools...')
 		const t0 = performance.now()
 		const mcpTools = await getMcpTools()
-		console.log(`[chat] MCP tools ready (${Math.round(performance.now() - t0)}ms)`)
+		const mcpMs = Math.round(performance.now() - t0)
+		log.set({ mcpToolsMs: mcpMs })
 
 		const baseModel = createModel(provider, modelName, baseUrl, apiKey)
 
@@ -187,7 +193,6 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 			middleware: extractReasoningMiddleware({ tagName: 'think', startWithReasoning: true }),
 		})
 
-		console.log('[chat] starting streamText...')
 		const result = streamText({
 			model,
 			system: systemPrompt,
@@ -196,6 +201,8 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 			stopWhen: stepCountIs(15),
 		})
 
+		log.set({ status: 200, type: 'streaming' })
+		log.emit()
 		return result.toUIMessageStreamResponse()
 	} catch (error) {
 		const message =
@@ -205,6 +212,8 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 			message.includes('ECONNREFUSED') ||
 			message.includes('fetch failed')
 		) {
+			log.set({ status: 503, error: 'provider_unreachable' })
+			log.emit()
 			return new Response(
 				JSON.stringify({
 					error:
@@ -217,6 +226,8 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 			)
 		}
 
+		log.set({ status: 500, error: message })
+		log.emit()
 		return new Response(JSON.stringify({ error: message }), {
 			status: 500,
 			headers: { 'Content-Type': 'application/json' },

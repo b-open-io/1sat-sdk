@@ -1,5 +1,3 @@
-import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
-import type { WalletInterface } from '@bsv/sdk'
 /**
  * BRC-100 HTTP server for dApp connectivity.
  *
@@ -10,7 +8,10 @@ import type { WalletInterface } from '@bsv/sdk'
  * Sensitive methods route through the WebView for user approval.
  * Compatible with `new WalletClient('auto')` from `@bsv/sdk`.
  */
+import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
+import type { WalletInterface } from '@bsv/sdk'
 import type { Server } from 'bun'
+import { createLogger, createRequestLogger } from 'evlog'
 import type { PermissionRequest } from '../shared/types'
 import {
 	CHAT_REQUIRED_HEADER,
@@ -170,7 +171,9 @@ async function isOriginTrusted(origin: string): Promise<boolean> {
 				const trust = map?.trust as Record<string, unknown> | undefined
 				// Check MAP metadata for trust declaration
 				if (trust?.publicKey) {
-					console.log(`[BRC-100] Trusted 1sat:// origin: ${origin}`)
+					const log = createLogger({ context: 'trust' })
+					log.set({ event: 'origin_trusted', scheme: '1sat', origin })
+					log.emit()
 					trustedOriginCache.set(origin, true)
 					return true
 				}
@@ -197,7 +200,9 @@ async function isOriginTrusted(origin: string): Promise<boolean> {
 			const trust = babbage?.trust as Record<string, unknown> | undefined
 
 			if (trust?.name && trust?.publicKey) {
-				console.log(`[BRC-100] Trusted origin: ${origin} (${trust.name})`)
+				const log = createLogger({ context: 'trust' })
+				log.set({ event: 'origin_trusted', scheme: 'manifest', origin, trustName: trust.name })
+				log.emit()
 				trustedOriginCache.set(origin, true)
 				return true
 			}
@@ -253,9 +258,9 @@ export function resolvePermission(params: {
 }): { success: boolean } {
 	const pending = pendingPermissions.get(params.requestId)
 	if (!pending) {
-		console.warn(
-			`[BRC-100] resolvePermission: unknown requestId ${params.requestId}`,
-		)
+		const log = createLogger({ context: 'permissions' })
+		log.set({ event: 'resolve_unknown_request', requestId: params.requestId })
+		log.emit()
 		return { success: false }
 	}
 
@@ -362,20 +367,23 @@ function parseOrigin(req: Request): string {
 async function handleRequest(req: Request): Promise<Response> {
 	const url = new URL(req.url)
 	const pathname = url.pathname
+	const log = createRequestLogger(req)
+	log.set({ route: pathname, method: req.method, origin: req.headers.get('Origin') ?? undefined })
 
 	// /api/chat uses restricted CORS — handle separately before the wildcard CORS preflight
 	if (pathname === '/api/chat') {
 		const corsHeaders = chatCorsHeaders(req)
 		if (req.method === 'OPTIONS') {
-			console.log(`[http] ${req.method} ${pathname} → 204 preflight (origin: ${req.headers.get('Origin')})`)
+			log.set({ status: 204, type: 'preflight' })
+			log.emit()
 			return new Response(null, { status: 204, headers: corsHeaders })
 		}
 		if (req.method === 'POST') {
-			console.log(`[http] ${req.method} ${pathname} (origin: ${req.headers.get('Origin')})`)
 			// Validate auth header
 			const authError = validateChatAuth(req)
 			if (authError) {
-				console.error(`[http] ${pathname} → 403 auth failed`)
+				log.set({ status: 403, error: 'auth_failed' })
+				log.emit()
 				return authError
 			}
 			const response = await handleChatRequest(req)
@@ -383,7 +391,8 @@ async function handleRequest(req: Request): Promise<Response> {
 			for (const [k, v] of Object.entries(corsHeaders)) {
 				response.headers.set(k, v)
 			}
-			console.log(`[http] ${pathname} → ${response.status} streaming`)
+			log.set({ status: response.status, type: 'streaming' })
+			log.emit()
 			return response
 		}
 	}
@@ -489,6 +498,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
 			// Check if the requesting origin has a trusted manifest
 			const trusted = await isOriginTrusted(origin)
+			log.set({ walletMethod: methodName, trusted, walletOrigin: origin })
 
 			// Sensitive methods require user approval — unless origin is trusted via manifest
 			if (SENSITIVE_METHODS.has(methodName) && !trusted) {
@@ -499,6 +509,8 @@ async function handleRequest(req: Request): Promise<Response> {
 					origin,
 					args,
 				)
+				log.set({ status: 200, permissionFlow: 'approved' })
+				log.emit()
 				return jsonResponse(result)
 			}
 
@@ -508,14 +520,20 @@ async function handleRequest(req: Request): Promise<Response> {
 				originator: string,
 			) => Promise<unknown>
 			const result = await fn.call(wallet, args, origin)
+			log.set({ status: 200 })
+			log.emit()
 			return jsonResponse(result)
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err)
+			log.set({ status: 400, error: message })
+			log.emit()
 			console.error(`[BRC-100] ${methodName} error:`, err)
 			return jsonResponse({ error: message }, 400)
 		}
 	}
 
+	log.set({ status: 404 })
+	log.emit()
 	return jsonResponse({ error: `Not found: ${pathname}` }, 404)
 }
 
@@ -585,9 +603,9 @@ async function ensureCert(): Promise<{ cert: string; key: string }> {
 	}
 
 	if (certExists) {
-		console.log(
-			'[BRC-100] Certificate expired or expiring soon, regenerating...',
-		)
+		const log = createLogger({ context: 'tls' })
+		log.set({ event: 'cert_expiring', action: 'regenerating' })
+		log.emit()
 		// Delete the trust flag so the new cert is re-trusted
 		if (existsSync(SSL_PROMPTED_FLAG)) {
 			unlinkSync(SSL_PROMPTED_FLAG)
@@ -614,7 +632,9 @@ function promptCertTrust(): void {
 		return
 	}
 
-	console.log('[BRC-100] Requesting macOS trust for self-signed certificate...')
+	const tlsLog = createLogger({ context: 'tls' })
+	tlsLog.set({ event: 'requesting_macos_trust' })
+	tlsLog.emit()
 
 	const proc = Bun.spawnSync([
 		'security',
@@ -628,11 +648,16 @@ function promptCertTrust(): void {
 	])
 
 	if (proc.exitCode !== 0) {
+		const log = createLogger({ context: 'tls' })
+		log.set({ event: 'cert_trust_failed', detail: new TextDecoder().decode(proc.stderr) })
+		log.emit()
 		console.warn(
 			`[BRC-100] Could not auto-trust cert (user may have cancelled): ${new TextDecoder().decode(proc.stderr)}`,
 		)
 	} else {
-		console.log('[BRC-100] Certificate trusted successfully')
+		const log = createLogger({ context: 'tls' })
+		log.set({ event: 'cert_trusted' })
+		log.emit()
 	}
 
 	// Write flag regardless — don't re-prompt if user cancelled
@@ -651,7 +676,9 @@ export async function startWalletServer(): Promise<void> {
 		port: HTTP_PORT,
 		fetch: handleRequest,
 	})
-	console.log(`BRC-100 wallet server listening on http://${HOST}:${HTTP_PORT}`)
+	const httpLog = createLogger({ context: 'startup' })
+	httpLog.set({ event: 'http_listening', host: HOST, port: HTTP_PORT })
+	httpLog.emit()
 
 	// Start HTTPS server
 	try {
@@ -664,10 +691,13 @@ export async function startWalletServer(): Promise<void> {
 			tls: { cert, key },
 			fetch: handleRequest,
 		})
-		console.log(
-			`BRC-100 wallet server listening on https://${HOST}:${HTTPS_PORT}`,
-		)
+		const httpsLog = createLogger({ context: 'startup' })
+		httpsLog.set({ event: 'https_listening', host: HOST, port: HTTPS_PORT })
+		httpsLog.emit()
 	} catch (err) {
+		const log = createLogger({ context: 'startup' })
+		log.set({ event: 'https_start_failed', error: err instanceof Error ? err.message : String(err) })
+		log.emit()
 		console.error(
 			'[BRC-100] Failed to start HTTPS server:',
 			err instanceof Error ? err.message : err,
@@ -685,6 +715,8 @@ export function stopWalletServer(): void {
 		httpsServer = undefined
 	}
 	if (!httpServer && !httpsServer) {
-		console.log('BRC-100 wallet server stopped')
+		const log = createLogger({ context: 'shutdown' })
+		log.set({ event: 'wallet_server_stopped' })
+		log.emit()
 	}
 }
