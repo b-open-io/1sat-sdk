@@ -212,10 +212,46 @@ bun build src/bun/index.ts --outdir /tmp/test --target bun \
   --external knex
 ```
 
+## Debugging Runtime Failures
+
+After installing a release, if the app fails to launch or gets stuck.
+
+### Check evlog file output
+
+```bash
+tail -30 ~/.1sat-wallet/logs/$(date +%Y-%m-%d).jsonl
+```
+
+Log files are NDJSON (one JSON object per line), organized by date, with 7-day retention.
+
+### Startup event sequence
+
+Events fire in this order during normal startup:
+1. `url_resolved` — getMainViewUrl() succeeded
+2. `window_created` — BrowserWindow created
+3. `dom_ready` — webview loaded (includes `hasKey` for vault state)
+4. `http_listening` — BRC-100 server on :3321
+5. `mcp_listening` — MCP server on :3322
+6. `setup_complete` or `onboarding_required` — stack status
+
+If the log file exists but stops at a specific event, that's where it failed. If no log file exists, the bun process crashed before evlog initialized (likely a missing dependency).
+
+### Common runtime issues
+
+- **No log file at all**: Missing dependency in the bundle. Run the standalone bun build diagnostic.
+- **Stops at `url_resolved`**: BrowserWindow constructor failed.
+- **`dom_ready` fires but UI shows skeletons**: Stack didn't start or wallet state wasn't sent. Check for `start_failed` events.
+- **`onboarding_required` but user sees nothing**: Frontend didn't receive the RPC message.
+
+### MCP tool for live debugging
+
+If the app is running and MCP is connected (`1sat mcp-proxy`), use the `wallet_logs` tool to query the ring buffer (last 500 events) without touching the filesystem.
+
 ## Version History
 
 | Tag | Status | Notes |
 |-----|--------|-------|
 | v0.0.1 | Stable | Initial release (first 3 CI runs failed during setup) |
 | v0.0.2 | Stable | 3 successful builds |
-| v0.0.3 | Current | Added evlog telemetry, design frames, AI elements |
+| v0.0.3 | Stable | Added evlog telemetry, design frames, AI elements |
+| v0.0.4 | Current | BRC-103/104 auth, MCP proxy, file logging, sigma parity |
