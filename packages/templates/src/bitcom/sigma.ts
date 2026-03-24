@@ -1,109 +1,349 @@
 import {
 	BSM,
 	BigNumber,
+	Hash,
 	type LockingScript,
+	OP,
 	type PrivateKey,
 	type PublicKey,
 	Script,
+	type ScriptChunk,
 	type ScriptTemplate,
 	Signature,
 	SignedMessage,
-	type Transaction,
+	Transaction,
+	type TransactionOutput,
 	type UnlockingScript,
 	Utils,
 } from '@bsv/sdk'
 import BitCom, { type Protocol, type BitComDecoded } from './bitcom.js'
 
-/**
- * SIGMA protocol identifier
- */
-export const SIGMA_PREFIX = 'SIGMA'
+const { magicHash } = BSM
+const { toHex, toArray, toUTF8, toBase64 } = Utils
 
-/**
- * Signing algorithm for SIGMA signatures
- */
+export const SIGMA_PREFIX = 'SIGMA'
+export const sigmaHex = '5349474d41'
+
 export enum SigmaAlgorithm {
 	BSM = 'BSM',
 	BRC77 = 'BRC77',
 }
 
-/**
- * SIGMA signature data structure
- */
 export interface SigmaData {
-	/** BitCom protocol index */
 	bitcomIndex?: number
-	/** Signing algorithm (BSM or BRC77) */
 	algorithm: SigmaAlgorithm
-	/** Bitcoin address of signer */
 	address: string
-	/** Cryptographic signature as number array */
 	signature: number[]
-	/** Input index (vin) that anchors the signature */
 	vin: number
-	/** Whether signature verification passed */
+	targetVout?: number
 	valid?: boolean
 }
 
-/**
- * Options for SIGMA signature creation
- */
+export type Sig = {
+	address: string
+	signature: string
+	algorithm: SigmaAlgorithm
+	vin: number
+	targetVout: number
+}
+
+export interface SignResponse extends Sig {
+	sigmaScript: Script
+	signedTx: Transaction
+}
+
 export interface SigmaOptions {
-	/** Signing algorithm (default: BSM) */
 	algorithm?: SigmaAlgorithm
-	/** Input index to anchor signature (default: 0) */
 	vin?: number
-	/** For BRC-77: specific verifier public key (private signature) */
 	verifier?: PublicKey
 }
 
+const EMPTY_OUTPOINT = new Array(32).fill(0)
+
+const hexToBytes = (hex: string): number[] => {
+	const bytes: number[] = []
+	for (let i = 0; i < hex.length; i += 2) {
+		bytes.push(Number.parseInt(hex.substring(i, i + 2), 16))
+	}
+	return bytes
+}
+
+const writeUint32LE = (value: number): number[] => [
+	value & 0xff,
+	(value >> 8) & 0xff,
+	(value >> 16) & 0xff,
+	(value >> 24) & 0xff,
+]
+
+function deduceRecovery(signature: Signature, message: number[], address: string): number {
+	for (let recovery = 0; recovery < 4; recovery++) {
+		try {
+			const pubKey = signature.RecoverPublicKey(recovery, new BigNumber(magicHash(message)))
+			if (BSM.verify(message, signature, pubKey) && pubKey.toAddress() === address) {
+				return recovery
+			}
+		} catch {}
+	}
+	return -1
+}
+
+function isSigmaChunk(chunk: ScriptChunk): boolean {
+	return !!chunk.data && toUTF8(chunk.data) === SIGMA_PREFIX
+}
+
+function isEmbeddedOpReturn(chunk: ScriptChunk): boolean {
+	return chunk.op === OP.OP_RETURN && !!chunk.data && chunk.data.length > 0
+}
+
+function tryParseSigAt(chunks: ScriptChunk[], i: number, targetVout: number): Sig | null {
+	if (i + 4 >= chunks.length) return null
+	const algo = chunks[i + 1]
+	const addr = chunks[i + 2]
+	const sig = chunks[i + 3]
+	const vin = chunks[i + 4]
+	if (!algo?.data || !addr?.data || !sig?.data || !vin?.data) return null
+	return {
+		algorithm: toUTF8(algo.data) as SigmaAlgorithm,
+		address: toUTF8(addr.data),
+		signature: toBase64(sig.data),
+		vin: Number.parseInt(toUTF8(vin.data), 10),
+		targetVout,
+	}
+}
+
 /**
- * SIGMA (Secure Identity for Global Message Authentication) implementation
+ * SIGMA (Secure Identity for Global Message Authentication)
  *
- * SIGMA enables cryptographic signing of blockchain content by combining:
- * - Input hash: SHA256 of the outpoint (txid + vout) from a specific input
- * - Data hash: SHA256 of the script data before the SIGMA protocol marker
+ * Combines an input hash (SHA256 of an outpoint) with a data hash (SHA256 of
+ * script data before the SIGMA marker) to produce a message signed with BSM
+ * or BRC-77. Supports multiple signatures per output and both algorithms.
  *
- * Supports both BSM (Bitcoin Signed Message) and BRC-77 signing algorithms.
+ * Follows the same pattern as AIP: one data shape, static factories for
+ * transaction operations, instance methods for ScriptTemplate integration.
  */
 export default class Sigma implements ScriptTemplate {
-	public readonly data: SigmaData
+	public data: SigmaData
 
 	constructor(data: SigmaData) {
 		this.data = data
 	}
 
-	/**
-	 * Extract SIGMA signatures from BitCom transaction
-	 */
+	static computeInputHash(txidOrTx: string | Transaction, voutOrVin: number, sourceOutputIndex?: number): number[] {
+		if (typeof txidOrTx === 'string') {
+			return Hash.sha256([...hexToBytes(txidOrTx), ...writeUint32LE(sourceOutputIndex ?? 0)])
+		}
+		const txIn = txidOrTx.inputs[voutOrVin]
+		if (txIn?.sourceTXID) {
+			return Hash.sha256([...hexToBytes(txIn.sourceTXID), ...writeUint32LE(txIn.sourceOutputIndex)])
+		}
+		return Hash.sha256(EMPTY_OUTPOINT)
+	}
+
+	static computeDataHash(script: Script, sigmaInstance = 0): number[] {
+		const chunks = script.chunks
+		let n = 0
+
+		for (let i = 0; i < chunks.length; i++) {
+			const chunk = chunks[i]
+
+			if (isSigmaChunk(chunk)) {
+				if (n === sigmaInstance) {
+					return Hash.sha256(new Script(chunks.slice(0, i - 1)).toBinary())
+				}
+				n++
+			} else if (isEmbeddedOpReturn(chunk)) {
+				try {
+					for (const ic of Script.fromBinary(chunk.data!).chunks) {
+						if (isSigmaChunk(ic)) {
+							if (n === sigmaInstance) {
+								return Hash.sha256(new Script(chunks.slice(0, i)).toBinary())
+							}
+							n++
+						}
+					}
+				} catch {}
+			}
+		}
+
+		return Hash.sha256(script.toBinary())
+	}
+
+	static computeMessageHash(inputHash: number[], dataHash: number[]): number[] {
+		const combined = new Uint8Array(inputHash.length + dataHash.length)
+		combined.set(inputHash, 0)
+		combined.set(dataHash, inputHash.length)
+		return Hash.sha256(Array.from(combined))
+	}
+
+	static parseFromScript(script: Script, targetVout = 0): Sig[] {
+		const instances: Sig[] = []
+		const chunks = script.chunks
+
+		for (let i = 0; i < chunks.length; i++) {
+			const chunk = chunks[i]
+
+			if (isSigmaChunk(chunk)) {
+				const parsed = tryParseSigAt(chunks, i, targetVout)
+				if (parsed) {
+					instances.push(parsed)
+					i += 4
+				}
+			} else if (isEmbeddedOpReturn(chunk)) {
+				try {
+					const inner = Script.fromBinary(chunk.data!).chunks
+					for (let j = 0; j < inner.length; j++) {
+						if (isSigmaChunk(inner[j])) {
+							const parsed = tryParseSigAt(inner, j, targetVout)
+							if (parsed) {
+								instances.push(parsed)
+								j += 4
+							}
+						}
+					}
+				} catch {}
+			}
+		}
+
+		return instances
+	}
+
+	static countInstances(script: Script): number {
+		return Sigma.parseFromScript(script).length
+	}
+
+	static findPosition(script: Script, instanceIndex: number): number {
+		const chunks = script.chunks
+		let n = 0
+
+		for (let i = 0; i < chunks.length; i++) {
+			const chunk = chunks[i]
+
+			if (isSigmaChunk(chunk)) {
+				if (n === instanceIndex) return i
+				n++
+			} else if (isEmbeddedOpReturn(chunk)) {
+				try {
+					for (const ic of Script.fromBinary(chunk.data!).chunks) {
+						if (isSigmaChunk(ic)) {
+							if (n === instanceIndex) return i
+							n++
+						}
+					}
+				} catch {}
+			}
+		}
+
+		return -1
+	}
+
+	static signTransaction(
+		tx: Transaction,
+		privateKey: PrivateKey,
+		options: {
+			targetVout?: number
+			sigmaInstance?: number
+			refVin?: number
+			algorithm?: SigmaAlgorithm
+			verifier?: PublicKey
+		} = {},
+	): SignResponse {
+		const targetVout = options.targetVout ?? 0
+		const sigmaInstance = options.sigmaInstance ?? 0
+		const refVin = options.refVin ?? 0
+		const algorithm = options.algorithm ?? SigmaAlgorithm.BSM
+		const vin = refVin === -1 ? targetVout : refVin
+
+		const inputHash = Sigma.computeInputHash(tx, vin)
+		const dataHash = Sigma.computeDataHash(tx.outputs[targetVout].lockingScript, sigmaInstance)
+		const messageHash = Sigma.computeMessageHash(inputHash, dataHash)
+
+		let signedAsm: string
+		let sig: Sig
+
+		if (algorithm === SigmaAlgorithm.BRC77) {
+			const address = privateKey.toAddress()
+			const brc77Sig = SignedMessage.sign(messageHash, privateKey, options.verifier)
+			signedAsm = `${sigmaHex} ${toHex(toArray(SigmaAlgorithm.BRC77))} ${toHex(toArray(address))} ${toHex(brc77Sig)} ${toHex(toArray(vin.toString()))}`
+			sig = { algorithm: SigmaAlgorithm.BRC77, address, signature: toBase64(brc77Sig), vin, targetVout }
+		} else {
+			const signature = BSM.sign(messageHash, privateKey, 'raw') as Signature
+			const address = privateKey.toAddress()
+			const recovery = signature.CalculateRecoveryFactor(privateKey.toPublicKey(), new BigNumber(magicHash(messageHash)))
+			signedAsm = `${sigmaHex} ${toHex(toArray(SigmaAlgorithm.BSM))} ${toHex(toArray(address))} ${signature.toCompact(recovery, true, 'hex')} ${toHex(toArray(vin.toString()))}`
+			sig = { algorithm: SigmaAlgorithm.BSM, address, signature: signature.toCompact(recovery, true, 'base64') as string, vin, targetVout }
+		}
+
+		return Sigma.applyToTransaction(tx, targetVout, sigmaInstance, signedAsm, sig)
+	}
+
+	static verifyTransaction(tx: Transaction, targetVout = 0, sigmaInstance = 0, recipientPrivateKey?: PrivateKey): boolean {
+		const output = tx.outputs[targetVout]
+		if (!output?.lockingScript) return false
+
+		const instances = Sigma.parseFromScript(output.lockingScript, targetVout)
+		const sig = instances[sigmaInstance]
+		if (!sig) return false
+
+		const inputHash = Sigma.computeInputHash(tx, sig.vin)
+		const dataHash = Sigma.computeDataHash(output.lockingScript, sigmaInstance)
+		const messageHash = Sigma.computeMessageHash(inputHash, dataHash)
+
+		if (sig.algorithm === SigmaAlgorithm.BRC77) {
+			return SignedMessage.verify(messageHash, toArray(sig.signature, 'base64'), recipientPrivateKey)
+		}
+
+		return deduceRecovery(Signature.fromCompact(sig.signature, 'base64'), messageHash, sig.address) !== -1
+	}
+
+	private static applyToTransaction(tx: Transaction, targetVout: number, sigmaInstance: number, signedAsm: string, sig: Sig): SignResponse {
+		const sigmaScript = Script.fromASM(signedAsm)
+		const output = tx.outputs[targetVout]
+
+		let existingAsm = output.lockingScript.toASM()
+		const separator = existingAsm.split(' ').includes('OP_RETURN') ? '7c' : 'OP_RETURN'
+
+		const existingCount = Sigma.countInstances(output.lockingScript)
+		if (existingCount > 0 && sigmaInstance === existingCount) {
+			const asmTokens = existingAsm.split(' ')
+			const pos = Sigma.findPosition(output.lockingScript, sigmaInstance)
+			if (pos !== -1) {
+				asmTokens.splice(pos, 5, ...signedAsm.split(' '))
+				existingAsm = asmTokens.join(' ')
+			}
+		}
+
+		const signedTx = new Transaction(
+			tx.version,
+			tx.inputs.map((i) => ({ ...i })),
+			tx.outputs.map((o) => ({ ...o })),
+		)
+		signedTx.outputs[targetVout] = {
+			satoshis: output.satoshis,
+			lockingScript: Script.fromASM(`${existingAsm} ${separator} ${signedAsm}`),
+		} as TransactionOutput
+
+		return { sigmaScript, signedTx, ...sig }
+	}
+
 	static decode(bitcom: BitComDecoded): Sigma[] {
 		const sigmas: Sigma[] = []
-
-		if (bitcom?.protocols?.length === 0) {
-			return sigmas
-		}
+		if (!bitcom?.protocols?.length) return sigmas
 
 		for (let protoIdx = 0; protoIdx < bitcom.protocols.length; protoIdx++) {
 			const protocol = bitcom.protocols[protoIdx]
 			if (protocol.protocol === SIGMA_PREFIX) {
 				try {
-					const script = Script.fromBinary(protocol.script)
-					const chunks = script.chunks
+					const chunks = Script.fromBinary(protocol.script).chunks
+					if (chunks?.length < 4) continue
 
-					if (chunks?.length < 4) {
-						continue
-					}
-
-					const sigma = new Sigma({
+					sigmas.push(new Sigma({
 						bitcomIndex: protoIdx,
-						algorithm: Utils.toUTF8(chunks[0].data ?? []) as SigmaAlgorithm,
-						address: Utils.toUTF8(chunks[1].data ?? []),
+						algorithm: toUTF8(chunks[0].data ?? []) as SigmaAlgorithm,
+						address: toUTF8(chunks[1].data ?? []),
 						signature: Array.from(chunks[2].data ?? []),
-						vin: Number.parseInt(Utils.toUTF8(chunks[3].data ?? []), 10),
+						vin: Number.parseInt(toUTF8(chunks[3].data ?? []), 10),
 						valid: undefined,
-					})
-
-					sigmas.push(sigma)
+					}))
 				} catch {}
 			}
 		}
@@ -111,157 +351,62 @@ export default class Sigma implements ScriptTemplate {
 		return sigmas
 	}
 
-	/**
-	 * Decode SIGMA signatures directly from a Script
-	 */
 	static decodeFromScript(script: Script | LockingScript): Sigma[] {
 		const bitcom = BitCom.decode(script)
-		if (bitcom == null) {
-			return []
-		}
+		if (bitcom == null) return []
 		return Sigma.decode(bitcom)
 	}
 
-	/**
-	 * Create SIGMA signature for data
-	 *
-	 * @param inputHash - SHA256 hash of the input outpoint
-	 * @param dataHash - SHA256 hash of the script data
-	 * @param privateKey - Private key for signing
-	 * @param options - Additional signing options
-	 */
-	static sign(
-		inputHash: number[],
-		dataHash: number[],
-		privateKey: PrivateKey,
-		options: SigmaOptions = {},
-	): Sigma {
+	static createSignature(inputHash: number[], dataHash: number[], privateKey: PrivateKey, options: SigmaOptions = {}): Sigma {
 		const algorithm = options.algorithm ?? SigmaAlgorithm.BSM
 		const vin = options.vin ?? 0
 		const address = privateKey.toAddress().toString()
-
-		// Combine hashes to create the message
 		const messageHash = [...inputHash, ...dataHash]
 
 		let signatureArray: number[]
 
 		if (algorithm === SigmaAlgorithm.BRC77) {
-			// BRC-77 signing using SignedMessage
-			const brc77Sig = SignedMessage.sign(
-				messageHash,
-				privateKey,
-				options.verifier,
-			)
-			signatureArray = brc77Sig
+			signatureArray = SignedMessage.sign(messageHash, privateKey, options.verifier)
 		} else {
-			// BSM signing
 			const sig = BSM.sign(messageHash, privateKey, 'raw') as Signature
-			const magicHashValue = BSM.magicHash(messageHash)
-			const recoveryFactor = sig.CalculateRecoveryFactor(
-				privateKey.toPublicKey(),
-				new BigNumber(magicHashValue),
-			)
-			const compactSig = sig.toCompact(recoveryFactor, true, 'base64') as string
-			signatureArray = Array.from(Utils.toArray(compactSig, 'base64'))
+			const recovery = sig.CalculateRecoveryFactor(privateKey.toPublicKey(), new BigNumber(BSM.magicHash(messageHash)))
+			signatureArray = Array.from(toArray(sig.toCompact(recovery, true, 'base64') as string, 'base64'))
 		}
 
-		return new Sigma({
-			algorithm,
-			address,
-			signature: signatureArray,
-			vin,
-			valid: true,
-		})
+		return new Sigma({ algorithm, address, signature: signatureArray, vin, valid: true })
 	}
 
-	/**
-	 * Verify SIGMA signature against provided hashes
-	 *
-	 * @param inputHash - SHA256 hash of the input outpoint
-	 * @param dataHash - SHA256 hash of the script data
-	 * @param recipientPrivateKey - For BRC-77 private signatures, the recipient's key
-	 */
-	verifyWithHashes(
-		inputHash: number[],
-		dataHash: number[],
-		recipientPrivateKey?: PrivateKey,
-	): boolean {
+	verify(): boolean {
+		return this.data.valid === true
+	}
+
+	verifyWithHashes(inputHash: number[], dataHash: number[], recipientPrivateKey?: PrivateKey): boolean {
 		try {
 			const messageHash = [...inputHash, ...dataHash]
 
 			if (this.data.algorithm === SigmaAlgorithm.BRC77) {
-				// BRC-77 verification using SignedMessage
-				this.data.valid = SignedMessage.verify(
-					messageHash,
-					this.data.signature,
-					recipientPrivateKey,
-				)
+				this.data.valid = SignedMessage.verify(messageHash, this.data.signature, recipientPrivateKey)
 				return this.data.valid
 			}
 
-			// BSM verification
-			const signatureBase64 = Utils.toBase64(this.data.signature)
-			const sig = Signature.fromCompact(signatureBase64, 'base64')
-
-			for (let recovery = 0; recovery < 4; recovery++) {
-				try {
-					const publicKey = sig.RecoverPublicKey(
-						recovery,
-						new BigNumber(BSM.magicHash(messageHash)),
-					)
-					if (
-						BSM.verify(messageHash, sig, publicKey) &&
-						publicKey.toAddress().toString() === this.data.address
-					) {
-						this.data.valid = true
-						return true
-					}
-				} catch {
-					// Try next recovery factor
-				}
-			}
-
-			this.data.valid = false
-			return false
+			const sig = Signature.fromCompact(toBase64(this.data.signature), 'base64')
+			this.data.valid = deduceRecovery(sig, messageHash, this.data.address) !== -1
+			return this.data.valid
 		} catch {
 			this.data.valid = false
 			return false
 		}
 	}
 
-	/**
-	 * Check if signature was previously verified
-	 */
-	verify(): boolean {
-		return this.data.valid === true
-	}
-
-	/**
-	 * Generate locking script for SIGMA within BitCom
-	 */
 	lock(): LockingScript {
 		const script = new Script()
-
-		script.writeBin(Utils.toArray(this.data.algorithm, 'utf8'))
-		script.writeBin(Utils.toArray(this.data.address, 'utf8'))
+		script.writeBin(toArray(this.data.algorithm, 'utf8'))
+		script.writeBin(toArray(this.data.address, 'utf8'))
 		script.writeBin(this.data.signature)
-		script.writeBin(Utils.toArray(this.data.vin.toString(), 'utf8'))
-
-		const protocols: Protocol[] = [
-			{
-				protocol: SIGMA_PREFIX,
-				script: script.toBinary(),
-				pos: 0,
-			},
-		]
-
-		const bitcom = new BitCom(protocols)
-		return bitcom.lock()
+		script.writeBin(toArray(this.data.vin.toString(), 'utf8'))
+		return new BitCom([{ protocol: SIGMA_PREFIX, script: script.toBinary(), pos: 0 }]).lock()
 	}
 
-	/**
-	 * Unlock method is not available for SIGMA scripts
-	 */
 	unlock(): {
 		sign: (tx: Transaction, inputIndex: number) => Promise<UnlockingScript>
 		estimateLength: () => Promise<number>
