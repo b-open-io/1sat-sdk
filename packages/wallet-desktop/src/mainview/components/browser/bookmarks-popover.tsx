@@ -140,9 +140,19 @@ export function BookmarksPopover({
   const web = filtered.filter((b) => b.category === 'web')
   const hasAny = onchain.length > 0 || web.length > 0
 
+  const handleClick = () => {
+    if (!alreadyBookmarked) {
+      // First click: bookmark the page
+      addBookmark(currentUrl, currentTitle)
+    } else {
+      // Already bookmarked: open popover to manage
+      setOpen(true)
+    }
+  }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger>
+      <PopoverTrigger asChild>
         <Button
           variant="ghost"
           size="icon-xs"
@@ -151,7 +161,13 @@ export function BookmarksPopover({
             alreadyBookmarked && 'text-yellow-400',
           )}
           style={{ borderRadius: 5 }}
-          aria-label="Bookmarks"
+          aria-label={alreadyBookmarked ? 'Edit bookmark' : 'Bookmark this page'}
+          onClick={(e) => {
+            if (!alreadyBookmarked) {
+              e.preventDefault() // Don't open popover
+              handleClick()
+            }
+          }}
         >
           <Bookmark size={14} className={alreadyBookmarked ? 'fill-yellow-400' : ''} />
         </Button>
