@@ -56,10 +56,10 @@ function OnboardingCreateView({
 		<div className="flex items-center justify-center h-full">
 			<div className="max-w-sm w-full p-6">
 				<h1 className="text-2xl font-bold text-foreground mb-1 text-center">
-					1Sat Wallet
+					1Sat
 				</h1>
 				<p className="text-sm text-muted-foreground mb-8 text-center">
-					Get started with your BSV wallet
+					Get started
 				</p>
 				<div className="space-y-3">
 					<Button

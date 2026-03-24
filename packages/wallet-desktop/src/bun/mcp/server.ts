@@ -43,7 +43,7 @@ function createMcpServer(): McpServer {
 		{
 			capabilities: { tools: {} },
 			instructions:
-				'This server controls the 1Sat Wallet desktop browser. ' +
+				'This server controls the 1Sat desktop browser. ' +
 				'It can open pages (including 1sat:// inscriptions), interact with tabs, ' +
 				'execute JS, query blockchain data, and manage wallet operations.',
 		},

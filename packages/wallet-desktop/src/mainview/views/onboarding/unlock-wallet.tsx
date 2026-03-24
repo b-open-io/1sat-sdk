@@ -23,7 +23,7 @@ export function UnlockWallet() {
 		<div className="max-w-sm mx-auto flex flex-col items-center justify-center min-h-screen">
 			<UnlockWalletBlock
 				platform="macos"
-				appName="1Sat Wallet"
+				appName="1Sat"
 				onUnlock={handleUnlock}
 			/>
 		</div>

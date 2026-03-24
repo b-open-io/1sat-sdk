@@ -21,7 +21,7 @@ export function createDesktopVault(): Vault {
 		)
 	}
 
-	const provider = new SecureEnclaveProvider({ name: '1Sat Wallet' })
+	const provider = new SecureEnclaveProvider({ name: '1Sat' })
 	return createVault(provider, storage)
 }
 

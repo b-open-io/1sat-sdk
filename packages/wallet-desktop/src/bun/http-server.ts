@@ -56,8 +56,8 @@ function chatCorsHeaders(req: Request): Record<string, string> {
 }
 
 const MANIFEST = {
-	short_name: '1Sat Wallet',
-	name: '1Sat Wallet',
+	short_name: '1Sat',
+	name: '1Sat',
 	icons: [
 		{
 			src: 'favicon.ico',
@@ -71,9 +71,9 @@ const MANIFEST = {
 	background_color: '#000000',
 	babbage: {
 		trust: {
-			name: '1Sat Wallet',
+			name: '1Sat',
 			note: 'Bitcoin wallet with ordinals, tokens, and identity',
-			icon: 'https://1satwallet.com/favicon.ico',
+			icon: 'https://1sat.app/favicon.ico',
 			publicKey:
 				'0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
 		},

@@ -1,5 +1,5 @@
 /**
- * 1Sat Wallet — Bun process entry point.
+ * 1Sat — Bun process entry point.
  *
  * Creates the desktop window, wires RPC handlers, sets up the
  * application menu, and boots the wallet lifecycle.
@@ -122,7 +122,7 @@ let browserWindow: BrowserWindow | undefined
 const url = await getMainViewUrl()
 
 const mainWindow = new BrowserWindow({
-	title: '1Sat Wallet',
+	title: '1Sat',
 	url,
 	frame: { width: 1440, height: 900, x: 100, y: 100 },
 	titleBarStyle: 'hiddenInset',
@@ -135,15 +135,15 @@ const mainWindow = new BrowserWindow({
 
 ApplicationMenu.setApplicationMenu([
 	{
-		label: '1Sat Wallet',
+		label: '1Sat',
 		submenu: [
-			{ label: 'About 1Sat Wallet', role: 'hide' },
+			{ label: 'About 1Sat', role: 'hide' },
 			{ type: 'separator' },
 			{ role: 'hide' },
 			{ role: 'hideOthers' },
 			{ role: 'showAll' },
 			{ type: 'separator' },
-			{ label: 'Quit 1Sat Wallet', action: 'quit', accelerator: 'q' },
+			{ label: 'Quit 1Sat', action: 'quit', accelerator: 'q' },
 		],
 	},
 	{
@@ -359,4 +359,4 @@ Electrobun.events.on('open-url', (e) => {
 	}
 })
 
-console.log('1Sat Wallet started')
+console.log('1Sat started')

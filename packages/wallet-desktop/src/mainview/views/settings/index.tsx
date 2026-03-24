@@ -1284,7 +1284,7 @@ export function SettingsView() {
 							</p>
 							<div className="flex items-center justify-between py-3">
 								<p className="text-sm font-medium">App</p>
-								<p className="text-sm text-muted-foreground">1Sat Wallet</p>
+								<p className="text-sm text-muted-foreground">1Sat</p>
 							</div>
 							<Separator />
 							<div className="flex items-center justify-between py-3">
