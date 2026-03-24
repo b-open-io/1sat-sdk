@@ -82,6 +82,49 @@ When bumping a package version and publishing to npm:
 7. **Publish connect before react** — react depends on connect via `workspace:*`. The resolved version at publish time comes from the lockfile.
 8. **After publishing**, verify the dependency chain: `npm view @1sat/react@<ver> dependencies`
 
+## wallet-desktop Logging
+
+All bun-side modules use `createLog`/`createReqLog` from `src/bun/log.ts` instead of importing evlog directly. Events go to three destinations:
+
+1. **evlog** (stdout) — standard structured logging
+2. **MCP ring buffer** — queryable via `wallet_logs` MCP tool (last 500 events)
+3. **File** (`~/.1sat-wallet/app.log`) — survives crashes, readable from installed app
+
+When adding new logging in `packages/wallet-desktop/src/bun/`, always import from `./log` (or `../log`), never directly from `evlog`. The only file that imports `initLogger` from evlog is `index.ts`.
+
+### Debugging the installed app
+
+When the signed/notarized build fails (window doesn't open, skeletons forever):
+
+```bash
+cat ~/.1sat-wallet/app.log | tail -30
+```
+
+Startup events in order: `url_resolved` → `window_created` → `dom_ready` → `http_listening` → `mcp_listening` → `setup_complete`. Whichever is missing tells you where it stopped.
+
+### Debugging for other users
+
+Have them send `~/.1sat-wallet/app.log`. Key things to check:
+- `dom_ready` with `hasKey: false` → no wallet created, should see onboarding
+- `dom_ready` with `hasKey: true` → wallet exists, should see unlock screen
+- `start_failed` in stack context → 1sat-stack sidecar didn't start (data won't load)
+- `onboarding_required` → stack needs setup wizard completed
+- No events at all → bun process crashed before `initLogger` (missing dependency)
+
+### MCP Server
+
+The wallet-desktop runs three local services:
+
+| Service | Port | Auth | Purpose |
+|---------|------|------|---------|
+| BRC-100 HTTP | 3321 | BRC-31 | dApp wallet connectivity |
+| BRC-100 HTTPS | 2121 | BRC-31 + TLS | Same, with self-signed cert |
+| MCP Server | 3322 | BRC-103/104 | Agent tools (26 tools: browser, tabs, data, wallet, logs) |
+
+The `1sat mcp-proxy` CLI command bridges stdio to the MCP server with authenticated BRC-31 handshake. The 1sat plugin ships `.mcp.json` that runs this automatically.
+
+Agent identity keys: `~/.1sat-wallet/mcp-agent.key` (client), `~/.1sat-wallet/mcp-identity.key` (server).
+
 ## Validation Checklist
 Run after meaningful changes:
 
