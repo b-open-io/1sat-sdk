@@ -106,9 +106,22 @@ export function useChat(initialChannel = 'general'): UseChatReturn {
 		return unsub
 	}, [])
 
-	const setChannel = useCallback((newChannel: string) => {
-		setChannelState(newChannel)
+	const clearUnread = useCallback((ch: string) => {
+		setUnreadCounts((prev) => {
+			if (!prev[ch]) return prev
+			const next = { ...prev }
+			delete next[ch]
+			return next
+		})
 	}, [])
+
+	const setChannel = useCallback(
+		(newChannel: string) => {
+			setChannelState(newChannel)
+			clearUnread(newChannel)
+		},
+		[clearUnread],
+	)
 
 	const sendMessage = useCallback(
 		async (content: string) => {
@@ -161,6 +174,8 @@ export function useChat(initialChannel = 'general'): UseChatReturn {
 		isLoading,
 		isSending,
 		error,
+		unreadCounts,
+		clearUnread,
 		sendMessage,
 		refresh,
 	}

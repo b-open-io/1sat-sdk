@@ -112,10 +112,12 @@ function MessageRow({ message }: { message: ChatMessage }) {
 function ChannelSidebar({
 	channels,
 	activeChannel,
+	unreadCounts,
 	onSelectChannel,
 }: {
 	channels: string[]
 	activeChannel: string
+	unreadCounts: Record<string, number>
 	onSelectChannel: (channel: string) => void
 }) {
 	return (
@@ -144,35 +146,52 @@ function ChannelSidebar({
 			{/* Channel list */}
 			<ScrollArea className="flex-1">
 				<div className="flex flex-col px-1.5 pb-2">
-					{channels.map((ch) => (
-						<button
-							key={ch}
-							type="button"
-							onClick={() => onSelectChannel(ch)}
-							className={cn(
-								'flex items-center gap-1.5 w-full px-2 py-1.5 text-left transition-colors rounded-sm',
-								activeChannel === ch
-									? 'bg-muted/50 text-foreground'
-									: 'text-muted-foreground hover:text-foreground hover:bg-muted/30',
-							)}
-						>
-							<span
-								className="shrink-0 text-[12px] font-bold leading-none"
-								style={{
-									color: activeChannel === ch ? 'oklch(0.7 0.2 150)' : 'oklch(0.5 0.12 150)',
-									fontFamily: 'var(--font-mono)',
-								}}
+					{channels.map((ch) => {
+						const unread = unreadCounts[ch] ?? 0
+						const isActive = activeChannel === ch
+						return (
+							<button
+								key={ch}
+								type="button"
+								onClick={() => onSelectChannel(ch)}
+								className={cn(
+									'flex items-center gap-1.5 w-full px-2 py-1.5 text-left transition-colors rounded-sm',
+									isActive
+										? 'bg-muted/50 text-foreground'
+										: 'text-muted-foreground hover:text-foreground hover:bg-muted/30',
+								)}
 							>
-								#
-							</span>
-							<span
-								className="text-[12px] font-medium truncate leading-none"
-								style={{ fontFamily: 'var(--font-mono)' }}
-							>
-								{ch}
-							</span>
-						</button>
-					))}
+								<span
+									className="shrink-0 text-[12px] font-bold leading-none"
+									style={{
+										color: isActive ? 'oklch(0.7 0.2 150)' : 'oklch(0.5 0.12 150)',
+										fontFamily: 'var(--font-mono)',
+									}}
+								>
+									#
+								</span>
+								<span
+									className="flex-1 text-[12px] font-medium truncate leading-none"
+									style={{ fontFamily: 'var(--font-mono)' }}
+								>
+									{ch}
+								</span>
+								{unread > 0 && !isActive && (
+									<span
+										className="inline-flex shrink-0 items-center justify-center rounded-full text-[9px] font-bold leading-none px-1"
+										style={{
+											minWidth: 16,
+											height: 16,
+											backgroundColor: 'oklch(0.55 0.18 150)',
+											color: 'oklch(0.98 0.01 150)',
+										}}
+									>
+										{unread > 99 ? '99+' : unread}
+									</span>
+								)}
+							</button>
+						)
+					})}
 				</div>
 			</ScrollArea>
 		</div>
@@ -283,6 +302,7 @@ export function ChatView() {
 			<ChannelSidebar
 				channels={chat.channels}
 				activeChannel={chat.channel}
+				unreadCounts={chat.unreadCounts}
 				onSelectChannel={chat.setChannel}
 			/>
 
