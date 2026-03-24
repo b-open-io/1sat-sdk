@@ -277,17 +277,35 @@ function OtherProfileView({ targetBapId, onNavigate }: OtherProfileViewProps) {
 							</div>
 						</div>
 
-						{/* Message button */}
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={handleMessage}
-							className="shrink-0 flex items-center gap-2"
-						>
-							<MessageCircle size={14} />
-							Message
-						</Button>
+						{/* Action buttons */}
+						<div className="shrink-0 flex items-center gap-2">
+							<FollowButton
+								bapId={targetBapId}
+								variant="compact"
+								onFollow={handleFollow}
+								onError={(err) => setFollowError(err.message)}
+							/>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={handleMessage}
+								className="flex items-center gap-2"
+							>
+								<MessageCircle size={14} />
+								Message
+							</Button>
+						</div>
 					</div>
+
+					{/* Follow error */}
+					{followError && (
+						<div
+							className="border border-destructive text-destructive mb-4 px-3 py-2"
+							style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
+						>
+							{followError}
+						</div>
+					)}
 
 					{/* Divider */}
 					<div className="border-t border-border mb-4" />

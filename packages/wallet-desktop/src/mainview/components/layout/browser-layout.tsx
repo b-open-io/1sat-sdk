@@ -896,11 +896,14 @@ export function BrowserLayout() {
 	const dispatchNav = useCallback(
 		(action: Parameters<typeof applyNavAction>[1]) => {
 			setTabs((prev) =>
-				prev.map((tab) =>
-					tab.id === activeTabIdRef.current
-						? { ...tab, nav: applyNavAction(tab.nav, action) }
-						: tab,
-				),
+				prev.map((tab) => {
+					if (tab.id !== activeTabIdRef.current) return tab
+					const nav = applyNavAction(tab.nav, action)
+					// Proactively set favicon when navigating to a web URL
+					const faviconUrl =
+						nav.current.type === 'web' ? getFaviconUrl(nav.current.url) : undefined
+					return { ...tab, nav, faviconUrl }
+				}),
 			)
 		},
 		[], // stable — reads current tab ID from ref
