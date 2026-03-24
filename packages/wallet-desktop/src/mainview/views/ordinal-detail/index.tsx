@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
 	ArrowLeft,
@@ -6,6 +7,8 @@ import {
 	ExternalLink,
 	FileQuestion,
 	ImageOff,
+	ShoppingCart,
+	Tag,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -28,6 +31,11 @@ interface OrdinalMetadata {
 	fileSize: number | undefined
 	map: MapAttributes
 	name: string | undefined
+}
+
+interface OrdLockListing {
+	priceSats: number
+	origin: string
 }
 
 // ---------------------------------------------------------------------------
@@ -85,6 +93,85 @@ function truncateOutpoint(outpoint: string, visibleChars = 10): string {
 function txidFromOutpoint(outpoint: string): string {
 	const idx = outpoint.lastIndexOf('_')
 	return idx === -1 ? outpoint : outpoint.slice(0, idx)
+}
+
+/**
+ * Parse the raw OrdLock listing response.
+ * The API returns an array; we only care about the first active listing.
+ */
+function parseListing(raw: unknown): OrdLockListing | null {
+	const arr = Array.isArray(raw) ? raw : null
+	if (!arr || arr.length === 0) return null
+
+	const first = arr[0] as Record<string, unknown>
+	if (typeof first !== 'object' || first === null) return null
+
+	// price may be in satoshis as `price`, `priceSats`, or nested `data.price`
+	let priceSats: number | undefined
+	if (typeof first.price === 'number') priceSats = first.price
+	else if (typeof first.priceSats === 'number') priceSats = first.priceSats
+	else if (
+		typeof first.data === 'object' &&
+		first.data !== null &&
+		typeof (first.data as Record<string, unknown>).price === 'number'
+	) {
+		priceSats = (first.data as Record<string, unknown>).price as number
+	}
+
+	if (priceSats === undefined || priceSats <= 0) return null
+
+	const origin =
+		typeof first.origin === 'string'
+			? first.origin
+			: typeof first.outpoint === 'string'
+				? first.outpoint
+				: ''
+
+	return { priceSats, origin }
+}
+
+/** Fetch listing data for an outpoint from the local OrdLock index. */
+function useListing(outpoint: string): {
+	listing: OrdLockListing | null
+	listingLoading: boolean
+} {
+	const [listing, setListing] = useState<OrdLockListing | null>(null)
+	const [listingLoading, setListingLoading] = useState(true)
+
+	useEffect(() => {
+		if (!outpoint) {
+			setListingLoading(false)
+			return
+		}
+
+		let cancelled = false
+		setListingLoading(true)
+		setListing(null)
+
+		fetch(`${ORDFS_BASE}/1sat/ordlock/origin/${outpoint}`)
+			.then((res) => {
+				// 404 means not listed — not an error
+				if (res.status === 404) return null
+				if (!res.ok) throw new Error(`Listing fetch: ${res.status}`)
+				return res.json()
+			})
+			.then((raw: unknown) => {
+				if (!cancelled) setListing(parseListing(raw))
+			})
+			.catch(() => {
+				// Listing fetch failure is non-fatal; treat as unlisted
+				if (!cancelled) setListing(null)
+			})
+			.finally(() => {
+				if (!cancelled) setListingLoading(false)
+			})
+
+		return () => {
+			cancelled = true
+		}
+	}, [outpoint])
+
+	return { listing, listingLoading }
 }
 
 // ---------------------------------------------------------------------------
@@ -152,14 +239,23 @@ function MetaRow({ label, value }: MetaRowProps) {
 
 interface MetadataPanelProps {
 	outpoint: string
+	listing: OrdLockListing | null
+	listingLoading: boolean
 	onNavigate?: (url: string) => void
 }
 
-function MetadataPanel({ outpoint, onNavigate }: MetadataPanelProps) {
+function MetadataPanel({
+	outpoint,
+	listing,
+	listingLoading,
+	onNavigate,
+}: MetadataPanelProps) {
 	const [metadata, setMetadata] = useState<OrdinalMetadata | null>(null)
 	const [loading, setLoading] = useState(true)
 	const [fetchError, setFetchError] = useState<string | null>(null)
 	const [copied, setCopied] = useState(false)
+	const [showListInput, setShowListInput] = useState(false)
+	const [listPrice, setListPrice] = useState('')
 	const copyTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
 
 	useEffect(() => () => clearTimeout(copyTimeoutRef.current), [])
@@ -215,6 +311,26 @@ function MetadataPanel({ outpoint, onNavigate }: MetadataPanelProps) {
 			window.open(url, '_blank', 'noopener,noreferrer')
 		}
 	}, [outpoint, onNavigate])
+
+	const handleBuy = useCallback(() => {
+		const origin = listing?.origin ?? outpoint
+		const viewUrl = `https://1satordinals.com/ordinal/${origin}`
+		alert(
+			`Purchase flow coming soon.\n\nView this ordinal on 1satordinals.com:\n${viewUrl}`,
+		)
+	}, [listing, outpoint])
+
+	const handleListToggle = useCallback(() => {
+		setShowListInput((prev) => !prev)
+		setListPrice('')
+	}, [])
+
+	const handleListConfirm = useCallback(() => {
+		if (!listPrice || Number(listPrice) <= 0) return
+		alert('Listing flow coming soon.')
+		setShowListInput(false)
+		setListPrice('')
+	}, [listPrice])
 
 	const displayName = metadata?.name ?? (loading ? 'Loading…' : 'Unnamed')
 

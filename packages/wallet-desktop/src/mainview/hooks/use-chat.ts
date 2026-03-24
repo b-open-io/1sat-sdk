@@ -17,6 +17,10 @@ export interface UseChatReturn {
 	isSending: boolean
 	/** Error from the most recent operation */
 	error: string | null
+	/** Unread message counts keyed by channel name */
+	unreadCounts: Record<string, number>
+	/** Clear the unread count for a channel */
+	clearUnread: (channel: string) => void
 	/** Send a message to the current channel */
 	sendMessage: (content: string) => Promise<void>
 	/** Refresh messages for the current channel */
@@ -30,7 +34,12 @@ export function useChat(initialChannel = 'general'): UseChatReturn {
 	const [isLoading, setIsLoading] = useState(false)
 	const [isSending, setIsSending] = useState(false)
 	const [error, setError] = useState<string | null>(null)
+	const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
 	const prevChannelRef = useRef<string | null>(null)
+	// Keep a ref to the active channel so the push listener closure always sees
+	// the latest value without being re-registered on every channel change.
+	const channelRef = useRef(channel)
+	channelRef.current = channel
 
 	// Fetch available channels on mount
 	useEffect(() => {
@@ -76,20 +85,26 @@ export function useChat(initialChannel = 'general'): UseChatReturn {
 		}
 	}, [channel])
 
-	// Listen for real-time messages pushed from Bun
+	// Listen for real-time messages pushed from Bun — registered once, uses
+	// channelRef so we never need to re-subscribe on channel changes.
 	useEffect(() => {
 		const unsub = onChatMessageReceived((msg) => {
-			// Only append messages for the current channel
-			if (msg.channel === channel) {
+			if (msg.channel === channelRef.current) {
+				// Active channel: append (deduplicated by txid)
 				setMessages((prev) => {
-					// Deduplicate by txid
 					if (prev.some((m) => m.txid === msg.txid)) return prev
 					return [...prev, msg]
 				})
+			} else {
+				// Background channel: increment unread count
+				setUnreadCounts((prev) => ({
+					...prev,
+					[msg.channel]: (prev[msg.channel] ?? 0) + 1,
+				}))
 			}
 		})
 		return unsub
-	}, [channel])
+	}, [])
 
 	const setChannel = useCallback((newChannel: string) => {
 		setChannelState(newChannel)

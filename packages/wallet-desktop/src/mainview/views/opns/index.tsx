@@ -53,19 +53,30 @@ interface NameRowProps {
 	name: OpnsName
 	isOperating: boolean
 	onRequest: (name: OpnsName) => void
+	onNavigate?: (url: string) => void
 	isLast: boolean
 }
 
-function NameRow({ name, isOperating, onRequest, isLast }: NameRowProps) {
+function NameRow({ name, isOperating, onRequest, onNavigate, isLast }: NameRowProps) {
 	return (
 		<>
 			<div className="flex items-center gap-4 px-5 py-3">
-				{/* Name */}
-				<div className="flex-1 min-w-0 flex flex-col gap-0.5">
-					<span className="text-sm font-bold leading-tight truncate">{name.name}</span>
-					<span className={`text-[9px] text-muted-foreground ${MONO} truncate`}>
-						{truncateOutpoint(name.outpoint)}
-					</span>
+				{/* Clickable name + outpoint area */}
+				<div
+					className="flex-1 min-w-0 flex items-center gap-2.5 cursor-pointer rounded-sm px-1 -mx-1 py-0.5 hover:bg-card transition-colors"
+					onClick={() => onNavigate?.(`1sat://${name.name}`)}
+					title={`Browse 1sat://${name.name}`}
+				>
+					{/* Status dot */}
+					<span
+						className={`shrink-0 size-2 rounded-full ${name.registered ? 'bg-green-500' : 'bg-muted-foreground/40'}`}
+					/>
+					<div className="flex flex-col gap-0.5 min-w-0">
+						<span className="text-sm font-bold leading-tight truncate">{name.name}</span>
+						<span className={`text-[9px] text-muted-foreground ${MONO} truncate`}>
+							{truncateOutpoint(name.outpoint)}
+						</span>
+					</div>
 				</div>
 
 				{/* Status badge */}
@@ -127,7 +138,11 @@ const INITIAL_CONFIRM: ConfirmState = { open: false, action: 'register', name: n
 // OpnsView
 // ---------------------------------------------------------------------------
 
-export function OpnsView() {
+interface OpnsViewProps {
+	onNavigate?: (url: string) => void
+}
+
+export function OpnsView({ onNavigate }: OpnsViewProps = {}) {
 	const [names, setNames] = useState<OpnsName[]>([])
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<Error | null>(null)

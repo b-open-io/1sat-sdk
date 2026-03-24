@@ -6,7 +6,9 @@ import {
 	ArrowDownLeft,
 	ArrowUpRight,
 	ChevronRight,
+	Coins,
 	Copy,
+	Gem,
 	Lock,
 	Wallet,
 } from 'lucide-react'
@@ -130,6 +132,8 @@ export function WalletPopover({ onNavigate }: WalletPopoverProps) {
 	const [open, setOpen] = useState(false)
 	const [sendOpen, setSendOpen] = useState(false)
 	const [receiveOpen, setReceiveOpen] = useState(false)
+	const [ordinalCount, setOrdinalCount] = useState(0)
+	const [tokenCount, setTokenCount] = useState(0)
 
 	const totalSats = balance.confirmed + balance.unconfirmed
 
@@ -143,6 +147,14 @@ export function WalletPopover({ onNavigate }: WalletPopoverProps) {
 		rpc.request.getTransactionHistory({ limit: 3 }).then(
 			(res) => setHistory(res.entries),
 			(err) => console.error('getTransactionHistory failed:', err),
+		)
+		rpc.request.getOrdinals({ limit: 100 }).then(
+			(res) => setOrdinalCount(res.ordinals.length),
+			() => {},
+		)
+		rpc.request.getTokenBalances().then(
+			(res) => setTokenCount(res.balances.length),
+			() => {},
 		)
 	}, [open, status])
 
@@ -233,6 +245,22 @@ export function WalletPopover({ onNavigate }: WalletPopoverProps) {
 						Receive
 					</Button>
 				</div>
+
+				{/* Assets summary */}
+				{status === 'unlocked' && (
+					<div className="flex items-center gap-3 px-4 py-2 border-b border-border">
+						<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+							<Gem size={11} />
+							<span className="font-mono">{ordinalCount}</span>
+							<span>ordinals</span>
+						</div>
+						<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+							<Coins size={11} />
+							<span className="font-mono">{tokenCount}</span>
+							<span>tokens</span>
+						</div>
+					</div>
+				)}
 
 				{/* Receive address */}
 				{receiveInfo && (

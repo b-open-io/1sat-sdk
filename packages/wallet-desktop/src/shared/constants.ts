@@ -6,6 +6,9 @@ export const WALLET_HOST = '127.0.0.1'
 /** Base URL for the wallet HTTP server (used by AI chat transport, model fetch, etc.) */
 export const WALLET_HTTP_URL = `http://${WALLET_HOST}:${WALLET_HTTP_PORT}`
 
+/** Base URL for the local 1sat-stack overlay node */
+export const STACK_URL = `http://${WALLET_HOST}:8080`
+
 // ---------------------------------------------------------------------------
 // Browser settings
 // ---------------------------------------------------------------------------

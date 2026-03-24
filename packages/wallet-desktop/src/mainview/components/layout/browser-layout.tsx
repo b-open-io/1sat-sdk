@@ -15,6 +15,7 @@ import {
 	Globe,
 	Plus,
 	RotateCw,
+	Search,
 	Server,
 	X,
 } from 'lucide-react'
@@ -644,11 +645,12 @@ interface WebViewContentProps {
 	route: ParsedRoute
 	onNavigated?: (url: string) => void
 	onTitleChanged?: (title: string) => void
+	webviewRef?: React.RefObject<HTMLElement | null>
 }
 
-function WebViewContent({ route, onNavigated, onTitleChanged }: WebViewContentProps) {
+function WebViewContent({ route, onNavigated, onTitleChanged, webviewRef }: WebViewContentProps) {
 	const containerRef = useRef<HTMLDivElement>(null)
-	const webviewRef = useRef<HTMLElement | null>(null)
+	const localRef = useRef<HTMLElement | null>(null)
 
 	useEffect(() => {
 		const container = containerRef.current
@@ -687,15 +689,17 @@ function WebViewContent({ route, onNavigated, onTitleChanged }: WebViewContentPr
 		webview.addEventListener('page-title-updated', handleTitleChanged)
 
 		container.appendChild(webview)
-		webviewRef.current = webview
+		localRef.current = webview
+		if (webviewRef) webviewRef.current = webview
 
 		return () => {
 			webview.removeEventListener('did-navigate', handleNavigated)
 			webview.removeEventListener('page-title-updated', handleTitleChanged)
 			webview.remove()
-			webviewRef.current = null
+			localRef.current = null
+			if (webviewRef) webviewRef.current = null
 		}
-	}, [route, onNavigated, onTitleChanged])
+	}, [route, onNavigated, onTitleChanged, webviewRef])
 
 	return (
 		<div ref={containerRef} className="absolute inset-0" />
@@ -779,6 +783,27 @@ export function BrowserLayout() {
 
 	// ── Link hover tooltip (Chrome-style status bar) ──────────────────────
 	const [hoveredLink, setHoveredLink] = useState<string | null>(null)
+
+	useEffect(() => {
+		function handleMouseOver(e: MouseEvent) {
+			const target = (e.target as HTMLElement).closest('a[href]')
+			if (target) {
+				setHoveredLink((target as HTMLAnchorElement).href)
+			}
+		}
+		function handleMouseOut(e: MouseEvent) {
+			const target = (e.target as HTMLElement).closest('a[href]')
+			if (target) {
+				setHoveredLink(null)
+			}
+		}
+		document.addEventListener('mouseover', handleMouseOver)
+		document.addEventListener('mouseout', handleMouseOut)
+		return () => {
+			document.removeEventListener('mouseover', handleMouseOver)
+			document.removeEventListener('mouseout', handleMouseOut)
+		}
+	}, [])
 
 	// ── Tab mode ───────────────────────────────────────────────────────────
 	const [tabMode, setTabMode] = useState<'horizontal' | 'vertical'>('horizontal')
