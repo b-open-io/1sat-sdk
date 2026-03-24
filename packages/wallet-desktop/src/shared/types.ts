@@ -352,6 +352,10 @@ type BunRequests = {
 		params: MintCollectionItemParams
 		response: MintCollectionItemResult
 	}
+	toggleDevTools: {
+		params: undefined
+		response: { success: boolean }
+	}
 	getStackStatus: {
 		params: undefined
 		response: { running: boolean; url: string }

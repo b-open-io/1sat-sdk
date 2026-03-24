@@ -27,7 +27,7 @@ import {
 import { useHotkeys } from '@tanstack/react-hotkeys'
 import type { ParsedRoute } from '../../../shared/url-types'
 import { getDisplayLabel } from '../../../shared/url-types'
-import { ORDFS_BASE } from '../../lib/url-parser'
+import { ORDFS_BASE, parseUrl } from '../../lib/url-parser'
 import { AiChatView } from '../../views/ai-chat/index'
 import { AgentPopover } from '../browser/agent-popover'
 import { AgentSidebar } from '../browser/agent-sidebar'
@@ -78,6 +78,8 @@ interface TabState {
 	nav: NavState
 	/** Incremented to force re-mount of the current page (reload) */
 	reloadKey: number
+	/** Page title reported by the webview (overrides getDisplayLabel) */
+	customTitle?: string
 }
 
 function makeTabId(): string {
@@ -186,7 +188,7 @@ function TabBar({
 				{tabs.map((tab) => (
 					<Tab
 						key={tab.id}
-						label={getDisplayLabel(tab.nav.current)}
+						label={tab.customTitle ?? getDisplayLabel(tab.nav.current)}
 						active={tab.id === activeTabId}
 						onClick={() => onTabClick(tab.id)}
 						onClose={() => onTabClose(tab.id)}
@@ -250,7 +252,7 @@ function VerticalTabSidebar({
 			>
 				{tabs.map((tab) => {
 					const active = tab.id === activeTabId
-					const label = getDisplayLabel(tab.nav.current)
+					const label = tab.customTitle ?? getDisplayLabel(tab.nav.current)
 					return (
 						<div
 							key={tab.id}
@@ -264,7 +266,7 @@ function VerticalTabSidebar({
 							className={cn(
 								'group flex items-center gap-2 px-3 py-1.5 select-none cursor-default transition-colors',
 								active
-									? 'bg-background text-foreground'
+									? 'bg-muted/50 text-foreground'
 									: 'text-muted-foreground hover:text-foreground hover:bg-muted/30',
 							)}
 						>
@@ -464,7 +466,7 @@ function AddressBar({ route, onNavigate, inputRef }: AddressBarProps) {
 
 	return (
 		<div
-			className="flex items-center gap-1.5 flex-1 min-w-0 px-2 border border-border bg-muted/40 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1"
+			className="flex items-center gap-1.5 flex-1 min-w-0 px-2 border border-border bg-muted/40"
 			style={{ height: 26, borderRadius: 6 }}
 		>
 			<ProtocolBadge
@@ -531,7 +533,7 @@ interface ToolbarProps {
 	addressBarRef: React.RefObject<HTMLInputElement | null>
 	trafficLightPad?: boolean
 	onOpenAgent: () => void
-	onToggleTabMode?: () => void
+	onToggleTabMode: () => void
 	bookmarksApi: ReturnType<typeof useBookmarks>
 	currentUrl: string
 	currentTitle: string
@@ -576,7 +578,7 @@ function Toolbar({
 					onClick={onForward}
 				/>
 				<NavButton
-					icon={<RotateCw size={14} />}
+					icon={<RotateCw size={13} />}
 					label="Reload"
 					onClick={onReload}
 				/>
@@ -633,7 +635,13 @@ function resolveWebViewUrl(route: ParsedRoute): string | null {
 	}
 }
 
-function WebViewContent({ route }: { route: ParsedRoute }) {
+interface WebViewContentProps {
+	route: ParsedRoute
+	onNavigated?: (url: string) => void
+	onTitleChanged?: (title: string) => void
+}
+
+function WebViewContent({ route, onNavigated, onTitleChanged }: WebViewContentProps) {
 	const containerRef = useRef<HTMLDivElement>(null)
 	const webviewRef = useRef<HTMLElement | null>(null)
 
@@ -660,14 +668,29 @@ function WebViewContent({ route }: { route: ParsedRoute }) {
 			webview.setAttribute('partition', `persist:1sat-${partition}`)
 		}
 
+		const handleNavigated = (e: Event) => {
+			const url = (e as CustomEvent).detail?.url
+			if (url) onNavigated?.(url)
+		}
+
+		const handleTitleChanged = (e: Event) => {
+			const title = (e as CustomEvent).detail?.title
+			if (title) onTitleChanged?.(title)
+		}
+
+		webview.addEventListener('did-navigate', handleNavigated)
+		webview.addEventListener('page-title-updated', handleTitleChanged)
+
 		container.appendChild(webview)
 		webviewRef.current = webview
 
 		return () => {
+			webview.removeEventListener('did-navigate', handleNavigated)
+			webview.removeEventListener('page-title-updated', handleTitleChanged)
 			webview.remove()
 			webviewRef.current = null
 		}
-	}, [route])
+	}, [route, onNavigated, onTitleChanged])
 
 	return (
 		<div ref={containerRef} className="absolute inset-0" />
@@ -802,6 +825,40 @@ export function BrowserLayout() {
 		)
 	}, [activeTabId])
 
+	// Called when the webview itself navigates (link click, redirect, etc.).
+	// We push the new URL into the active tab's nav history so Back works,
+	// but we do NOT create a new webview — it already navigated internally.
+	const handleWebViewNavigated = useCallback((url: string) => {
+		const parsed = parseUrl(url)
+		if (!parsed) return
+		const tabId = activeTabIdRef.current
+		setTabs((prev) =>
+			prev.map((tab) => {
+				if (tab.id !== tabId) return tab
+				const back = [...tab.nav.back, tab.nav.current]
+				const nav: NavState = {
+					back,
+					current: parsed,
+					forward: [],
+					canGoBack: true,
+					canGoForward: false,
+				}
+				// Clear customTitle on URL change so stale titles don't persist
+				return { ...tab, nav, customTitle: undefined }
+			}),
+		)
+	}, [])
+
+	// Called when the webview's document title updates.
+	const handleWebViewTitleChanged = useCallback((title: string) => {
+		const tabId = activeTabIdRef.current
+		setTabs((prev) =>
+			prev.map((tab) =>
+				tab.id === tabId ? { ...tab, customTitle: title } : tab,
+			),
+		)
+	}, [])
+
 	// ── Tab management ─────────────────────────────────────────────────────
 
 	const createNewTab = useCallback(() => {
@@ -930,6 +987,7 @@ export function BrowserLayout() {
 		{ hotkey: 'Mod+D', callback: () => { const url = getFullUrl(activeNav.current); bookmarksApi.addBookmark(url, getDisplayLabel(activeNav.current)) } },
 		{ hotkey: 'Mod+Shift+S', callback: () => toggleTabMode() },
 		{ hotkey: 'Mod+Shift+A', callback: () => toggleAgentSidebar() },
+		{ hotkey: 'Mod+Alt+I', callback: () => { rpc.request.toggleDevTools() } },
 		{ hotkey: 'Mod+,', callback: () => navigate('1sat://settings') },
 
 		// Home
@@ -940,7 +998,7 @@ export function BrowserLayout() {
 
 	const route = activeNav.current
 	const currentUrl = getFullUrl(route)
-	const currentTitle = getDisplayLabel(route)
+	const currentTitle = activeTab.customTitle ?? getDisplayLabel(route)
 	const isFullHeight =
 		route.type === 'ai-chat' ||
 		(route.type === 'internal' &&
@@ -974,7 +1032,11 @@ export function BrowserLayout() {
 							onNavigate={navigate}
 						/>
 					) : (
-						<WebViewContent route={route} />
+						<WebViewContent
+							route={route}
+							onNavigated={handleWebViewNavigated}
+							onTitleChanged={handleWebViewTitleChanged}
+						/>
 					)}
 				</main>
 			</BrowserContextMenu>
@@ -1096,6 +1158,7 @@ export function BrowserLayout() {
 				addressBarRef={addressBarRef}
 				trafficLightPad={false}
 				onOpenAgent={toggleAgentSidebar}
+				onToggleTabMode={toggleTabMode}
 				bookmarksApi={bookmarksApi}
 				currentUrl={currentUrl}
 				currentTitle={currentTitle}

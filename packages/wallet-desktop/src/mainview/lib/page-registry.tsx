@@ -29,26 +29,6 @@ import { CreateWallet } from '../views/onboarding/create-wallet'
 import { ImportWallet } from '../views/onboarding/import-wallet'
 import { UnlockWallet } from '../views/onboarding/unlock-wallet'
 
-// ─── Placeholder components for pages without dedicated views ─────────────────
-
-function ComingSoonView({ page }: { page: InternalPage }): ReactElement {
-	return (
-		<div
-			style={{
-				display: 'flex',
-				flexDirection: 'column',
-				alignItems: 'center',
-				justifyContent: 'center',
-				height: '100%',
-				gap: '8px',
-			}}
-		>
-			<p style={{ fontSize: '1.125rem', fontWeight: 600 }}>Coming Soon</p>
-			<p style={{ fontSize: '0.875rem', opacity: 0.6 }}>{page}</p>
-		</div>
-	)
-}
-
 function SettingsSecurityView(): ReactElement {
 	return <SettingsView params={{ tab: 'security' }} />
 }

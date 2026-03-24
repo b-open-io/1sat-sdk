@@ -68,6 +68,10 @@ const rpc = BrowserView.defineRPC<WalletDesktopRPC>({
 		requests: {
 			...handlers,
 			resolvePermission,
+			toggleDevTools: () => {
+				mainWindow.webview.toggleDevTools()
+				return { success: true }
+			},
 			openOrdfsContent: ({ path }: { path: string }) => {
 				const stackUrl = getStackUrl()
 				const contentUrl = `${stackUrl}/content/${path}`
