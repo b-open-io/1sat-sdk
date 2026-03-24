@@ -3,6 +3,7 @@ import type { BrowserWindow } from 'electrobun/bun'
 import { registerBrowserTools } from './browser'
 import { registerDataTools } from './data'
 import { registerTabTools } from './tabs'
+import { registerLogTools } from './logs'
 import { registerWalletTools } from './wallet'
 
 export function registerAllMcpTools(
@@ -13,4 +14,5 @@ export function registerAllMcpTools(
 	registerTabTools(server, getMainWindow)
 	registerDataTools(server)
 	registerWalletTools(server)
+	registerLogTools(server)
 }

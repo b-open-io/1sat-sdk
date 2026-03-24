@@ -7,17 +7,16 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { Hash, KeyDeriver, PrivateKey, Signature, Utils } from '@bsv/sdk'
 import type { WalletProtocol } from '@bsv/sdk'
+import { createLogger, initLogger } from 'evlog'
 
 const { toBase64, toArray } = Utils
+
+initLogger({ env: { service: '1sat-mcp-proxy' } })
 
 const MCP_URL = process.env.ONESAT_MCP_URL ?? 'http://127.0.0.1:3322'
 const KEY_DIR = `${process.env.HOME}/.1sat-wallet`
 const CLIENT_KEY_PATH = `${KEY_DIR}/mcp-agent.key`
 const AUTH_PROTOCOL_ID: WalletProtocol = [2, 'authrite message signature']
-
-function log(msg: string): void {
-	process.stderr.write(`[1sat mcp-proxy] ${msg}\n`)
-}
 
 function generateNonce(): string {
 	const bytes = new Uint8Array(32)
@@ -32,7 +31,9 @@ function getClientKey(): PrivateKey {
 	}
 	const key = PrivateKey.fromRandom()
 	writeFileSync(CLIENT_KEY_PATH, key.toWif(), { mode: 0o600 })
-	log('Generated new agent identity key')
+	const log = createLogger({ context: 'startup' })
+	log.set({ event: 'key_generated', path: CLIENT_KEY_PATH })
+	log.emit()
 	return key
 }
 
@@ -75,7 +76,10 @@ async function handshake(key: PrivateKey): Promise<Session> {
 	const sig = Signature.fromDER(data.signature as string, 'hex')
 	if (!serverPub.verify(Array.from(msgHash), sig)) throw new Error('Server signature verification failed')
 
-	log(`Authenticated with ${(data.identityKey as string).slice(0, 12)}...`)
+	const log = createLogger({ context: 'auth' })
+	log.set({ event: 'handshake_complete', serverIdentityKey: (data.identityKey as string).slice(0, 16) })
+	log.emit()
+
 	return { serverIdentityKey: data.identityKey as string, serverNonce, clientKey: key }
 }
 
@@ -98,17 +102,25 @@ function signHeaders(session: Session, pathname: string): Record<string, string>
 }
 
 export async function handleMcpProxyCommand(): Promise<void> {
+	const startLog = createLogger({ context: 'startup' })
+
 	try {
 		await fetch(MCP_URL, { signal: AbortSignal.timeout(2000) })
 	} catch {
-		log(`Server not reachable at ${MCP_URL} — is 1Sat wallet running?`)
+		startLog.set({ event: 'server_unreachable', url: MCP_URL })
+		startLog.emit()
+		process.stderr.write(`[1sat mcp-proxy] Server not reachable at ${MCP_URL} — is 1Sat wallet running?\n`)
 		process.exit(1)
 	}
+
+	startLog.set({ event: 'started', url: MCP_URL })
+	startLog.emit()
 
 	const key = getClientKey()
 	const session = await handshake(key)
 
 	let mcpSessionId: string | null = null
+	let requestCount = 0
 	const decoder = new TextDecoder()
 	const reader = Bun.stdin.stream().getReader()
 	let buffer = ''
@@ -125,6 +137,9 @@ export async function handleMcpProxyCommand(): Promise<void> {
 			buffer = buffer.slice(newlineIdx + 1)
 			if (!line) continue
 
+			requestCount++
+			const reqLog = createLogger({ context: 'proxy' })
+
 			const headers: Record<string, string> = {
 				'Content-Type': 'application/json',
 				Accept: 'application/json, text/event-stream',
@@ -136,12 +151,27 @@ export async function handleMcpProxyCommand(): Promise<void> {
 			}
 
 			try {
+				let method: string | undefined
+				try {
+					method = JSON.parse(line).method
+				} catch {}
+
 				const res = await fetch(`${MCP_URL}/mcp`, { method: 'POST', headers, body: line })
 
 				const sessionHeader = res.headers.get('mcp-session-id')
 				if (sessionHeader) mcpSessionId = sessionHeader
 
 				const contentType = res.headers.get('content-type') ?? ''
+
+				reqLog.set({
+					event: 'request',
+					requestNum: requestCount,
+					method,
+					status: res.status,
+					contentType: contentType.split(';')[0],
+					sessionId: mcpSessionId?.slice(0, 8),
+				})
+				reqLog.emit()
 
 				if (contentType.includes('text/event-stream')) {
 					const text = await res.text()
@@ -157,7 +187,8 @@ export async function handleMcpProxyCommand(): Promise<void> {
 				}
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err)
-				log(`Request failed: ${msg}`)
+				reqLog.set({ event: 'request_failed', requestNum: requestCount, error: msg })
+				reqLog.emit()
 				process.stdout.write(`${JSON.stringify({
 					jsonrpc: '2.0',
 					error: { code: -32000, message: `MCP proxy error: ${msg}` },
