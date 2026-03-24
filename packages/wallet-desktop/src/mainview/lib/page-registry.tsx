@@ -12,6 +12,7 @@ import { DownloadsView } from '../views/downloads/index'
 import { HistoryView } from '../views/history/index'
 import { HomeView } from '../views/home/index'
 import { IdentityView } from '../views/identity/index'
+import { ExternalProfileView } from '../views/identity/external-profile'
 import { InscribeView } from '../views/inscribe/index'
 import { LocksView } from '../views/locks/index'
 import { OpnsView } from '../views/opns/index'
@@ -136,6 +137,7 @@ const PAGE_REGISTRY: Record<InternalPage, PageComponent> = {
 	chat: ChatView,
 	dm: DmView,
 	'identity/profile': IdentityView,
+	'identity/profile-external': ExternalProfileView,
 	settings: SettingsView,
 	'settings/security': SettingsSecurityView,
 	'settings/network': SettingsNetworkView,

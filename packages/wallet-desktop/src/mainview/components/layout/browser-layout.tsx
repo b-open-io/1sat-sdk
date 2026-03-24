@@ -1,5 +1,6 @@
 import { SyncTerminal } from '@/components/blocks/sync-terminal'
 import { Button } from '@/components/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
 import {
 	Tooltip,
@@ -16,11 +17,15 @@ import {
 	Gem,
 	Globe,
 	Home,
+	LogIn,
+	Lock,
 	Plus,
 	RotateCw,
 	Search,
 	Server,
 	Settings2,
+	UserCircle2,
+	UserPlus,
 	Wallet,
 	X,
 } from 'lucide-react'
@@ -62,6 +67,8 @@ import {
 	onToggleSyncLog,
 	rpc,
 } from '../../rpc'
+import { useWallet } from '../../hooks/use-wallet'
+import type { IdentityInfo } from '../../../shared/types'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -563,16 +570,187 @@ function AddressBar({ route, onNavigate, inputRef }: AddressBarProps) {
 	)
 }
 
-function IdentityChip() {
+// ---------------------------------------------------------------------------
+// IdentityChip — toolbar identity selector with popover
+// ---------------------------------------------------------------------------
+
+interface IdentityChipProps {
+	onNavigate: (url: string) => void
+	onPopoverOpen?: () => void
+	onPopoverClose?: () => void
+}
+
+function truncateBapId(id: string, chars = 6): string {
+	if (id.length <= chars * 2 + 3) return id
+	return `${id.slice(0, chars)}…${id.slice(-chars)}`
+}
+
+function IdentityChip({ onNavigate, onPopoverOpen, onPopoverClose }: IdentityChipProps) {
+	const { status, lockWallet } = useWallet()
+	const [open, setOpenInternal] = useState(false)
+	const [identity, setIdentity] = useState<IdentityInfo | null>(null)
+
+	const setOpen = useCallback((v: boolean) => {
+		setOpenInternal(v)
+		if (v) onPopoverOpen?.()
+		else onPopoverClose?.()
+	}, [onPopoverOpen, onPopoverClose])
+
+	// Fetch identity on mount and whenever wallet unlocks
+	useEffect(() => {
+		if (status !== 'unlocked') {
+			setIdentity(null)
+			return
+		}
+		rpc.request.getIdentity().then(
+			(info) => setIdentity(info),
+			(err) => console.error('getIdentity failed:', err),
+		)
+	}, [status])
+
+	const displayName = identity?.profile
+		? ((identity.profile.alternateName as string | undefined) ??
+		   (identity.profile.name as string | undefined) ??
+		   null)
+		: null
+
+	const initials = displayName
+		? displayName
+				.split(/\s+/)
+				.slice(0, 2)
+				.map((w) => w[0]?.toUpperCase() ?? '')
+				.join('')
+		: null
+
+	const navigate = useCallback(
+		(url: string) => {
+			setOpen(false)
+			onNavigate(url)
+		},
+		[onNavigate, setOpen],
+	)
+
+	const handleLock = useCallback(async () => {
+		setOpen(false)
+		await lockWallet()
+	}, [lockWallet, setOpen])
+
+	const isPublished = Boolean(identity?.bapId && displayName)
+
 	return (
-		<button
-			type="button"
-			className="flex items-center gap-1 px-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors shrink-0"
-			style={{ borderRadius: 5 }}
-		>
-			<span className="font-mono text-[10px]">anonymous</span>
-			<ChevronDown size={10} />
-		</button>
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger asChild>
+				<button
+					type="button"
+					className="flex items-center gap-1 px-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors shrink-0"
+					style={{ borderRadius: 5 }}
+					aria-label="Identity"
+				>
+					<span
+						className="font-[family-name:var(--font-mono)] text-[10px]"
+					>
+						{displayName ?? 'anonymous'}
+					</span>
+					<ChevronDown size={10} />
+				</button>
+			</PopoverTrigger>
+			<PopoverContent
+				align="end"
+				sideOffset={6}
+				className="p-0 border-border shadow-xl"
+				style={{ width: 240, borderRadius: 0 }}
+			>
+				{/* Identity header */}
+				<div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+					{/* Avatar circle */}
+					<div
+						className={cn(
+							'size-8 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold',
+							isPublished
+								? 'bg-primary/15 text-primary'
+								: 'bg-muted text-muted-foreground',
+						)}
+						style={{ fontFamily: 'var(--font-sans)' }}
+					>
+						{initials ?? <UserCircle2 size={16} />}
+					</div>
+					<div className="flex flex-col min-w-0">
+						<span
+							className="text-[12px] font-semibold text-foreground truncate leading-tight"
+							style={{ fontFamily: 'var(--font-sans)' }}
+						>
+							{displayName ?? 'anonymous'}
+						</span>
+						{identity?.bapId && (
+							<span
+								className="text-[10px] text-muted-foreground font-[family-name:var(--font-mono)] truncate leading-tight"
+							>
+								{truncateBapId(identity.bapId)}
+							</span>
+						)}
+					</div>
+				</div>
+
+				{/* Actions */}
+				<div className="flex flex-col gap-0.5 p-1.5">
+					<button
+						type="button"
+						onClick={() => navigate('1sat://identity/profile')}
+						className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-[12px] text-foreground hover:bg-muted/50 transition-colors rounded-[3px] cursor-default"
+					>
+						<UserCircle2 size={13} className="shrink-0 text-muted-foreground" />
+						<span style={{ fontFamily: 'var(--font-sans)' }}>
+							View Profile
+						</span>
+					</button>
+
+					{!isPublished && (
+						<button
+							type="button"
+							onClick={() => navigate('1sat://identity/profile')}
+							className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-[12px] text-foreground hover:bg-muted/50 transition-colors rounded-[3px] cursor-default"
+						>
+							<UserPlus size={13} className="shrink-0 text-muted-foreground" />
+							<span style={{ fontFamily: 'var(--font-sans)' }}>
+								Publish Identity
+							</span>
+						</button>
+					)}
+				</div>
+
+				<Separator />
+
+				<div className="flex flex-col gap-0.5 p-1.5">
+					<button
+						type="button"
+						onClick={() => navigate('1sat://onboarding/import')}
+						className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-[12px] text-foreground hover:bg-muted/50 transition-colors rounded-[3px] cursor-default"
+					>
+						<LogIn size={13} className="shrink-0 text-muted-foreground" />
+						<span style={{ fontFamily: 'var(--font-sans)' }}>
+							Import Account
+						</span>
+					</button>
+
+					<button
+						type="button"
+						onClick={handleLock}
+						disabled={status !== 'unlocked'}
+						className={cn(
+							'w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-[12px] transition-colors rounded-[3px] cursor-default',
+							status === 'unlocked'
+								? 'text-foreground hover:bg-muted/50'
+								: 'text-muted-foreground/40 cursor-not-allowed',
+						)}
+					>
+						<Lock size={13} className="shrink-0 text-muted-foreground" />
+						<span style={{ fontFamily: 'var(--font-sans)' }}>
+							Lock Wallet
+						</span>
+					</button>
+				</div>
+			</PopoverContent>
+		</Popover>
 	)
 }
 
@@ -658,7 +836,11 @@ function Toolbar({
 			/>
 
 			{/* Identity + action buttons */}
-			<IdentityChip />
+			<IdentityChip
+				onNavigate={onNavigate}
+				onPopoverOpen={onPopoverOpen}
+				onPopoverClose={onPopoverClose}
+			/>
 			<div className="flex items-center gap-0.5">
 				<WalletPopover onNavigate={onNavigate} onOpenChange={trackPopover} />
 				<BookmarksPopover
