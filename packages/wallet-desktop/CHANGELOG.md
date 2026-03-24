@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.0.4] - 2026-03-24
+
+### Added
+
+**MCP Server Auth Upgrade**
+- BRC-103/104 mutual authentication — server signs responses with derived key
+- `x-bsv-auth-request-id` tracking for per-request signature verification
+- `x-bsv-auth-version` header on all auth responses
+- CORS `Access-Control-Expose-Headers` for auth headers
+- Backward compatible with existing BRC-31 (Authrite) clients
+
+**Observability**
+- evlog telemetry around window creation: `url_resolved`, `window_created`, `dom_ready`
+- Crash diagnostics: if window fails to launch, evlog events pinpoint the failure stage
+
+### Fixed
+- `@1sat/wallet-node` missing from CI workspace build step (caused "Bundle failed")
+- `@1sat/templates` published v0.0.4 — removed stale `sigma-protocol` import that crashed the bundled app on launch
+- `@1sat/wallet-node` `validateDate` return type fixed (was `string`, should be `Date`)
+- knex version aligned to `^3.2.5` across wallet-node and wallet-desktop
+
+## [0.0.3] - 2026-03-24
+
+### Added
+- evlog structured logging integration
+- Content type picker in publish wizard
+- Confirm and success steps in send flow
+- Identity chip wired to BAP data, external profile view
+- Design frames for 12 internal browser pages
+- Account switcher, downloads manager, settings security, chat join channel, identity not-published designs
+
+### Fixed
+- Consolidated hardcoded URLs
+- History navigation
+- Increased idle timeout
+- Replaced hardcoded colors in settings
+
 ## [0.0.2] - 2026-03-23
 
 ### Renamed
