@@ -28,13 +28,17 @@
 		"@bsv/wallet-toolbox": "^2.1.8"
 	},
 	"peerDependenciesMeta": {
-		"knex": { "optional": true },
-		"better-sqlite3": { "optional": true }
+		"knex": {
+			"optional": true
+		},
+		"better-sqlite3": {
+			"optional": true
+		}
 	},
 	"devDependencies": {
 		"@1sat/client": "workspace:*",
 		"@bsv/sdk": "^2.0.6",
-		"@bsv/wallet-toolbox": "^2.1.8",
+		"@bsv/wallet-toolbox": "^2.1.9",
 		"knex": "^3.1.0",
 		"typescript": "^5.9.3"
 	}
