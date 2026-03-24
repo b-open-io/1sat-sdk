@@ -25,6 +25,7 @@ interface BrowserContextMenuProps {
 	canGoBack: boolean
 	canGoForward: boolean
 	currentUrl: string
+	canViewSource?: boolean
 	onBookmark?: () => void
 	onViewSource?: () => void
 	onAskAgent?: () => void
@@ -38,6 +39,7 @@ export function BrowserContextMenu({
 	canGoBack,
 	canGoForward,
 	currentUrl,
+	canViewSource,
 	onBookmark,
 	onViewSource,
 	onAskAgent,
@@ -128,6 +130,7 @@ export function BrowserContextMenu({
 
 				{/* Developer / on-chain */}
 				<ContextMenuItem
+					disabled={canViewSource === false}
 					onClick={onViewSource}
 					className="flex items-center gap-2"
 				>
@@ -151,9 +154,9 @@ export function BrowserContextMenu({
 				{/* Agent */}
 				<ContextMenuItem
 					onClick={onAskAgent}
-					className="flex items-center gap-2 text-purple-400 focus:text-purple-400"
+					className="flex items-center gap-2 text-[var(--agent-accent-fg)] focus:text-[var(--agent-accent-fg)]"
 				>
-					<Bot size={14} className="text-purple-400" />
+					<Bot size={14} className="text-[var(--agent-accent-fg)]" />
 					<span className="text-[11px]">Ask Agent About This</span>
 				</ContextMenuItem>
 			</ContextMenuContent>

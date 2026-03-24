@@ -1074,29 +1074,11 @@ function BrowserTab() {
 // ---------------------------------------------------------------------------
 
 export function SettingsView() {
-	const { lockWallet, deleteWallet } = useWallet()
-	const [confirmDelete, setConfirmDelete] = useState(false)
-	const [error, setError] = useState('')
+	const { lockWallet } = useWallet()
 
 	const handleLock = useCallback(async () => {
 		await lockWallet()
 	}, [lockWallet])
-
-	const handleDelete = useCallback(async () => {
-		if (!confirmDelete) {
-			setConfirmDelete(true)
-			return
-		}
-		setError('')
-		try {
-			const result = await deleteWallet()
-			if (!result.success) {
-				setError(result.error ?? 'Failed to delete wallet')
-			}
-		} catch (err) {
-			setError(String(err))
-		}
-	}, [confirmDelete, deleteWallet])
 
 	// Store the full RPC scan results keyed by WIF so we can pass lockingScript data back
 	const [lastScanRaw, setLastScanRaw] = useState<{
@@ -1191,39 +1173,6 @@ export function SettingsView() {
 								Lock
 							</Button>
 						</div>
-						<Separator />
-						<div className="flex items-center justify-between py-3">
-							<div>
-								<p className="text-sm font-medium">Delete Wallet</p>
-								<p className="text-xs text-muted-foreground">
-									Permanently remove this wallet from this device
-								</p>
-							</div>
-							<div className="flex items-center gap-2">
-								{confirmDelete && (
-									<Button
-										variant="ghost"
-										size="sm"
-										onClick={() => setConfirmDelete(false)}
-									>
-										Cancel
-									</Button>
-								)}
-								<Button
-									variant="ghost"
-									size="sm"
-									className="text-destructive hover:text-destructive hover:bg-destructive/10"
-									onClick={handleDelete}
-								>
-									{confirmDelete ? 'Confirm Delete' : 'Delete'}
-								</Button>
-							</div>
-						</div>
-						{error && (
-							<div className="mt-2 p-3 border border-destructive text-destructive text-sm font-mono">
-								{error}
-							</div>
-						)}
 					</div>
 
 					{/* Theme section */}

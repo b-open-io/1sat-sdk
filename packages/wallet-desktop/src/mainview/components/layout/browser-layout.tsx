@@ -1223,6 +1223,7 @@ export function BrowserLayout() {
 				canGoBack={activeNav.canGoBack}
 				canGoForward={activeNav.canGoForward}
 				currentUrl={currentUrl}
+				canViewSource={currentUrl.startsWith('http')}
 				onBookmark={() => bookmarksApi.addBookmark(currentUrl, currentTitle)}
 				onViewSource={() => {
 					if (currentUrl.startsWith('http'))

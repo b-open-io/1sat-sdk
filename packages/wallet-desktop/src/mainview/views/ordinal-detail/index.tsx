@@ -585,41 +585,40 @@ function MetadataPanel({
 
 			{/* Action buttons */}
 			<div className="flex flex-col gap-2 border-t border-border pt-3">
-				{/* Buy / Cancel / List for Sale — based on listing state */}
-				{listingLoading ? (
+				{/* Buy / Cancel / List for Sale — based on listing + ownership */}
+				{listingLoading || ownershipLoading ? (
 					<Skeleton className="h-7 w-full rounded-none" />
+				) : listing && isOwned ? (
+					<Button
+						variant="outline"
+						size="sm"
+						className="w-full justify-start gap-2 text-xs"
+						disabled={actionLoading}
+						onClick={handleCancelListing}
+					>
+						{actionLoading ? (
+							<Loader2 className="animate-spin" aria-hidden="true" />
+						) : (
+							<XCircle aria-hidden="true" />
+						)}
+						Cancel Listing
+					</Button>
 				) : listing ? (
-					<>
-						<Button
-							variant="default"
-							size="sm"
-							className="w-full justify-start gap-2 text-xs"
-							disabled={actionLoading}
-							onClick={handleBuy}
-						>
-							{actionLoading ? (
-								<Loader2 className="animate-spin" aria-hidden="true" />
-							) : (
-								<ShoppingCart aria-hidden="true" />
-							)}
-							Buy for {listing.priceSats.toLocaleString()} sats
-						</Button>
-						<Button
-							variant="outline"
-							size="sm"
-							className="w-full justify-start gap-2 text-xs"
-							disabled={actionLoading}
-							onClick={handleCancelListing}
-						>
-							{actionLoading ? (
-								<Loader2 className="animate-spin" aria-hidden="true" />
-							) : (
-								<XCircle aria-hidden="true" />
-							)}
-							Cancel Listing
-						</Button>
-					</>
-				) : (
+					<Button
+						variant="default"
+						size="sm"
+						className="w-full justify-start gap-2 text-xs"
+						disabled={actionLoading}
+						onClick={handleBuy}
+					>
+						{actionLoading ? (
+							<Loader2 className="animate-spin" aria-hidden="true" />
+						) : (
+							<ShoppingCart aria-hidden="true" />
+						)}
+						Buy for {listing.priceSats.toLocaleString()} sats
+					</Button>
+				) : isOwned ? (
 					<>
 						<Button
 							variant="outline"
@@ -639,6 +638,9 @@ function MetadataPanel({
 									placeholder="Price in sats"
 									value={listPrice}
 									onChange={(e) => setListPrice(e.target.value)}
+									onKeyDown={(e) => {
+										if (e.key === 'Enter') handleListConfirm()
+									}}
 									className="h-7 text-xs flex-1"
 									disabled={actionLoading}
 									autoFocus
@@ -667,7 +669,7 @@ function MetadataPanel({
 							</div>
 						)}
 					</>
-				)}
+				) : null}
 
 				<Button
 					variant="outline"
@@ -707,6 +709,7 @@ export function OrdinalDetailView({
 }: OrdinalDetailViewProps) {
 	const outpoint = params.outpoint ?? ''
 	const { listing, listingLoading, refresh: refreshListing } = useListing(outpoint)
+	const { isOwned, ownershipLoading } = useIsOwned(outpoint)
 
 	const handleBack = useCallback(() => {
 		onNavigate?.('1sat://ordinals/gallery')
@@ -759,6 +762,8 @@ export function OrdinalDetailView({
 						outpoint={outpoint}
 						listing={listing}
 						listingLoading={listingLoading}
+						isOwned={isOwned}
+						ownershipLoading={ownershipLoading}
 						onNavigate={onNavigate}
 						onListingChanged={refreshListing}
 					/>
