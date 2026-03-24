@@ -298,12 +298,11 @@ export async function verifyRequest(
 	// Verify identity key matches session
 	if (session.clientIdentityKey !== headers.identityKey) return null
 
-	// Build payload: request body for POST, pathname for GET/DELETE
-	const bodyBuf = await request.clone().arrayBuffer()
-	const payload =
-		bodyBuf.byteLength > 0
-			? new Uint8Array(bodyBuf)
-			: new TextEncoder().encode(new URL(request.url).pathname)
+	// Verify signature against the pathname.
+	// MCP clients send static auth headers set at connection time,
+	// so the signature is always over the pathname, not the body
+	// (the body varies per JSON-RPC message but the auth headers don't).
+	const payload = new TextEncoder().encode(new URL(request.url).pathname)
 
 	const clientNonce = headers.nonce ?? session.clientNonce
 	const valid = verifyMessageSignature(
