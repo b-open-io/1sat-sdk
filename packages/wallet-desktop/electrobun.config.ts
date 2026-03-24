@@ -16,6 +16,7 @@ export default {
 				"oracledb",
 				"tedious",
 				"better-sqlite3",
+				"sqlite3",
 			],
 		},
 		copy: {

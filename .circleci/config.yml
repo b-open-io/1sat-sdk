@@ -139,7 +139,7 @@ jobs:
                 --external electrobun/bun --external electrobun \
                 --external pg --external pg-native --external pg-query-stream \
                 --external mysql --external mysql2 --external oracledb \
-                --external tedious --external better-sqlite3 \
+                --external tedious --external better-sqlite3 --external sqlite3 \
                 2>&1 || echo "Standalone bun build ALSO failed"
               echo "--- Diagnostic: dist files ---"
               ls -la dist/index.html dist/assets/ 2>&1 | head -10
