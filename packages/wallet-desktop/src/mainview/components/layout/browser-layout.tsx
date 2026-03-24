@@ -231,6 +231,7 @@ function TabBar({
 				paddingLeft: TRAFFIC_LIGHT_PAD,
 				backgroundColor: 'var(--tab-bar-bg)',
 			}}
+			onDoubleClick={() => rpc.request.toggleMaximize()}
 		>
 			<div
 				role="tablist"
@@ -277,6 +278,7 @@ function VerticalTabSidebar({
 		<div
 			className="electrobun-webkit-app-region-drag flex flex-col shrink-0 border-r border-border bg-card"
 			style={{ width: VERTICAL_SIDEBAR_WIDTH }}
+			onDoubleClick={() => rpc.request.toggleMaximize()}
 		>
 			{/* Traffic light spacer + header row */}
 			<div

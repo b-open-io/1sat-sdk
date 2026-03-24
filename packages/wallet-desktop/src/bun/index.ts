@@ -81,6 +81,14 @@ const rpc = BrowserView.defineRPC<WalletDesktopRPC>({
 				}
 				return { success: true }
 			},
+			toggleMaximize: () => {
+				if (mainWindow.isMaximized()) {
+					mainWindow.unmaximize()
+				} else {
+					mainWindow.maximize()
+				}
+				return { success: true }
+			},
 			openOrdfsContent: ({ path }: { path: string }) => {
 				const stackUrl = getStackUrl()
 				const contentUrl = `${stackUrl}/content/${path}`
@@ -234,30 +242,6 @@ mainWindow.webview.on('dom-ready', () => {
 		status: hasKey ? 'locked' : 'no-wallet',
 	})
 
-	// Double-click on titlebar area to maximize/unmaximize
-	mainWindow.webview.executeJavascript(`
-		document.addEventListener('dblclick', function(e) {
-			if (e.clientY < 38 && !e.target.closest('button, a, input, select, [role="button"]')) {
-				if (window.__electrobunSendToHost) {
-					window.__electrobunSendToHost(JSON.stringify({ type: 'titlebar-dblclick' }));
-				}
-			}
-		});
-	`)
-})
-
-// Handle titlebar double-click to toggle maximize
-mainWindow.webview.on('host-message', (e) => {
-	try {
-		const msg = JSON.parse(e.detail)
-		if (msg.type === 'titlebar-dblclick') {
-			if (mainWindow.isMaximized()) {
-				mainWindow.unmaximize()
-			} else {
-				mainWindow.maximize()
-			}
-		}
-	} catch {}
 })
 
 // ============================================================================

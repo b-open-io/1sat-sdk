@@ -372,6 +372,10 @@ type BunRequests = {
 		params: undefined
 		response: { success: boolean }
 	}
+	toggleMaximize: {
+		params: undefined
+		response: { success: boolean }
+	}
 	getStackStatus: {
 		params: undefined
 		response: { running: boolean; url: string }
