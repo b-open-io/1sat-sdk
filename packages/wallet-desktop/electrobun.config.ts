@@ -12,13 +12,6 @@ export default {
 			entrypoint: "src/bun/index.ts",
 			external: [
 				"@1sat/wallet-mac",
-				"@1sat/vault",
-				"@1sat/actions",
-				"@1sat/client",
-				"@1sat/types",
-				"@1sat/utils",
-				"@bsv/sdk",
-				"@bsv/wallet-toolbox",
 				"knex",
 			],
 		},
