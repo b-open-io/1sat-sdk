@@ -1,15 +1,13 @@
 /**
  * evlog initialization for wallet-desktop.
  *
- * Maximum debuggability — ALL output goes through evlog:
+ * Every evlog event goes to three destinations via the drain:
  * 1. File (~/.1sat-wallet/logs/*.jsonl) — NDJSON, date-rotated, 7-day retention
  * 2. MCP ring buffer — queryable via wallet_logs tool (last 500 events)
- * 3. Console — pretty in dev, JSON in prod
+ * 3. Console — evlog's built-in pretty/JSON output
  *
- * console.log/warn/error are intercepted and routed through evlog
- * so library output (dotenv, electrobun, etc.) is also captured.
- *
- * uncaughtException and unhandledRejection are captured as error events.
+ * All bun-side modules use createLogger/createRequestLogger from evlog.
+ * This file is imported as a side effect in index.ts before anything else.
  */
 import { createLogger, initLogger } from 'evlog'
 import { createFsDrain } from 'evlog/fs'
@@ -41,56 +39,10 @@ initLogger({
 	},
 })
 
-// -- Intercept console so ALL output goes through evlog --
-
-const originalConsole = {
-	log: console.log.bind(console),
-	warn: console.warn.bind(console),
-	error: console.error.bind(console),
-	info: console.info.bind(console),
-	debug: console.debug.bind(console),
-}
-
-let intercepting = false
-
-function interceptConsole(
-	level: 'log' | 'warn' | 'error' | 'info' | 'debug',
-	context: string,
-) {
-	console[level] = (...args: unknown[]) => {
-		originalConsole[level](...args)
-		// Guard against recursion: evlog's own console output triggers this intercept
-		if (intercepting) return
-		intercepting = true
-		try {
-			const log = createLogger({ context })
-			log.set({
-				event: `console.${level}`,
-				message: args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' '),
-			})
-			log.emit()
-		} finally {
-			intercepting = false
-		}
-	}
-}
-
-interceptConsole('log', 'console')
-interceptConsole('info', 'console')
-interceptConsole('warn', 'console')
-interceptConsole('error', 'console')
-interceptConsole('debug', 'console')
-
-// -- Capture uncaught errors --
-
+// Capture uncaught errors as evlog events
 process.on('uncaughtException', (err) => {
 	const log = createLogger({ context: 'crash' })
-	log.set({
-		event: 'uncaught_exception',
-		error: err.message,
-		stack: err.stack,
-		name: err.name,
-	})
+	log.set({ event: 'uncaught_exception', error: err.message, stack: err.stack, name: err.name })
 	log.emit()
 	fsDrain.flush()
 })
@@ -106,17 +58,9 @@ process.on('unhandledRejection', (reason) => {
 	fsDrain.flush()
 })
 
-// -- Boot event: proves the process is alive --
-
+// Boot event — proves the process is alive
 const bootLog = createLogger({ context: 'boot' })
-bootLog.set({
-	event: 'process_alive',
-	pid: process.pid,
-	argv0: process.argv0,
-	cwd: process.cwd(),
-	platform: process.platform,
-	versions: { bun: process.versions.bun },
-})
+bootLog.set({ event: 'process_alive', pid: process.pid, argv0: process.argv0 })
 bootLog.emit()
 fsDrain.flush()
 
