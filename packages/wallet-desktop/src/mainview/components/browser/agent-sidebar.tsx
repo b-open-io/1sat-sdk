@@ -136,7 +136,7 @@ export function AgentSidebar({
 
 	return (
 		<div
-			className="flex flex-col shrink-0 bg-background border-l border-border overflow-hidden"
+			className="flex flex-col shrink-0 bg-background border-l border-border overflow-hidden min-h-0"
 			style={{ width: SIDEBAR_WIDTH }}
 			aria-label="Research Agent sidebar"
 		>
