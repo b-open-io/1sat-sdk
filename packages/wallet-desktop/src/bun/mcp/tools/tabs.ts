@@ -92,7 +92,7 @@ export function registerTabTools(
 	server.tool(
 		'tab_close',
 		'Close a browser tab by ID.',
-		{ tabId: z.string() },
+		{ tabId: z.string().describe('Tab ID from tab_list or tab_create') },
 		async ({ tabId }) => {
 			try {
 				const req = getRpc(getMainWindow)
@@ -120,7 +120,7 @@ export function registerTabTools(
 	server.tool(
 		'tab_navigate',
 		'Navigate an existing browser tab to a new URL.',
-		{ tabId: z.string(), url: z.string() },
+		{ tabId: z.string().describe('Tab ID from tab_list or tab_create'), url: z.string() },
 		async ({ tabId, url }) => {
 			try {
 				const req = getRpc(getMainWindow)
@@ -150,7 +150,7 @@ export function registerTabTools(
 	server.tool(
 		'tab_activate',
 		'Switch to a browser tab by ID (makes it the active/visible tab).',
-		{ tabId: z.string() },
+		{ tabId: z.string().describe('Tab ID from tab_list or tab_create') },
 		async ({ tabId }) => {
 			try {
 				const req = getRpc(getMainWindow)
@@ -178,7 +178,7 @@ export function registerTabTools(
 	server.tool(
 		'tab_go_back',
 		"Navigate back in a tab's browser history.",
-		{ tabId: z.string() },
+		{ tabId: z.string().describe('Tab ID from tab_list or tab_create') },
 		async ({ tabId }) => {
 			try {
 				const req = getRpc(getMainWindow)
@@ -206,7 +206,7 @@ export function registerTabTools(
 	server.tool(
 		'tab_reload',
 		'Reload a browser tab.',
-		{ tabId: z.string() },
+		{ tabId: z.string().describe('Tab ID from tab_list or tab_create') },
 		async ({ tabId }) => {
 			try {
 				const req = getRpc(getMainWindow)

@@ -205,8 +205,8 @@ export function registerWalletTools(server: McpServer): void {
 		'wallet_send_bsv',
 		'Send BSV to an address. Requires the wallet to be unlocked.',
 		{
-			address: z.string().describe('Destination BSV address'),
-			satoshis: z.number().describe('Amount in satoshis'),
+			address: z.string().describe('Destination BSV address (starts with 1)'),
+			satoshis: z.number().int().positive().describe('Amount in satoshis'),
 		},
 		async ({ address, satoshis }) => {
 			try {

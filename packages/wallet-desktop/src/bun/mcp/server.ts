@@ -73,6 +73,16 @@ export function startMcpServer(mainWindow: BrowserWindow): void {
 				return new Response(null, { status: 204, headers: CORS_HEADERS })
 			}
 
+			// Health check
+			if (url.pathname === '/' && req.method === 'GET') {
+				return Response.json({
+					name: '1sat-browser',
+					version: '0.0.1',
+					transport: 'streamable-http',
+					auth: 'brc-31',
+				}, { headers: CORS_HEADERS })
+			}
+
 			// BRC-31 auth discovery
 			if (url.pathname === '/.well-known/auth' && req.method === 'GET') {
 				return handleAuthDiscovery()
@@ -94,6 +104,18 @@ export function startMcpServer(mainWindow: BrowserWindow): void {
 					)
 				}
 
+				// Session termination
+				if (req.method === 'DELETE') {
+					const sessionId = req.headers.get('mcp-session-id')
+					if (sessionId && mcpSessions.has(sessionId)) {
+						const session = mcpSessions.get(sessionId)!
+						session.server.close()
+						mcpSessions.delete(sessionId)
+						return new Response(null, { status: 204, headers: CORS_HEADERS })
+					}
+					return Response.json({ error: 'Session not found' }, { status: 404, headers: CORS_HEADERS })
+				}
+
 				// Check for existing MCP session
 				const sessionId = req.headers.get('mcp-session-id')
 				if (sessionId && mcpSessions.has(sessionId)) {
@@ -102,7 +124,9 @@ export function startMcpServer(mainWindow: BrowserWindow): void {
 					return addCorsHeaders(response)
 				}
 
-				// New MCP session
+				// New MCP session — create server before transport to avoid TDZ
+				const mcpServer = createMcpServer()
+
 				const transport = new WebStandardStreamableHTTPServerTransport({
 					sessionIdGenerator: () => crypto.randomUUID(),
 					onsessioninitialized: (id: string) => {
@@ -110,7 +134,6 @@ export function startMcpServer(mainWindow: BrowserWindow): void {
 					},
 				})
 
-				const mcpServer = createMcpServer()
 				await mcpServer.connect(transport)
 				const response = await transport.handleRequest(req)
 				return addCorsHeaders(response)

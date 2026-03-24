@@ -5,6 +5,7 @@ import {
 	executeJs,
 	getPageText,
 	goBack,
+	goForward,
 	listWindows,
 	navigate,
 	openWindow,
@@ -29,7 +30,7 @@ export function registerBrowserTools(server: McpServer): void {
 	server.tool(
 		'browser_close',
 		'Close a browser window by ID.',
-		{ windowId: z.string() },
+		{ windowId: z.string().describe('Window ID from browser_open or browser_list_windows') },
 		async ({ windowId }) => {
 			const closed = closeWindow(windowId)
 			if (!closed)
@@ -56,7 +57,7 @@ export function registerBrowserTools(server: McpServer): void {
 	server.tool(
 		'browser_navigate',
 		'Navigate an existing browser window to a new URL.',
-		{ windowId: z.string(), url: z.string() },
+		{ windowId: z.string().describe('Window ID from browser_open or browser_list_windows'), url: z.string() },
 		async ({ windowId, url }) => {
 			const ok = navigate(windowId, url)
 			if (!ok)
@@ -73,7 +74,7 @@ export function registerBrowserTools(server: McpServer): void {
 	server.tool(
 		'browser_go_back',
 		'Navigate back in browser history.',
-		{ windowId: z.string() },
+		{ windowId: z.string().describe('Window ID from browser_open or browser_list_windows') },
 		async ({ windowId }) => {
 			const ok = goBack(windowId)
 			if (!ok)
@@ -86,19 +87,35 @@ export function registerBrowserTools(server: McpServer): void {
 	)
 
 	server.tool(
+		'browser_go_forward',
+		'Navigate forward in browser history.',
+		{ windowId: z.string().describe('Window ID from browser_open or browser_list_windows') },
+		async ({ windowId }) => {
+			const ok = goForward(windowId)
+			if (!ok)
+				return {
+					content: [{ type: 'text', text: 'Window not found' }],
+					isError: true,
+				}
+			return { content: [{ type: 'text', text: 'Navigated forward' }] }
+		},
+	)
+
+	server.tool(
 		'browser_execute_js',
 		'Execute JavaScript in a browser window and return the result. The code is wrapped in a function; use `return` for the result.',
 		{
-			windowId: z.string(),
+			windowId: z.string().describe('Window ID from browser_open or browser_list_windows'),
 			code: z
 				.string()
 				.describe(
 					'JavaScript code to execute. Use `return` to send a value back.',
 				),
+			timeoutMs: z.number().optional().describe('Timeout in ms (default 10000)'),
 		},
-		async ({ windowId, code }) => {
+		async ({ windowId, code, timeoutMs }) => {
 			try {
-				const result = await executeJs(windowId, code)
+				const result = await executeJs(windowId, code, timeoutMs)
 				return { content: [{ type: 'text', text: result }] }
 			} catch (err) {
 				return {
@@ -117,7 +134,7 @@ export function registerBrowserTools(server: McpServer): void {
 	server.tool(
 		'browser_get_page_text',
 		'Get the visible text content of a page in a browser window.',
-		{ windowId: z.string() },
+		{ windowId: z.string().describe('Window ID from browser_open or browser_list_windows') },
 		async ({ windowId }) => {
 			try {
 				const text = await getPageText(windowId)
