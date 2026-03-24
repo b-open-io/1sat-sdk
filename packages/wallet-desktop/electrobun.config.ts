@@ -18,7 +18,9 @@ export default {
 			"dist/index.html": "views/mainview/index.html",
 			"dist/assets": "views/mainview/assets",
 			"src/preloads/cwi.ts": "views/cwi-preload/index.js",
-			"../wallet-mac/swift/enclave": "app/enclave",
+		},
+		scripts: {
+			postBuild: "scripts/post-build.ts",
 		},
 		watchIgnore: ["dist/**"],
 		mac: {
