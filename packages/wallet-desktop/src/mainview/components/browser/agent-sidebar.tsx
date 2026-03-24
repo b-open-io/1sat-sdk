@@ -1,6 +1,9 @@
 import { WALLET_HTTP_URL } from '../../../shared/constants'
 import { useChat } from '@ai-sdk/react'
-import { DefaultChatTransport } from 'ai'
+import { DefaultChatTransport, isToolUIPart } from 'ai'
+import { Message, MessageContent } from '@/components/ai-elements/message'
+import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning'
+import { Tool, ToolHeader } from '@/components/ai-elements/tool'
 import {
 	ArrowUp,
 	ArrowUpRight,
@@ -257,51 +260,35 @@ export function AgentSidebar({
 					)}
 
 					{messages.map((message) => (
-						<div
-							key={message.id}
-							className={cn(
-								'flex gap-2',
-								message.role === 'user' ? 'justify-end' : 'justify-start',
-							)}
-						>
-							{message.role === 'assistant' && (
-								<div
-									className="shrink-0 flex items-center justify-center size-5 mt-0.5"
-									style={{
-										borderRadius: 10,
-										background: 'linear-gradient(135deg, var(--agent-gradient-from), var(--agent-gradient-to))',
-									}}
-								>
-									<Bot size={10} className="text-primary-foreground" />
-								</div>
-							)}
-							<div
-								className={cn(
-									'max-w-[85%] px-2.5 py-1.5 text-[11px] leading-relaxed',
-									message.role === 'user'
-										? 'bg-primary text-primary-foreground'
-										: 'bg-muted/50 text-foreground',
-									SANS,
-								)}
-								style={{
-									borderRadius:
-										message.role === 'user'
-											? '8px 8px 2px 8px'
-											: '8px 8px 8px 2px',
-								}}
-							>
-								{message.parts.map((part, i) =>
-									part.type === 'text' ? (
-										<span
-											key={`${message.id}-${i}`}
-											className="whitespace-pre-wrap"
-										>
-											{part.text}
-										</span>
-									) : null,
-								)}
-							</div>
-						</div>
+						<Message key={message.id} from={message.role} className="text-[11px]">
+							<MessageContent>
+								{message.parts.map((part, i) => {
+									if (part.type === 'text') {
+										return (
+											<span key={`${message.id}-${i}`} className="whitespace-pre-wrap">
+												{part.text}
+											</span>
+										)
+									}
+									if (part.type === 'reasoning') {
+										return (
+											<Reasoning key={`${message.id}-${i}`} isStreaming={isStreaming}>
+												<ReasoningTrigger />
+												<ReasoningContent>{part.text}</ReasoningContent>
+											</Reasoning>
+										)
+									}
+									if (isToolUIPart(part)) {
+										return (
+											<Tool key={`${message.id}-${i}`}>
+												<ToolHeader type={part.type} state={part.state} title={part.toolName} />
+											</Tool>
+										)
+									}
+									return null
+								})}
+							</MessageContent>
+						</Message>
 					))}
 
 					{isStreaming && messages[messages.length - 1]?.role !== 'assistant' && (

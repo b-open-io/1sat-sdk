@@ -2,6 +2,9 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport, isToolUIPart } from 'ai'
+import { Message, MessageContent } from '@/components/ai-elements/message'
+import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning'
+import { Tool, ToolHeader } from '@/components/ai-elements/tool'
 import {
 	ArrowUp,
 	Bot,
@@ -302,40 +305,8 @@ export function AiChatView({
 				)}
 
 				{messages.map((message) => (
-					<div
-						key={message.id}
-						className={cn(
-							'flex gap-2',
-							message.role === 'user' ? 'justify-end' : 'justify-start',
-						)}
-					>
-						{message.role === 'assistant' && (
-							<div
-								className="shrink-0 flex items-center justify-center w-6 h-6 mt-0.5"
-								style={{
-									borderRadius: 12,
-									background:
-										'linear-gradient(135deg, var(--agent-gradient-from), var(--agent-gradient-to))',
-								}}
-							>
-								<Bot size={11} className="text-primary-foreground" />
-							</div>
-						)}
-						<div
-							className={cn(
-								'max-w-[80%] px-3 py-2 text-[11px] leading-relaxed',
-								message.role === 'user'
-									? 'bg-primary text-primary-foreground'
-									: 'bg-muted/50 text-foreground',
-								SANS,
-							)}
-							style={{
-								borderRadius:
-									message.role === 'user'
-										? '8px 8px 2px 8px'
-										: '8px 8px 8px 2px',
-							}}
-						>
+					<Message key={message.id} from={message.role} className="text-[11px]">
+						<MessageContent>
 							{message.parts.map((part, i) => {
 								if (part.type === 'text') {
 									return (
@@ -349,43 +320,23 @@ export function AiChatView({
 								}
 								if (part.type === 'reasoning') {
 									return (
-										<details
-											key={`${message.id}-${i}`}
-											className="my-1"
-										>
-											<summary className={cn('text-[10px] text-muted-foreground cursor-pointer', MONO)}>
-												Thinking...
-											</summary>
-											<span className="whitespace-pre-wrap text-[10px] text-muted-foreground/60">
-												{part.text}
-											</span>
-										</details>
+										<Reasoning key={`${message.id}-${i}`} isStreaming={isStreaming}>
+											<ReasoningTrigger />
+											<ReasoningContent>{part.text}</ReasoningContent>
+										</Reasoning>
 									)
 								}
 								if (isToolUIPart(part)) {
 									return (
-										<div
-											key={`${message.id}-${i}`}
-											className={cn('my-1 px-2 py-1 bg-muted/30 border border-border text-[10px]', MONO)}
-											style={{ borderRadius: 4 }}
-										>
-											<span className="text-primary">{part.toolName}</span>
-											{part.state === 'output-available' && (
-												<span className="text-muted-foreground ml-1">done</span>
-											)}
-											{part.state === 'input-available' && (
-												<span className="text-muted-foreground ml-1">calling...</span>
-											)}
-											{part.state === 'input-streaming' && (
-												<span className="text-muted-foreground ml-1">...</span>
-											)}
-										</div>
+										<Tool key={`${message.id}-${i}`}>
+											<ToolHeader type={part.type} state={part.state} title={part.toolName} />
+										</Tool>
 									)
 								}
 								return null
 							})}
-						</div>
-					</div>
+						</MessageContent>
+					</Message>
 				))}
 
 				{isStreaming && messages[messages.length - 1]?.role !== 'assistant' && (
