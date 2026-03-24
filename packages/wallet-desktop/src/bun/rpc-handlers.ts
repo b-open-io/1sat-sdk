@@ -601,6 +601,61 @@ export function createRpcHandlers() {
 			return { txid: result.txid, error: result.error }
 		},
 
+		listOrdinal: async ({ outpoint, price }: { outpoint: string; price: number }) => {
+			const w = requireWallet()
+			const ctx = createContext(w.wallet, { services: w.services, chain: 'main' })
+			const { listOrdinal } = await import('@1sat/actions')
+			const listResult = await w.wallet.listOutputs({
+				basket: 'ordinals',
+				includeCustomInstructions: true,
+				include: 'entire transactions',
+				limit: 1000,
+			})
+			const ordinal = listResult.outputs.find((o) => o.outpoint === outpoint)
+			if (!ordinal) return { error: 'Ordinal not found in wallet' }
+			const result = await listOrdinal.execute(ctx, {
+				ordinal,
+				price,
+				inputBEEF: listResult.BEEF as number[] | undefined,
+			})
+			return { txid: result.txid, error: result.error }
+		},
+
+		cancelListing: async ({ outpoint }: { outpoint: string }) => {
+			const w = requireWallet()
+			const ctx = createContext(w.wallet, { services: w.services, chain: 'main' })
+			const { cancelListing } = await import('@1sat/actions')
+			const listResult = await w.wallet.listOutputs({
+				basket: 'ordinals',
+				includeCustomInstructions: true,
+				include: 'entire transactions',
+				limit: 1000,
+			})
+			const listing = listResult.outputs.find((o) => o.outpoint === outpoint)
+			if (!listing) return { error: 'Listing not found in wallet' }
+			const result = await cancelListing.execute(ctx, {
+				listing,
+				inputBEEF: listResult.BEEF as number[] | undefined,
+			})
+			return { txid: result.txid, error: result.error }
+		},
+
+		purchaseOrdinal: async ({ outpoint }: { outpoint: string }) => {
+			const w = requireWallet()
+			const ctx = createContext(w.wallet, { services: w.services, chain: 'main' })
+			const { purchaseOrdinal } = await import('@1sat/actions')
+			const result = await purchaseOrdinal.execute(ctx, { outpoint })
+			return { txid: result.txid, error: result.error }
+		},
+
+		purchaseBsv21: async ({ tokenId, outpoint, amount }: { tokenId: string; outpoint: string; amount: string }) => {
+			const w = requireWallet()
+			const ctx = createContext(w.wallet, { services: w.services, chain: 'main' })
+			const { purchaseBsv21 } = await import('@1sat/actions')
+			const result = await purchaseBsv21.execute(ctx, { tokenId, outpoint, amount })
+			return { txid: result.txid, error: result.error }
+		},
+
 		getStackStatus: () => {
 			return { running: isStackRunning(), url: getStackUrl() }
 		},

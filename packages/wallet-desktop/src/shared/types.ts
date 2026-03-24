@@ -352,6 +352,22 @@ type BunRequests = {
 		params: MintCollectionItemParams
 		response: MintCollectionItemResult
 	}
+	listOrdinal: {
+		params: { outpoint: string; price: number }
+		response: { txid?: string; error?: string }
+	}
+	cancelListing: {
+		params: { outpoint: string }
+		response: { txid?: string; error?: string }
+	}
+	purchaseOrdinal: {
+		params: { outpoint: string }
+		response: { txid?: string; error?: string }
+	}
+	purchaseBsv21: {
+		params: { tokenId: string; outpoint: string; amount: string }
+		response: { txid?: string; error?: string }
+	}
 	toggleDevTools: {
 		params: undefined
 		response: { success: boolean }
