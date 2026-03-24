@@ -15,7 +15,7 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { ollama } from 'ai-sdk-ollama'
 import { getMcpTools } from './mcp/client'
 
-const DEFAULT_MODEL = 'llama3'
+const DEFAULT_MODEL = 'qwen3:14b' // Supports tool calling. minimax-m2.7:cloud also works.
 
 /** Required custom header value */
 export const CHAT_REQUIRED_HEADER = 'X-Requested-With'

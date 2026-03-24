@@ -139,7 +139,7 @@ export function AiChatView({
 	onNavigate,
 }: AiChatViewProps) {
 	const { models } = useOllamaModels()
-	const [selectedModel, setSelectedModel] = useState('llama3:latest')
+	const [selectedModel, setSelectedModel] = useState(aiSettings.model ?? 'qwen3:14b')
 	const [input, setInput] = useState(initialQuery ?? '')
 	const scrollRef = useRef<HTMLDivElement>(null)
 	const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -233,10 +233,27 @@ export function AiChatView({
 						models={models}
 					/>
 				</div>
+				{/* Model selector */}
+				<select
+					value={selectedModel}
+					onChange={(e) => setSelectedModel(e.target.value)}
+					className={cn('h-6 px-1.5 rounded bg-muted border border-border text-[10px] text-muted-foreground max-w-[120px] truncate', MONO)}
+					title={selectedModel}
+				>
+					{models.length > 0 ? (
+						models.map((m) => (
+							<option key={m.name} value={m.name}>
+								{m.name}
+							</option>
+						))
+					) : (
+						<option value={selectedModel}>{selectedModel}</option>
+					)}
+				</select>
 				<Button
 					variant="ghost"
 					size="icon-xs"
-					onClick={() => onNavigate?.('1sat://settings')}
+					onClick={() => onNavigate?.('1sat://settings/ai')}
 					aria-label="AI Settings"
 				>
 					<Settings size={13} className="text-muted-foreground" />
