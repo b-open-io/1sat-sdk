@@ -18,6 +18,7 @@ import {
 	setPermissionPusher,
 	startWalletServer,
 } from './http-server'
+import { closeMcpClient } from './mcp/client'
 import { startMcpServer, stopMcpServer } from './mcp/server'
 import { createRpcHandlers } from './rpc-handlers'
 import {
@@ -188,6 +189,7 @@ ApplicationMenu.setApplicationMenu([
 Electrobun.events.on('application-menu-clicked', (e) => {
 	if (e.data.action === 'quit') {
 		shutdownChatManager()
+		closeMcpClient()
 		stopMcpServer()
 		stopStack()
 		Utils.quit()

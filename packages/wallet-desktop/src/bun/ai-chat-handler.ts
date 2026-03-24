@@ -10,6 +10,7 @@
  */
 import { convertToModelMessages, streamText, type UIMessage } from 'ai'
 import { ollama } from 'ai-sdk-ollama'
+import { getMcpTools } from './mcp/client'
 
 const DEFAULT_MODEL = 'llama3'
 
@@ -92,7 +93,10 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 		const contextContent = sanitizeContextField(rawContext?.content)
 
 		let systemPrompt =
-			'You are a helpful AI assistant built into the 1Sat Browser, a BSV blockchain wallet and on-chain content browser. You help users understand blockchain content, transactions, inscriptions, and navigate the BSV ecosystem.'
+			'You are a helpful AI assistant built into 1Sat, a BSV blockchain wallet and on-chain content browser. ' +
+			'You have access to tools that can open and navigate browser windows/tabs, query blockchain data ' +
+			'(inscriptions, tokens, listings), check wallet balance, list ordinals and tokens, and execute ' +
+			'marketplace operations. Use these tools when the user asks about their wallet, assets, or wants to browse content.'
 
 		if (contextUrl) {
 			systemPrompt += `\n\nThe user is currently viewing: ${contextUrl}`
@@ -101,10 +105,15 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 			systemPrompt += `\n\nPage content summary: ${contextContent}`
 		}
 
+		// Get MCP tools (authenticated via BRC-31 to local MCP server)
+		const mcpTools = await getMcpTools()
+
 		const result = streamText({
 			model: ollama(modelName),
 			system: systemPrompt,
 			messages: await convertToModelMessages(messages),
+			tools: mcpTools,
+			maxSteps: 15,
 		})
 
 		return result.toUIMessageStreamResponse()
