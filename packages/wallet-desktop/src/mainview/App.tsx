@@ -13,15 +13,31 @@ import { UnlockWallet } from './views/onboarding/unlock-wallet'
 type OnboardingChoice = 'none' | 'create' | 'import'
 
 function LoadingScreen() {
+	const [elapsed, setElapsed] = useState(0)
+
+	useEffect(() => {
+		const t = setInterval(() => setElapsed((e) => e + 1), 1000)
+		return () => clearInterval(t)
+	}, [])
+
 	return (
 		<div className="min-h-screen flex items-center justify-center">
-			<div className="text-center">
+			<div className="text-center max-w-sm">
 				<div className="text-lg font-bold text-foreground mb-2">
 					1Sat
 				</div>
 				<div className="text-sm text-muted-foreground font-mono">
-					Initializing...
+					{elapsed < 10
+						? 'Initializing...'
+						: elapsed < 30
+							? 'Still loading — this may take a moment...'
+							: 'Taking longer than expected. The backend may not be responding.'}
 				</div>
+				{elapsed >= 30 && (
+					<div className="mt-4 text-xs text-muted-foreground/60 font-mono">
+						Check ~/.1sat-wallet/logs/ for diagnostics
+					</div>
+				)}
 			</div>
 		</div>
 	)
