@@ -995,8 +995,15 @@ export class StorageBunSqlite extends StorageProvider {
 		return new Date().toISOString()
 	}
 
-	override validateDate(date: Date | string | number): string {
-		return this.toIsoString(date)
+	override validateDate(date: Date | string | number): Date {
+		if (typeof date === 'string') {
+			const d = new Date(date)
+			if (!Number.isNaN(d.getTime())) return d
+			return new Date()
+		}
+		if (typeof date === 'number') return new Date(date)
+		if (date instanceof Date) return date
+		return new Date()
 	}
 
 	override validateEntityDate(date: Date | string | number): string {
@@ -1133,12 +1140,12 @@ export class StorageBunSqlite extends StorageProvider {
 		booleanFields?: string[],
 	): T {
 		const e = entity as Record<string, unknown>
-		e.created_at = this.validateDate(e.created_at as Date | string | number)
-		e.updated_at = this.validateDate(e.updated_at as Date | string | number)
+		e.created_at = this.validateEntityDate(e.created_at as Date | string | number)
+		e.updated_at = this.validateEntityDate(e.updated_at as Date | string | number)
 
 		if (dateFields) {
 			for (const df of dateFields) {
-				if (e[df]) e[df] = this.validateDate(e[df] as Date | string | number)
+				if (e[df]) e[df] = this.validateEntityDate(e[df] as Date | string | number)
 			}
 		}
 		if (booleanFields) {
