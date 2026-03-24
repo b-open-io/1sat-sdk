@@ -106,10 +106,12 @@ export { MAP_PREFIX, MAPCommand } from './bitcom/map.js'
 // Sigma Types
 // ============================================================================
 export type {
+	Sig,
 	SigmaData,
 	SigmaOptions,
+	SignResponse,
 } from './bitcom/sigma.js'
-export { SIGMA_PREFIX, SigmaAlgorithm } from './bitcom/sigma.js'
+export { SIGMA_PREFIX, SigmaAlgorithm, sigmaHex } from './bitcom/sigma.js'
 
 // ============================================================================
 // BSocial Types
