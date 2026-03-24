@@ -93,16 +93,9 @@ export function startMcpServer(mainWindow: BrowserWindow): void {
 				return handleHandshake(req)
 			}
 
-			// MCP endpoint — requires BRC-31 auth
+			// MCP endpoint — requires BRC-31 auth on session creation,
+			// then trusts the mcp-session-id for subsequent requests.
 			if (url.pathname === '/mcp') {
-				const auth = await verifyRequest(req)
-				if (!auth) {
-					return Response.json(
-						{ error: 'Unauthorized — BRC-31 auth required' },
-						{ status: 401, headers: CORS_HEADERS },
-					)
-				}
-
 				// Session termination
 				if (req.method === 'DELETE') {
 					const sessionId = req.headers.get('mcp-session-id')
@@ -115,12 +108,21 @@ export function startMcpServer(mainWindow: BrowserWindow): void {
 					return Response.json({ error: 'Session not found' }, { status: 404, headers: CORS_HEADERS })
 				}
 
-				// Check for existing MCP session
+				// Existing session — already authenticated at creation time
 				const sessionId = req.headers.get('mcp-session-id')
 				if (sessionId && mcpSessions.has(sessionId)) {
 					const session = mcpSessions.get(sessionId)!
 					const response = await session.transport.handleRequest(req)
 					return addCorsHeaders(response)
+				}
+
+				// New session — requires BRC-31 auth
+				const auth = await verifyRequest(req)
+				if (!auth) {
+					return Response.json(
+						{ error: 'Unauthorized — BRC-31 auth required' },
+						{ status: 401, headers: CORS_HEADERS },
+					)
 				}
 
 				// New MCP session — create server before transport to avoid TDZ
