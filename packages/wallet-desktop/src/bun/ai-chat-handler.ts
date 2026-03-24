@@ -1,14 +1,17 @@
 /**
  * AI Chat API handler for the BRC-100 HTTP server.
- * Proxies chat requests to a local Ollama instance via the AI SDK
- * using ai-sdk-ollama (wraps official ollama-js library).
  *
- * Security:
- * - Requires `X-Requested-With: 1SatBrowser` header (enforced by CORS preflight)
- * - Context fields are truncated and sanitized to limit prompt injection
- * - Rate limited to 1 request per second per client
+ * Supports multiple AI providers via the AI SDK:
+ * - Ollama (local, default)
+ * - LM Studio (local, OpenAI-compatible)
+ * - OpenAI, OpenRouter, Anthropic (remote, API key required)
+ *
+ * The frontend sends provider + baseUrl + apiKey + model in the request body
+ * from the user's AI settings. The handler creates the appropriate provider
+ * instance and passes MCP tools for tool-calling models.
  */
 import { convertToModelMessages, streamText, type UIMessage } from 'ai'
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { ollama } from 'ai-sdk-ollama'
 import { getMcpTools } from './mcp/client'
 
@@ -51,6 +54,63 @@ function sanitizeContextField(value: unknown): string {
 }
 
 // ---------------------------------------------------------------------------
+// Provider factory
+// ---------------------------------------------------------------------------
+
+type ProviderType = 'ollama' | 'lmstudio' | 'openai' | 'openrouter' | 'anthropic'
+
+function createModel(
+	provider: ProviderType,
+	modelName: string,
+	baseUrl?: string,
+	apiKey?: string,
+) {
+	switch (provider) {
+		case 'ollama':
+			return ollama(modelName)
+
+		case 'lmstudio': {
+			const lmstudio = createOpenAICompatible({
+				name: 'lmstudio',
+				baseURL: baseUrl || 'http://localhost:1234/v1',
+				headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+			})
+			return lmstudio.chatModel(modelName)
+		}
+
+		case 'openai': {
+			const openai = createOpenAICompatible({
+				name: 'openai',
+				baseURL: baseUrl || 'https://api.openai.com/v1',
+				headers: { Authorization: `Bearer ${apiKey || ''}` },
+			})
+			return openai.chatModel(modelName)
+		}
+
+		case 'openrouter': {
+			const openrouter = createOpenAICompatible({
+				name: 'openrouter',
+				baseURL: baseUrl || 'https://openrouter.ai/api/v1',
+				headers: { Authorization: `Bearer ${apiKey || ''}` },
+			})
+			return openrouter.chatModel(modelName)
+		}
+
+		case 'anthropic': {
+			const anthropic = createOpenAICompatible({
+				name: 'anthropic',
+				baseURL: baseUrl || 'https://api.anthropic.com/v1',
+				headers: { 'x-api-key': apiKey || '' },
+			})
+			return anthropic.chatModel(modelName)
+		}
+
+		default:
+			return ollama(modelName)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
 
@@ -85,6 +145,9 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 		const body = await req.json()
 		const messages: UIMessage[] = body.messages ?? []
 		const modelName: string = body.model ?? DEFAULT_MODEL
+		const provider: ProviderType = body.provider ?? 'ollama'
+		const baseUrl: string | undefined = body.baseUrl
+		const apiKey: string | undefined = body.apiKey
 		const rawContext = body.context as
 			| { url?: unknown; content?: unknown }
 			| undefined
@@ -108,8 +171,10 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 		// Get MCP tools (authenticated via BRC-31 to local MCP server)
 		const mcpTools = await getMcpTools()
 
+		const model = createModel(provider, modelName, baseUrl, apiKey)
+
 		const result = streamText({
-			model: ollama(modelName),
+			model,
 			system: systemPrompt,
 			messages: await convertToModelMessages(messages),
 			tools: mcpTools,
@@ -127,7 +192,8 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 		) {
 			return new Response(
 				JSON.stringify({
-					error: 'Ollama is not running. Start it with: ollama serve',
+					error:
+						'AI provider is not reachable. Check that Ollama or LM Studio is running.',
 				}),
 				{
 					status: 503,

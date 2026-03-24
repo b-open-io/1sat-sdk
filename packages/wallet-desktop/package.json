@@ -22,6 +22,7 @@
 		"@1sat/wallet-mac": "workspace:*",
 		"@1sat/wallet-node": "workspace:*",
 		"@ai-sdk/openai": "^3.0.48",
+		"@ai-sdk/openai-compatible": "^2.0.37",
 		"@ai-sdk/react": "^3.0.139",
 		"@modelcontextprotocol/sdk": "^1.27.1",
 		"@radix-ui/react-dialog": "^1.1.15",

@@ -45,10 +45,15 @@ const CORS_HEADERS: Record<string, string> = {
  */
 function chatCorsHeaders(req: Request): Record<string, string> {
 	const origin = req.headers.get('Origin') ?? ''
-	// Allow any localhost/127.0.0.1 origin (any port) — these are the app's own webviews
-	const isLocalOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+	// Allow localhost, 127.0.0.1, and Electrobun webview origins (views://, file://, or null)
+	const isLocalOrigin =
+		/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
+		origin.startsWith('views://') ||
+		origin.startsWith('file://') ||
+		origin === 'null' ||
+		origin === ''
 	return {
-		'Access-Control-Allow-Origin': isLocalOrigin ? origin : 'null',
+		'Access-Control-Allow-Origin': isLocalOrigin ? (origin || '*') : 'null',
 		'Access-Control-Allow-Methods': 'POST, OPTIONS',
 		'Access-Control-Allow-Headers': `Content-Type, ${CHAT_REQUIRED_HEADER}`,
 		'Access-Control-Max-Age': '86400',

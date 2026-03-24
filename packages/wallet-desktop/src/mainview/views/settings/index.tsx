@@ -54,7 +54,7 @@ import { rpc } from '../../rpc'
 // AI Settings types and helpers
 // ---------------------------------------------------------------------------
 
-type AiProvider = 'ollama' | 'openrouter' | 'openai' | 'anthropic'
+type AiProvider = 'ollama' | 'lmstudio' | 'openrouter' | 'openai' | 'anthropic'
 
 interface AiSettings {
 	provider: AiProvider
@@ -70,6 +70,7 @@ const PROVIDER_DEFAULTS: Record<
 	{ baseUrl: string; label: string }
 > = {
 	ollama: { baseUrl: 'http://localhost:11434/v1', label: 'Ollama (Local)' },
+	lmstudio: { baseUrl: 'http://localhost:1234/v1', label: 'LM Studio (Local)' },
 	openrouter: { baseUrl: 'https://openrouter.ai/api/v1', label: 'OpenRouter' },
 	openai: { baseUrl: 'https://api.openai.com/v1', label: 'OpenAI' },
 	anthropic: { baseUrl: 'https://api.anthropic.com/v1', label: 'Anthropic' },

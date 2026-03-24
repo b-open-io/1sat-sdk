@@ -144,6 +144,15 @@ export function AiChatView({
 	const scrollRef = useRef<HTMLDivElement>(null)
 	const inputRef = useRef<HTMLTextAreaElement>(null)
 
+	// Load AI settings for provider/baseUrl/apiKey
+	const aiSettings = useMemo(() => {
+		try {
+			const raw = localStorage.getItem('1sat-ai-settings')
+			if (raw) return JSON.parse(raw) as { provider?: string; baseUrl?: string; apiKey?: string; model?: string }
+		} catch {}
+		return {}
+	}, [])
+
 	const transport = useMemo(
 		() =>
 			new DefaultChatTransport({
@@ -151,9 +160,12 @@ export function AiChatView({
 				headers: { 'X-Requested-With': '1SatBrowser' },
 				body: {
 					context: pageContext,
+					provider: aiSettings.provider,
+					baseUrl: aiSettings.baseUrl,
+					apiKey: aiSettings.apiKey,
 				},
 			}),
-		[pageContext],
+		[pageContext, aiSettings],
 	)
 
 	const { messages, sendMessage, status, error } = useChat({ transport })
