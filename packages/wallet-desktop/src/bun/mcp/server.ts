@@ -2,7 +2,7 @@
  * MCP server for wallet-desktop.
  *
  * Exposes browser automation, blockchain data, and wallet tools
- * over HTTP Streamable transport with BRC-31 authentication.
+ * over HTTP Streamable transport with BRC-103/104 mutual authentication.
  */
 type HttpServer = ReturnType<typeof Bun.serve>
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -10,8 +10,10 @@ import { createLogger, createRequestLogger } from 'evlog'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import type { BrowserWindow } from 'electrobun/bun'
 import {
+	type AuthContext,
 	handleAuthDiscovery,
 	handleHandshake,
+	signResponse,
 	stopSessionCleanup,
 	verifyRequest,
 } from './auth'
@@ -25,6 +27,10 @@ const CORS_HEADERS: Record<string, string> = {
 	'Access-Control-Allow-Origin': '*',
 	'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
 	'Access-Control-Allow-Headers': '*',
+	'Access-Control-Expose-Headers':
+		'x-bsv-auth-version, x-bsv-auth-identity-key, x-bsv-auth-nonce, ' +
+		'x-bsv-auth-your-nonce, x-bsv-auth-signature, x-bsv-auth-request-id, ' +
+		'mcp-session-id',
 }
 
 // Per-session MCP server instances (keyed by mcp-session-id)
@@ -86,34 +92,34 @@ export function startMcpServer(mainWindow: BrowserWindow): void {
 					name: '1sat-browser',
 					version: '0.0.1',
 					transport: 'streamable-http',
-					auth: 'brc-31',
+					auth: 'brc-103',
 				}, { headers: CORS_HEADERS })
 			}
 
-			// BRC-31 auth discovery
+			// BRC-103/104 auth discovery
 			if (url.pathname === '/.well-known/auth' && req.method === 'GET') {
 				log.set({ status: 200, type: 'auth_discovery' })
 				log.emit()
-				return handleAuthDiscovery()
+				return addCorsHeaders(handleAuthDiscovery())
 			}
 
-			// BRC-31 handshake
+			// BRC-103/104 handshake
 			if (url.pathname === '/.well-known/auth' && req.method === 'POST') {
 				const response = await handleHandshake(req)
 				log.set({ status: response.status, type: 'auth_handshake' })
 				log.emit()
-				return response
+				return addCorsHeaders(response)
 			}
 
-			// MCP endpoint — requires BRC-31 auth on session creation,
+			// MCP endpoint — requires BRC-103/104 auth on session creation,
 			// then trusts the mcp-session-id for subsequent requests.
 			if (url.pathname === '/mcp') {
 				// Session termination
 				if (req.method === 'DELETE') {
 					const sessionId = req.headers.get('mcp-session-id')
 					if (sessionId && mcpSessions.has(sessionId)) {
-						const session = mcpSessions.get(sessionId)!
-						session.server.close()
+						const entry = mcpSessions.get(sessionId)!
+						entry.server.close()
 						mcpSessions.delete(sessionId)
 						log.set({ status: 204, type: 'session_delete', sessionId })
 						log.emit()
@@ -124,23 +130,28 @@ export function startMcpServer(mainWindow: BrowserWindow): void {
 					return Response.json({ error: 'Session not found' }, { status: 404, headers: CORS_HEADERS })
 				}
 
-				// Existing session — already authenticated at creation time
+				// Existing session — already authenticated at creation time.
+				// Re-verify auth if headers present so we can sign the response.
 				const sessionId = req.headers.get('mcp-session-id')
 				if (sessionId && mcpSessions.has(sessionId)) {
-					const session = mcpSessions.get(sessionId)!
-					const response = await session.transport.handleRequest(req)
+					const entry = mcpSessions.get(sessionId)!
+					const response = await entry.transport.handleRequest(req)
+					const auth = await verifyRequest(req)
+					const authHeaders = auth
+						? signResponseHeaders(auth)
+						: undefined
 					log.set({ status: response.status, type: 'mcp_request', sessionId })
 					log.emit()
-					return addCorsHeaders(response)
+					return addCorsHeaders(response, authHeaders)
 				}
 
-				// New session — requires BRC-31 auth
+				// New session — requires BRC-103/104 auth
 				const auth = await verifyRequest(req)
 				if (!auth) {
 					log.set({ status: 401, error: 'auth_required' })
 					log.emit()
 					return Response.json(
-						{ error: 'Unauthorized — BRC-31 auth required' },
+						{ error: 'Unauthorized — BRC-103/104 auth required' },
 						{ status: 401, headers: CORS_HEADERS },
 					)
 				}
@@ -160,9 +171,10 @@ export function startMcpServer(mainWindow: BrowserWindow): void {
 
 				await mcpServer.connect(transport)
 				const response = await transport.handleRequest(req)
+				const authHeaders = signResponseHeaders(auth)
 				log.set({ status: response.status, type: 'mcp_new_session' })
 				log.emit()
-				return addCorsHeaders(response)
+				return addCorsHeaders(response, authHeaders)
 			}
 
 			log.set({ status: 404, error: 'not_found' })
@@ -198,10 +210,30 @@ export function stopMcpServer(): void {
 	stopLog.emit()
 }
 
-function addCorsHeaders(response: Response): Response {
+/**
+ * Build auth response headers (BRC-103) for an MCP response.
+ *
+ * Signs an empty payload as a session proof — the signature proves the server
+ * holds the derived key for this session. We don't sign the response body
+ * because MCP responses are often SSE streams whose ReadableStream body
+ * cannot be consumed without breaking the response pipeline.
+ */
+function signResponseHeaders(auth: AuthContext): Record<string, string> {
+	return signResponse(auth, '')
+}
+
+function addCorsHeaders(
+	response: Response,
+	authHeaders?: Record<string, string>,
+): Response {
 	const headers = new Headers(response.headers)
 	for (const [key, value] of Object.entries(CORS_HEADERS)) {
 		headers.set(key, value)
+	}
+	if (authHeaders) {
+		for (const [key, value] of Object.entries(authHeaders)) {
+			headers.set(key, value)
+		}
 	}
 	return new Response(response.body, {
 		status: response.status,

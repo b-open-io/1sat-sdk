@@ -8,6 +8,7 @@
 
 import { parseGlobalFlags } from './args'
 import { handleActionCommand } from './commands/action'
+import { handleMcpProxyCommand } from './commands/mcp-proxy'
 import { handleConfigCommand } from './commands/config'
 import { handleIdentityCommand } from './commands/identity'
 import { handleInitCommand } from './commands/init'
@@ -86,6 +87,10 @@ async function main(): Promise<void> {
 
 		case 'tx':
 			await handleTxCommand(rest, flags)
+			break
+
+		case 'mcp-proxy':
+			await handleMcpProxyCommand()
 			break
 
 		case 'help':

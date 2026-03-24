@@ -1,0 +1,8 @@
+{
+	"mcpServers": {
+		"1sat-wallet": {
+			"command": "1sat",
+			"args": ["mcp-proxy"]
+		}
+	}
+}

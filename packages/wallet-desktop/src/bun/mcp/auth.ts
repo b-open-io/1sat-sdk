@@ -1,8 +1,11 @@
 /**
- * BRC-31 (Authrite) authentication for the MCP server.
+ * BRC-103/104 (mutual auth) for the MCP server.
  *
  * Ported from ~/code/clawnet/lib/brc31.ts — standalone, no Convex dependency.
  * Server identity key generated on first run, stored in ~/.1sat-wallet/.
+ *
+ * BRC-103: Server signs responses so the client can verify server identity.
+ * BRC-104: Request ID tracking for request-response correlation.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import type { WalletProtocol } from '@bsv/sdk'
@@ -15,11 +18,15 @@ import { Hash, KeyDeriver, PrivateKey, Signature } from '@bsv/sdk'
 const AUTH_PROTOCOL_ID: WalletProtocol = [2, 'authrite message signature']
 
 const AUTH_HEADERS = {
+	VERSION: 'x-bsv-auth-version',
 	IDENTITY_KEY: 'x-bsv-auth-identity-key',
 	NONCE: 'x-bsv-auth-nonce',
 	YOUR_NONCE: 'x-bsv-auth-your-nonce',
 	SIGNATURE: 'x-bsv-auth-signature',
+	REQUEST_ID: 'x-bsv-auth-request-id',
 } as const
+
+const AUTH_VERSION = '0.1'
 
 const AUTHRITE_HEADERS = {
 	IDENTITY_KEY: 'x-authrite-identity-key',
@@ -155,6 +162,7 @@ interface AuthHeaders {
 	nonce: string | null
 	yourNonce: string | null
 	signature: string | null
+	requestId: string | null
 }
 
 function extractAuthHeaders(request: Request): AuthHeaders {
@@ -167,6 +175,7 @@ function extractAuthHeaders(request: Request): AuthHeaders {
 			h.get(AUTH_HEADERS.YOUR_NONCE) ?? h.get(AUTHRITE_HEADERS.YOUR_NONCE),
 		signature:
 			h.get(AUTH_HEADERS.SIGNATURE) ?? h.get(AUTHRITE_HEADERS.SIGNATURE),
+		requestId: h.get(AUTH_HEADERS.REQUEST_ID),
 	}
 }
 
@@ -176,15 +185,21 @@ function extractAuthHeaders(request: Request): AuthHeaders {
 
 export interface AuthContext {
 	identityKey: string
+	/** Session data needed for response signing (BRC-103) */
+	session: AuthSession
+	/** Client's request ID to echo back (BRC-104) */
+	requestId: string | null
 }
 
 /**
- * Handle BRC-31 handshake (POST /.well-known/auth).
- * Returns the initialResponse JSON.
+ * Handle BRC-103/104 handshake (POST /.well-known/auth).
+ * Returns the initialResponse JSON with auth headers.
  */
 export async function handleHandshake(request: Request): Promise<Response> {
 	try {
 		const body = await request.json()
+		const requestId =
+			request.headers.get(AUTH_HEADERS.REQUEST_ID) ?? crypto.randomUUID()
 
 		if (body.messageType !== 'initialRequest') {
 			return Response.json(
@@ -241,15 +256,27 @@ export async function handleHandshake(request: Request): Promise<Response> {
 
 		startSessionCleanup()
 
-		return Response.json({
-			authrite: '0.1',
-			messageType: 'initialResponse',
-			identityKey: getServerPublicKeyHex(),
-			nonce: serverNonce,
-			initialNonce: serverNonce,
-			yourNonce: clientNonce,
-			signature: signatureHex,
-		})
+		return Response.json(
+			{
+				authrite: AUTH_VERSION,
+				messageType: 'initialResponse',
+				identityKey: getServerPublicKeyHex(),
+				nonce: serverNonce,
+				initialNonce: serverNonce,
+				yourNonce: clientNonce,
+				signature: signatureHex,
+			},
+			{
+				headers: {
+					[AUTH_HEADERS.VERSION]: AUTH_VERSION,
+					[AUTH_HEADERS.IDENTITY_KEY]: getServerPublicKeyHex(),
+					[AUTH_HEADERS.NONCE]: serverNonce,
+					[AUTH_HEADERS.YOUR_NONCE]: clientNonce,
+					[AUTH_HEADERS.SIGNATURE]: signatureHex,
+					[AUTH_HEADERS.REQUEST_ID]: requestId,
+				},
+			},
+		)
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : String(err)
 		console.error('[MCP] Handshake error:', msg)
@@ -261,16 +288,23 @@ export async function handleHandshake(request: Request): Promise<Response> {
  * Handle GET /.well-known/auth — server identity discovery.
  */
 export function handleAuthDiscovery(): Response {
-	return Response.json({
-		authrite: '0.1',
-		identityKey: getServerPublicKeyHex(),
-		messageTypes: ['initialRequest', 'initialResponse', 'general'],
-	})
+	return Response.json(
+		{
+			authrite: AUTH_VERSION,
+			identityKey: getServerPublicKeyHex(),
+			messageTypes: ['initialRequest', 'initialResponse', 'general'],
+		},
+		{
+			headers: {
+				[AUTH_HEADERS.VERSION]: AUTH_VERSION,
+			},
+		},
+	)
 }
 
 /**
- * Verify BRC-31 auth headers on an MCP request.
- * Returns the authenticated identity key, or null if verification fails.
+ * Verify BRC-103/104 auth headers on an MCP request.
+ * Returns the authenticated context (identity key + session), or null if verification fails.
  */
 export async function verifyRequest(
 	request: Request,
@@ -316,5 +350,53 @@ export async function verifyRequest(
 
 	if (!valid) return null
 
-	return { identityKey: headers.identityKey }
+	return {
+		identityKey: headers.identityKey,
+		session,
+		requestId: headers.requestId,
+	}
+}
+
+/**
+ * Sign a server response for mutual authentication (BRC-103).
+ *
+ * Signs the response body with the server's derived key so the client can
+ * verify the server produced this response within the authenticated session.
+ *
+ * Returns a headers record to merge onto the outgoing Response.
+ */
+export function signResponse(
+	auth: AuthContext,
+	responseBody: Uint8Array | string,
+): Record<string, string> {
+	const payload =
+		typeof responseBody === 'string'
+			? new TextEncoder().encode(responseBody)
+			: responseBody
+
+	const sk = getServerPrivateKey()
+	const { session, requestId } = auth
+
+	// Server signs with (serverNonce, clientNonce) — inverse of the client's order
+	const sig = signWithDerivedKey(
+		payload,
+		sk,
+		session.clientIdentityKey,
+		session.serverNonce,
+		session.clientNonce,
+	)
+
+	const headers: Record<string, string> = {
+		[AUTH_HEADERS.VERSION]: AUTH_VERSION,
+		[AUTH_HEADERS.IDENTITY_KEY]: getServerPublicKeyHex(),
+		[AUTH_HEADERS.NONCE]: session.serverNonce,
+		[AUTH_HEADERS.YOUR_NONCE]: session.clientNonce,
+		[AUTH_HEADERS.SIGNATURE]: sig,
+	}
+
+	if (requestId) {
+		headers[AUTH_HEADERS.REQUEST_ID] = requestId
+	}
+
+	return headers
 }
