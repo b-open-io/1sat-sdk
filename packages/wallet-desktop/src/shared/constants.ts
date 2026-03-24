@@ -9,6 +9,9 @@ export const WALLET_HTTP_URL = `http://${WALLET_HOST}:${WALLET_HTTP_PORT}`
 /** Base URL for the local 1sat-stack overlay node */
 export const STACK_URL = `http://${WALLET_HOST}:8080`
 
+/** MCP (Model Context Protocol) server port */
+export const WALLET_MCP_PORT = 3322
+
 // ---------------------------------------------------------------------------
 // Browser settings
 // ---------------------------------------------------------------------------

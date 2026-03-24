@@ -109,7 +109,7 @@ export function MenuPopover({ onNavigate, onToggleAgent, onOpenBookmarks, onTogg
 					icon: <Download size={13} />,
 					label: 'Downloads',
 					shortcut: '⌘J',
-					onClick: () => navigate('1sat://wallet/history'),
+					onClick: () => navigate('1sat://wallet/downloads'),
 				},
 			],
 		},

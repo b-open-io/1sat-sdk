@@ -42,7 +42,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
 	type BrowserSettings,
 	type SearchMode,
+	STACK_URL as STACK_BASE_URL,
+	WALLET_HTTP_PORT,
 	WALLET_HTTP_URL,
+	WALLET_HTTPS_PORT,
+	WALLET_MCP_PORT,
 	loadBrowserSettings,
 	saveBrowserSettings,
 } from '../../../shared/constants'
@@ -107,7 +111,7 @@ interface StackHealth {
 
 async function fetchStackHealth(): Promise<StackHealth> {
 	try {
-		const res = await fetch('http://127.0.0.1:8080/1sat/health', {
+		const res = await fetch(`${STACK_BASE_URL}/1sat/health`, {
 			signal: AbortSignal.timeout(4000),
 		})
 		if (!res.ok)
@@ -153,14 +157,18 @@ function formatUptime(seconds: number): string {
 // Stack admin API helpers
 // ---------------------------------------------------------------------------
 
-const STACK_URL = 'http://127.0.0.1:8080'
-
 async function stackFetch(path: string, options?: RequestInit) {
-	const res = await fetch(`${STACK_URL}${path}`, {
+	const res = await fetch(`${STACK_BASE_URL}${path}`, {
 		...options,
 		signal: AbortSignal.timeout(5000),
 	})
-	if (!res.ok) throw new Error(`Stack API error: ${res.status}`)
+	if (!res.ok) {
+		const body = await res.text().catch(() => '')
+		if (body.includes('authentication')) {
+			throw new Error('authentication required — open the admin panel to authenticate')
+		}
+		throw new Error(`Stack API error: ${res.status}`)
+	}
 	return res.json()
 }
 
@@ -183,15 +191,92 @@ const OVERLAY_KEYS = [
 ] as const
 
 // ---------------------------------------------------------------------------
+// Connected Apps storage
+// ---------------------------------------------------------------------------
+
+const CONNECTED_APPS_KEY = '1sat-connected-apps'
+const AUTO_LOCK_KEY = '1sat-auto-lock'
+
+export interface ConnectedApp {
+	origin: string
+	/** Display label — derived from origin if absent */
+	label?: string
+	permissions: string[]
+	lastAccessMs: number
+}
+
+function loadConnectedApps(): ConnectedApp[] {
+	try {
+		const raw = localStorage.getItem(CONNECTED_APPS_KEY)
+		if (raw) return JSON.parse(raw) as ConnectedApp[]
+	} catch {
+		// ignore
+	}
+	return []
+}
+
+export function saveConnectedApp(app: ConnectedApp) {
+	const apps = loadConnectedApps()
+	const idx = apps.findIndex((a) => a.origin === app.origin)
+	if (idx >= 0) {
+		apps[idx] = app
+	} else {
+		apps.push(app)
+	}
+	localStorage.setItem(CONNECTED_APPS_KEY, JSON.stringify(apps))
+}
+
+function revokeConnectedApp(origin: string) {
+	const apps = loadConnectedApps().filter((a) => a.origin !== origin)
+	localStorage.setItem(CONNECTED_APPS_KEY, JSON.stringify(apps))
+}
+
+function loadAutoLock(): string {
+	return localStorage.getItem(AUTO_LOCK_KEY) ?? '15'
+}
+
+export function saveAutoLock(value: string) {
+	localStorage.setItem(AUTO_LOCK_KEY, value)
+}
+
+export function getAutoLockSetting(): string {
+	return loadAutoLock()
+}
+
+function formatLastAccess(ms: number): string {
+	const diffMs = Date.now() - ms
+	const diffMin = Math.floor(diffMs / 60_000)
+	if (diffMin < 1) return 'Just now'
+	if (diffMin < 60) return `${diffMin}m ago`
+	const diffH = Math.floor(diffMin / 60)
+	if (diffH < 24) return `${diffH}h ago`
+	const diffD = Math.floor(diffH / 24)
+	return `${diffD}d ago`
+}
+
+// ---------------------------------------------------------------------------
 // Security Tab
 // ---------------------------------------------------------------------------
 
 function SecurityTab() {
 	const { deleteWallet } = useWallet()
-	const [autoLock, setAutoLock] = useState('15')
+	const [autoLock, setAutoLock] = useState(loadAutoLock)
+	const [connectedApps, setConnectedApps] = useState<ConnectedApp[]>(
+		loadConnectedApps,
+	)
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 	const [deleting, setDeleting] = useState(false)
 	const [deleteError, setDeleteError] = useState('')
+
+	const handleAutoLockChange = useCallback((value: string) => {
+		setAutoLock(value)
+		saveAutoLock(value)
+	}, [])
+
+	const handleRevokeApp = useCallback((origin: string) => {
+		revokeConnectedApp(origin)
+		setConnectedApps((prev) => prev.filter((a) => a.origin !== origin))
+	}, [])
 
 	const handleDeleteWallet = useCallback(async () => {
 		setDeleting(true)
@@ -207,22 +292,110 @@ function SecurityTab() {
 	}, [deleteWallet])
 
 	return (
-		<div className="space-y-8 py-4">
+		<div className="space-y-6 py-4">
 			{/* Vault Status card */}
-			<div className="bg-card rounded-lg p-4 flex items-center gap-3">
-				<div className="flex items-center justify-center size-10 rounded-full bg-green-500/10 shrink-0">
-					<ShieldCheck className="size-5 text-green-500" />
+			<div className="bg-card rounded-xl p-5 flex items-center gap-4">
+				<div className="flex items-center justify-center size-13 rounded-xl bg-green-500/10 shrink-0">
+					<ShieldCheck className="size-6 text-green-500" />
 				</div>
 				<div className="flex-1 min-w-0">
-					<p className="text-sm font-semibold">Vault Protected</p>
-					<p className="text-sm text-muted-foreground">
+					<p className="text-[15px] font-semibold leading-tight">
+						Vault Protected
+					</p>
+					<p className="text-xs text-muted-foreground mt-0.5">
 						Touch ID (Secure Enclave)
 					</p>
 				</div>
-				<span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full shrink-0">
+				<span className="flex items-center gap-1.5 text-[11px] font-semibold text-green-400 bg-green-500/10 px-3 py-1 rounded-full shrink-0">
+					<span className="size-1.5 rounded-full bg-green-400 inline-block" />
 					Active
 				</span>
 			</div>
+
+			{/* Auto-Lock row */}
+			<div className="flex items-center justify-between py-1">
+				<div>
+					<p className="text-sm font-medium">Auto-Lock</p>
+					<p className="text-xs text-muted-foreground mt-0.5">
+						Lock wallet after inactivity
+					</p>
+				</div>
+				<Select value={autoLock} onValueChange={handleAutoLockChange}>
+					<SelectTrigger size="sm" className="w-36 bg-input border-border">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="5">5 minutes</SelectItem>
+						<SelectItem value="15">15 minutes</SelectItem>
+						<SelectItem value="30">30 minutes</SelectItem>
+						<SelectItem value="60">1 hour</SelectItem>
+						<SelectItem value="never">Never</SelectItem>
+					</SelectContent>
+				</Select>
+			</div>
+
+			<Separator />
+
+			{/* Connected Apps section */}
+			<div>
+				<div className="flex items-center justify-between mb-3">
+					<p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+						Connected Apps
+					</p>
+					{connectedApps.length > 0 && (
+						<span className="text-[11px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+							{connectedApps.length}
+						</span>
+					)}
+				</div>
+
+				{connectedApps.length === 0 ? (
+					<div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
+						<Globe className="size-8 text-muted-foreground/30" />
+						<p className="text-sm text-muted-foreground">
+							No connected apps yet
+						</p>
+						<p className="text-xs text-muted-foreground/60 max-w-xs">
+							Apps you authorize will appear here. You can revoke access at any
+							time.
+						</p>
+					</div>
+				) : (
+					<div className="bg-card rounded-xl overflow-hidden divide-y divide-border">
+						{connectedApps.map((app) => (
+							<div
+								key={app.origin}
+								className="flex items-center gap-3 px-4 h-[52px]"
+							>
+								<div className="flex items-center justify-center size-7 rounded-md bg-muted shrink-0">
+									<Globe className="size-3.5 text-primary" />
+								</div>
+								<div className="flex-1 min-w-0">
+									<p className="text-[13px] font-medium leading-tight truncate">
+										{app.label ??
+											app.origin.replace(/^https?:\/\//, '')}
+									</p>
+									<p className="text-[11px] text-muted-foreground mt-0.5">
+										{app.permissions.length} permission
+										{app.permissions.length !== 1 ? 's' : ''}
+										{' · '}
+										{formatLastAccess(app.lastAccessMs)}
+									</p>
+								</div>
+								<button
+									type="button"
+									onClick={() => handleRevokeApp(app.origin)}
+									className="text-[12px] font-medium text-destructive hover:text-destructive/80 transition-colors shrink-0 px-1 py-0.5"
+								>
+									Revoke
+								</button>
+							</div>
+						))}
+					</div>
+				)}
+			</div>
+
+			<Separator />
 
 			{/* Backup info section */}
 			<div>
@@ -230,7 +403,7 @@ function SecurityTab() {
 					Backup
 				</p>
 
-				<div className="bg-card rounded-lg p-4">
+				<div className="bg-card rounded-xl p-4">
 					<div className="flex items-start gap-3">
 						<Info className="size-4 text-muted-foreground mt-0.5 shrink-0" />
 						<div className="space-y-2">
@@ -252,36 +425,6 @@ function SecurityTab() {
 
 			<Separator />
 
-			{/* Auto-Lock section */}
-			<div>
-				<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
-					Authentication
-				</p>
-
-				<div className="flex items-center justify-between py-3">
-					<div>
-						<p className="text-sm font-medium">Auto-Lock</p>
-						<p className="text-xs text-muted-foreground">
-							Lock wallet after inactivity
-						</p>
-					</div>
-					<Select value={autoLock} onValueChange={setAutoLock}>
-						<SelectTrigger size="sm" className="w-32 bg-card border-border">
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="5">5 minutes</SelectItem>
-							<SelectItem value="15">15 minutes</SelectItem>
-							<SelectItem value="30">30 minutes</SelectItem>
-							<SelectItem value="60">1 hour</SelectItem>
-							<SelectItem value="never">Never</SelectItem>
-						</SelectContent>
-					</Select>
-				</div>
-			</div>
-
-			<Separator />
-
 			{/* Delete Wallet section */}
 			<div>
 				<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
@@ -290,8 +433,10 @@ function SecurityTab() {
 
 				<div className="flex items-center justify-between py-3">
 					<div>
-						<p className="text-sm font-medium text-destructive">Delete Wallet</p>
-						<p className="text-xs text-muted-foreground">
+						<p className="text-sm font-medium text-destructive">
+							Delete Wallet
+						</p>
+						<p className="text-xs text-muted-foreground mt-0.5">
 							Remove the vault key and all local wallet data from this device
 						</p>
 					</div>
@@ -316,7 +461,7 @@ function SecurityTab() {
 								</DialogDescription>
 							</DialogHeader>
 							{deleteError && (
-								<div className="p-3 border border-destructive/50 bg-destructive/5 text-destructive text-xs font-mono rounded-md">
+								<div className="p-3 border border-destructive/50 bg-destructive/5 text-destructive text-xs font-[family-name:var(--font-mono)] rounded-md">
 									{deleteError}
 								</div>
 							)}
@@ -338,23 +483,6 @@ function SecurityTab() {
 							</DialogFooter>
 						</DialogContent>
 					</Dialog>
-				</div>
-			</div>
-
-			<Separator />
-
-			{/* Connected Apps section */}
-			<div>
-				<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
-					Connected Apps
-				</p>
-				<div className="flex flex-col items-center justify-center py-8 gap-2 text-center">
-					<Globe className="size-8 text-muted-foreground/40" />
-					<p className="text-sm text-muted-foreground">No connected apps yet</p>
-					<p className="text-xs text-muted-foreground/60 max-w-xs">
-						Apps you authorize will appear here. You can revoke access at any
-						time.
-					</p>
 				</div>
 			</div>
 		</div>
@@ -455,7 +583,12 @@ function NetworkTab() {
 				setConfig((prev) => ({ ...prev, [key]: String(!currentValue) }))
 				setRestartRequired(true)
 			} catch (err) {
-				console.error('Failed to update overlay config:', err)
+				const msg = err instanceof Error ? err.message : String(err)
+				if (msg.includes('authentication')) {
+					// Stack admin requires auth — direct user to admin panel
+					onNavigate?.(`${STACK_BASE_URL}/1sat/admin/`)
+				}
+				console.error('Failed to update overlay config:', msg)
 			} finally {
 				if (isMounted.current) setTogglingKey(null)
 			}
@@ -539,6 +672,54 @@ function NetworkTab() {
 						<p className="text-xs text-muted-foreground mb-1">Uptime</p>
 						<p className="text-xl font-bold font-mono">{uptimeDisplay}</p>
 					</div>
+				</div>
+			</div>
+
+			{/* Sync Progress Bar Section */}
+			{health.syncPercent !== null && (
+				<div className="bg-card rounded-lg p-4 space-y-2.5">
+					<div className="flex items-center justify-between">
+						<p className="text-sm font-semibold">Sync Progress</p>
+						<p className="text-sm font-semibold text-primary font-[family-name:var(--font-mono)]">
+							{health.syncPercent.toFixed(1)}%
+						</p>
+					</div>
+					<div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
+						<div
+							className="h-full rounded-full bg-primary transition-all duration-500"
+							style={{ width: `${Math.min(health.syncPercent, 100)}%` }}
+						/>
+					</div>
+					{health.blockHeight !== null && (
+						<p className="text-xs text-muted-foreground">
+							{health.syncPercent.toFixed(1)}% synced — Block{' '}
+							<span className="font-[family-name:var(--font-mono)]">
+								{health.blockHeight.toLocaleString()}
+							</span>
+						</p>
+					)}
+				</div>
+			)}
+
+			{/* Local Services Card */}
+			<div>
+				<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+					Local Services
+				</p>
+				<div className="bg-card rounded-lg divide-y divide-border overflow-hidden">
+					{[
+						{ label: 'BRC-100 HTTP', port: WALLET_HTTP_PORT },
+						{ label: 'BRC-100 HTTPS', port: WALLET_HTTPS_PORT },
+						{ label: 'MCP Server', port: WALLET_MCP_PORT },
+					].map(({ label, port }) => (
+						<div key={port} className="flex items-center gap-3 px-4 h-11">
+							<span className="size-2 rounded-full bg-green-500 shrink-0" />
+							<span className="flex-1 text-sm">{label}</span>
+							<span className="text-xs text-muted-foreground font-[family-name:var(--font-mono)]">
+								:{port}
+							</span>
+						</div>
+					))}
 				</div>
 			</div>
 
@@ -681,7 +862,7 @@ function NetworkTab() {
 				<Button
 					variant="outline"
 					size="sm"
-					onClick={() => window.open(`${STACK_URL}/1sat/admin`)}
+					onClick={() => onNavigate?.(`${STACK_BASE_URL}/1sat/admin/`)}
 				>
 					<ExternalLink className="size-3.5 mr-1.5" />
 					Open Admin Panel
@@ -1078,7 +1259,10 @@ function BrowserTab() {
 // Main SettingsView
 // ---------------------------------------------------------------------------
 
-export function SettingsView() {
+export function SettingsView({
+	params,
+	onNavigate,
+}: { params?: Record<string, string>; onNavigate?: (url: string) => void } = {}) {
 	const { lockWallet } = useWallet()
 
 	const handleLock = useCallback(async () => {
@@ -1135,7 +1319,7 @@ export function SettingsView() {
 		<div className="mx-auto max-w-[800px] w-full py-8 px-6">
 			<h1 className="text-2xl font-bold mb-6">Settings</h1>
 
-			<Tabs defaultValue="general">
+			<Tabs defaultValue={params?.tab ?? 'general'}>
 				<TabsList
 					variant="line"
 					className="w-full justify-start border-b border-border rounded-none pb-0 mb-6 h-auto"

@@ -7,6 +7,7 @@ import { ChatView } from '../views/chat/index'
 import { DmView } from '../views/dm/index'
 import { CollectionsView } from '../views/collections/index'
 import { OverviewView } from '../views/dashboard/index'
+import { DownloadsView } from '../views/downloads/index'
 import { HistoryView } from '../views/history/index'
 import { HomeView } from '../views/home/index'
 import { IdentityView } from '../views/identity/index'
@@ -29,12 +30,12 @@ import { CreateWallet } from '../views/onboarding/create-wallet'
 import { ImportWallet } from '../views/onboarding/import-wallet'
 import { UnlockWallet } from '../views/onboarding/unlock-wallet'
 
-function SettingsSecurityView(): ReactElement {
-	return <SettingsView params={{ tab: 'security' }} />
+function SettingsSecurityView({ onNavigate }: { onNavigate?: (url: string) => void }): ReactElement {
+	return <SettingsView params={{ tab: 'security' }} onNavigate={onNavigate} />
 }
 
-function SettingsNetworkView(): ReactElement {
-	return <SettingsView params={{ tab: 'network' }} />
+function SettingsNetworkView({ onNavigate }: { onNavigate?: (url: string) => void }): ReactElement {
+	return <SettingsView params={{ tab: 'network' }} onNavigate={onNavigate} />
 }
 
 // ─── Onboarding pages ─────────────────────────────────────────────────────────
@@ -115,6 +116,7 @@ const PAGE_REGISTRY: Record<InternalPage, PageComponent> = {
 	'wallet/send': SendView,
 	'wallet/receive': ReceiveView,
 	'wallet/history': HistoryView,
+	'wallet/downloads': DownloadsView,
 	'wallet/tx': TxDetailView,
 	'wallet/sweep': SweepView,
 	'ordinals/gallery': OrdinalsView,
