@@ -886,8 +886,17 @@ export function BrowserLayout() {
 	// Track open popovers — when any is open, passthrough the webview so popover clicks work
 	const openPopoverCount = useRef(0)
 	const setWebviewPassthrough = useCallback((passthrough: boolean) => {
-		const wv = activeWebviewRef.current as HTMLElement & { togglePassthrough?: (v: boolean) => void } | null
-		if (wv?.togglePassthrough) wv.togglePassthrough(passthrough)
+		const wv = activeWebviewRef.current as HTMLElement & {
+			togglePassthrough?: (v: boolean) => void
+			toggleHidden?: (v: boolean) => void
+		} | null
+		if (wv) {
+			// Hide the native overlay so DOM popovers can receive clicks
+			wv.toggleHidden?.(passthrough)
+			wv.togglePassthrough?.(passthrough)
+			// Also visually hide via CSS so it doesn't flash
+			wv.style.opacity = passthrough ? '0' : '1'
+		}
 	}, [])
 	const onPopoverOpen = useCallback(() => {
 		openPopoverCount.current++

@@ -69,7 +69,11 @@ const rpc = BrowserView.defineRPC<WalletDesktopRPC>({
 			...handlers,
 			resolvePermission,
 			toggleDevTools: () => {
-				mainWindow.webview.toggleDevTools()
+				try {
+					mainWindow.webview.toggleDevTools()
+				} catch (err) {
+					console.error('Failed to toggle dev tools:', err)
+				}
 				return { success: true }
 			},
 			openOrdfsContent: ({ path }: { path: string }) => {
