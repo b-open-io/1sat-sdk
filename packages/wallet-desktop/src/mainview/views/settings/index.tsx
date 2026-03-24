@@ -295,8 +295,8 @@ function SecurityTab() {
 		<div className="space-y-6 py-4">
 			{/* Vault Status card */}
 			<div className="bg-card rounded-xl p-5 flex items-center gap-4">
-				<div className="flex items-center justify-center size-13 rounded-xl bg-green-500/10 shrink-0">
-					<ShieldCheck className="size-6 text-green-500" />
+				<div className="flex items-center justify-center size-13 rounded-xl bg-primary/10 shrink-0">
+					<ShieldCheck className="size-6 text-primary" />
 				</div>
 				<div className="flex-1 min-w-0">
 					<p className="text-[15px] font-semibold leading-tight">
@@ -306,8 +306,8 @@ function SecurityTab() {
 						Touch ID (Secure Enclave)
 					</p>
 				</div>
-				<span className="flex items-center gap-1.5 text-[11px] font-semibold text-green-400 bg-green-500/10 px-3 py-1 rounded-full shrink-0">
-					<span className="size-1.5 rounded-full bg-green-400 inline-block" />
+				<span className="flex items-center gap-1.5 text-[11px] font-semibold text-primary bg-primary/10 px-3 py-1 shrink-0">
+					<span className="size-1.5 rounded-full bg-primary inline-block" />
 					Active
 				</span>
 			</div>
@@ -493,7 +493,7 @@ function SecurityTab() {
 // Network Tab
 // ---------------------------------------------------------------------------
 
-function NetworkTab() {
+function NetworkTab({ onNavigate }: { onNavigate?: (url: string) => void }) {
 	const [health, setHealth] = useState<StackHealth>({
 		blockHeight: null,
 		uptimeSeconds: null,
@@ -629,9 +629,9 @@ function NetworkTab() {
 				</div>
 
 				{!health.running && (
-					<div className="mb-4 p-3 rounded-lg border border-red-500/30 bg-red-500/5 flex items-center gap-3">
-						<span className="size-2 rounded-full bg-red-500 shrink-0" />
-						<p className="text-sm text-red-400 font-medium">
+					<div className="mb-4 p-3 border border-destructive/30 bg-destructive/5 flex items-center gap-3">
+						<span className="size-2 rounded-full bg-destructive shrink-0" />
+						<p className="text-sm text-destructive font-medium">
 							Stack Offline — start the 1sat-stack to enable these features
 						</p>
 					</div>
@@ -644,12 +644,12 @@ function NetworkTab() {
 						<div className="flex items-center gap-2 mt-1">
 							<span
 								className={`size-2.5 rounded-full shrink-0 ${
-									health.running ? 'bg-green-500' : 'bg-red-500'
+									health.running ? 'bg-primary' : 'bg-destructive'
 								}`}
 							/>
 							<p
 								className={`text-base font-bold ${
-									health.running ? 'text-green-400' : 'text-red-400'
+									health.running ? 'text-primary' : 'text-destructive'
 								}`}
 							>
 								{health.running ? 'Running' : 'Offline'}
@@ -660,7 +660,7 @@ function NetworkTab() {
 					{/* Block Height */}
 					<div className="bg-card rounded-lg p-4">
 						<p className="text-xs text-muted-foreground mb-1">Block Height</p>
-						<p className="text-xl font-bold font-mono">
+						<p className="text-xl font-bold font-[family-name:var(--font-mono)]">
 							{health.blockHeight !== null
 								? health.blockHeight.toLocaleString()
 								: '—'}
@@ -670,7 +670,7 @@ function NetworkTab() {
 					{/* Uptime */}
 					<div className="bg-card rounded-lg p-4">
 						<p className="text-xs text-muted-foreground mb-1">Uptime</p>
-						<p className="text-xl font-bold font-mono">{uptimeDisplay}</p>
+						<p className="text-xl font-bold font-[family-name:var(--font-mono)]">{uptimeDisplay}</p>
 					</div>
 				</div>
 			</div>
@@ -713,7 +713,7 @@ function NetworkTab() {
 						{ label: 'MCP Server', port: WALLET_MCP_PORT },
 					].map(({ label, port }) => (
 						<div key={port} className="flex items-center gap-3 px-4 h-11">
-							<span className="size-2 rounded-full bg-green-500 shrink-0" />
+							<span className="size-2 rounded-full bg-primary shrink-0" />
 							<span className="flex-1 text-sm">{label}</span>
 							<span className="text-xs text-muted-foreground font-[family-name:var(--font-mono)]">
 								:{port}
@@ -732,7 +732,7 @@ function NetworkTab() {
 					{restartRequired && (
 						<Badge
 							variant="outline"
-							className="text-[10px] text-amber-400 border-amber-500/40 bg-amber-500/10 py-0"
+							className="text-[10px] text-primary border-primary/40 bg-primary/10 py-0"
 						>
 							Restart required
 						</Badge>
@@ -746,7 +746,7 @@ function NetworkTab() {
 						return (
 							<div key={key} className="flex items-center gap-3 px-4 py-3">
 								<span className="flex-1 text-sm font-medium">{label}</span>
-								<span className="text-xs text-muted-foreground font-mono mr-3">
+								<span className="text-xs text-muted-foreground font-[family-name:var(--font-mono)] mr-3">
 									{key}
 								</span>
 								<Switch.Root
@@ -804,8 +804,8 @@ function NetworkTab() {
 									key={entry.id}
 									className="grid grid-cols-3 px-4 py-3 items-center"
 								>
-									<span className="text-sm font-mono truncate">{entry.id}</span>
-									<span className="text-sm font-mono text-right text-muted-foreground">
+									<span className="text-sm font-[family-name:var(--font-mono)] truncate">{entry.id}</span>
+									<span className="text-sm font-[family-name:var(--font-mono)] text-right text-muted-foreground">
 										{entry.currentBlock !== null
 											? entry.currentBlock.toLocaleString()
 											: '—'}
@@ -813,9 +813,9 @@ function NetworkTab() {
 									<span
 										className={`text-xs text-right font-medium ${
 											entry.status === 'synced' || entry.status === 'running'
-												? 'text-green-400'
+												? 'text-primary'
 												: entry.status === 'error'
-													? 'text-red-400'
+													? 'text-destructive'
 													: 'text-muted-foreground'
 										}`}
 									>
@@ -845,7 +845,7 @@ function NetworkTab() {
 							<span className="flex-1 text-sm text-muted-foreground shrink-0 w-36">
 								{label}
 							</span>
-							<span className="text-sm font-mono text-right truncate max-w-[240px]">
+							<span className="text-sm font-[family-name:var(--font-mono)] text-right truncate max-w-[240px]">
 								{value ?? '—'}
 							</span>
 						</div>
@@ -884,7 +884,7 @@ function NetworkTab() {
 							</DialogDescription>
 						</DialogHeader>
 						{restartError && (
-							<div className="p-3 border border-destructive/50 bg-destructive/5 text-destructive text-xs font-mono rounded-md">
+							<div className="p-3 border border-destructive/50 bg-destructive/5 text-destructive text-xs font-[family-name:var(--font-mono)] rounded-md">
 								{restartError}
 							</div>
 						)}
@@ -1034,7 +1034,7 @@ function AiTab() {
 						</p>
 					</div>
 					<Input
-						className="max-w-[280px] text-xs font-mono h-8"
+						className="max-w-[280px] text-xs font-[family-name:var(--font-mono)] h-8"
 						value={settings.baseUrl}
 						onChange={(e) => updateSettings({ baseUrl: e.target.value })}
 						placeholder="http://localhost:11434/v1"
@@ -1054,7 +1054,7 @@ function AiTab() {
 					</div>
 					<Input
 						type="password"
-						className="max-w-[280px] text-xs font-mono h-8"
+						className="max-w-[280px] text-xs font-[family-name:var(--font-mono)] h-8"
 						value={settings.apiKey}
 						onChange={(e) => updateSettings({ apiKey: e.target.value })}
 						placeholder={
@@ -1081,7 +1081,7 @@ function AiTab() {
 						</p>
 					</div>
 					<Input
-						className="max-w-[280px] text-xs font-mono h-8"
+						className="max-w-[280px] text-xs font-[family-name:var(--font-mono)] h-8"
 						value={settings.model}
 						onChange={(e) => updateSettings({ model: e.target.value })}
 						placeholder="llama3:latest"
@@ -1094,7 +1094,7 @@ function AiTab() {
 					<div>
 						<p className="text-sm font-medium">Fetch Models</p>
 						<p className="text-xs text-muted-foreground">
-							Load available models from Ollama
+							Load available models from the provider
 						</p>
 					</div>
 					<Button
@@ -1108,7 +1108,7 @@ function AiTab() {
 				</div>
 
 				{fetchError && (
-					<div className="mt-2 p-3 border border-destructive/50 bg-destructive/5 text-destructive text-xs font-mono rounded-md">
+					<div className="mt-2 p-3 border border-destructive/50 bg-destructive/5 text-destructive text-xs font-[family-name:var(--font-mono)] rounded-md">
 						{fetchError}
 					</div>
 				)}
@@ -1130,7 +1130,7 @@ function AiTab() {
 											: 'text-muted-foreground'
 									}`}
 								>
-									<span className="font-mono">{m.name}</span>
+									<span className="font-[family-name:var(--font-mono)]">{m.name}</span>
 									<span className="text-muted-foreground/60">{m.size}</span>
 								</button>
 							))}
@@ -1228,12 +1228,12 @@ function BrowserTab() {
 							<div className="shrink-0">
 								<p className="text-sm font-medium">Search URL</p>
 								<p className="text-xs text-muted-foreground">
-									Use <code className="font-mono text-[10px]">{'{query}'}</code>{' '}
+									Use <code className="font-[family-name:var(--font-mono)] text-[10px]">{'{query}'}</code>{' '}
 									as the placeholder
 								</p>
 							</div>
 							<Input
-								className="max-w-[280px] text-xs font-mono h-8"
+								className="max-w-[280px] text-xs font-[family-name:var(--font-mono)] h-8"
 								value={settings.customSearchUrl ?? ''}
 								onChange={(e) =>
 									updateSettings({ customSearchUrl: e.target.value })
@@ -1408,7 +1408,7 @@ export function SettingsView({
 
 				{/* Network Tab */}
 				<TabsContent value="network">
-					<NetworkTab />
+					<NetworkTab onNavigate={onNavigate} />
 				</TabsContent>
 
 				{/* AI Tab */}
@@ -1464,6 +1464,21 @@ export function SettingsView({
 					</div>
 				</TabsContent>
 			</Tabs>
+
+			{/* More Settings — native WebKit preferences */}
+			<div className="mt-10 pt-4 border-t border-border flex items-center justify-between">
+				<p className="text-xs text-muted-foreground">
+					Some settings are managed by the system browser.
+				</p>
+				<button
+					type="button"
+					onClick={() => onNavigate?.('about:preferences')}
+					className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+				>
+					More Settings
+					<ExternalLink className="size-3" />
+				</button>
+			</div>
 		</div>
 	)
 }
