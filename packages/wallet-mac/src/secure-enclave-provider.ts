@@ -67,6 +67,11 @@ export class SecureEnclaveProvider implements VaultProvider {
 	}
 
 	private getEnclavePath(): string {
+		// When bundled in Electrobun, the binary is copied to app/enclave
+		// relative to the Resources directory. Check that first.
+		const bundledPath = resolve(process.argv0, '..', '..', 'Resources', 'app', 'enclave')
+		if (existsSync(bundledPath)) return bundledPath
+		// Development: resolve relative to source
 		return resolve(__dirname, '../swift/enclave')
 	}
 
