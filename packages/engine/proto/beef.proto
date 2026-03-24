@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package onesat.beef;
+
+option go_package = "github.com/b-open-io/1sat-stack/proto/beefpb";
+
+enum DataFormat {
+  RAW_TX = 0;
+  RAW_TX_AND_BUMP_INDEX = 1;
+  TXID_ONLY = 2;
+}
+
+message BeefTx {
+  bytes txid = 1;
+  DataFormat data_format = 2;
+  bytes raw_tx = 3;
+  optional uint32 bump_index = 4;
+}
+
+message Beef {
+  repeated MerklePath bumps = 1;
+  repeated BeefTx transactions = 2;
+}
+
+message AtomicBeef {
+  bytes txid = 1;  // 32 bytes, target transaction
+  Beef beef = 2;
+}
+
+message MerklePath {
+  uint32 block_height = 1;
+  repeated PathLevel path = 2;
+}
+
+message PathLevel {
+  repeated PathElement elements = 1;
+}
+
+message PathElement {
+  uint64 offset = 1;
+  bytes hash = 2;
+  bool txid = 3;
+  bool duplicate = 4;
+}
