@@ -8,7 +8,7 @@ import {
 	Loader2,
 	ShieldCheck,
 } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SweepScanResult } from '../../../shared/types'
 import { rpc } from '../../rpc'
 
@@ -367,11 +367,16 @@ function StepSuccess({
 	onSweepAnother: () => void
 }) {
 	const [copied, setCopied] = useState(false)
+	const copiedTimerRef = useRef<ReturnType<typeof setTimeout>>()
+
+	// Clear copied timer on unmount
+	useEffect(() => () => clearTimeout(copiedTimerRef.current), [])
 
 	const handleCopy = useCallback(() => {
 		navigator.clipboard.writeText(txid).catch(() => {})
+		clearTimeout(copiedTimerRef.current)
 		setCopied(true)
-		setTimeout(() => setCopied(false), 2000)
+		copiedTimerRef.current = setTimeout(() => setCopied(false), 2000)
 	}, [txid])
 
 	return (

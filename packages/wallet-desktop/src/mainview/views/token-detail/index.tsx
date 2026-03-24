@@ -1,7 +1,4 @@
-import {
-	SendBsv21Ui,
-	useSendBsv21,
-} from '@/components/blocks/send-bsv21'
+import { SendBsv21Ui, useSendBsv21 } from '@/components/blocks/send-bsv21'
 import type {
 	SendBsv21Params,
 	SendBsv21Result,

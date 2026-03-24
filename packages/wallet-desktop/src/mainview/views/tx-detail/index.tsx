@@ -301,7 +301,7 @@ export function TxDetailView({ onNavigate, params }: TxDetailViewProps) {
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 	const [hexExpanded, setHexExpanded] = useState(false)
-	const [copied, setCopied] = useState(false)
+	const [copiedItem, setCopiedItem] = useState<'txid' | 'hex' | null>(null)
 	const copyTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
 
 	useEffect(() => () => clearTimeout(copyTimeoutRef.current), [])
@@ -366,8 +366,8 @@ export function TxDetailView({ onNavigate, params }: TxDetailViewProps) {
 		if (!hex) return
 		navigator.clipboard.writeText(hex).then(() => {
 			clearTimeout(copyTimeoutRef.current)
-			setCopied(true)
-			copyTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
+			setCopiedItem('hex')
+			copyTimeoutRef.current = setTimeout(() => setCopiedItem(null), 1500)
 		})
 	}, [txData?.rawhex])
 
@@ -375,8 +375,8 @@ export function TxDetailView({ onNavigate, params }: TxDetailViewProps) {
 		if (!txid) return
 		navigator.clipboard.writeText(txid).then(() => {
 			clearTimeout(copyTimeoutRef.current)
-			setCopied(true)
-			copyTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
+			setCopiedItem('txid')
+			copyTimeoutRef.current = setTimeout(() => setCopiedItem(null), 1500)
 		})
 	}, [txid])
 
@@ -578,7 +578,7 @@ export function TxDetailView({ onNavigate, params }: TxDetailViewProps) {
 												className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
 											>
 												<Copy size={11} />
-												{copied ? 'Copied!' : 'Copy'}
+												{copiedItem === 'hex' ? 'Copied!' : 'Copy'}
 											</button>
 										</div>
 										<pre className="text-[10px] font-mono text-muted-foreground break-all whitespace-pre-wrap font-[family-name:var(--font-mono)] bg-muted/40 rounded p-3 max-h-48 overflow-y-auto">

@@ -44,6 +44,10 @@ export function SendView({ params, onNavigate }: SendViewProps) {
 	const [txid, setTxid] = useState('')
 	const [errorMsg, setErrorMsg] = useState('')
 	const [copied, setCopied] = useState(false)
+	const copiedTimerRef = useRef<ReturnType<typeof setTimeout>>()
+
+	// Clear copied timer on unmount
+	useEffect(() => () => clearTimeout(copiedTimerRef.current), [])
 
 	// Balance — fetch once on mount, then stay live via push events
 	const [balance, setBalance] = useState<BalanceInfo>({
@@ -120,8 +124,9 @@ export function SendView({ params, onNavigate }: SendViewProps) {
 	async function handleCopyTxid() {
 		try {
 			await navigator.clipboard.writeText(txid)
+			clearTimeout(copiedTimerRef.current)
 			setCopied(true)
-			setTimeout(() => setCopied(false), 2000)
+			copiedTimerRef.current = setTimeout(() => setCopied(false), 2000)
 		} catch {
 			// clipboard not available — silent fail, copy button simply won't toggle
 		}

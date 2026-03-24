@@ -151,14 +151,10 @@ function DmComposeBar({
 				aria-label="Send message"
 				className={cn(
 					'flex shrink-0 items-center justify-center rounded-full transition-colors',
+					'bg-primary text-primary-foreground',
 					'disabled:opacity-40 disabled:cursor-not-allowed',
 				)}
-				style={{
-					width: 34,
-					height: 34,
-					backgroundColor: 'oklch(0.55 0.18 150)',
-					color: 'oklch(0.98 0.01 150)',
-				}}
+				style={{ width: 34, height: 34 }}
 			>
 				<Send size={14} />
 			</button>
@@ -186,7 +182,11 @@ export function DmView({
 	const [sendNotice, setSendNotice] = useState<string | null>(null)
 
 	const messagesEndRef = useRef<HTMLDivElement>(null)
+	const sendNoticeTimerRef = useRef<ReturnType<typeof setTimeout>>()
 	const messageCount = messages.length
+
+	// Clear the send-notice timer on unmount to prevent memory leaks
+	useEffect(() => () => clearTimeout(sendNoticeTimerRef.current), [])
 
 	// Scroll to bottom whenever the message count changes
 	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll on message count change
@@ -270,12 +270,14 @@ export function DmView({
 	}, [onNavigate])
 
 	const handleProfileLink = useCallback(() => {
-		if (bapId) onNavigate?.(`1sat://identity/profile?bapId=${encodeURIComponent(bapId)}`)
+		if (bapId)
+			onNavigate?.(`1sat://identity/profile?bapId=${encodeURIComponent(bapId)}`)
 	}, [bapId, onNavigate])
 
 	const handleAttemptSend = useCallback((_content: string) => {
 		setSendNotice('Coming soon — messaging requires BRC-103 auth integration')
-		setTimeout(() => setSendNotice(null), 4000)
+		clearTimeout(sendNoticeTimerRef.current)
+		sendNoticeTimerRef.current = setTimeout(() => setSendNotice(null), 4000)
 	}, [])
 
 	// ── Missing bapId guard ──────────────────────────────────────────────────

@@ -84,7 +84,9 @@ function ModelSelector({
 					<div
 						className="fixed inset-0 z-40"
 						onClick={() => setOpen(false)}
-						onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}
+						onKeyDown={(e) => {
+							if (e.key === 'Escape') setOpen(false)
+						}}
 						role="button"
 						tabIndex={-1}
 						aria-label="Close model picker"

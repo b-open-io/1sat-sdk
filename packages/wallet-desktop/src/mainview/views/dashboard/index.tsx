@@ -383,17 +383,12 @@ export function OverviewView({ onNavigate }: OverviewViewProps) {
 							return (
 								<div key={tx.txid}>
 									{idx > 0 && <div className="h-px bg-border" />}
-									<div
-										className="flex items-center gap-3 py-3 cursor-pointer hover:bg-muted/40 transition-colors -mx-2 px-2"
+									<button
+										type="button"
+										className="flex items-center gap-3 py-3 cursor-pointer hover:bg-muted/40 transition-colors -mx-2 px-2 w-full text-left bg-transparent border-none"
 										onClick={() =>
 											onNavigate?.(`1sat://wallet/tx?txid=${tx.txid}`)
 										}
-										onKeyDown={(e) => {
-											if (e.key === 'Enter' || e.key === ' ')
-												onNavigate?.(`1sat://wallet/tx?txid=${tx.txid}`)
-										}}
-										role="button"
-										tabIndex={0}
 									>
 										<div
 											className={`size-2 shrink-0 ${statusColor(status)}`}
@@ -418,7 +413,7 @@ export function OverviewView({ onNavigate }: OverviewViewProps) {
 											{isPositive ? '+' : ''}
 											{satsToBsv(tx.satoshis)} BSV
 										</span>
-									</div>
+									</button>
 								</div>
 							)
 						})}

@@ -85,15 +85,10 @@ function NameRow({
 		<>
 			<div className="flex items-center gap-4 px-5 py-3">
 				{/* Clickable name + outpoint area */}
-				<div
-					className="flex-1 min-w-0 flex items-center gap-2.5 cursor-pointer rounded-sm px-1 -mx-1 py-0.5 hover:bg-card transition-colors"
+				<button
+					type="button"
+					className="flex-1 min-w-0 flex items-center gap-2.5 cursor-pointer rounded-sm px-1 -mx-1 py-0.5 hover:bg-card transition-colors bg-transparent border-none text-left"
 					onClick={() => onNavigate?.(`1sat://${name.name}`)}
-					onKeyDown={(e) => {
-						if (e.key === 'Enter' || e.key === ' ')
-							onNavigate?.(`1sat://${name.name}`)
-					}}
-					role="button"
-					tabIndex={0}
 					title={`Browse 1sat://${name.name}`}
 				>
 					{/* Status dot */}
@@ -110,7 +105,7 @@ function NameRow({
 							{truncateOutpoint(name.outpoint)}
 						</span>
 					</div>
-				</div>
+				</button>
 
 				{/* On-chain status badge — only shown for registered names once lookup resolves */}
 				{name.registered && name.onChain !== undefined && (

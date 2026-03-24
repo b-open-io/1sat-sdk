@@ -121,18 +121,17 @@ function OrdinalCardItem({ ordinal, onClick }: OrdinalCardProps) {
 function SkeletonGrid() {
 	return (
 		<div className="grid grid-cols-4 gap-3">
-			{['sk-a', 'sk-b', 'sk-c', 'sk-d', 'sk-e', 'sk-f', 'sk-g', 'sk-h'].map((id) => (
-				<div
-					key={id}
-					className="flex flex-col bg-card border border-border"
-				>
-					<Skeleton className="aspect-square w-full rounded-none" />
-					<div className="flex flex-col gap-1 px-2 py-2">
-						<Skeleton className="h-3 w-3/4 rounded-none" />
-						<Skeleton className="h-2 w-1/2 rounded-none" />
+			{['sk-a', 'sk-b', 'sk-c', 'sk-d', 'sk-e', 'sk-f', 'sk-g', 'sk-h'].map(
+				(id) => (
+					<div key={id} className="flex flex-col bg-card border border-border">
+						<Skeleton className="aspect-square w-full rounded-none" />
+						<div className="flex flex-col gap-1 px-2 py-2">
+							<Skeleton className="h-3 w-3/4 rounded-none" />
+							<Skeleton className="h-2 w-1/2 rounded-none" />
+						</div>
 					</div>
-				</div>
-			))}
+				),
+			)}
 		</div>
 	)
 }

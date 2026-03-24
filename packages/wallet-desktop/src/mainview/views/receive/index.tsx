@@ -15,6 +15,10 @@ export function ReceiveView({ onNavigate }: ReceiveViewProps) {
 	const [error, setError] = useState<string | null>(null)
 	const [copied, setCopied] = useState(false)
 	const fetchedRef = useRef(false)
+	const copiedTimerRef = useRef<ReturnType<typeof setTimeout>>()
+
+	// Clear copied timer on unmount
+	useEffect(() => () => clearTimeout(copiedTimerRef.current), [])
 
 	useEffect(() => {
 		if (fetchedRef.current) return
@@ -49,8 +53,9 @@ export function ReceiveView({ onNavigate }: ReceiveViewProps) {
 	function handleCopy() {
 		if (!address) return
 		navigator.clipboard.writeText(address).then(() => {
+			clearTimeout(copiedTimerRef.current)
 			setCopied(true)
-			setTimeout(() => setCopied(false), 1500)
+			copiedTimerRef.current = setTimeout(() => setCopied(false), 1500)
 		})
 	}
 

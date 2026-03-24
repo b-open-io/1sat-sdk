@@ -568,10 +568,7 @@ function BuildStep({ project, onBack, onNext }: BuildStepProps) {
 						disabled={retrying}
 						className="gap-2 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60"
 					>
-						<RefreshCw
-							size={14}
-							className={retrying ? 'animate-spin' : ''}
-						/>
+						<RefreshCw size={14} className={retrying ? 'animate-spin' : ''} />
 						{retrying ? 'Building...' : 'Retry Build'}
 					</Button>
 				)}
