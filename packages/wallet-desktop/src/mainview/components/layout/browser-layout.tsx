@@ -241,6 +241,7 @@ function TabBar({
 						key={tab.id}
 						label={tab.customTitle ?? getDisplayLabel(tab.nav.current)}
 						active={tab.id === activeTabId}
+						favicon={getTabIcon(tab.nav.current, tab.faviconUrl)}
 						onClick={() => onTabClick(tab.id)}
 						onClose={() => onTabClose(tab.id)}
 					/>
@@ -321,7 +322,7 @@ function VerticalTabSidebar({
 									: 'text-muted-foreground hover:text-foreground hover:bg-muted/30',
 							)}
 						>
-							<Globe size={12} className="shrink-0 opacity-60" />
+							{getTabIcon(tab.nav.current, tab.faviconUrl)}
 							<span className="truncate text-[11px] font-medium flex-1 min-w-0">{label}</span>
 							<button
 								type="button"
@@ -993,7 +994,9 @@ export function BrowserLayout() {
 					canGoForward: false,
 				}
 				// Clear customTitle on URL change so stale titles don't persist
-				return { ...tab, nav, customTitle: undefined }
+				// Set favicon for web routes, clear it for internal/onchain routes
+				const faviconUrl = parsed.type === 'web' ? getFaviconUrl(parsed.url) : undefined
+				return { ...tab, nav, customTitle: undefined, faviconUrl }
 			}),
 		)
 	}, [])
@@ -1204,6 +1207,7 @@ export function BrowserLayout() {
 							route={route}
 							onNavigated={handleWebViewNavigated}
 							onTitleChanged={handleWebViewTitleChanged}
+						webviewRef={activeWebviewRef}
 						/>
 					)}
 				</main>
@@ -1243,6 +1247,41 @@ export function BrowserLayout() {
 					Dismiss
 				</Button>
 			</div>
+		</div>
+	) : null
+
+	// ── Find bar (shown between toolbar and content for webview routes) ──────
+
+	const findBar = findBarOpen ? (
+		<div className="flex items-center gap-2 px-3 py-1.5 bg-card border-b border-border shrink-0">
+			<Search size={13} className="text-muted-foreground" />
+			<input
+				// biome-ignore lint/a11y/noAutofocus: intentional focus for find bar
+				autoFocus
+				value={findQuery}
+				onChange={(e) => {
+					setFindQuery(e.target.value)
+					const wv = activeWebviewRef.current
+					if (wv && e.target.value) {
+						;(wv as HTMLElement & { findInPage?: (text: string, opts?: object) => void }).findInPage?.(e.target.value)
+					}
+				}}
+				onKeyDown={(e) => {
+					if (e.key === 'Escape') {
+						closeFindBar()
+					} else if (e.key === 'Enter') {
+						const wv = activeWebviewRef.current
+						if (wv && findQuery) {
+							;(wv as HTMLElement & { findInPage?: (text: string, opts?: object) => void }).findInPage?.(findQuery, { forward: !e.shiftKey })
+						}
+					}
+				}}
+				placeholder="Find on page..."
+				className="flex-1 bg-transparent text-xs text-foreground outline-none"
+			/>
+			<Button variant="ghost" size="icon-xs" onClick={closeFindBar} aria-label="Close find bar">
+				<X size={12} />
+			</Button>
 		</div>
 	) : null
 
