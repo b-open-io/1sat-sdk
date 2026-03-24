@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { FollowButton } from '../../components/blocks/follow-button'
+import type { FollowResult } from '../../components/blocks/follow-button'
 import { rpc } from '../../rpc'
 import type { BapProfile } from '../../components/blocks/profile-card/use-profile-card'
 
@@ -153,6 +155,7 @@ function OtherProfileView({ targetBapId, onNavigate }: OtherProfileViewProps) {
 	const [profile, setProfile] = useState<BapProfile | null>(null)
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
+	const [followError, setFollowError] = useState<string | null>(null)
 
 	useEffect(() => {
 		let cancelled = false
@@ -196,6 +199,15 @@ function OtherProfileView({ targetBapId, onNavigate }: OtherProfileViewProps) {
 	const handleMessage = useCallback(() => {
 		onNavigate?.(`1sat://dm?bapId=${encodeURIComponent(targetBapId)}`)
 	}, [targetBapId, onNavigate])
+
+	const handleFollow = useCallback(async (bapId: string): Promise<FollowResult> => {
+		setFollowError(null)
+		const result = await rpc.request.createSocialPost({ content: `follow:${bapId}` })
+		if (result.error) {
+			return { error: result.error }
+		}
+		return { txid: result.txid }
+	}, [])
 
 	const displayName =
 		profile?.name ?? profile?.alternateName ?? truncate(targetBapId, 10, 8)

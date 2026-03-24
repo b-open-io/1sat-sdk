@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { rpc } from '../../rpc'
+import { STACK_URL } from '../../../shared/constants'
 
 // ---------------------------------------------------------------------------
 // Design tokens
@@ -29,6 +30,7 @@ interface OpnsName {
 	outpoint: string
 	name: string
 	registered: boolean
+	onChain?: boolean
 }
 
 interface OperationResult {
@@ -43,6 +45,21 @@ interface OperationResult {
 function truncateOutpoint(outpoint: string): string {
 	if (outpoint.length <= 22) return outpoint
 	return `${outpoint.slice(0, 10)}...${outpoint.slice(-8)}`
+}
+
+async function checkOnChainStatus(name: string): Promise<boolean> {
+	try {
+		const res = await fetch(`${STACK_URL}/1sat/overlay/lookup`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ service: 'ls_opns', query: { name } }),
+		})
+		if (!res.ok) return false
+		const data = await res.json()
+		return Array.isArray(data) && data.length > 0
+	} catch {
+		return false
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -280,6 +297,7 @@ export function OpnsView({ onNavigate }: OpnsViewProps = {}) {
 							name={name}
 							isOperating={operating}
 							onRequest={handleRequest}
+							onNavigate={onNavigate}
 							isLast={index === names.length - 1}
 						/>
 					))

@@ -12,11 +12,16 @@ import {
 	ArrowLeft,
 	ArrowRight,
 	ChevronDown,
+	Coins,
+	Gem,
 	Globe,
+	Home,
 	Plus,
 	RotateCw,
 	Search,
 	Server,
+	Settings2,
+	Wallet,
 	X,
 } from 'lucide-react'
 import {
@@ -86,6 +91,46 @@ interface TabState {
 	reloadKey: number
 	/** Page title reported by the webview (overrides getDisplayLabel) */
 	customTitle?: string
+	/** Favicon URL for web tabs (fetched from origin/favicon.ico) */
+	faviconUrl?: string
+}
+
+// ---------------------------------------------------------------------------
+// Tab icon helpers
+// ---------------------------------------------------------------------------
+
+function getFaviconUrl(url: string): string {
+	try {
+		const u = new URL(url)
+		return `${u.origin}/favicon.ico`
+	} catch {
+		return ''
+	}
+}
+
+function getTabIcon(route: ParsedRoute, faviconUrl?: string): React.ReactNode {
+	if (faviconUrl) {
+		return (
+			<img
+				src={faviconUrl}
+				alt=""
+				className="size-3 shrink-0"
+				onError={(e) => {
+					;(e.target as HTMLImageElement).style.display = 'none'
+				}}
+			/>
+		)
+	}
+	if (route.type !== 'internal') {
+		return <Globe size={12} className="shrink-0 opacity-60" />
+	}
+	const { page } = route
+	if (page.startsWith('wallet/')) return <Wallet size={12} className="shrink-0 opacity-60" />
+	if (page.startsWith('ordinals/')) return <Gem size={12} className="shrink-0 opacity-60" />
+	if (page.startsWith('tokens/') || page === 'market') return <Coins size={12} className="shrink-0 opacity-60" />
+	if (page.startsWith('settings')) return <Settings2 size={12} className="shrink-0 opacity-60" />
+	if (page === 'browser/new') return <Home size={12} className="shrink-0 opacity-60" />
+	return <Globe size={12} className="shrink-0 opacity-60" />
 }
 
 function makeTabId(): string {
@@ -772,6 +817,21 @@ export function BrowserLayout() {
 		setAgentSidebarOpen(false)
 	}, [])
 
+	// ── Find on page ───────────────────────────────────────────────────────
+	const [findBarOpen, setFindBarOpen] = useState(false)
+	const [findQuery, setFindQuery] = useState('')
+
+	const closeFindBar = useCallback(() => {
+		setFindBarOpen(false)
+		setFindQuery('')
+		const wv = activeWebviewRef.current
+		if (wv) (wv as HTMLElement & { stopFindInPage?: () => void }).stopFindInPage?.()
+	}, [])
+
+	const openFindBar = useCallback(() => {
+		setFindBarOpen(true)
+	}, [])
+
 	// ── Sync log visibility ───────────────────────────────────────────────
 	const [syncLogEnabled, setSyncLogEnabled] = useState(true)
 
@@ -822,6 +882,9 @@ export function BrowserLayout() {
 
 	// Address bar ref for programmatic focus
 	const addressBarRef = useRef<HTMLInputElement | null>(null)
+
+	// Ref to the active electrobun-webview element (set by WebViewContent)
+	const activeWebviewRef = useRef<HTMLElement | null>(null)
 
 	// Ref to track the current active tab ID without closing over stale state
 	const activeTabIdRef = useRef(activeTabId)
@@ -878,12 +941,28 @@ export function BrowserLayout() {
 	)
 
 	const goBack = useCallback(() => {
+		const route = activeTab.nav.current
+		if (route.type === 'web' || route.type === 'search' || route.type === 'onchain-outpoint' || route.type === 'onchain-opns') {
+			const wv = activeWebviewRef.current
+			if (wv) {
+				;(wv as HTMLElement & { goBack?: () => void }).goBack?.()
+				return
+			}
+		}
 		dispatchNav({ type: 'back' })
-	}, [dispatchNav])
+	}, [dispatchNav, activeTab])
 
 	const goForward = useCallback(() => {
+		const route = activeTab.nav.current
+		if (route.type === 'web' || route.type === 'search' || route.type === 'onchain-outpoint' || route.type === 'onchain-opns') {
+			const wv = activeWebviewRef.current
+			if (wv) {
+				;(wv as HTMLElement & { goForward?: () => void }).goForward?.()
+				return
+			}
+		}
 		dispatchNav({ type: 'forward' })
-	}, [dispatchNav])
+	}, [dispatchNav, activeTab])
 
 	const reload = useCallback(() => {
 		setTabs((prev) =>
@@ -1059,6 +1138,25 @@ export function BrowserLayout() {
 		{ hotkey: 'Mod+Shift+A', callback: () => toggleAgentSidebar() },
 		{ hotkey: 'Mod+Alt+I', callback: () => { rpc.request.toggleDevTools() } },
 		{ hotkey: 'Mod+,', callback: () => navigate('1sat://settings') },
+
+		// Find on page
+		{ hotkey: 'Mod+F', callback: () => openFindBar() },
+		{
+			hotkey: 'Mod+G',
+			callback: () => {
+				if (!findBarOpen || !findQuery) return
+				const wv = activeWebviewRef.current
+				if (wv) (wv as HTMLElement & { findInPage?: (text: string, opts?: object) => void }).findInPage?.(findQuery, { forward: true })
+			},
+		},
+		{
+			hotkey: 'Mod+Shift+G',
+			callback: () => {
+				if (!findBarOpen || !findQuery) return
+				const wv = activeWebviewRef.current
+				if (wv) (wv as HTMLElement & { findInPage?: (text: string, opts?: object) => void }).findInPage?.(findQuery, { forward: false })
+			},
+		},
 
 		// Home
 		{ hotkey: 'Mod+Shift+H', callback: () => navigate('1sat://browser/new') },

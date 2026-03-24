@@ -422,11 +422,80 @@ function MetadataPanel({
 				)}
 			</div>
 
+			{/* Listing status */}
+			{(listingLoading || listing) && (
+				<div className="flex flex-col gap-1.5 border-t border-border pt-3">
+					<span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+						Marketplace
+					</span>
+					{listingLoading ? (
+						<Skeleton className="h-4 w-28 rounded-none" />
+					) : listing ? (
+						<div className="flex items-center gap-1.5">
+							<Tag size={12} className="text-primary flex-shrink-0" aria-hidden="true" />
+							<span className="text-sm font-semibold text-primary">
+								{listing.priceSats.toLocaleString()} sats
+							</span>
+							<span className="text-[10px] text-muted-foreground">listed for sale</span>
+						</div>
+					) : null}
+				</div>
+			)}
+
 			{/* Spacer pushes actions to the bottom when content is short */}
 			<div className="flex-1" />
 
 			{/* Action buttons */}
 			<div className="flex flex-col gap-2 border-t border-border pt-3">
+				{/* Buy / List for Sale — mutually exclusive based on listing state */}
+				{listingLoading ? (
+					<Skeleton className="h-7 w-full rounded-none" />
+				) : listing ? (
+					<Button
+						variant="default"
+						size="sm"
+						className="w-full justify-start gap-2 text-xs"
+						onClick={handleBuy}
+					>
+						<ShoppingCart aria-hidden="true" />
+						Buy for {listing.priceSats.toLocaleString()} sats
+					</Button>
+				) : (
+					<>
+						<Button
+							variant="outline"
+							size="sm"
+							className="w-full justify-start gap-2 text-xs"
+							onClick={handleListToggle}
+						>
+							<Tag aria-hidden="true" />
+							{showListInput ? 'Cancel' : 'List for Sale'}
+						</Button>
+						{showListInput && (
+							<div className="flex gap-2">
+								<Input
+									type="number"
+									min={1}
+									placeholder="Price in sats"
+									value={listPrice}
+									onChange={(e) => setListPrice(e.target.value)}
+									className="h-7 text-xs flex-1"
+									autoFocus
+								/>
+								<Button
+									variant="default"
+									size="sm"
+									className="h-7 text-xs px-3"
+									disabled={!listPrice || Number(listPrice) <= 0}
+									onClick={handleListConfirm}
+								>
+									Confirm
+								</Button>
+							</div>
+						)}
+					</>
+				)}
+
 				<Button
 					variant="outline"
 					size="sm"
@@ -464,6 +533,7 @@ export function OrdinalDetailView({
 	onNavigate,
 }: OrdinalDetailViewProps) {
 	const outpoint = params.outpoint ?? ''
+	const { listing, listingLoading } = useListing(outpoint)
 
 	const handleBack = useCallback(() => {
 		onNavigate?.('1sat://ordinals/gallery')
@@ -512,7 +582,12 @@ export function OrdinalDetailView({
 
 				{/* Right: metadata panel — 45% */}
 				<div className="w-[45%] flex-shrink-0 min-h-0">
-					<MetadataPanel outpoint={outpoint} onNavigate={onNavigate} />
+					<MetadataPanel
+						outpoint={outpoint}
+						listing={listing}
+						listingLoading={listingLoading}
+						onNavigate={onNavigate}
+					/>
 				</div>
 			</div>
 		</div>
