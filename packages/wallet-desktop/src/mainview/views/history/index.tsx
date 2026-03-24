@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { HistoryEntry } from '../../../shared/types'
 import { cn } from '../../lib/utils'
 import { rpc } from '../../rpc'
+import { Empty } from '@/components/ui/empty'
+import { Clock } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -252,12 +254,11 @@ export function HistoryView({ onNavigate }: HistoryViewProps) {
 							{error.message}
 						</div>
 					) : filtered.length === 0 ? (
-						<div
-							className="flex items-center justify-center bg-background text-muted-foreground font-[family-name:var(--font-sans)]"
-							style={{ height: 120, fontSize: 13 }}
-						>
-							No transactions yet.
-						</div>
+						<Empty
+							icon={Clock}
+							title="No transactions yet"
+							description="Transaction history appears after you send or receive BSV."
+						/>
 					) : (
 						filtered.map((entry) => {
 							const isPositive = entry.satoshis >= 0

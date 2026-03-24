@@ -12,6 +12,7 @@ import { Gem, ImageOff } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import type { OrdinalInfo } from '../../../shared/types'
 import { rpc } from '../../rpc'
+import { Empty } from '@/components/ui/empty'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -218,10 +219,11 @@ export function OrdinalsView({ onNavigate }: OrdinalsViewProps = {}) {
 
 			{/* Empty state */}
 			{!loading && !error && allOrdinals.length === 0 && (
-				<div className="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
-					<Gem size={36} strokeWidth={1.5} />
-					<span className="text-sm">No ordinals yet</span>
-				</div>
+				<Empty
+					icon={Gem}
+					title="No ordinals yet"
+					description="Ordinals appear here after you inscribe or receive one."
+				/>
 			)}
 
 			{/* Grid */}

@@ -19,6 +19,7 @@ import { Coins, Send } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import type { TokenBalance } from '../../../shared/types'
 import { rpc } from '../../rpc'
+import { Empty } from '@/components/ui/empty'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -285,10 +286,11 @@ export function TokensView({ onNavigate }: TokensViewProps = {}) {
 				)}
 
 				{!loading && !error && balances.length === 0 && (
-					<div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-muted-foreground">
-						<Coins className="size-8 opacity-40" aria-hidden="true" />
-						<p className="text-sm">No tokens</p>
-					</div>
+					<Empty
+						icon={Coins}
+						title="No tokens yet"
+						description="BSV-21 tokens you own will appear here."
+					/>
 				)}
 
 				{!loading &&
