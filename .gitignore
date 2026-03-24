@@ -14,3 +14,4 @@ artifacts/
 icon-build/
 store/
 *.p12
+.superpowers/
