@@ -107,8 +107,13 @@ function AssetCard({ icon, iconBg, name, value, onClick }: AssetCardProps) {
 		<div
 			className={`border border-border p-4 space-y-3 transition-colors${onClick ? ' cursor-pointer hover:border-primary' : ''}`}
 			onClick={onClick}
-			onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick() } : undefined}
-			role={onClick ? 'button' : undefined}
+			onKeyDown={
+				onClick
+					? (e) => {
+							if (e.key === 'Enter' || e.key === ' ') onClick()
+						}
+					: undefined
+			}
 			tabIndex={onClick ? 0 : undefined}
 		>
 			<div className="flex items-center gap-2">

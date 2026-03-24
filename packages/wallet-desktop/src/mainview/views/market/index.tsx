@@ -228,7 +228,6 @@ export function MarketView({ onNavigate }: MarketViewProps) {
 	const [listings, setListings] = useState<Listing[]>([])
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
-	const [usingFallback, setUsingFallback] = useState(false)
 	const [refreshKey, setRefreshKey] = useState(0)
 	const inputRef = useRef<HTMLInputElement>(null)
 
@@ -237,7 +236,6 @@ export function MarketView({ onNavigate }: MarketViewProps) {
 		let cancelled = false
 		setLoading(true)
 		setError(null)
-		setUsingFallback(false)
 
 		const controller = new AbortController()
 		const timeoutId = setTimeout(() => controller.abort(), 8_000)
@@ -260,13 +258,13 @@ export function MarketView({ onNavigate }: MarketViewProps) {
 					err instanceof TypeError ||
 					(err instanceof DOMException && err.name === 'AbortError')
 				if (isNetworkError) {
-					// Stack not running — fall back to sample data silently
-					setListings(SAMPLE_LISTINGS)
-					setUsingFallback(true)
+					setError(
+						'Local stack is not running. Start it to view marketplace listings.',
+					)
 				} else {
 					setError(err instanceof Error ? err.message : String(err))
-					setListings([])
 				}
+				setListings([])
 			})
 			.finally(() => {
 				if (!cancelled) setLoading(false)
@@ -348,13 +346,6 @@ export function MarketView({ onNavigate }: MarketViewProps) {
 					/>
 				</button>
 			</div>
-
-			{/* Fallback notice */}
-			{usingFallback && !loading && (
-				<p className="text-[11px] text-muted-foreground">
-					Local stack not running — showing sample data.
-				</p>
-			)}
 
 			{/* Error state */}
 			{error && !loading && (

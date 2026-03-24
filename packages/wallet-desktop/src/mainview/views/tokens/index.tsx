@@ -137,14 +137,10 @@ function TokenRow({ token, onSendClick, onRowClick }: TokenRowProps) {
 	const balance = formatBalance(token.amt, token.dec)
 
 	return (
-		<div
-			className="flex items-center gap-4 px-6 py-3 hover:bg-accent/30 transition-colors cursor-pointer"
+		<button
+			type="button"
+			className="flex items-center gap-4 px-6 py-3 hover:bg-accent/30 transition-colors cursor-pointer w-full text-left bg-transparent border-none p-0"
 			onClick={() => onRowClick(token)}
-			onKeyDown={(e) => {
-				if (e.key === 'Enter' || e.key === ' ') onRowClick(token)
-			}}
-			role="button"
-			tabIndex={0}
 		>
 			<TokenIcon iconOutpoint={token.icon} symbol={symbol} />
 
@@ -178,7 +174,7 @@ function TokenRow({ token, onSendClick, onRowClick }: TokenRowProps) {
 				<Send aria-hidden="true" />
 				Send
 			</Button>
-		</div>
+		</button>
 	)
 }
 

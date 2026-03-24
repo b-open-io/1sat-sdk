@@ -884,6 +884,13 @@ function PublishStep({
 
 	const opnsLabel = formData.opnsName || project.name.split('-')[0]
 
+	// Back from the insufficient-funds substate returns to review rather than
+	// leaving the publish step entirely — the user should see the cost summary
+	// again before deciding to go further back.
+	const handleInsufficientBack = useCallback(() => {
+		onSubStateChange('review')
+	}, [onSubStateChange])
+
 	const handleCopyUrl = useCallback(() => {
 		const url = `1sat://${opnsLabel}`
 		navigator.clipboard.writeText(url).catch(() => {})
@@ -1148,7 +1155,7 @@ function PublishStep({
 					<Button
 						variant="outline"
 						size="sm"
-						onClick={onBack}
+						onClick={handleInsufficientBack}
 						className="gap-2"
 					>
 						<ArrowLeft size={14} />
