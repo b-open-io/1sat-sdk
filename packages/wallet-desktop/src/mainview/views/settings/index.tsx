@@ -799,12 +799,12 @@ function AiTab() {
 			}
 		} catch (err) {
 			setFetchError(
-				err instanceof Error ? err.message : 'Could not connect to Ollama',
+				err instanceof Error ? err.message : `Could not connect to ${settings.provider}`,
 			)
 		} finally {
 			setFetchingModels(false)
 		}
-	}, [settings.model, updateSettings])
+	}, [settings.provider, settings.baseUrl, settings.apiKey, settings.model, updateSettings])
 
 	return (
 		<div className="space-y-8 py-4">
