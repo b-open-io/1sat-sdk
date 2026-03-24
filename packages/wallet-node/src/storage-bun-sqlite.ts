@@ -977,7 +977,44 @@ export class StorageBunSqlite extends StorageProvider {
 	}
 
 	// -----------------------------------------------------------------------
-	// Validate helpers (same as StorageKnex)
+	// Date conversion — we are SQLite, dates are always ISO strings.
+	// Override parent methods so we never depend on the external
+	// wallet-toolbox's dbtype-switching logic.
+	// -----------------------------------------------------------------------
+
+	/** Convert any date-ish value to an ISO string. */
+	private toIsoString(date: Date | string | number): string {
+		if (typeof date === 'string') {
+			// Validate it's parseable, return as-is if already ISO
+			const d = new Date(date)
+			if (Number.isNaN(d.getTime())) return new Date().toISOString()
+			return d.toISOString()
+		}
+		if (typeof date === 'number') return new Date(date).toISOString()
+		if (date instanceof Date) return date.toISOString()
+		return new Date().toISOString()
+	}
+
+	override validateDate(date: Date | string | number): string {
+		return this.toIsoString(date)
+	}
+
+	override validateEntityDate(date: Date | string | number): string {
+		return this.toIsoString(date)
+	}
+
+	override validateOptionalEntityDate(
+		date: Date | string | number | null | undefined,
+		useNowAsDefault?: boolean,
+	): string | undefined {
+		if (date === null || date === undefined) {
+			return useNowAsDefault ? new Date().toISOString() : undefined
+		}
+		return this.toIsoString(date)
+	}
+
+	// -----------------------------------------------------------------------
+	// Validate helpers
 	// -----------------------------------------------------------------------
 
 	validatePartialForUpdate<T extends EntityTimeStamp>(
@@ -1043,6 +1080,8 @@ export class StorageBunSqlite extends StorageProvider {
 	): Promise<Record<string, unknown>> {
 		await this.verifyReadyForDatabaseAccess(trx)
 		const v = { ...entity } as Record<string, unknown>
+		// Our overridden validateOptionalEntityDate always returns an ISO string
+		// for SQLite — no fallbacks needed.
 		v.created_at = this.validateOptionalEntityDate(
 			v.created_at as Date | string | number | undefined,
 			true,
@@ -1051,13 +1090,6 @@ export class StorageBunSqlite extends StorageProvider {
 			v.updated_at as Date | string | number | undefined,
 			true,
 		)
-		// Guarantee valid ISO strings — SQLite DEFAULT only applies when the
-		// column is omitted from the INSERT, but insertRow includes all non-null
-		// keys. If the validation pipeline returns a falsy or non-string value,
-		// force a valid timestamp so the NOT NULL constraint never fails.
-		const nowIso = new Date().toISOString()
-		if (!v.created_at || typeof v.created_at !== 'string') v.created_at = nowIso
-		if (!v.updated_at || typeof v.updated_at !== 'string') v.updated_at = nowIso
 
 		if (dateFields) {
 			for (const df of dateFields) {

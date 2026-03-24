@@ -9,7 +9,7 @@ export function registerAllMcpTools(
 	server: McpServer,
 	getMainWindow: () => BrowserWindow,
 ): void {
-	registerBrowserTools(server)
+	registerBrowserTools(server, getMainWindow)
 	registerTabTools(server, getMainWindow)
 	registerDataTools(server)
 	registerWalletTools(server)

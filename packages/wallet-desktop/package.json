@@ -48,6 +48,7 @@
 		"cmdk": "^1.1.1",
 		"electrobun": "1.16.0",
 		"embla-carousel-react": "^8.6.0",
+		"evlog": "^2.10.0",
 		"geist": "^1.7.0",
 		"lucide-react": "^1.0.1",
 		"media-chrome": "^4.18.2",
@@ -75,6 +76,7 @@
 	},
 	"devDependencies": {
 		"@bsv/sdk": "^2.0.6",
+		"@bsv/wallet-toolbox": "^2.1.9",
 		"@tailwindcss/vite": "^4.1.4",
 		"@types/bun": "latest",
 		"@types/qrcode": "^1.5.5",
@@ -82,6 +84,7 @@
 		"@types/react-dom": "^18.3.1",
 		"@vitejs/plugin-react": "^4.3.4",
 		"concurrently": "^9.1.0",
+		"knex": "^3.2.5",
 		"tailwindcss": "^4.1.4",
 		"typescript": "^5.7.2",
 		"vite": "^6.0.3"

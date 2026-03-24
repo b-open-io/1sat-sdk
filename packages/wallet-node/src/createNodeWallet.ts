@@ -12,7 +12,7 @@ import {
 	Wallet,
 	WalletStorageManager,
 } from '@bsv/wallet-toolbox'
-import { type Knex, knex as makeKnex } from 'knex'
+import type { Knex } from 'knex'
 import { StorageBunSqlite } from './storage-bun-sqlite'
 
 const DEFAULT_STORAGE_NAME = 'wallet'
@@ -58,7 +58,7 @@ export async function createNodeWallet(
 	storageOptions.feeModel = feeModel
 
 	let localStorage: StorageProvider
-	let knexInstance: ReturnType<typeof makeKnex> | undefined
+	let knexInstance: Knex | undefined
 
 	if (isBun) {
 		localStorage = new StorageBunSqlite({
@@ -66,7 +66,10 @@ export async function createNodeWallet(
 			filename: config.filename ?? DEFAULT_FILENAME,
 		})
 	} else {
-		const { StorageKnex } = await import('@bsv/wallet-toolbox')
+		const [{ StorageKnex }, { knex: makeKnex }] = await Promise.all([
+			import('@bsv/wallet-toolbox'),
+			import('knex'),
+		])
 		const knexConfig = config.storage ?? {
 			...DEFAULT_KNEX_STORAGE,
 			connection: { filename: config.filename ?? DEFAULT_FILENAME },

@@ -19,14 +19,14 @@ import { WALLET_HTTP_URL } from '../../../shared/constants'
 const MONO = 'font-[family-name:var(--font-mono)]'
 const SANS = 'font-[family-name:var(--font-sans)]'
 
-/** Available Ollama models — fetched dynamically */
-interface OllamaModel {
+/** Available models — fetched dynamically from backend */
+interface ModelInfo {
 	name: string
 	size: string
 }
 
-function useOllamaModels() {
-	const [models, setModels] = useState<OllamaModel[]>([])
+function useAvailableModels() {
+	const [models, setModels] = useState<ModelInfo[]>([])
 	const [loading, setLoading] = useState(true)
 
 	useEffect(() => {
@@ -43,7 +43,7 @@ function useOllamaModels() {
 					)
 				}
 			} catch {
-				// Ollama not running or wallet server not started
+				// Provider not running or wallet server not started
 			} finally {
 				setLoading(false)
 			}
@@ -61,7 +61,7 @@ function ModelSelector({
 }: {
 	value: string
 	onChange: (model: string) => void
-	models: OllamaModel[]
+	models: ModelInfo[]
 }) {
 	const [open, setOpen] = useState(false)
 
@@ -120,7 +120,7 @@ function ModelSelector({
 						))}
 						{models.length === 0 && (
 							<div className="px-3 py-2 text-[10px] text-muted-foreground">
-								No models found. Is Ollama running?
+								No models found. Is your AI provider running?
 							</div>
 						)}
 					</div>
@@ -141,11 +141,7 @@ export function AiChatView({
 	pageContext,
 	onNavigate,
 }: AiChatViewProps) {
-	const { models } = useOllamaModels()
-	const [selectedModel, setSelectedModel] = useState(aiSettings.model ?? 'qwen3:14b')
-	const [input, setInput] = useState(initialQuery ?? '')
-	const scrollRef = useRef<HTMLDivElement>(null)
-	const inputRef = useRef<HTMLTextAreaElement>(null)
+	const { models } = useAvailableModels()
 
 	// Load AI settings — re-read on mount
 	const [aiSettings, setAiSettings] = useState<{ provider?: string; baseUrl?: string; apiKey?: string; model?: string }>({})
@@ -156,19 +152,28 @@ export function AiChatView({
 		} catch {}
 	}, [])
 
+	const selectedModel = aiSettings.model ?? 'qwen3:14b'
+	const [modelOverride, setModelOverride] = useState<string | null>(null)
+	const activeModel = modelOverride ?? selectedModel
+
+	const [input, setInput] = useState(initialQuery ?? '')
+	const scrollRef = useRef<HTMLDivElement>(null)
+	const inputRef = useRef<HTMLTextAreaElement>(null)
+
 	const transport = useMemo(
 		() =>
 			new DefaultChatTransport({
 				api: `${WALLET_HTTP_URL}/api/chat`,
 				headers: { 'X-Requested-With': '1SatBrowser' },
 				body: {
+					model: activeModel,
 					context: pageContext,
 					provider: aiSettings.provider,
 					baseUrl: aiSettings.baseUrl,
 					apiKey: aiSettings.apiKey,
 				},
 			}),
-		[pageContext, aiSettings],
+		[activeModel, pageContext, aiSettings.provider, aiSettings.baseUrl, aiSettings.apiKey],
 	)
 
 	const { messages, sendMessage, status, error } = useChat({ transport })
@@ -196,9 +201,9 @@ export function AiChatView({
 	const handleSubmit = useCallback(() => {
 		const text = inputValueRef.current.trim()
 		if (!text || status !== 'ready') return
-		sendMessage({ text }, { body: { model: selectedModel } })
+		sendMessage({ text })
 		setInput('')
-	}, [status, sendMessage, selectedModel])
+	}, [status, sendMessage])
 
 	const handleKeyDown = useCallback(
 		(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -231,28 +236,11 @@ export function AiChatView({
 						AI Chat
 					</span>
 					<ModelSelector
-						value={selectedModel}
-						onChange={setSelectedModel}
+						value={activeModel}
+						onChange={setModelOverride}
 						models={models}
 					/>
 				</div>
-				{/* Model selector */}
-				<select
-					value={selectedModel}
-					onChange={(e) => setSelectedModel(e.target.value)}
-					className={cn('h-6 px-1.5 rounded bg-muted border border-border text-[10px] text-muted-foreground max-w-[120px] truncate', MONO)}
-					title={selectedModel}
-				>
-					{models.length > 0 ? (
-						models.map((m) => (
-							<option key={m.name} value={m.name}>
-								{m.name}
-							</option>
-						))
-					) : (
-						<option value={selectedModel}>{selectedModel}</option>
-					)}
-				</select>
 				<Button
 					variant="ghost"
 					size="icon-xs"

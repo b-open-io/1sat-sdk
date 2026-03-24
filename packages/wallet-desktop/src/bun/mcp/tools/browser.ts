@@ -1,4 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { BrowserWindow } from 'electrobun/bun'
 import { z } from 'zod'
 import {
 	closeWindow,
@@ -8,29 +9,53 @@ import {
 	goForward,
 	listWindows,
 	navigate,
-	openWindow,
 } from '../browser-pool'
 
-export function registerBrowserTools(server: McpServer): void {
+// biome-ignore lint/suspicious/noExplicitAny: Electrobun type gap
+type RpcRequests = any
+
+function getRpc(getMainWindow: () => BrowserWindow): RpcRequests {
+	const win = getMainWindow()
+	const rpc = (win.webview as { rpc?: { request?: unknown } }).rpc
+	if (!rpc?.request) throw new Error('RPC not available on main window')
+	return rpc.request
+}
+
+export function registerBrowserTools(
+	server: McpServer,
+	getMainWindow: () => BrowserWindow,
+): void {
 	server.tool(
 		'browser_open',
-		'Open a URL in a new browser window. Supports https://, 1sat://, ordfs://, and bare outpoints.',
+		'Open a URL in a browser tab. Supports https://, 1sat://, ordfs://, and bare outpoints. This creates a tab in the main browser window.',
 		{
 			url: z.string().describe('URL, 1sat:// address, or outpoint to open'),
-			title: z.string().optional().describe('Window title'),
 		},
-		async ({ url, title }) => {
-			const id = openWindow(url, title)
-			return {
-				content: [{ type: 'text', text: JSON.stringify({ windowId: id }) }],
+		async ({ url }) => {
+			try {
+				const req = getRpc(getMainWindow)
+				const result = await req.tabCreate({ url })
+				return {
+					content: [{ type: 'text', text: JSON.stringify({ tabId: result.tabId }) }],
+				}
+			} catch (err) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: err instanceof Error ? err.message : String(err),
+						},
+					],
+					isError: true,
+				}
 			}
 		},
 	)
 
 	server.tool(
 		'browser_close',
-		'Close a browser window by ID.',
-		{ windowId: z.string().describe('Window ID from browser_open or browser_list_windows') },
+		'Close a browser window by ID (for MCP-managed popup windows only).',
+		{ windowId: z.string().describe('Window ID from browser_list_windows') },
 		async ({ windowId }) => {
 			const closed = closeWindow(windowId)
 			if (!closed)
@@ -44,7 +69,7 @@ export function registerBrowserTools(server: McpServer): void {
 
 	server.tool(
 		'browser_list_windows',
-		'List all open MCP-managed browser windows with their IDs, URLs, and titles.',
+		'List all open MCP-managed popup windows with their IDs, URLs, and titles.',
 		{},
 		async () => {
 			const wins = listWindows()
@@ -57,7 +82,7 @@ export function registerBrowserTools(server: McpServer): void {
 	server.tool(
 		'browser_navigate',
 		'Navigate an existing browser window to a new URL.',
-		{ windowId: z.string().describe('Window ID from browser_open or browser_list_windows'), url: z.string() },
+		{ windowId: z.string().describe('Window ID from browser_list_windows'), url: z.string() },
 		async ({ windowId, url }) => {
 			const ok = navigate(windowId, url)
 			if (!ok)
@@ -74,7 +99,7 @@ export function registerBrowserTools(server: McpServer): void {
 	server.tool(
 		'browser_go_back',
 		'Navigate back in browser history.',
-		{ windowId: z.string().describe('Window ID from browser_open or browser_list_windows') },
+		{ windowId: z.string().describe('Window ID from browser_list_windows') },
 		async ({ windowId }) => {
 			const ok = goBack(windowId)
 			if (!ok)
@@ -89,7 +114,7 @@ export function registerBrowserTools(server: McpServer): void {
 	server.tool(
 		'browser_go_forward',
 		'Navigate forward in browser history.',
-		{ windowId: z.string().describe('Window ID from browser_open or browser_list_windows') },
+		{ windowId: z.string().describe('Window ID from browser_list_windows') },
 		async ({ windowId }) => {
 			const ok = goForward(windowId)
 			if (!ok)
@@ -105,7 +130,7 @@ export function registerBrowserTools(server: McpServer): void {
 		'browser_execute_js',
 		'Execute JavaScript in a browser window and return the result. The code is wrapped in a function; use `return` for the result.',
 		{
-			windowId: z.string().describe('Window ID from browser_open or browser_list_windows'),
+			windowId: z.string().describe('Window ID from browser_list_windows'),
 			code: z
 				.string()
 				.describe(
@@ -134,7 +159,7 @@ export function registerBrowserTools(server: McpServer): void {
 	server.tool(
 		'browser_get_page_text',
 		'Get the visible text content of a page in a browser window.',
-		{ windowId: z.string().describe('Window ID from browser_open or browser_list_windows') },
+		{ windowId: z.string().describe('Window ID from browser_list_windows') },
 		async ({ windowId }) => {
 			try {
 				const text = await getPageText(windowId)

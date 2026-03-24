@@ -10,7 +10,7 @@
  * from the user's AI settings. The handler creates the appropriate provider
  * instance and passes MCP tools for tool-calling models.
  */
-import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from 'ai'
+import { convertToModelMessages, extractReasoningMiddleware, stepCountIs, streamText, wrapLanguageModel, type UIMessage } from 'ai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { ollama } from 'ai-sdk-ollama'
 import { getMcpTools } from './mcp/client'
@@ -157,9 +157,11 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 
 		let systemPrompt =
 			'You are a helpful AI assistant built into 1Sat, a BSV blockchain wallet and on-chain content browser. ' +
-			'You have access to tools that can open and navigate browser windows/tabs, query blockchain data ' +
+			'You have access to tools that can open and navigate browser tabs, query blockchain data ' +
 			'(inscriptions, tokens, listings), check wallet balance, list ordinals and tokens, and execute ' +
-			'marketplace operations. Use these tools when the user asks about their wallet, assets, or wants to browse content.'
+			'marketplace operations. Use these tools when the user asks about their wallet, assets, or wants to browse content. ' +
+			'IMPORTANT: Always use browser_open or tab_create to open URLs — they both create tabs in the main browser window. ' +
+			'Never describe using a tool without actually calling it.'
 
 		if (contextUrl) {
 			systemPrompt += `\n\nThe user is currently viewing: ${contextUrl}`
@@ -171,7 +173,13 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 		// Get MCP tools (authenticated via BRC-31 to local MCP server)
 		const mcpTools = await getMcpTools()
 
-		const model = createModel(provider, modelName, baseUrl, apiKey)
+		const baseModel = createModel(provider, modelName, baseUrl, apiKey)
+
+		// Wrap with reasoning extraction for models that use <think> tags (qwen3, etc.)
+		const model = wrapLanguageModel({
+			model: baseModel,
+			middleware: extractReasoningMiddleware({ tagName: 'think', startWithReasoning: true }),
+		})
 
 		const result = streamText({
 			model,
