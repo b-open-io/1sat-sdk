@@ -124,8 +124,31 @@ jobs:
 
       - run:
           name: Build Vite + ElectroBun
-          command: bun run build
           no_output_timeout: 30m
+          command: |
+            bun run vite build
+            echo "--- Vite build complete, starting Electrobun ---"
+            npx electrobun build --env=stable 2>&1 || {
+              EXIT_CODE=$?
+              echo "=== Electrobun bundle failed (exit $EXIT_CODE) ==="
+              echo "--- Diagnostic: standalone bun build of entrypoint ---"
+              bun build src/bun/index.ts --outdir /tmp/diag --target bun \
+                --external electrobun/bun --external electrobun \
+                --external '@1sat/wallet-mac' --external '@1sat/vault' \
+                --external '@1sat/actions' --external '@1sat/client' \
+                --external '@1sat/types' --external '@1sat/utils' \
+                --external '@bsv/sdk' --external '@bsv/wallet-toolbox' \
+                --external knex 2>&1 || echo "Standalone bun build ALSO failed"
+              echo "--- Diagnostic: dist files ---"
+              ls -la dist/index.html dist/assets/ 2>&1 | head -10
+              echo "--- Diagnostic: icon files ---"
+              ls -la icon.iconset/ 2>&1
+              echo "--- Diagnostic: bun version ---"
+              bun --version
+              echo "--- Diagnostic: electrobun version ---"
+              cat node_modules/electrobun/package.json | grep version | head -1
+              exit $EXIT_CODE
+            }
 
       - run:
           name: Locate build artifacts
