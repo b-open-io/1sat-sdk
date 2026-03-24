@@ -97,15 +97,6 @@ const writeUint32LE = (value: number): number[] => [
 	(value >> 24) & 0xff,
 ]
 
-/** Rebuild a Script from a slice of chunks */
-function scriptFromChunks(chunks: ScriptChunk[]): Script {
-	const s = new Script()
-	for (const c of chunks) {
-		if (c.op !== undefined && c.data === undefined) s.writeOpCode(c.op)
-		else if (c.data) s.writeBin(c.data)
-	}
-	return s
-}
 
 /**
  * Try recovery factors 0–3 for a BSM signature.
@@ -319,7 +310,7 @@ export default class Sigma implements ScriptTemplate {
 			if (isSigmaChunk(chunk)) {
 				if (n === this._sigmaInstance) {
 					// Slice before the separator (pipe or OP_RETURN before SIGMA)
-					return Hash.sha256(scriptFromChunks(chunks.slice(0, i - 1)).toBinary())
+					return Hash.sha256(new Script(chunks.slice(0, i - 1)).toBinary())
 				}
 				n++
 			} else if (isEmbeddedOpReturn(chunk)) {
@@ -328,7 +319,7 @@ export default class Sigma implements ScriptTemplate {
 						if (isSigmaChunk(ic)) {
 							if (n === this._sigmaInstance) {
 								// Slice before the OP_RETURN chunk itself
-								return Hash.sha256(scriptFromChunks(chunks.slice(0, i)).toBinary())
+								return Hash.sha256(new Script(chunks.slice(0, i)).toBinary())
 							}
 							n++
 						}
