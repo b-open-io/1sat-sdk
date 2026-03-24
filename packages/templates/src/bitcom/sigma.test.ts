@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, mock } from 'bun:test'
+import { describe, expect, it } from 'bun:test'
 import {
 	PrivateKey,
 	Script,
@@ -10,38 +10,6 @@ import {
 import Sigma, { SigmaAlgorithm } from './sigma'
 
 const { toHex, toArray } = Utils
-
-const mockAddress = '1ACLHVPVnB8AmLCyD5hPQtPCSCccjiUn7H'
-const mockMessage =
-	'234900c2e071fe9a8cc2a41a6b40d03bb3dac1475162996500b77149ab66bfd4'
-const mockSignature =
-	'HxKekpndJQqQDQVAgH/SaInseYRfqtjde0eWZm+fkWc5CRnZ7ey1zJc7dssNb4I+OwcJPfTQLvUHwCxevFRP4HE='
-const mockRecovery = 0
-
-const originalFetch = globalThis.fetch
-
-beforeAll(() => {
-	globalThis.fetch = mock((url: string) => {
-		if (url.includes('http://localhost:21000/sign')) {
-			return Promise.resolve({
-				ok: true,
-				json: () =>
-					Promise.resolve({
-						address: mockAddress,
-						sig: mockSignature,
-						message: mockMessage,
-						recovery: mockRecovery,
-						ts: Date.now(),
-					}),
-			} as Response)
-		}
-		return Promise.reject(new Error('Unexpected URL'))
-	}) as typeof fetch
-})
-
-afterAll(() => {
-	globalThis.fetch = originalFetch
-})
 
 describe('Sigma Protocol', () => {
 	const privateKey = PrivateKey.fromWif(
@@ -163,26 +131,6 @@ describe('Sigma Protocol', () => {
 		)
 		const sigma = new Sigma(tx, 0, 0)
 		expect(sigma.verify()).toBe(true)
-	})
-
-	it('signs a message correctly with remote signing', async () => {
-		const script = Script.fromASM(outputScriptAsm)
-		const tx = new Transaction()
-		const txOut = { satoshis: 0, lockingScript: script } as TransactionOutput
-		tx.addOutput(txOut)
-
-		const sigma = new Sigma(tx, 0, 0)
-		const result = await sigma.remoteSign('http://localhost:21000', {
-			key: 'Authorization',
-			value: 'Bearer mockToken',
-			type: 'header',
-		})
-
-		expect(result.address).toBe(mockAddress)
-		expect(result.signature).toBe(mockSignature)
-		expect(sigma.verify()).toBe(true)
-		expect(sigma.sig?.address).toBe(mockAddress)
-		expect(sigma.sig?.signature).toBe(mockSignature)
 	})
 
 	it('signs and verifies with BRC-77 algorithm', () => {

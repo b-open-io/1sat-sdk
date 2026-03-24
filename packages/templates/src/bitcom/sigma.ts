@@ -46,20 +46,6 @@ export interface SignResponse extends Sig {
 	signedTx: Transaction
 }
 
-export type AuthToken = {
-	type: 'header' | 'query'
-	value: string
-	key: string
-}
-
-export type RemoteSigningResponse = {
-	address: string
-	sig: string
-	message: string
-	ts: number
-	recovery: number
-}
-
 /**
  * Signature data for the data-container / ScriptTemplate mode.
  * Used by static decode/sign methods and the BitCom integration.
@@ -445,28 +431,6 @@ export default class Sigma implements ScriptTemplate {
 		)
 
 		return this._sign(signature, address, recovery)
-	}
-
-	/**
-	 * Sign via a remote signing server.
-	 * POSTs the message hash to `keyHost/sign` and applies the returned signature.
-	 */
-	async remoteSign(keyHost: string, authToken?: AuthToken): Promise<SignResponse> {
-		const headers = authToken ? { [authToken.key]: authToken.value } : {}
-		const url = `${keyHost}/sign${authToken?.type === 'query' ? `?${authToken.key}=${authToken.value}` : ''}`
-
-		const response = await fetch(url, {
-			method: 'POST',
-			headers: { ...headers, 'Content-Type': 'application/json', Accept: 'application/json' },
-			body: JSON.stringify({ message: toHex(this.getMessageHash()), encoding: 'hex' }),
-		})
-
-		if (!response.ok) {
-			throw new Error(`Remote sign failed: HTTP ${response.status}`)
-		}
-
-		const data = (await response.json()) as RemoteSigningResponse
-		return this._sign(Signature.fromCompact(data.sig, 'base64'), data.address, data.recovery)
 	}
 
 	/**

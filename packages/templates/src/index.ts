@@ -106,8 +106,6 @@ export { MAP_PREFIX, MAPCommand } from './bitcom/map.js'
 // Sigma Types
 // ============================================================================
 export type {
-	AuthToken,
-	RemoteSigningResponse,
 	Sig,
 	SigmaData,
 	SigmaOptions,
