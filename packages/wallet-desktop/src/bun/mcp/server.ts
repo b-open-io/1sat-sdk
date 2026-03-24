@@ -95,7 +95,6 @@ export function startMcpServer(mainWindow: BrowserWindow): void {
 
 			// MCP endpoint — requires BRC-31 auth
 			if (url.pathname === '/mcp') {
-				// Verify auth
 				const auth = await verifyRequest(req)
 				if (!auth) {
 					return Response.json(
