@@ -96,7 +96,21 @@ function NameRow({ name, isOperating, onRequest, onNavigate, isLast }: NameRowPr
 					</div>
 				</div>
 
-				{/* Status badge */}
+				{/* On-chain status badge — only shown for registered names once lookup resolves */}
+				{name.registered && name.onChain !== undefined && (
+					<Badge
+						variant="outline"
+						className={`shrink-0 rounded-none px-1.5 py-0 h-5 text-[10px] border ${
+							name.onChain
+								? 'border-green-500/50 bg-green-500/10 text-green-600 dark:text-green-400'
+								: 'border-yellow-500/50 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400'
+						}`}
+					>
+						{name.onChain ? 'On-Chain' : 'Pending'}
+					</Badge>
+				)}
+
+				{/* Wallet status badge */}
 				<Badge
 					variant={name.registered ? 'default' : 'secondary'}
 					className="shrink-0 rounded-none px-1.5 py-0 h-5 text-[10px]"
@@ -171,14 +185,31 @@ export function OpnsView({ onNavigate }: OpnsViewProps = {}) {
 		setLoading(true)
 		try {
 			const result = await rpc.request.getOpnsNames()
-			setNames(
-				result.names.map((n) => ({
-					outpoint: n.outpoint,
-					name: n.name,
-					registered: n.tags.includes('opns:published'),
-				})),
-			)
+			const mapped: OpnsName[] = result.names.map((n) => ({
+				outpoint: n.outpoint,
+				name: n.name,
+				registered: n.tags.includes('opns:published'),
+			}))
+			setNames(mapped)
 			setError(null)
+
+			// For registered names, check on-chain status in parallel (non-blocking)
+			const registered = mapped.filter((n) => n.registered)
+			if (registered.length > 0) {
+				Promise.all(
+					registered.map(async (n) => {
+						const onChain = await checkOnChainStatus(n.name)
+						return { outpoint: n.outpoint, onChain }
+					}),
+				).then((results) => {
+					const statusMap = new Map(results.map((r) => [r.outpoint, r.onChain]))
+					setNames((prev) =>
+						prev.map((n) =>
+							statusMap.has(n.outpoint) ? { ...n, onChain: statusMap.get(n.outpoint) } : n,
+						),
+					)
+				})
+			}
 		} catch (err) {
 			setError(err instanceof Error ? err : new Error('Failed to load OpNS names'))
 		} finally {
