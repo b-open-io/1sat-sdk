@@ -1,6 +1,7 @@
 import React, { type ReactElement, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import type { InternalPage, ParsedRoute } from '../../shared/url-types'
+import { AiChatView } from '../views/ai-chat/index'
 import { AppsView } from '../views/apps/index'
 import { BrowserView } from '../views/browser/index'
 import { ChatView } from '../views/chat/index'
@@ -36,6 +37,10 @@ function SettingsSecurityView({ onNavigate }: { onNavigate?: (url: string) => vo
 
 function SettingsNetworkView({ onNavigate }: { onNavigate?: (url: string) => void }): ReactElement {
 	return <SettingsView params={{ tab: 'network' }} onNavigate={onNavigate} />
+}
+
+function SettingsAiView({ onNavigate }: { onNavigate?: (url: string) => void }): ReactElement {
+	return <SettingsView params={{ tab: 'ai' }} onNavigate={onNavigate} />
 }
 
 // ─── Onboarding pages ─────────────────────────────────────────────────────────
@@ -136,6 +141,8 @@ const PAGE_REGISTRY: Record<InternalPage, PageComponent> = {
 	'settings/network': SettingsNetworkView,
 	'browser/new': HomeView,
 	'publish/new': PublishView,
+	'ai-chat': AiChatView,
+	'settings/ai': SettingsAiView,
 	apps: AppsView,
 	market: MarketView,
 	'onboarding/create': OnboardingCreateView,
