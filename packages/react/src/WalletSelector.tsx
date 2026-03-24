@@ -7,7 +7,6 @@ export interface WalletSelectorProviderInfo {
 	type: string
 	name: string
 	icon?: string
-	detected: boolean
 	isConnecting: boolean
 	connect: () => Promise<void>
 }
@@ -44,7 +43,6 @@ export function WalletSelector({ onClose, children }: WalletSelectorProps) {
 			type: p.type,
 			name: p.name,
 			icon: p.icon,
-			detected: p.detected,
 			isConnecting: connectingType === p.type,
 			connect: () => handleConnect(p.type),
 		}),
