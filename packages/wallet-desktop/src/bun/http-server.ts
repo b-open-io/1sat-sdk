@@ -384,25 +384,58 @@ async function handleRequest(req: Request): Promise<Response> {
 		return new Response(null, { status: 204, headers: CORS_HEADERS })
 	}
 
-	// GET /api/models — proxy Ollama model list for the Settings UI
+	// GET /api/models — fetch model list from the configured provider
 	if (req.method === 'GET' && pathname === '/api/models') {
+		const provider = url.searchParams.get('provider') ?? 'ollama'
+		const baseUrl = url.searchParams.get('baseUrl') ?? ''
+		const apiKey = url.searchParams.get('apiKey') ?? ''
+
 		try {
-			const res = await fetch('http://localhost:11434/api/tags', {
+			let modelsUrl: string
+			const headers: Record<string, string> = {}
+
+			if (provider === 'ollama') {
+				modelsUrl = 'http://localhost:11434/api/tags'
+			} else if (provider === 'lmstudio') {
+				modelsUrl = `${baseUrl || 'http://localhost:1234/v1'}/models`
+			} else {
+				// OpenAI-compatible: /v1/models
+				modelsUrl = `${baseUrl || 'https://api.openai.com/v1'}/models`
+				if (apiKey) {
+					headers.Authorization = `Bearer ${apiKey}`
+				}
+			}
+
+			const res = await fetch(modelsUrl, {
+				headers,
 				signal: AbortSignal.timeout(5000),
 			})
 			if (!res.ok) {
-				return jsonResponse({ error: `Ollama returned ${res.status}` }, res.status)
+				return jsonResponse({ error: `Provider returned ${res.status}` }, res.status)
 			}
-			const data = await res.json() as { models?: Array<{ name: string; size: number }> }
-			return jsonResponse({
-				models: (data.models ?? []).map((m) => ({
+			const data = await res.json() as Record<string, unknown>
+
+			// Ollama returns { models: [{ name, size }] }
+			// OpenAI-compatible returns { data: [{ id }] }
+			let models: Array<{ name: string; size: number }>
+			if (Array.isArray(data.models)) {
+				models = (data.models as Array<{ name: string; size: number }>).map((m) => ({
 					name: m.name,
-					size: m.size,
-				})),
-			})
+					size: m.size ?? 0,
+				}))
+			} else if (Array.isArray(data.data)) {
+				models = (data.data as Array<{ id: string }>).map((m) => ({
+					name: m.id,
+					size: 0,
+				}))
+			} else {
+				models = []
+			}
+
+			return jsonResponse({ models })
 		} catch {
 			return jsonResponse(
-				{ error: 'Could not connect to Ollama. Is it running?' },
+				{ error: `Could not connect to ${provider}. Is it running?` },
 				503,
 			)
 		}

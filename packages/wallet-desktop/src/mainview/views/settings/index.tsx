@@ -86,7 +86,7 @@ function loadAiSettings(): AiSettings {
 		provider: 'ollama',
 		baseUrl: 'http://localhost:11434/v1',
 		apiKey: '',
-		model: 'llama3:latest',
+		model: 'qwen3:14b',
 	}
 }
 
@@ -774,7 +774,12 @@ function AiTab() {
 		setFetchingModels(true)
 		setFetchError('')
 		try {
-			const res = await fetch(`${WALLET_HTTP_URL}/api/models`, {
+			const params = new URLSearchParams({
+				provider: settings.provider,
+				baseUrl: settings.baseUrl,
+				apiKey: settings.apiKey,
+			})
+			const res = await fetch(`${WALLET_HTTP_URL}/api/models?${params}`, {
 				signal: AbortSignal.timeout(5000),
 			})
 			if (!res.ok) {
