@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.0.2] - 2026-03-23
+## [0.1.0] - 2026-03-23
 
 ### Renamed
 - "1Sat Wallet" → "1Sat" — app name, menus, manifests, Touch ID prompts
