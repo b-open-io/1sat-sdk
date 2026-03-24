@@ -144,13 +144,13 @@ export function AiChatView({
 	const scrollRef = useRef<HTMLDivElement>(null)
 	const inputRef = useRef<HTMLTextAreaElement>(null)
 
-	// Load AI settings for provider/baseUrl/apiKey
-	const aiSettings = useMemo(() => {
+	// Load AI settings — re-read on mount
+	const [aiSettings, setAiSettings] = useState<{ provider?: string; baseUrl?: string; apiKey?: string; model?: string }>({})
+	useEffect(() => {
 		try {
 			const raw = localStorage.getItem('1sat-ai-settings')
-			if (raw) return JSON.parse(raw) as { provider?: string; baseUrl?: string; apiKey?: string; model?: string }
+			if (raw) setAiSettings(JSON.parse(raw))
 		} catch {}
-		return {}
 	}, [])
 
 	const transport = useMemo(

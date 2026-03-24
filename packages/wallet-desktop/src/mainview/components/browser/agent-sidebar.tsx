@@ -75,14 +75,14 @@ export function AgentSidebar({
 	const currentUrl = getRouteUrl(currentRoute)
 	const currentLabel = getDisplayLabel(currentRoute)
 
-	// Load AI settings for provider/model
-	const aiSettings = useMemo(() => {
+	// Load AI settings — re-read every time sidebar opens
+	const [aiSettings, setAiSettings] = useState<{ provider?: string; baseUrl?: string; apiKey?: string; model?: string }>({})
+	useEffect(() => {
 		try {
 			const raw = localStorage.getItem('1sat-ai-settings')
-			if (raw) return JSON.parse(raw) as { provider?: string; baseUrl?: string; apiKey?: string; model?: string }
+			if (raw) setAiSettings(JSON.parse(raw))
 		} catch {}
-		return {}
-	}, [])
+	}, [open])
 
 	const selectedModel = aiSettings.model ?? 'qwen3:14b'
 
