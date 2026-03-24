@@ -282,9 +282,8 @@ export function createRpcHandlers() {
 				description: a.description ?? '',
 				satoshis: a.satoshis ?? 0,
 				status: a.status ?? 'unknown',
-				dateCreated: a.isOutgoing
-					? `sent ${a.description}`
-					: (a.description ?? ''),
+				isOutgoing: a.isOutgoing ?? false,
+				dateCreated: '', // WalletAction has no timestamp — populated later from block data if available
 			}))
 			return { entries }
 		},

@@ -55,6 +55,7 @@ export interface HistoryEntry {
 	description: string
 	satoshis: number
 	status: string
+	isOutgoing: boolean
 	dateCreated: string
 }
 

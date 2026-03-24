@@ -6,8 +6,10 @@ import {
 	SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 import { ImageOff, RefreshCw, Search, Store } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { STACK_URL } from '../../../shared/constants'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,11 +23,13 @@ interface Listing {
 	seller: string
 }
 
-// ─── API ──────────────────────────────────────────────────────────────────────
+// ─── Parse helpers ────────────────────────────────────────────────────────────
 
-const ORDLOCK_API = 'http://127.0.0.1:8080/1sat/ordlock/listings'
+function truncateOutpoint(outpoint: string): string {
+	if (outpoint.length <= 14) return outpoint
+	return `${outpoint.slice(0, 8)}…${outpoint.slice(-4)}`
+}
 
-// Shape is unknown — parse defensively.
 // biome-ignore lint/suspicious/noExplicitAny: API response shape is not typed
 function parseListings(raw: any): Listing[] {
 	const items: unknown[] = Array.isArray(raw)
@@ -66,7 +70,6 @@ function parseListings(raw: any): Listing[] {
 							? r.address
 							: 'unknown'
 
-			// Best-effort name extraction from metadata fields
 			const rawName: string =
 				typeof r?.name === 'string'
 					? r.name
@@ -89,11 +92,6 @@ function parseListings(raw: any): Listing[] {
 		.filter((l) => l.outpoint !== `unknown_${0}` || l.id !== '0')
 }
 
-function truncateOutpoint(outpoint: string): string {
-	if (outpoint.length <= 14) return outpoint
-	return `${outpoint.slice(0, 8)}…${outpoint.slice(-4)}`
-}
-
 // ─── Sort helper ──────────────────────────────────────────────────────────────
 
 function sortListings(items: Listing[], mode: SortMode): Listing[] {
@@ -103,7 +101,6 @@ function sortListings(items: Listing[], mode: SortMode): Listing[] {
 	if (mode === 'price-desc') {
 		return [...items].sort((a, b) => b.priceSats - a.priceSats)
 	}
-	// 'recent' — preserve original order
 	return items
 }
 
@@ -128,8 +125,11 @@ interface ListingCardProps {
 
 function ListingCard({ listing, onNavigate }: ListingCardProps) {
 	const [imgError, setImgError] = useState(false)
-	const contentUrl = `http://127.0.0.1:8080/content/${listing.outpoint}`
-	const shortSeller = `${listing.seller.slice(0, 6)}...${listing.seller.slice(-4)}`
+	const contentUrl = `${STACK_URL}/content/${listing.outpoint}`
+	const shortSeller =
+		listing.seller.length > 10
+			? `${listing.seller.slice(0, 6)}...${listing.seller.slice(-4)}`
+			: listing.seller
 
 	const handleClick = useCallback(() => {
 		onNavigate?.(`1sat://ordinals/detail?outpoint=${listing.outpoint}`)
@@ -150,7 +150,11 @@ function ListingCard({ listing, onNavigate }: ListingCardProps) {
 			type="button"
 			onClick={handleClick}
 			onKeyDown={handleKeyDown}
-			className="group flex flex-col bg-card border border-border hover:border-primary transition-colors duration-150 cursor-pointer text-left w-full"
+			className={cn(
+				'group flex flex-col bg-card border border-border',
+				'hover:border-primary transition-colors duration-150',
+				'cursor-pointer text-left w-full',
+			)}
 			aria-label={`View listing: ${listing.name}`}
 		>
 			{/* Square image */}
@@ -172,20 +176,26 @@ function ListingCard({ listing, onNavigate }: ListingCardProps) {
 			{/* Footer */}
 			<div className="flex flex-col gap-0.5 px-2 py-2">
 				<span
-					className="truncate text-[11px] font-medium leading-tight text-foreground"
-					style={{ fontFamily: 'var(--font-sans)' }}
+					className={cn(
+						'truncate text-[11px] font-medium leading-tight text-foreground',
+						'font-[family-name:var(--font-sans)]',
+					)}
 				>
 					{listing.name}
 				</span>
 				<span
-					className="text-[11px] font-bold leading-tight text-foreground"
-					style={{ fontFamily: 'var(--font-mono)' }}
+					className={cn(
+						'text-[11px] font-bold leading-tight text-foreground',
+						'font-[family-name:var(--font-mono)]',
+					)}
 				>
 					{formatSats(listing.priceSats)} sats
 				</span>
 				<span
-					className="truncate text-[9px] leading-tight text-muted-foreground"
-					style={{ fontFamily: 'var(--font-mono)' }}
+					className={cn(
+						'truncate text-[9px] leading-tight text-muted-foreground',
+						'font-[family-name:var(--font-mono)]',
+					)}
 				>
 					{shortSeller}
 				</span>
@@ -231,7 +241,7 @@ export function MarketView({ onNavigate }: MarketViewProps) {
 	const [refreshKey, setRefreshKey] = useState(0)
 	const inputRef = useRef<HTMLInputElement>(null)
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: refreshKey is an intentional trigger, not a reactive value consumed inside the effect
+	// biome-ignore lint/correctness/useExhaustiveDependencies: refreshKey is an intentional trigger
 	useEffect(() => {
 		let cancelled = false
 		setLoading(true)
@@ -240,7 +250,7 @@ export function MarketView({ onNavigate }: MarketViewProps) {
 		const controller = new AbortController()
 		const timeoutId = setTimeout(() => controller.abort(), 8_000)
 
-		fetch(ORDLOCK_API, { signal: controller.signal })
+		fetch(`${STACK_URL}/1sat/ordlock/listings`, { signal: controller.signal })
 			.then(async (res) => {
 				if (!res.ok) {
 					throw new Error(`HTTP ${res.status}: ${res.statusText}`)
@@ -249,15 +259,14 @@ export function MarketView({ onNavigate }: MarketViewProps) {
 			})
 			.then((data) => {
 				if (cancelled) return
-				const parsed = parseListings(data)
-				setListings(parsed)
+				setListings(parseListings(data))
 			})
 			.catch((err: unknown) => {
 				if (cancelled) return
-				const isNetworkError =
-					err instanceof TypeError ||
-					(err instanceof DOMException && err.name === 'AbortError')
-				if (isNetworkError) {
+				const isAbort =
+					err instanceof DOMException && err.name === 'AbortError'
+				const isNetwork = err instanceof TypeError
+				if (isAbort || isNetwork) {
 					setError(
 						'Local stack is not running. Start it to view marketplace listings.',
 					)
@@ -298,12 +307,21 @@ export function MarketView({ onNavigate }: MarketViewProps) {
 		<div className="flex flex-col w-full px-6 py-4 gap-4">
 			{/* Header row */}
 			<div className="flex items-center gap-4">
-				<h1 className="text-[20px] font-bold leading-none text-foreground shrink-0">
+				<h1
+					className={cn(
+						'text-[20px] font-bold leading-none text-foreground shrink-0',
+						'font-[family-name:var(--font-sans)]',
+					)}
+				>
 					Marketplace
 				</h1>
 
 				{/* Search */}
-				<div className="flex items-center gap-2 flex-1 bg-card border border-border px-3 h-8 max-w-xs">
+				<div
+					className={cn(
+						'flex items-center gap-2 flex-1 bg-card border border-border px-3 h-8 max-w-xs',
+					)}
+				>
 					<Search
 						size={13}
 						className="text-muted-foreground shrink-0"
@@ -315,7 +333,11 @@ export function MarketView({ onNavigate }: MarketViewProps) {
 						value={query}
 						onChange={(e) => setQuery(e.target.value)}
 						placeholder="Search listings..."
-						className="flex-1 bg-transparent text-foreground placeholder:text-muted-foreground outline-none border-none text-[12px]"
+						className={cn(
+							'flex-1 bg-transparent text-foreground placeholder:text-muted-foreground',
+							'outline-none border-none text-[12px]',
+							'font-[family-name:var(--font-sans)]',
+						)}
 					/>
 				</div>
 
@@ -331,12 +353,17 @@ export function MarketView({ onNavigate }: MarketViewProps) {
 					</SelectContent>
 				</Select>
 
-				{/* Refresh button */}
+				{/* Refresh */}
 				<button
 					type="button"
 					onClick={handleRefresh}
 					disabled={loading}
-					className="flex items-center justify-center h-8 w-8 border border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary transition-colors duration-150 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+					className={cn(
+						'flex items-center justify-center h-8 w-8 border border-border bg-card',
+						'text-muted-foreground hover:text-foreground hover:border-primary',
+						'transition-colors duration-150 shrink-0',
+						'disabled:opacity-40 disabled:cursor-not-allowed',
+					)}
 					aria-label="Refresh listings"
 				>
 					<RefreshCw
@@ -351,8 +378,20 @@ export function MarketView({ onNavigate }: MarketViewProps) {
 			{error && !loading && (
 				<div className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground">
 					<Store size={28} strokeWidth={1.5} />
-					<span className="text-sm">Failed to load listings</span>
-					<span className="text-[11px] font-mono text-destructive">
+					<span
+						className={cn(
+							'text-sm',
+							'font-[family-name:var(--font-sans)]',
+						)}
+					>
+						Failed to load listings
+					</span>
+					<span
+						className={cn(
+							'text-[11px] text-destructive',
+							'font-[family-name:var(--font-mono)]',
+						)}
+					>
 						{error}
 					</span>
 				</div>
@@ -365,8 +404,15 @@ export function MarketView({ onNavigate }: MarketViewProps) {
 			{!loading && !error && filtered.length === 0 && (
 				<div className="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
 					<Store size={36} strokeWidth={1.5} />
-					<span className="text-sm">
-						{query ? `No listings match "${query}"` : 'No listings available'}
+					<span
+						className={cn(
+							'text-sm',
+							'font-[family-name:var(--font-sans)]',
+						)}
+					>
+						{query
+							? `No listings match "${query}"`
+							: 'No listings available'}
 					</span>
 				</div>
 			)}
