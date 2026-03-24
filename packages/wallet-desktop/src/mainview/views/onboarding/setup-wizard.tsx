@@ -23,6 +23,7 @@ import { StepIndicator, type Step } from '@/components/ui/step-indicator'
 import { rpc } from '../../rpc'
 
 const AI_SETTINGS_KEY = '1sat-ai-settings'
+const STEP_LABELS = ['Stack', 'AI', 'Identity', 'Ready'] as const
 
 interface StepResult {
 	stack: 'running' | 'skipped'
@@ -38,9 +39,31 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
 		identity: 'skipped',
 	})
 
-	const stepLabels = ['Stack', 'AI', 'Identity', 'Ready']
+	const handleStackAdvance = useCallback(
+		(status: 'running' | 'skipped') => {
+			setResult((r) => ({ ...r, stack: status }))
+			advance()
+		},
+		[advance],
+	)
 
-	const steps: Step[] = stepLabels.map((label, i) => ({
+	const handleAiAdvance = useCallback(
+		(model: string | null) => {
+			setResult((r) => ({ ...r, ai: model }))
+			advance()
+		},
+		[advance],
+	)
+
+	const handleIdentityAdvance = useCallback(
+		(status: 'published' | 'skipped') => {
+			setResult((r) => ({ ...r, identity: status }))
+			advance()
+		},
+		[advance],
+	)
+
+	const steps: Step[] = STEP_LABELS.map((label, i) => ({
 		id: String(i),
 		label,
 		status: i < currentStep ? 'complete' : i === currentStep ? 'active' : 'pending',
@@ -66,30 +89,9 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
 
 				<Card>
 					<CardContent>
-						{currentStep === 0 && (
-							<StackStep
-								onAdvance={(status) => {
-									setResult((r) => ({ ...r, stack: status }))
-									advance()
-								}}
-							/>
-						)}
-						{currentStep === 1 && (
-							<AiStep
-								onAdvance={(model) => {
-									setResult((r) => ({ ...r, ai: model }))
-									advance()
-								}}
-							/>
-						)}
-						{currentStep === 2 && (
-							<IdentityStep
-								onAdvance={(status) => {
-									setResult((r) => ({ ...r, identity: status }))
-									advance()
-								}}
-							/>
-						)}
+						{currentStep === 0 && <StackStep onAdvance={handleStackAdvance} />}
+						{currentStep === 1 && <AiStep onAdvance={handleAiAdvance} />}
+						{currentStep === 2 && <IdentityStep onAdvance={handleIdentityAdvance} />}
 						{currentStep === 3 && (
 							<ReadyStep result={result} onComplete={onComplete} />
 						)}
@@ -112,6 +114,7 @@ function StackStep({
 	const [adminUrl, setAdminUrl] = useState('')
 	const [autoAdvancing, setAutoAdvancing] = useState(false)
 	const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+	const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
 	const checkStatus = useCallback(async () => {
 		try {
@@ -131,11 +134,11 @@ function StackStep({
 		checkStatus().then((isRunning) => {
 			if (isRunning) {
 				setAutoAdvancing(true)
-				const t = setTimeout(() => onAdvance('running'), 1500)
-				return () => clearTimeout(t)
+				timeoutRef.current = setTimeout(() => onAdvance('running'), 1500)
 			}
 		})
 		return () => {
+			if (timeoutRef.current) clearTimeout(timeoutRef.current)
 			if (pollRef.current) clearInterval(pollRef.current)
 		}
 	}, [checkStatus, onAdvance])
@@ -148,7 +151,7 @@ function StackStep({
 				if (pollRef.current) clearInterval(pollRef.current)
 				pollRef.current = null
 				setAutoAdvancing(true)
-				setTimeout(() => onAdvance('running'), 1500)
+				timeoutRef.current = setTimeout(() => onAdvance('running'), 1500)
 			}
 		}, 3000)
 	}, [checkStatus, onAdvance])
@@ -251,6 +254,7 @@ function AiStep({
 		const settings = {
 			provider: 'ollama',
 			baseUrl: 'http://localhost:11434/v1',
+			apiKey: '',
 			model: selectedModel,
 		}
 		localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(settings))
@@ -367,6 +371,13 @@ function IdentityStep({
 	const [publishing, setPublishing] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 	const [displayName, setDisplayName] = useState('')
+	const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+	useEffect(() => {
+		return () => {
+			if (timeoutRef.current) clearTimeout(timeoutRef.current)
+		}
+	}, [])
 
 	useEffect(() => {
 		Promise.all([rpc.request.getBalance(), rpc.request.getIdentity()])
@@ -389,7 +400,7 @@ function IdentityStep({
 				setError(res.error)
 			} else {
 				setBapId(res.bapId ?? null)
-				setTimeout(() => onAdvance('published'), 1500)
+				timeoutRef.current = setTimeout(() => onAdvance('published'), 1500)
 			}
 		} catch (err) {
 			setError(String(err))
