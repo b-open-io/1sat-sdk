@@ -26,11 +26,16 @@ function satsToBsv(sats: number): string {
 	return (sats / SAT_PER_BSV).toFixed(8).replace(/\.?0+$/, '') || '0'
 }
 
-/** Rough USD estimate — static rate placeholder until price feed is wired */
-const BSV_USD_RATE = 60
+/**
+ * Static placeholder rate — replace with a live price feed.
+ * Keep in sync with confirm-dialog.tsx BSV_USD_ESTIMATE.
+ */
+const BSV_USD_RATE = 50
 
 function formatUsd(bsv: number): string {
-	return (bsv * BSV_USD_RATE).toFixed(2)
+	const usd = bsv * BSV_USD_RATE
+	if (usd < 0.01 && usd > 0) return '< 0.01'
+	return usd.toFixed(2)
 }
 
 function timeAgo(dateStr: string): string {

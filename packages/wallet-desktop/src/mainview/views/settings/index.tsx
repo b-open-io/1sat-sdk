@@ -1,4 +1,3 @@
-import { MnemonicGridUi } from '@/components/blocks/mnemonic-flow/mnemonic-grid-ui'
 import {
 	type ScanResult,
 	type SweepResult,
@@ -30,13 +29,13 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
-	AlertTriangle,
 	ExternalLink,
 	Globe,
-	Lock,
+	Info,
 	RefreshCw,
 	RotateCcw,
 	ShieldCheck,
+	Trash2,
 } from 'lucide-react'
 import { Switch } from 'radix-ui'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -188,21 +187,24 @@ const OVERLAY_KEYS = [
 // ---------------------------------------------------------------------------
 
 function SecurityTab() {
+	const { deleteWallet } = useWallet()
 	const [autoLock, setAutoLock] = useState('15')
-	const [seedDialogOpen, setSeedDialogOpen] = useState(false)
-	const [seedConfirmed, setSeedConfirmed] = useState(false)
+	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+	const [deleting, setDeleting] = useState(false)
+	const [deleteError, setDeleteError] = useState('')
 
-	const handleRevealConfirm = useCallback(() => {
-		setSeedConfirmed(true)
-	}, [])
-
-	const handleSeedDialogClose = useCallback((open: boolean) => {
-		setSeedDialogOpen(open)
-		if (!open) setSeedConfirmed(false)
-	}, [])
-
-	// Placeholder 12 words — in a real implementation these would come from RPC
-	const PLACEHOLDER_WORDS = Array(12).fill('') as string[]
+	const handleDeleteWallet = useCallback(async () => {
+		setDeleting(true)
+		setDeleteError('')
+		const result = await deleteWallet()
+		if (!result.success) {
+			setDeleteError(result.error ?? 'Failed to delete wallet')
+			setDeleting(false)
+			return
+		}
+		setDeleteDialogOpen(false)
+		setDeleting(false)
+	}, [deleteWallet])
 
 	return (
 		<div className="space-y-8 py-4">
@@ -222,85 +224,29 @@ function SecurityTab() {
 				</span>
 			</div>
 
-			{/* Backup section */}
+			{/* Backup info section */}
 			<div>
 				<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
 					Backup
 				</p>
 
-				<div className="flex items-center justify-between py-3">
+				<div className="bg-card rounded-lg p-4">
 					<div className="flex items-start gap-3">
-						<AlertTriangle className="size-4 text-amber-500 mt-0.5 shrink-0" />
-						<div>
-							<p className="text-sm font-medium">Backup Seed Phrase</p>
-							<p className="text-xs text-muted-foreground">
-								Write down your 12 recovery words and keep them safe
+						<Info className="size-4 text-muted-foreground mt-0.5 shrink-0" />
+						<div className="space-y-2">
+							<p className="text-sm font-medium">Seed Phrase</p>
+							<p className="text-xs text-muted-foreground leading-relaxed">
+								Your seed phrase was shown once during wallet creation. The
+								wallet stores a derived key protected by Touch ID and the Secure
+								Enclave — the seed phrase itself is never stored on this device.
+							</p>
+							<p className="text-xs text-muted-foreground leading-relaxed">
+								If you wrote down your 12 recovery words at creation time, keep
+								them stored safely offline. They are the only way to recover your
+								wallet on a new device.
 							</p>
 						</div>
 					</div>
-					<Dialog open={seedDialogOpen} onOpenChange={handleSeedDialogClose}>
-						<DialogTrigger asChild>
-							<Button variant="secondary" size="sm">
-								Reveal
-							</Button>
-						</DialogTrigger>
-						<DialogContent className="sm:max-w-md">
-							{!seedConfirmed ? (
-								<>
-									<DialogHeader>
-										<DialogTitle>Reveal Seed Phrase</DialogTitle>
-										<DialogDescription>
-											Anyone with these words can access your wallet and all
-											funds inside. Never share them with anyone.
-										</DialogDescription>
-									</DialogHeader>
-									<div className="p-3 border border-amber-500/30 bg-amber-500/5 rounded-md">
-										<p className="text-xs text-amber-600 dark:text-amber-400">
-											Are you sure you want to reveal your seed phrase? Make
-											sure no one can see your screen.
-										</p>
-									</div>
-									<DialogFooter>
-										<Button
-											variant="ghost"
-											onClick={() => setSeedDialogOpen(false)}
-										>
-											Cancel
-										</Button>
-										<Button variant="destructive" onClick={handleRevealConfirm}>
-											Yes, Show My Seed Phrase
-										</Button>
-									</DialogFooter>
-								</>
-							) : (
-								<>
-									<DialogHeader>
-										<DialogTitle>Your Seed Phrase</DialogTitle>
-										<DialogDescription>
-											Write these words down in order and store them somewhere
-											safe offline.
-										</DialogDescription>
-									</DialogHeader>
-									<div className="p-3 border border-amber-500/30 bg-amber-500/5 rounded-md mb-2">
-										<p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-											<Lock className="size-3 shrink-0" />
-											Seed phrase backup not available (protected by Secure
-											Enclave)
-										</p>
-									</div>
-									<MnemonicGridUi words={PLACEHOLDER_WORDS} columns={3} />
-									<DialogFooter>
-										<Button
-											variant="secondary"
-											onClick={() => setSeedDialogOpen(false)}
-										>
-											Done
-										</Button>
-									</DialogFooter>
-								</>
-							)}
-						</DialogContent>
-					</Dialog>
 				</div>
 			</div>
 
@@ -336,9 +282,70 @@ function SecurityTab() {
 
 			<Separator />
 
+			{/* Delete Wallet section */}
+			<div>
+				<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+					Danger Zone
+				</p>
+
+				<div className="flex items-center justify-between py-3">
+					<div>
+						<p className="text-sm font-medium text-destructive">Delete Wallet</p>
+						<p className="text-xs text-muted-foreground">
+							Remove the vault key and all local wallet data from this device
+						</p>
+					</div>
+					<Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+						<DialogTrigger asChild>
+							<Button
+								variant="ghost"
+								size="sm"
+								className="text-destructive hover:text-destructive hover:bg-destructive/10"
+							>
+								<Trash2 className="size-3.5 mr-1.5" />
+								Delete
+							</Button>
+						</DialogTrigger>
+						<DialogContent className="sm:max-w-sm">
+							<DialogHeader>
+								<DialogTitle>Delete Wallet</DialogTitle>
+								<DialogDescription>
+									This will permanently remove the Secure Enclave key and all
+									local wallet data. You will need your seed phrase to recover
+									this wallet.
+								</DialogDescription>
+							</DialogHeader>
+							{deleteError && (
+								<div className="p-3 border border-destructive/50 bg-destructive/5 text-destructive text-xs font-mono rounded-md">
+									{deleteError}
+								</div>
+							)}
+							<DialogFooter>
+								<Button
+									variant="ghost"
+									onClick={() => setDeleteDialogOpen(false)}
+									disabled={deleting}
+								>
+									Cancel
+								</Button>
+								<Button
+									variant="destructive"
+									onClick={handleDeleteWallet}
+									disabled={deleting}
+								>
+									{deleting ? 'Deleting...' : 'Permanently Delete'}
+								</Button>
+							</DialogFooter>
+						</DialogContent>
+					</Dialog>
+				</div>
+			</div>
+
+			<Separator />
+
 			{/* Connected Apps section */}
 			<div>
-				<p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+				<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
 					Connected Apps
 				</p>
 				<div className="flex flex-col items-center justify-center py-8 gap-2 text-center">

@@ -22,8 +22,10 @@ import {
 	Wallet,
 	X,
 } from 'lucide-react'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import type { OpnsNameInfo } from '../../../shared/types'
 import { Button } from '../../components/ui/button'
+import { rpc } from '../../rpc'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,7 +56,9 @@ interface ConfigureFormData {
 	permissions: string[]
 }
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const SAT_PER_BSV = 100_000_000
 
 const RECENT_PROJECTS_KEY = '1sat-publish-recent'
 
@@ -69,6 +73,9 @@ const DEFAULT_RECENT: RecentProject[] = [
 	},
 ]
 
+// Placeholder: these will be populated by a real file system build step once
+// native project scanning is implemented. For now the wizard UI needs
+// something to display in the build output table.
 const MOCK_BUILD_FILES: BuildFile[] = [
 	{ name: 'index.html', mime: 'text/html', sizeKb: 2.1 },
 	{ name: 'index-Da4x.js', mime: 'text/javascript', sizeKb: 98.4 },
@@ -76,6 +83,8 @@ const MOCK_BUILD_FILES: BuildFile[] = [
 	{ name: 'favicon.svg', mime: 'image/svg+xml', sizeKb: 2.8 },
 ]
 
+// Placeholder: real build error output will come from the native build
+// process once file system integration is wired up.
 const MOCK_BUILD_ERROR_LOG = `$ bun run build
 vite v6.0.3 building for production...
 transforming (1247 modules)...
@@ -87,26 +96,14 @@ ERROR  src/App.tsx:42:18
 ERROR  src/components/Game.tsx:89:5
   Cannot find module './assets/sprite.png'`
 
-const MOCK_IDENTITIES = [
-	{ id: 'satchmo.bsv', label: 'satchmo.bsv', color: '#6366f1' },
-	{ id: 'alt-identity', label: 'alt-identity.bsv', color: '#10b981' },
-]
-
 const DEFAULT_PERMISSIONS = ['getPublicKey', 'createAction']
 
-// Cost constants (mock)
+// Cost estimate constants — real fee estimation would need actual data size
 const COST_INSCRIPTION = 0.00142
 const COST_MAP = 0.00001
 const COST_AIP = 0.00001
 const COST_MINER = 0.00003
 const COST_TOTAL = COST_INSCRIPTION + COST_MAP + COST_AIP + COST_MINER
-
-// Mock balance — must be above COST_TOTAL so the happy path (broadcasting →
-// success) is reachable by default. Set to a value below COST_TOTAL to demo
-// the insufficient-funds UI instead.
-const MOCK_BALANCE = 0.002
-
-const MOCK_TXID = 'a7b3e9f2...c4d81e06'
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
 
@@ -582,6 +579,8 @@ function BuildStep({ project, onBack, onNext }: BuildStepProps) {
 interface ConfigureStepProps {
 	project: RecentProject
 	formData: ConfigureFormData
+	identities: OpnsNameInfo[]
+	identitiesLoading: boolean
 	onChange: (data: ConfigureFormData) => void
 	onBack: () => void
 	onNext: () => void
@@ -590,6 +589,8 @@ interface ConfigureStepProps {
 function ConfigureStep({
 	project,
 	formData,
+	identities,
+	identitiesLoading,
 	onChange,
 	onBack,
 	onNext,
@@ -745,57 +746,51 @@ function ConfigureStep({
 					)}
 				</div>
 
-				{/* Signing Identity */}
+				{/* Signing Identity (OpNS) */}
 				<div className="flex flex-col gap-1.5">
 					<div className="flex items-center gap-1.5">
 						<label
 							htmlFor="cfg-identity"
 							className="text-sm font-medium text-foreground"
 						>
-							Signing Identity (BAP)
+							Signing Identity (OpNS)
 						</label>
-						<TooltipIcon label="Bitcoin Attestation Protocol identity used to sign the inscription. The public key is embedded in the AIP signature." />
+						<TooltipIcon label="OpNS identity used to sign the inscription. Select one of your registered names." />
 					</div>
-					<div className="relative">
-						<select
-							id="cfg-identity"
-							value={formData.identity}
-							onChange={(e) =>
-								onChange({ ...formData, identity: e.target.value })
-							}
-							className={cn(
-								'w-full appearance-none pl-10 pr-8 py-2 text-sm bg-card border border-border text-foreground',
-								'focus:outline-none focus:ring-1 focus:ring-blue-500/60 focus:border-blue-500/60',
-								'transition-colors cursor-pointer',
-							)}
-						>
-							{MOCK_IDENTITIES.map((id) => (
-								<option key={id.id} value={id.id}>
-									{id.label}
-								</option>
-							))}
-						</select>
-						<div
-							className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full shrink-0 pointer-events-none"
-							style={{
-								background:
-									MOCK_IDENTITIES.find((i) => i.id === formData.identity)
-										?.color ?? '#6366f1',
-							}}
-							aria-hidden="true"
-						/>
-						<div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground">
-							<ChevronRight size={14} className="rotate-90" />
+					{identitiesLoading ? (
+						<div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground border border-border bg-card">
+							<RefreshCw size={13} className="animate-spin" />
+							Loading identities...
 						</div>
-					</div>
-					<div className="flex justify-end">
-						<button
-							type="button"
-							className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
-						>
-							+ Create new identity
-						</button>
-					</div>
+					) : identities.length === 0 ? (
+						<div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground border border-border bg-card">
+							No OpNS names found. Register a name first.
+						</div>
+					) : (
+						<div className="relative">
+							<select
+								id="cfg-identity"
+								value={formData.identity}
+								onChange={(e) =>
+									onChange({ ...formData, identity: e.target.value })
+								}
+								className={cn(
+									'w-full appearance-none pl-3 pr-8 py-2 text-sm bg-card border border-border text-foreground',
+									'focus:outline-none focus:ring-1 focus:ring-blue-500/60 focus:border-blue-500/60',
+									'transition-colors cursor-pointer',
+								)}
+							>
+								{identities.map((id) => (
+									<option key={id.outpoint} value={id.name}>
+										{id.name}
+									</option>
+								))}
+							</select>
+							<div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground">
+								<ChevronRight size={14} className="rotate-90" />
+							</div>
+						</div>
+					)}
 				</div>
 
 				{/* Requested Permissions */}

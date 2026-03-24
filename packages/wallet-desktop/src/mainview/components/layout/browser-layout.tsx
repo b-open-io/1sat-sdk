@@ -1224,6 +1224,11 @@ export function BrowserLayout() {
 				canGoForward={activeNav.canGoForward}
 				currentUrl={currentUrl}
 				onBookmark={() => bookmarksApi.addBookmark(currentUrl, currentTitle)}
+				onViewSource={() => {
+					if (currentUrl.startsWith('http'))
+						rpc.request.openBrowserWindow({ url: currentUrl, title: `Source: ${currentTitle}` })
+				}}
+				onAskAgent={toggleAgentSidebar}
 			>
 				<main
 					key={`${activeTabId}-${activeTab.reloadKey}`}

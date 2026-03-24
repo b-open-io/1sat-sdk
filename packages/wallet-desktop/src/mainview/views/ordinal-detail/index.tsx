@@ -2,15 +2,20 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
+	AlertCircle,
 	ArrowLeft,
+	CheckCircle2,
 	Copy,
 	ExternalLink,
 	FileQuestion,
 	ImageOff,
+	Loader2,
 	ShoppingCart,
 	Tag,
+	XCircle,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { rpc } from '../../rpc'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -134,9 +139,15 @@ function parseListing(raw: unknown): OrdLockListing | null {
 function useListing(outpoint: string): {
 	listing: OrdLockListing | null
 	listingLoading: boolean
+	refresh: () => void
 } {
 	const [listing, setListing] = useState<OrdLockListing | null>(null)
 	const [listingLoading, setListingLoading] = useState(true)
+	const [refreshKey, setRefreshKey] = useState(0)
+
+	const refresh = useCallback(() => {
+		setRefreshKey((k) => k + 1)
+	}, [])
 
 	useEffect(() => {
 		if (!outpoint) {
@@ -169,9 +180,9 @@ function useListing(outpoint: string): {
 		return () => {
 			cancelled = true
 		}
-	}, [outpoint])
+	}, [outpoint, refreshKey])
 
-	return { listing, listingLoading }
+	return { listing, listingLoading, refresh }
 }
 
 // ---------------------------------------------------------------------------
@@ -242,6 +253,7 @@ interface MetadataPanelProps {
 	listing: OrdLockListing | null
 	listingLoading: boolean
 	onNavigate?: (url: string) => void
+	onListingChanged?: () => void
 }
 
 function MetadataPanel({
@@ -249,6 +261,7 @@ function MetadataPanel({
 	listing,
 	listingLoading,
 	onNavigate,
+	onListingChanged,
 }: MetadataPanelProps) {
 	const [metadata, setMetadata] = useState<OrdinalMetadata | null>(null)
 	const [loading, setLoading] = useState(true)
@@ -257,6 +270,11 @@ function MetadataPanel({
 	const [showListInput, setShowListInput] = useState(false)
 	const [listPrice, setListPrice] = useState('')
 	const copyTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
+
+	// Marketplace action states
+	const [actionLoading, setActionLoading] = useState(false)
+	const [actionError, setActionError] = useState<string | null>(null)
+	const [actionSuccess, setActionSuccess] = useState<string | null>(null)
 
 	useEffect(() => () => clearTimeout(copyTimeoutRef.current), [])
 
@@ -312,25 +330,79 @@ function MetadataPanel({
 		}
 	}, [outpoint, onNavigate])
 
-	const handleBuy = useCallback(() => {
-		const origin = listing?.origin ?? outpoint
-		const viewUrl = `https://1satordinals.com/ordinal/${origin}`
-		alert(
-			`Purchase flow coming soon.\n\nView this ordinal on 1satordinals.com:\n${viewUrl}`,
-		)
-	}, [listing, outpoint])
+	const clearActionState = useCallback(() => {
+		setActionError(null)
+		setActionSuccess(null)
+	}, [])
+
+	const handleBuy = useCallback(async () => {
+		clearActionState()
+		setActionLoading(true)
+		try {
+			const result = await rpc.request.purchaseOrdinal({ outpoint })
+			if (result.error) {
+				setActionError(result.error)
+			} else {
+				setActionSuccess(`Purchased! txid: ${result.txid}`)
+				onListingChanged?.()
+			}
+		} catch (err) {
+			setActionError(
+				err instanceof Error ? err.message : 'Purchase failed',
+			)
+		} finally {
+			setActionLoading(false)
+		}
+	}, [outpoint, clearActionState, onListingChanged])
 
 	const handleListToggle = useCallback(() => {
 		setShowListInput((prev) => !prev)
 		setListPrice('')
 	}, [])
 
-	const handleListConfirm = useCallback(() => {
-		if (!listPrice || Number(listPrice) <= 0) return
-		alert('Listing flow coming soon.')
-		setShowListInput(false)
-		setListPrice('')
-	}, [listPrice])
+	const handleListConfirm = useCallback(async () => {
+		const price = Number(listPrice)
+		if (!listPrice || price <= 0) return
+		clearActionState()
+		setActionLoading(true)
+		try {
+			const result = await rpc.request.listOrdinal({ outpoint, price })
+			if (result.error) {
+				setActionError(result.error)
+			} else {
+				setActionSuccess(`Listed for ${price.toLocaleString()} sats! txid: ${result.txid}`)
+				setShowListInput(false)
+				setListPrice('')
+				onListingChanged?.()
+			}
+		} catch (err) {
+			setActionError(
+				err instanceof Error ? err.message : 'Listing failed',
+			)
+		} finally {
+			setActionLoading(false)
+		}
+	}, [listPrice, outpoint, clearActionState, onListingChanged])
+
+	const handleCancelListing = useCallback(async () => {
+		clearActionState()
+		setActionLoading(true)
+		try {
+			const result = await rpc.request.cancelListing({ outpoint })
+			if (result.error) {
+				setActionError(result.error)
+			} else {
+				setActionSuccess(`Listing cancelled. txid: ${result.txid}`)
+				onListingChanged?.()
+			}
+		} catch (err) {
+			setActionError(
+				err instanceof Error ? err.message : 'Cancel failed',
+			)
+		} finally {
+			setActionLoading(false)
+		}
+	}, [outpoint, clearActionState, onListingChanged])
 
 	const displayName = metadata?.name ?? (loading ? 'Loading…' : 'Unnamed')
 
@@ -451,27 +523,71 @@ function MetadataPanel({
 			{/* Spacer pushes actions to the bottom when content is short */}
 			<div className="flex-1" />
 
+			{/* Action feedback */}
+			{actionError && (
+				<div className="flex items-start gap-2 border border-destructive/30 bg-destructive/5 p-3">
+					<AlertCircle
+						size={14}
+						className="mt-0.5 shrink-0 text-destructive"
+						aria-hidden="true"
+					/>
+					<p className="text-[11px] text-destructive">{actionError}</p>
+				</div>
+			)}
+			{actionSuccess && (
+				<div className="flex items-start gap-2 border border-primary/30 bg-primary/5 p-3">
+					<CheckCircle2
+						size={14}
+						className="mt-0.5 shrink-0 text-primary"
+						aria-hidden="true"
+					/>
+					<p className="text-[11px] text-primary">{actionSuccess}</p>
+				</div>
+			)}
+
 			{/* Action buttons */}
 			<div className="flex flex-col gap-2 border-t border-border pt-3">
-				{/* Buy / List for Sale — mutually exclusive based on listing state */}
+				{/* Buy / Cancel / List for Sale — based on listing state */}
 				{listingLoading ? (
 					<Skeleton className="h-7 w-full rounded-none" />
 				) : listing ? (
-					<Button
-						variant="default"
-						size="sm"
-						className="w-full justify-start gap-2 text-xs"
-						onClick={handleBuy}
-					>
-						<ShoppingCart aria-hidden="true" />
-						Buy for {listing.priceSats.toLocaleString()} sats
-					</Button>
+					<>
+						<Button
+							variant="default"
+							size="sm"
+							className="w-full justify-start gap-2 text-xs"
+							disabled={actionLoading}
+							onClick={handleBuy}
+						>
+							{actionLoading ? (
+								<Loader2 className="animate-spin" aria-hidden="true" />
+							) : (
+								<ShoppingCart aria-hidden="true" />
+							)}
+							Buy for {listing.priceSats.toLocaleString()} sats
+						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							className="w-full justify-start gap-2 text-xs"
+							disabled={actionLoading}
+							onClick={handleCancelListing}
+						>
+							{actionLoading ? (
+								<Loader2 className="animate-spin" aria-hidden="true" />
+							) : (
+								<XCircle aria-hidden="true" />
+							)}
+							Cancel Listing
+						</Button>
+					</>
 				) : (
 					<>
 						<Button
 							variant="outline"
 							size="sm"
 							className="w-full justify-start gap-2 text-xs"
+							disabled={actionLoading}
 							onClick={handleListToggle}
 						>
 							<Tag aria-hidden="true" />
@@ -486,16 +602,29 @@ function MetadataPanel({
 									value={listPrice}
 									onChange={(e) => setListPrice(e.target.value)}
 									className="h-7 text-xs flex-1"
+									disabled={actionLoading}
 									autoFocus
 								/>
 								<Button
 									variant="default"
 									size="sm"
 									className="h-7 text-xs px-3"
-									disabled={!listPrice || Number(listPrice) <= 0}
+									disabled={
+										actionLoading ||
+										!listPrice ||
+										Number(listPrice) <= 0
+									}
 									onClick={handleListConfirm}
 								>
-									Confirm
+									{actionLoading ? (
+										<Loader2
+											size={14}
+											className="animate-spin"
+											aria-hidden="true"
+										/>
+									) : (
+										'Confirm'
+									)}
 								</Button>
 							</div>
 						)}
@@ -539,7 +668,7 @@ export function OrdinalDetailView({
 	onNavigate,
 }: OrdinalDetailViewProps) {
 	const outpoint = params.outpoint ?? ''
-	const { listing, listingLoading } = useListing(outpoint)
+	const { listing, listingLoading, refresh: refreshListing } = useListing(outpoint)
 
 	const handleBack = useCallback(() => {
 		onNavigate?.('1sat://ordinals/gallery')
@@ -593,6 +722,7 @@ export function OrdinalDetailView({
 						listing={listing}
 						listingLoading={listingLoading}
 						onNavigate={onNavigate}
+						onListingChanged={refreshListing}
 					/>
 				</div>
 			</div>
