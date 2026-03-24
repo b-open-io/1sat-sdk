@@ -122,14 +122,16 @@ function TxRow({ entry }: { entry: HistoryEntry }) {
 
 interface WalletPopoverProps {
 	onNavigate: (url: string) => void
+	onOpenChange?: (open: boolean) => void
 }
 
-export function WalletPopover({ onNavigate }: WalletPopoverProps) {
+export function WalletPopover({ onNavigate, onOpenChange }: WalletPopoverProps) {
 	const { balance, status } = useWallet()
 	const [receiveInfo, setReceiveInfo] = useState<ReceiveInfo | null>(null)
 	const [history, setHistory] = useState<HistoryEntry[]>([])
 	const [copied, setCopied] = useState(false)
-	const [open, setOpen] = useState(false)
+	const [open, setOpenInternal] = useState(false)
+	const setOpen = useCallback((v: boolean) => { setOpenInternal(v); onOpenChange?.(v) }, [onOpenChange])
 	const [sendOpen, setSendOpen] = useState(false)
 	const [receiveOpen, setReceiveOpen] = useState(false)
 	const [ordinalCount, setOrdinalCount] = useState(0)

@@ -589,6 +589,8 @@ interface ToolbarProps {
 	bookmarksApi: ReturnType<typeof useBookmarks>
 	currentUrl: string
 	currentTitle: string
+	onPopoverOpen?: () => void
+	onPopoverClose?: () => void
 }
 
 function Toolbar({
@@ -606,8 +608,16 @@ function Toolbar({
 	bookmarksApi,
 	currentUrl,
 	currentTitle,
+	onPopoverOpen,
+	onPopoverClose,
 }: ToolbarProps) {
 	const [bookmarksOpen, setBookmarksOpen] = useState(false)
+
+	// Notify parent when any popover opens/closes (for webview passthrough)
+	const trackPopover = useCallback((open: boolean) => {
+		if (open) onPopoverOpen?.()
+		else onPopoverClose?.()
+	}, [onPopoverOpen, onPopoverClose])
 
 	return (
 		<div
@@ -648,20 +658,21 @@ function Toolbar({
 			{/* Identity + action buttons */}
 			<IdentityChip />
 			<div className="flex items-center gap-0.5">
-				<WalletPopover onNavigate={onNavigate} />
+				<WalletPopover onNavigate={onNavigate} onOpenChange={trackPopover} />
 				<BookmarksPopover
 					bookmarksApi={bookmarksApi}
 					currentUrl={currentUrl}
 					currentTitle={currentTitle}
 					onNavigate={onNavigate}
 					open={bookmarksOpen}
-					onOpenChange={setBookmarksOpen}
+					onOpenChange={(v) => { setBookmarksOpen(v); trackPopover(v) }}
 				/>
 				<AgentPopover onOpenAgent={onOpenAgent} />
 				<MenuPopover
 					onNavigate={onNavigate}
 					onOpenBookmarks={() => setBookmarksOpen(true)}
 					onToggleTabMode={onToggleTabMode}
+					onOpenChange={trackPopover}
 				/>
 			</div>
 		</div>
@@ -871,6 +882,21 @@ export function BrowserLayout() {
 
 	// Ref to the active electrobun-webview element (set by WebViewContent)
 	const activeWebviewRef = useRef<HTMLElement | null>(null)
+
+	// Track open popovers — when any is open, passthrough the webview so popover clicks work
+	const openPopoverCount = useRef(0)
+	const setWebviewPassthrough = useCallback((passthrough: boolean) => {
+		const wv = activeWebviewRef.current as HTMLElement & { togglePassthrough?: (v: boolean) => void } | null
+		if (wv?.togglePassthrough) wv.togglePassthrough(passthrough)
+	}, [])
+	const onPopoverOpen = useCallback(() => {
+		openPopoverCount.current++
+		if (openPopoverCount.current === 1) setWebviewPassthrough(true)
+	}, [setWebviewPassthrough])
+	const onPopoverClose = useCallback(() => {
+		openPopoverCount.current = Math.max(0, openPopoverCount.current - 1)
+		if (openPopoverCount.current === 0) setWebviewPassthrough(false)
+	}, [setWebviewPassthrough])
 
 	// ── Find on page ───────────────────────────────────────────────────────
 	const [findBarOpen, setFindBarOpen] = useState(false)
@@ -1320,6 +1346,8 @@ export function BrowserLayout() {
 						bookmarksApi={bookmarksApi}
 						currentUrl={currentUrl}
 						currentTitle={currentTitle}
+						onPopoverOpen={onPopoverOpen}
+						onPopoverClose={onPopoverClose}
 					/>
 
 					{/* Divider */}

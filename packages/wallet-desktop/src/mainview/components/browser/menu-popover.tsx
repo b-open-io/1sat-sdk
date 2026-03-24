@@ -74,10 +74,13 @@ interface MenuPopoverProps {
 	onToggleAgent?: () => void
 	onOpenBookmarks?: () => void
 	onToggleTabMode?: () => void
+	onOpenChange?: (open: boolean) => void
 }
 
-export function MenuPopover({ onNavigate, onToggleAgent, onOpenBookmarks, onToggleTabMode }: MenuPopoverProps) {
-	const [open, setOpen] = useState(false)
+export function MenuPopover({ onNavigate, onToggleAgent, onOpenBookmarks, onToggleTabMode, onOpenChange }: MenuPopoverProps) {
+	const [openInternal, setOpenInternal] = useState(false)
+	const setOpen = useCallback((v: boolean) => { setOpenInternal(v); onOpenChange?.(v) }, [onOpenChange])
+	const open = openInternal
 
 	const navigate = (url: string) => {
 		setOpen(false)
