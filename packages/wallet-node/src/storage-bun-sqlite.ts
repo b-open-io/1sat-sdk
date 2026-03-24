@@ -1051,8 +1051,13 @@ export class StorageBunSqlite extends StorageProvider {
 			v.updated_at as Date | string | number | undefined,
 			true,
 		)
-		if (!v.created_at) v.created_at = undefined
-		if (!v.updated_at) v.updated_at = undefined
+		// Guarantee valid ISO strings — SQLite DEFAULT only applies when the
+		// column is omitted from the INSERT, but insertRow includes all non-null
+		// keys. If the validation pipeline returns a falsy or non-string value,
+		// force a valid timestamp so the NOT NULL constraint never fails.
+		const nowIso = new Date().toISOString()
+		if (!v.created_at || typeof v.created_at !== 'string') v.created_at = nowIso
+		if (!v.updated_at || typeof v.updated_at !== 'string') v.updated_at = nowIso
 
 		if (dateFields) {
 			for (const df of dateFields) {

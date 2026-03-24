@@ -10,6 +10,8 @@ import type { Vault } from '@1sat/vault'
 import type { NodeWalletResult } from '@1sat/wallet-node'
 import { createNodeWallet } from '@1sat/wallet-node'
 import { HD, Mnemonic, PrivateKey } from '@bsv/sdk'
+import { existsSync, mkdirSync, copyFileSync, readdirSync } from 'node:fs'
+import path from 'node:path'
 import { Utils } from 'electrobun/bun'
 import type { BalanceInfo, SyncEvent, WalletStatus } from '../shared/types'
 import { getStackUrl, isStackSetupComplete } from './sidecar-manager'
@@ -188,10 +190,68 @@ export function getMonitor() {
 }
 
 /**
+ * Migrate data from the old `com.1satwallet` app identifier to the
+ * current `app.1sat` path. Only runs once — skips if the new location
+ * already has wallet data. The Secure Enclave key is in
+ * `~/.secure-enclave-vault/` (independent of app identifier) so it
+ * remains accessible after migration.
+ */
+function migrateFromOldIdentifier(): void {
+	const newUserData = Utils.paths.userData
+	// Derive old path: replace `app.1sat` with `com.1satwallet` in parent
+	const oldUserData = path.join(
+		path.dirname(newUserData),
+		'com.1satwallet',
+		path.basename(newUserData), // preserves channel subdir (e.g. "dev")
+	)
+
+	// Nothing to migrate if old path doesn't exist
+	if (!existsSync(oldUserData)) return
+
+	const oldDb = path.join(oldUserData, 'wallet.db')
+	const newDb = dbPath()
+
+	// Don't overwrite if new DB already exists
+	if (existsSync(newDb)) return
+	if (!existsSync(oldDb)) return
+
+	console.log(`Migrating wallet data from ${oldUserData} to ${newUserData}`)
+
+	// Copy wallet DB files (db, db-wal, db-shm)
+	for (const suffix of ['', '-wal', '-shm']) {
+		const src = `${oldDb}${suffix}`
+		if (existsSync(src)) {
+			copyFileSync(src, `${newDb}${suffix}`)
+			console.log(`  Copied wallet.db${suffix}`)
+		}
+	}
+
+	// Copy vault directory
+	const oldVault = path.join(oldUserData, 'vault')
+	const newVault = path.join(newUserData, 'vault')
+	if (existsSync(oldVault) && !existsSync(newVault)) {
+		mkdirSync(newVault, { recursive: true })
+		for (const file of readdirSync(oldVault)) {
+			copyFileSync(path.join(oldVault, file), path.join(newVault, file))
+			console.log(`  Copied vault/${file}`)
+		}
+	}
+
+	console.log('Migration complete')
+}
+
+/**
  * Check whether the vault holds a stored root key,
  * and update the status accordingly.
  */
 export function checkVault(): boolean {
+	// Migrate from old app identifier if needed
+	try {
+		migrateFromOldIdentifier()
+	} catch (err) {
+		console.error('Migration from com.1satwallet failed:', err)
+	}
+
 	const v = getVault()
 	const stored = hasStoredKey(v)
 	if (
