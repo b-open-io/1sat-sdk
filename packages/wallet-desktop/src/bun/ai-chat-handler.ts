@@ -134,6 +134,7 @@ export function validateChatAuth(req: Request): Response | null {
 export async function handleChatRequest(req: Request): Promise<Response> {
 	const now = Date.now()
 	if (now - lastRequestTime < MIN_REQUEST_INTERVAL_MS) {
+		console.error('[chat] rate limited')
 		return new Response(
 			JSON.stringify({ error: 'Rate limited: max 1 request per second' }),
 			{ status: 429, headers: { 'Content-Type': 'application/json' } },
@@ -151,6 +152,8 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 		const rawContext = body.context as
 			| { url?: unknown; content?: unknown }
 			| undefined
+
+		console.log(`[chat] ${provider}/${modelName} messages=${messages.length}`)
 
 		const contextUrl = sanitizeContextField(rawContext?.url)
 		const contextContent = sanitizeContextField(rawContext?.content)
@@ -171,7 +174,10 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 		}
 
 		// Get MCP tools (authenticated via BRC-31 to local MCP server)
+		console.log('[chat] fetching MCP tools...')
+		const t0 = performance.now()
 		const mcpTools = await getMcpTools()
+		console.log(`[chat] MCP tools ready (${Math.round(performance.now() - t0)}ms)`)
 
 		const baseModel = createModel(provider, modelName, baseUrl, apiKey)
 
@@ -181,6 +187,7 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 			middleware: extractReasoningMiddleware({ tagName: 'think', startWithReasoning: true }),
 		})
 
+		console.log('[chat] starting streamText...')
 		const result = streamText({
 			model,
 			system: systemPrompt,

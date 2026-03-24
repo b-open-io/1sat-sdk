@@ -211,7 +211,7 @@ export function AgentSidebar({
 			</div>
 
 			{/* Messages area */}
-			<ScrollArea className="flex-1">
+			<ScrollArea className="flex-1 overflow-hidden">
 				<div
 					ref={scrollRef}
 					className="px-3 py-3 space-y-3"

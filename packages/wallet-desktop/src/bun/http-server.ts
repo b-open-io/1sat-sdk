@@ -45,19 +45,18 @@ const CORS_HEADERS: Record<string, string> = {
  */
 function chatCorsHeaders(req: Request): Record<string, string> {
 	const origin = req.headers.get('Origin') ?? ''
-	// Allow localhost, 127.0.0.1, and Electrobun webview origins (views://, file://, or null)
-	const isLocalOrigin =
-		/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
+	// This endpoint is localhost-only (bound to 127.0.0.1). The custom
+	// X-Requested-With header + auth check prevents external abuse.
+	// Electrobun webviews send non-standard origins (views://mainview)
+	// that WebKit treats as opaque — only wildcard works for these.
+	const isLocal =
+		!origin ||
+		origin === 'null' ||
 		origin.startsWith('views://') ||
 		origin.startsWith('file://') ||
-		origin === 'null' ||
-		origin === ''
-	// Opaque origins (null, empty) from webviews need wildcard — browsers reject literal "null"
-	const allowOrigin = isLocalOrigin
-		? (origin && origin !== 'null' ? origin : '*')
-		: 'null'
+		/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
 	return {
-		'Access-Control-Allow-Origin': allowOrigin,
+		'Access-Control-Allow-Origin': isLocal ? '*' : 'null',
 		'Access-Control-Allow-Methods': 'POST, OPTIONS',
 		'Access-Control-Allow-Headers': `Content-Type, ${CHAT_REQUIRED_HEADER}`,
 		'Access-Control-Max-Age': '86400',
@@ -368,17 +367,23 @@ async function handleRequest(req: Request): Promise<Response> {
 	if (pathname === '/api/chat') {
 		const corsHeaders = chatCorsHeaders(req)
 		if (req.method === 'OPTIONS') {
+			console.log(`[http] ${req.method} ${pathname} → 204 preflight (origin: ${req.headers.get('Origin')})`)
 			return new Response(null, { status: 204, headers: corsHeaders })
 		}
 		if (req.method === 'POST') {
+			console.log(`[http] ${req.method} ${pathname} (origin: ${req.headers.get('Origin')})`)
 			// Validate auth header
 			const authError = validateChatAuth(req)
-			if (authError) return authError
+			if (authError) {
+				console.error(`[http] ${pathname} → 403 auth failed`)
+				return authError
+			}
 			const response = await handleChatRequest(req)
 			// Append CORS headers to the streaming response
 			for (const [k, v] of Object.entries(corsHeaders)) {
 				response.headers.set(k, v)
 			}
+			console.log(`[http] ${pathname} → ${response.status} streaming`)
 			return response
 		}
 	}

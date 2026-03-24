@@ -45,8 +45,10 @@ const rpc = Electroview.defineRPC<WalletDesktopRPC>({
 			},
 			tabCreate: ({ url }: { url?: string }) => {
 				const ctrl = getBrowserController()
-				if (!ctrl) return { tabId: '' }
-				return { tabId: ctrl.createTab(url) }
+				if (ctrl) return { tabId: ctrl.createTab(url) }
+				// Browser not mounted — navigate the app to it with the URL
+				emit('navigateToUrl', { url: url ?? '1sat://browser/new' })
+				return { tabId: 'pending' }
 			},
 			tabClose: ({ tabId }: { tabId: string }) => {
 				const ctrl = getBrowserController()
