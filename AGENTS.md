@@ -84,27 +84,42 @@ When bumping a package version and publishing to npm:
 
 ## wallet-desktop Logging
 
-All bun-side modules use `createLog`/`createReqLog` from `src/bun/log.ts` instead of importing evlog directly. Events go to three destinations:
+`src/bun/log.ts` is a side-effect module that calls `initLogger` with a composite drain. The drain fans out to three destinations:
 
-1. **evlog** (stdout) — standard structured logging
-2. **MCP ring buffer** — queryable via `wallet_logs` MCP tool (last 500 events)
-3. **File** (`~/.1sat-wallet/app.log`) — survives crashes, readable from installed app
+1. **File** (`~/.1sat-wallet/logs/*.jsonl`) — NDJSON with date rotation (`2026-03-24.jsonl`), 7-day max retention. Uses `createFsDrain` from `evlog/fs` wrapped in `createDrainPipeline` from `evlog/pipeline` (batches 25 events or 2s).
+2. **MCP ring buffer** — queryable via `wallet_logs` MCP tool (last 500 events). Pushed inline in the composite drain.
+3. **stdout** — standard evlog structured output.
 
-When adding new logging in `packages/wallet-desktop/src/bun/`, always import from `./log` (or `../log`), never directly from `evlog`. The only file that imports `initLogger` from evlog is `index.ts`.
+The `initLogger` call sets `env: { service: '1sat-wallet' }` — evlog auto-detects environment, version, etc.
+
+### How it's wired
+
+- `src/bun/log.ts` is imported as a side effect in `index.ts` (`import './log'`) before any logging calls.
+- `flushLogs()` is called on app quit to flush buffered events to disk.
+- `index.ts` is the **only** file that imports from `./log` (for side-effect init and `flushLogs`).
+
+### Adding logging in wallet-desktop bun modules
+
+Import directly from `evlog` — **not** from `./log`:
+
+- `createLogger({ context: 'startup' })` — non-request logging
+- `createRequestLogger({ method, path })` — HTTP request logging
+- `log.set()` — accumulate context fields on the wide event
+- `log.emit()` — flush the wide event
 
 ### Debugging the installed app
 
 When the signed/notarized build fails (window doesn't open, skeletons forever):
 
 ```bash
-cat ~/.1sat-wallet/app.log | tail -30
+tail -30 ~/.1sat-wallet/logs/$(date +%Y-%m-%d).jsonl
 ```
 
 Startup events in order: `url_resolved` → `window_created` → `dom_ready` → `http_listening` → `mcp_listening` → `setup_complete`. Whichever is missing tells you where it stopped.
 
 ### Debugging for other users
 
-Have them send `~/.1sat-wallet/app.log`. Key things to check:
+Have them send `~/.1sat-wallet/logs/`. Key things to check:
 - `dom_ready` with `hasKey: false` → no wallet created, should see onboarding
 - `dom_ready` with `hasKey: true` → wallet exists, should see unlock screen
 - `start_failed` in stack context → 1sat-stack sidecar didn't start (data won't load)

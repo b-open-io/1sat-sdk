@@ -16,8 +16,6 @@ import { ollama } from 'ai-sdk-ollama'
 import { createRequestLogger } from 'evlog'
 import { getMcpTools } from './mcp/client'
 
-const DEFAULT_MODEL = 'qwen3:14b' // Supports tool calling. minimax-m2.7:cloud also works.
-
 /** Required custom header value */
 export const CHAT_REQUIRED_HEADER = 'X-Requested-With'
 export const CHAT_REQUIRED_HEADER_VALUE = '1SatBrowser'
@@ -151,7 +149,17 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 	try {
 		const body = await req.json()
 		const messages: UIMessage[] = body.messages ?? []
-		const modelName: string = body.model ?? DEFAULT_MODEL
+		const modelName: string | undefined = body.model
+		if (!modelName) {
+			log.set({ status: 400, error: 'no_model_specified' })
+			log.emit()
+			return new Response(
+				JSON.stringify({
+					error: 'No AI model specified. Go to Settings > AI and select a model.',
+				}),
+				{ status: 400, headers: { 'Content-Type': 'application/json' } },
+			)
+		}
 		const provider: ProviderType = body.provider ?? 'ollama'
 		const baseUrl: string | undefined = body.baseUrl
 		const apiKey: string | undefined = body.apiKey

@@ -77,8 +77,8 @@ function ModelSelector({
 				style={{ borderRadius: 4 }}
 			>
 				<Sparkles size={10} style={{ color: 'var(--agent-accent-muted)' }} />
-				<span className="text-muted-foreground">
-					{value.replace(':latest', '')}
+				<span className={cn('text-muted-foreground', !value && 'italic')}>
+					{value ? value.replace(':latest', '') : 'Select model'}
 				</span>
 				<ChevronDown size={8} className="text-muted-foreground" />
 			</button>
@@ -152,7 +152,7 @@ export function AiChatView({
 		} catch {}
 	}, [])
 
-	const selectedModel = aiSettings.model ?? 'qwen3:14b'
+	const selectedModel = aiSettings.model ?? ''
 	const [modelOverride, setModelOverride] = useState<string | null>(null)
 	const activeModel = modelOverride ?? selectedModel
 
