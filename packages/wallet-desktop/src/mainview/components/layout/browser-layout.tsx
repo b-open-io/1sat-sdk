@@ -690,9 +690,9 @@ function resolveWebViewUrl(route: ParsedRoute): string | null {
 		case 'search':
 			return route.url
 		case 'onchain-outpoint':
-			return `${ORDFS_BASE}${route.txid}_${route.vout}${route.path ?? ''}`
+			return `${ORDFS_BASE}/content/${route.txid}_${route.vout}${route.path ?? ''}`
 		case 'onchain-opns':
-			return `${ORDFS_BASE}${route.name}${route.path ?? ''}`
+			return `${ORDFS_BASE}/content/${route.name}${route.path ?? ''}`
 		default:
 			return null
 	}

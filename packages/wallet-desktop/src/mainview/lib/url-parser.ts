@@ -15,8 +15,8 @@ const OPNS_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9-]*$/
  */
 const HOSTNAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}(\/.*)?$/
 
-/** Base URL for resolving on-chain content through the local ORDFS gateway */
-export const ORDFS_BASE = 'http://127.0.0.1:8080/content/'
+/** Base URL for the local ORDFS gateway */
+export const ORDFS_BASE = 'http://127.0.0.1:8080'
 
 /**
  * Parse a user-entered URL string into a structured route.

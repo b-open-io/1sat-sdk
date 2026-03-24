@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useChat } from '@ai-sdk/react'
-import { DefaultChatTransport } from 'ai'
+import { DefaultChatTransport, isToolUIPart } from 'ai'
 import {
 	ArrowUp,
 	Bot,
@@ -319,16 +319,39 @@ export function AiChatView({
 										: '8px 8px 8px 2px',
 							}}
 						>
-							{message.parts.map((part, i) =>
-								part.type === 'text' ? (
-									<span
-										key={`${message.id}-${i}`}
-										className="whitespace-pre-wrap"
-									>
-										{part.text}
-									</span>
-								) : null,
-							)}
+							{message.parts.map((part, i) => {
+								if (part.type === 'text') {
+									return (
+										<span
+											key={`${message.id}-${i}`}
+											className="whitespace-pre-wrap"
+										>
+											{part.text}
+										</span>
+									)
+								}
+								if (isToolUIPart(part)) {
+									return (
+										<div
+											key={`${message.id}-${i}`}
+											className={cn('my-1 px-2 py-1 bg-muted/30 border border-border text-[10px]', MONO)}
+											style={{ borderRadius: 4 }}
+										>
+											<span className="text-primary">{part.toolName}</span>
+											{part.state === 'output-available' && (
+												<span className="text-muted-foreground ml-1">done</span>
+											)}
+											{part.state === 'input-available' && (
+												<span className="text-muted-foreground ml-1">calling...</span>
+											)}
+											{part.state === 'input-streaming' && (
+												<span className="text-muted-foreground ml-1">...</span>
+											)}
+										</div>
+									)
+								}
+								return null
+							})}
 						</div>
 					</div>
 				))}
@@ -368,7 +391,7 @@ export function AiChatView({
 							SANS,
 						)}
 						style={{ borderRadius: 6, maxHeight: 120 }}
-						disabled={isStreaming}
+						disabled={status === 'submitted'}
 					/>
 					<button
 						type="button"

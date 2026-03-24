@@ -15,13 +15,8 @@ import {
 	XCircle,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ORDFS_BASE } from '../../lib/url-parser'
 import { rpc } from '../../rpc'
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const ORDFS_BASE = 'http://127.0.0.1:8080'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -185,6 +180,42 @@ function useListing(outpoint: string): {
 	return { listing, listingLoading, refresh }
 }
 
+/** Check whether the outpoint belongs to the current wallet's ordinals. */
+function useIsOwned(outpoint: string): { isOwned: boolean; ownershipLoading: boolean } {
+	const [isOwned, setIsOwned] = useState(false)
+	const [ownershipLoading, setOwnershipLoading] = useState(true)
+
+	useEffect(() => {
+		if (!outpoint) {
+			setOwnershipLoading(false)
+			return
+		}
+
+		let cancelled = false
+		setOwnershipLoading(true)
+
+		rpc.request
+			.getOrdinals({ limit: 200 })
+			.then((result) => {
+				if (!cancelled) {
+					setIsOwned(result.ordinals.some((o) => o.outpoint === outpoint))
+				}
+			})
+			.catch(() => {
+				if (!cancelled) setIsOwned(false)
+			})
+			.finally(() => {
+				if (!cancelled) setOwnershipLoading(false)
+			})
+
+		return () => {
+			cancelled = true
+		}
+	}, [outpoint])
+
+	return { isOwned, ownershipLoading }
+}
+
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
@@ -252,6 +283,8 @@ interface MetadataPanelProps {
 	outpoint: string
 	listing: OrdLockListing | null
 	listingLoading: boolean
+	isOwned: boolean
+	ownershipLoading: boolean
 	onNavigate?: (url: string) => void
 	onListingChanged?: () => void
 }
@@ -260,6 +293,8 @@ function MetadataPanel({
 	outpoint,
 	listing,
 	listingLoading,
+	isOwned,
+	ownershipLoading,
 	onNavigate,
 	onListingChanged,
 }: MetadataPanelProps) {
@@ -313,11 +348,14 @@ function MetadataPanel({
 	}, [outpoint])
 
 	const handleCopy = useCallback(() => {
-		navigator.clipboard.writeText(outpoint).then(() => {
-			clearTimeout(copyTimeoutRef.current)
-			setCopied(true)
-			copyTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
-		})
+		navigator.clipboard
+			.writeText(outpoint)
+			.then(() => {
+				clearTimeout(copyTimeoutRef.current)
+				setCopied(true)
+				copyTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
+			})
+			.catch(() => {})
 	}, [outpoint])
 
 	const handleViewOnExplorer = useCallback(() => {

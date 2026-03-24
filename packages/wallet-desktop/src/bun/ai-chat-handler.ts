@@ -10,7 +10,7 @@
  * from the user's AI settings. The handler creates the appropriate provider
  * instance and passes MCP tools for tool-calling models.
  */
-import { convertToModelMessages, streamText, type UIMessage } from 'ai'
+import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from 'ai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { ollama } from 'ai-sdk-ollama'
 import { getMcpTools } from './mcp/client'
@@ -178,7 +178,7 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 			system: systemPrompt,
 			messages: await convertToModelMessages(messages),
 			tools: mcpTools,
-			maxSteps: 15,
+			stopWhen: stepCountIs(15),
 		})
 
 		return result.toUIMessageStreamResponse()

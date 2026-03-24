@@ -630,15 +630,33 @@ function ConfigureStep({
 		[formData, onChange],
 	)
 
-	const handleAddPermission = useCallback(() => {
-		const name = prompt('Permission name (e.g. signTransaction):')
-		if (name?.trim() && !formData.permissions.includes(name.trim())) {
+	const [addingPermission, setAddingPermission] = useState(false)
+	const [newPermissionName, setNewPermissionName] = useState('')
+	const permissionInputRef = useRef<HTMLInputElement>(null)
+
+	const handleStartAddPermission = useCallback(() => {
+		setAddingPermission(true)
+		setNewPermissionName('')
+		// Focus after render
+		requestAnimationFrame(() => permissionInputRef.current?.focus())
+	}, [])
+
+	const handleConfirmPermission = useCallback(() => {
+		const name = newPermissionName.trim()
+		if (name && !formData.permissions.includes(name)) {
 			onChange({
 				...formData,
-				permissions: [...formData.permissions, name.trim()],
+				permissions: [...formData.permissions, name],
 			})
 		}
-	}, [formData, onChange])
+		setAddingPermission(false)
+		setNewPermissionName('')
+	}, [newPermissionName, formData, onChange])
+
+	const handleCancelPermission = useCallback(() => {
+		setAddingPermission(false)
+		setNewPermissionName('')
+	}, [])
 
 	const isValid = formData.appName.trim().length > 0
 
@@ -818,13 +836,29 @@ function ConfigureStep({
 								</button>
 							</span>
 						))}
-						<button
-							type="button"
-							onClick={handleAddPermission}
-							className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-muted-foreground border border-dashed border-border hover:border-border/80 hover:text-foreground transition-colors"
-						>
-							+ Add
-						</button>
+						{addingPermission ? (
+							<input
+								ref={permissionInputRef}
+								type="text"
+								value={newPermissionName}
+								onChange={(e) => setNewPermissionName(e.target.value)}
+								onKeyDown={(e) => {
+									if (e.key === 'Enter') handleConfirmPermission()
+									if (e.key === 'Escape') handleCancelPermission()
+								}}
+								onBlur={handleConfirmPermission}
+								placeholder="e.g. signTransaction"
+								className="inline-flex items-center px-2.5 py-1 text-xs font-mono bg-card border border-blue-500/60 text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+							/>
+						) : (
+							<button
+								type="button"
+								onClick={handleStartAddPermission}
+								className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-muted-foreground border border-dashed border-border hover:border-border/80 hover:text-foreground transition-colors"
+							>
+								+ Add
+							</button>
+						)}
 					</div>
 				</div>
 			</div>
@@ -854,6 +888,7 @@ function ConfigureStep({
 interface PublishStepProps {
 	project: RecentProject
 	formData: ConfigureFormData
+	balanceBsv: number | null
 	subState: PublishSubState
 	onSubStateChange: (s: PublishSubState) => void
 	onBack: () => void
@@ -862,11 +897,14 @@ interface PublishStepProps {
 function PublishStep({
 	project,
 	formData,
+	balanceBsv,
 	subState,
 	onSubStateChange,
 	onBack,
 }: PublishStepProps) {
 	const [copied, setCopied] = useState(false)
+	const [txid, setTxid] = useState<string | null>(null)
+	const [publishError, setPublishError] = useState<string | null>(null)
 
 	const totalSizeKb = MOCK_BUILD_FILES.reduce((sum, f) => sum + f.sizeKb, 0)
 	const totalSizeDisplay =
@@ -890,16 +928,48 @@ function PublishStep({
 		setTimeout(() => setCopied(false), 1500)
 	}, [opnsLabel])
 
-	const handlePublish = useCallback(() => {
-		if (MOCK_BALANCE < COST_TOTAL) {
+	const handlePublish = useCallback(async () => {
+		const balance = balanceBsv ?? 0
+		if (balance < COST_TOTAL) {
 			onSubStateChange('insufficient')
 			return
 		}
+		setPublishError(null)
 		onSubStateChange('broadcasting')
-		setTimeout(() => {
+
+		try {
+			// TODO: Once real build files are available, inscribe actual file content.
+			// For now we inscribe a placeholder to exercise the real RPC path.
+			const res = await rpc.request.inscribeFile({
+				base64Content: btoa(
+					JSON.stringify({
+						app: formData.appName || project.name,
+						description: formData.description,
+						identity: formData.identity,
+					}),
+				),
+				contentType: 'application/json',
+				map: {
+					app: formData.appName || project.name,
+					type: 'publish',
+					...(formData.opnsName ? { opns: formData.opnsName } : {}),
+				},
+			})
+
+			if (res.error) {
+				setPublishError(res.error)
+				onSubStateChange('review')
+				return
+			}
+			if (res.txid) {
+				setTxid(res.txid)
+			}
 			onSubStateChange('success')
-		}, 2500)
-	}, [onSubStateChange])
+		} catch (err) {
+			setPublishError(err instanceof Error ? err.message : 'Publish failed')
+			onSubStateChange('review')
+		}
+	}, [balanceBsv, onSubStateChange, formData, project.name])
 
 	// ── Broadcasting ──────────────────────────────────────────────────────────
 	if (subState === 'broadcasting') {
@@ -1035,7 +1105,7 @@ function PublishStep({
 						className="text-xs text-muted-foreground"
 						style={{ fontFamily: 'var(--font-mono)' }}
 					>
-						txid: {MOCK_TXID}
+						txid: {txid ?? 'pending...'}
 					</p>
 				</div>
 
@@ -1058,7 +1128,8 @@ function PublishStep({
 
 	// ── Insufficient funds ────────────────────────────────────────────────────
 	if (subState === 'insufficient') {
-		const shortfall = COST_TOTAL - MOCK_BALANCE
+		const balance = balanceBsv ?? 0
+		const shortfall = COST_TOTAL - balance
 		return (
 			<>
 				<div className="flex flex-col gap-5 p-6 flex-1 overflow-y-auto">
@@ -1074,7 +1145,7 @@ function PublishStep({
 							</span>
 							<span className="text-xs text-muted-foreground">
 								You need {shortfall.toFixed(5)} BSV more to publish. Current
-								balance: {MOCK_BALANCE.toFixed(5)} BSV
+								balance: {balance.toFixed(5)} BSV
 							</span>
 						</div>
 					</div>
@@ -1125,7 +1196,7 @@ function PublishStep({
 									className="text-sm font-medium text-red-400 tabular-nums"
 									style={{ fontFamily: 'var(--font-mono)' }}
 								>
-									{MOCK_BALANCE.toFixed(5)} BSV
+									{balance.toFixed(5)} BSV
 								</span>
 							</div>
 							<div className="flex items-center justify-between px-4 py-3">
@@ -1184,6 +1255,24 @@ function PublishStep({
 	return (
 		<>
 			<div className="flex flex-col gap-5 p-6 flex-1 overflow-y-auto">
+				{publishError && (
+					<div className="flex items-start gap-3 px-4 py-3 border border-red-500/30 bg-red-500/10">
+						<AlertCircle
+							size={15}
+							strokeWidth={2}
+							className="shrink-0 mt-0.5 text-red-400"
+						/>
+						<div className="flex flex-col gap-0.5">
+							<span className="text-sm font-semibold text-red-400">
+								Publish failed
+							</span>
+							<span className="text-xs text-muted-foreground">
+								{publishError}
+							</span>
+						</div>
+					</div>
+				)}
+
 				{/* Summary card */}
 				<div className="border border-border bg-card/50">
 					<div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -1326,13 +1415,63 @@ export function PublishView({ onNavigate }: PublishViewProps) {
 	)
 	const [publishSubState, setPublishSubState] =
 		useState<PublishSubState>('review')
+
+	// Real data from RPC
+	const [identities, setIdentities] = useState<OpnsNameInfo[]>([])
+	const [identitiesLoading, setIdentitiesLoading] = useState(true)
+	const [balanceBsv, setBalanceBsv] = useState<number | null>(null)
+
 	const [configForm, setConfigForm] = useState<ConfigureFormData>({
 		appName: '',
 		description: '',
 		opnsName: '',
-		identity: MOCK_IDENTITIES[0].id,
+		identity: '',
 		permissions: [...DEFAULT_PERMISSIONS],
 	})
+
+	// Fetch identities (OpNS names) and balance on mount
+	const fetchedRef = useRef(false)
+	useEffect(() => {
+		if (fetchedRef.current) return
+		fetchedRef.current = true
+
+		let cancelled = false
+
+		rpc.request
+			.getOpnsNames()
+			.then((r) => {
+				if (cancelled) return
+				setIdentities(r.names)
+				if (r.names.length > 0) {
+					setConfigForm((prev) => ({
+						...prev,
+						identity: prev.identity || r.names[0].name,
+					}))
+				}
+				setIdentitiesLoading(false)
+			})
+			.catch(() => {
+				if (!cancelled) {
+					setIdentities([])
+					setIdentitiesLoading(false)
+				}
+			})
+
+		rpc.request
+			.getBalance()
+			.then((r) => {
+				if (!cancelled) {
+					setBalanceBsv((r.confirmed + r.unconfirmed) / SAT_PER_BSV)
+				}
+			})
+			.catch(() => {
+				if (!cancelled) setBalanceBsv(0)
+			})
+
+		return () => {
+			cancelled = true
+		}
+	}, [])
 
 	const handleClose = useCallback(() => {
 		onNavigate?.('1sat://browser/new')
@@ -1467,6 +1606,8 @@ export function PublishView({ onNavigate }: PublishViewProps) {
 					<ConfigureStep
 						project={selectedProject}
 						formData={configForm}
+						identities={identities}
+						identitiesLoading={identitiesLoading}
 						onChange={setConfigForm}
 						onBack={handleBackToConfigure}
 						onNext={handleNextFromConfigure}
@@ -1477,6 +1618,7 @@ export function PublishView({ onNavigate }: PublishViewProps) {
 					<PublishStep
 						project={selectedProject}
 						formData={configForm}
+						balanceBsv={balanceBsv}
 						subState={publishSubState}
 						onSubStateChange={setPublishSubState}
 						onBack={handleBackFromPublish}

@@ -43,13 +43,15 @@ export async function getMcpClient(): Promise<MCPClient> {
 export async function getMcpTools() {
 	try {
 		const client = await getMcpClient()
-		return await client.tools()
+		const tools = await client.tools()
+		const toolNames = Object.keys(tools)
+		console.log(`[MCP Client] Got ${toolNames.length} tools: ${toolNames.slice(0, 5).join(', ')}${toolNames.length > 5 ? '...' : ''}`)
+		return tools
 	} catch (err) {
 		console.error(
 			'[MCP Client] Failed to get tools:',
 			err instanceof Error ? err.message : String(err),
 		)
-		// Clear session so next attempt re-handshakes
 		clearSession()
 		mcpClient = undefined
 		return {}
