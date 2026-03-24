@@ -2,13 +2,14 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ArrowLeft, MessageCircle, Send, User } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { STACK_URL } from '../../../shared/constants'
 import { cn } from '../../lib/utils'
 
 // ============================================================================
 // Constants
 // ============================================================================
 
-const MESSAGEBOX_URL = 'http://127.0.0.1:8080/1sat/messagebox/listMessages'
+const MESSAGEBOX_URL = `${STACK_URL}/1sat/messagebox/listMessages`
 
 // ============================================================================
 // Types

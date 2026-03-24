@@ -275,7 +275,7 @@ export function HistoryView({ onNavigate }: HistoryViewProps) {
 										paddingRight: 16,
 										cursor: 'pointer',
 									}}
-									onClick={() => onNavigate?.(`1sat://wallet/tx/${entry.txid}`)}
+									onClick={() => onNavigate?.(`1sat://wallet/tx?txid=${entry.txid}`)}
 								>
 									{/* Status dot */}
 									<div

@@ -1,4 +1,5 @@
 import { SendBsv21Ui } from '@/components/blocks/send-bsv21'
+import { STACK_URL } from '../../../shared/constants'
 import { useSendBsv21 } from '@/components/blocks/send-bsv21'
 import type {
 	SendBsv21Params,
@@ -23,7 +24,7 @@ import { rpc } from '../../rpc'
 // Helpers
 // ---------------------------------------------------------------------------
 
-const ORDFS_BASE = 'http://127.0.0.1:8080/content'
+const ORDFS_BASE = `${STACK_URL}/content`
 
 function formatBalance(raw: string, decimals: number): string {
 	const n = Number(raw) / 10 ** decimals

@@ -18,9 +18,9 @@ import {
 	unregisterBrowserController,
 } from '../../lib/browser-controller'
 import { onStackOnboardingRequired, rpc } from '../../rpc'
+import { STACK_URL } from '../../../shared/constants'
 
 // ORDFS resolution -- routes on-chain content through the local 1sat-stack sidecar
-const STACK_URL = 'http://127.0.0.1:8080'
 const OUTPOINT_RE = /^[0-9a-fA-F]{64}[_.]?\d*$/
 
 // ---- 1sat:// URL parsing ----

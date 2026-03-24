@@ -1392,11 +1392,7 @@ export function SettingsView({
 						<SweepWallet
 							onScan={handleSweepScan}
 							onSweep={handleSweepExecute}
-							onSuccess={(result) => {
-								if (result.txid) {
-									console.log('Sweep complete:', result.txid)
-								}
-							}}
+							onSuccess={() => {}}
 						/>
 					</div>
 				</TabsContent>

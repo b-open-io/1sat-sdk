@@ -674,6 +674,7 @@ export async function startWalletServer(): Promise<void> {
 	httpServer = Bun.serve({
 		hostname: HOST,
 		port: HTTP_PORT,
+		idleTimeout: 120, // AI chat streaming can take 60s+ for model loading
 		fetch: handleRequest,
 	})
 	const httpLog = createLogger({ context: 'startup' })

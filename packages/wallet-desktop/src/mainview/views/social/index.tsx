@@ -77,9 +77,7 @@ export function SocialView({ onNavigate }: SocialViewProps) {
 				</h1>
 				<PostButton
 					onPost={handlePost}
-					onPosted={(result) => {
-						console.log('Posted:', result.txid)
-					}}
+					onPosted={() => {}}
 				/>
 			</div>
 

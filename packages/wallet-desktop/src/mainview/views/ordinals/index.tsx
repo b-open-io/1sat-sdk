@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge'
+import { STACK_URL } from '../../../shared/constants'
 import {
 	Select,
 	SelectContent,
@@ -68,7 +69,7 @@ interface OrdinalCardProps {
 
 function OrdinalCardItem({ ordinal, onClick }: OrdinalCardProps) {
 	const [imgError, setImgError] = useState(false)
-	const contentUrl = `http://127.0.0.1:8080/content/${ordinal.outpoint}`
+	const contentUrl = `${STACK_URL}/content/${ordinal.outpoint}`
 	const displayName = ordinal.name ?? 'Unnamed'
 	// Truncate outpoint for display: show first 8 chars
 	const shortOutpoint = `${ordinal.outpoint.slice(0, 8)}...`

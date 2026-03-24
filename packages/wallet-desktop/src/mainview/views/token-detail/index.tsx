@@ -1,4 +1,5 @@
 import { SendBsv21Ui, useSendBsv21 } from '@/components/blocks/send-bsv21'
+import { STACK_URL } from '../../../shared/constants'
 import type {
 	SendBsv21Params,
 	SendBsv21Result,
@@ -27,7 +28,7 @@ import { rpc } from '../../rpc'
 // Constants
 // ---------------------------------------------------------------------------
 
-const ORDFS_BASE = 'http://127.0.0.1:8080'
+const ORDFS_BASE = STACK_URL
 
 // ---------------------------------------------------------------------------
 // Types

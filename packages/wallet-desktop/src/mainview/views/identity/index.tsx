@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { MessageCircle } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { STACK_URL } from '../../../shared/constants'
 import { FollowButton } from '../../components/blocks/follow-button'
 import type { FollowResult } from '../../components/blocks/follow-button'
 import type { BapProfile } from '../../components/blocks/profile-card/use-profile-card'
@@ -165,7 +166,7 @@ function OtherProfileView({ targetBapId, onNavigate }: OtherProfileViewProps) {
 		async function fetchProfile() {
 			try {
 				const res = await fetch(
-					`http://127.0.0.1:8080/1sat/bap/profile/${encodeURIComponent(targetBapId)}`,
+					`${STACK_URL}/1sat/bap/profile/${encodeURIComponent(targetBapId)}`,
 				)
 				if (!res.ok) {
 					throw new Error(`Profile fetch failed: ${res.status}`)
