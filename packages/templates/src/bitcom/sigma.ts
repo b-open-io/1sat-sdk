@@ -66,7 +66,7 @@ export interface SigmaOptions {
 	verifier?: PublicKey
 }
 
-const ZERO_INPUT = new Array(32).fill(0)
+const EMPTY_OUTPOINT = new Array(32).fill(0)
 
 const hexToBytes = (hex: string): number[] => {
 	const bytes: number[] = []
@@ -264,7 +264,7 @@ export default class Sigma implements ScriptTemplate {
 	}
 
 	getInputHash(): number[] {
-		if (!this._transaction) return Hash.sha256(ZERO_INPUT)
+		if (!this._transaction) return Hash.sha256(EMPTY_OUTPOINT)
 		// refVin === -1: use targetVout as input index for partially-signed transactions
 		const vin = this._refVin === -1 ? this._targetVout : this._refVin
 		return this._getInputHashByVin(vin)
@@ -275,7 +275,7 @@ export default class Sigma implements ScriptTemplate {
 		if (txIn?.sourceTXID) {
 			return Hash.sha256([...hexToBytes(txIn.sourceTXID), ...writeUint32LE(txIn.sourceOutputIndex)])
 		}
-		return Hash.sha256(ZERO_INPUT)
+		return Hash.sha256(EMPTY_OUTPOINT)
 	}
 
 	/**
