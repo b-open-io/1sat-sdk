@@ -1,19 +1,33 @@
 /**
- * Logging wrapper that feeds evlog events into the MCP ring buffer.
+ * Logging wrapper — feeds evlog events to:
+ * 1. evlog (stdout/adapters)
+ * 2. MCP ring buffer (wallet_logs tool)
+ * 3. File (~/.1sat-wallet/app.log) — survives crashes, readable from installed app
  *
  * Use `createLog` and `createReqLog` instead of importing directly from evlog.
- * Events are emitted to evlog AND pushed to the ring buffer for MCP tool access.
  */
+import { appendFileSync, mkdirSync } from 'node:fs'
 import { createLogger, createRequestLogger, type Log, type RequestLogger } from 'evlog'
-import { pushLogEvent } from './mcp/tools/logs'
+import { pushLogEvent, type LogEntry } from './mcp/tools/logs'
+
+const LOG_DIR = `${process.env.HOME}/.1sat-wallet`
+const LOG_PATH = `${LOG_DIR}/app.log`
+
+// Ensure log directory exists on module load
+try {
+	mkdirSync(LOG_DIR, { recursive: true })
+} catch {}
+
+function writeToFile(entry: LogEntry): void {
+	try {
+		appendFileSync(LOG_PATH, `${JSON.stringify(entry)}\n`)
+	} catch {}
+}
 
 interface ProxiedLog extends Log {
 	emit(): void
 }
 
-/**
- * Create a logger that pushes to both evlog and the MCP ring buffer.
- */
 export function createLog(config: { context: string }): ProxiedLog {
 	const inner = createLogger(config)
 	const fields: Record<string, unknown> = { context: config.context }
@@ -26,20 +40,19 @@ export function createLog(config: { context: string }): ProxiedLog {
 			return this
 		},
 		emit() {
-			pushLogEvent({
+			const entry: LogEntry = {
 				timestamp: new Date().toISOString(),
 				context: config.context,
 				event: (fields.event as string) ?? 'unknown',
 				...fields,
-			})
+			}
+			pushLogEvent(entry)
+			writeToFile(entry)
 			inner.emit()
 		},
 	} as ProxiedLog
 }
 
-/**
- * Create a request logger that also pushes to the ring buffer.
- */
 export function createReqLog(req: Request): RequestLogger {
 	const inner = createRequestLogger(req)
 	const fields: Record<string, unknown> = {}
@@ -55,12 +68,14 @@ export function createReqLog(req: Request): RequestLogger {
 			}
 			if (prop === 'emit') {
 				return () => {
-					pushLogEvent({
+					const entry: LogEntry = {
 						timestamp: new Date().toISOString(),
 						context: (fields.route as string) ?? 'request',
 						event: (fields.event as string) ?? (fields.type as string) ?? 'request',
 						...fields,
-					})
+					}
+					pushLogEvent(entry)
+					writeToFile(entry)
 					target.emit()
 				}
 			}

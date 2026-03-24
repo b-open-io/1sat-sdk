@@ -11,7 +11,7 @@
 import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
 import type { WalletInterface } from '@bsv/sdk'
 import type { Server } from 'bun'
-import { createLogger, createRequestLogger } from 'evlog'
+import { createLog as createLogger, createReqLog as createRequestLogger } from './log'
 import type { PermissionRequest } from '../shared/types'
 import {
 	CHAT_REQUIRED_HEADER,

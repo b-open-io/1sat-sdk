@@ -4,7 +4,8 @@
  * Creates the desktop window, wires RPC handlers, sets up the
  * application menu, and boots the wallet lifecycle.
  */
-import { createLogger, initLogger } from 'evlog'
+import { initLogger } from 'evlog'
+import { createLog } from './log'
 import Electrobun, {
 	ApplicationMenu,
 	BrowserView,
@@ -54,18 +55,18 @@ async function getMainViewUrl(): Promise<string> {
 		if (channel === 'dev') {
 			try {
 				await fetch(DEV_SERVER_URL, { method: 'HEAD' })
-				const log = createLogger({ context: 'startup' })
+				const log = createLog({ context: 'startup' })
 				log.set({ event: 'hmr_enabled', devServerUrl: DEV_SERVER_URL })
 				log.emit()
 				return DEV_SERVER_URL
 			} catch {
-				const log = createLogger({ context: 'startup' })
+				const log = createLog({ context: 'startup' })
 				log.set({ event: 'hmr_unavailable', hint: "Run 'bun run dev:hmr' for HMR support" })
 				log.emit()
 			}
 		}
 	} catch (err) {
-		const log = createLogger({ context: 'startup' })
+		const log = createLog({ context: 'startup' })
 		log.set({ event: 'channel_detection_failed', error: err instanceof Error ? err.message : String(err) })
 		log.emit()
 		console.error('Failed to detect update channel:', err)
@@ -104,7 +105,7 @@ const rpc = BrowserView.defineRPC<WalletDesktopRPC>({
 			openOrdfsContent: ({ path }: { path: string }) => {
 				const stackUrl = getStackUrl()
 				const contentUrl = `${stackUrl}/content/${path}`
-				const log = createLogger({ context: 'rpc' })
+				const log = createLog({ context: 'rpc' })
 				log.set({ event: 'open_ordfs_content', path, contentUrl })
 				log.emit()
 				new BrowserWindow({
@@ -149,11 +150,11 @@ let browserWindow: BrowserWindow | undefined
 let url: string
 try {
 	url = await getMainViewUrl()
-	const log = createLogger({ context: 'startup' })
+	const log = createLog({ context: 'startup' })
 	log.set({ event: 'url_resolved', url })
 	log.emit()
 } catch (err) {
-	const log = createLogger({ context: 'startup' })
+	const log = createLog({ context: 'startup' })
 	log.set({ event: 'url_resolve_failed', error: err instanceof Error ? err.message : String(err) })
 	log.emit()
 	throw err
@@ -168,11 +169,11 @@ try {
 		titleBarStyle: 'hiddenInset',
 		rpc,
 	})
-	const log = createLogger({ context: 'startup' })
+	const log = createLog({ context: 'startup' })
 	log.set({ event: 'window_created', url })
 	log.emit()
 } catch (err) {
-	const log = createLogger({ context: 'startup' })
+	const log = createLog({ context: 'startup' })
 	log.set({ event: 'window_create_failed', url, error: err instanceof Error ? err.message : String(err) })
 	log.emit()
 	throw err
@@ -274,7 +275,7 @@ setChatMessageCallback((msg) => {
 // Also send the initial state once the webview DOM is ready.
 const hasKey = checkVault()
 mainWindow.webview.on('dom-ready', () => {
-	const log = createLogger({ context: 'startup' })
+	const log = createLog({ context: 'startup' })
 	log.set({ event: 'dom_ready', url, hasKey })
 	log.emit()
 	mainWindow.webview.rpc.send.walletStateChanged({
@@ -317,7 +318,7 @@ startStack().then(async () => {
 
 	const ready = await isStackSetupComplete()
 	if (!ready) {
-		const log = createLogger({ context: 'stack' })
+		const log = createLog({ context: 'stack' })
 		log.set({ event: 'onboarding_required', adminUrl: `${getStackUrl()}/1sat/admin` })
 		log.emit()
 		mainWindow.webview.rpc.send.stackOnboardingRequired({
@@ -328,7 +329,7 @@ startStack().then(async () => {
 		for (let attempt = 0; attempt < 300; attempt++) {
 			await Bun.sleep(3000)
 			if (await isStackSetupComplete()) {
-				const log = createLogger({ context: 'stack' })
+				const log = createLog({ context: 'stack' })
 				log.set({ event: 'onboarding_complete' })
 				log.emit()
 				mainWindow.webview.rpc.send.stackOnboardingComplete({})
@@ -336,12 +337,12 @@ startStack().then(async () => {
 			}
 		}
 	} else {
-		const log = createLogger({ context: 'stack' })
+		const log = createLog({ context: 'stack' })
 		log.set({ event: 'setup_complete' })
 		log.emit()
 	}
 }).catch((err) => {
-	const log = createLogger({ context: 'stack' })
+	const log = createLog({ context: 'stack' })
 	log.set({ event: 'start_failed', error: err instanceof Error ? err.message : String(err) })
 	log.emit()
 	console.error('1sat-stack failed to start:', err.message)
@@ -354,7 +355,7 @@ startStack().then(async () => {
 function openOrdfsWindow(path: string): void {
 	const stackUrl = getStackUrl()
 	const contentUrl = `${stackUrl}/content/${path}`
-	const log = createLogger({ context: 'ordfs' })
+	const log = createLog({ context: 'ordfs' })
 	log.set({ event: 'open_window', path, contentUrl })
 	log.emit()
 
@@ -368,7 +369,7 @@ function openOrdfsWindow(path: string): void {
 // Handle 1sat:// and bap:// deep links from the OS
 Electrobun.events.on('open-url', (e) => {
 	const url = e.data.url
-	const log = createLogger({ context: 'deep-link' })
+	const log = createLog({ context: 'deep-link' })
 	log.set({ event: 'received', url })
 	log.emit()
 
@@ -400,6 +401,6 @@ Electrobun.events.on('open-url', (e) => {
 	}
 })
 
-const startupLog = createLogger({ context: 'startup' })
+const startupLog = createLog({ context: 'startup' })
 startupLog.set({ event: 'started', service: '1sat-wallet' })
 startupLog.emit()

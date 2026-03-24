@@ -13,7 +13,7 @@
 import { convertToModelMessages, extractReasoningMiddleware, stepCountIs, streamText, wrapLanguageModel, type UIMessage } from 'ai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { ollama } from 'ai-sdk-ollama'
-import { createRequestLogger } from 'evlog'
+import { createReqLog as createRequestLogger } from './log'
 import { getMcpTools } from './mcp/client'
 
 const DEFAULT_MODEL = 'qwen3:14b' // Supports tool calling. minimax-m2.7:cloud also works.
