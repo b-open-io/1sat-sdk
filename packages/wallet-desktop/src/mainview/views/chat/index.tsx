@@ -1,10 +1,24 @@
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { AlertCircle, ArrowUp, Loader2, Plus, RefreshCw } from 'lucide-react'
+import { AlertCircle, ArrowUp, Hash, Loader2, Plus, RefreshCw, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChatMessage } from '../../../shared/types'
 import { useChat } from '../../hooks/use-chat'
 import { cn } from '../../lib/utils'
+
+const MONO = 'font-[family-name:var(--font-mono)]'
+const SANS = 'font-[family-name:var(--font-sans)]'
+
+const SUGGESTED_CHANNELS = [
+	{ name: 'general', desc: 'General discussion' },
+	{ name: 'trading', desc: 'BSV trading talk' },
+	{ name: 'dev', desc: 'Developer chat' },
+	{ name: 'memes', desc: 'Memes and fun' },
+	{ name: 'ordinals', desc: '1Sat Ordinals discussion' },
+	{ name: 'help', desc: 'Get help from the community' },
+	{ name: 'marketplace', desc: 'Buy and sell ordinals' },
+	{ name: 'tokens', desc: 'BSV-21 token discussion' },
+]
 
 // ============================================================================
 // Helpers
@@ -106,6 +120,130 @@ function MessageRow({ message }: { message: ChatMessage }) {
 }
 
 // ============================================================================
+// Join Channel Dialog
+// ============================================================================
+
+function JoinChannelDialog({
+	open,
+	currentChannels,
+	onJoin,
+	onClose,
+}: {
+	open: boolean
+	currentChannels: string[]
+	onJoin: (channel: string) => void
+	onClose: () => void
+}) {
+	const [customName, setCustomName] = useState('')
+	const inputRef = useRef<HTMLInputElement>(null)
+
+	useEffect(() => {
+		if (open) setTimeout(() => inputRef.current?.focus(), 50)
+	}, [open])
+
+	if (!open) return null
+
+	const currentSet = new Set(currentChannels)
+	const available = SUGGESTED_CHANNELS.filter((ch) => !currentSet.has(ch.name))
+
+	const handleJoinCustom = () => {
+		const name = customName.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '')
+		if (!name) return
+		onJoin(name)
+		setCustomName('')
+	}
+
+	return (
+		<>
+			<div
+				className="fixed inset-0 z-40 bg-background/60"
+				onClick={onClose}
+				onKeyDown={(e) => e.key === 'Escape' && onClose()}
+				role="button"
+				tabIndex={-1}
+				aria-label="Close dialog"
+			/>
+			<div className="absolute left-0 top-0 z-50 w-full h-full flex items-center justify-center pointer-events-none">
+				<div
+					className="pointer-events-auto bg-card border border-border shadow-xl flex flex-col max-h-[400px] w-[320px]"
+					style={{ borderRadius: 0 }}
+				>
+					{/* Header */}
+					<div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+						<span className={cn('text-[13px] font-semibold text-foreground', SANS)}>
+							Join Channel
+						</span>
+						<button
+							type="button"
+							onClick={onClose}
+							className="text-muted-foreground hover:text-foreground transition-colors"
+						>
+							<X size={14} />
+						</button>
+					</div>
+
+					{/* Custom channel input */}
+					<div className="px-4 py-3 border-b border-border shrink-0">
+						<div className="flex items-center gap-2">
+							<Hash size={13} className="text-muted-foreground shrink-0" />
+							<input
+								ref={inputRef}
+								value={customName}
+								onChange={(e) => setCustomName(e.target.value)}
+								onKeyDown={(e) => e.key === 'Enter' && handleJoinCustom()}
+								placeholder="Enter channel name..."
+								className={cn(
+									'flex-1 bg-transparent text-[12px] text-foreground placeholder:text-muted-foreground outline-none',
+									MONO,
+								)}
+							/>
+							<Button
+								size="sm"
+								onClick={handleJoinCustom}
+								disabled={!customName.trim()}
+								className="h-6 px-2.5 text-[10px]"
+							>
+								Join
+							</Button>
+						</div>
+					</div>
+
+					{/* Suggested channels */}
+					<ScrollArea className="flex-1 overflow-hidden">
+						<div className="px-2 py-2">
+							{available.length === 0 ? (
+								<p className={cn('text-[11px] text-muted-foreground text-center py-4', SANS)}>
+									You&apos;ve joined all suggested channels
+								</p>
+							) : (
+								available.map((ch) => (
+									<button
+										key={ch.name}
+										type="button"
+										onClick={() => onJoin(ch.name)}
+										className="flex items-center gap-2.5 w-full px-2.5 py-2 hover:bg-muted/30 transition-colors text-left"
+									>
+										<Hash size={12} className="text-muted-foreground shrink-0" />
+										<div className="flex-1 min-w-0">
+											<p className={cn('text-[12px] font-medium text-foreground', MONO)}>
+												{ch.name}
+											</p>
+											<p className={cn('text-[10px] text-muted-foreground', SANS)}>
+												{ch.desc}
+											</p>
+										</div>
+									</button>
+								))
+							)}
+						</div>
+					</ScrollArea>
+				</div>
+			</div>
+		</>
+	)
+}
+
+// ============================================================================
 // Channel Sidebar
 // ============================================================================
 
@@ -114,37 +252,46 @@ function ChannelSidebar({
 	activeChannel,
 	unreadCounts,
 	onSelectChannel,
+	onJoinChannel,
 }: {
 	channels: string[]
 	activeChannel: string
 	unreadCounts: Record<string, number>
 	onSelectChannel: (channel: string) => void
+	onJoinChannel: (channel: string) => void
 }) {
+	const [dialogOpen, setDialogOpen] = useState(false)
+
 	return (
 		<div
-			className="flex flex-col shrink-0 border-r border-border bg-card overflow-hidden"
+			className="relative flex flex-col shrink-0 border-r border-border bg-card overflow-hidden"
 			style={{ width: 220 }}
 		>
 			{/* Header */}
 			<div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0">
-				<span
-					className="text-[10px] font-semibold uppercase tracking-widest"
-					style={{
-						color: 'var(--muted-foreground)',
-						fontFamily: 'var(--font-mono)',
-					}}
-				>
+				<span className={cn('text-[10px] font-semibold uppercase tracking-widest text-muted-foreground', MONO)}>
 					Channels
 				</span>
 				<button
 					type="button"
-					aria-label="Browse channels"
+					aria-label="Join channel"
+					onClick={() => setDialogOpen(true)}
 					className="flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
 					style={{ width: 18, height: 18 }}
 				>
 					<Plus size={11} />
 				</button>
 			</div>
+
+			<JoinChannelDialog
+				open={dialogOpen}
+				currentChannels={channels}
+				onJoin={(ch) => {
+					onJoinChannel(ch)
+					setDialogOpen(false)
+				}}
+				onClose={() => setDialogOpen(false)}
+			/>
 
 			{/* Channel list */}
 			<ScrollArea className="flex-1">
@@ -309,6 +456,10 @@ export function ChatView() {
 				activeChannel={chat.channel}
 				unreadCounts={chat.unreadCounts}
 				onSelectChannel={chat.setChannel}
+				onJoinChannel={(ch) => {
+					// Add channel and switch to it
+					chat.setChannel(ch)
+				}}
 			/>
 
 			{/* Main area */}
