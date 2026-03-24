@@ -45,6 +45,11 @@ import { useBookmarks } from '../../hooks/use-bookmarks'
 import { useSyncEvents } from '../../hooks/use-sync-events'
 import { renderPage } from '../../lib/page-registry'
 import {
+	type BrowserSettings,
+	loadBrowserSettings,
+	saveBrowserSettings,
+} from '../../../shared/constants'
+import {
 	onNavigateToUrl,
 	onStackOnboardingComplete,
 	onStackOnboardingRequired,
@@ -737,6 +742,18 @@ export function BrowserLayout() {
 		null,
 	)
 
+	// ── Browser settings (search mode) ────────────────────────────────────
+	const [browserSettings, setBrowserSettings] = useState<BrowserSettings>(loadBrowserSettings)
+
+	// Keep settings in sync when localStorage changes from the Settings tab
+	useEffect(() => {
+		const handler = () => {
+			setBrowserSettings(loadBrowserSettings())
+		}
+		window.addEventListener('storage', handler)
+		return () => window.removeEventListener('storage', handler)
+	}, [])
+
 	// ── Bookmarks ──────────────────────────────────────────────────────────
 	const bookmarksApi = useBookmarks()
 
@@ -802,9 +819,37 @@ export function BrowserLayout() {
 
 	const navigate = useCallback(
 		(input: string) => {
+			// Pre-parse to check if this resolves to a bare search query,
+			// then redirect based on the user's configured search mode.
+			const preliminary = parseUrl(input)
+			if (preliminary?.type === 'search') {
+				const { query } = preliminary
+				const { searchMode, customSearchUrl } = browserSettings
+				if (searchMode === 'ai') {
+					dispatchNav({ type: 'navigate', input: `ai://${query}` })
+					return
+				}
+				if (searchMode === 'google') {
+					dispatchNav({
+						type: 'navigate',
+						input: `https://www.google.com/search?q=${encodeURIComponent(query)}`,
+					})
+					return
+				}
+				if (searchMode === 'custom' && customSearchUrl) {
+					dispatchNav({
+						type: 'navigate',
+						input: customSearchUrl.replace('{query}', encodeURIComponent(query)),
+					})
+					return
+				}
+				// 'duckduckgo' or custom without URL: use the default DuckDuckGo URL
+				dispatchNav({ type: 'navigate', input: preliminary.url })
+				return
+			}
 			dispatchNav({ type: 'navigate', input })
 		},
-		[dispatchNav],
+		[dispatchNav, browserSettings],
 	)
 
 	const goBack = useCallback(() => {

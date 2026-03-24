@@ -1,4 +1,10 @@
-import { WALLET_HTTP_URL } from '../../../shared/constants'
+import {
+	WALLET_HTTP_URL,
+	type BrowserSettings,
+	type SearchMode,
+	loadBrowserSettings,
+	saveBrowserSettings,
+} from '../../../shared/constants'
 import { MnemonicGridUi } from '@/components/blocks/mnemonic-flow/mnemonic-grid-ui'
 import {
 	type ScanResult,
@@ -715,6 +721,118 @@ function AiTab() {
 }
 
 // ---------------------------------------------------------------------------
+// Browser Tab
+// ---------------------------------------------------------------------------
+
+const SEARCH_MODE_OPTIONS: {
+	value: SearchMode
+	label: string
+	description: string
+}[] = [
+	{
+		value: 'ai',
+		label: 'AI Chat (Local)',
+		description: 'Route to local AI via Ollama',
+	},
+	{
+		value: 'duckduckgo',
+		label: 'DuckDuckGo',
+		description: 'Search the web with DuckDuckGo',
+	},
+	{
+		value: 'google',
+		label: 'Google',
+		description: 'Search the web with Google',
+	},
+	{
+		value: 'custom',
+		label: 'Custom',
+		description: 'Use a custom search engine URL',
+	},
+]
+
+function BrowserTab() {
+	const [settings, setSettings] = useState<BrowserSettings>(loadBrowserSettings)
+
+	const updateSettings = useCallback((patch: Partial<BrowserSettings>) => {
+		setSettings((prev) => {
+			const next = { ...prev, ...patch }
+			saveBrowserSettings(next)
+			return next
+		})
+	}, [])
+
+	const selectedOption =
+		SEARCH_MODE_OPTIONS.find((o) => o.value === settings.searchMode) ??
+		SEARCH_MODE_OPTIONS[0]
+
+	return (
+		<div className="space-y-8 py-4">
+			<div>
+				<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+					Search
+				</p>
+
+				<div className="flex items-center justify-between py-3">
+					<div>
+						<p className="text-sm font-medium">Default Search</p>
+						<p className="text-xs text-muted-foreground">
+							{selectedOption.description}
+						</p>
+					</div>
+					<Select
+						value={settings.searchMode}
+						onValueChange={(v) =>
+							updateSettings({ searchMode: v as SearchMode })
+						}
+					>
+						<SelectTrigger size="sm" className="w-44">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{SEARCH_MODE_OPTIONS.map((o) => (
+								<SelectItem key={o.value} value={o.value}>
+									{o.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+
+				{settings.searchMode === 'custom' && (
+					<>
+						<Separator />
+						<div className="flex items-center justify-between py-3 gap-4">
+							<div className="shrink-0">
+								<p className="text-sm font-medium">Search URL</p>
+								<p className="text-xs text-muted-foreground">
+									Use <code className="font-mono text-[10px]">{'{query}'}</code> as the placeholder
+								</p>
+							</div>
+							<Input
+								className="max-w-[280px] text-xs font-mono h-8"
+								value={settings.customSearchUrl ?? ''}
+								onChange={(e) =>
+									updateSettings({ customSearchUrl: e.target.value })
+								}
+								placeholder="https://example.com/search?q={query}"
+							/>
+						</div>
+					</>
+				)}
+
+				<Separator />
+
+				<p className="text-xs text-muted-foreground pt-3">
+					When you type text in the address bar that is not a URL, it will be
+					sent here.
+				</p>
+			</div>
+		</div>
+	)
+}
+
+// ---------------------------------------------------------------------------
 // Main SettingsView
 // ---------------------------------------------------------------------------
 
@@ -809,6 +927,9 @@ export function SettingsView() {
 					</TabsTrigger>
 					<TabsTrigger value="ai" className="rounded-none pb-3">
 						AI
+					</TabsTrigger>
+					<TabsTrigger value="browser" className="rounded-none pb-3">
+						Browser
 					</TabsTrigger>
 					<TabsTrigger value="about" className="rounded-none pb-3">
 						About
@@ -918,6 +1039,11 @@ export function SettingsView() {
 				{/* AI Tab */}
 				<TabsContent value="ai">
 					<AiTab />
+				</TabsContent>
+
+				{/* Browser Tab */}
+				<TabsContent value="browser">
+					<BrowserTab />
 				</TabsContent>
 
 				{/* About Tab */}
