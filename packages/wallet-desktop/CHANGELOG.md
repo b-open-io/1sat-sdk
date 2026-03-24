@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.0.5] - 2026-03-24
+
+### Added
+
+**First-Time User Experience**
+- Setup wizard after wallet creation — guides through stack, AI, and identity configuration
+- Reusable `Empty` component (shadcn-style) — icon, title, description, optional action button
+- All 13 data views migrated to Empty component with actionable descriptions
+- AI chat shows "Set up AI to get started" with settings link when no provider configured
+- ECONNREFUSED errors in AI chat replaced with actionable empty state
+- `checkAiProvider` RPC handler — Bun-side Ollama detection for the wizard
+
+**Observability**
+- Proper evlog integration with `createFsDrain` — NDJSON logs to `~/.1sat-wallet/logs/`
+- `createDrainPipeline` for batched file writes (25 events / 2s)
+- MCP ring buffer drain — `wallet_logs` tool queries last 500 events
+- All bun modules import from evlog directly, `log.ts` is side-effect init only
+- `flushLogs()` on app quit
+
+**MCP**
+- `1sat mcp-proxy` CLI command with BRC-31 auth + evlog
+- `wallet_logs` MCP tool for live log inspection
+- `.mcp.json` in 1sat plugin — zero-config MCP for agents
+- 1sat plugin bumped to 0.1.8
+- MCP skill troubleshooting section
+
+### Changed
+- Stack onboarding banner — better copy, two-line layout with description
+- AI chat model default removed — no more hardcoded `qwen3:14b`
+- evlog drain replaces custom `appendFileSync` wrapper
+
+### Fixed
+- Setup wizard setTimeout cleanup bugs (3 locations) — prevented state updates after unmount
+- AI settings shape mismatch between wizard and settings view (missing `apiKey`)
+- Memoized wizard step callbacks to prevent unnecessary re-effects
+- Removed `sigma-protocol` dependency (dead weight after templates parity)
+
 ## [0.0.4] - 2026-03-24
 
 ### Added
