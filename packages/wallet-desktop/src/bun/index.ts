@@ -146,15 +146,37 @@ const rpc = BrowserView.defineRPC<WalletDesktopRPC>({
 // Persistent browser window — reused for all URL opens
 let browserWindow: BrowserWindow | undefined
 
-const url = await getMainViewUrl()
+let url: string
+try {
+	url = await getMainViewUrl()
+	const log = createLogger({ context: 'startup' })
+	log.set({ event: 'url_resolved', url })
+	log.emit()
+} catch (err) {
+	const log = createLogger({ context: 'startup' })
+	log.set({ event: 'url_resolve_failed', error: err instanceof Error ? err.message : String(err) })
+	log.emit()
+	throw err
+}
 
-const mainWindow = new BrowserWindow({
-	title: '1Sat',
-	url,
-	frame: { width: 1440, height: 900, x: 100, y: 100 },
-	titleBarStyle: 'hiddenInset',
-	rpc,
-})
+let mainWindow: BrowserWindow
+try {
+	mainWindow = new BrowserWindow({
+		title: '1Sat',
+		url,
+		frame: { width: 1440, height: 900, x: 100, y: 100 },
+		titleBarStyle: 'hiddenInset',
+		rpc,
+	})
+	const log = createLogger({ context: 'startup' })
+	log.set({ event: 'window_created', url })
+	log.emit()
+} catch (err) {
+	const log = createLogger({ context: 'startup' })
+	log.set({ event: 'window_create_failed', url, error: err instanceof Error ? err.message : String(err) })
+	log.emit()
+	throw err
+}
 
 // ============================================================================
 // Application menu
@@ -252,10 +274,12 @@ setChatMessageCallback((msg) => {
 // Also send the initial state once the webview DOM is ready.
 const hasKey = checkVault()
 mainWindow.webview.on('dom-ready', () => {
+	const log = createLogger({ context: 'startup' })
+	log.set({ event: 'dom_ready', url, hasKey })
+	log.emit()
 	mainWindow.webview.rpc.send.walletStateChanged({
 		status: hasKey ? 'locked' : 'no-wallet',
 	})
-
 })
 
 // ============================================================================
