@@ -12,7 +12,7 @@ import {
 	Lock,
 	Wallet,
 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useWallet } from '../../hooks/use-wallet'
 import { rpc } from '../../rpc'
 import { ReceiveDialog } from './receive-dialog'
@@ -131,11 +131,25 @@ export function WalletPopover({ onNavigate, onOpenChange }: WalletPopoverProps) 
 	const [history, setHistory] = useState<HistoryEntry[]>([])
 	const [copied, setCopied] = useState(false)
 	const [open, setOpenInternal] = useState(false)
-	const setOpen = useCallback((v: boolean) => { setOpenInternal(v); onOpenChange?.(v) }, [onOpenChange])
 	const [sendOpen, setSendOpen] = useState(false)
 	const [receiveOpen, setReceiveOpen] = useState(false)
 	const [ordinalCount, setOrdinalCount] = useState(0)
 	const [tokenCount, setTokenCount] = useState(0)
+
+	// Track compound open state: popover OR send/receive dialog.
+	// Only notify parent when the effective state changes so the
+	// webview passthrough stays active during popover→dialog transitions.
+	const prevEffective = useRef(false)
+	const effectiveOpen = open || sendOpen || receiveOpen
+	useEffect(() => {
+		if (effectiveOpen !== prevEffective.current) {
+			prevEffective.current = effectiveOpen
+			onOpenChange?.(effectiveOpen)
+		}
+	}, [effectiveOpen, onOpenChange])
+
+	// Internal setter — does NOT call onOpenChange directly
+	const setOpen = useCallback((v: boolean) => { setOpenInternal(v) }, [])
 
 	const totalSats = balance.confirmed + balance.unconfirmed
 

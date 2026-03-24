@@ -37,6 +37,7 @@
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
 		"electrobun": "1.16.0",
+		"geist": "^1.7.0",
 		"lucide-react": "^0.577.0",
 		"metanet-apps": "^1.0.10",
 		"ollama": "^0.6.3",

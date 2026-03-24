@@ -1410,6 +1410,8 @@ export function BrowserLayout() {
 				bookmarksApi={bookmarksApi}
 				currentUrl={currentUrl}
 				currentTitle={currentTitle}
+				onPopoverOpen={onPopoverOpen}
+				onPopoverClose={onPopoverClose}
 			/>
 
 			{/* Divider */}

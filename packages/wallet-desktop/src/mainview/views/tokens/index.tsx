@@ -157,7 +157,7 @@ function TokenRow({ token, onSendClick, onRowClick }: TokenRowProps) {
 
 			<span
 				className="font-mono text-sm text-foreground tabular-nums"
-				style={{ fontFamily: '"JetBrains Mono", "Fira Mono", monospace' }}
+				style={{ fontFamily: 'var(--font-mono)' }}
 			>
 				{balance}
 			</span>

@@ -184,7 +184,7 @@ export function HomeView({ onNavigate }: HomeViewProps) {
 						placeholder="Search ordinals, dApps, or enter address..."
 						className="flex-1 bg-transparent text-foreground placeholder:text-muted-foreground outline-none border-none"
 						style={{
-							fontFamily: "'Space Grotesk', sans-serif",
+							fontFamily: 'var(--font-sans)',
 							fontSize: 13,
 						}}
 					/>

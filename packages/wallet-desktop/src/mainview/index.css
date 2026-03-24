@@ -1,4 +1,25 @@
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@300..700&display=swap");
+/* Geist font family — bundled locally via `geist` package */
+@font-face {
+	font-family: "Geist Sans";
+	src: url("./fonts/Geist-Variable.woff2") format("woff2");
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: "Geist Mono";
+	src: url("./fonts/GeistMono-Variable.woff2") format("woff2");
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: "Geist Pixel";
+	src: url("./fonts/GeistPixel-Square.woff2") format("woff2");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
 
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -88,11 +109,12 @@
 	--sidebar-accent-foreground: oklch(0.985 0 0);
 	--sidebar-border: oklch(1 0 0 / 10%);
 	--sidebar-ring: oklch(0.556 0 0);
-	--font-sans: "Space Grotesk", ui-sans-serif, system-ui, -apple-system,
+	--font-sans: "Geist Sans", ui-sans-serif, system-ui, -apple-system,
 		BlinkMacSystemFont, sans-serif;
 	--font-serif: "Spectral", ui-serif, Georgia, Cambria, "Times New Roman", serif;
-	--font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+	--font-mono: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
 		Consolas, monospace;
+	--font-pixel: "Geist Pixel", monospace;
 	--tracking-normal: 0em;
 	--spacing: 0.25rem;
 	/* Tab bar */
