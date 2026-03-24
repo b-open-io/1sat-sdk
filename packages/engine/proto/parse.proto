@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package onesat.parse;
+
+option go_package = "github.com/b-open-io/1sat-stack/proto/parsepb";
+
+message OutPoint {
+  bytes txid = 1;     // 32 bytes, internal byte order
+  uint32 index = 2;
+}
+
+message IndexedOutput {
+  OutPoint outpoint = 1;
+  uint64 satoshis = 2;
+  uint32 block_height = 3;
+  uint64 block_idx = 4;
+  repeated string events = 5;
+  repeated bytes owners = 6;   // each is 20-byte PKHash
+  bytes spend_txid = 7;        // 32 bytes if spent, empty if not
+  map<string, bytes> data = 8; // tag -> proto-encoded parser data
+}
+
+message BeefParseResult {
+  repeated IndexedOutput outputs = 1;
+  repeated IndexedOutput spends = 2;
+  bytes txid = 3;              // 32 bytes
+  uint32 block_height = 4;
+  uint64 block_idx = 5;
+}

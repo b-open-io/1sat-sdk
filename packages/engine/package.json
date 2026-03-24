@@ -1,0 +1,31 @@
+{
+	"name": "@1sat/engine",
+	"version": "0.0.1",
+	"description": "WASM parser engine for 1Sat transactions",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": ["dist", "wasm"],
+	"scripts": {
+		"build": "tsc && cp src/beef_pb.js src/beef_pb.d.ts src/parse_pb.js src/parse_pb.d.ts dist/",
+		"dev": "tsc --watch",
+		"clean": "rm -rf dist"
+	},
+	"keywords": ["1sat", "bsv", "wasm", "parser", "engine"],
+	"license": "MIT",
+	"peerDependencies": {
+		"@bsv/sdk": "^2.0.6"
+	},
+	"devDependencies": {
+		"@bsv/sdk": "^2.0.6",
+		"@types/node": "^22.0.0",
+		"protobufjs-cli": "^2.0.0",
+		"typescript": "^5.9.3"
+	}
+}
