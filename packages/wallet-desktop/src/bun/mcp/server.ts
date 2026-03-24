@@ -6,7 +6,7 @@
  */
 type HttpServer = ReturnType<typeof Bun.serve>
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { createLog as createLogger, createReqLog as createRequestLogger } from '../log'
+import { createLogger, createRequestLogger } from 'evlog'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import type { BrowserWindow } from 'electrobun/bun'
 import {
