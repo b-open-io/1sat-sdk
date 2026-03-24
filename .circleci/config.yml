@@ -137,11 +137,10 @@ jobs:
               echo "--- Diagnostic: standalone bun build of entrypoint ---"
               bun build src/bun/index.ts --outdir /tmp/diag --target bun \
                 --external electrobun/bun --external electrobun \
-                --external '@1sat/wallet-mac' --external '@1sat/vault' \
-                --external '@1sat/actions' --external '@1sat/client' \
-                --external '@1sat/types' --external '@1sat/utils' \
-                --external '@bsv/sdk' --external '@bsv/wallet-toolbox' \
-                --external knex 2>&1 || echo "Standalone bun build ALSO failed"
+                --external pg --external pg-native --external pg-query-stream \
+                --external mysql --external mysql2 --external oracledb \
+                --external tedious --external better-sqlite3 \
+                2>&1 || echo "Standalone bun build ALSO failed"
               echo "--- Diagnostic: dist files ---"
               ls -la dist/index.html dist/assets/ 2>&1 | head -10
               echo "--- Diagnostic: icon files ---"
