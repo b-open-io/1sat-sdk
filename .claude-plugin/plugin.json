@@ -1,6 +1,6 @@
 {
 	"name": "1sat",
-	"version": "0.1.6",
+	"version": "0.1.7",
 	"description": "1Sat ecosystem tools for BSV \u2014 unified indexing API (1sat-stack), ordinals minting and marketplace (list/buy/cancel), BSV21 token operations, wallet setup (BRC-100), transaction building, time locks, sweep/import, OpNS names, dApp wallet connection, CLI tool, and media extraction.",
 	"author": {
 		"name": "b-open-io",
