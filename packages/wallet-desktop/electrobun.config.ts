@@ -11,7 +11,11 @@ export default {
 		bun: {
 			entrypoint: "src/bun/index.ts",
 			external: [
-				"knex",
+				"pg", "pg-native", "pg-query-stream",
+				"mysql", "mysql2",
+				"oracledb",
+				"tedious",
+				"better-sqlite3",
 			],
 		},
 		copy: {
