@@ -1451,14 +1451,17 @@ export function BrowserLayout() {
 
 	// Shared onboarding banner
 	const onboardingBanner = stackOnboardingUrl ? (
-		<div className="flex-none flex items-center justify-between px-4 py-2 border-b border-primary/30 bg-primary/5">
-			<div className="flex items-center gap-2">
-				<Server size={14} className="text-primary" />
-				<span className="text-xs font-medium text-foreground">
-					1Sat Stack needs setup to sync blockchain data
+		<div className="flex-none flex items-center gap-3 px-4 py-2.5 border-b border-primary/20 bg-primary/5">
+			<Server size={16} className="text-primary shrink-0" />
+			<div className="flex flex-col gap-0.5 min-w-0 flex-1">
+				<span className="text-xs font-semibold text-foreground">
+					Blockchain sync needs configuration
+				</span>
+				<span className="text-[11px] text-muted-foreground leading-tight">
+					The 1Sat Stack provides local indexing for ordinals, tokens, and identity. Complete setup to enable full functionality.
 				</span>
 			</div>
-			<div className="flex items-center gap-2">
+			<div className="flex items-center gap-2 shrink-0">
 				<Button
 					size="sm"
 					className="h-7 text-xs"
