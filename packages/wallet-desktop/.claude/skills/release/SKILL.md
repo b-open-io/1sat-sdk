@@ -246,12 +246,3 @@ If the log file exists but stops at a specific event, that's where it failed. If
 ### MCP tool for live debugging
 
 If the app is running and MCP is connected (`1sat mcp-proxy`), use the `wallet_logs` tool to query the ring buffer (last 500 events) without touching the filesystem.
-
-## Version History
-
-| Tag | Status | Notes |
-|-----|--------|-------|
-| v0.0.1 | Stable | Initial release (first 3 CI runs failed during setup) |
-| v0.0.2 | Stable | 3 successful builds |
-| v0.0.3 | Stable | Added evlog telemetry, design frames, AI elements |
-| v0.0.4 | Current | BRC-103/104 auth, MCP proxy, file logging, sigma parity |
