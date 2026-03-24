@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "1sat-wallet": {
+      "url": "http://127.0.0.1:3322/mcp",
+      "_note": "Requires BRC-31 auth handshake at /.well-known/auth before connecting"
+    }
+  }
+}
