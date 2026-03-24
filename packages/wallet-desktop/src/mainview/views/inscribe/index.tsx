@@ -1,12 +1,16 @@
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-	type ChangeEvent,
-	type DragEvent,
-} from 'react'
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
 	AlertCircle,
 	CheckCircle2,
@@ -22,20 +26,15 @@ import {
 	Video,
 	X,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+	type ChangeEvent,
+	type DragEvent,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from 'react'
 import { rpc } from '../../rpc'
 
 // ---------------------------------------------------------------------------
@@ -43,7 +42,8 @@ import { rpc } from '../../rpc'
 // ---------------------------------------------------------------------------
 
 // Section header: 10px uppercase muted tracking-wider (Space Grotesk)
-const SECTION_HEADER = 'text-[10px] font-medium uppercase tracking-wider text-muted-foreground'
+const SECTION_HEADER =
+	'text-[10px] font-medium uppercase tracking-wider text-muted-foreground'
 // Mono data class (JetBrains Mono)
 const MONO = 'font-mono'
 
@@ -207,7 +207,9 @@ function Dropzone({ file, onFileSelect, onFileRemove }: DropzoneProps) {
 		(selectedFile: File) => {
 			setError(null)
 			if (selectedFile.size > MAX_FILE_SIZE) {
-				setError(`File too large. Maximum size is ${formatFileSize(MAX_FILE_SIZE)}.`)
+				setError(
+					`File too large. Maximum size is ${formatFileSize(MAX_FILE_SIZE)}.`,
+				)
 				return
 			}
 			if (previewUrlRef.current) {
@@ -324,7 +326,9 @@ function Dropzone({ file, onFileSelect, onFileRemove }: DropzoneProps) {
 				<div className="flex flex-col items-center gap-3 text-center">
 					<Upload className="size-8 text-muted-foreground" />
 					<div className="flex flex-col gap-1">
-						<p className="text-sm font-medium">Drop a file here or click to browse</p>
+						<p className="text-sm font-medium">
+							Drop a file here or click to browse
+						</p>
 						<p className="text-xs text-muted-foreground">
 							Any file type up to {formatFileSize(MAX_FILE_SIZE)}
 						</p>
@@ -412,7 +416,11 @@ function FileTab({
 
 	return (
 		<div className="flex flex-col gap-6 pt-4">
-			<Dropzone file={file} onFileSelect={onFileSelect} onFileRemove={onFileRemove} />
+			<Dropzone
+				file={file}
+				onFileSelect={onFileSelect}
+				onFileRemove={onFileRemove}
+			/>
 
 			{file && (
 				<>
@@ -597,7 +605,9 @@ function Bsv20Tab({ data, onChange }: Bsv20TabProps) {
 					maxLength={4}
 					className={`rounded-none ${MONO}`}
 				/>
-				<p className="text-xs text-muted-foreground">Up to 4 uppercase characters.</p>
+				<p className="text-xs text-muted-foreground">
+					Up to 4 uppercase characters.
+				</p>
 			</div>
 
 			{data.mode === 'mint' ? (
@@ -725,7 +735,8 @@ function Bsv21Tab({ data, onChange }: Bsv21TabProps) {
 	return (
 		<div className="flex flex-col gap-5 pt-4">
 			<p className="text-xs text-muted-foreground">
-				Deploy a new BSV21 token. All tokens are minted to your wallet on deployment.
+				Deploy a new BSV21 token. All tokens are minted to your wallet on
+				deployment.
 			</p>
 
 			{/* Symbol */}
@@ -757,7 +768,9 @@ function Bsv21Tab({ data, onChange }: Bsv21TabProps) {
 					<Label htmlFor="bsv21-max" className={SECTION_HEADER}>
 						Max Supply
 					</Label>
-					<span className="text-[10px] text-muted-foreground">Whole tokens</span>
+					<span className="text-[10px] text-muted-foreground">
+						Whole tokens
+					</span>
 				</div>
 				<Input
 					id="bsv21-max"
@@ -765,7 +778,9 @@ function Bsv21Tab({ data, onChange }: Bsv21TabProps) {
 					inputMode="numeric"
 					placeholder="21000000"
 					value={data.maxSupply}
-					onChange={(e) => update('maxSupply', e.target.value.replace(/[^0-9]/g, ''))}
+					onChange={(e) =>
+						update('maxSupply', e.target.value.replace(/[^0-9]/g, ''))
+					}
 					className={`rounded-none ${MONO}`}
 				/>
 			</div>
@@ -784,7 +799,9 @@ function Bsv21Tab({ data, onChange }: Bsv21TabProps) {
 					inputMode="numeric"
 					placeholder="8"
 					value={data.decimals}
-					onChange={(e) => update('decimals', e.target.value.replace(/[^0-9]/g, ''))}
+					onChange={(e) =>
+						update('decimals', e.target.value.replace(/[^0-9]/g, ''))
+					}
 					className={`rounded-none ${MONO}`}
 				/>
 			</div>
@@ -840,8 +857,8 @@ function Bsv21Tab({ data, onChange }: Bsv21TabProps) {
 			</div>
 
 			<div className="border border-border bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
-				BSV21 deployments are indexed immediately. A listing fee may be required before
-				it appears in some marketplace interfaces.
+				BSV21 deployments are indexed immediately. A listing fee may be required
+				before it appears in some marketplace interfaces.
 			</div>
 		</div>
 	)
@@ -903,12 +920,17 @@ export function InscribeView() {
 		if (activeTab === 'file') return file !== null
 		if (activeTab === 'bsv20') return bsv20.ticker.length > 0
 		if (activeTab === 'bsv21')
-			return bsv21.symbol.length > 0 && bsv21.icon !== null && bsv21.maxSupply.length > 0
+			return (
+				bsv21.symbol.length > 0 &&
+				bsv21.icon !== null &&
+				bsv21.maxSupply.length > 0
+			)
 		return false
 	}, [activeTab, file, bsv20.ticker, bsv21.symbol, bsv21.icon, bsv21.maxSupply])
 
 	const buttonLabel = useMemo(() => {
-		if (activeTab === 'bsv20') return bsv20.mode === 'mint' ? 'Mint Tokens' : 'Deploy Ticker'
+		if (activeTab === 'bsv20')
+			return bsv20.mode === 'mint' ? 'Mint Tokens' : 'Deploy Ticker'
 		if (activeTab === 'bsv21') return 'Deploy Token'
 		return 'Inscribe on Chain'
 	}, [activeTab, bsv20.mode])
@@ -965,7 +987,7 @@ export function InscribeView() {
 		} finally {
 			setIsInscribing(false)
 		}
-	}, [activeTab, file, contentType, metadata, signWithBAP])
+	}, [activeTab, file, contentType, metadata])
 
 	const handleTabChange = useCallback((value: string) => {
 		if (value === 'file' || value === 'bsv20' || value === 'bsv21') {

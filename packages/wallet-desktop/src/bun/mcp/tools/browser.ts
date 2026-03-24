@@ -15,9 +15,7 @@ export function registerBrowserTools(server: McpServer): void {
 		'browser_open',
 		'Open a URL in a new browser window. Supports https://, 1sat://, ordfs://, and bare outpoints.',
 		{
-			url: z
-				.string()
-				.describe('URL, 1sat:// address, or outpoint to open'),
+			url: z.string().describe('URL, 1sat:// address, or outpoint to open'),
 			title: z.string().optional().describe('Window title'),
 		},
 		async ({ url, title }) => {

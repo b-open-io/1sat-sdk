@@ -4,11 +4,10 @@
  * Exposes browser automation, blockchain data, and wallet tools
  * over HTTP Streamable transport with BRC-31 authentication.
  */
-// biome-ignore lint/suspicious/noExplicitAny: Bun.Server generic requires WebSocketData
 type HttpServer = ReturnType<typeof Bun.serve>
-import type { BrowserWindow } from 'electrobun/bun'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
+import type { BrowserWindow } from 'electrobun/bun'
 import {
 	handleAuthDiscovery,
 	handleHandshake,

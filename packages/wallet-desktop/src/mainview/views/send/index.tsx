@@ -46,7 +46,10 @@ export function SendView({ params, onNavigate }: SendViewProps) {
 	const [copied, setCopied] = useState(false)
 
 	// Balance — fetch once on mount, then stay live via push events
-	const [balance, setBalance] = useState<BalanceInfo>({ confirmed: 0, unconfirmed: 0 })
+	const [balance, setBalance] = useState<BalanceInfo>({
+		confirmed: 0,
+		unconfirmed: 0,
+	})
 	const balanceFetchedRef = useRef(false)
 
 	useEffect(() => {
@@ -89,11 +92,18 @@ export function SendView({ params, onNavigate }: SendViewProps) {
 	async function handleConfirm() {
 		setPhase('sending')
 		try {
-			const result = await rpc.request.sendBsv({ address: address.trim(), amount: satoshis })
+			const result = await rpc.request.sendBsv({
+				address: address.trim(),
+				amount: satoshis,
+			})
 			setTxid(result.txid)
 			setPhase('success')
 		} catch (err) {
-			setErrorMsg(err instanceof Error ? err.message : 'Transaction failed. Please try again.')
+			setErrorMsg(
+				err instanceof Error
+					? err.message
+					: 'Transaction failed. Please try again.',
+			)
 			setPhase('error')
 		}
 	}

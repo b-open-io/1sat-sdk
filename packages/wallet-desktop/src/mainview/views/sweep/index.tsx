@@ -1,9 +1,16 @@
-import { useCallback, useState } from 'react'
-import { ArrowLeft, Check, Copy, Download, Loader2, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { rpc } from '../../rpc'
+import {
+	ArrowLeft,
+	Check,
+	Copy,
+	Download,
+	Loader2,
+	ShieldCheck,
+} from 'lucide-react'
+import { useCallback, useState } from 'react'
 import type { SweepScanResult } from '../../../shared/types'
+import { rpc } from '../../rpc'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -84,9 +91,7 @@ function VerticalStepper({ currentStep }: { currentStep: Step }) {
 								'w-px flex-shrink-0 my-1 transition-colors',
 								// segment height — 4 steps need 3 connectors
 								'h-8',
-								(i + 1) < currentStep
-									? 'bg-primary'
-									: 'bg-border',
+								i + 1 < currentStep ? 'bg-primary' : 'bg-border',
 							].join(' ')}
 						/>
 					)}
@@ -119,7 +124,11 @@ function StepInput({
 			const result = await rpc.request.sweepScan({ wif: trimmed })
 			onScanComplete(trimmed, result)
 		} catch (err) {
-			setError(err instanceof Error ? err.message : 'Scan failed. Check the key and try again.')
+			setError(
+				err instanceof Error
+					? err.message
+					: 'Scan failed. Check the key and try again.',
+			)
 		} finally {
 			setScanning(false)
 		}
@@ -137,15 +146,21 @@ function StepInput({
 			<div>
 				<div className="flex items-center gap-2 mb-1">
 					<Download className="size-4 text-muted-foreground" />
-					<h2 className="text-base font-semibold text-foreground">Import Private Key</h2>
+					<h2 className="text-base font-semibold text-foreground">
+						Import Private Key
+					</h2>
 				</div>
 				<p className="text-sm text-muted-foreground">
-					Paste a WIF-encoded private key to scan its address for BSV, ordinals, and tokens.
+					Paste a WIF-encoded private key to scan its address for BSV, ordinals,
+					and tokens.
 				</p>
 			</div>
 
 			<div className="space-y-3">
-				<label htmlFor="wif-input" className="text-xs font-medium text-muted-foreground uppercase tracking-widest">
+				<label
+					htmlFor="wif-input"
+					className="text-xs font-medium text-muted-foreground uppercase tracking-widest"
+				>
 					Private Key (WIF)
 				</label>
 				<Input
@@ -161,9 +176,7 @@ function StepInput({
 					spellCheck={false}
 					disabled={scanning}
 				/>
-				{error && (
-					<p className="text-xs text-destructive font-mono">{error}</p>
-				)}
+				{error && <p className="text-xs text-destructive font-mono">{error}</p>}
 			</div>
 
 			<Button
@@ -201,7 +214,9 @@ function StepScanning() {
 					/>
 				))}
 			</div>
-			<p className="text-sm text-muted-foreground">Scanning address for assets…</p>
+			<p className="text-sm text-muted-foreground">
+				Scanning address for assets…
+			</p>
 		</div>
 	)
 }
@@ -238,7 +253,9 @@ function StepResults({
 	return (
 		<div className="flex flex-col gap-6">
 			<div>
-				<h2 className="text-base font-semibold text-foreground mb-1">Assets Found</h2>
+				<h2 className="text-base font-semibold text-foreground mb-1">
+					Assets Found
+				</h2>
 				<p className="text-sm text-muted-foreground">
 					Select the assets you want to sweep into your wallet.
 				</p>
@@ -246,7 +263,9 @@ function StepResults({
 
 			{!hasAnything ? (
 				<div className="rounded-md border border-border bg-muted/30 px-4 py-8 text-center">
-					<p className="text-sm text-muted-foreground">No assets found at this address.</p>
+					<p className="text-sm text-muted-foreground">
+						No assets found at this address.
+					</p>
 				</div>
 			) : (
 				<div className="space-y-2">
@@ -263,7 +282,8 @@ function StepResults({
 								<div>
 									<p className="text-sm font-medium text-foreground">BSV</p>
 									<p className="text-xs text-muted-foreground">
-										{scanResult.funding.length} {scanResult.funding.length === 1 ? 'UTXO' : 'UTXOs'}
+										{scanResult.funding.length}{' '}
+										{scanResult.funding.length === 1 ? 'UTXO' : 'UTXOs'}
 									</p>
 								</div>
 							</div>
@@ -279,13 +299,18 @@ function StepResults({
 							<div className="flex items-center gap-3">
 								<input type="checkbox" disabled className="w-4 h-4" />
 								<div>
-									<p className="text-sm font-medium text-foreground">Ordinals</p>
+									<p className="text-sm font-medium text-foreground">
+										Ordinals
+									</p>
 									<p className="text-xs text-muted-foreground">
-										{scanResult.ordinals.length} ordinal{scanResult.ordinals.length !== 1 ? 's' : ''} found
+										{scanResult.ordinals.length} ordinal
+										{scanResult.ordinals.length !== 1 ? 's' : ''} found
 									</p>
 								</div>
 							</div>
-							<span className="text-xs text-muted-foreground font-mono">Coming soon</span>
+							<span className="text-xs text-muted-foreground font-mono">
+								Coming soon
+							</span>
 						</div>
 					)}
 
@@ -297,19 +322,20 @@ function StepResults({
 								<div>
 									<p className="text-sm font-medium text-foreground">Tokens</p>
 									<p className="text-xs text-muted-foreground">
-										{scanResult.tokens.length} token type{scanResult.tokens.length !== 1 ? 's' : ''} found
+										{scanResult.tokens.length} token type
+										{scanResult.tokens.length !== 1 ? 's' : ''} found
 									</p>
 								</div>
 							</div>
-							<span className="text-xs text-muted-foreground font-mono">Coming soon</span>
+							<span className="text-xs text-muted-foreground font-mono">
+								Coming soon
+							</span>
 						</div>
 					)}
 				</div>
 			)}
 
-			{error && (
-				<p className="text-xs text-destructive font-mono">{error}</p>
-			)}
+			{error && <p className="text-xs text-destructive font-mono">{error}</p>}
 
 			<Button
 				onClick={handleSweep}
@@ -356,7 +382,9 @@ function StepSuccess({
 			</div>
 
 			<div className="text-center">
-				<h2 className="text-base font-semibold text-foreground">Sweep Complete</h2>
+				<h2 className="text-base font-semibold text-foreground">
+					Sweep Complete
+				</h2>
 				<p className="text-sm text-muted-foreground mt-1">
 					Assets have been swept into your wallet.
 				</p>
@@ -425,7 +453,10 @@ export function SweepView({ onNavigate }: SweepViewProps) {
 		if (!pendingWif || !scanResult) {
 			throw new Error('Scan data missing. Please re-scan.')
 		}
-		const result = await rpc.request.sweepBsv({ wif: pendingWif, assets: scanResult })
+		const result = await rpc.request.sweepBsv({
+			wif: pendingWif,
+			assets: scanResult,
+		})
 		if (result.error) {
 			throw new Error(result.error)
 		}
@@ -460,15 +491,10 @@ export function SweepView({ onNavigate }: SweepViewProps) {
 					<VerticalStepper currentStep={step} />
 
 					<div className="flex-1 p-6 overflow-y-auto">
-						{step === 1 && (
-							<StepInput onScanComplete={handleScanComplete} />
-						)}
+						{step === 1 && <StepInput onScanComplete={handleScanComplete} />}
 						{step === 2 && <StepScanning />}
 						{step === 3 && scanResult && (
-							<StepResults
-								scanResult={scanResult}
-								onSweep={handleSweep}
-							/>
+							<StepResults scanResult={scanResult} onSweep={handleSweep} />
 						)}
 						{step === 4 && (
 							<StepSuccess

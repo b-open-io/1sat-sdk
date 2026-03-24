@@ -1,4 +1,8 @@
-import { useCallback, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
 	AlertCircle,
 	CheckCircle2,
@@ -8,12 +12,7 @@ import {
 	Trash2,
 	Upload,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useCallback, useState } from 'react'
 import { rpc } from '../../rpc'
 
 // ---------------------------------------------------------------------------
@@ -52,7 +51,12 @@ interface FilePickerRowProps {
 	onClear: () => void
 }
 
-function FilePickerRow({ label, filename, onPick, onClear }: FilePickerRowProps) {
+function FilePickerRow({
+	label,
+	filename,
+	onPick,
+	onClear,
+}: FilePickerRowProps) {
 	if (filename) {
 		return (
 			<div className="flex items-center gap-3 border border-border px-4 py-2.5">
@@ -138,7 +142,10 @@ function CreateCollectionTab() {
 	} | null>(null)
 	const [royalties, setRoyalties] = useState<RoyaltyRow[]>([])
 	const [isSubmitting, setIsSubmitting] = useState(false)
-	const [result, setResult] = useState<{ txid?: string; collectionId?: string } | null>(null)
+	const [result, setResult] = useState<{
+		txid?: string
+		collectionId?: string
+	} | null>(null)
 	const [error, setError] = useState<string | null>(null)
 
 	const handlePickArtwork = useCallback(async () => {
@@ -158,7 +165,15 @@ function CreateCollectionTab() {
 	}, [])
 
 	const addRoyalty = useCallback(() => {
-		setRoyalties((prev) => [...prev, { id: crypto.randomUUID(), type: 'paymail', destination: '', percentage: '' }])
+		setRoyalties((prev) => [
+			...prev,
+			{
+				id: crypto.randomUUID(),
+				type: 'paymail',
+				destination: '',
+				percentage: '',
+			},
+		])
 	}, [])
 
 	const removeRoyalty = useCallback((index: number) => {
@@ -188,7 +203,8 @@ function CreateCollectionTab() {
 
 		try {
 			const validRoyalties = royalties.filter(
-				(r) => r.destination.trim().length > 0 && r.percentage.trim().length > 0,
+				(r) =>
+					r.destination.trim().length > 0 && r.percentage.trim().length > 0,
 			)
 			const res = await rpc.request.mintCollection({
 				base64Content: artwork.base64Content,
@@ -205,7 +221,9 @@ function CreateCollectionTab() {
 				setResult({ txid: res.txid, collectionId: res.collectionId })
 			}
 		} catch (err) {
-			setError(err instanceof Error ? err.message : 'Failed to create collection')
+			setError(
+				err instanceof Error ? err.message : 'Failed to create collection',
+			)
 		} finally {
 			setIsSubmitting(false)
 		}
@@ -285,10 +303,7 @@ function CreateCollectionTab() {
 				{royalties.length > 0 && (
 					<div className="flex flex-col gap-2">
 						{royalties.map((royalty, index) => (
-							<div
-								key={royalty.id}
-								className="flex items-center gap-2"
-							>
+							<div key={royalty.id} className="flex items-center gap-2">
 								<Input
 									placeholder="type"
 									value={royalty.type}
@@ -338,7 +353,9 @@ function CreateCollectionTab() {
 				</>
 			)}
 
-			{error && <ErrorBanner label="Collection creation failed" message={error} />}
+			{error && (
+				<ErrorBanner label="Collection creation failed" message={error} />
+			)}
 
 			<Button
 				className="w-full rounded-none"
@@ -394,7 +411,10 @@ function MintItemTab() {
 	}, [])
 
 	const addTrait = useCallback(() => {
-		setTraits((prev) => [...prev, { id: crypto.randomUUID(), name: '', value: '' }])
+		setTraits((prev) => [
+			...prev,
+			{ id: crypto.randomUUID(), name: '', value: '' },
+		])
 	}, [])
 
 	const removeTrait = useCallback((index: number) => {

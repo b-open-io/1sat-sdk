@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -8,6 +7,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select'
+import { useCallback, useEffect, useState } from 'react'
 import { rpc } from '../../rpc'
 
 // ─── Constants (hoisted — rendering-hoist-jsx) ────────────────────────────────
@@ -181,10 +181,7 @@ export function LocksView() {
 	}, [])
 
 	return (
-		<div
-			className="mx-auto w-full py-8 px-6"
-			style={{ maxWidth: 800 }}
-		>
+		<div className="mx-auto w-full py-8 px-6" style={{ maxWidth: 800 }}>
 			{/* Page title */}
 			<h1
 				className="text-foreground font-semibold mb-6"

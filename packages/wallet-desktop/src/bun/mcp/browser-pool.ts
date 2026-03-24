@@ -171,8 +171,7 @@ export function executeJs(
 	timeoutMs = 10_000,
 ): Promise<string> {
 	const managed = windows.get(windowId)
-	if (!managed)
-		return Promise.reject(new Error(`Window ${windowId} not found`))
+	if (!managed) return Promise.reject(new Error(`Window ${windowId} not found`))
 
 	const callId = crypto.randomUUID()
 	const wv = managed.window.webview as WebviewAny
@@ -186,9 +185,7 @@ export function executeJs(
 		const handler = (e: unknown) => {
 			try {
 				const raw =
-					typeof e === 'string'
-						? e
-						: (e as { detail?: string })?.detail ?? ''
+					typeof e === 'string' ? e : ((e as { detail?: string })?.detail ?? '')
 				const msg = JSON.parse(raw)
 				if (msg.type === 'mcp-js-result' && msg.id === callId) {
 					clearTimeout(timer)

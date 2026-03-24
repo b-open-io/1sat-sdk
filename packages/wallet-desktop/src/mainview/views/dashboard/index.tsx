@@ -8,9 +8,13 @@ import {
 	Timer,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import type { HistoryEntry, LockDataInfo, TokenBalance } from '../../../shared/types'
-import { rpc } from '../../rpc'
+import type {
+	HistoryEntry,
+	LockDataInfo,
+	TokenBalance,
+} from '../../../shared/types'
 import { useWallet } from '../../hooks/use-wallet'
+import { rpc } from '../../rpc'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -103,6 +107,9 @@ function AssetCard({ icon, iconBg, name, value, onClick }: AssetCardProps) {
 		<div
 			className={`border border-border p-4 space-y-3 transition-colors${onClick ? ' cursor-pointer hover:border-primary' : ''}`}
 			onClick={onClick}
+			onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick() } : undefined}
+			role={onClick ? 'button' : undefined}
+			tabIndex={onClick ? 0 : undefined}
 		>
 			<div className="flex items-center gap-2">
 				<div
@@ -159,23 +166,40 @@ export function OverviewView({ onNavigate }: OverviewViewProps) {
 
 		const ordinalsPromise = rpc.request
 			.getOrdinals({ limit: 1 })
-			.then((r) => { if (!cancelled) setOrdinalCount(r.ordinals.length) })
-			.catch(() => { if (!cancelled) setOrdinalCount(0) })
+			.then((r) => {
+				if (!cancelled) setOrdinalCount(r.ordinals.length)
+			})
+			.catch(() => {
+				if (!cancelled) setOrdinalCount(0)
+			})
 
 		const tokensPromise = rpc.request
 			.getTokenBalances()
-			.then((r: { balances: TokenBalance[] }) => { if (!cancelled) setTokenCount(r.balances.length) })
-			.catch(() => { if (!cancelled) setTokenCount(0) })
+			.then((r: { balances: TokenBalance[] }) => {
+				if (!cancelled) setTokenCount(r.balances.length)
+			})
+			.catch(() => {
+				if (!cancelled) setTokenCount(0)
+			})
 
 		const lockPromise = rpc.request
 			.getLockData()
-			.then((r: LockDataInfo) => { if (!cancelled) setLockData(r) })
-			.catch(() => { if (!cancelled) setLockData({ totalLocked: 0, unlockable: 0, nextUnlock: 0 }) })
+			.then((r: LockDataInfo) => {
+				if (!cancelled) setLockData(r)
+			})
+			.catch(() => {
+				if (!cancelled)
+					setLockData({ totalLocked: 0, unlockable: 0, nextUnlock: 0 })
+			})
 
 		const historyPromise = rpc.request
 			.getTransactionHistory({ limit: 3 })
-			.then((r) => { if (!cancelled) setRecentTx(r.entries) })
-			.catch(() => { if (!cancelled) setRecentTx([]) })
+			.then((r) => {
+				if (!cancelled) setRecentTx(r.entries)
+			})
+			.catch(() => {
+				if (!cancelled) setRecentTx([])
+			})
 
 		// Fire and forget — we don't need Promise.all here since each sets state independently
 		void ordinalsPromise
@@ -183,12 +207,15 @@ export function OverviewView({ onNavigate }: OverviewViewProps) {
 		void lockPromise
 		void historyPromise
 
-		return () => { cancelled = true }
+		return () => {
+			cancelled = true
+		}
 	}, [])
 
 	const bsvAmount = satsToBsv(balance.confirmed)
 	const usdAmount = formatUsd(balance.confirmed / SAT_PER_BSV)
-	const assetsLoading = ordinalCount === null || tokenCount === null || lockData === null
+	const assetsLoading =
+		ordinalCount === null || tokenCount === null || lockData === null
 	const activityLoading = recentTx === null
 
 	return (
@@ -299,7 +326,9 @@ export function OverviewView({ onNavigate }: OverviewViewProps) {
 							icon={<Timer size={16} className="text-purple-300" />}
 							iconBg="bg-purple-950"
 							name="Locked BSV"
-							value={lockData ? `${satsToBsv(lockData.totalLocked)} BSV` : '0 BSV'}
+							value={
+								lockData ? `${satsToBsv(lockData.totalLocked)} BSV` : '0 BSV'
+							}
 							onClick={() => onNavigate?.('1sat://locks/all')}
 						/>
 					</div>
@@ -351,7 +380,15 @@ export function OverviewView({ onNavigate }: OverviewViewProps) {
 									{idx > 0 && <div className="h-px bg-border" />}
 									<div
 										className="flex items-center gap-3 py-3 cursor-pointer hover:bg-muted/40 transition-colors -mx-2 px-2"
-										onClick={() => onNavigate?.(`1sat://wallet/tx?txid=${tx.txid}`)}
+										onClick={() =>
+											onNavigate?.(`1sat://wallet/tx?txid=${tx.txid}`)
+										}
+										onKeyDown={(e) => {
+											if (e.key === 'Enter' || e.key === ' ')
+												onNavigate?.(`1sat://wallet/tx?txid=${tx.txid}`)
+										}}
+										role="button"
+										tabIndex={0}
 									>
 										<div
 											className={`size-2 shrink-0 ${statusColor(status)}`}

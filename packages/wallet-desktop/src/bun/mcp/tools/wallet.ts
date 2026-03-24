@@ -119,10 +119,7 @@ export function registerWalletTools(server: McpServer): void {
 		'wallet_ordinals',
 		'List ordinals owned by the wallet.',
 		{
-			limit: z
-				.number()
-				.optional()
-				.describe('Max results (default 100)'),
+			limit: z.number().optional().describe('Max results (default 100)'),
 			offset: z.number().optional().describe('Offset for pagination'),
 		},
 		async ({ limit, offset }) => {

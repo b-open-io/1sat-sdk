@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
 import { MnemonicFlow } from '@/components/blocks/mnemonic-flow'
+import { useCallback, useEffect, useState } from 'react'
 import { useWallet } from '../../hooks/use-wallet'
 
 export function CreateWallet({ onCancel }: { onCancel: () => void }) {
@@ -48,9 +48,7 @@ export function CreateWallet({ onCancel }: { onCancel: () => void }) {
 
 	return (
 		<div className="max-w-lg mx-auto p-6">
-			<h1 className="text-2xl font-bold text-foreground mb-1">
-				Create Wallet
-			</h1>
+			<h1 className="text-2xl font-bold text-foreground mb-1">Create Wallet</h1>
 			<p className="text-sm text-muted-foreground mb-6">
 				Write down your recovery phrase and store it safely.
 			</p>

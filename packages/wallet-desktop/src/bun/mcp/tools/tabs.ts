@@ -1,3 +1,4 @@
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 /**
  * Tab MCP tools — interact with tabs in the main browser view.
  *
@@ -5,7 +6,6 @@
  * through Electrobun RPC to the React BrowserView component.
  */
 import type { BrowserWindow } from 'electrobun/bun'
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 
 // Electrobun's BrowserView RPC type is incomplete — cast to access
@@ -131,9 +131,7 @@ export function registerTabTools(
 						isError: true,
 					}
 				return {
-					content: [
-						{ type: 'text', text: `Navigated tab to ${url}` },
-					],
+					content: [{ type: 'text', text: `Navigated tab to ${url}` }],
 				}
 			} catch (err) {
 				return {

@@ -161,8 +161,7 @@ function extractAuthHeaders(request: Request): AuthHeaders {
 	const h = request.headers
 	return {
 		identityKey:
-			h.get(AUTH_HEADERS.IDENTITY_KEY) ??
-			h.get(AUTHRITE_HEADERS.IDENTITY_KEY),
+			h.get(AUTH_HEADERS.IDENTITY_KEY) ?? h.get(AUTHRITE_HEADERS.IDENTITY_KEY),
 		nonce: h.get(AUTH_HEADERS.NONCE) ?? h.get(AUTHRITE_HEADERS.NONCE),
 		yourNonce:
 			h.get(AUTH_HEADERS.YOUR_NONCE) ?? h.get(AUTHRITE_HEADERS.YOUR_NONCE),

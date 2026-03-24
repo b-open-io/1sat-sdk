@@ -1,6 +1,6 @@
 import { Skeleton } from '@/components/ui/skeleton'
-import QRCode from 'qrcode'
 import { ArrowLeft, Check, Copy, QrCode } from 'lucide-react'
+import QRCode from 'qrcode'
 import { useEffect, useRef, useState } from 'react'
 import { rpc } from '../../rpc'
 
@@ -36,7 +36,9 @@ export function ReceiveView({ onNavigate }: ReceiveViewProps) {
 			})
 			.catch((err: unknown) => {
 				if (cancelled) return
-				setError(err instanceof Error ? err.message : 'Failed to load receive address')
+				setError(
+					err instanceof Error ? err.message : 'Failed to load receive address',
+				)
 			})
 
 		return () => {
@@ -108,7 +110,10 @@ export function ReceiveView({ onNavigate }: ReceiveViewProps) {
 									style={{ imageRendering: 'pixelated', borderRadius: 0 }}
 								/>
 							) : (
-								<Skeleton className="size-[240px]" style={{ borderRadius: 0 }} />
+								<Skeleton
+									className="size-[240px]"
+									style={{ borderRadius: 0 }}
+								/>
 							)}
 
 							{/* Address box */}
@@ -126,7 +131,11 @@ export function ReceiveView({ onNavigate }: ReceiveViewProps) {
 									onClick={handleCopy}
 									aria-label="Copy address"
 								>
-									{copied ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+									{copied ? (
+										<Check size={14} className="text-green-400" />
+									) : (
+										<Copy size={14} />
+									)}
 								</button>
 							</div>
 						</>

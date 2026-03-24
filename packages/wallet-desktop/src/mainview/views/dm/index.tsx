@@ -223,10 +223,15 @@ export function DmView({
 
 				// Normalise whatever shape the server returns into DmMessage[].
 				// Expected shape: { messages: Array<{ id, sender, content, timestamp }> }
-				const raw: unknown[] = Array.isArray(data?.messages) ? data.messages : []
+				const raw: unknown[] = Array.isArray(data?.messages)
+					? data.messages
+					: []
 
 				const normalised: DmMessage[] = raw
-					.filter((m): m is Record<string, unknown> => typeof m === 'object' && m !== null)
+					.filter(
+						(m): m is Record<string, unknown> =>
+							typeof m === 'object' && m !== null,
+					)
 					.map((m, i) => ({
 						id: typeof m.id === 'string' ? m.id : String(i),
 						content: typeof m.content === 'string' ? m.content : '',
@@ -236,10 +241,7 @@ export function DmView({
 								: Math.floor(Date.now() / 1000),
 						// Messages where the sender matches the other person's bapId come
 						// from them; everything else was sent by us.
-						fromSelf:
-							typeof m.sender === 'string'
-								? m.sender !== bapId
-								: false,
+						fromSelf: typeof m.sender === 'string' ? m.sender !== bapId : false,
 					}))
 
 				setMessages(normalised)
@@ -268,7 +270,7 @@ export function DmView({
 	}, [onNavigate])
 
 	const handleProfileLink = useCallback(() => {
-		if (bapId) onNavigate?.(`1sat://identity/${bapId}`)
+		if (bapId) onNavigate?.(`1sat://identity/profile?bapId=${encodeURIComponent(bapId)}`)
 	}, [bapId, onNavigate])
 
 	const handleAttemptSend = useCallback((_content: string) => {
@@ -291,11 +293,16 @@ export function DmView({
 					>
 						<ArrowLeft size={14} />
 					</Button>
-					<span className="text-[13px] font-semibold text-foreground">Direct Message</span>
+					<span className="text-[13px] font-semibold text-foreground">
+						Direct Message
+					</span>
 				</div>
 				<div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground px-6 text-center">
 					<MessageCircle size={28} className="opacity-40" />
-					<p className="text-[12px]">No identity specified. Navigate to a conversation via a profile link.</p>
+					<p className="text-[12px]">
+						No identity specified. Navigate to a conversation via a profile
+						link.
+					</p>
 				</div>
 			</div>
 		)
@@ -348,13 +355,12 @@ export function DmView({
 
 			{/* Send notice toast */}
 			{sendNotice && (
-				<div
-					className="mx-4 mt-2 px-3 py-2 rounded-sm border border-border bg-muted text-[11px] text-muted-foreground"
-					role="status"
+				<output
+					className="mx-4 mt-2 px-3 py-2 rounded-sm border border-border bg-muted text-[11px] text-muted-foreground block"
 					aria-live="polite"
 				>
 					{sendNotice}
-				</div>
+				</output>
 			)}
 
 			{/* Message list */}
@@ -366,8 +372,13 @@ export function DmView({
 					</div>
 				) : fetchError || messageCount === 0 ? (
 					<div className="flex flex-col items-center justify-center gap-1.5 py-16 text-center px-6">
-						<MessageCircle size={24} className="text-muted-foreground opacity-40" />
-						<p className="text-[13px] font-semibold text-foreground">No messages yet</p>
+						<MessageCircle
+							size={24}
+							className="text-muted-foreground opacity-40"
+						/>
+						<p className="text-[13px] font-semibold text-foreground">
+							No messages yet
+						</p>
 						<p className="text-[12px] text-muted-foreground">
 							{fetchError
 								? 'Could not load messages. Start a conversation below.'
@@ -387,10 +398,7 @@ export function DmView({
 			</ScrollArea>
 
 			{/* Compose bar */}
-			<DmComposeBar
-				recipientBapId={bapId}
-				onAttemptSend={handleAttemptSend}
-			/>
+			<DmComposeBar recipientBapId={bapId} onAttemptSend={handleAttemptSend} />
 		</div>
 	)
 }

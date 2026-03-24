@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
-import { MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { MessageCircle } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 import { FollowButton } from '../../components/blocks/follow-button'
 import type { FollowResult } from '../../components/blocks/follow-button'
-import { rpc } from '../../rpc'
 import type { BapProfile } from '../../components/blocks/profile-card/use-profile-card'
+import { rpc } from '../../rpc'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -200,14 +200,19 @@ function OtherProfileView({ targetBapId, onNavigate }: OtherProfileViewProps) {
 		onNavigate?.(`1sat://dm?bapId=${encodeURIComponent(targetBapId)}`)
 	}, [targetBapId, onNavigate])
 
-	const handleFollow = useCallback(async (bapId: string): Promise<FollowResult> => {
-		setFollowError(null)
-		const result = await rpc.request.createSocialPost({ content: `follow:${bapId}` })
-		if (result.error) {
-			return { error: result.error }
-		}
-		return { txid: result.txid }
-	}, [])
+	const handleFollow = useCallback(
+		async (bapId: string): Promise<FollowResult> => {
+			setFollowError(null)
+			const result = await rpc.request.createSocialPost({
+				content: `follow:${bapId}`,
+			})
+			if (result.error) {
+				return { error: result.error }
+			}
+			return { txid: result.txid }
+		},
+		[],
+	)
 
 	const displayName =
 		profile?.name ?? profile?.alternateName ?? truncate(targetBapId, 10, 8)
@@ -260,14 +265,15 @@ function OtherProfileView({ targetBapId, onNavigate }: OtherProfileViewProps) {
 								>
 									{displayName}
 								</span>
-								{profile?.alternateName && profile.alternateName !== displayName && (
-									<span
-										className="text-muted-foreground"
-										style={{ fontFamily: 'var(--font-sans)', fontSize: 12 }}
-									>
-										{profile.alternateName}
-									</span>
-								)}
+								{profile?.alternateName &&
+									profile.alternateName !== displayName && (
+										<span
+											className="text-muted-foreground"
+											style={{ fontFamily: 'var(--font-sans)', fontSize: 12 }}
+										>
+											{profile.alternateName}
+										</span>
+									)}
 								<span
 									className="text-muted-foreground"
 									style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}
@@ -316,7 +322,11 @@ function OtherProfileView({ targetBapId, onNavigate }: OtherProfileViewProps) {
 							<SectionHeader label="About" />
 							<p
 								className="text-foreground mt-2"
-								style={{ fontFamily: 'var(--font-sans)', fontSize: 13, lineHeight: 1.5 }}
+								style={{
+									fontFamily: 'var(--font-sans)',
+									fontSize: 13,
+									lineHeight: 1.5,
+								}}
 							>
 								{profile.description}
 							</p>
@@ -328,10 +338,12 @@ function OtherProfileView({ targetBapId, onNavigate }: OtherProfileViewProps) {
 					</div>
 
 					<div className="border-t border-border">
-						<DetailRow label="BAP ID" value={truncate(targetBapId, 10, 8)} mono />
-						{profile?.url && (
-							<DetailRow label="Website" value={profile.url} />
-						)}
+						<DetailRow
+							label="BAP ID"
+							value={truncate(targetBapId, 10, 8)}
+							mono
+						/>
+						{profile?.url && <DetailRow label="Website" value={profile.url} />}
 					</div>
 				</div>
 			)}
@@ -358,9 +370,7 @@ export function IdentityView({ params, onNavigate }: IdentityViewProps = {}) {
 			setOwnBapId(result.bapId)
 			setError(null)
 		} catch (err) {
-			setError(
-				err instanceof Error ? err.message : 'Failed to load identity',
-			)
+			setError(err instanceof Error ? err.message : 'Failed to load identity')
 		} finally {
 			setLoading(false)
 		}
@@ -416,10 +426,7 @@ export function IdentityView({ params, onNavigate }: IdentityViewProps = {}) {
 	}
 
 	return (
-		<div
-			className="mx-auto w-full py-8 px-6"
-			style={{ maxWidth: 800 }}
-		>
+		<div className="mx-auto w-full py-8 px-6" style={{ maxWidth: 800 }}>
 			{/* Page title */}
 			<h1
 				className="text-foreground font-semibold mb-6"

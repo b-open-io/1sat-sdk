@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils'
 import {
 	AlertCircle,
 	AlertTriangle,
@@ -22,7 +23,6 @@ import {
 	X,
 } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
-import { cn } from '@/lib/utils'
 import { Button } from '../../components/ui/button'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -62,7 +62,11 @@ const DEFAULT_RECENT: RecentProject[] = [
 	{ name: 'bitbattle-arena', path: '~/code/bitbattle-arena', type: 'Vite' },
 	{ name: 'ordinal-gallery', path: '~/code/ordinal-gallery', type: 'CRA' },
 	{ name: 'research-agent', path: '~/code/research-agent', type: 'Bot' },
-	{ name: 'bsv-pricing-skill', path: '~/code/bsv-pricing-skill', type: 'Skill' },
+	{
+		name: 'bsv-pricing-skill',
+		path: '~/code/bsv-pricing-skill',
+		type: 'Skill',
+	},
 ]
 
 const MOCK_BUILD_FILES: BuildFile[] = [
@@ -97,9 +101,10 @@ const COST_AIP = 0.00001
 const COST_MINER = 0.00003
 const COST_TOTAL = COST_INSCRIPTION + COST_MAP + COST_AIP + COST_MINER
 
-// Mock balance — set below COST_TOTAL to demonstrate insufficient-funds state.
-// In production this would be fetched from the wallet.
-const MOCK_BALANCE = 0.001
+// Mock balance — must be above COST_TOTAL so the happy path (broadcasting →
+// success) is reachable by default. Set to a value below COST_TOTAL to demo
+// the insufficient-funds UI instead.
+const MOCK_BALANCE = 0.002
 
 const MOCK_TXID = 'a7b3e9f2...c4d81e06'
 
@@ -140,7 +145,10 @@ function PublishStepIndicator({
 				} else if (idx === currentIndex) {
 					if (step.id === 'build' && buildFailed) {
 						status = 'error'
-					} else if (step.id === 'publish' && publishSubState === 'insufficient') {
+					} else if (
+						step.id === 'publish' &&
+						publishSubState === 'insufficient'
+					) {
 						status = 'warning'
 					} else {
 						status = 'active'
@@ -171,7 +179,11 @@ function PublishStepIndicator({
 								) : status === 'error' ? (
 									<X size={14} strokeWidth={2.5} aria-label="Error" />
 								) : status === 'warning' ? (
-									<AlertTriangle size={13} strokeWidth={2.5} aria-label="Warning" />
+									<AlertTriangle
+										size={13}
+										strokeWidth={2.5}
+										aria-label="Warning"
+									/>
 								) : (
 									<span>{step.number}</span>
 								)}
@@ -236,12 +248,16 @@ function TypeBadge({ type }: { type: ProjectType }) {
 // ─── File type icon ───────────────────────────────────────────────────────────
 
 function FileTypeIcon({ mime, name }: { mime: string; name: string }) {
-	if (mime.includes('html')) return <FileCode size={15} className="text-blue-400" />
-	if (mime.includes('javascript')) return <FileJson size={15} className="text-yellow-400" />
-	if (mime.includes('css')) return <FileCog size={15} className="text-purple-400" />
+	if (mime.includes('html'))
+		return <FileCode size={15} className="text-blue-400" />
+	if (mime.includes('javascript'))
+		return <FileJson size={15} className="text-yellow-400" />
+	if (mime.includes('css'))
+		return <FileCog size={15} className="text-purple-400" />
 	if (mime.includes('svg') || mime.includes('image'))
 		return <FileImage size={15} className="text-emerald-400" />
-	if (name.endsWith('.json')) return <FileJson size={15} className="text-orange-400" />
+	if (name.endsWith('.json'))
+		return <FileJson size={15} className="text-orange-400" />
 	return <FileText size={15} className="text-muted-foreground" />
 }
 
@@ -318,20 +334,16 @@ function SelectStep({ onSelect }: SelectStepProps) {
 	return (
 		<div className="flex flex-col gap-5 p-6 flex-1 overflow-y-auto">
 			{/* Dropzone */}
-			<div
-				role="button"
-				tabIndex={0}
+			<button
+				type="button"
 				aria-label="Select a project folder"
 				onClick={handleDropzoneClick}
-				onKeyDown={(e) => {
-					if (e.key === 'Enter' || e.key === ' ') handleDropzoneClick()
-				}}
 				onDragOver={handleDragOver}
 				onDragLeave={handleDragLeave}
 				onDrop={handleDrop}
 				className={cn(
 					'flex flex-col items-center justify-center gap-3 py-10 px-6',
-					'border border-dashed cursor-pointer transition-colors select-none',
+					'border border-dashed cursor-pointer transition-colors select-none bg-transparent',
 					isDragging
 						? 'border-blue-500/60 bg-blue-500/5'
 						: 'border-border hover:border-border/80 hover:bg-muted/30 bg-muted/10',
@@ -357,7 +369,7 @@ function SelectStep({ onSelect }: SelectStepProps) {
 					React&nbsp;&middot;&nbsp;Skill&nbsp;&middot;&nbsp;Bot&nbsp;&middot;&nbsp;Static
 					Site&nbsp;&middot;&nbsp;Media
 				</div>
-			</div>
+			</button>
 
 			{/* Recent projects */}
 			{recentProjects.length > 0 && (
@@ -376,7 +388,10 @@ function SelectStep({ onSelect }: SelectStepProps) {
 								<Folder
 									size={18}
 									strokeWidth={1.5}
-									className={cn('shrink-0 transition-colors', FOLDER_COLORS[project.type])}
+									className={cn(
+										'shrink-0 transition-colors',
+										FOLDER_COLORS[project.type],
+									)}
 								/>
 								<div className="flex flex-col gap-0.5 flex-1 min-w-0">
 									<span className="text-sm font-medium text-foreground leading-none">
@@ -411,6 +426,12 @@ interface BuildStepProps {
 
 function BuildStep({ project, onBack, onNext }: BuildStepProps) {
 	const buildStatus: BuildStatus = project.type === 'CRA' ? 'error' : 'success'
+	const [retrying, setRetrying] = useState(false)
+
+	const handleRetry = useCallback(() => {
+		setRetrying(true)
+		setTimeout(() => setRetrying(false), 2000)
+	}, [])
 
 	const totalSizeKb = MOCK_BUILD_FILES.reduce((sum, f) => sum + f.sizeKb, 0)
 	const totalSizeDisplay =
@@ -432,7 +453,9 @@ function BuildStep({ project, onBack, onNext }: BuildStepProps) {
 				) : (
 					<div className="flex items-center gap-3 px-4 py-3 border border-red-500/30 bg-red-500/10 text-red-400">
 						<AlertCircle size={15} strokeWidth={2.5} className="shrink-0" />
-						<span className="text-sm font-medium">Build failed with 2 errors</span>
+						<span className="text-sm font-medium">
+							Build failed with 2 errors
+						</span>
 					</div>
 				)}
 
@@ -496,7 +519,11 @@ function BuildStep({ project, onBack, onNext }: BuildStepProps) {
 						</p>
 						<div
 							className="border border-border bg-card p-4 overflow-x-auto"
-							style={{ fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.7 }}
+							style={{
+								fontFamily: 'var(--font-mono)',
+								fontSize: 12,
+								lineHeight: 1.7,
+							}}
 						>
 							{MOCK_BUILD_ERROR_LOG.split('\n').map((line, i) => {
 								const isError =
@@ -537,11 +564,15 @@ function BuildStep({ project, onBack, onNext }: BuildStepProps) {
 				) : (
 					<Button
 						size="sm"
-						onClick={() => {}}
-						className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+						onClick={handleRetry}
+						disabled={retrying}
+						className="gap-2 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60"
 					>
-						<RefreshCw size={14} />
-						Retry Build
+						<RefreshCw
+							size={14}
+							className={retrying ? 'animate-spin' : ''}
+						/>
+						{retrying ? 'Building...' : 'Retry Build'}
 					</Button>
 				)}
 			</div>
@@ -569,9 +600,9 @@ function ConfigureStep({
 	const [opnsStatus, setOpnsStatus] = useState<
 		'idle' | 'checking' | 'available' | 'taken'
 	>('idle')
-	const [opnsTimer, setOpnsTimer] = useState<ReturnType<typeof setTimeout> | null>(
-		null,
-	)
+	const [opnsTimer, setOpnsTimer] = useState<ReturnType<
+		typeof setTimeout
+	> | null>(null)
 
 	const handleOpnsChange = useCallback(
 		(value: string) => {
@@ -603,8 +634,11 @@ function ConfigureStep({
 
 	const handleAddPermission = useCallback(() => {
 		const name = prompt('Permission name (e.g. signTransaction):')
-		if (name && name.trim() && !formData.permissions.includes(name.trim())) {
-			onChange({ ...formData, permissions: [...formData.permissions, name.trim()] })
+		if (name?.trim() && !formData.permissions.includes(name.trim())) {
+			onChange({
+				...formData,
+				permissions: [...formData.permissions, name.trim()],
+			})
 		}
 	}, [formData, onChange])
 
@@ -729,7 +763,9 @@ function ConfigureStep({
 						<select
 							id="cfg-identity"
 							value={formData.identity}
-							onChange={(e) => onChange({ ...formData, identity: e.target.value })}
+							onChange={(e) =>
+								onChange({ ...formData, identity: e.target.value })
+							}
 							className={cn(
 								'w-full appearance-none pl-10 pr-8 py-2 text-sm bg-card border border-border text-foreground',
 								'focus:outline-none focus:ring-1 focus:ring-blue-500/60 focus:border-blue-500/60',
@@ -746,8 +782,8 @@ function ConfigureStep({
 							className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full shrink-0 pointer-events-none"
 							style={{
 								background:
-									MOCK_IDENTITIES.find((i) => i.id === formData.identity)?.color ??
-									'#6366f1',
+									MOCK_IDENTITIES.find((i) => i.id === formData.identity)
+										?.color ?? '#6366f1',
 							}}
 							aria-hidden="true"
 						/>
@@ -926,7 +962,9 @@ function PublishStep({
 						</span>
 					</div>
 					<div className="flex items-center justify-between px-4 py-3">
-						<span className="text-sm text-muted-foreground">Estimated time</span>
+						<span className="text-sm text-muted-foreground">
+							Estimated time
+						</span>
 						<span
 							className="text-sm text-foreground"
 							style={{ fontFamily: 'var(--font-mono)' }}
@@ -954,7 +992,9 @@ function PublishStep({
 				</div>
 
 				<div className="flex flex-col items-center gap-2 text-center">
-					<h2 className="text-2xl font-bold text-foreground">Published to Chain</h2>
+					<h2 className="text-2xl font-bold text-foreground">
+						Published to Chain
+					</h2>
 					<p className="text-sm text-muted-foreground">
 						Your app is now live and permanently on-chain.
 					</p>
@@ -982,7 +1022,11 @@ function PublishStep({
 							className="text-muted-foreground hover:text-foreground transition-colors"
 						>
 							{copied ? (
-								<Check size={15} strokeWidth={2.5} className="text-emerald-400" />
+								<Check
+									size={15}
+									strokeWidth={2.5}
+									className="text-emerald-400"
+								/>
 							) : (
 								<Clipboard size={15} />
 							)}
@@ -1030,8 +1074,8 @@ function PublishStep({
 								Insufficient funds
 							</span>
 							<span className="text-xs text-muted-foreground">
-								You need {shortfall.toFixed(5)} BSV more to publish. Current balance:{' '}
-								{MOCK_BALANCE.toFixed(5)} BSV
+								You need {shortfall.toFixed(5)} BSV more to publish. Current
+								balance: {MOCK_BALANCE.toFixed(5)} BSV
 							</span>
 						</div>
 					</div>
@@ -1075,7 +1119,9 @@ function PublishStep({
 								</span>
 							</div>
 							<div className="flex items-center justify-between px-4 py-3 border-b border-border">
-								<span className="text-sm text-muted-foreground">Your balance</span>
+								<span className="text-sm text-muted-foreground">
+									Your balance
+								</span>
 								<span
 									className="text-sm font-medium text-red-400 tabular-nums"
 									style={{ fontFamily: 'var(--font-mono)' }}
@@ -1084,7 +1130,9 @@ function PublishStep({
 								</span>
 							</div>
 							<div className="flex items-center justify-between px-4 py-3">
-								<span className="text-sm font-semibold text-amber-400">Shortfall</span>
+								<span className="text-sm font-semibold text-amber-400">
+									Shortfall
+								</span>
 								<span
 									className="text-sm font-semibold text-amber-400 tabular-nums"
 									style={{ fontFamily: 'var(--font-mono)' }}
@@ -1097,7 +1145,12 @@ function PublishStep({
 				</div>
 
 				<div className="flex items-center justify-between px-6 py-4 border-t border-border shrink-0">
-					<Button variant="outline" size="sm" onClick={onBack} className="gap-2">
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={onBack}
+						className="gap-2"
+					>
 						<ArrowLeft size={14} />
 						Back
 					</Button>
@@ -1125,7 +1178,9 @@ function PublishStep({
 
 	// ── Review (default) ──────────────────────────────────────────────────────
 	const appName = formData.appName || project.name
-	const opnsDisplay = formData.opnsName ? `1sat://${formData.opnsName}` : '\u2014'
+	const opnsDisplay = formData.opnsName
+		? `1sat://${formData.opnsName}`
+		: '\u2014'
 
 	return (
 		<>
@@ -1134,7 +1189,9 @@ function PublishStep({
 				<div className="border border-border bg-card/50">
 					<div className="flex items-center justify-between px-4 py-3 border-b border-border">
 						<span className="text-sm text-muted-foreground">App Name</span>
-						<span className="text-sm font-semibold text-foreground">{appName}</span>
+						<span className="text-sm font-semibold text-foreground">
+							{appName}
+						</span>
 					</div>
 					<div className="flex items-center justify-between px-4 py-3 border-b border-border">
 						<span className="text-sm text-muted-foreground">Identity</span>
@@ -1186,7 +1243,9 @@ function PublishStep({
 							</span>
 						</div>
 						<div className="flex items-center justify-between px-4 py-3 border-b border-border">
-							<span className="text-sm text-muted-foreground">MAP metadata</span>
+							<span className="text-sm text-muted-foreground">
+								MAP metadata
+							</span>
 							<span
 								className="text-sm text-foreground tabular-nums"
 								style={{ fontFamily: 'var(--font-mono)' }}
@@ -1195,7 +1254,9 @@ function PublishStep({
 							</span>
 						</div>
 						<div className="flex items-center justify-between px-4 py-3 border-b border-border">
-							<span className="text-sm text-muted-foreground">AIP signature</span>
+							<span className="text-sm text-muted-foreground">
+								AIP signature
+							</span>
 							<span
 								className="text-sm text-foreground tabular-nums"
 								style={{ fontFamily: 'var(--font-mono)' }}
@@ -1214,7 +1275,9 @@ function PublishStep({
 						</div>
 						{/* Total row */}
 						<div className="flex items-center px-4 py-3 border-t border-border">
-							<span className="text-sm font-bold text-foreground w-24">Total</span>
+							<span className="text-sm font-bold text-foreground w-24">
+								Total
+							</span>
 							<span
 								className="flex-1 text-center text-sm font-bold text-foreground tabular-nums"
 								style={{ fontFamily: 'var(--font-mono)' }}
@@ -1259,8 +1322,11 @@ export interface PublishViewProps {
 
 export function PublishView({ onNavigate }: PublishViewProps) {
 	const [step, setStep] = useState<WizardStep>('select')
-	const [selectedProject, setSelectedProject] = useState<RecentProject | null>(null)
-	const [publishSubState, setPublishSubState] = useState<PublishSubState>('review')
+	const [selectedProject, setSelectedProject] = useState<RecentProject | null>(
+		null,
+	)
+	const [publishSubState, setPublishSubState] =
+		useState<PublishSubState>('review')
 	const [configForm, setConfigForm] = useState<ConfigureFormData>({
 		appName: '',
 		description: '',
@@ -1285,7 +1351,9 @@ export function PublishView({ onNavigate }: PublishViewProps) {
 		}))
 		try {
 			const stored = localStorage.getItem(RECENT_PROJECTS_KEY)
-			const existing: RecentProject[] = stored ? (JSON.parse(stored) as RecentProject[]) : []
+			const existing: RecentProject[] = stored
+				? (JSON.parse(stored) as RecentProject[])
+				: []
 			const filtered = existing.filter((p) => p.path !== project.path)
 			const updated = [project, ...filtered].slice(0, 8)
 			localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(updated))
@@ -1317,10 +1385,13 @@ export function PublishView({ onNavigate }: PublishViewProps) {
 		setStep('configure')
 	}, [])
 
-	const buildFailed = step === 'build' && selectedProject?.type === 'CRA'
+	// Track build failure by project type regardless of current step so the
+	// step indicator preserves the error mark when navigating past the build step.
+	const buildFailed = selectedProject?.type === 'CRA'
 
 	const subtitle = (() => {
-		if (step === 'select') return 'Deploy any project as an on-chain inscription'
+		if (step === 'select')
+			return 'Deploy any project as an on-chain inscription'
 		if (step === 'build' && selectedProject)
 			return `${selectedProject.name} \u2014 Build & Preview`
 		if (step === 'configure' && selectedProject)
@@ -1337,8 +1408,10 @@ export function PublishView({ onNavigate }: PublishViewProps) {
 
 	const subtitleClass = (() => {
 		if (step === 'build' && buildFailed) return 'text-red-400'
-		if (step === 'publish' && publishSubState === 'broadcasting') return 'text-blue-400'
-		if (step === 'publish' && publishSubState === 'success') return 'text-emerald-400'
+		if (step === 'publish' && publishSubState === 'broadcasting')
+			return 'text-blue-400'
+		if (step === 'publish' && publishSubState === 'success')
+			return 'text-emerald-400'
 		return 'text-muted-foreground'
 	})()
 

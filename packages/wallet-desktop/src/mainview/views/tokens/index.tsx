@@ -1,6 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Coins, Send } from 'lucide-react'
-import type { TokenBalance } from '../../../shared/types'
+import { SendBsv21Ui } from '@/components/blocks/send-bsv21'
+import { useSendBsv21 } from '@/components/blocks/send-bsv21'
+import type {
+	SendBsv21Params,
+	SendBsv21Result,
+	TokenBalance as SendTokenBalance,
+} from '@/components/blocks/send-bsv21'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -10,13 +14,9 @@ import {
 	DialogTitle,
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
-import { SendBsv21Ui } from '@/components/blocks/send-bsv21'
-import { useSendBsv21 } from '@/components/blocks/send-bsv21'
-import type {
-	TokenBalance as SendTokenBalance,
-	SendBsv21Params,
-	SendBsv21Result,
-} from '@/components/blocks/send-bsv21'
+import { Coins, Send } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import type { TokenBalance } from '../../../shared/types'
 import { rpc } from '../../rpc'
 
 // ---------------------------------------------------------------------------
@@ -26,7 +26,7 @@ import { rpc } from '../../rpc'
 const ORDFS_BASE = 'http://127.0.0.1:8080/content'
 
 function formatBalance(raw: string, decimals: number): string {
-	const n = Number(raw) / Math.pow(10, decimals)
+	const n = Number(raw) / 10 ** decimals
 	return n.toFixed(decimals)
 }
 
@@ -140,6 +140,11 @@ function TokenRow({ token, onSendClick, onRowClick }: TokenRowProps) {
 		<div
 			className="flex items-center gap-4 px-6 py-3 hover:bg-accent/30 transition-colors cursor-pointer"
 			onClick={() => onRowClick(token)}
+			onKeyDown={(e) => {
+				if (e.key === 'Enter' || e.key === ' ') onRowClick(token)
+			}}
+			role="button"
+			tabIndex={0}
 		>
 			<TokenIcon iconOutpoint={token.icon} symbol={symbol} />
 
@@ -225,7 +230,9 @@ export function TokensView({ onNavigate }: TokensViewProps = {}) {
 				setBalances(result.balances)
 			})
 			.catch((err) => {
-				setError(err instanceof Error ? err : new Error('Failed to load tokens'))
+				setError(
+					err instanceof Error ? err : new Error('Failed to load tokens'),
+				)
 			})
 			.finally(() => {
 				setLoading(false)
@@ -292,9 +299,15 @@ export function TokensView({ onNavigate }: TokensViewProps = {}) {
 					balances.map((token, index) => (
 						<div
 							key={token.id}
-							className={index < balances.length - 1 ? 'border-b border-border' : ''}
+							className={
+								index < balances.length - 1 ? 'border-b border-border' : ''
+							}
 						>
-							<TokenRow token={token} onSendClick={handleSendClick} onRowClick={handleRowClick} />
+							<TokenRow
+								token={token}
+								onSendClick={handleSendClick}
+								onRowClick={handleRowClick}
+							/>
 						</div>
 					))}
 			</div>

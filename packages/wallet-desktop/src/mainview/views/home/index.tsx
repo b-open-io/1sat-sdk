@@ -103,10 +103,9 @@ function ShortcutTile({ shortcut, onNavigate }: ShortcutTileProps) {
 	)
 
 	return (
-		<div
-			role="button"
-			tabIndex={0}
-			className="flex flex-col items-center gap-2 cursor-pointer group"
+		<button
+			type="button"
+			className="flex flex-col items-center gap-2 cursor-pointer group bg-transparent border-none p-0"
 			style={{ width: 72 }}
 			onClick={handleClick}
 			onKeyDown={handleKeyDown}
@@ -127,7 +126,7 @@ function ShortcutTile({ shortcut, onNavigate }: ShortcutTileProps) {
 			>
 				{shortcut.label}
 			</span>
-		</div>
+		</button>
 	)
 }
 
@@ -188,7 +187,6 @@ export function HomeView({ onNavigate }: HomeViewProps) {
 							fontFamily: "'Space Grotesk', sans-serif",
 							fontSize: 13,
 						}}
-						autoFocus
 					/>
 				</div>
 			</form>

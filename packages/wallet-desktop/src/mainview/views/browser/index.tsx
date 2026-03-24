@@ -358,9 +358,7 @@ export function BrowserView() {
 				webview.src = resolved
 				setTabs((prev) =>
 					prev.map((t) =>
-						t.id === tabId
-							? { ...t, url: resolved, title: 'Loading...' }
-							: t,
+						t.id === tabId ? { ...t, url: resolved, title: 'Loading...' } : t,
 					),
 				)
 				return true

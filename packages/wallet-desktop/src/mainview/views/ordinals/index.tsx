@@ -1,8 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Gem, ImageOff } from 'lucide-react'
-import type { OrdinalInfo } from '../../../shared/types'
 import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
 	Select,
 	SelectContent,
@@ -10,6 +6,10 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Gem, ImageOff } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import type { OrdinalInfo } from '../../../shared/types'
 import { rpc } from '../../rpc'
 
 // ---------------------------------------------------------------------------
@@ -121,9 +121,9 @@ function OrdinalCardItem({ ordinal, onClick }: OrdinalCardProps) {
 function SkeletonGrid() {
 	return (
 		<div className="grid grid-cols-4 gap-3">
-			{Array.from({ length: 8 }).map((_, i) => (
+			{['sk-a', 'sk-b', 'sk-c', 'sk-d', 'sk-e', 'sk-f', 'sk-g', 'sk-h'].map((id) => (
 				<div
-					key={`skeleton-${i}`}
+					key={id}
 					className="flex flex-col bg-card border border-border"
 				>
 					<Skeleton className="aspect-square w-full rounded-none" />
@@ -160,9 +160,7 @@ export function OrdinalsView({ onNavigate }: OrdinalsViewProps = {}) {
 			})
 			.catch((err) => {
 				setError(
-					err instanceof Error
-						? err
-						: new Error('Failed to load ordinals'),
+					err instanceof Error ? err : new Error('Failed to load ordinals'),
 				)
 			})
 			.finally(() => {
@@ -170,9 +168,12 @@ export function OrdinalsView({ onNavigate }: OrdinalsViewProps = {}) {
 			})
 	}, [])
 
-	const handleClick = useCallback((outpoint: string) => {
-		onNavigate?.(`1sat://ordinals/detail?outpoint=${outpoint}`)
-	}, [onNavigate])
+	const handleClick = useCallback(
+		(outpoint: string) => {
+			onNavigate?.(`1sat://ordinals/detail?outpoint=${outpoint}`)
+		},
+		[onNavigate],
+	)
 
 	const sorted = sortOrdinals(allOrdinals, sortMode)
 

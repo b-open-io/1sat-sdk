@@ -432,11 +432,17 @@ function MetadataPanel({
 						<Skeleton className="h-4 w-28 rounded-none" />
 					) : listing ? (
 						<div className="flex items-center gap-1.5">
-							<Tag size={12} className="text-primary flex-shrink-0" aria-hidden="true" />
+							<Tag
+								size={12}
+								className="text-primary flex-shrink-0"
+								aria-hidden="true"
+							/>
 							<span className="text-sm font-semibold text-primary">
 								{listing.priceSats.toLocaleString()} sats
 							</span>
-							<span className="text-[10px] text-muted-foreground">listed for sale</span>
+							<span className="text-[10px] text-muted-foreground">
+								listed for sale
+							</span>
 						</div>
 					) : null}
 				</div>

@@ -129,7 +129,10 @@ function ChannelSidebar({
 			<div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0">
 				<span
 					className="text-[10px] font-semibold uppercase tracking-widest"
-					style={{ color: 'var(--muted-foreground)', fontFamily: 'var(--font-mono)' }}
+					style={{
+						color: 'var(--muted-foreground)',
+						fontFamily: 'var(--font-mono)',
+					}}
 				>
 					Channels
 				</span>
@@ -164,7 +167,9 @@ function ChannelSidebar({
 								<span
 									className="shrink-0 text-[12px] font-bold leading-none"
 									style={{
-										color: isActive ? 'oklch(0.7 0.2 150)' : 'oklch(0.5 0.12 150)',
+										color: isActive
+											? 'oklch(0.7 0.2 150)'
+											: 'oklch(0.5 0.12 150)',
 										fontFamily: 'var(--font-mono)',
 									}}
 								>
@@ -311,10 +316,13 @@ export function ChatView() {
 				{/* Header */}
 				<div className="flex shrink-0 items-center justify-between px-4 py-2.5 border-b border-border">
 					<div className="flex items-center gap-2">
-						<span
-							className="text-[14px] font-bold text-foreground leading-none"
-						>
-							<span style={{ color: 'oklch(0.7 0.2 150)', fontFamily: 'var(--font-mono)' }}>
+						<span className="text-[14px] font-bold text-foreground leading-none">
+							<span
+								style={{
+									color: 'oklch(0.7 0.2 150)',
+									fontFamily: 'var(--font-mono)',
+								}}
+							>
 								#
 							</span>
 							{chat.channel}
@@ -372,7 +380,10 @@ export function ChatView() {
 								Be the first to say something in{' '}
 								<span
 									className="font-medium"
-									style={{ fontFamily: 'var(--font-mono)', color: 'oklch(0.7 0.2 150)' }}
+									style={{
+										fontFamily: 'var(--font-mono)',
+										color: 'oklch(0.7 0.2 150)',
+									}}
 								>
 									#{chat.channel}
 								</span>

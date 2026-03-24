@@ -1,4 +1,5 @@
-import { WALLET_HTTP_URL } from '../../../shared/constants'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import {
@@ -10,11 +11,10 @@ import {
 	Sparkles,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { WALLET_HTTP_URL } from '../../../shared/constants'
 
-const MONO = "font-[family-name:var(--font-mono)]"
-const SANS = "font-[family-name:var(--font-sans)]"
+const MONO = 'font-[family-name:var(--font-mono)]'
+const SANS = 'font-[family-name:var(--font-sans)]'
 
 /** Available Ollama models — fetched dynamically */
 interface OllamaModel {
@@ -29,7 +29,7 @@ function useOllamaModels() {
 	useEffect(() => {
 		async function fetchModels() {
 			try {
-				const res = await fetch(WALLET_HTTP_URL + '/api/models')
+				const res = await fetch(`${WALLET_HTTP_URL}/api/models`)
 				if (res.ok) {
 					const data = await res.json()
 					setModels(
@@ -74,12 +74,21 @@ function ModelSelector({
 				style={{ borderRadius: 4 }}
 			>
 				<Sparkles size={10} style={{ color: 'var(--agent-accent-muted)' }} />
-				<span className="text-muted-foreground">{value.replace(':latest', '')}</span>
+				<span className="text-muted-foreground">
+					{value.replace(':latest', '')}
+				</span>
 				<ChevronDown size={8} className="text-muted-foreground" />
 			</button>
 			{open && (
 				<>
-					<div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+					<div
+						className="fixed inset-0 z-40"
+						onClick={() => setOpen(false)}
+						onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}
+						role="button"
+						tabIndex={-1}
+						aria-label="Close model picker"
+					/>
 					<div
 						className="absolute top-full left-0 mt-1 z-50 border border-border bg-card shadow-lg min-w-[180px]"
 						style={{ borderRadius: 4 }}
@@ -122,7 +131,11 @@ interface AiChatViewProps {
 	onNavigate?: (url: string) => void
 }
 
-export function AiChatView({ initialQuery, pageContext, onNavigate }: AiChatViewProps) {
+export function AiChatView({
+	initialQuery,
+	pageContext,
+	onNavigate,
+}: AiChatViewProps) {
 	const { models } = useOllamaModels()
 	const [selectedModel, setSelectedModel] = useState('llama3:latest')
 	const [input, setInput] = useState(initialQuery ?? '')
@@ -132,7 +145,7 @@ export function AiChatView({ initialQuery, pageContext, onNavigate }: AiChatView
 	const transport = useMemo(
 		() =>
 			new DefaultChatTransport({
-				api: WALLET_HTTP_URL + '/api/chat',
+				api: `${WALLET_HTTP_URL}/api/chat`,
 				headers: { 'X-Requested-With': '1SatBrowser' },
 				body: {
 					context: pageContext,
@@ -144,11 +157,12 @@ export function AiChatView({ initialQuery, pageContext, onNavigate }: AiChatView
 	const { messages, sendMessage, status, error } = useChat({ transport })
 
 	// Auto-scroll on new messages
+	const messageCount = messages.length
 	useEffect(() => {
-		if (scrollRef.current) {
+		if (messageCount && scrollRef.current) {
 			scrollRef.current.scrollTop = scrollRef.current.scrollHeight
 		}
-	}, [messages.length])
+	}, [messageCount])
 
 	// Send initial query exactly once
 	const sentInitialRef = useRef(false)
@@ -190,7 +204,8 @@ export function AiChatView({ initialQuery, pageContext, onNavigate }: AiChatView
 						className="flex items-center justify-center w-6 h-6"
 						style={{
 							borderRadius: 12,
-							background: 'linear-gradient(135deg, var(--agent-gradient-from), var(--agent-gradient-to))',
+							background:
+								'linear-gradient(135deg, var(--agent-gradient-from), var(--agent-gradient-to))',
 						}}
 					>
 						<Bot size={12} className="text-primary-foreground" />
@@ -224,14 +239,18 @@ export function AiChatView({ initialQuery, pageContext, onNavigate }: AiChatView
 			)}
 
 			{/* Messages */}
-			<div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+			<div
+				ref={scrollRef}
+				className="flex-1 overflow-y-auto px-4 py-3 space-y-4"
+			>
 				{messages.length === 0 && !initialQuery && (
 					<div className="flex flex-col items-center justify-center h-full gap-3 text-center">
 						<div
 							className="flex items-center justify-center w-12 h-12"
 							style={{
 								borderRadius: 24,
-								background: 'linear-gradient(135deg, var(--agent-gradient-from), var(--agent-gradient-to))',
+								background:
+									'linear-gradient(135deg, var(--agent-gradient-from), var(--agent-gradient-to))',
 							}}
 						>
 							<Bot size={24} className="text-primary-foreground" />
@@ -239,8 +258,14 @@ export function AiChatView({ initialQuery, pageContext, onNavigate }: AiChatView
 						<p className={cn('text-sm font-medium text-foreground', SANS)}>
 							Ask anything
 						</p>
-						<p className={cn('text-xs text-muted-foreground max-w-[280px]', SANS)}>
-							Powered by local AI via Ollama. Your conversations stay on your machine.
+						<p
+							className={cn(
+								'text-xs text-muted-foreground max-w-[280px]',
+								SANS,
+							)}
+						>
+							Powered by local AI via Ollama. Your conversations stay on your
+							machine.
 						</p>
 					</div>
 				)}
@@ -258,7 +283,8 @@ export function AiChatView({ initialQuery, pageContext, onNavigate }: AiChatView
 								className="shrink-0 flex items-center justify-center w-6 h-6 mt-0.5"
 								style={{
 									borderRadius: 12,
-									background: 'linear-gradient(135deg, var(--agent-gradient-from), var(--agent-gradient-to))',
+									background:
+										'linear-gradient(135deg, var(--agent-gradient-from), var(--agent-gradient-to))',
 								}}
 							>
 								<Bot size={11} className="text-primary-foreground" />
@@ -281,7 +307,10 @@ export function AiChatView({ initialQuery, pageContext, onNavigate }: AiChatView
 						>
 							{message.parts.map((part, i) =>
 								part.type === 'text' ? (
-									<span key={`${message.id}-${i}`} className="whitespace-pre-wrap">
+									<span
+										key={`${message.id}-${i}`}
+										className="whitespace-pre-wrap"
+									>
 										{part.text}
 									</span>
 								) : null,
@@ -302,7 +331,8 @@ export function AiChatView({ initialQuery, pageContext, onNavigate }: AiChatView
 			{error && (
 				<div className="px-4 py-2 border-t border-destructive/30 bg-destructive/5 shrink-0">
 					<p className="text-[10px] text-destructive">
-						{error.message.includes('Ollama is not running') || error.message.includes('ECONNREFUSED')
+						{error.message.includes('Ollama is not running') ||
+						error.message.includes('ECONNREFUSED')
 							? 'Ollama is not running. Start it with: ollama serve'
 							: error.message}
 					</p>

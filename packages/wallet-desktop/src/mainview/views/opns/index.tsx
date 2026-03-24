@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Globe, Loader2, RefreshCw } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
 	Dialog,
 	DialogContent,
@@ -8,11 +8,11 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { rpc } from '../../rpc'
+import { Globe, Loader2, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 import { STACK_URL } from '../../../shared/constants'
+import { rpc } from '../../rpc'
 
 // ---------------------------------------------------------------------------
 // Design tokens
@@ -74,7 +74,13 @@ interface NameRowProps {
 	isLast: boolean
 }
 
-function NameRow({ name, isOperating, onRequest, onNavigate, isLast }: NameRowProps) {
+function NameRow({
+	name,
+	isOperating,
+	onRequest,
+	onNavigate,
+	isLast,
+}: NameRowProps) {
 	return (
 		<>
 			<div className="flex items-center gap-4 px-5 py-3">
@@ -82,6 +88,12 @@ function NameRow({ name, isOperating, onRequest, onNavigate, isLast }: NameRowPr
 				<div
 					className="flex-1 min-w-0 flex items-center gap-2.5 cursor-pointer rounded-sm px-1 -mx-1 py-0.5 hover:bg-card transition-colors"
 					onClick={() => onNavigate?.(`1sat://${name.name}`)}
+					onKeyDown={(e) => {
+						if (e.key === 'Enter' || e.key === ' ')
+							onNavigate?.(`1sat://${name.name}`)
+					}}
+					role="button"
+					tabIndex={0}
 					title={`Browse 1sat://${name.name}`}
 				>
 					{/* Status dot */}
@@ -89,8 +101,12 @@ function NameRow({ name, isOperating, onRequest, onNavigate, isLast }: NameRowPr
 						className={`shrink-0 size-2 rounded-full ${name.registered ? 'bg-green-500' : 'bg-muted-foreground/40'}`}
 					/>
 					<div className="flex flex-col gap-0.5 min-w-0">
-						<span className="text-sm font-bold leading-tight truncate">{name.name}</span>
-						<span className={`text-[9px] text-muted-foreground ${MONO} truncate`}>
+						<span className="text-sm font-bold leading-tight truncate">
+							{name.name}
+						</span>
+						<span
+							className={`text-[9px] text-muted-foreground ${MONO} truncate`}
+						>
 							{truncateOutpoint(name.outpoint)}
 						</span>
 					</div>
@@ -163,7 +179,11 @@ interface ConfirmState {
 	name: OpnsName | null
 }
 
-const INITIAL_CONFIRM: ConfirmState = { open: false, action: 'register', name: null }
+const INITIAL_CONFIRM: ConfirmState = {
+	open: false,
+	action: 'register',
+	name: null,
+}
 
 // ---------------------------------------------------------------------------
 // OpnsView
@@ -205,13 +225,17 @@ export function OpnsView({ onNavigate }: OpnsViewProps = {}) {
 					const statusMap = new Map(results.map((r) => [r.outpoint, r.onChain]))
 					setNames((prev) =>
 						prev.map((n) =>
-							statusMap.has(n.outpoint) ? { ...n, onChain: statusMap.get(n.outpoint) } : n,
+							statusMap.has(n.outpoint)
+								? { ...n, onChain: statusMap.get(n.outpoint) }
+								: n,
 						),
 					)
 				})
 			}
 		} catch (err) {
-			setError(err instanceof Error ? err : new Error('Failed to load OpNS names'))
+			setError(
+				err instanceof Error ? err : new Error('Failed to load OpNS names'),
+			)
 		} finally {
 			setLoading(false)
 		}
@@ -237,7 +261,9 @@ export function OpnsView({ onNavigate }: OpnsViewProps = {}) {
 			const res =
 				confirm.action === 'register'
 					? await rpc.request.opnsRegister({ outpoint: confirm.name.outpoint })
-					: await rpc.request.opnsDeregister({ outpoint: confirm.name.outpoint })
+					: await rpc.request.opnsDeregister({
+							outpoint: confirm.name.outpoint,
+						})
 			setOpResult(res)
 			if (!res.error) await fetchNames()
 		} finally {
@@ -279,15 +305,21 @@ export function OpnsView({ onNavigate }: OpnsViewProps = {}) {
 			{/* Operation result banner */}
 			{opResult?.txid && (
 				<div className="mb-4 border border-primary/20 bg-primary/5 px-4 py-2.5 flex items-center gap-2">
-					<span className="text-xs font-medium text-primary">Transaction submitted</span>
-					<span className={`text-[10px] text-muted-foreground truncate ${MONO}`}>
+					<span className="text-xs font-medium text-primary">
+						Transaction submitted
+					</span>
+					<span
+						className={`text-[10px] text-muted-foreground truncate ${MONO}`}
+					>
 						{opResult.txid}
 					</span>
 				</div>
 			)}
 			{opResult?.error && (
 				<div className="mb-4 border border-destructive/20 bg-destructive/5 px-4 py-2.5">
-					<span className="text-xs font-medium text-destructive">{opResult.error}</span>
+					<span className="text-xs font-medium text-destructive">
+						{opResult.error}
+					</span>
 				</div>
 			)}
 
@@ -311,7 +343,9 @@ export function OpnsView({ onNavigate }: OpnsViewProps = {}) {
 					/* Error state */
 					<div className="flex flex-col items-center gap-2 py-12">
 						<Globe className="size-8 text-destructive/50" />
-						<p className="text-sm font-medium text-destructive">Failed to load names</p>
+						<p className="text-sm font-medium text-destructive">
+							Failed to load names
+						</p>
 						<p className="text-xs text-muted-foreground">{error.message}</p>
 					</div>
 				) : names.length === 0 ? (
@@ -365,7 +399,9 @@ export function OpnsView({ onNavigate }: OpnsViewProps = {}) {
 							Cancel
 						</Button>
 						<Button
-							variant={confirm.action === 'deregister' ? 'destructive' : 'default'}
+							variant={
+								confirm.action === 'deregister' ? 'destructive' : 'default'
+							}
 							onClick={handleConfirm}
 							disabled={operating}
 							className="rounded-none"

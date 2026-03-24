@@ -1,4 +1,20 @@
-import { useCallback, useEffect, useState } from 'react'
+import {
+	SendBsv21Ui,
+	useSendBsv21,
+} from '@/components/blocks/send-bsv21'
+import type {
+	SendBsv21Params,
+	SendBsv21Result,
+	TokenBalance as SendTokenBalance,
+} from '@/components/blocks/send-bsv21'
+import { Button } from '@/components/ui/button'
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
 	ArrowDownLeft,
 	ArrowLeft,
@@ -7,21 +23,7 @@ import {
 	ExternalLink,
 	Send,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
-import {
-	Dialog,
-	DialogContent,
-	DialogHeader,
-	DialogTitle,
-} from '@/components/ui/dialog'
-import { SendBsv21Ui } from '@/components/blocks/send-bsv21'
-import { useSendBsv21 } from '@/components/blocks/send-bsv21'
-import type {
-	TokenBalance as SendTokenBalance,
-	SendBsv21Params,
-	SendBsv21Result,
-} from '@/components/blocks/send-bsv21'
+import { useCallback, useEffect, useState } from 'react'
 import { rpc } from '../../rpc'
 
 // ---------------------------------------------------------------------------
@@ -64,7 +66,7 @@ function formatAmount(raw: string | undefined, decimals: number): string {
 	if (raw == null) return '—'
 	const n = Number(raw)
 	if (Number.isNaN(n)) return raw
-	const abs = Math.abs(n) / Math.pow(10, decimals)
+	const abs = Math.abs(n) / 10 ** decimals
 	return abs.toFixed(decimals)
 }
 
@@ -220,7 +222,9 @@ function HistoryTab({ tokenId, decimals }: HistoryTabProps) {
 				setEntries(list)
 			} catch (err) {
 				if (cancelled) return
-				setError(err instanceof Error ? err : new Error('Failed to load history'))
+				setError(
+					err instanceof Error ? err : new Error('Failed to load history'),
+				)
 			} finally {
 				if (!cancelled) setLoading(false)
 			}
@@ -363,7 +367,9 @@ function InfoTab({ tokenId }: InfoTabProps) {
 			})
 			.catch((err) => {
 				if (!cancelled)
-					setError(err instanceof Error ? err : new Error('Failed to load token info'))
+					setError(
+						err instanceof Error ? err : new Error('Failed to load token info'),
+					)
 			})
 			.finally(() => {
 				if (!cancelled) setLoading(false)
@@ -408,7 +414,11 @@ function InfoTab({ tokenId }: InfoTabProps) {
 		},
 		{
 			label: 'Deploy txid',
-			value: info.txid ? truncateTxid(info.txid) : tokenId ? truncateTxid(tokenId.split('_')[0]) : '—',
+			value: info.txid
+				? truncateTxid(info.txid)
+				: tokenId
+					? truncateTxid(tokenId.split('_')[0])
+					: '—',
 			canCopy: true,
 			canOpen: true,
 		},
@@ -419,7 +429,10 @@ function InfoTab({ tokenId }: InfoTabProps) {
 	return (
 		<div className="grid grid-cols-3 gap-px bg-border p-px">
 			{rows.map((row) => (
-				<div key={row.label} className="flex flex-col gap-1.5 bg-card px-5 py-4">
+				<div
+					key={row.label}
+					className="flex flex-col gap-1.5 bg-card px-5 py-4"
+				>
 					<span className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground">
 						{row.label}
 					</span>
@@ -502,7 +515,7 @@ export function TokenDetailView({ params, onNavigate }: TokenDetailViewProps) {
 	)
 
 	const formattedBalance = (() => {
-		const n = Number(rawBalance) / Math.pow(10, decimals)
+		const n = Number(rawBalance) / 10 ** decimals
 		return n.toFixed(decimals)
 	})()
 
@@ -537,9 +550,25 @@ export function TokenDetailView({ params, onNavigate }: TokenDetailViewProps) {
 					<span className="text-2xl font-bold text-foreground leading-none">
 						{symbol}
 					</span>
-					{name && (
-						<span className="text-sm text-muted-foreground truncate">{name}</span>
-					)}
+					{/* Copy token ID — shows name when present, falls back to truncated ID */}
+					<button
+						type="button"
+						className="group flex w-fit items-center gap-1 text-left text-muted-foreground transition-colors hover:text-foreground"
+						onClick={() => copyToClipboard(tokenId)}
+						title={tokenId}
+						aria-label="Copy token ID"
+					>
+						<span
+							className="max-w-[160px] truncate font-mono"
+							style={{ fontSize: '10px', letterSpacing: '0.02em' }}
+						>
+							{name || truncateTxid(tokenId)}
+						</span>
+						<Copy
+							className="size-3 flex-shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+							aria-hidden="true"
+						/>
+					</button>
 				</div>
 
 				<Button

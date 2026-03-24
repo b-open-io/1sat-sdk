@@ -5,8 +5,7 @@ import { getStackUrl } from '../../sidecar-manager'
 async function stackFetch(path: string): Promise<unknown> {
 	const url = `${getStackUrl()}${path}`
 	const res = await fetch(url, { signal: AbortSignal.timeout(10_000) })
-	if (!res.ok)
-		throw new Error(`1sat-stack ${res.status}: ${await res.text()}`)
+	if (!res.ok) throw new Error(`1sat-stack ${res.status}: ${await res.text()}`)
 	return res.json()
 }
 
@@ -19,9 +18,7 @@ export function registerDataTools(server: McpServer): void {
 			try {
 				const data = await stackFetch(`/1sat/ordfs/metadata/${outpoint}`)
 				return {
-					content: [
-						{ type: 'text', text: JSON.stringify(data, null, 2) },
-					],
+					content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
 				}
 			} catch (err) {
 				return {
@@ -51,9 +48,7 @@ export function registerDataTools(server: McpServer): void {
 				if (limit) params.set('limit', String(limit))
 				const data = await stackFetch(`/1sat/ordlock/listings?${params}`)
 				return {
-					content: [
-						{ type: 'text', text: JSON.stringify(data, null, 2) },
-					],
+					content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
 				}
 			} catch (err) {
 				return {
@@ -73,9 +68,7 @@ export function registerDataTools(server: McpServer): void {
 		'token_balances',
 		'Get BSV21 token balances for an address.',
 		{
-			tokenId: z
-				.string()
-				.describe('Token ID (outpoint of the token deploy)'),
+			tokenId: z.string().describe('Token ID (outpoint of the token deploy)'),
 			address: z.string().describe('BSV address'),
 		},
 		async ({ tokenId, address }) => {
@@ -84,9 +77,7 @@ export function registerDataTools(server: McpServer): void {
 					`/1sat/bsv21/${tokenId}/script/${address}/balance`,
 				)
 				return {
-					content: [
-						{ type: 'text', text: JSON.stringify(data, null, 2) },
-					],
+					content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
 				}
 			} catch (err) {
 				return {
@@ -110,13 +101,9 @@ export function registerDataTools(server: McpServer): void {
 		},
 		async ({ outpoint }) => {
 			try {
-				const data = await stackFetch(
-					`/1sat/ordlock/listing/${outpoint}`,
-				)
+				const data = await stackFetch(`/1sat/ordlock/listing/${outpoint}`)
 				return {
-					content: [
-						{ type: 'text', text: JSON.stringify(data, null, 2) },
-					],
+					content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
 				}
 			} catch (err) {
 				return {

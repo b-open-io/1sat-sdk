@@ -1,10 +1,3 @@
-import {
-	WALLET_HTTP_URL,
-	type BrowserSettings,
-	type SearchMode,
-	loadBrowserSettings,
-	saveBrowserSettings,
-} from '../../../shared/constants'
 import { MnemonicGridUi } from '@/components/blocks/mnemonic-flow/mnemonic-grid-ui'
 import {
 	type ScanResult,
@@ -47,6 +40,13 @@ import {
 } from 'lucide-react'
 import { Switch } from 'radix-ui'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+	type BrowserSettings,
+	type SearchMode,
+	WALLET_HTTP_URL,
+	loadBrowserSettings,
+	saveBrowserSettings,
+} from '../../../shared/constants'
 import { useWallet } from '../../hooks/use-wallet'
 import { rpc } from '../../rpc'
 
@@ -385,12 +385,12 @@ function NetworkTab() {
 		try {
 			const [cfg, prog] = await Promise.all([
 				stackFetch('/1sat/admin/api/config') as Promise<StackConfig>,
-				stackFetch('/1sat/admin/api/progress').then(
-					(data: unknown) => {
-						// Accept both array and object shapes
-						if (Array.isArray(data)) return data as StackProgressEntry[]
-						if (data && typeof data === 'object') {
-							return Object.entries(data as Record<string, unknown>).map(([id, val]) => {
+				stackFetch('/1sat/admin/api/progress').then((data: unknown) => {
+					// Accept both array and object shapes
+					if (Array.isArray(data)) return data as StackProgressEntry[]
+					if (data && typeof data === 'object') {
+						return Object.entries(data as Record<string, unknown>).map(
+							([id, val]) => {
 								const entry = val as Record<string, unknown>
 								return {
 									id,
@@ -400,13 +400,14 @@ function NetworkTab() {
 											: typeof entry.current_block === 'number'
 												? entry.current_block
 												: null,
-									status: typeof entry.status === 'string' ? entry.status : 'unknown',
+									status:
+										typeof entry.status === 'string' ? entry.status : 'unknown',
 								} satisfies StackProgressEntry
-							})
-						}
-						return []
-					},
-				),
+							},
+						)
+					}
+					return []
+				}),
 			])
 			if (isMounted.current) {
 				setConfig(cfg)
@@ -540,7 +541,10 @@ function NetworkTab() {
 						Overlay Services
 					</p>
 					{restartRequired && (
-						<Badge variant="outline" className="text-[10px] text-amber-400 border-amber-500/40 bg-amber-500/10 py-0">
+						<Badge
+							variant="outline"
+							className="text-[10px] text-amber-400 border-amber-500/40 bg-amber-500/10 py-0"
+						>
 							Restart required
 						</Badge>
 					)}
@@ -677,11 +681,7 @@ function NetworkTab() {
 
 				<Dialog open={restartDialogOpen} onOpenChange={setRestartDialogOpen}>
 					<DialogTrigger asChild>
-						<Button
-							variant="secondary"
-							size="sm"
-							disabled={!health.running}
-						>
+						<Button variant="secondary" size="sm" disabled={!health.running}>
 							<RotateCcw className="size-3.5 mr-1.5" />
 							Restart Stack
 						</Button>
@@ -766,7 +766,7 @@ function AiTab() {
 		setFetchingModels(true)
 		setFetchError('')
 		try {
-			const res = await fetch(WALLET_HTTP_URL + '/api/models', {
+			const res = await fetch(`${WALLET_HTTP_URL}/api/models`, {
 				signal: AbortSignal.timeout(5000),
 			})
 			if (!res.ok) {
@@ -791,7 +791,7 @@ function AiTab() {
 		} finally {
 			setFetchingModels(false)
 		}
-	}, [settings.baseUrl, settings.model, updateSettings])
+	}, [settings.model, updateSettings])
 
 	return (
 		<div className="space-y-8 py-4">
@@ -1034,7 +1034,8 @@ function BrowserTab() {
 							<div className="shrink-0">
 								<p className="text-sm font-medium">Search URL</p>
 								<p className="text-xs text-muted-foreground">
-									Use <code className="font-mono text-[10px]">{'{query}'}</code> as the placeholder
+									Use <code className="font-mono text-[10px]">{'{query}'}</code>{' '}
+									as the placeholder
 								</p>
 							</div>
 							<Input

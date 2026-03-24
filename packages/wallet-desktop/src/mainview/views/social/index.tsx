@@ -1,8 +1,11 @@
-import { useCallback } from 'react'
-import { SocialFeed, type SocialPost } from '@/components/blocks/social-feed'
-import { PostButton, type PostResult } from '@/components/blocks/post-button'
+import {
+	FollowButton,
+	type FollowResult,
+} from '@/components/blocks/follow-button'
 import { LikeButton, type LikeResult } from '@/components/blocks/like-button'
-import { FollowButton, type FollowResult } from '@/components/blocks/follow-button'
+import { PostButton, type PostResult } from '@/components/blocks/post-button'
+import { SocialFeed, type SocialPost } from '@/components/blocks/social-feed'
+import { useCallback } from 'react'
 import { rpc } from '../../rpc'
 
 export interface SocialViewProps {
@@ -21,18 +24,15 @@ export function SocialView({ onNavigate }: SocialViewProps) {
 		[],
 	)
 
-	const handleLike = useCallback(
-		async (txid: string): Promise<LikeResult> => {
-			const result = await rpc.request.createSocialPost({
-				content: `liked:${txid}`,
-			})
-			if (result.error) {
-				throw new Error(result.error)
-			}
-			return { txid: result.txid ?? '' }
-		},
-		[],
-	)
+	const handleLike = useCallback(async (txid: string): Promise<LikeResult> => {
+		const result = await rpc.request.createSocialPost({
+			content: `liked:${txid}`,
+		})
+		if (result.error) {
+			throw new Error(result.error)
+		}
+		return { txid: result.txid ?? '' }
+	}, [])
 
 	const handleFollow = useCallback(
 		async (bapId: string): Promise<FollowResult> => {
@@ -62,10 +62,7 @@ export function SocialView({ onNavigate }: SocialViewProps) {
 	)
 
 	return (
-		<div
-			className="mx-auto w-full py-8"
-			style={{ maxWidth: 800 }}
-		>
+		<div className="mx-auto w-full py-8" style={{ maxWidth: 800 }}>
 			{/* Header row */}
 			<div className="flex items-center justify-between px-6 mb-6">
 				<h1
@@ -102,12 +99,7 @@ export function SocialView({ onNavigate }: SocialViewProps) {
 					renderFollowButton={(post) => {
 						const bapId = post.signers?.[0]?.bapId
 						if (!bapId) return null
-						return (
-							<FollowButton
-								bapId={bapId}
-								onFollow={handleFollow}
-							/>
-						)
+						return <FollowButton bapId={bapId} onFollow={handleFollow} />
 					}}
 				/>
 			</div>

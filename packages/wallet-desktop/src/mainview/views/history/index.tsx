@@ -158,17 +158,11 @@ export function HistoryView({ onNavigate }: HistoryViewProps) {
 				</div>
 			) : (
 				filtered.map((entry) => (
-					<div
+					<button
+						type="button"
 						key={entry.txid}
-						className="flex items-center gap-4 px-6 h-12 border-b border-border cursor-pointer hover:bg-card transition-colors"
+						className="flex items-center gap-4 px-6 h-12 border-b border-border cursor-pointer hover:bg-card transition-colors w-full text-left"
 						onClick={() => onNavigate?.(`1sat://wallet/tx?txid=${entry.txid}`)}
-						onKeyDown={(e) => {
-							if (e.key === 'Enter' || e.key === ' ') {
-								onNavigate?.(`1sat://wallet/tx?txid=${entry.txid}`)
-							}
-						}}
-						role="button"
-						tabIndex={0}
 					>
 						{/* Status dot (square) */}
 						<div
@@ -216,7 +210,7 @@ export function HistoryView({ onNavigate }: HistoryViewProps) {
 								{formatDate(entry.dateCreated)}
 							</span>
 						</div>
-					</div>
+					</button>
 				))
 			)}
 		</div>
