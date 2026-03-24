@@ -1326,6 +1326,7 @@ export function BrowserLayout() {
 					<Separator className="shrink-0" />
 
 					{onboardingBanner}
+					{findBar}
 					{contentArea}
 
 					{/* Sync terminal — toggled via Cmd+Shift+J */}
