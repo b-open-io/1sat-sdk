@@ -818,21 +818,6 @@ export function BrowserLayout() {
 		setAgentSidebarOpen(false)
 	}, [])
 
-	// ── Find on page ───────────────────────────────────────────────────────
-	const [findBarOpen, setFindBarOpen] = useState(false)
-	const [findQuery, setFindQuery] = useState('')
-
-	const closeFindBar = useCallback(() => {
-		setFindBarOpen(false)
-		setFindQuery('')
-		const wv = activeWebviewRef.current
-		if (wv) (wv as HTMLElement & { stopFindInPage?: () => void }).stopFindInPage?.()
-	}, [])
-
-	const openFindBar = useCallback(() => {
-		setFindBarOpen(true)
-	}, [])
-
 	// ── Sync log visibility ───────────────────────────────────────────────
 	const [syncLogEnabled, setSyncLogEnabled] = useState(true)
 
@@ -886,6 +871,21 @@ export function BrowserLayout() {
 
 	// Ref to the active electrobun-webview element (set by WebViewContent)
 	const activeWebviewRef = useRef<HTMLElement | null>(null)
+
+	// ── Find on page ───────────────────────────────────────────────────────
+	const [findBarOpen, setFindBarOpen] = useState(false)
+	const [findQuery, setFindQuery] = useState('')
+
+	const closeFindBar = useCallback(() => {
+		setFindBarOpen(false)
+		setFindQuery('')
+		const wv = activeWebviewRef.current
+		if (wv) (wv as HTMLElement & { stopFindInPage?: () => void }).stopFindInPage?.()
+	}, [])
+
+	const openFindBar = useCallback(() => {
+		setFindBarOpen(true)
+	}, [])
 
 	// Ref to track the current active tab ID without closing over stale state
 	const activeTabIdRef = useRef(activeTabId)
@@ -1210,7 +1210,7 @@ export function BrowserLayout() {
 							route={route}
 							onNavigated={handleWebViewNavigated}
 							onTitleChanged={handleWebViewTitleChanged}
-						webviewRef={activeWebviewRef}
+							webviewRef={activeWebviewRef}
 						/>
 					)}
 				</main>
@@ -1379,6 +1379,7 @@ export function BrowserLayout() {
 			<Separator className="shrink-0" />
 
 			{onboardingBanner}
+			{findBar}
 			{contentArea}
 
 			{/* Sync terminal — toggled via Cmd+Shift+J */}

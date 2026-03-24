@@ -15,6 +15,7 @@ import {
 	ThemeTokenProvider,
 	ThemeTokenSettings,
 } from '@/components/blocks/theme-token-provider'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
 	Dialog,
@@ -40,9 +41,12 @@ import {
 	ExternalLink,
 	Globe,
 	Lock,
+	RefreshCw,
+	RotateCcw,
 	ShieldCheck,
 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { Switch } from 'radix-ui'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useWallet } from '../../hooks/use-wallet'
 import { rpc } from '../../rpc'
 
@@ -145,24 +149,38 @@ function formatUptime(seconds: number): string {
 	return `${m}m`
 }
 
-interface ServiceStatus {
-	name: string
-	port: number
-	reachable: boolean | null
+// ---------------------------------------------------------------------------
+// Stack admin API helpers
+// ---------------------------------------------------------------------------
+
+const STACK_URL = 'http://127.0.0.1:8080'
+
+async function stackFetch(path: string, options?: RequestInit) {
+	const res = await fetch(`${STACK_URL}${path}`, {
+		...options,
+		signal: AbortSignal.timeout(5000),
+	})
+	if (!res.ok) throw new Error(`Stack API error: ${res.status}`)
+	return res.json()
 }
 
-async function checkService(port: number): Promise<boolean> {
-	try {
-		await fetch(`http://127.0.0.1:${port}`, {
-			signal: AbortSignal.timeout(2000),
-			mode: 'no-cors',
-		})
-		// no-cors fetch resolves (opaque response) when the server is up
-		return true
-	} catch {
-		return false
-	}
+interface StackConfig {
+	[key: string]: string
 }
+
+interface StackProgressEntry {
+	id: string
+	currentBlock: number | null
+	status: string
+}
+
+const OVERLAY_KEYS = [
+	{ key: 'overlay.bap.enabled', label: 'BAP' },
+	{ key: 'overlay.opns.enabled', label: 'OpNS' },
+	{ key: 'overlay.bsv21.enabled', label: 'BSV21' },
+	{ key: 'overlay.bsocial.enabled', label: 'BSocial' },
+	{ key: 'overlay.ordlock.enabled', label: 'OrdLock' },
+] as const
 
 // ---------------------------------------------------------------------------
 // Security Tab
@@ -339,12 +357,6 @@ function SecurityTab() {
 // Network Tab
 // ---------------------------------------------------------------------------
 
-const SERVICES: { name: string; port: number }[] = [
-	{ name: 'BRC-100 HTTP', port: 3321 },
-	{ name: 'BRC-100 HTTPS', port: 2121 },
-	{ name: 'MCP Server', port: 3322 },
-]
-
 function NetworkTab() {
 	const [health, setHealth] = useState<StackHealth>({
 		blockHeight: null,
@@ -353,47 +365,119 @@ function NetworkTab() {
 		syncPercent: null,
 	})
 	const [lastChecked, setLastChecked] = useState<Date | null>(null)
-	const [services, setServices] = useState<ServiceStatus[]>(
-		SERVICES.map((s) => ({ ...s, reachable: null })),
-	)
+	const [config, setConfig] = useState<StackConfig>({})
+	const [progress, setProgress] = useState<StackProgressEntry[]>([])
+	const [togglingKey, setTogglingKey] = useState<string | null>(null)
+	const [restartDialogOpen, setRestartDialogOpen] = useState(false)
+	const [restarting, setRestarting] = useState(false)
+	const [restartError, setRestartError] = useState('')
+	const [restartRequired, setRestartRequired] = useState(false)
+	const isMounted = useRef(true)
 
-	const refreshServices = useCallback(async () => {
-		const results = await Promise.all(
-			SERVICES.map(async (s) => ({
-				...s,
-				reachable: await checkService(s.port),
-			})),
-		)
-		setServices(results)
+	useEffect(() => {
+		isMounted.current = true
+		return () => {
+			isMounted.current = false
+		}
+	}, [])
+
+	const fetchAdminData = useCallback(async () => {
+		try {
+			const [cfg, prog] = await Promise.all([
+				stackFetch('/1sat/admin/api/config') as Promise<StackConfig>,
+				stackFetch('/1sat/admin/api/progress').then(
+					(data: unknown) => {
+						// Accept both array and object shapes
+						if (Array.isArray(data)) return data as StackProgressEntry[]
+						if (data && typeof data === 'object') {
+							return Object.entries(data as Record<string, unknown>).map(([id, val]) => {
+								const entry = val as Record<string, unknown>
+								return {
+									id,
+									currentBlock:
+										typeof entry.currentBlock === 'number'
+											? entry.currentBlock
+											: typeof entry.current_block === 'number'
+												? entry.current_block
+												: null,
+									status: typeof entry.status === 'string' ? entry.status : 'unknown',
+								} satisfies StackProgressEntry
+							})
+						}
+						return []
+					},
+				),
+			])
+			if (isMounted.current) {
+				setConfig(cfg)
+				setProgress(prog)
+			}
+		} catch {
+			// Stack offline — config/progress remain stale or empty
+		}
 	}, [])
 
 	const refresh = useCallback(async () => {
 		const result = await fetchStackHealth()
-		setHealth(result)
-		setLastChecked(new Date())
-	}, [])
+		if (isMounted.current) {
+			setHealth(result)
+			setLastChecked(new Date())
+		}
+		if (result.running) {
+			await fetchAdminData()
+		}
+	}, [fetchAdminData])
 
 	useEffect(() => {
 		refresh()
-		refreshServices()
-		const interval = setInterval(() => {
-			refresh()
-			refreshServices()
-		}, 10_000)
+		const interval = setInterval(refresh, 10_000)
 		return () => clearInterval(interval)
-	}, [refresh, refreshServices])
+	}, [refresh])
 
-	const syncPercent = health.syncPercent ?? (health.running ? 100 : null)
+	const handleOverlayToggle = useCallback(
+		async (key: string, currentValue: boolean) => {
+			setTogglingKey(key)
+			try {
+				await stackFetch('/1sat/admin/api/config', {
+					method: 'PUT',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ [key]: String(!currentValue) }),
+				})
+				setConfig((prev) => ({ ...prev, [key]: String(!currentValue) }))
+				setRestartRequired(true)
+			} catch (err) {
+				console.error('Failed to update overlay config:', err)
+			} finally {
+				if (isMounted.current) setTogglingKey(null)
+			}
+		},
+		[],
+	)
+
+	const handleRestart = useCallback(async () => {
+		setRestarting(true)
+		setRestartError('')
+		try {
+			await stackFetch('/1sat/admin/api/restart', { method: 'POST' })
+			setRestartRequired(false)
+			setRestartDialogOpen(false)
+		} catch (err) {
+			setRestartError(err instanceof Error ? err.message : 'Restart failed')
+		} finally {
+			if (isMounted.current) setRestarting(false)
+		}
+	}, [])
+
 	const uptimeDisplay =
 		health.uptimeSeconds !== null ? formatUptime(health.uptimeSeconds) : '—'
 
 	return (
 		<div className="space-y-8 py-4">
-			{/* Stack Health grid */}
+			{/* Status Section */}
 			<div>
 				<div className="flex items-center justify-between mb-3">
 					<p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-						Stack Health
+						Status
 					</p>
 					{lastChecked && (
 						<p className="text-[10px] text-muted-foreground">
@@ -402,7 +486,35 @@ function NetworkTab() {
 					)}
 				</div>
 
+				{!health.running && (
+					<div className="mb-4 p-3 rounded-lg border border-red-500/30 bg-red-500/5 flex items-center gap-3">
+						<span className="size-2 rounded-full bg-red-500 shrink-0" />
+						<p className="text-sm text-red-400 font-medium">
+							Stack Offline — start the 1sat-stack to enable these features
+						</p>
+					</div>
+				)}
+
 				<div className="grid grid-cols-3 gap-3">
+					{/* Status indicator */}
+					<div className="bg-card rounded-lg p-4">
+						<p className="text-xs text-muted-foreground mb-1">Status</p>
+						<div className="flex items-center gap-2 mt-1">
+							<span
+								className={`size-2.5 rounded-full shrink-0 ${
+									health.running ? 'bg-green-500' : 'bg-red-500'
+								}`}
+							/>
+							<p
+								className={`text-base font-bold ${
+									health.running ? 'text-green-400' : 'text-red-400'
+								}`}
+							>
+								{health.running ? 'Running' : 'Offline'}
+							</p>
+						</div>
+					</div>
+
 					{/* Block Height */}
 					<div className="bg-card rounded-lg p-4">
 						<p className="text-xs text-muted-foreground mb-1">Block Height</p>
@@ -418,84 +530,200 @@ function NetworkTab() {
 						<p className="text-xs text-muted-foreground mb-1">Uptime</p>
 						<p className="text-xl font-bold font-mono">{uptimeDisplay}</p>
 					</div>
-
-					{/* Status */}
-					<div className="bg-card rounded-lg p-4">
-						<p className="text-xs text-muted-foreground mb-1">Status</p>
-						<p
-							className={`text-xl font-bold ${
-								health.running ? 'text-green-400' : 'text-red-400'
-							}`}
-						>
-							{health.running ? 'Running' : 'Offline'}
-						</p>
-					</div>
 				</div>
 			</div>
 
-			{/* Sync Progress */}
+			{/* Overlay Services Section */}
 			<div>
-				<div className="flex items-center justify-between mb-2">
+				<div className="flex items-center gap-3 mb-3">
 					<p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-						Sync
+						Overlay Services
 					</p>
-					<p className="text-xs text-muted-foreground font-mono">
-						{syncPercent !== null ? `${syncPercent}%` : '—'}
-					</p>
+					{restartRequired && (
+						<Badge variant="outline" className="text-[10px] text-amber-400 border-amber-500/40 bg-amber-500/10 py-0">
+							Restart required
+						</Badge>
+					)}
 				</div>
-				<div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
-					<div
-						className="h-full rounded-full bg-primary transition-all duration-500"
-						style={{ width: syncPercent !== null ? `${syncPercent}%` : '0%' }}
-					/>
+
+				<div className="bg-card rounded-lg divide-y divide-border overflow-hidden">
+					{OVERLAY_KEYS.map(({ key, label }) => {
+						const enabled = config[key] === 'true' || config[key] === '1'
+						const isToggling = togglingKey === key
+						return (
+							<div key={key} className="flex items-center gap-3 px-4 py-3">
+								<span className="flex-1 text-sm font-medium">{label}</span>
+								<span className="text-xs text-muted-foreground font-mono mr-3">
+									{key}
+								</span>
+								<Switch.Root
+									checked={enabled}
+									disabled={!health.running || isToggling}
+									onCheckedChange={() => handleOverlayToggle(key, enabled)}
+									className={[
+										'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors',
+										'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+										'disabled:cursor-not-allowed disabled:opacity-50',
+										enabled ? 'bg-primary' : 'bg-input',
+									].join(' ')}
+								>
+									<Switch.Thumb
+										className={[
+											'pointer-events-none block size-4 rounded-full bg-white shadow-sm ring-0 transition-transform',
+											enabled ? 'translate-x-4' : 'translate-x-0',
+										].join(' ')}
+									/>
+								</Switch.Root>
+							</div>
+						)
+					})}
 				</div>
-				{syncPercent === 100 && (
-					<p className="text-xs text-muted-foreground mt-1.5">Synced</p>
+			</div>
+
+			{/* Sync Progress Section */}
+			<div>
+				<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+					Sync Progress
+				</p>
+
+				{progress.length === 0 ? (
+					<div className="bg-card rounded-lg px-4 py-6 text-center">
+						<p className="text-sm text-muted-foreground">
+							{health.running ? 'No indexers reported' : 'Stack offline'}
+						</p>
+					</div>
+				) : (
+					<div className="bg-card rounded-lg overflow-hidden">
+						<div className="grid grid-cols-3 px-4 py-2 border-b border-border">
+							<p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+								Indexer
+							</p>
+							<p className="text-[10px] uppercase tracking-widest text-muted-foreground text-right">
+								Current Block
+							</p>
+							<p className="text-[10px] uppercase tracking-widest text-muted-foreground text-right">
+								Status
+							</p>
+						</div>
+						<div className="divide-y divide-border">
+							{progress.map((entry) => (
+								<div
+									key={entry.id}
+									className="grid grid-cols-3 px-4 py-3 items-center"
+								>
+									<span className="text-sm font-mono truncate">{entry.id}</span>
+									<span className="text-sm font-mono text-right text-muted-foreground">
+										{entry.currentBlock !== null
+											? entry.currentBlock.toLocaleString()
+											: '—'}
+									</span>
+									<span
+										className={`text-xs text-right font-medium ${
+											entry.status === 'synced' || entry.status === 'running'
+												? 'text-green-400'
+												: entry.status === 'error'
+													? 'text-red-400'
+													: 'text-muted-foreground'
+										}`}
+									>
+										{entry.status}
+									</span>
+								</div>
+							))}
+						</div>
+					</div>
 				)}
 			</div>
 
-			{/* Services list */}
+			{/* Configuration Section */}
 			<div>
 				<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
-					Services
+					Configuration
 				</p>
+
 				<div className="bg-card rounded-lg divide-y divide-border overflow-hidden">
-					{services.map((svc) => (
-						<div key={svc.port} className="flex items-center gap-3 px-4 py-3">
-							<span
-								className={`size-2 rounded-full shrink-0 ${
-									svc.reachable === null
-										? 'bg-muted-foreground/30'
-										: svc.reachable
-											? 'bg-green-500'
-											: 'bg-red-500'
-								}`}
-							/>
-							<span className="flex-1 text-sm">{svc.name}</span>
-							<span className="text-xs text-muted-foreground font-mono">
-								:{svc.port}
+					{[
+						{ label: 'JungleBus URL', value: config['junglebus.url'] },
+						{ label: 'Store Provider', value: config['store.provider'] },
+						{ label: 'Auth Mode', value: config['auth.mode'] },
+						{ label: 'Stack Data Path', value: '~/.1sat-wallet/stack/' },
+					].map(({ label, value }) => (
+						<div key={label} className="flex items-center gap-3 px-4 py-3">
+							<span className="flex-1 text-sm text-muted-foreground shrink-0 w-36">
+								{label}
+							</span>
+							<span className="text-sm font-mono text-right truncate max-w-[240px]">
+								{value ?? '—'}
 							</span>
 						</div>
 					))}
 				</div>
+
+				<p className="text-xs text-muted-foreground mt-2">
+					Use the admin panel to edit configuration values.
+				</p>
 			</div>
 
-			{/* Open Stack Admin button */}
-			<div className="flex items-center justify-between py-1">
-				<div>
-					<p className="text-sm font-medium">Stack Admin</p>
-					<p className="text-xs text-muted-foreground">
-						Manage the local 1Sat stack
-					</p>
-				</div>
+			{/* Actions Section */}
+			<div className="flex items-center justify-between py-1 gap-4">
 				<Button
 					variant="outline"
 					size="sm"
-					onClick={() => window.open('http://127.0.0.1:8080/1sat/admin')}
+					onClick={() => window.open(`${STACK_URL}/1sat/admin`)}
 				>
 					<ExternalLink className="size-3.5 mr-1.5" />
-					Open Stack Admin
+					Open Admin Panel
 				</Button>
+
+				<Dialog open={restartDialogOpen} onOpenChange={setRestartDialogOpen}>
+					<DialogTrigger asChild>
+						<Button
+							variant="secondary"
+							size="sm"
+							disabled={!health.running}
+						>
+							<RotateCcw className="size-3.5 mr-1.5" />
+							Restart Stack
+						</Button>
+					</DialogTrigger>
+					<DialogContent className="sm:max-w-sm">
+						<DialogHeader>
+							<DialogTitle>Restart Stack</DialogTitle>
+							<DialogDescription>
+								This will restart the 1sat-stack process. Active connections
+								will be interrupted briefly.
+							</DialogDescription>
+						</DialogHeader>
+						{restartError && (
+							<div className="p-3 border border-destructive/50 bg-destructive/5 text-destructive text-xs font-mono rounded-md">
+								{restartError}
+							</div>
+						)}
+						<DialogFooter>
+							<Button
+								variant="ghost"
+								onClick={() => setRestartDialogOpen(false)}
+								disabled={restarting}
+							>
+								Cancel
+							</Button>
+							<Button
+								variant="destructive"
+								onClick={handleRestart}
+								disabled={restarting}
+							>
+								{restarting ? (
+									<>
+										<RefreshCw className="size-3.5 mr-1.5 animate-spin" />
+										Restarting...
+									</>
+								) : (
+									'Restart'
+								)}
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
 			</div>
 		</div>
 	)
