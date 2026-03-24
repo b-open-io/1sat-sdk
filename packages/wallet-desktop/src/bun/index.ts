@@ -4,8 +4,8 @@
  * Creates the desktop window, wires RPC handlers, sets up the
  * application menu, and boots the wallet lifecycle.
  */
+import './log' // Side-effect: initializes evlog FIRST — file drain + ring buffer
 import { createLogger } from 'evlog'
-import './log' // Side-effect: initializes evlog with file drain + ring buffer
 import { flushLogs } from './log'
 import Electrobun, {
 	ApplicationMenu,

@@ -43,6 +43,14 @@ initLogger({
 	},
 })
 
+// Emit immediately so the file drain creates the log file on startup
+import { createLogger } from 'evlog'
+const bootLog = createLogger({ context: 'boot' })
+bootLog.set({ event: 'process_alive', pid: process.pid, argv0: process.argv0 })
+bootLog.emit()
+// Force immediate flush so the log file exists even if the process crashes next
+fsDrain.flush()
+
 /** Call on app shutdown to flush buffered events to disk */
 export async function flushLogs(): Promise<void> {
 	await fsDrain.flush()
