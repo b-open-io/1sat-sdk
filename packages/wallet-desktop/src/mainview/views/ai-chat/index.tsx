@@ -347,6 +347,21 @@ export function AiChatView({
 										</span>
 									)
 								}
+								if (part.type === 'reasoning') {
+									return (
+										<details
+											key={`${message.id}-${i}`}
+											className="my-1"
+										>
+											<summary className={cn('text-[10px] text-muted-foreground cursor-pointer', MONO)}>
+												Thinking...
+											</summary>
+											<span className="whitespace-pre-wrap text-[10px] text-muted-foreground/60">
+												{part.text}
+											</span>
+										</details>
+									)
+								}
 								if (isToolUIPart(part)) {
 									return (
 										<div
