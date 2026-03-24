@@ -67,12 +67,19 @@ export class SecureEnclaveProvider implements VaultProvider {
 	}
 
 	private getEnclavePath(): string {
-		// When bundled in Electrobun, the binary is in MacOS/ alongside bun and launcher.
-		// process.argv0 points to the bun binary in MacOS/.
-		const bundledPath = resolve(process.argv0, '..', 'enclave')
-		if (existsSync(bundledPath)) return bundledPath
-		// Development: resolve relative to source
-		return resolve(__dirname, '../swift/enclave')
+		// Electrobun bundle: enclave sits in MacOS/ next to the bun binary
+		// process.argv0 is the full path to MacOS/bun in the app bundle
+		const bundled = resolve(process.argv0, '..', 'enclave')
+		if (existsSync(bundled)) return bundled
+
+		// Source tree: relative to this file's dist/ directory
+		const source = resolve(__dirname, '../swift/enclave')
+		if (existsSync(source)) return source
+
+		throw new Error(
+			`Secure Enclave binary not found. Checked:\n  ${bundled}\n  ${source}\n` +
+			'Run the post-build script or compile with: cd packages/wallet-mac/swift && sh build.sh'
+		)
 	}
 
 	private async callEnclave(
