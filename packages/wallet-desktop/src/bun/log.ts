@@ -51,18 +51,27 @@ const originalConsole = {
 	debug: console.debug.bind(console),
 }
 
+let intercepting = false
+
 function interceptConsole(
 	level: 'log' | 'warn' | 'error' | 'info' | 'debug',
 	context: string,
 ) {
 	console[level] = (...args: unknown[]) => {
 		originalConsole[level](...args)
-		const log = createLogger({ context })
-		log.set({
-			event: `console.${level}`,
-			message: args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' '),
-		})
-		log.emit()
+		// Guard against recursion: evlog's own console output triggers this intercept
+		if (intercepting) return
+		intercepting = true
+		try {
+			const log = createLogger({ context })
+			log.set({
+				event: `console.${level}`,
+				message: args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' '),
+			})
+			log.emit()
+		} finally {
+			intercepting = false
+		}
 	}
 }
 
