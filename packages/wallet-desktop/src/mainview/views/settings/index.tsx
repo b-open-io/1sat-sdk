@@ -9,6 +9,7 @@ import {
 } from '@/components/blocks/theme-token-provider'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Empty } from '@/components/ui/empty'
 import {
 	Dialog,
 	DialogContent,
@@ -350,16 +351,11 @@ function SecurityTab() {
 				</div>
 
 				{connectedApps.length === 0 ? (
-					<div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
-						<Globe className="size-8 text-muted-foreground/30" />
-						<p className="text-sm text-muted-foreground">
-							No connected apps yet
-						</p>
-						<p className="text-xs text-muted-foreground/60 max-w-xs">
-							Apps you authorize will appear here. You can revoke access at any
-							time.
-						</p>
-					</div>
+					<Empty
+						icon={ShieldCheck}
+						title="No connected apps"
+						description="Apps you authorize via BRC-100 will appear here."
+					/>
 				) : (
 					<div className="bg-card rounded-xl overflow-hidden divide-y divide-border">
 						{connectedApps.map((app) => (

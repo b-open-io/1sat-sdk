@@ -1,5 +1,7 @@
+import { Empty } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
+	Activity,
 	ArrowDownLeft,
 	ArrowUpRight,
 	Coins,
@@ -374,12 +376,11 @@ export function OverviewView({ onNavigate }: OverviewViewProps) {
 						<ActivityRowSkeleton />
 					</div>
 				) : recentTx.length === 0 ? (
-					<p
-						className="text-[13px] text-muted-foreground py-4"
-						style={{ fontFamily: 'var(--font-sans)' }}
-					>
-						No transactions yet.
-					</p>
+					<Empty
+						icon={Activity}
+						title="No recent activity"
+						description="Recent transactions will appear here."
+					/>
 				) : (
 					<div>
 						{recentTx.map((tx, idx) => {

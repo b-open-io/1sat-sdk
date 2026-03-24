@@ -1,3 +1,4 @@
+import { Empty } from '@/components/ui/empty'
 import {
 	Select,
 	SelectContent,
@@ -402,19 +403,11 @@ export function MarketView({ onNavigate }: MarketViewProps) {
 
 			{/* Empty state */}
 			{!loading && !error && filtered.length === 0 && (
-				<div className="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
-					<Store size={36} strokeWidth={1.5} />
-					<span
-						className={cn(
-							'text-sm',
-							'font-[family-name:var(--font-sans)]',
-						)}
-					>
-						{query
-							? `No listings match "${query}"`
-							: 'No listings available'}
-					</span>
-				</div>
+				<Empty
+					icon={Store}
+					title={query ? `No listings match "${query}"` : 'No listings available'}
+					description="Marketplace listings appear once items are listed for sale."
+				/>
 			)}
 
 			{/* Listing grid */}

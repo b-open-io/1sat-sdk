@@ -1,3 +1,4 @@
+import { Empty } from '@/components/ui/empty'
 import {
 	ExternalLink,
 	Globe,
@@ -279,18 +280,16 @@ export function AppsView({ onNavigate }: AppsViewProps) {
 
 			{/* Empty search */}
 			{!loading && !error && filtered.length === 0 && apps.length > 0 && (
-				<div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
-					<Search size={32} strokeWidth={1.5} />
-					<span className="text-sm">No apps match your search</span>
-				</div>
+				<Empty icon={Search} title="No apps match your search" />
 			)}
 
 			{/* Empty catalog */}
 			{!loading && !error && apps.length === 0 && (
-				<div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
-					<Globe size={32} strokeWidth={1.5} />
-					<span className="text-sm">No apps published yet</span>
-				</div>
+				<Empty
+					icon={Globe}
+					title="No apps yet"
+					description="Decentralized apps appear here as they are published."
+				/>
 			)}
 		</div>
 	)

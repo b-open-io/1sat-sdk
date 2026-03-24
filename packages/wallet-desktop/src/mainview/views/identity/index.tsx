@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
-import { MessageCircle } from 'lucide-react'
+import { Empty } from '@/components/ui/empty'
+import { MessageCircle, UserCircle2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { STACK_URL } from '../../../shared/constants'
 import { FollowButton } from '../../components/blocks/follow-button'
@@ -452,18 +453,12 @@ export function IdentityView({ params, onNavigate }: IdentityViewProps = {}) {
 
 			{!ownBapId ? (
 				/* ── Empty state ─────────────────────────────────────────────── */
-				<div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
-					<p
-						className="text-muted-foreground"
-						style={{ fontFamily: 'var(--font-sans)', fontSize: 13 }}
-					>
-						No BAP identity published yet. Publish your identity to use social
-						features and identity binding.
-					</p>
-					<Button onClick={handlePublish} disabled={publishing}>
-						{publishing ? 'Publishing...' : 'Publish Identity'}
-					</Button>
-				</div>
+				<Empty
+					icon={UserCircle2}
+					title="No identity published"
+					description="Publish your identity to use social features and verified interactions."
+					action={{ label: "Publish Identity", onClick: handlePublish }}
+				/>
 			) : (
 				/* ── Identity card ───────────────────────────────────────────── */
 				<div>

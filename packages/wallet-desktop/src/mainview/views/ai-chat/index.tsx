@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button'
+import { Empty } from '@/components/ui/empty'
 import { cn } from '@/lib/utils'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport, isToolUIPart } from 'ai'
@@ -141,7 +142,7 @@ export function AiChatView({
 	pageContext,
 	onNavigate,
 }: AiChatViewProps) {
-	const { models } = useAvailableModels()
+	const { models, loading } = useAvailableModels()
 
 	// Load AI settings — re-read on mount
 	const [aiSettings, setAiSettings] = useState<{ provider?: string; baseUrl?: string; apiKey?: string; model?: string }>({})
@@ -265,6 +266,16 @@ export function AiChatView({
 				ref={scrollRef}
 				className="flex-1 overflow-y-auto px-4 py-3 space-y-4"
 			>
+				{!activeModel && models.length === 0 && !loading && messages.length === 0 && (
+					<Empty
+						icon={Sparkles}
+						title="Set up AI to get started"
+						description="Configure an AI provider in settings to start chatting."
+						action={{ label: "Open AI Settings", onClick: () => onNavigate?.('1sat://settings?tab=ai') }}
+						className="h-full"
+					/>
+				)}
+
 				{messages.length === 0 && !initialQuery && (
 					<div className="flex flex-col items-center justify-center h-full gap-3 text-center">
 						<div
@@ -336,16 +347,22 @@ export function AiChatView({
 			</div>
 
 			{/* Error */}
-			{error && (
-				<div className="px-4 py-2 border-t border-destructive/30 bg-destructive/5 shrink-0">
-					<p className="text-[10px] text-destructive">
-						{error.message.includes('Ollama is not running') ||
-						error.message.includes('ECONNREFUSED')
-							? 'Ollama is not running. Start it with: ollama serve'
-							: error.message}
-					</p>
-				</div>
-			)}
+			{error &&
+				(error.message.includes('Ollama is not running') ||
+				error.message.includes('ECONNREFUSED') ? (
+					<div className="px-4 shrink-0 border-t border-border">
+						<Empty
+							icon={Sparkles}
+							title="AI provider not reachable"
+							description="Could not connect to your AI provider. Check that it's running or update your settings."
+							action={{ label: "Open AI Settings", onClick: () => onNavigate?.('1sat://settings?tab=ai') }}
+						/>
+					</div>
+				) : (
+					<div className="px-4 py-2 border-t border-destructive/30 bg-destructive/5 shrink-0">
+						<p className="text-[10px] text-destructive">{error.message}</p>
+					</div>
+				))}
 
 			{/* Input */}
 			<div className="px-4 py-3 border-t border-border shrink-0">

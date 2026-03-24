@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { BigBlocksProvider } from '@/components/blocks/bigblocks-provider'
 import { PermissionApproval } from '@/components/blocks/permission-approval'
 import { onPermissionRequest, rpc } from './rpc'
@@ -7,6 +7,7 @@ import { BrowserLayout } from './components/layout/browser-layout'
 import { useWallet } from './hooks/use-wallet'
 import { CreateWallet } from './views/onboarding/create-wallet'
 import { ImportWallet } from './views/onboarding/import-wallet'
+import { SetupWizard } from './views/onboarding/setup-wizard'
 import { UnlockWallet } from './views/onboarding/unlock-wallet'
 
 type OnboardingChoice = 'none' | 'create' | 'import'
@@ -65,6 +66,19 @@ function App() {
 	const { status } = useWallet()
 	const [onboardingChoice, setOnboardingChoice] =
 		useState<OnboardingChoice>('none')
+	const [setupComplete, setSetupComplete] = useState(
+		() => localStorage.getItem('1sat-setup-complete') === 'true',
+	)
+
+	const prevStatus = useRef(status)
+	useEffect(() => {
+		// Returning users who go locked -> unlocked already have a wallet
+		if (prevStatus.current === 'locked' && status === 'unlocked') {
+			localStorage.setItem('1sat-setup-complete', 'true')
+			setSetupComplete(true)
+		}
+		prevStatus.current = status
+	}, [status])
 
 	if (status === 'initializing') {
 		return <LoadingScreen />
@@ -75,6 +89,16 @@ function App() {
 	}
 
 	if (status === 'unlocked') {
+		if (!setupComplete) {
+			return (
+				<SetupWizard
+					onComplete={() => {
+						localStorage.setItem('1sat-setup-complete', 'true')
+						setSetupComplete(true)
+					}}
+				/>
+			)
+		}
 		return (
 			<BigBlocksProvider>
 				<BrowserLayout />

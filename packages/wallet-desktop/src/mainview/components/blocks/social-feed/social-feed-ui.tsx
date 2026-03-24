@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { Empty } from "@/components/ui/empty"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AlertCircle, Loader2, MessageSquare, RefreshCw } from "lucide-react"
@@ -77,22 +78,13 @@ function PostCardSkeleton() {
 
 function EmptyState({ onRefresh }: { onRefresh: () => void }) {
   return (
-    <div
-      className="flex flex-col items-center justify-center py-16 px-4 text-center"
+    <Empty
+      icon={MessageSquare}
+      title="No posts yet"
+      description="Be the first to post something on-chain."
+      action={{ label: "Refresh", onClick: onRefresh }}
       data-testid="social-feed-empty"
-    >
-      <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-muted">
-        <MessageSquare className="size-6 text-muted-foreground" />
-      </div>
-      <p className="text-sm font-medium text-foreground">No posts yet</p>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Be the first to post something on-chain
-      </p>
-      <Button variant="outline" size="sm" className="mt-4" onClick={onRefresh}>
-        <RefreshCw data-icon="inline-start" />
-        Refresh
-      </Button>
-    </div>
+    />
   )
 }
 

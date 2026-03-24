@@ -1,3 +1,5 @@
+import { Empty } from '@/components/ui/empty'
+import { Download as DownloadIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '../../lib/utils'
 
@@ -390,12 +392,11 @@ export function DownloadsView({ onNavigate: _onNavigate }: DownloadsViewProps) {
 
 					{/* Table body */}
 					{downloads.length === 0 ? (
-						<div
-							className="flex items-center justify-center bg-background text-muted-foreground font-[family-name:var(--font-sans)]"
-							style={{ height: 120, fontSize: 13 }}
-						>
-							No downloads yet.
-						</div>
+						<Empty
+							icon={DownloadIcon}
+							title="No downloads yet"
+							description="Files downloaded from the browser appear here."
+						/>
 					) : (
 						downloads.map((dl) => (
 							<div

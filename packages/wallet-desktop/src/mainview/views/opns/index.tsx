@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Empty } from '@/components/ui/empty'
 import {
 	Dialog,
 	DialogContent,
@@ -345,10 +346,11 @@ export function OpnsView({ onNavigate }: OpnsViewProps = {}) {
 					</div>
 				) : names.length === 0 ? (
 					/* Empty state */
-					<div className="flex flex-col items-center gap-2 py-12">
-						<Globe className="size-8 text-muted-foreground/30" />
-						<p className="text-sm text-muted-foreground">No OpNS names</p>
-					</div>
+					<Empty
+						icon={Globe}
+						title="No OpNS names"
+						description="Register a name to bind your identity to a human-readable handle."
+					/>
 				) : (
 					/* Name list */
 					names.map((name, index) => (
