@@ -13,15 +13,12 @@
 	},
 	"files": ["dist", "wasm"],
 	"scripts": {
-		"build": "tsc && cp src/proto.js src/proto.d.ts dist/",
+		"build": "tsc && cp src/beef_pb.js src/beef_pb.d.ts src/parse_pb.js src/parse_pb.d.ts dist/",
 		"dev": "tsc --watch",
 		"clean": "rm -rf dist"
 	},
 	"keywords": ["1sat", "bsv", "wasm", "parser", "engine"],
 	"license": "MIT",
-	"dependencies": {
-		"protobufjs": "^7.4.0"
-	},
 	"peerDependencies": {
 		"@bsv/sdk": "^2.0.6"
 	},

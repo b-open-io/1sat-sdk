@@ -1,18 +1,16 @@
-import { onesat } from "./proto.js";
+// @ts-nocheck — generated proto files lack TS project references
+import { encodeAtomicBeef } from "./beef_pb.js";
+import { decodeBeefParseResult } from "./parse_pb.js";
 
-const { AtomicBeef, Beef, BeefTx, MerklePath, PathLevel, PathElement } =
-	onesat.beef;
-const { BeefParseResult } = onesat.parse;
+import type { AtomicBeef, Beef, BeefTx } from "./beef_pb.js";
+import type {
+	BeefParseResult,
+	IndexedOutput,
+	OutPoint,
+} from "./parse_pb.js";
 
-export type { onesat };
-
-export interface ParseResult {
-	txid: Uint8Array;
-	blockHeight: number;
-	blockIdx: number;
-	outputs: onesat.parse.IIndexedOutput[];
-	spends: onesat.parse.IIndexedOutput[];
-}
+export type { AtomicBeef, Beef, BeefTx, BeefParseResult, IndexedOutput, OutPoint };
+export { encodeAtomicBeef, decodeBeefParseResult };
 
 export class Engine {
 	private instance: WebAssembly.Instance | null = null;
@@ -24,7 +22,7 @@ export class Engine {
 		this.instance = instance;
 	}
 
-	parseAtomicBeef(protoBytes: Uint8Array): ParseResult {
+	parseAtomicBeef(protoBytes: Uint8Array): BeefParseResult {
 		if (!this.instance) throw new Error("Engine not initialized");
 
 		const { alloc, dealloc, parse_atomic_beef, memory } =
@@ -44,26 +42,18 @@ export class Engine {
 			const resultPtr = parse_atomic_beef(ptr, protoBytes.length);
 			if (resultPtr === 0) throw new Error("parse returned null");
 
-			const mem = new Uint8Array(memory.buffer);
 			const lenView = new DataView(memory.buffer, resultPtr, 4);
 			const pbLen = lenView.getUint32(0, true);
 
-			const pbBytes = mem.slice(resultPtr + 4, resultPtr + 4 + pbLen);
-			const result = BeefParseResult.decode(pbBytes);
+			const pbBytes = new Uint8Array(
+				memory.buffer,
+				resultPtr + 4,
+				pbLen,
+			).slice();
 
-			return {
-				txid: result.txid ?? new Uint8Array(),
-				blockHeight: result.blockHeight ?? 0,
-				blockIdx: Number(result.blockIdx ?? 0),
-				outputs: result.outputs ?? [],
-				spends: result.spends ?? [],
-			};
+			return decodeBeefParseResult(pbBytes);
 		} finally {
 			dealloc();
 		}
 	}
 }
-
-export { AtomicBeef, Beef, BeefTx, MerklePath, PathLevel, PathElement };
-export { BeefParseResult };
-export { onesat as proto };
