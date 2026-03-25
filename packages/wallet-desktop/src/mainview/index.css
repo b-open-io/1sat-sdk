@@ -119,8 +119,8 @@
 	--font-pixel: "Geist Pixel", monospace;
 	--tracking-normal: 0em;
 	--spacing: 0.25rem;
-	/* Tab bar */
-	--tab-bar-bg: oklch(0.91 0.008 96);
+	/* Tab bar — slightly darker than background so traffic lights are visible */
+	--tab-bar-bg: oklch(0.87 0.01 96);
 	/* Protocol badge colours */
 	--protocol-1sat-bg: oklch(0.88 0.08 260);
 	--protocol-1sat-fg: oklch(0.35 0.16 260);

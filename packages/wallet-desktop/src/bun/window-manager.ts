@@ -37,6 +37,50 @@ export function getPickerWindow(): BrowserWindow | undefined {
 	return pickerWindow
 }
 
+/** Create a fresh BrowserWindow for an account (used for 2nd+ accounts). */
+function createNewAccountWindow(accountId: string): BrowserWindow {
+	const handlers = createRpcHandlers()
+	const rpc = BrowserView.defineRPC<WalletDesktopRPC>({
+		maxRequestTime: 60000,
+		handlers: {
+			requests: {
+				...handlers,
+				toggleDevTools: () => {
+					try {
+						const w = accountWindows.get(accountId)
+						w?.webview.toggleDevTools()
+					} catch (err) {
+						console.error('Failed to toggle dev tools:', err)
+					}
+					return { success: true }
+				},
+				toggleMaximize: () => {
+					const w = accountWindows.get(accountId)
+					if (w) {
+						if (w.isMaximized()) w.unmaximize()
+						else w.maximize()
+					}
+					return { success: true }
+				},
+			},
+			messages: {},
+		},
+	})
+
+	return new BrowserWindow({
+		title: '1Sat',
+		url: 'views://mainview/index.html',
+		frame: {
+			width: 1440,
+			height: 900,
+			x: 120 + accountWindows.size * 30,
+			y: 120 + accountWindows.size * 30,
+		},
+		titleBarStyle: 'hiddenInset',
+		rpc,
+	})
+}
+
 /**
  * Open a window for an account, or focus the existing one.
  * Returns true if a new window was created, false if focused existing.
@@ -54,47 +98,11 @@ export async function openAccountWindow(accountId: string): Promise<boolean> {
 	log.set({ event: 'opening_account_window', accountId })
 	log.emit()
 
-	// Create RPC for this window
-	const handlers = createRpcHandlers()
-	const rpc = BrowserView.defineRPC<WalletDesktopRPC>({
-		maxRequestTime: 60000,
-		handlers: {
-			requests: {
-				...handlers,
-				// Override toggleDevTools/toggleMaximize to work on THIS window
-				toggleDevTools: () => {
-					try {
-						const win = accountWindows.get(accountId)
-						win?.webview.toggleDevTools()
-					} catch (err) {
-						console.error('Failed to toggle dev tools:', err)
-					}
-					return { success: true }
-				},
-				toggleMaximize: () => {
-					const win = accountWindows.get(accountId)
-					if (win) {
-						if (win.isMaximized()) {
-							win.unmaximize()
-						} else {
-							win.maximize()
-						}
-					}
-					return { success: true }
-				},
-			},
-			messages: {},
-		},
-	})
-
-	// Create the window with full browser chrome
-	const win = new BrowserWindow({
-		title: '1Sat',
-		url: 'views://mainview/index.html',
-		frame: { width: 1440, height: 900, x: 120 + accountWindows.size * 30, y: 120 + accountWindows.size * 30 },
-		titleBarStyle: 'hiddenInset',
-		rpc,
-	})
+	// If this is the first account being opened and the picker window exists,
+	// reuse the picker window instead of creating a new one.
+	// This avoids the "empty picker stuck at the bottom" problem.
+	const reusePickerWindow = pickerWindow && accountWindows.size === 0
+	const win = reusePickerWindow ? pickerWindow! : createNewAccountWindow(accountId)
 
 	accountWindows.set(accountId, win)
 

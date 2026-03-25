@@ -73,8 +73,8 @@ import { WalletPopover } from '../browser/wallet-popover'
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Left padding to clear macOS traffic light buttons */
-const TRAFFIC_LIGHT_PAD = 60
+/** Left padding to clear macOS traffic light buttons + breathing room before first tab */
+const TRAFFIC_LIGHT_PAD = 72
 
 /** Height of the tab bar row */
 const TAB_BAR_HEIGHT = 30
