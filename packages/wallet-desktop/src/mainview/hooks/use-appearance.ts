@@ -20,7 +20,11 @@ export interface UseAppearanceReturn {
 // Constants
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = '1sat-appearance-mode'
+const BASE_STORAGE_KEY = '1sat-appearance-mode'
+
+function storageKey(accountId?: string): string {
+	return accountId ? `${BASE_STORAGE_KEY}-${accountId}` : BASE_STORAGE_KEY
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -50,11 +54,18 @@ function applyThemeClass(resolved: ResolvedTheme): void {
 	}
 }
 
-function readStoredMode(): AppearanceMode {
+function readStoredMode(accountId?: string): AppearanceMode {
 	if (typeof window === 'undefined') return 'system'
-	const stored = localStorage.getItem(STORAGE_KEY)
+	const stored = localStorage.getItem(storageKey(accountId))
 	if (stored === 'light' || stored === 'dark' || stored === 'system') {
 		return stored
+	}
+	// Fall back to global preference if no per-account setting
+	if (accountId) {
+		const global = localStorage.getItem(BASE_STORAGE_KEY)
+		if (global === 'light' || global === 'dark' || global === 'system') {
+			return global
+		}
 	}
 	return 'system'
 }
@@ -70,11 +81,20 @@ function readStoredMode(): AppearanceMode {
  * - Listens to system preference changes when mode is 'system'
  * - Exposes resolvedTheme for consumers that need the actual applied value
  */
-export function useAppearance(): UseAppearanceReturn {
-	const [mode, setModeState] = useState<AppearanceMode>(readStoredMode)
+export function useAppearance(accountId?: string): UseAppearanceReturn {
+	const [mode, setModeState] = useState<AppearanceMode>(() => readStoredMode(accountId))
 	const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
-		resolve(readStoredMode()),
+		resolve(readStoredMode(accountId)),
 	)
+
+	// Re-read when account changes
+	useEffect(() => {
+		const stored = readStoredMode(accountId)
+		setModeState(stored)
+		const resolved = resolve(stored)
+		setResolvedTheme(resolved)
+		applyThemeClass(resolved)
+	}, [accountId])
 
 	// Apply the class whenever resolved theme changes
 	useEffect(() => {
@@ -99,8 +119,8 @@ export function useAppearance(): UseAppearanceReturn {
 		setModeState(next)
 		const resolved = resolve(next)
 		setResolvedTheme(resolved)
-		localStorage.setItem(STORAGE_KEY, next)
-	}, [])
+		localStorage.setItem(storageKey(accountId), next)
+	}, [accountId])
 
 	return { mode, setMode, resolvedTheme }
 }
