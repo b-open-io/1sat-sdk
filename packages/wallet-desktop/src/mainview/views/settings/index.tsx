@@ -33,13 +33,20 @@ import {
 	ExternalLink,
 	Globe,
 	Info,
+	Monitor,
+	Moon,
 	RefreshCw,
 	RotateCcw,
 	ShieldCheck,
+	Sun,
 	Trash2,
 } from 'lucide-react'
 import { Switch } from 'radix-ui'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+	type AppearanceMode,
+	useAppearance,
+} from '../../hooks/use-appearance'
 import {
 	type BrowserSettings,
 	type SearchMode,
@@ -1252,6 +1259,82 @@ function BrowserTab() {
 }
 
 // ---------------------------------------------------------------------------
+// Appearance Section
+// ---------------------------------------------------------------------------
+
+const MODE_OPTIONS: {
+	value: AppearanceMode
+	label: string
+	Icon: React.ComponentType<{ className?: string }>
+}[] = [
+	{ value: 'light', label: 'Light', Icon: Sun },
+	{ value: 'dark', label: 'Dark', Icon: Moon },
+	{ value: 'system', label: 'System', Icon: Monitor },
+]
+
+function AppearanceSection() {
+	const { mode, setMode, resolvedTheme } = useAppearance()
+
+	return (
+		<div>
+			<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+				Appearance
+			</p>
+
+			{/* Mode selector row */}
+			<div className="flex items-center justify-between py-3">
+				<div>
+					<p className="text-sm font-medium">Color Mode</p>
+					<p className="text-xs text-muted-foreground">
+						Choose light, dark, or follow system preference
+					</p>
+				</div>
+				<div
+					className="flex items-center bg-muted rounded-sm p-0.5 gap-0.5"
+					role="group"
+					aria-label="Color mode"
+				>
+					{MODE_OPTIONS.map(({ value, label, Icon }) => (
+						<button
+							key={value}
+							type="button"
+							onClick={() => setMode(value)}
+							aria-pressed={mode === value}
+							className={[
+								'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors rounded-sm',
+								mode === value
+									? 'bg-background text-foreground shadow-sm'
+									: 'text-muted-foreground hover:text-foreground',
+							].join(' ')}
+						>
+							<Icon className="size-3.5 shrink-0" aria-hidden="true" />
+							{label}
+						</button>
+					))}
+				</div>
+			</div>
+
+			<Separator />
+
+			{/* Theme Token row */}
+			<div className="py-3 space-y-2">
+				<div className="flex items-center justify-between">
+					<div>
+						<p className="text-sm font-medium">Theme Token</p>
+						<p className="text-xs text-muted-foreground">
+							Apply an on-chain theme to customize the wallet appearance
+						</p>
+					</div>
+				</div>
+				<ThemeTokenProvider resolvedTheme={resolvedTheme}>
+					<ThemeTokenSettings />
+				</ThemeTokenProvider>
+			</div>
+		</div>
+	)
+}
+
+// ---------------------------------------------------------------------------
 // Main SettingsView
 // ---------------------------------------------------------------------------
 
@@ -1360,24 +1443,8 @@ export function SettingsView({
 						</div>
 					</div>
 
-					{/* Theme section */}
-					<div>
-						<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
-							Theme
-						</p>
-						<div className="flex items-center justify-between py-3">
-							<div>
-								<p className="text-sm font-medium">Theme Token</p>
-								<p className="text-xs text-muted-foreground">
-									Apply an on-chain theme token to customize the wallet
-									appearance
-								</p>
-							</div>
-							<ThemeTokenProvider>
-								<ThemeTokenSettings />
-							</ThemeTokenProvider>
-						</div>
-					</div>
+					{/* Appearance section */}
+					<AppearanceSection />
 
 					{/* Sweep section */}
 					<div>

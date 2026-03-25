@@ -20,6 +20,12 @@ export interface UseThemeTokenOptions {
   defaultOrigin?: string
   /** localStorage key for persisting the active origin */
   storageKey?: string
+  /**
+   * The resolved appearance theme to use when applying the ThemeToken.
+   * When provided, this overrides the automatic classList detection.
+   * Should be the `resolvedTheme` value from `useAppearance`.
+   */
+  resolvedTheme?: "light" | "dark"
   /** Callback fired after a theme is successfully applied */
   onThemeApplied?: (origin: string) => void
   /** Callback fired when the theme is cleared */
@@ -66,6 +72,7 @@ const DEFAULT_STORAGE_KEY = "bigblocks-theme-origin"
 export function useThemeToken({
   defaultOrigin,
   storageKey = DEFAULT_STORAGE_KEY,
+  resolvedTheme,
   onThemeApplied,
   onThemeCleared,
   onError,
@@ -102,11 +109,14 @@ export function useThemeToken({
           )
         }
 
-        // Detect current color scheme
-        const isDark =
-          typeof document !== "undefined" &&
+        // Determine color scheme: prefer the explicitly passed resolvedTheme,
+        // then fall back to classList detection for backwards compatibility
+        const mode: "light" | "dark" =
+          resolvedTheme ??
+          (typeof document !== "undefined" &&
           document.documentElement.classList.contains("dark")
-        const mode = isDark ? "dark" : "light"
+            ? "dark"
+            : "light")
 
         await applyThemeModeWithAssets(published.theme, mode)
 
@@ -127,8 +137,24 @@ export function useThemeToken({
         onErrorRef.current?.(e)
       }
     },
-    [storageKey],
+    [storageKey, resolvedTheme],
   )
+
+  // ------------------------------------------------------------------
+  // Re-apply theme when resolvedTheme changes (light <-> dark toggle)
+  // ------------------------------------------------------------------
+
+  const resolvedThemeRef = useRef(resolvedTheme)
+  useEffect(() => {
+    // Only re-apply if the resolved theme actually changed and a theme is active
+    if (resolvedThemeRef.current === resolvedTheme) return
+    resolvedThemeRef.current = resolvedTheme
+
+    const saved = typeof window !== "undefined" ? localStorage.getItem(storageKey) : null
+    if (saved) {
+      void applyOrigin(saved)
+    }
+  }, [resolvedTheme, storageKey, applyOrigin])
 
   // ------------------------------------------------------------------
   // Public: set a new origin
