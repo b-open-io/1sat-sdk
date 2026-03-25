@@ -5,44 +5,9 @@ import type { AccountInfo } from '../../../shared/types'
 import { useWallet } from '../../hooks/use-wallet'
 import { rpc } from '../../rpc'
 import { CreateWallet } from '../onboarding/create-wallet'
+import { AccountCard } from './account-card'
 import { ImportBackup } from './import-backup'
 import { ProfileSetup } from './profile-setup'
-
-const ACCENT_COLORS: Record<string, string> = {
-	blue: 'bg-blue-500',
-	amber: 'bg-amber-500',
-	rose: 'bg-rose-500',
-	emerald: 'bg-emerald-500',
-	violet: 'bg-violet-500',
-	cyan: 'bg-cyan-500',
-	orange: 'bg-orange-500',
-	pink: 'bg-pink-500',
-}
-
-function getInitials(name: string): string {
-	if (!name.trim()) return '?'
-	return name
-		.split(/\s+/)
-		.map((w) => w[0])
-		.join('')
-		.toUpperCase()
-		.slice(0, 2)
-}
-
-function getColorClass(color: string): string {
-	return ACCENT_COLORS[color] ?? 'bg-blue-500'
-}
-
-function formatLastUsed(iso: string): string {
-	const diff = Date.now() - new Date(iso).getTime()
-	const mins = Math.floor(diff / 60_000)
-	if (mins < 1) return 'Just now'
-	if (mins < 60) return `${mins}m ago`
-	const hrs = Math.floor(mins / 60)
-	if (hrs < 24) return `${hrs}h ago`
-	const days = Math.floor(hrs / 24)
-	return `${days}d ago`
-}
 
 type PickerView =
 	| { kind: 'grid' }
@@ -212,6 +177,7 @@ export function AccountPicker() {
 							disabled={loading !== null}
 							focused={focusedIndex === idx}
 							onSelect={handleSelect}
+							onDeleted={refreshAccounts}
 						/>
 					))}
 
@@ -276,47 +242,3 @@ export function AccountPicker() {
 	)
 }
 
-function AccountCard({
-	account,
-	loading,
-	disabled,
-	focused,
-	onSelect,
-}: {
-	account: AccountInfo
-	loading: boolean
-	disabled: boolean
-	focused: boolean
-	onSelect: (id: string) => void
-}) {
-	return (
-		<button
-			type="button"
-			className={`w-[120px] bg-card rounded-xl p-4 flex flex-col items-center gap-2 cursor-pointer border-2 transition-all ${
-				loading
-					? 'border-primary'
-					: focused
-						? 'border-primary/60'
-						: 'border-transparent hover:border-muted-foreground/30'
-			} ${disabled && !loading ? 'opacity-50' : ''}`}
-			onClick={() => onSelect(account.id)}
-			disabled={disabled}
-		>
-			<div
-				className={`w-14 h-14 rounded-full ${getColorClass(account.color)} flex items-center justify-center text-lg font-bold text-white`}
-			>
-				{loading ? (
-					<span className="animate-pulse">...</span>
-				) : (
-					getInitials(account.displayName)
-				)}
-			</div>
-			<span className="text-sm font-medium text-foreground truncate w-full text-center">
-				{account.displayName}
-			</span>
-			<span className="text-[10px] text-muted-foreground">
-				{formatLastUsed(account.lastUsedAt)}
-			</span>
-		</button>
-	)
-}
