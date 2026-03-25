@@ -199,7 +199,7 @@ export function createRpcHandlers() {
 				const identityKey = master.privKey.toPublicKey().toString()
 				const accountId = computeAccountId(identityKey)
 
-				await create(accountId, mnemonic, passphrase ?? '')
+				const { bapId } = await create(accountId, mnemonic, passphrase ?? '')
 
 				// Try to resolve BAP profile for display name
 				let resolvedName = displayName
@@ -210,7 +210,8 @@ export function createRpcHandlers() {
 				addAccount({
 					id: accountId,
 					identityKey,
-					displayName: resolvedName ?? identityKey.slice(0, 8),
+					bapId,
+					displayName: resolvedName ?? bapId.slice(0, 12),
 					color: color ?? 'blue',
 					createdAt: new Date().toISOString(),
 					lastUsedAt: new Date().toISOString(),
@@ -240,19 +241,17 @@ export function createRpcHandlers() {
 				if (!isValidMnemonic(mnemonic)) {
 					return { success: false, error: 'Invalid mnemonic phrase' }
 				}
-				// Derive identity key to compute accountId before creating
 				const { Mnemonic: M, HD: H } = await import('@bsv/sdk')
 				const seed = M.fromString(mnemonic).toSeed()
 				const master = H.fromSeed(seed)
 				const identityKey = master.privKey.toPublicKey().toString()
 				const accountId = computeAccountId(identityKey)
 
-				// Check for duplicate
 				if (getAccount(accountId)) {
 					return { success: false, error: 'This wallet is already imported' }
 				}
 
-				await create(accountId, mnemonic, passphrase ?? '')
+				const { bapId } = await create(accountId, mnemonic, passphrase ?? '')
 
 				// Try to resolve BAP profile for display name
 				let resolvedName = displayName
@@ -263,7 +262,8 @@ export function createRpcHandlers() {
 				addAccount({
 					id: accountId,
 					identityKey,
-					displayName: resolvedName ?? identityKey.slice(0, 8),
+					bapId,
+					displayName: resolvedName ?? bapId.slice(0, 12),
 					color: color ?? 'blue',
 					createdAt: new Date().toISOString(),
 					lastUsedAt: new Date().toISOString(),

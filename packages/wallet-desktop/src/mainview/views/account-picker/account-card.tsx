@@ -107,7 +107,9 @@ export function AccountCard({
 							{account.displayName}
 						</span>
 						<span className="text-[10px] text-muted-foreground font-mono truncate w-full text-center">
-							{truncateId(account.identityKey)}
+							{account.bapId
+								? truncateId(account.bapId, 16)
+								: truncateId(account.identityKey)}
 						</span>
 					</button>
 				</ContextMenuTrigger>

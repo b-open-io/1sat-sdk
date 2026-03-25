@@ -7,6 +7,7 @@ export type WalletStatus = 'initializing' | 'account-selection' | 'no-wallet' | 
 export interface AccountInfo {
 	id: string
 	identityKey: string
+	bapId?: string
 	displayName: string
 	color: string
 	createdAt: string

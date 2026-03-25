@@ -12,6 +12,7 @@ import type { Vault } from '@1sat/vault'
 import type { NodeWalletResult } from '@1sat/wallet-node'
 import { createNodeWallet } from '@1sat/wallet-node'
 import { HD, Mnemonic, PrivateKey, Hash } from '@bsv/sdk'
+import { BAP } from 'bsv-bap'
 import { existsSync, mkdirSync, renameSync, unlinkSync } from 'node:fs'
 import { Utils } from 'electrobun/bun'
 import type { BalanceInfo, SyncEvent, WalletStatus } from '../shared/types'
@@ -78,6 +79,20 @@ function deriveRootKey(mnemonic: string): PrivateKey {
 	const seed = Mnemonic.fromString(mnemonic).toSeed()
 	const master = HD.fromSeed(seed)
 	return master.privKey
+}
+
+/**
+ * Derive the primary BAP ID from a root private key.
+ * Initializes a BAP instance, creates/gets the first identity.
+ */
+export function deriveBapId(rootKeyWif: string): { bapId: string; ids: string } {
+	const bap = new BAP(rootKeyWif)
+	const ids = bap.listIds()
+	if (ids.length === 0) {
+		const firstId = bap.newId()
+		return { bapId: firstId.bapId, ids: bap.exportIds() }
+	}
+	return { bapId: ids[0], ids: bap.exportIds() }
 }
 
 /**
@@ -190,17 +205,18 @@ export function checkVault(accountId: string): boolean {
 /**
  * Create a new wallet from a mnemonic.
  * Derives the root key, protects it with the vault, then boots the wallet.
- * Returns the identity public key for registry purposes.
+ * Returns the identity public key and BAP ID for registry purposes.
  */
 export async function create(
 	accountId: string,
 	mnemonic: string,
 	_passphrase: string,
-): Promise<{ identityKey: string }> {
+): Promise<{ identityKey: string; bapId: string }> {
 	const v = getVault()
 	const rootKey = deriveRootKey(mnemonic)
 	const rootKeyHex = rootKey.toHex()
 	const identityKey = rootKey.toPublicKey().toString()
+	const { bapId } = deriveBapId(rootKey.toWif())
 
 	await protectRootKey(v, accountId, rootKeyHex)
 	ensureAccountDir(accountId)
@@ -224,7 +240,7 @@ export async function create(
 	})
 
 	await pushBalance()
-	return { identityKey }
+	return { identityKey, bapId }
 }
 
 /**
