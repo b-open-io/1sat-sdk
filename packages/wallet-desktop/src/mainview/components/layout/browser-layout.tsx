@@ -792,16 +792,17 @@ function IdentityChip({
 
 				{/* Actions */}
 				<div className="flex flex-col gap-0.5 p-1.5">
-					{!isPublished && (
-						<button
-							type="button"
-							onClick={() => navigate('1sat://identity/profile')}
-							className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-[12px] text-foreground hover:bg-muted/50 transition-colors rounded-[3px] cursor-default"
-						>
-							<UserPlus size={13} className="shrink-0 text-muted-foreground" />
-							<span>Publish Identity</span>
-						</button>
-					)}
+					<button
+						type="button"
+						onClick={() => {
+							setOpen(false)
+							lockWallet()
+						}}
+						className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-[12px] text-foreground hover:bg-muted/50 transition-colors rounded-[3px] cursor-default"
+					>
+						<Plus size={13} className="shrink-0 text-muted-foreground" />
+						<span>Add Account</span>
+					</button>
 
 					<button
 						type="button"
