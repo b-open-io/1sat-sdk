@@ -156,14 +156,14 @@ function JoinChannelDialog({
 	return (
 		<>
 			<div
-				className="fixed inset-0 z-40 bg-background/60"
+				className="absolute inset-0 z-40 bg-background/60"
 				onClick={onClose}
 				onKeyDown={(e) => e.key === 'Escape' && onClose()}
 				role="button"
 				tabIndex={-1}
 				aria-label="Close dialog"
 			/>
-			<div className="absolute left-0 top-0 z-50 w-full h-full flex items-center justify-center pointer-events-none">
+			<div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
 				<div
 					className="pointer-events-auto bg-card border border-border shadow-xl flex flex-col max-h-[400px] w-[320px]"
 					style={{ borderRadius: 0 }}
@@ -252,19 +252,17 @@ function ChannelSidebar({
 	activeChannel,
 	unreadCounts,
 	onSelectChannel,
-	onJoinChannel,
+	onAddChannel,
 }: {
 	channels: string[]
 	activeChannel: string
 	unreadCounts: Record<string, number>
 	onSelectChannel: (channel: string) => void
-	onJoinChannel: (channel: string) => void
+	onAddChannel: () => void
 }) {
-	const [dialogOpen, setDialogOpen] = useState(false)
-
 	return (
 		<div
-			className="relative flex flex-col shrink-0 border-r border-border bg-card overflow-hidden"
+			className="flex flex-col shrink-0 border-r border-border bg-card overflow-hidden"
 			style={{ width: 220 }}
 		>
 			{/* Header */}
@@ -275,23 +273,13 @@ function ChannelSidebar({
 				<button
 					type="button"
 					aria-label="Join channel"
-					onClick={() => setDialogOpen(true)}
+					onClick={onAddChannel}
 					className="flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
 					style={{ width: 18, height: 18 }}
 				>
 					<Plus size={11} />
 				</button>
 			</div>
-
-			<JoinChannelDialog
-				open={dialogOpen}
-				currentChannels={channels}
-				onJoin={(ch) => {
-					onJoinChannel(ch)
-					setDialogOpen(false)
-				}}
-				onClose={() => setDialogOpen(false)}
-			/>
 
 			{/* Channel list */}
 			<ScrollArea className="flex-1">
@@ -439,6 +427,7 @@ function ComposeBar({
 export function ChatView() {
 	const chat = useChat('general')
 	const messagesEndRef = useRef<HTMLDivElement>(null)
+	const [dialogOpen, setDialogOpen] = useState(false)
 
 	// Apply rerender-dependencies rule: use primitive messageCount, not array
 	const messageCount = chat.messages.length
@@ -449,17 +438,25 @@ export function ChatView() {
 	}, [messageCount])
 
 	return (
-		<div className="flex h-full overflow-hidden">
+		<div className="relative flex h-full overflow-hidden">
 			{/* Channel sidebar — 220px, bg-card, border-right */}
 			<ChannelSidebar
 				channels={chat.channels}
 				activeChannel={chat.channel}
 				unreadCounts={chat.unreadCounts}
 				onSelectChannel={chat.setChannel}
-				onJoinChannel={(ch) => {
-					// Add channel and switch to it
+				onAddChannel={() => setDialogOpen(true)}
+			/>
+
+			{/* Join channel dialog — centered over the full chat layout */}
+			<JoinChannelDialog
+				open={dialogOpen}
+				currentChannels={chat.channels}
+				onJoin={(ch) => {
 					chat.setChannel(ch)
+					setDialogOpen(false)
 				}}
+				onClose={() => setDialogOpen(false)}
 			/>
 
 			{/* Main area */}
