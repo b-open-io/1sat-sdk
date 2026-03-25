@@ -13,6 +13,8 @@ export interface StepIndicatorProps {
 	steps: Step[];
 	className?: string;
 	variant?: "horizontal" | "vertical";
+	/** Optional click handler — receives the step index */
+	onStepClick?: (index: number) => void;
 }
 
 export function StepIndicator({
@@ -24,6 +26,7 @@ export function StepIndicator({
 	],
 	className = "",
 	variant = "horizontal",
+	onStepClick,
 }: StepIndicatorProps) {
 	if (variant === "vertical") {
 		return (
@@ -72,7 +75,12 @@ export function StepIndicator({
 		<div className={cn("flex items-center", className)}>
 			{steps.map((step, index) => (
 				<React.Fragment key={step.id}>
-					<div className="flex flex-col items-center">
+					<button
+						type="button"
+						className={cn("flex flex-col items-center", onStepClick && "cursor-pointer")}
+						onClick={() => onStepClick?.(index)}
+						disabled={!onStepClick}
+					>
 						<div
 							className={cn(
 								"w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all",
@@ -97,7 +105,7 @@ export function StepIndicator({
 						>
 							{step.label}
 						</p>
-					</div>
+					</button>
 					{index < steps.length - 1 && (
 						<div
 							className={cn(

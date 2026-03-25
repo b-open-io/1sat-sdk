@@ -257,6 +257,18 @@ export interface AppVersionInfo {
 	hash: string
 }
 
+// Draft profile data (Schema.org fields)
+export interface DraftProfile {
+	'@type'?: 'Person' | 'Organization'
+	alternateName?: string
+	description?: string
+	image?: string
+	url?: string
+	givenName?: string
+	familyName?: string
+	legalName?: string
+}
+
 // ---- RPC Schema ----
 // Requests the webview can make to bun
 type BunRequests = {
@@ -389,6 +401,22 @@ type BunRequests = {
 	publishIdentity: {
 		params: undefined
 		response: PublishIdentityResult
+	}
+	saveDraftProfile: {
+		params: { profile: DraftProfile }
+		response: { success: boolean; error?: string }
+	}
+	getDraftProfile: {
+		params: undefined
+		response: { profile: DraftProfile | null }
+	}
+	discardDraftProfile: {
+		params: undefined
+		response: { success: boolean }
+	}
+	publishProfile: {
+		params: undefined
+		response: { success: boolean; txid?: string; error?: string }
 	}
 	opnsRegister: {
 		params: OpnsOperationParams

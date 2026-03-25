@@ -7,21 +7,18 @@ import { rpc } from '../../rpc'
 import { CreateWallet } from '../onboarding/create-wallet'
 import { AccountCard } from './account-card'
 import { ImportBackup } from './import-backup'
-import { ProfileSetup } from './profile-setup'
 
 type PickerView =
 	| { kind: 'grid' }
 	| { kind: 'create' }
 	| { kind: 'import-backup' }
-	| { kind: 'profile-setup'; accountId: string }
 
 export function AccountPicker() {
-	const { accounts: pushedAccounts, selectAccount, status } = useWallet()
+	const { accounts: pushedAccounts, selectAccount } = useWallet()
 	const [fetchedAccounts, setFetchedAccounts] = useState<AccountInfo[]>([])
 	const [loading, setLoading] = useState<string | null>(null)
 	const [view, setView] = useState<PickerView>({ kind: 'grid' })
 	const [showOnStartup, setShowOnStartup] = useState(true)
-	const [setupComplete, setSetupComplete] = useState<Set<string>>(new Set())
 
 	// Fetch accounts on mount
 	const refreshAccounts = useCallback(() => {
@@ -66,39 +63,6 @@ export function AccountPicker() {
 		},
 	])
 
-	// Auto-show profile setup for accounts with placeholder names (e.g. migrated accounts)
-	useEffect(() => {
-		if (view.kind !== 'grid' || accounts.length === 0) return
-		const needsSetup = accounts.find(
-			(a) =>
-				!setupComplete.has(a.id) &&
-				(a.displayName === 'Account 1' ||
-					a.displayName === a.identityKey.slice(0, 8)),
-		)
-		if (needsSetup) {
-			setView({ kind: 'profile-setup', accountId: needsSetup.id })
-		}
-	}, [accounts, view.kind, setupComplete])
-
-	// If a new account was just created (status changed to 'unlocked' during create/import),
-	// lock it back and show profile setup. The wallet stays created but locked until the user
-	// selects it from the picker after setting up their profile.
-	useEffect(() => {
-		if (
-			status === 'unlocked' &&
-			(view.kind === 'create' || view.kind === 'import')
-		) {
-			// Get the newly created account ID, lock wallet, show profile setup
-			rpc.request.getActiveAccount().then((r) => {
-				if (r.account) {
-					rpc.request.lockWallet().then(() => {
-						setView({ kind: 'profile-setup', accountId: r.account!.id })
-					})
-				}
-			})
-		}
-	}, [status, view.kind])
-
 	const handleSelect = async (accountId: string) => {
 		setLoading(accountId)
 		try {
@@ -118,16 +82,6 @@ export function AccountPicker() {
 		rpc.request.setShowPickerOnStartup({ show: checked })
 	}
 
-	const handleProfileSetupComplete = () => {
-		// Track this account as setup-complete so the auto-detect effect
-		// doesn't re-trigger before refreshAccounts resolves
-		if (view.kind === 'profile-setup') {
-			setSetupComplete((prev) => new Set(prev).add(view.accountId))
-		}
-		refreshAccounts()
-		setView({ kind: 'grid' })
-	}
-
 	if (view.kind === 'create') {
 		return <CreateWallet onCancel={() => setView({ kind: 'grid' })} />
 	}
@@ -142,15 +96,6 @@ export function AccountPicker() {
 			/>
 		)
 	}
-	if (view.kind === 'profile-setup') {
-		return (
-			<ProfileSetup
-				accountId={view.accountId}
-				onComplete={handleProfileSetupComplete}
-			/>
-		)
-	}
-
 	return (
 		<div className="min-h-screen flex flex-col items-center justify-center select-none">
 			<div className="max-w-lg w-full px-6">

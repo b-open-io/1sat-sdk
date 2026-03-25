@@ -23,6 +23,7 @@ import {
 	sendBsv21,
 	sweepBsv,
 	unlockBsv,
+	updateProfile,
 } from '@1sat/actions'
 import { OPNS_BASKET } from '@1sat/actions'
 import { BRC29_PROTOCOL_ID } from '@1sat/types'
@@ -31,6 +32,7 @@ import { PrivateKey, PublicKey, Utils as SdkUtils, Transaction } from '@bsv/sdk'
 import { Utils } from 'electrobun/bun'
 import type {
 	CreateSocialPostParams,
+	DraftProfile,
 	FileReadResult,
 	HistoryEntry,
 	InscribeFileParams,
@@ -711,6 +713,101 @@ export function createRpcHandlers() {
 				txid: result.txid,
 				bapId: result.bapId,
 				error: result.error,
+			}
+		},
+
+		// ---- Draft profile management ----
+
+		saveDraftProfile: ({ profile }: { profile: DraftProfile }) => {
+			try {
+				const accountId = getActiveAccountId()
+				if (!accountId) return { success: false, error: 'No active account' }
+				const store = getConfigStore()
+				store.set(`draft-profile-${accountId}`, JSON.stringify(profile))
+				return { success: true }
+			} catch (err) {
+				return {
+					success: false,
+					error: err instanceof Error ? err.message : String(err),
+				}
+			}
+		},
+
+		getDraftProfile: () => {
+			const accountId = getActiveAccountId()
+			if (!accountId) return { profile: null }
+			const store = getConfigStore()
+			const raw = store.get(`draft-profile-${accountId}`)
+			if (!raw) return { profile: null }
+			try {
+				return { profile: JSON.parse(raw) as DraftProfile }
+			} catch {
+				return { profile: null }
+			}
+		},
+
+		discardDraftProfile: () => {
+			const accountId = getActiveAccountId()
+			if (!accountId) return { success: true }
+			const store = getConfigStore()
+			store.delete(`draft-profile-${accountId}`)
+			return { success: true }
+		},
+
+		publishProfile: async () => {
+			try {
+				const accountId = getActiveAccountId()
+				if (!accountId) return { success: false, error: 'No active account' }
+
+				const store = getConfigStore()
+				const raw = store.get(`draft-profile-${accountId}`)
+				if (!raw) return { success: false, error: 'No draft profile to publish' }
+
+				const draft = JSON.parse(raw) as DraftProfile
+
+				const w = requireWallet()
+				const ctx = createContext(w.wallet, {
+					services: w.services,
+					chain: 'main',
+				})
+
+				// Merge draft with existing on-chain profile
+				let existing: Record<string, unknown> = {}
+				try {
+					const profileResult = await getProfile.execute(
+						ctx,
+						{} as Record<string, never>,
+					)
+					if (profileResult.profile) {
+						existing = profileResult.profile
+					}
+				} catch {
+					// No existing profile — start fresh
+				}
+
+				const mergedProfile: Record<string, unknown> = {
+					...existing,
+					...draft,
+					'@context': 'https://schema.org',
+				}
+
+				const result = await updateProfile.execute(ctx, {
+					profile: mergedProfile,
+				})
+
+				if (result.error) {
+					return { success: false, error: result.error }
+				}
+
+				// Clear the draft after successful publish
+				store.delete(`draft-profile-${accountId}`)
+
+				return { success: true, txid: result.txid }
+			} catch (err) {
+				return {
+					success: false,
+					error: err instanceof Error ? err.message : String(err),
+				}
 			}
 		},
 

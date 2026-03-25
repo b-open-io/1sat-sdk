@@ -29,7 +29,7 @@ import { TokensView } from '../views/tokens/index'
 import { TokenDetailView } from '../views/token-detail/index'
 import { TxDetailView } from '../views/tx-detail/index'
 import { CreateWallet } from '../views/onboarding/create-wallet'
-import { ImportWallet } from '../views/onboarding/import-wallet'
+import { ImportBackup } from '../views/account-picker/import-backup'
 import { UnlockWallet } from '../views/onboarding/unlock-wallet'
 
 function SettingsSecurityView({ onNavigate }: { onNavigate?: (url: string) => void }): ReactElement {
@@ -94,7 +94,10 @@ function OnboardingImportView({
 	onNavigate,
 }: { onNavigate?: (url: string) => void }): ReactElement {
 	return (
-		<ImportWallet onCancel={() => onNavigate?.('1sat://onboarding/create')} />
+		<ImportBackup
+			onComplete={() => onNavigate?.('1sat://wallet/home')}
+			onCancel={() => onNavigate?.('1sat://onboarding/create')}
+		/>
 	)
 }
 

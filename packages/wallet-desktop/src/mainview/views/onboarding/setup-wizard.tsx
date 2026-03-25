@@ -1,6 +1,8 @@
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Kbd } from '@/components/ui/kbd'
 import { Label } from '@/components/ui/label'
 import {
 	Select,
@@ -9,69 +11,101 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
 import { Spinner } from '@/components/ui/spinner'
 import { type Step, StepIndicator } from '@/components/ui/step-indicator'
+import { useHotkeys } from '@tanstack/react-hotkeys'
 import {
 	CheckCircle2,
 	ExternalLink,
+	Monitor,
+	Moon,
+	Palette,
 	RefreshCw,
 	Server,
 	SkipForward,
 	Sparkles,
-	UserCircle2,
+	Sun,
+	User,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { rpc } from '../../rpc'
-
+import Avatar from 'sigma-avatars'
 import {
 	AI_SETTINGS_KEY,
 	type AiProvider,
 	LOCAL_PROVIDERS,
 	PROVIDER_DEFAULTS,
 } from '../../../shared/ai-providers'
-const STEP_LABELS = ['Stack', 'AI', 'Identity', 'Ready'] as const
+import { rpc } from '../../rpc'
+import {
+	type AppearanceMode,
+	useAppearance,
+} from '../../hooks/use-appearance'
 
-interface StepResult {
-	stack: 'running' | 'skipped'
-	ai: string | null // model name or null if skipped
-	identity: 'published' | 'skipped'
-}
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const STEP_LABELS = ['Profile', 'Stack', 'AI', 'Appearance'] as const
+const STEP_COUNT = STEP_LABELS.length
+
+const THEME_COLORS = [
+	'var(--chart-1)',
+	'var(--chart-2)',
+	'var(--chart-3)',
+	'var(--chart-4)',
+	'var(--chart-5)',
+]
+
+const COLOR_OPTIONS = [
+	{ name: 'blue', bg: 'bg-blue-500', ring: 'ring-blue-500' },
+	{ name: 'amber', bg: 'bg-amber-500', ring: 'ring-amber-500' },
+	{ name: 'rose', bg: 'bg-rose-500', ring: 'ring-rose-500' },
+	{ name: 'emerald', bg: 'bg-emerald-500', ring: 'ring-emerald-500' },
+	{ name: 'violet', bg: 'bg-violet-500', ring: 'ring-violet-500' },
+	{ name: 'cyan', bg: 'bg-cyan-500', ring: 'ring-cyan-500' },
+	{ name: 'orange', bg: 'bg-orange-500', ring: 'ring-orange-500' },
+	{ name: 'pink', bg: 'bg-pink-500', ring: 'ring-pink-500' },
+]
+
+// ---------------------------------------------------------------------------
+// Wizard
+// ---------------------------------------------------------------------------
 
 export function SetupWizard({ onComplete }: { onComplete: () => void }) {
 	const [currentStep, setCurrentStep] = useState(0)
-	const [result, setResult] = useState<StepResult>({
-		stack: 'skipped',
-		ai: null,
-		identity: 'skipped',
-	})
 
-	const advance = useCallback(() => {
-		setCurrentStep((s) => Math.min(s + 1, 3))
+	const goTo = useCallback((step: number) => {
+		setCurrentStep(Math.max(0, Math.min(step, STEP_COUNT - 1)))
 	}, [])
 
-	const handleStackAdvance = useCallback(
-		(status: 'running' | 'skipped') => {
-			setResult((r) => ({ ...r, stack: status }))
-			advance()
-		},
-		[advance],
-	)
+	const advance = useCallback(() => {
+		setCurrentStep((s) => Math.min(s + 1, STEP_COUNT - 1))
+	}, [])
 
-	const handleAiAdvance = useCallback(
-		(model: string | null) => {
-			setResult((r) => ({ ...r, ai: model }))
-			advance()
-		},
-		[advance],
-	)
+	const goBack = useCallback(() => {
+		setCurrentStep((s) => Math.max(s - 1, 0))
+	}, [])
 
-	const handleIdentityAdvance = useCallback(
-		(status: 'published' | 'skipped') => {
-			setResult((r) => ({ ...r, identity: status }))
-			advance()
+	// Arrow key navigation between steps
+	useHotkeys([
+		{
+			hotkey: 'ArrowLeft',
+			callback: () => {
+				if (document.activeElement?.tagName === 'INPUT') return
+				if (document.activeElement?.tagName === 'SELECT') return
+				goBack()
+			},
 		},
-		[advance],
-	)
+		{
+			hotkey: 'ArrowRight',
+			callback: () => {
+				if (document.activeElement?.tagName === 'INPUT') return
+				if (document.activeElement?.tagName === 'SELECT') return
+				advance()
+			},
+		},
+	])
 
 	const steps: Step[] = STEP_LABELS.map((label, i) => ({
 		id: String(i),
@@ -92,32 +126,208 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
 					</p>
 				</div>
 
-				<StepIndicator steps={steps} className="mb-8 justify-center" />
+				<StepIndicator
+					steps={steps}
+					className="mb-8 justify-center"
+					onStepClick={goTo}
+				/>
 
 				<Card>
 					<CardContent>
-						{currentStep === 0 && <StackStep onAdvance={handleStackAdvance} />}
-						{currentStep === 1 && <AiStep onAdvance={handleAiAdvance} />}
-						{currentStep === 2 && (
-							<IdentityStep onAdvance={handleIdentityAdvance} />
-						)}
+						{currentStep === 0 && <ProfileStep onAdvance={advance} />}
+						{currentStep === 1 && <StackStep onAdvance={advance} />}
+						{currentStep === 2 && <AiStep onAdvance={advance} />}
 						{currentStep === 3 && (
-							<ReadyStep result={result} onComplete={onComplete} />
+							<AppearanceStep onComplete={onComplete} />
 						)}
 					</CardContent>
 				</Card>
+
+				{/* Keyboard hints */}
+				<p className="text-[10px] text-muted-foreground/60 text-center mt-3">
+					Use <Kbd>&larr;</Kbd> <Kbd>&rarr;</Kbd> arrow keys to navigate,{' '}
+					<Kbd>Enter</Kbd> to continue
+				</p>
 			</div>
 		</div>
 	)
 }
 
 // ---------------------------------------------------------------------------
-// Step 1: Blockchain Data (Stack)
+// Step 1: Profile
+// ---------------------------------------------------------------------------
+
+function ProfileStep({ onAdvance }: { onAdvance: () => void }) {
+	const [loading, setLoading] = useState(true)
+	const [displayName, setDisplayName] = useState('')
+	const [selectedColor, setSelectedColor] = useState('blue')
+	const [accountId, setAccountId] = useState<string | null>(null)
+	const [identityKey, setIdentityKey] = useState('')
+	const [bapId, setBapId] = useState<string | null>(null)
+	const [saving, setSaving] = useState(false)
+
+	useEffect(() => {
+		Promise.all([
+			rpc.request.getActiveAccount().catch(() => ({ account: null })),
+			rpc.request.getIdentity().catch(() => ({ bapId: null, profile: null })),
+		])
+			.then(([active, identity]) => {
+				if (active.account) {
+					setAccountId(active.account.id)
+					setIdentityKey(active.account.identityKey)
+					if (active.account.displayName)
+						setDisplayName(active.account.displayName)
+					if (active.account.color) setSelectedColor(active.account.color)
+				}
+				if (identity.bapId) setBapId(identity.bapId)
+			})
+			.finally(() => setLoading(false))
+	}, [])
+
+	const handleSave = useCallback(async () => {
+		if (!displayName.trim() || !accountId) return
+		setSaving(true)
+		try {
+			await rpc.request.updateAccount({
+				accountId,
+				displayName: displayName.trim(),
+				color: selectedColor,
+			})
+			onAdvance()
+		} catch (err) {
+			console.error('Failed to update profile:', err)
+			setSaving(false)
+		}
+	}, [accountId, displayName, selectedColor, onAdvance])
+
+	useHotkeys([
+		{
+			hotkey: 'Enter',
+			callback: () => {
+				if (displayName.trim() && !saving) handleSave()
+			},
+		},
+	])
+
+	if (loading) {
+		return (
+			<div className="flex flex-col items-center gap-4 py-8">
+				<Spinner className="size-6" />
+				<p className="text-sm text-muted-foreground">Loading profile...</p>
+			</div>
+		)
+	}
+
+	const colorOption =
+		COLOR_OPTIONS.find((c) => c.name === selectedColor) ?? COLOR_OPTIONS[0]
+
+	return (
+		<div className="flex flex-col items-center gap-5 py-6">
+			{/* Sigma avatar preview */}
+			<div className="relative">
+				<div className="size-20 rounded-full overflow-hidden ring-2 ring-offset-2 ring-offset-background ring-primary/50">
+					{identityKey ? (
+						<Avatar
+							name={identityKey}
+							variant="pixel"
+							size={80}
+							colors={THEME_COLORS}
+							className="rounded-full"
+						/>
+					) : (
+						<div className="size-full bg-muted flex items-center justify-center">
+							<User className="size-8 text-muted-foreground" />
+						</div>
+					)}
+				</div>
+				{/* Color accent dot */}
+				<div
+					className={`absolute -bottom-1 -right-1 size-6 rounded-full ${colorOption.bg} ring-2 ring-background`}
+				/>
+			</div>
+
+			{/* Display name preview */}
+			{displayName.trim() && (
+				<p className="text-sm font-semibold text-foreground -mb-2">
+					{displayName}
+				</p>
+			)}
+
+			{/* BAP ID badge */}
+			{bapId && (
+				<Badge variant="outline" className="font-mono text-[10px] max-w-xs truncate">
+					BAP: {bapId.slice(0, 16)}...
+				</Badge>
+			)}
+
+			<Separator className="w-full" />
+
+			{/* Name input */}
+			<div className="w-full max-w-xs space-y-2">
+				<Label htmlFor="profile-display-name">Display name</Label>
+				<Input
+					id="profile-display-name"
+					autoFocus
+					placeholder="Enter your name"
+					value={displayName}
+					onChange={(e) => setDisplayName(e.target.value)}
+					onKeyDown={(e) => {
+						if (e.key === 'Enter' && displayName.trim()) handleSave()
+					}}
+				/>
+			</div>
+
+			{/* Color picker */}
+			<div className="w-full max-w-xs space-y-2">
+				<Label>Pick a color</Label>
+				<div className="flex flex-wrap gap-2">
+					{COLOR_OPTIONS.map((color) => (
+						<button
+							key={color.name}
+							type="button"
+							onClick={() => setSelectedColor(color.name)}
+							className={`size-9 rounded-full ${color.bg} transition-all ${
+								selectedColor === color.name
+									? `ring-2 ${color.ring} ring-offset-2 ring-offset-background scale-110`
+									: 'hover:scale-105'
+							}`}
+						/>
+					))}
+				</div>
+			</div>
+
+			{/* Actions */}
+			<div className="flex w-full justify-between pt-2">
+				<Button variant="ghost" size="sm" onClick={onAdvance}>
+					Skip
+					<SkipForward className="size-3.5" />
+				</Button>
+				<Button
+					size="sm"
+					onClick={handleSave}
+					disabled={!displayName.trim() || saving}
+				>
+					{saving ? (
+						<>
+							<Spinner className="size-3.5" />
+							Saving...
+						</>
+					) : (
+						'Next'
+					)}
+				</Button>
+			</div>
+		</div>
+	)
+}
+
+// ---------------------------------------------------------------------------
+// Step 2: Blockchain Data (Stack)
 // ---------------------------------------------------------------------------
 
 function StackStep({
 	onAdvance,
-}: { onAdvance: (status: 'running' | 'skipped') => void }) {
+}: { onAdvance: () => void }) {
 	const [loading, setLoading] = useState(true)
 	const [running, setRunning] = useState(false)
 	const [adminUrl, setAdminUrl] = useState('')
@@ -143,7 +353,7 @@ function StackStep({
 		checkStatus().then((isRunning) => {
 			if (isRunning) {
 				setAutoAdvancing(true)
-				timeoutRef.current = setTimeout(() => onAdvance('running'), 1500)
+				timeoutRef.current = setTimeout(() => onAdvance(), 1500)
 			}
 		})
 		return () => {
@@ -160,7 +370,7 @@ function StackStep({
 				if (pollRef.current) clearInterval(pollRef.current)
 				pollRef.current = null
 				setAutoAdvancing(true)
-				timeoutRef.current = setTimeout(() => onAdvance('running'), 1500)
+				timeoutRef.current = setTimeout(() => onAdvance(), 1500)
 			}
 		}, 3000)
 	}, [checkStatus, onAdvance])
@@ -244,7 +454,7 @@ function StackStep({
 				)}
 			</Button>
 			<div className="flex w-full justify-end pt-2">
-				<Button variant="ghost" size="sm" onClick={() => onAdvance('skipped')}>
+				<Button variant="ghost" size="sm" onClick={onAdvance}>
 					Skip
 					<SkipForward className="size-3.5" />
 				</Button>
@@ -254,10 +464,10 @@ function StackStep({
 }
 
 // ---------------------------------------------------------------------------
-// Step 2: AI Assistant (Optional)
+// Step 3: AI Assistant (Optional)
 // ---------------------------------------------------------------------------
 
-function AiStep({ onAdvance }: { onAdvance: (model: string | null) => void }) {
+function AiStep({ onAdvance }: { onAdvance: () => void }) {
 	const [loading, setLoading] = useState(true)
 	const [available, setAvailable] = useState(false)
 	const [models, setModels] = useState<string[]>([])
@@ -329,7 +539,7 @@ function AiStep({ onAdvance }: { onAdvance: (model: string | null) => void }) {
 			model: selectedModel,
 		}
 		localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(settings))
-		onAdvance(selectedModel)
+		onAdvance()
 	}, [selectedProvider, selectedModel, onAdvance])
 
 	// Provider selector (shown in all states)
@@ -396,7 +606,7 @@ function AiStep({ onAdvance }: { onAdvance: (model: string | null) => void }) {
 					</Select>
 				</div>
 				<div className="flex w-full justify-between pt-2">
-					<Button variant="ghost" size="sm" onClick={() => onAdvance(null)}>
+					<Button variant="ghost" size="sm" onClick={onAdvance}>
 						Skip
 						<SkipForward className="size-3.5" />
 					</Button>
@@ -432,11 +642,11 @@ function AiStep({ onAdvance }: { onAdvance: (model: string | null) => void }) {
 				</Button>
 			</div>
 			<div className="flex w-full justify-between pt-2">
-				<Button variant="ghost" size="sm" onClick={() => onAdvance(null)}>
+				<Button variant="ghost" size="sm" onClick={onAdvance}>
 					Skip
 					<SkipForward className="size-3.5" />
 				</Button>
-				<Button size="sm" onClick={() => onAdvance(null)}>
+				<Button size="sm" onClick={onAdvance}>
 					Next
 				</Button>
 			</div>
@@ -445,252 +655,103 @@ function AiStep({ onAdvance }: { onAdvance: (model: string | null) => void }) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 3: Identity (Optional)
+// Step 4: Appearance
 // ---------------------------------------------------------------------------
 
-function IdentityStep({
-	onAdvance,
-}: { onAdvance: (status: 'published' | 'skipped') => void }) {
-	const [loading, setLoading] = useState(true)
-	const [balance, setBalance] = useState(0)
-	const [bapId, setBapId] = useState<string | null>(null)
-	const [publishing, setPublishing] = useState(false)
-	const [error, setError] = useState<string | null>(null)
-	const [displayName, setDisplayName] = useState('')
-	const [accountColor, setAccountColor] = useState('blue')
-	const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+const APPEARANCE_OPTIONS: {
+	value: AppearanceMode
+	label: string
+	icon: typeof Sun
+	description: string
+}[] = [
+	{
+		value: 'light',
+		label: 'Light',
+		icon: Sun,
+		description: 'Always use light mode',
+	},
+	{
+		value: 'dark',
+		label: 'Dark',
+		icon: Moon,
+		description: 'Always use dark mode',
+	},
+	{
+		value: 'system',
+		label: 'System',
+		icon: Monitor,
+		description: 'Follow your OS preference',
+	},
+]
 
-	useEffect(() => {
-		return () => {
-			if (timeoutRef.current) clearTimeout(timeoutRef.current)
-		}
-	}, [])
+function AppearanceStep({ onComplete }: { onComplete: () => void }) {
+	const { mode, setMode } = useAppearance()
 
-	useEffect(() => {
-		Promise.all([
-			rpc.request.getBalance(),
-			rpc.request.getIdentity(),
-			rpc.request.getActiveAccount().catch(() => ({ account: null })),
-		])
-			.then(([bal, identity, active]) => {
-				setBalance(bal.confirmed + bal.unconfirmed)
-				setBapId(identity.bapId)
-				if (active.account) {
-					if (active.account.displayName)
-						setDisplayName(active.account.displayName)
-					if (active.account.color) setAccountColor(active.account.color)
-				}
-			})
-			.catch(() => {
-				// leave defaults
-			})
-			.finally(() => setLoading(false))
-	}, [])
-
-	const handlePublish = useCallback(async () => {
-		setPublishing(true)
-		setError(null)
-		try {
-			const res = await rpc.request.publishIdentity()
-			if (res.error) {
-				setError(res.error)
-			} else {
-				setBapId(res.bapId ?? null)
-				timeoutRef.current = setTimeout(() => onAdvance('published'), 1500)
-			}
-		} catch (err) {
-			setError(String(err))
-		} finally {
-			setPublishing(false)
-		}
-	}, [onAdvance])
-
-	if (loading) {
-		return (
-			<div className="flex flex-col items-center gap-4 py-8">
-				<Spinner className="size-6" />
-				<p className="text-sm text-muted-foreground">Loading identity...</p>
-			</div>
-		)
-	}
-
-	// Account avatar helper
-	const accountInitials = displayName
-		? displayName
-				.split(/\s+/)
-				.slice(0, 2)
-				.map((w) => w[0]?.toUpperCase() ?? '')
-				.join('')
-		: '?'
-
-	const avatarNode = (
-		<div
-			className={`flex size-14 items-center justify-center rounded-full bg-${accountColor}-500 text-white text-lg font-bold`}
-		>
-			{accountInitials}
-		</div>
-	)
-
-	// Already published
-	if (bapId) {
-		return (
-			<div className="flex flex-col items-center gap-4 py-8">
-				{avatarNode}
-				{displayName && (
-					<p className="text-sm font-semibold text-foreground -mb-2">
-						{displayName}
-					</p>
-				)}
-				<div className="flex size-8 items-center justify-center rounded-full bg-green-500/10 -mt-1">
-					<CheckCircle2 className="size-4 text-green-500" />
-				</div>
-				<div className="text-center">
-					<p className="text-sm font-medium text-foreground">
-						Identity published
-					</p>
-					<p className="text-xs text-muted-foreground mt-0.5 font-mono truncate max-w-xs">
-						{bapId}
-					</p>
-				</div>
-			</div>
-		)
-	}
-
-	// Has balance, can publish
-	if (balance > 0) {
-		return (
-			<div className="flex flex-col items-center gap-4 py-6">
-				{avatarNode}
-				{displayName && (
-					<p className="text-sm font-semibold text-foreground -mb-2">
-						{displayName}
-					</p>
-				)}
-				<div className="text-center">
-					<p className="text-sm font-medium text-foreground mb-1">
-						Publish your identity on-chain?
-					</p>
-					<p className="text-xs text-muted-foreground">
-						Creates a BAP identity attestation on the blockchain.
-					</p>
-				</div>
-				<div className="w-full max-w-xs space-y-2">
-					<Label htmlFor="display-name">Display Name</Label>
-					<Input
-						id="display-name"
-						placeholder="Enter a display name"
-						value={displayName}
-						onChange={(e) => setDisplayName(e.target.value)}
-					/>
-				</div>
-				{error && <p className="text-xs text-destructive">{error}</p>}
-				<div className="flex w-full justify-between pt-2">
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={() => onAdvance('skipped')}
-					>
-						Skip
-						<SkipForward className="size-3.5" />
-					</Button>
-					<Button size="sm" onClick={handlePublish} disabled={publishing}>
-						{publishing && <Spinner className="size-3.5" />}
-						Publish
-					</Button>
-				</div>
-			</div>
-		)
-	}
-
-	// Zero balance
-	return (
-		<div className="flex flex-col items-center gap-4 py-6">
-			{avatarNode}
-			{displayName && (
-				<p className="text-sm font-semibold text-foreground -mb-2">
-					{displayName}
-				</p>
-			)}
-			<div className="text-center max-w-sm">
-				<p className="text-sm font-medium text-foreground mb-1">Identity</p>
-				<p className="text-xs text-muted-foreground">
-					You'll need BSV to publish your identity. You can do this later in
-					Settings.
-				</p>
-			</div>
-			<div className="flex w-full justify-end pt-2">
-				<Button variant="ghost" size="sm" onClick={() => onAdvance('skipped')}>
-					Skip
-					<SkipForward className="size-3.5" />
-				</Button>
-			</div>
-		</div>
-	)
-}
-
-// ---------------------------------------------------------------------------
-// Step 4: Ready
-// ---------------------------------------------------------------------------
-
-function ReadyStep({
-	result,
-	onComplete,
-}: { result: StepResult; onComplete: () => void }) {
-	const items = [
+	useHotkeys([
 		{
-			label: 'Stack',
-			icon: Server,
-			value: result.stack === 'running' ? 'Running' : 'Skipped',
-			done: result.stack === 'running',
+			hotkey: 'Enter',
+			callback: () => {
+				onComplete()
+			},
 		},
-		{
-			label: 'AI',
-			icon: Sparkles,
-			value: result.ai ?? 'Skipped',
-			done: result.ai !== null,
-		},
-		{
-			label: 'Identity',
-			icon: UserCircle2,
-			value: result.identity === 'published' ? 'Published' : 'Skipped',
-			done: result.identity === 'published',
-		},
-	]
+	])
 
 	return (
-		<div className="flex flex-col items-center gap-6 py-6">
-			<div className="flex size-12 items-center justify-center rounded-full bg-green-500/10">
-				<CheckCircle2 className="size-6 text-green-500" />
+		<div className="flex flex-col items-center gap-5 py-6">
+			<div className="flex size-12 items-center justify-center rounded-full bg-muted">
+				<Palette className="size-6 text-muted-foreground" />
 			</div>
 			<div className="text-center">
-				<p className="text-sm font-medium text-foreground">You're all set</p>
-				<p className="text-xs text-muted-foreground mt-0.5">
-					You can change any of these in Settings later.
+				<p className="text-sm font-medium text-foreground mb-1">Appearance</p>
+				<p className="text-xs text-muted-foreground">
+					Choose your preferred theme. You can change this anytime in Settings.
 				</p>
 			</div>
-			<div className="w-full space-y-3">
-				{items.map((item) => (
-					<div
-						key={item.label}
-						className="flex items-center gap-3 rounded-md border px-3 py-2"
-					>
-						<item.icon className="size-4 text-muted-foreground shrink-0" />
-						<span className="text-sm text-foreground flex-1">{item.label}</span>
-						<span
-							className={
-								item.done
-									? 'text-xs text-green-500 font-medium'
-									: 'text-xs text-muted-foreground'
-							}
+
+			<div className="w-full space-y-2">
+				{APPEARANCE_OPTIONS.map((option) => {
+					const Icon = option.icon
+					const isSelected = mode === option.value
+					return (
+						<button
+							key={option.value}
+							type="button"
+							onClick={() => setMode(option.value)}
+							className={`w-full flex items-center gap-3 rounded-lg border px-4 py-3 transition-all text-left ${
+								isSelected
+									? 'border-primary bg-primary/5 ring-1 ring-primary/20'
+									: 'border-border hover:border-muted-foreground/30'
+							}`}
 						>
-							{item.value}
-						</span>
-						{item.done && (
-							<CheckCircle2 className="size-3.5 text-green-500 shrink-0" />
-						)}
-					</div>
-				))}
+							<Icon
+								className={`size-5 shrink-0 ${
+									isSelected
+										? 'text-primary'
+										: 'text-muted-foreground'
+								}`}
+							/>
+							<div className="flex-1 min-w-0">
+								<p
+									className={`text-sm font-medium ${
+										isSelected ? 'text-foreground' : 'text-foreground'
+									}`}
+								>
+									{option.label}
+								</p>
+								<p className="text-xs text-muted-foreground">
+									{option.description}
+								</p>
+							</div>
+							{isSelected && (
+								<CheckCircle2 className="size-4 text-primary shrink-0" />
+							)}
+						</button>
+					)
+				})}
 			</div>
+
+			<Separator className="w-full" />
+
 			<Button size="lg" className="w-full" onClick={onComplete}>
 				Get Started
 			</Button>
