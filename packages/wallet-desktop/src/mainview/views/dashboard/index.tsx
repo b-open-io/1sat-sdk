@@ -56,11 +56,11 @@ type TxStatus = 'confirmed' | 'unconfirmed' | 'failed'
 function statusColor(status: TxStatus): string {
 	switch (status) {
 		case 'confirmed':
-			return 'bg-green-500'
+			return 'bg-chart-4'
 		case 'failed':
 			return 'bg-destructive'
 		default:
-			return 'bg-yellow-400'
+			return 'bg-chart-1'
 	}
 }
 
@@ -321,22 +321,22 @@ export function OverviewView({ onNavigate }: OverviewViewProps) {
 				) : (
 					<div className="grid grid-cols-3 gap-3">
 						<AssetCard
-							icon={<Gem size={16} className="text-blue-300" />}
-							iconBg="bg-blue-950"
+							icon={<Gem size={16} className="text-primary" />}
+							iconBg="bg-primary/10"
 							name="Ordinals"
 							value={String(ordinalCount ?? 0)}
 							onClick={() => onNavigate?.('1sat://ordinals/gallery')}
 						/>
 						<AssetCard
-							icon={<Coins size={16} className="text-yellow-300" />}
-							iconBg="bg-yellow-950"
+							icon={<Coins size={16} className="text-chart-2" />}
+							iconBg="bg-chart-2/10"
 							name="BSV21 Tokens"
 							value={String(tokenCount ?? 0)}
 							onClick={() => onNavigate?.('1sat://tokens/all')}
 						/>
 						<AssetCard
-							icon={<Timer size={16} className="text-purple-300" />}
-							iconBg="bg-purple-950"
+							icon={<Timer size={16} className="text-chart-5" />}
+							iconBg="bg-chart-5/10"
 							name="Locked BSV"
 							value={
 								lockData ? `${satsToBsv(lockData.totalLocked)} BSV` : '0 BSV'
@@ -413,7 +413,7 @@ export function OverviewView({ onNavigate }: OverviewViewProps) {
 											{timeAgo(tx.dateCreated)}
 										</span>
 										<span
-											className={`text-[13px] font-medium shrink-0 ${isPositive ? 'text-green-400' : 'text-red-400'}`}
+											className={`text-[13px] font-medium shrink-0 ${isPositive ? 'text-chart-4' : 'text-destructive'}`}
 											style={{ fontFamily: 'var(--font-mono)' }}
 										>
 											{isPositive ? '+' : ''}

@@ -84,8 +84,8 @@ function TxRow({ entry }: { entry: HistoryEntry }) {
 				className={cn(
 					'flex items-center justify-center size-5 rounded-full shrink-0',
 					positive
-						? 'bg-emerald-500/15 text-emerald-400'
-						: 'bg-red-500/15 text-red-400',
+						? 'bg-chart-4/15 text-chart-4'
+						: 'bg-destructive/15 text-destructive',
 				)}
 			>
 				{positive ? (
@@ -105,7 +105,7 @@ function TxRow({ entry }: { entry: HistoryEntry }) {
 			<span
 				className={cn(
 					'text-[11px] font-mono font-medium shrink-0',
-					positive ? 'text-emerald-400' : 'text-red-400',
+					positive ? 'text-chart-4' : 'text-destructive',
 				)}
 				style={{ fontFamily: 'var(--font-mono)' }}
 			>
@@ -231,7 +231,7 @@ export function WalletPopover({ onNavigate, onOpenChange }: WalletPopoverProps) 
 						</span>
 					</div>
 					{status === 'unlocked' ? (
-						<span className="text-[10px] px-1.5 py-0.5 rounded-[3px] bg-emerald-500/15 text-emerald-400 font-medium">
+						<span className="text-[10px] px-1.5 py-0.5 rounded-[3px] bg-chart-4/15 text-chart-4 font-medium">
 							unlocked
 						</span>
 					) : (
@@ -297,7 +297,7 @@ export function WalletPopover({ onNavigate, onOpenChange }: WalletPopoverProps) 
 								className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
 								aria-label="Copy address"
 							>
-								<Copy size={11} className={copied ? 'text-emerald-400' : ''} />
+								<Copy size={11} className={copied ? 'text-chart-4' : ''} />
 							</button>
 						</div>
 					</div>

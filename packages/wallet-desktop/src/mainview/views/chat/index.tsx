@@ -300,13 +300,11 @@ function ChannelSidebar({
 								)}
 							>
 								<span
-									className="shrink-0 text-[12px] font-bold leading-none"
-									style={{
-										color: isActive
-											? 'oklch(0.7 0.2 150)'
-											: 'oklch(0.5 0.12 150)',
-										fontFamily: 'var(--font-mono)',
-									}}
+									className={cn(
+										'shrink-0 text-[12px] font-bold leading-none',
+										isActive ? 'text-primary' : 'text-muted-foreground',
+									)}
+									style={{ fontFamily: 'var(--font-mono)' }}
 								>
 									#
 								</span>
@@ -318,12 +316,10 @@ function ChannelSidebar({
 								</span>
 								{unread > 0 && !isActive && (
 									<span
-										className="inline-flex shrink-0 items-center justify-center rounded-full text-[9px] font-bold leading-none px-1"
+										className="inline-flex shrink-0 items-center justify-center rounded-full text-[9px] font-bold leading-none px-1 bg-primary text-primary-foreground"
 										style={{
 											minWidth: 16,
 											height: 16,
-											backgroundColor: 'oklch(0.55 0.18 150)',
-											color: 'oklch(0.98 0.01 150)',
 										}}
 									>
 										{unread > 99 ? '99+' : unread}
@@ -402,12 +398,11 @@ function ComposeBar({
 				className={cn(
 					'flex shrink-0 items-center justify-center rounded-full transition-colors',
 					'disabled:opacity-40 disabled:cursor-not-allowed',
+					'bg-primary text-primary-foreground',
 				)}
 				style={{
 					width: 34,
 					height: 34,
-					backgroundColor: 'oklch(0.55 0.18 150)',
-					color: 'oklch(0.98 0.01 150)',
 				}}
 			>
 				{isSending ? (
@@ -466,10 +461,8 @@ export function ChatView() {
 					<div className="flex items-center gap-2">
 						<span className="text-[14px] font-bold text-foreground leading-none">
 							<span
-								style={{
-									color: 'oklch(0.7 0.2 150)',
-									fontFamily: 'var(--font-mono)',
-								}}
+								className="text-primary"
+								style={{ fontFamily: 'var(--font-mono)' }}
 							>
 								#
 							</span>
@@ -527,11 +520,8 @@ export function ChatView() {
 							<p className="text-[12px] text-muted-foreground">
 								Be the first to say something in{' '}
 								<span
-									className="font-medium"
-									style={{
-										fontFamily: 'var(--font-mono)',
-										color: 'oklch(0.7 0.2 150)',
-									}}
+									className="font-medium text-primary"
+									style={{ fontFamily: 'var(--font-mono)' }}
 								>
 									#{chat.channel}
 								</span>

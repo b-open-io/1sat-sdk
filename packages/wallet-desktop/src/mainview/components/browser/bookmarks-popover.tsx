@@ -148,7 +148,7 @@ export function BookmarksPopover({
           size="icon-xs"
           className={cn(
             'text-muted-foreground',
-            alreadyBookmarked && 'text-yellow-400',
+            alreadyBookmarked && 'text-primary',
           )}
           style={{ borderRadius: 5 }}
           aria-label={alreadyBookmarked ? 'Manage bookmarks' : 'Bookmark this page'}
@@ -160,7 +160,7 @@ export function BookmarksPopover({
             // When already bookmarked, let Radix handle the toggle
           }}
         >
-          <Bookmark size={14} className={alreadyBookmarked ? 'fill-yellow-400' : ''} />
+          <Bookmark size={14} className={alreadyBookmarked ? 'fill-primary' : ''} />
         </Button>
       </PopoverTrigger>
       <PopoverContent

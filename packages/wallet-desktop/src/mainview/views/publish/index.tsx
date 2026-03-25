@@ -169,7 +169,7 @@ function PublishStepIndicator({
 									status === 'complete' &&
 										'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40',
 									status === 'active' &&
-										'bg-blue-500 text-white shadow-sm shadow-blue-500/30',
+										'bg-primary text-primary-foreground shadow-sm shadow-primary/30',
 									status === 'error' &&
 										'bg-red-500/20 text-red-400 ring-1 ring-red-500/40',
 									status === 'warning' &&
@@ -220,18 +220,18 @@ function PublishStepIndicator({
 // ─── Project type badge ───────────────────────────────────────────────────────
 
 const TYPE_COLORS: Record<ProjectType, string> = {
-	Vite: 'bg-blue-500/20 text-blue-300 ring-1 ring-blue-500/30',
+	Vite: 'bg-primary/20 text-primary ring-1 ring-primary/30',
 	CRA: 'bg-zinc-500/20 text-zinc-300 ring-1 ring-zinc-500/30',
 	Bot: 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/30',
-	Skill: 'bg-purple-500/20 text-purple-300 ring-1 ring-purple-500/30',
+	Skill: 'bg-accent/20 text-accent-foreground ring-1 ring-accent/30',
 	Static: 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/30',
 }
 
 const FOLDER_COLORS: Record<ProjectType, string> = {
-	Vite: 'text-blue-400',
+	Vite: 'text-primary',
 	CRA: 'text-zinc-400',
 	Bot: 'text-emerald-400',
-	Skill: 'text-purple-400',
+	Skill: 'text-accent-foreground',
 	Static: 'text-amber-400',
 }
 
@@ -252,11 +252,11 @@ function TypeBadge({ type }: { type: ProjectType }) {
 
 function FileTypeIcon({ mime, name }: { mime: string; name: string }) {
 	if (mime.includes('html'))
-		return <FileCode size={15} className="text-blue-400" />
+		return <FileCode size={15} className="text-primary" />
 	if (mime.includes('javascript'))
 		return <FileJson size={15} className="text-yellow-400" />
 	if (mime.includes('css'))
-		return <FileCog size={15} className="text-purple-400" />
+		return <FileCog size={15} className="text-accent-foreground" />
 	if (mime.includes('svg') || mime.includes('image'))
 		return <FileImage size={15} className="text-emerald-400" />
 	if (name.endsWith('.json'))
@@ -499,7 +499,7 @@ function SelectStep({ onSelect }: SelectStepProps) {
 					'flex flex-col items-center justify-center gap-3 py-10 px-6',
 					'border border-dashed cursor-pointer transition-colors select-none bg-transparent',
 					isDragging
-						? 'border-blue-500/60 bg-blue-500/5'
+						? 'border-primary/60 bg-primary/5'
 						: 'border-border hover:border-border/80 hover:bg-muted/30 bg-muted/10',
 				)}
 			>
@@ -508,7 +508,7 @@ function SelectStep({ onSelect }: SelectStepProps) {
 					strokeWidth={1.25}
 					className={cn(
 						'transition-colors',
-						isDragging ? 'text-blue-400' : 'text-muted-foreground',
+						isDragging ? 'text-primary' : 'text-muted-foreground',
 					)}
 				/>
 				<div className="flex flex-col items-center gap-1">
@@ -710,7 +710,7 @@ function BuildStep({ project, onBack, onNext }: BuildStepProps) {
 					<Button
 						size="sm"
 						onClick={onNext}
-						className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+						className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
 					>
 						Configure
 						<ArrowRight size={14} />
@@ -720,7 +720,7 @@ function BuildStep({ project, onBack, onNext }: BuildStepProps) {
 						size="sm"
 						onClick={handleRetry}
 						disabled={retrying}
-						className="gap-2 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60"
+						className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-60"
 					>
 						<RefreshCw size={14} className={retrying ? 'animate-spin' : ''} />
 						{retrying ? 'Building...' : 'Retry Build'}
@@ -837,7 +837,7 @@ function ConfigureStep({
 						className={cn(
 							'w-full px-3 py-2 text-sm bg-card border border-border text-foreground',
 							'placeholder:text-muted-foreground/50',
-							'focus:outline-none focus:ring-1 focus:ring-blue-500/60 focus:border-blue-500/60',
+							'focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring',
 							'transition-colors',
 						)}
 					/>
@@ -862,7 +862,7 @@ function ConfigureStep({
 						className={cn(
 							'w-full px-3 py-2 text-sm bg-card border border-border text-foreground',
 							'placeholder:text-muted-foreground/50',
-							'focus:outline-none focus:ring-1 focus:ring-blue-500/60 focus:border-blue-500/60',
+							'focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring',
 							'transition-colors',
 						)}
 					/>
@@ -880,9 +880,9 @@ function ConfigureStep({
 						<span className="text-xs text-muted-foreground">(optional)</span>
 						<TooltipIcon label="OpNS (Ordinals Name System) gives your app a human-readable 1sat:// address on-chain." />
 					</div>
-					<div className="flex items-center border border-border bg-card focus-within:ring-1 focus-within:ring-blue-500/60 focus-within:border-blue-500/60 transition-colors">
+					<div className="flex items-center border border-border bg-card focus-within:ring-1 focus-within:ring-ring focus-within:border-ring transition-colors">
 						<span
-							className="px-3 py-2 text-sm font-medium text-blue-400 select-none shrink-0 border-r border-border bg-muted/20"
+							className="px-3 py-2 text-sm font-medium text-primary select-none shrink-0 border-r border-border bg-muted/20"
 							style={{ fontFamily: 'var(--font-mono)' }}
 						>
 							1sat://
@@ -951,7 +951,7 @@ function ConfigureStep({
 								}
 								className={cn(
 									'w-full appearance-none pl-3 pr-8 py-2 text-sm bg-card border border-border text-foreground',
-									'focus:outline-none focus:ring-1 focus:ring-blue-500/60 focus:border-blue-500/60',
+									'focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring',
 									'transition-colors cursor-pointer',
 								)}
 							>
@@ -980,13 +980,13 @@ function ConfigureStep({
 						{formData.permissions.map((perm) => (
 							<span
 								key={perm}
-								className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono font-medium bg-blue-600/25 text-blue-300 ring-1 ring-blue-500/40"
+								className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono font-medium bg-primary/25 text-primary ring-1 ring-primary/40"
 							>
 								{perm}
 								<button
 									type="button"
 									onClick={() => handleRemovePermission(perm)}
-									className="text-blue-300/60 hover:text-blue-200 transition-colors"
+									className="text-primary/60 hover:text-primary transition-colors"
 									aria-label={`Remove ${perm}`}
 								>
 									<X size={10} strokeWidth={2.5} />
@@ -1005,7 +1005,7 @@ function ConfigureStep({
 								}}
 								onBlur={handleConfirmPermission}
 								placeholder="e.g. signTransaction"
-								className="inline-flex items-center px-2.5 py-1 text-xs font-mono bg-card border border-blue-500/60 text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+								className="inline-flex items-center px-2.5 py-1 text-xs font-mono bg-card border border-primary/60 text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
 							/>
 						) : (
 							<button
@@ -1030,7 +1030,7 @@ function ConfigureStep({
 					size="sm"
 					onClick={onNext}
 					disabled={!isValid}
-					className="gap-2 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+					className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed"
 				>
 					Review &amp; Publish
 					<ArrowRight size={14} />
@@ -1172,7 +1172,7 @@ function PublishStep({
 					<div className="flex items-center justify-between px-4 py-3 border-b border-border">
 						<span className="text-sm text-muted-foreground">Transaction</span>
 						<span
-							className="text-sm font-medium text-blue-400"
+							className="text-sm font-medium text-primary"
 							style={{ fontFamily: 'var(--font-mono)' }}
 						>
 							Signing...
@@ -1230,7 +1230,7 @@ function PublishStep({
 					<p className="text-xs text-muted-foreground">Your app is live at</p>
 					<div className="flex items-center gap-2">
 						<span
-							className="px-2 py-1 text-sm font-bold text-white bg-blue-600"
+							className="px-2 py-1 text-sm font-bold text-primary-foreground bg-primary"
 							style={{ fontFamily: 'var(--font-mono)' }}
 						>
 							1sat://
@@ -1269,7 +1269,7 @@ function PublishStep({
 				<div className="flex items-center gap-3">
 					<Button
 						size="sm"
-						className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+						className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
 					>
 						<ExternalLink size={14} />
 						Open in Browser
@@ -1384,7 +1384,7 @@ function PublishStep({
 					<div className="flex items-center gap-2">
 						<Button
 							size="sm"
-							className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+							className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
 						>
 							<Wallet size={14} />
 							Deposit BSV
@@ -1441,7 +1441,7 @@ function PublishStep({
 					<div className="flex items-center justify-between px-4 py-3 border-b border-border">
 						<span className="text-sm text-muted-foreground">Identity</span>
 						<span
-							className="text-sm font-medium text-blue-400"
+							className="text-sm font-medium text-primary"
 							style={{ fontFamily: 'var(--font-mono)' }}
 						>
 							{formData.identity}
@@ -1452,7 +1452,7 @@ function PublishStep({
 						<span
 							className={cn(
 								'text-sm font-medium',
-								formData.opnsName ? 'text-blue-400' : 'text-muted-foreground',
+								formData.opnsName ? 'text-primary' : 'text-muted-foreground',
 							)}
 							style={{ fontFamily: 'var(--font-mono)' }}
 						>
@@ -1739,7 +1739,7 @@ export function PublishView({ onNavigate }: PublishViewProps) {
 	const subtitleClass = (() => {
 		if (step === 'build' && buildFailed) return 'text-red-400'
 		if (step === 'publish' && publishSubState === 'broadcasting')
-			return 'text-blue-400'
+			return 'text-primary'
 		if (step === 'publish' && publishSubState === 'success')
 			return 'text-emerald-400'
 		return 'text-muted-foreground'
