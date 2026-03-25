@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.0.10] - 2026-03-25
+
+### Added
+- Multi-window per profile — each account opens in its own window (singleton by account ID), like Chrome profiles
+- Concurrent wallet instances — multiple wallets run simultaneously, one per open window
+- Profile page rewrite — banner image, overlapping avatar, centered name/description/BAP ID, matching sigma-auth design
+- Image selection modal — browse wallet ordinals, paste URL, or upload file for avatar/banner
+- Profile editor with Schema.org fields, Person/Organization toggle, draft save system
+- Draft profile system — save locally, publish to blockchain, discard
+- Backup import — supports all bitcoin-backup formats (master, account, WIF, OneSat, YoursWallet) plus raw mnemonics
+- BAP identity discovery from chain during backup import (checks local stack + remote API)
+- Consolidated onboarding wizard — Profile, Stack, AI, Appearance steps with clickable indicators and arrow key navigation
+- Sigma-avatars with theme colors everywhere (picker, toolbar, popover, profile page, account cards)
+- Context menu on account cards with delete confirmation (AlertDialog) and backup download
+- Version/channel/build hash badge in bottom-right corner
+- Popup window handling — CEF new-window-open events open in BrowserWindow
+- Per-account appearance mode (light/dark/system saved per profile)
+
+### Fixed
+- Agent sidebar inline styles converted to Tailwind classes (broken oklch colors)
+- Traffic light padding increased, light mode tab bar darkened for visibility
+- Address bar text centering
+- Identity chip falls back to account registry name when no BAP profile
+- Stack setup waits for server to respond before opening setup window
+- Correct BAP API endpoints (api.1sat.app, not fabricated URLs)
+- New tab auto-focuses address bar
+
+### Removed
+- ProfileSetup.tsx — replaced by onboarding wizard Profile step
+- import-wallet.tsx — replaced by unified Use Backup flow
+
 ## [0.0.9] - 2026-03-25
 
 ### Added
