@@ -20,33 +20,6 @@ export function ImportBackup({ onComplete, onCancel }: ImportBackupProps) {
 	const [importedAccounts, setImportedAccounts] = useState<AccountInfo[]>([])
 	const [importErrors, setImportErrors] = useState<string[]>([])
 
-	const handlePickFile = useCallback(async () => {
-		setError(null)
-		const result = await rpc.request.pickFile({ allowedFileTypes: '*' })
-		if ('error' in result) {
-			if (result.error !== 'No file selected') setError(result.error)
-			return
-		}
-		setFileName(result.filename)
-		try {
-			const bytes = Uint8Array.from(atob(result.base64Content), (c) => c.charCodeAt(0))
-			const text = new TextDecoder().decode(bytes)
-			setInputData(text)
-
-			// Check if the file is unencrypted JSON — if so, import directly
-			try {
-				JSON.parse(text)
-				// Valid JSON — try importing without password first
-				handleImport(text, '')
-			} catch {
-				// Not JSON — likely encrypted, ask for password
-				setStep('file-password')
-			}
-		} catch {
-			setError('Failed to read file')
-		}
-	}, [handleImport])
-
 	const handleImport = useCallback(async (data: string, pw: string) => {
 		setError(null)
 		setStep('importing')
@@ -68,6 +41,32 @@ export function ImportBackup({ onComplete, onCancel }: ImportBackupProps) {
 			setStep(pw ? 'file-password' : 'mnemonic')
 		}
 	}, [])
+
+	const handlePickFile = useCallback(async () => {
+		setError(null)
+		const result = await rpc.request.pickFile({ allowedFileTypes: '*' })
+		if ('error' in result) {
+			if (result.error !== 'No file selected') setError(result.error)
+			return
+		}
+		setFileName(result.filename)
+		try {
+			const bytes = Uint8Array.from(atob(result.base64Content), (c) => c.charCodeAt(0))
+			const text = new TextDecoder().decode(bytes)
+			setInputData(text)
+
+			// Check if the file is unencrypted JSON — if so, import directly
+			try {
+				JSON.parse(text)
+				handleImport(text, '')
+			} catch {
+				// Not JSON — likely encrypted, ask for password
+				setStep('file-password')
+			}
+		} catch {
+			setError('Failed to read file')
+		}
+	}, [handleImport])
 
 	// ---- Done screen ----
 	if (step === 'done') {
