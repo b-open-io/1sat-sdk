@@ -377,19 +377,33 @@ function StackStep({
 
 	const [waitingForStack, setWaitingForStack] = useState(false)
 
+	const [stackError, setStackError] = useState<string | null>(null)
+
 	const handleSetup = useCallback(async () => {
 		setWaitingForStack(true)
-		// Wait for the stack to actually respond before opening the window
+		setStackError(null)
+
+		// Wait for the stack to respond before opening the window
+		let responded = false
 		for (let i = 0; i < 20; i++) {
 			try {
 				const res = await fetch(adminUrl, { method: 'HEAD', signal: AbortSignal.timeout(2000) })
-				if (res.ok) break
+				if (res.ok) {
+					responded = true
+					break
+				}
 			} catch {
 				// Stack not ready yet
 			}
 			await new Promise((r) => setTimeout(r, 1500))
 		}
 		setWaitingForStack(false)
+
+		if (!responded) {
+			setStackError('Stack failed to start. Check logs at ~/.1sat-wallet/logs/')
+			return
+		}
+
 		rpc.request.openBrowserWindow({ url: adminUrl, title: '1Sat Stack Setup' })
 		startPolling()
 	}, [adminUrl, startPolling])
@@ -439,6 +453,11 @@ function StackStep({
 					features work in read-only mode.
 				</p>
 			</div>
+			{stackError && (
+				<div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+					{stackError}
+				</div>
+			)}
 			<Button onClick={handleSetup} disabled={waitingForStack}>
 				{waitingForStack ? (
 					<>

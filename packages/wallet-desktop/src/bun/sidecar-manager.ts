@@ -12,6 +12,7 @@
  */
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import type { Subprocess } from 'bun'
+import { createLogger } from 'evlog'
 
 // ============================================================================
 // Constants
@@ -77,47 +78,51 @@ arcade:
  * rather than silently falling back to an undefined path.
  */
 async function findServerBinary(): Promise<string> {
+	const log = createLogger({ context: 'stack' })
+	const { resolve } = await import('node:path')
+
 	// 1. Pre-compiled dev binary
+	log.set({ event: 'binary_search', candidate: 'dev', path: DEV_BINARY, exists: existsSync(DEV_BINARY) })
+	log.emit()
 	if (existsSync(DEV_BINARY)) {
-		console.log(`1sat-stack: using pre-compiled dev binary at ${DEV_BINARY}`)
 		return DEV_BINARY
 	}
 
 	// 2. Compile from source if source tree is present
 	const mainGo = `${DEV_SOURCE_DIR}/cmd/server/main.go`
+	log.set({ event: 'binary_search', candidate: 'source', path: mainGo, exists: existsSync(mainGo) })
+	log.emit()
 	if (existsSync(mainGo)) {
 		const outPath = '/tmp/1sat-stack-server'
-		console.log(
-			`1sat-stack: compiling binary from ${DEV_SOURCE_DIR} → ${outPath}`,
-		)
 		const proc = Bun.spawn(
 			['go', 'build', '-o', outPath, './cmd/server'],
 			{ cwd: DEV_SOURCE_DIR, stdout: 'inherit', stderr: 'inherit' },
 		)
 		const exitCode = await proc.exited
 		if (exitCode !== 0) {
-			throw new Error(
-				`1sat-stack: go build failed with exit code ${exitCode}`,
-			)
+			throw new Error(`1sat-stack: go build failed with exit code ${exitCode}`)
 		}
-		console.log(`1sat-stack: compiled successfully → ${outPath}`)
 		return outPath
 	}
 
 	// 3. Production bundle — postBuild copies into MacOS/ alongside the main binary
-	// process.argv0 points to the bun binary inside MacOS/
-	const { resolve } = await import('node:path')
 	const bundledPath = resolve(process.argv0, '..', '1sat-stack')
+	log.set({
+		event: 'binary_search',
+		candidate: 'bundled',
+		path: bundledPath,
+		argv0: process.argv0,
+		exists: existsSync(bundledPath),
+	})
+	log.emit()
 	if (existsSync(bundledPath)) {
-		console.log(`1sat-stack: using bundled binary at ${bundledPath}`)
 		return bundledPath
 	}
 
-	throw new Error(
-		'1sat-stack binary not found. ' +
-			`Checked: ${DEV_BINARY}, compiled from ${DEV_SOURCE_DIR}, bundled at ${bundledPath}. ` +
-			"Run 'go build -o server ./cmd/server' in ~/code/1sat-stack to prepare a dev binary.",
-	)
+	const error = `1sat-stack binary not found. Checked: ${DEV_BINARY}, ${mainGo}, ${bundledPath}`
+	log.set({ event: 'binary_not_found', error, argv0: process.argv0 })
+	log.emit()
+	throw new Error(error)
 }
 
 // ============================================================================
@@ -153,7 +158,11 @@ async function forwardStream(
  * No-ops if already running.
  */
 export async function startStack(): Promise<void> {
+	const log = createLogger({ context: 'stack' })
+
 	if (stackProcess && !stackProcess.killed) {
+		log.set({ event: 'already_running', pid: stackProcess.pid })
+		log.emit()
 		return
 	}
 
@@ -163,7 +172,8 @@ export async function startStack(): Promise<void> {
 			signal: AbortSignal.timeout(1000),
 		})
 		if (res.ok) {
-			console.log(`1sat-stack: already running on port ${STACK_PORT} (external instance)`)
+			log.set({ event: 'external_instance', port: STACK_PORT })
+			log.emit()
 			return
 		}
 	} catch {
@@ -177,10 +187,20 @@ export async function startStack(): Promise<void> {
 
 	if (!existsSync(configPath)) {
 		writeFileSync(configPath, buildConfig(dataDir), 'utf8')
-		console.log(`1sat-stack: wrote config to ${configPath}`)
+		log.set({ event: 'config_written', path: configPath })
+		log.emit()
 	}
 
-	const serverPath = await findServerBinary()
+	let serverPath: string
+	try {
+		serverPath = await findServerBinary()
+		log.set({ event: 'binary_found', path: serverPath })
+		log.emit()
+	} catch (err) {
+		log.set({ event: 'start_failed', error: err instanceof Error ? err.message : String(err) })
+		log.emit()
+		throw err
+	}
 
 	stackProcess = Bun.spawn([serverPath, '-config', configPath], {
 		stdout: 'pipe',
@@ -192,12 +212,29 @@ export async function startStack(): Promise<void> {
 		},
 	})
 
+	log.set({ event: 'spawned', pid: stackProcess.pid, path: serverPath, port: STACK_PORT })
+	log.emit()
+
 	// Forward stdout/stderr without blocking the caller
 	forwardStream(stackProcess.stdout, '1sat-stack').catch((err) => {
-		console.error('1sat-stack stdout forwarding error:', err)
+		const errLog = createLogger({ context: 'stack' })
+		errLog.set({ event: 'stdout_error', error: err instanceof Error ? err.message : String(err) })
+		errLog.emit()
 	})
 	forwardStream(stackProcess.stderr, '1sat-stack:err').catch((err) => {
-		console.error('1sat-stack stderr forwarding error:', err)
+		const errLog = createLogger({ context: 'stack' })
+		errLog.set({ event: 'stderr_error', error: err instanceof Error ? err.message : String(err) })
+		errLog.emit()
+	})
+
+	// Monitor for early exit
+	stackProcess.exited.then((code) => {
+		const exitLog = createLogger({ context: 'stack' })
+		exitLog.set({ event: 'exited', exitCode: code, pid: stackProcess?.pid })
+		exitLog.emit()
+		if (code !== 0) {
+			console.error(`1sat-stack exited with code ${code}`)
+		}
 	})
 
 	console.log(
