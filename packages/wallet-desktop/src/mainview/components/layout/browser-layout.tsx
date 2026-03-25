@@ -1,6 +1,10 @@
 import { SyncTerminal } from '@/components/blocks/sync-terminal'
 import { Button } from '@/components/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
 import {
 	Tooltip,
@@ -9,6 +13,7 @@ import {
 	TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { useHotkeys } from '@tanstack/react-hotkeys'
 import {
 	ArrowLeft,
 	ArrowRight,
@@ -17,8 +22,8 @@ import {
 	Gem,
 	Globe,
 	Home,
-	LogIn,
 	Lock,
+	LogIn,
 	Plus,
 	RotateCw,
 	Search,
@@ -29,16 +34,31 @@ import {
 	Wallet,
 	X,
 } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-	useCallback,
-	useEffect,
-	useRef,
-	useState,
-} from 'react'
-import { useHotkeys } from '@tanstack/react-hotkeys'
+	type BrowserSettings,
+	loadBrowserSettings,
+} from '../../../shared/constants'
+import type { AccountInfo, IdentityInfo } from '../../../shared/types'
 import type { ParsedRoute } from '../../../shared/url-types'
 import { getDisplayLabel } from '../../../shared/url-types'
+import { useBookmarks } from '../../hooks/use-bookmarks'
+import {
+	NAV_INITIAL_STATE,
+	type NavState,
+	applyNavAction,
+} from '../../hooks/use-browser-navigation'
+import { useSyncEvents } from '../../hooks/use-sync-events'
+import { useWallet } from '../../hooks/use-wallet'
+import { renderPage } from '../../lib/page-registry'
 import { ORDFS_BASE, parseUrl } from '../../lib/url-parser'
+import {
+	onNavigateToUrl,
+	onStackOnboardingComplete,
+	onStackOnboardingRequired,
+	onToggleSyncLog,
+	rpc,
+} from '../../rpc'
 import { AiChatView } from '../../views/ai-chat/index'
 import { AgentPopover } from '../browser/agent-popover'
 import { AgentSidebar } from '../browser/agent-sidebar'
@@ -47,28 +67,6 @@ import { BrowserContextMenu } from '../browser/browser-context-menu'
 import { MenuPopover } from '../browser/menu-popover'
 import { PermissionOverlay } from '../browser/permission-overlay'
 import { WalletPopover } from '../browser/wallet-popover'
-import {
-	NAV_INITIAL_STATE,
-	type NavState,
-	applyNavAction,
-} from '../../hooks/use-browser-navigation'
-import { useBookmarks } from '../../hooks/use-bookmarks'
-import { useSyncEvents } from '../../hooks/use-sync-events'
-import { renderPage } from '../../lib/page-registry'
-import {
-	type BrowserSettings,
-	loadBrowserSettings,
-	saveBrowserSettings,
-} from '../../../shared/constants'
-import {
-	onNavigateToUrl,
-	onStackOnboardingComplete,
-	onStackOnboardingRequired,
-	onToggleSyncLog,
-	rpc,
-} from '../../rpc'
-import { useWallet } from '../../hooks/use-wallet'
-import type { AccountInfo, IdentityInfo } from '../../../shared/types'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -132,11 +130,16 @@ function getTabIcon(route: ParsedRoute, faviconUrl?: string): React.ReactNode {
 		return <Globe size={12} className="shrink-0 opacity-60" />
 	}
 	const { page } = route
-	if (page.startsWith('wallet/')) return <Wallet size={12} className="shrink-0 opacity-60" />
-	if (page.startsWith('ordinals/')) return <Gem size={12} className="shrink-0 opacity-60" />
-	if (page.startsWith('tokens/') || page === 'market') return <Coins size={12} className="shrink-0 opacity-60" />
-	if (page.startsWith('settings')) return <Settings2 size={12} className="shrink-0 opacity-60" />
-	if (page === 'browser/new') return <Home size={12} className="shrink-0 opacity-60" />
+	if (page.startsWith('wallet/'))
+		return <Wallet size={12} className="shrink-0 opacity-60" />
+	if (page.startsWith('ordinals/'))
+		return <Gem size={12} className="shrink-0 opacity-60" />
+	if (page.startsWith('tokens/') || page === 'market')
+		return <Coins size={12} className="shrink-0 opacity-60" />
+	if (page.startsWith('settings'))
+		return <Settings2 size={12} className="shrink-0 opacity-60" />
+	if (page === 'browser/new')
+		return <Home size={12} className="shrink-0 opacity-60" />
 	return <Globe size={12} className="shrink-0 opacity-60" />
 }
 
@@ -290,7 +293,10 @@ function VerticalTabSidebar({
 			{/* Traffic light spacer + header row */}
 			<div
 				className="flex items-center justify-between shrink-0 px-2"
-				style={{ height: TAB_BAR_HEIGHT + TOOLBAR_HEIGHT, paddingTop: TAB_BAR_HEIGHT }}
+				style={{
+					height: TAB_BAR_HEIGHT + TOOLBAR_HEIGHT,
+					paddingTop: TAB_BAR_HEIGHT,
+				}}
 			>
 				<span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground select-none electrobun-webkit-app-region-no-drag">
 					Tabs
@@ -332,7 +338,9 @@ function VerticalTabSidebar({
 							)}
 						>
 							{getTabIcon(tab.nav.current, tab.faviconUrl)}
-							<span className="truncate text-[11px] font-medium flex-1 min-w-0">{label}</span>
+							<span className="truncate text-[11px] font-medium flex-1 min-w-0">
+								{label}
+							</span>
 							<button
 								type="button"
 								onClick={(e) => {
@@ -387,10 +395,30 @@ function NavButton({ icon, label, disabled = false, onClick }: NavButtonProps) {
 }
 
 const PROTOCOLS = [
-	{ value: '1sat://', label: '1sat://', bg: 'var(--protocol-1sat-bg)', fg: 'var(--protocol-1sat-fg)' },
-	{ value: 'https://', label: 'https://', bg: 'var(--protocol-https-bg)', fg: 'var(--protocol-https-fg)' },
-	{ value: 'http://', label: 'http://', bg: 'var(--protocol-http-bg)', fg: 'var(--protocol-http-fg)' },
-	{ value: 'ai://', label: 'ai://', bg: 'var(--protocol-ai-bg)', fg: 'var(--protocol-ai-fg)' },
+	{
+		value: '1sat://',
+		label: '1sat://',
+		bg: 'var(--protocol-1sat-bg)',
+		fg: 'var(--protocol-1sat-fg)',
+	},
+	{
+		value: 'https://',
+		label: 'https://',
+		bg: 'var(--protocol-https-bg)',
+		fg: 'var(--protocol-https-fg)',
+	},
+	{
+		value: 'http://',
+		label: 'http://',
+		bg: 'var(--protocol-http-bg)',
+		fg: 'var(--protocol-http-fg)',
+	},
+	{
+		value: 'ai://',
+		label: 'ai://',
+		bg: 'var(--protocol-ai-bg)',
+		fg: 'var(--protocol-ai-fg)',
+	},
 ] as const
 
 function getProtocolFromRoute(route: ParsedRoute): string {
@@ -453,7 +481,9 @@ function ProtocolBadge({ route, onProtocolChange }: ProtocolBadgeProps) {
 								}}
 								className={cn(
 									'flex items-center w-full px-2 py-1.5 text-[10px] font-mono font-semibold hover:bg-muted/50 transition-colors',
-									p.value === current ? 'text-foreground' : 'text-muted-foreground',
+									p.value === current
+										? 'text-foreground'
+										: 'text-muted-foreground',
 								)}
 							>
 								<span
@@ -552,7 +582,7 @@ function AddressBar({ route, onNavigate, inputRef }: AddressBarProps) {
 					onFocus={handleFocus}
 					onBlur={handleBlur}
 					onKeyDown={handleKeyDown}
-					className="flex-1 min-w-0 bg-transparent text-xs font-mono text-foreground outline-none"
+					className="flex-1 min-w-0 h-full bg-transparent text-xs leading-none font-mono text-foreground outline-none"
 					spellCheck={false}
 					autoCapitalize="off"
 					autoCorrect="off"
@@ -585,16 +615,23 @@ function truncateBapId(id: string, chars = 6): string {
 	return `${id.slice(0, chars)}…${id.slice(-chars)}`
 }
 
-function IdentityChip({ onNavigate, onPopoverOpen, onPopoverClose }: IdentityChipProps) {
-	const { status, lockWallet } = useWallet()
+function IdentityChip({
+	onNavigate,
+	onPopoverOpen,
+	onPopoverClose,
+}: IdentityChipProps) {
+	const { status, lockWallet, activeAccount } = useWallet()
 	const [open, setOpenInternal] = useState(false)
 	const [identity, setIdentity] = useState<IdentityInfo | null>(null)
 
-	const setOpen = useCallback((v: boolean) => {
-		setOpenInternal(v)
-		if (v) onPopoverOpen?.()
-		else onPopoverClose?.()
-	}, [onPopoverOpen, onPopoverClose])
+	const setOpen = useCallback(
+		(v: boolean) => {
+			setOpenInternal(v)
+			if (v) onPopoverOpen?.()
+			else onPopoverClose?.()
+		},
+		[onPopoverOpen, onPopoverClose],
+	)
 
 	const [otherAccounts, setOtherAccounts] = useState<AccountInfo[]>([])
 
@@ -621,11 +658,13 @@ function IdentityChip({ onNavigate, onPopoverOpen, onPopoverClose }: IdentityChi
 		)
 	}, [status])
 
-	const displayName = identity?.profile
+	// Prefer on-chain BAP profile name, fall back to account registry name
+	const bapName = identity?.profile
 		? ((identity.profile.alternateName as string | undefined) ??
-		   (identity.profile.name as string | undefined) ??
-		   null)
+			(identity.profile.name as string | undefined) ??
+			null)
 		: null
+	const displayName = bapName ?? activeAccount?.displayName ?? null
 
 	const initials = displayName
 		? displayName
@@ -709,9 +748,7 @@ function IdentityChip({ onNavigate, onPopoverOpen, onPopoverClose }: IdentityChi
 							{displayName ?? 'anonymous'}
 						</span>
 						{identity?.bapId && (
-							<span
-								className="text-[10px] text-muted-foreground font-[family-name:var(--font-mono)] truncate leading-tight"
-							>
+							<span className="text-[10px] text-muted-foreground font-[family-name:var(--font-mono)] truncate leading-tight">
 								{truncateBapId(identity.bapId)}
 							</span>
 						)}
@@ -726,9 +763,7 @@ function IdentityChip({ onNavigate, onPopoverOpen, onPopoverClose }: IdentityChi
 						className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-[12px] text-foreground hover:bg-muted/50 transition-colors rounded-[3px] cursor-default"
 					>
 						<UserCircle2 size={13} className="shrink-0 text-muted-foreground" />
-						<span style={{ fontFamily: 'var(--font-sans)' }}>
-							View Profile
-						</span>
+						<span style={{ fontFamily: 'var(--font-sans)' }}>View Profile</span>
 					</button>
 
 					{!isPublished && (
@@ -771,11 +806,50 @@ function IdentityChip({ onNavigate, onPopoverOpen, onPopoverClose }: IdentityChi
 						)}
 					>
 						<Lock size={13} className="shrink-0 text-muted-foreground" />
-						<span style={{ fontFamily: 'var(--font-sans)' }}>
-							Lock Wallet
-						</span>
+						<span style={{ fontFamily: 'var(--font-sans)' }}>Lock Wallet</span>
 					</button>
 				</div>
+
+				{otherAccounts.length > 0 && (
+					<>
+						<Separator />
+						<div className="p-1.5">
+							<p className="px-2.5 py-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+								Other Accounts
+							</p>
+							{otherAccounts.map((account) => (
+								<button
+									key={account.id}
+									type="button"
+									onClick={() => {
+										setOpen(false)
+										rpc.request.switchAccount({ accountId: account.id })
+									}}
+									className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-[12px] text-foreground hover:bg-muted/50 transition-colors rounded-[3px] cursor-default"
+								>
+									<div
+										className={cn(
+											'size-5 rounded-full flex items-center justify-center text-[8px] font-semibold shrink-0',
+											`bg-${account.color}-500/15 text-${account.color}-500`,
+										)}
+									>
+										{account.displayName
+											.split(/\s+/)
+											.slice(0, 2)
+											.map((w) => w[0]?.toUpperCase() ?? '')
+											.join('')}
+									</div>
+									<span
+										className="text-[12px] truncate"
+										style={{ fontFamily: 'var(--font-sans)' }}
+									>
+										{account.displayName}
+									</span>
+								</button>
+							))}
+						</div>
+					</>
+				)}
 			</PopoverContent>
 		</Popover>
 	)
@@ -821,41 +895,46 @@ function Toolbar({
 	const [bookmarksOpen, setBookmarksOpen] = useState(false)
 
 	// Notify parent when any popover opens/closes (for webview passthrough)
-	const trackPopover = useCallback((open: boolean) => {
-		if (open) onPopoverOpen?.()
-		else onPopoverClose?.()
-	}, [onPopoverOpen, onPopoverClose])
+	const trackPopover = useCallback(
+		(open: boolean) => {
+			if (open) onPopoverOpen?.()
+			else onPopoverClose?.()
+		},
+		[onPopoverOpen, onPopoverClose],
+	)
 
 	return (
 		<div
 			className="flex items-center gap-1.5 px-2 shrink-0 bg-background"
-			style={{ height: TOOLBAR_HEIGHT, paddingLeft: trafficLightPad ? TRAFFIC_LIGHT_PAD : undefined }}
+			style={{
+				height: TOOLBAR_HEIGHT,
+				paddingLeft: trafficLightPad ? TRAFFIC_LIGHT_PAD : undefined,
+			}}
 		>
 			<TooltipProvider delayDuration={300}>
-		{/* Navigation buttons */}
-			<div className="flex items-center gap-0.5">
-				<NavButton
-					icon={<ArrowLeft size={14} />}
-					label="Back"
-					disabled={!canGoBack}
-					onClick={onBack}
-				/>
-				<NavButton
-					icon={<ArrowRight size={14} />}
-					label="Forward"
-					disabled={!canGoForward}
-					onClick={onForward}
-				/>
-				<NavButton
-					icon={<RotateCw size={13} />}
-					label="Reload"
-					onClick={onReload}
-				/>
-			</div>
-
+				{/* Navigation buttons */}
+				<div className="flex items-center gap-0.5">
+					<NavButton
+						icon={<ArrowLeft size={14} />}
+						label="Back"
+						disabled={!canGoBack}
+						onClick={onBack}
+					/>
+					<NavButton
+						icon={<ArrowRight size={14} />}
+						label="Forward"
+						disabled={!canGoForward}
+						onClick={onForward}
+					/>
+					<NavButton
+						icon={<RotateCw size={13} />}
+						label="Reload"
+						onClick={onReload}
+					/>
+				</div>
 			</TooltipProvider>
 
-		{/* Address bar */}
+			{/* Address bar */}
 			<AddressBar
 				route={route}
 				onNavigate={onNavigate}
@@ -876,7 +955,10 @@ function Toolbar({
 					currentTitle={currentTitle}
 					onNavigate={onNavigate}
 					open={bookmarksOpen}
-					onOpenChange={(v) => { setBookmarksOpen(v); trackPopover(v) }}
+					onOpenChange={(v) => {
+						setBookmarksOpen(v)
+						trackPopover(v)
+					}}
 				/>
 				<AgentPopover onOpenAgent={onOpenAgent} />
 				<MenuPopover
@@ -916,7 +998,12 @@ interface WebViewContentProps {
 	webviewRef?: React.RefObject<HTMLElement | null>
 }
 
-function WebViewContent({ route, onNavigated, onTitleChanged, webviewRef }: WebViewContentProps) {
+function WebViewContent({
+	route,
+	onNavigated,
+	onTitleChanged,
+	webviewRef,
+}: WebViewContentProps) {
 	const containerRef = useRef<HTMLDivElement>(null)
 	const localRef = useRef<HTMLElement | null>(null)
 
@@ -937,9 +1024,10 @@ function WebViewContent({ route, onNavigated, onTitleChanged, webviewRef }: WebV
 
 		// Set partition for on-chain content (origin isolation)
 		if (route.type === 'onchain-outpoint' || route.type === 'onchain-opns') {
-			const partition = route.type === 'onchain-opns'
-				? route.name
-				: `${route.txid}_${route.vout}`
+			const partition =
+				route.type === 'onchain-opns'
+					? route.name
+					: `${route.txid}_${route.vout}`
 			webview.setAttribute('partition', `persist:1sat-${partition}`)
 		}
 
@@ -969,9 +1057,7 @@ function WebViewContent({ route, onNavigated, onTitleChanged, webviewRef }: WebV
 		}
 	}, [route, onNavigated, onTitleChanged, webviewRef])
 
-	return (
-		<div ref={containerRef} className="absolute inset-0" />
-	)
+	return <div ref={containerRef} className="absolute inset-0" />
 }
 
 // ---------------------------------------------------------------------------
@@ -1015,7 +1101,8 @@ export function BrowserLayout() {
 	)
 
 	// ── Browser settings (search mode) ────────────────────────────────────
-	const [browserSettings, setBrowserSettings] = useState<BrowserSettings>(loadBrowserSettings)
+	const [browserSettings, setBrowserSettings] =
+		useState<BrowserSettings>(loadBrowserSettings)
 
 	// Keep settings in sync when localStorage changes from the Settings tab
 	useEffect(() => {
@@ -1074,7 +1161,9 @@ export function BrowserLayout() {
 	}, [])
 
 	// ── Tab mode ───────────────────────────────────────────────────────────
-	const [tabMode, setTabMode] = useState<'horizontal' | 'vertical'>('horizontal')
+	const [tabMode, setTabMode] = useState<'horizontal' | 'vertical'>(
+		'horizontal',
+	)
 
 	const toggleTabMode = useCallback(() => {
 		setTabMode((prev) => (prev === 'horizontal' ? 'vertical' : 'horizontal'))
@@ -1097,10 +1186,12 @@ export function BrowserLayout() {
 	// Track open popovers — when any is open, passthrough the webview so popover clicks work
 	const openPopoverCount = useRef(0)
 	const setWebviewPassthrough = useCallback((passthrough: boolean) => {
-		const wv = activeWebviewRef.current as HTMLElement & {
-			togglePassthrough?: (v: boolean) => void
-			toggleHidden?: (v: boolean) => void
-		} | null
+		const wv = activeWebviewRef.current as
+			| (HTMLElement & {
+					togglePassthrough?: (v: boolean) => void
+					toggleHidden?: (v: boolean) => void
+			  })
+			| null
 		if (wv) {
 			// Hide the native overlay so DOM popovers can receive clicks
 			wv.toggleHidden?.(passthrough)
@@ -1126,7 +1217,8 @@ export function BrowserLayout() {
 		setFindBarOpen(false)
 		setFindQuery('')
 		const wv = activeWebviewRef.current
-		if (wv) (wv as HTMLElement & { stopFindInPage?: () => void }).stopFindInPage?.()
+		if (wv)
+			(wv as HTMLElement & { stopFindInPage?: () => void }).stopFindInPage?.()
 	}, [])
 
 	const openFindBar = useCallback(() => {
@@ -1147,7 +1239,9 @@ export function BrowserLayout() {
 					const nav = applyNavAction(tab.nav, action)
 					// Proactively set favicon when navigating to a web URL
 					const faviconUrl =
-						nav.current.type === 'web' ? getFaviconUrl(nav.current.url) : undefined
+						nav.current.type === 'web'
+							? getFaviconUrl(nav.current.url)
+							: undefined
 					return { ...tab, nav, faviconUrl }
 				}),
 			)
@@ -1177,7 +1271,10 @@ export function BrowserLayout() {
 				if (searchMode === 'custom' && customSearchUrl) {
 					dispatchNav({
 						type: 'navigate',
-						input: customSearchUrl.replace('{query}', encodeURIComponent(query)),
+						input: customSearchUrl.replace(
+							'{query}',
+							encodeURIComponent(query),
+						),
 					})
 					return
 				}
@@ -1192,7 +1289,12 @@ export function BrowserLayout() {
 
 	const goBack = useCallback(() => {
 		const route = activeTab.nav.current
-		if (route.type === 'web' || route.type === 'search' || route.type === 'onchain-outpoint' || route.type === 'onchain-opns') {
+		if (
+			route.type === 'web' ||
+			route.type === 'search' ||
+			route.type === 'onchain-outpoint' ||
+			route.type === 'onchain-opns'
+		) {
 			const wv = activeWebviewRef.current
 			if (wv) {
 				;(wv as HTMLElement & { goBack?: () => void }).goBack?.()
@@ -1204,7 +1306,12 @@ export function BrowserLayout() {
 
 	const goForward = useCallback(() => {
 		const route = activeTab.nav.current
-		if (route.type === 'web' || route.type === 'search' || route.type === 'onchain-outpoint' || route.type === 'onchain-opns') {
+		if (
+			route.type === 'web' ||
+			route.type === 'search' ||
+			route.type === 'onchain-outpoint' ||
+			route.type === 'onchain-opns'
+		) {
 			const wv = activeWebviewRef.current
 			if (wv) {
 				;(wv as HTMLElement & { goForward?: () => void }).goForward?.()
@@ -1217,9 +1324,7 @@ export function BrowserLayout() {
 	const reload = useCallback(() => {
 		setTabs((prev) =>
 			prev.map((tab) =>
-				tab.id === activeTabId
-					? { ...tab, reloadKey: tab.reloadKey + 1 }
-					: tab,
+				tab.id === activeTabId ? { ...tab, reloadKey: tab.reloadKey + 1 } : tab,
 			),
 		)
 	}, [activeTabId])
@@ -1244,7 +1349,8 @@ export function BrowserLayout() {
 				}
 				// Clear customTitle on URL change so stale titles don't persist
 				// Set favicon for web routes, clear it for internal/onchain routes
-				const faviconUrl = parsed.type === 'web' ? getFaviconUrl(parsed.url) : undefined
+				const faviconUrl =
+					parsed.type === 'web' ? getFaviconUrl(parsed.url) : undefined
 				return { ...tab, nav, customTitle: undefined, faviconUrl }
 			}),
 		)
@@ -1268,16 +1374,13 @@ export function BrowserLayout() {
 		setActiveTabId(tab.id)
 	}, [])
 
-	const switchToTab = useCallback(
-		(index: number) => {
-			setTabs((prev) => {
-				const tab = prev[index]
-				if (tab) setActiveTabId(tab.id)
-				return prev
-			})
-		},
-		[],
-	)
+	const switchToTab = useCallback((index: number) => {
+		setTabs((prev) => {
+			const tab = prev[index]
+			if (tab) setActiveTabId(tab.id)
+			return prev
+		})
+	}, [])
 
 	const handleTabClick = useCallback((id: string) => {
 		setActiveTabId(id)
@@ -1356,63 +1459,99 @@ export function BrowserLayout() {
 
 	// ── Keyboard shortcuts via TanStack Hotkeys ──────────────────────────
 
-	useHotkeys([
-		// Tab management
-		{ hotkey: 'Mod+T', callback: () => createNewTab() },
-		{ hotkey: 'Mod+W', callback: () => closeCurrentTab() },
-		{ hotkey: 'Mod+1', callback: () => switchToTab(0) },
-		{ hotkey: 'Mod+2', callback: () => switchToTab(1) },
-		{ hotkey: 'Mod+3', callback: () => switchToTab(2) },
-		{ hotkey: 'Mod+4', callback: () => switchToTab(3) },
-		{ hotkey: 'Mod+5', callback: () => switchToTab(4) },
-		{ hotkey: 'Mod+6', callback: () => switchToTab(5) },
-		{ hotkey: 'Mod+7', callback: () => switchToTab(6) },
-		{ hotkey: 'Mod+8', callback: () => switchToTab(7) },
-		{ hotkey: 'Mod+9', callback: () => switchToTab(8) },
-		{ hotkey: 'Mod+Shift+]', callback: () => { /* next tab */ const idx = tabs.findIndex(t => t.id === activeTabId); if (idx < tabs.length - 1) switchToTab(idx + 1) } },
-		{ hotkey: 'Mod+Shift+[', callback: () => { /* prev tab */ const idx = tabs.findIndex(t => t.id === activeTabId); if (idx > 0) switchToTab(idx - 1) } },
-
-		// Navigation
-		{ hotkey: 'Mod+[', callback: () => goBack() },
-		{ hotkey: 'Mod+]', callback: () => goForward() },
-		{ hotkey: 'Mod+ArrowLeft', callback: () => goBack() },
-		{ hotkey: 'Mod+ArrowRight', callback: () => goForward() },
-		{ hotkey: 'Mod+R', callback: () => reload() },
-		{ hotkey: 'Mod+Shift+R', callback: () => reload() },
-
-		// Address bar
-		{ hotkey: 'Mod+L', callback: () => focusAddressBar() },
-		{ hotkey: 'Mod+K', callback: () => focusAddressBar() },
-
-		// Features
-		{ hotkey: 'Mod+D', callback: () => { const url = getFullUrl(activeNav.current); bookmarksApi.addBookmark(url, getDisplayLabel(activeNav.current)) } },
-		{ hotkey: 'Mod+Shift+S', callback: () => toggleTabMode() },
-		{ hotkey: 'Mod+Shift+A', callback: () => toggleAgentSidebar() },
-		{ hotkey: 'Mod+Alt+I', callback: () => { rpc.request.toggleDevTools() } },
-		{ hotkey: 'Mod+,', callback: () => navigate('1sat://settings') },
-
-		// Find on page
-		{ hotkey: 'Mod+F', callback: () => openFindBar() },
-		{
-			hotkey: 'Mod+G',
-			callback: () => {
-				if (!findBarOpen || !findQuery) return
-				const wv = activeWebviewRef.current
-				if (wv) (wv as HTMLElement & { findInPage?: (text: string, opts?: object) => void }).findInPage?.(findQuery, { forward: true })
+	useHotkeys(
+		[
+			// Tab management
+			{ hotkey: 'Mod+T', callback: () => createNewTab() },
+			{ hotkey: 'Mod+W', callback: () => closeCurrentTab() },
+			{ hotkey: 'Mod+1', callback: () => switchToTab(0) },
+			{ hotkey: 'Mod+2', callback: () => switchToTab(1) },
+			{ hotkey: 'Mod+3', callback: () => switchToTab(2) },
+			{ hotkey: 'Mod+4', callback: () => switchToTab(3) },
+			{ hotkey: 'Mod+5', callback: () => switchToTab(4) },
+			{ hotkey: 'Mod+6', callback: () => switchToTab(5) },
+			{ hotkey: 'Mod+7', callback: () => switchToTab(6) },
+			{ hotkey: 'Mod+8', callback: () => switchToTab(7) },
+			{ hotkey: 'Mod+9', callback: () => switchToTab(8) },
+			{
+				hotkey: 'Mod+Shift+]',
+				callback: () => {
+					/* next tab */ const idx = tabs.findIndex((t) => t.id === activeTabId)
+					if (idx < tabs.length - 1) switchToTab(idx + 1)
+				},
 			},
-		},
-		{
-			hotkey: 'Mod+Shift+G',
-			callback: () => {
-				if (!findBarOpen || !findQuery) return
-				const wv = activeWebviewRef.current
-				if (wv) (wv as HTMLElement & { findInPage?: (text: string, opts?: object) => void }).findInPage?.(findQuery, { forward: false })
+			{
+				hotkey: 'Mod+Shift+[',
+				callback: () => {
+					/* prev tab */ const idx = tabs.findIndex((t) => t.id === activeTabId)
+					if (idx > 0) switchToTab(idx - 1)
+				},
 			},
-		},
 
-		// Home
-		{ hotkey: 'Mod+Shift+H', callback: () => navigate('1sat://browser/new') },
-	], { preventDefault: true })
+			// Navigation
+			{ hotkey: 'Mod+[', callback: () => goBack() },
+			{ hotkey: 'Mod+]', callback: () => goForward() },
+			{ hotkey: 'Mod+ArrowLeft', callback: () => goBack() },
+			{ hotkey: 'Mod+ArrowRight', callback: () => goForward() },
+			{ hotkey: 'Mod+R', callback: () => reload() },
+			{ hotkey: 'Mod+Shift+R', callback: () => reload() },
+
+			// Address bar
+			{ hotkey: 'Mod+L', callback: () => focusAddressBar() },
+			{ hotkey: 'Mod+K', callback: () => focusAddressBar() },
+
+			// Features
+			{
+				hotkey: 'Mod+D',
+				callback: () => {
+					const url = getFullUrl(activeNav.current)
+					bookmarksApi.addBookmark(url, getDisplayLabel(activeNav.current))
+				},
+			},
+			{ hotkey: 'Mod+Shift+S', callback: () => toggleTabMode() },
+			{ hotkey: 'Mod+Shift+A', callback: () => toggleAgentSidebar() },
+			{
+				hotkey: 'Mod+Alt+I',
+				callback: () => {
+					rpc.request.toggleDevTools()
+				},
+			},
+			{ hotkey: 'Mod+,', callback: () => navigate('1sat://settings') },
+
+			// Find on page
+			{ hotkey: 'Mod+F', callback: () => openFindBar() },
+			{
+				hotkey: 'Mod+G',
+				callback: () => {
+					if (!findBarOpen || !findQuery) return
+					const wv = activeWebviewRef.current
+					if (wv)
+						(
+							wv as HTMLElement & {
+								findInPage?: (text: string, opts?: object) => void
+							}
+						).findInPage?.(findQuery, { forward: true })
+				},
+			},
+			{
+				hotkey: 'Mod+Shift+G',
+				callback: () => {
+					if (!findBarOpen || !findQuery) return
+					const wv = activeWebviewRef.current
+					if (wv)
+						(
+							wv as HTMLElement & {
+								findInPage?: (text: string, opts?: object) => void
+							}
+						).findInPage?.(findQuery, { forward: false })
+				},
+			},
+
+			// Home
+			{ hotkey: 'Mod+Shift+H', callback: () => navigate('1sat://browser/new') },
+		],
+		{ preventDefault: true },
+	)
 
 	// ── Derived render properties ──────────────────────────────────────────
 
@@ -1438,7 +1577,10 @@ export function BrowserLayout() {
 				onBookmark={() => bookmarksApi.addBookmark(currentUrl, currentTitle)}
 				onViewSource={() => {
 					if (currentUrl.startsWith('http'))
-						rpc.request.openBrowserWindow({ url: currentUrl, title: `Source: ${currentTitle}` })
+						rpc.request.openBrowserWindow({
+							url: currentUrl,
+							title: `Source: ${currentTitle}`,
+						})
 				}}
 				onAskAgent={toggleAgentSidebar}
 			>
@@ -1453,10 +1595,7 @@ export function BrowserLayout() {
 					{route.type === 'internal' ? (
 						renderPage(route, navigate)
 					) : route.type === 'ai-chat' ? (
-						<AiChatView
-							initialQuery={route.query}
-							onNavigate={navigate}
-						/>
+						<AiChatView initialQuery={route.query} onNavigate={navigate} />
 					) : (
 						<WebViewContent
 							route={route}
@@ -1485,7 +1624,8 @@ export function BrowserLayout() {
 					Blockchain sync needs configuration
 				</span>
 				<span className="text-[11px] text-muted-foreground leading-tight">
-					The 1Sat Stack provides local indexing for ordinals, tokens, and identity. Complete setup to enable full functionality.
+					The 1Sat Stack provides local indexing for ordinals, tokens, and
+					identity. Complete setup to enable full functionality.
 				</span>
 			</div>
 			<div className="flex items-center gap-2 shrink-0">
@@ -1521,7 +1661,11 @@ export function BrowserLayout() {
 					setFindQuery(e.target.value)
 					const wv = activeWebviewRef.current
 					if (wv && e.target.value) {
-						;(wv as HTMLElement & { findInPage?: (text: string, opts?: object) => void }).findInPage?.(e.target.value)
+						;(
+							wv as HTMLElement & {
+								findInPage?: (text: string, opts?: object) => void
+							}
+						).findInPage?.(e.target.value)
 					}
 				}}
 				onKeyDown={(e) => {
@@ -1530,14 +1674,23 @@ export function BrowserLayout() {
 					} else if (e.key === 'Enter') {
 						const wv = activeWebviewRef.current
 						if (wv && findQuery) {
-							;(wv as HTMLElement & { findInPage?: (text: string, opts?: object) => void }).findInPage?.(findQuery, { forward: !e.shiftKey })
+							;(
+								wv as HTMLElement & {
+									findInPage?: (text: string, opts?: object) => void
+								}
+							).findInPage?.(findQuery, { forward: !e.shiftKey })
 						}
 					}
 				}}
 				placeholder="Find on page..."
 				className="flex-1 bg-transparent text-xs text-foreground outline-none"
 			/>
-			<Button variant="ghost" size="icon-xs" onClick={closeFindBar} aria-label="Close find bar">
+			<Button
+				variant="ghost"
+				size="icon-xs"
+				onClick={closeFindBar}
+				aria-label="Close find bar"
+			>
 				<X size={12} />
 			</Button>
 		</div>
