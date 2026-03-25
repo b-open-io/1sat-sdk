@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { AccountInfo } from '../../../shared/types'
 import { useWallet } from '../../hooks/use-wallet'
 import { rpc } from '../../rpc'
@@ -44,17 +44,22 @@ function formatLastUsed(iso: string): string {
 type AddMode = 'none' | 'create' | 'import'
 
 export function AccountPicker() {
-	const { accounts, selectAccount } = useWallet()
+	const { accounts: pushedAccounts, selectAccount } = useWallet()
+	const [fetchedAccounts, setFetchedAccounts] = useState<AccountInfo[]>([])
 	const [loading, setLoading] = useState<string | null>(null)
 	const [addMode, setAddMode] = useState<AddMode>('none')
 	const [showOnStartup, setShowOnStartup] = useState(true)
 
-	// Load initial preference
-	useState(() => {
+	// Fetch accounts on mount (push message may arrive before React subscribes)
+	useEffect(() => {
 		rpc.request.listAccounts().then((r) => {
+			setFetchedAccounts(r.accounts)
 			setShowOnStartup(r.showPickerOnStartup)
 		})
-	})
+	}, [])
+
+	// Use pushed accounts if available, otherwise fetched
+	const accounts = pushedAccounts.length > 0 ? pushedAccounts : fetchedAccounts
 
 	const handleSelect = async (accountId: string) => {
 		setLoading(accountId)

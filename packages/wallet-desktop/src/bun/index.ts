@@ -342,22 +342,23 @@ setUpdateStatusPusher((status, version, error) => {
 	mainWindow.webview.rpc.send.updateStatus({ status, version, error })
 })
 
-// Determine initial state based on account registry
-const accounts = listAccounts()
+// Determine initial state based on account registry (read fresh on dom-ready)
 mainWindow.webview.on('dom-ready', () => {
+	const currentAccounts = listAccounts()
 	const log = createLogger({ context: 'startup' })
-	log.set({ event: 'dom_ready', url, accountCount: accounts.length })
+	log.set({ event: 'dom_ready', url, accountCount: currentAccounts.length })
 	log.emit()
 
-	if (accounts.length === 0) {
+	if (currentAccounts.length === 0) {
 		// Fresh install or failed migration
 		mainWindow.webview.rpc.send.walletStateChanged({ status: 'no-wallet' })
-	} else if (accounts.length === 1 && !getShowPickerOnStartup()) {
+	} else if (currentAccounts.length === 1 && !getShowPickerOnStartup()) {
 		// Single account with picker disabled — auto-unlock
+		mainWindow.webview.rpc.send.accountsLoaded({ accounts: currentAccounts })
 		mainWindow.webview.rpc.send.walletStateChanged({ status: 'locked' })
 	} else {
 		// Show profile picker
-		mainWindow.webview.rpc.send.accountsLoaded({ accounts })
+		mainWindow.webview.rpc.send.accountsLoaded({ accounts: currentAccounts })
 		mainWindow.webview.rpc.send.walletStateChanged({ status: 'account-selection' })
 	}
 
