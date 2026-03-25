@@ -300,6 +300,9 @@ interface OwnProfileViewProps {
 	bapId: string
 	identityKey: string
 	profile: Record<string, unknown> | null
+	isPublished: boolean
+	onPublish: () => void
+	publishing: boolean
 	onRefresh: () => void
 }
 
@@ -307,12 +310,15 @@ function OwnProfileView({
 	bapId,
 	identityKey,
 	profile,
+	isPublished,
+	onPublish,
+	publishing,
 	onRefresh,
 }: OwnProfileViewProps) {
 	const [editorOpen, setEditorOpen] = useState(false)
 	const [draft, setDraft] = useState<DraftProfile | null>(null)
 	const [hasDraft, setHasDraft] = useState(false)
-	const [publishing, setPublishing] = useState(false)
+	const [publishingDraft, setPublishingDraft] = useState(false)
 	const [discarding, setDiscarding] = useState(false)
 	const [feedback, setFeedback] = useState<{
 		type: 'success' | 'error'
@@ -341,8 +347,8 @@ function OwnProfileView({
 		fetchDraft()
 	}, [fetchDraft])
 
-	const handlePublish = useCallback(async () => {
-		setPublishing(true)
+	const handlePublishDraft = useCallback(async () => {
+		setPublishingDraft(true)
 		setFeedback(null)
 		try {
 			const result = await rpc.request.publishProfile()
@@ -365,7 +371,7 @@ function OwnProfileView({
 				text: err instanceof Error ? err.message : 'Failed to publish profile',
 			})
 		} finally {
-			setPublishing(false)
+			setPublishingDraft(false)
 		}
 	}, [onRefresh])
 
@@ -468,10 +474,10 @@ function OwnProfileView({
 							</Button>
 							<Button
 								size="sm"
-								disabled={publishing}
-								onClick={handlePublish}
+								disabled={publishingDraft}
+								onClick={handlePublishDraft}
 							>
-								{publishing ? (
+								{publishingDraft ? (
 									<Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
 								) : (
 									<Send className="mr-1.5 h-3.5 w-3.5" />
@@ -497,15 +503,24 @@ function OwnProfileView({
 				)}
 
 				{/* Actions */}
-				<div>
+				<div className="flex gap-2">
 					<Button
 						variant="outline"
 						size="sm"
 						onClick={() => setEditorOpen(true)}
 					>
-						<Pencil className="mr-1.5 h-3.5 w-3.5" />
+						<Pencil data-icon="inline-start" />
 						Edit Profile
 					</Button>
+					{!isPublished && (
+						<Button
+							size="sm"
+							onClick={onPublish}
+							disabled={publishing}
+						>
+							{publishing ? 'Publishing...' : 'Publish Identity'}
+						</Button>
+					)}
 				</div>
 
 				{/* Profile fields card */}
@@ -576,7 +591,12 @@ export function IdentityView({ params, onNavigate }: IdentityViewProps = {}) {
 				rpc.request.getIdentity(),
 				rpc.request.getActiveAccount(),
 			])
-			setOwnBapId(identityResult.bapId)
+			// Use on-chain BAP ID if available, otherwise fall back to registry bapId
+			setOwnBapId(
+				identityResult.bapId ??
+				accountResult.account?.bapId ??
+				null,
+			)
 			setProfile(identityResult.profile)
 			setIdentityKey(accountResult.account?.identityKey ?? null)
 			setError(null)
@@ -651,22 +671,31 @@ export function IdentityView({ params, onNavigate }: IdentityViewProps = {}) {
 				</div>
 			)}
 
-			{!ownBapId ? (
-				<Empty
-					icon={UserCircle2}
-					title="No identity published"
-					description="Publish your identity to use social features and verified interactions."
-					action={{
-						label: publishing ? 'Publishing...' : 'Publish Identity',
-						onClick: handlePublish,
-					}}
-				/>
-			) : (
+			{ownBapId ? (
 				<OwnProfileView
 					bapId={ownBapId}
 					identityKey={identityKey ?? ownBapId}
 					profile={profile}
+					isPublished={Boolean(profile)}
+					onPublish={handlePublish}
+					publishing={publishing}
 					onRefresh={fetchIdentity}
+				/>
+			) : identityKey ? (
+				<OwnProfileView
+					bapId={identityKey.slice(0, 20)}
+					identityKey={identityKey}
+					profile={null}
+					isPublished={false}
+					onPublish={handlePublish}
+					publishing={publishing}
+					onRefresh={fetchIdentity}
+				/>
+			) : (
+				<Empty
+					icon={UserCircle2}
+					title="No identity available"
+					description="Create or import a wallet to set up your identity."
 				/>
 			)}
 		</div>

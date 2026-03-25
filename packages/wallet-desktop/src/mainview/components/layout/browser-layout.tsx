@@ -1340,6 +1340,8 @@ export function BrowserLayout() {
 		const tab = makeNewTab()
 		setTabs((prev) => [...prev, tab])
 		setActiveTabId(tab.id)
+		// Focus the address bar after the tab renders
+		setTimeout(() => addressBarRef.current?.focus(), 50)
 	}, [])
 
 	const switchToTab = useCallback((index: number) => {
