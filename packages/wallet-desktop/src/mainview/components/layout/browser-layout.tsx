@@ -726,46 +726,72 @@ function IdentityChip({
 				className="p-0 border-border shadow-xl"
 				style={{ width: 240, borderRadius: 0 }}
 			>
-				{/* Identity header */}
-				<div className="flex items-center gap-3 px-4 py-3 border-b border-border">
-					{/* Avatar circle */}
+				{/* Current profile — click to view */}
+				<button
+					type="button"
+					onClick={() => navigate('1sat://identity/profile')}
+					className="w-full flex items-center gap-3 px-4 py-3 border-b border-border hover:bg-muted/30 transition-colors text-left"
+				>
 					<div
 						className={cn(
 							'size-8 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold',
-							isPublished
-								? 'bg-primary/15 text-primary'
-								: 'bg-muted text-muted-foreground',
+							activeAccount?.color
+								? `bg-${activeAccount.color}-500 text-white`
+								: isPublished
+									? 'bg-primary/15 text-primary'
+									: 'bg-muted text-muted-foreground',
 						)}
-						style={{ fontFamily: 'var(--font-sans)' }}
 					>
 						{initials ?? <UserCircle2 size={16} />}
 					</div>
-					<div className="flex flex-col min-w-0">
-						<span
-							className="text-[12px] font-semibold text-foreground truncate leading-tight"
-							style={{ fontFamily: 'var(--font-sans)' }}
-						>
+					<div className="flex flex-col min-w-0 flex-1">
+						<span className="text-[12px] font-semibold text-foreground truncate leading-tight">
 							{displayName ?? 'anonymous'}
 						</span>
 						{identity?.bapId && (
-							<span className="text-[10px] text-muted-foreground font-[family-name:var(--font-mono)] truncate leading-tight">
+							<span className="text-[10px] text-muted-foreground font-mono truncate leading-tight">
 								{truncateBapId(identity.bapId)}
 							</span>
 						)}
 					</div>
-				</div>
+				</button>
+
+				{/* Other accounts */}
+				{otherAccounts.length > 0 && (
+					<div className="p-1.5 border-b border-border">
+						{otherAccounts.map((account) => {
+							const acctInitials = account.displayName
+								.split(/\s+/)
+								.slice(0, 2)
+								.map((w) => w[0]?.toUpperCase() ?? '')
+								.join('')
+							return (
+								<button
+									key={account.id}
+									type="button"
+									onClick={() => {
+										setOpen(false)
+										// TODO: open as separate window (singleton per account)
+										rpc.request.switchAccount({ accountId: account.id })
+									}}
+									className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-[12px] text-foreground hover:bg-muted/50 transition-colors rounded-[3px] cursor-default"
+								>
+									<div
+										className={`size-6 rounded-full flex items-center justify-center text-[9px] font-semibold shrink-0 bg-${account.color}-500 text-white`}
+									>
+										{acctInitials}
+									</div>
+									<span className="text-[12px] truncate flex-1">
+										{account.displayName}
+									</span>
+								</button>
+							)
+						})}
+					</div>
+				)}
 
 				{/* Actions */}
 				<div className="flex flex-col gap-0.5 p-1.5">
-					<button
-						type="button"
-						onClick={() => navigate('1sat://identity/profile')}
-						className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-[12px] text-foreground hover:bg-muted/50 transition-colors rounded-[3px] cursor-default"
-					>
-						<UserCircle2 size={13} className="shrink-0 text-muted-foreground" />
-						<span style={{ fontFamily: 'var(--font-sans)' }}>View Profile</span>
-					</button>
-
 					{!isPublished && (
 						<button
 							type="button"
@@ -773,26 +799,9 @@ function IdentityChip({
 							className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-[12px] text-foreground hover:bg-muted/50 transition-colors rounded-[3px] cursor-default"
 						>
 							<UserPlus size={13} className="shrink-0 text-muted-foreground" />
-							<span style={{ fontFamily: 'var(--font-sans)' }}>
-								Publish Identity
-							</span>
+							<span>Publish Identity</span>
 						</button>
 					)}
-				</div>
-
-				<Separator />
-
-				<div className="flex flex-col gap-0.5 p-1.5">
-					<button
-						type="button"
-						onClick={() => navigate('1sat://onboarding/import')}
-						className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-[12px] text-foreground hover:bg-muted/50 transition-colors rounded-[3px] cursor-default"
-					>
-						<LogIn size={13} className="shrink-0 text-muted-foreground" />
-						<span style={{ fontFamily: 'var(--font-sans)' }}>
-							Import Account
-						</span>
-					</button>
 
 					<button
 						type="button"
@@ -806,50 +815,9 @@ function IdentityChip({
 						)}
 					>
 						<Lock size={13} className="shrink-0 text-muted-foreground" />
-						<span style={{ fontFamily: 'var(--font-sans)' }}>Lock Wallet</span>
+						<span>Lock Wallet</span>
 					</button>
 				</div>
-
-				{otherAccounts.length > 0 && (
-					<>
-						<Separator />
-						<div className="p-1.5">
-							<p className="px-2.5 py-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-								Other Accounts
-							</p>
-							{otherAccounts.map((account) => (
-								<button
-									key={account.id}
-									type="button"
-									onClick={() => {
-										setOpen(false)
-										rpc.request.switchAccount({ accountId: account.id })
-									}}
-									className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-[12px] text-foreground hover:bg-muted/50 transition-colors rounded-[3px] cursor-default"
-								>
-									<div
-										className={cn(
-											'size-5 rounded-full flex items-center justify-center text-[8px] font-semibold shrink-0',
-											`bg-${account.color}-500/15 text-${account.color}-500`,
-										)}
-									>
-										{account.displayName
-											.split(/\s+/)
-											.slice(0, 2)
-											.map((w) => w[0]?.toUpperCase() ?? '')
-											.join('')}
-									</div>
-									<span
-										className="text-[12px] truncate"
-										style={{ fontFamily: 'var(--font-sans)' }}
-									>
-										{account.displayName}
-									</span>
-								</button>
-							))}
-						</div>
-					</>
-				)}
 			</PopoverContent>
 		</Popover>
 	)
