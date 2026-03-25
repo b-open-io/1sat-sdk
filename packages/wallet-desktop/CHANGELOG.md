@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.0.9] - 2026-03-25
+
+### Added
+- Multi-account support with Chrome-style profile picker on startup
+- Per-account Secure Enclave keys and isolated wallet databases
+- Profile setup flow after account creation (name input, color picker, live avatar preview)
+- Account registry stored in config-store for tracking accounts
+- Hotkey navigation throughout wizard (arrow keys to navigate, Enter to select)
+- Account switcher in identity chip popover (Other Accounts section)
+- Legacy single-account wallets auto-migrate on first launch
+- BAP profile name resolution for account display names
+- Bundle CEF on macOS for consistent Chromium rendering
+
+### Fixed
+- Secure Enclave key isolation per build channel (dev/stable/canary no longer overwrite each other)
+- Drag region cursor now shows pointer instead of text cursor
+- Address bar text vertical centering
+- Identity chip falls back to account registry name when no BAP profile exists
+- Import/create wallet views centered vertically
+- Profile setup re-trigger prevention for already-configured accounts
+- Network tab sidecar UI restored
+
 ## [0.0.8] - 2026-03-25
 
 ### Added
