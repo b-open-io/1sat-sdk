@@ -25,6 +25,13 @@ import { closeMcpClient } from './mcp/client'
 import { startMcpServer, stopMcpServer } from './mcp/server'
 import { createRpcHandlers } from './rpc-handlers'
 import {
+	checkForUpdatesManual,
+	checkForUpdatesOnLaunch,
+	setUpdateStatusPusher,
+	startBackgroundUpdateCheck,
+	stopBackgroundUpdateCheck,
+} from './updater'
+import {
 	checkVault,
 	setBalanceUpdatedCallback,
 	setStatusChangedCallback,
@@ -176,6 +183,7 @@ ApplicationMenu.setApplicationMenu([
 		label: '1Sat',
 		submenu: [
 			{ label: 'About 1Sat', role: 'about' },
+			{ label: 'Check for Updates...', action: 'check-updates' },
 			{ type: 'separator' },
 			{ role: 'hide' },
 			{ role: 'hideOthers' },
@@ -221,6 +229,7 @@ ApplicationMenu.setApplicationMenu([
 
 Electrobun.events.on('application-menu-clicked', (e) => {
 	if (e.data.action === 'quit') {
+		stopBackgroundUpdateCheck()
 		shutdownChatManager()
 		closeMcpClient()
 		stopMcpServer()
@@ -231,6 +240,9 @@ Electrobun.events.on('application-menu-clicked', (e) => {
 	}
 	if (e.data.action === 'toggle-sync-log') {
 		mainWindow.webview.rpc.send.toggleSyncLog({})
+	}
+	if (e.data.action === 'check-updates') {
+		checkForUpdatesManual()
 	}
 })
 
@@ -258,6 +270,11 @@ setChatMessageCallback((msg) => {
 	mainWindow.webview.rpc.send.chatMessageReceived(msg)
 })
 
+// Push update status changes to the WebView
+setUpdateStatusPusher((status, version, error) => {
+	mainWindow.webview.rpc.send.updateStatus({ status, version, error })
+})
+
 // Check vault on launch — triggers setStatusChangedCallback which pushes to WebView.
 // Also send the initial state once the webview DOM is ready.
 const hasKey = checkVault()
@@ -268,6 +285,10 @@ mainWindow.webview.on('dom-ready', () => {
 	mainWindow.webview.rpc.send.walletStateChanged({
 		status: hasKey ? 'locked' : 'no-wallet',
 	})
+
+	// Auto-update: check on launch (non-blocking), then hourly in the background
+	checkForUpdatesOnLaunch()
+	startBackgroundUpdateCheck()
 })
 
 // ============================================================================

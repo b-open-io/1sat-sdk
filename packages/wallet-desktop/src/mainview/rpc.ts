@@ -5,6 +5,7 @@ import type {
 	OrdinalInfo,
 	PermissionRequest,
 	SyncEvent,
+	UpdateStatusPayload,
 	WalletDesktopRPC,
 	WalletStatus,
 } from '../shared/types'
@@ -127,6 +128,9 @@ const rpc = Electroview.defineRPC<WalletDesktopRPC>({
 			toggleSyncLog: (_payload: Record<string, never>) => {
 				emit('toggleSyncLog', {})
 			},
+			updateStatus: (payload: UpdateStatusPayload) => {
+				emit('updateStatus', payload)
+			},
 		},
 	},
 })
@@ -182,6 +186,10 @@ function onToggleSyncLog(fn: Listener<Record<string, never>>): Unsubscribe {
 	return subscribe('toggleSyncLog', fn)
 }
 
+function onUpdateStatus(fn: Listener<UpdateStatusPayload>): Unsubscribe {
+	return subscribe('updateStatus', fn)
+}
+
 export {
 	electroview,
 	rpc,
@@ -196,4 +204,5 @@ export {
 	onStackOnboardingComplete,
 	onNavigateToUrl,
 	onToggleSyncLog,
+	onUpdateStatus,
 }

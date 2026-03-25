@@ -53,6 +53,11 @@ import {
 } from './chat-manager'
 import { getStackUrl, isStackRunning } from './sidecar-manager'
 import {
+	applyUpdate,
+	checkForUpdatesManual,
+	getAppVersionInfo,
+} from './updater'
+import {
 	create,
 	deleteWallet,
 	getStatus,
@@ -715,6 +720,21 @@ export function createRpcHandlers() {
 		unsubscribeChatChannel: ({ channel }: { channel: string }) => {
 			unsubscribeChannel(channel)
 			return { success: true }
+		},
+
+		checkForUpdates: () => {
+			// Fire-and-forget — status pushes arrive via the updateStatus message
+			checkForUpdatesManual()
+			return { success: true }
+		},
+
+		applyUpdate: async () => {
+			await applyUpdate()
+			return { success: true }
+		},
+
+		getAppVersion: async () => {
+			return await getAppVersionInfo()
 		},
 	}
 }
