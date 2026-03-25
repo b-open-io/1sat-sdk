@@ -79,10 +79,11 @@ import {
 	getActiveAccountId,
 	getStatus,
 	getWallet,
-	lock,
-	switchAccount,
+	isAccountOpen,
+	lockAccount,
 	unlock,
 } from './wallet-manager'
+import { openAccountWindow, focusAccountWindow, isWindowOpen } from './window-manager'
 
 // ============================================================================
 // MIME type lookup
@@ -170,9 +171,8 @@ export function createRpcHandlers() {
 			try {
 				const account = getAccount(accountId)
 				if (!account) return { success: false, error: 'Account not found' }
-				await unlock(accountId, '')
-				touchAccount(accountId)
-				setLastActiveAccountId(accountId)
+				// Open a new window for this account (or focus existing)
+				await openAccountWindow(accountId)
 				return { success: true }
 			} catch (err) {
 				return {
@@ -316,9 +316,8 @@ export function createRpcHandlers() {
 			try {
 				const account = getAccount(accountId)
 				if (!account) return { success: false, error: 'Account not found' }
-				await switchAccount(accountId, '')
-				touchAccount(accountId)
-				setLastActiveAccountId(accountId)
+				// Open/focus a window for the target account
+				await openAccountWindow(accountId)
 				return { success: true }
 			} catch (err) {
 				return {
@@ -361,7 +360,10 @@ export function createRpcHandlers() {
 		// ---- Wallet lifecycle ----
 
 		lockWallet: async () => {
-			await lock()
+			const accountId = getActiveAccountId()
+			if (accountId) {
+				await lockAccount(accountId)
+			}
 			return { success: true }
 		},
 
