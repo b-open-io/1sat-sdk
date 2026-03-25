@@ -174,12 +174,27 @@ export async function handleMcpProxyCommand(): Promise<void> {
 				reqLog.emit()
 
 				if (contentType.includes('text/event-stream')) {
-					const text = await res.text()
-					for (const eventLine of text.split('\n')) {
-						if (eventLine.startsWith('data: ')) {
-							const data = eventLine.slice(6).trim()
-							if (data) process.stdout.write(`${data}\n`)
+					// Stream SSE events incrementally — res.text() would hang
+					// because SSE connections stay open indefinitely
+					const sseReader = res.body!.getReader()
+					const sseDecoder = new TextDecoder()
+					let sseBuf = ''
+					while (true) {
+						const { done: sseDone, value: sseValue } = await sseReader.read()
+						if (sseDone) break
+						sseBuf += sseDecoder.decode(sseValue, { stream: true })
+						const sseLines = sseBuf.split('\n')
+						sseBuf = sseLines.pop()!
+						for (const sseLine of sseLines) {
+							if (sseLine.startsWith('data: ')) {
+								const data = sseLine.slice(6).trim()
+								if (data) process.stdout.write(`${data}\n`)
+							}
 						}
+					}
+					if (sseBuf.startsWith('data: ')) {
+						const data = sseBuf.slice(6).trim()
+						if (data) process.stdout.write(`${data}\n`)
 					}
 				} else {
 					const body = await res.text()

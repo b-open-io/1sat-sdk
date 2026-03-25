@@ -175,7 +175,7 @@ ApplicationMenu.setApplicationMenu([
 	{
 		label: '1Sat',
 		submenu: [
-			{ label: 'About 1Sat', role: 'hide' },
+			{ label: 'About 1Sat', role: 'about' },
 			{ type: 'separator' },
 			{ role: 'hide' },
 			{ role: 'hideOthers' },
