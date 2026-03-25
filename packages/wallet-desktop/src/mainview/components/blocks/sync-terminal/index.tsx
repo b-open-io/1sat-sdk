@@ -44,6 +44,8 @@ export interface SyncTerminalProps {
   autoScroll?: boolean
   /** Whether the terminal starts open (default: false) */
   defaultOpen?: boolean
+  /** Optional content rendered right-aligned in the header bar */
+  headerRight?: React.ReactNode
   /** Optional CSS class name */
   className?: string
 }
@@ -83,6 +85,7 @@ export function SyncTerminal({
   showSource = true,
   autoScroll = true,
   defaultOpen = false,
+  headerRight,
   className,
 }: SyncTerminalProps) {
   const [open, setOpen] = useState(defaultOpen)
@@ -106,6 +109,7 @@ export function SyncTerminal({
       open={open}
       onOpenChange={handleOpenChange}
       bottomRef={bottomRef}
+      headerRight={headerRight}
       className={className}
     />
   )

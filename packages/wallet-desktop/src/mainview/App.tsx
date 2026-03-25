@@ -1,5 +1,4 @@
 import { Button } from '@/components/ui/button'
-import type { AppVersionInfo } from '../shared/types'
 import { useEffect, useRef, useState } from 'react'
 import { BigBlocksProvider } from '@/components/blocks/bigblocks-provider'
 import { PermissionApproval } from '@/components/blocks/permission-approval'
@@ -15,26 +14,6 @@ import { UnlockWallet } from './views/onboarding/unlock-wallet'
 
 type OnboardingChoice = 'none' | 'create' | 'use-backup'
 
-function ChannelBadge() {
-	const [info, setInfo] = useState<AppVersionInfo | null>(null)
-	useEffect(() => {
-		rpc.request.getAppVersion().then(setInfo).catch(() => {})
-	}, [])
-	if (!info) return null
-	return (
-		<div className="fixed bottom-2 right-2 z-50 flex items-center gap-1.5 px-2 py-0.5 rounded bg-muted/80 backdrop-blur-sm text-[10px] text-muted-foreground font-mono select-none pointer-events-none">
-			<span>v{info.version}</span>
-			<span className="text-muted-foreground/50">|</span>
-			<span>{info.channel}</span>
-			{info.hash && info.hash !== info.channel && (
-				<>
-					<span className="text-muted-foreground/50">|</span>
-					<span>{info.hash.slice(0, 7)}</span>
-				</>
-			)}
-		</div>
-	)
-}
 
 function LoadingScreen() {
 	const [elapsed, setElapsed] = useState(0)
@@ -168,12 +147,7 @@ function App() {
 		return <OnboardingChoice onChoose={setOnboardingChoice} />
 	})()
 
-	return (
-		<>
-			{content}
-			<ChannelBadge />
-		</>
-	)
+	return content
 }
 
 export default App

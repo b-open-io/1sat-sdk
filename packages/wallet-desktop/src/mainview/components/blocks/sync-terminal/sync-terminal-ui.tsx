@@ -30,6 +30,8 @@ export interface SyncTerminalUIProps {
   onOpenChange?: (open: boolean) => void
   /** Ref to attach to the scroll sentinel at the bottom */
   bottomRef?: React.RefObject<HTMLDivElement | null>
+  /** Optional content rendered right-aligned in the header bar */
+  headerRight?: React.ReactNode
   /** Optional CSS class name */
   className?: string
 }
@@ -100,6 +102,7 @@ export function SyncTerminalUI({
   open = false,
   onOpenChange,
   bottomRef,
+  headerRight,
   className,
 }: SyncTerminalUIProps) {
   return (
@@ -126,7 +129,10 @@ export function SyncTerminalUI({
             </span>
           )}
         </div>
-        {status && <StatusDot status={status} />}
+        <div className="flex items-center gap-3">
+          {status && <StatusDot status={status} />}
+          {headerRight}
+        </div>
       </CollapsibleTrigger>
 
       <CollapsibleContent>

@@ -1064,6 +1064,16 @@ const FIRST_TAB: TabState = {
 
 export function BrowserLayout() {
 	const { events } = useSyncEvents()
+	const [versionInfo, setVersionInfo] = useState<{ version: string; channel: string; hash: string } | null>(null)
+	useEffect(() => {
+		rpc.request.getAppVersion().then(setVersionInfo).catch(() => {})
+	}, [])
+	const versionLabel = versionInfo ? (
+		<span className="text-[10px] text-muted-foreground font-mono select-none pointer-events-none">
+			v{versionInfo.version} | {versionInfo.channel}
+			{versionInfo.hash && versionInfo.hash !== versionInfo.channel ? ` | ${versionInfo.hash.slice(0, 7)}` : ''}
+		</span>
+	) : null
 	const [stackOnboardingUrl, setStackOnboardingUrl] = useState<string | null>(
 		null,
 	)
@@ -1710,7 +1720,7 @@ export function BrowserLayout() {
 					{contentArea}
 
 					{/* Sync terminal — toggled via Cmd+Shift+J */}
-					{syncLogEnabled && <SyncTerminal events={events} />}
+					{syncLogEnabled && <SyncTerminal events={events} headerRight={versionLabel} />}
 
 					{/* Link hover tooltip — Chrome-style status bar */}
 					{hoveredLink && (
@@ -1765,7 +1775,7 @@ export function BrowserLayout() {
 			{contentArea}
 
 			{/* Sync terminal — toggled via Cmd+Shift+J */}
-			{syncLogEnabled && <SyncTerminal events={events} />}
+			{syncLogEnabled && <SyncTerminal events={events} headerRight={versionLabel} />}
 
 			{/* Link hover tooltip — Chrome-style status bar */}
 			{hoveredLink && (
