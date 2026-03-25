@@ -380,8 +380,7 @@ function StackStep({
 	const handleSetup = useCallback(async () => {
 		setWaitingForStack(true)
 		// Wait for the stack to actually respond before opening the window
-		const maxAttempts = 20
-		for (let i = 0; i < maxAttempts; i++) {
+		for (let i = 0; i < 20; i++) {
 			try {
 				const res = await fetch(adminUrl, { method: 'HEAD', signal: AbortSignal.timeout(2000) })
 				if (res.ok) break

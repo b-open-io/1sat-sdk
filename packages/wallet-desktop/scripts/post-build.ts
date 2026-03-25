@@ -2,7 +2,7 @@
  * Post-build hook: copies the Secure Enclave binary into MacOS/
  * so Electrobun's codesign step signs it with the other binaries.
  */
-import { cpSync, existsSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -42,3 +42,19 @@ if (!existsSync(macOSDir)) {
 
 cpSync(enclaveSrc, enclaveDest)
 console.log(`[post-build] Copied enclave → ${enclaveDest}`)
+
+// Copy 1sat-stack sidecar binary into Resources/
+const resourcesDir = join(buildDir, `${appName}.app`, 'Contents', 'Resources')
+const stackSrc = resolve(__dirname, '..', '1sat-stack-binary')
+const stackDest = join(resourcesDir, '1sat-stack')
+
+console.log(`[post-build] Looking for 1sat-stack at: ${stackSrc}`)
+
+if (existsSync(stackSrc)) {
+	cpSync(stackSrc, stackDest)
+	chmodSync(stackDest, 0o755)
+	console.log(`[post-build] Copied 1sat-stack → ${stackDest}`)
+} else {
+	console.warn(`[post-build] WARNING: 1sat-stack binary not found at ${stackSrc}`)
+	console.warn('[post-build] The app will not be able to run the blockchain sidecar.')
+}

@@ -110,6 +110,29 @@ jobs:
             fi
 
       - run:
+          name: Build 1sat-stack sidecar binary
+          command: |
+            # Install Go if not present
+            if ! command -v go &> /dev/null; then
+              GO_VERSION="1.23.6"
+              curl -fsSL "https://go.dev/dl/go${GO_VERSION}.darwin-arm64.tar.gz" -o go.tar.gz
+              sudo tar -C /usr/local -xzf go.tar.gz
+              rm go.tar.gz
+              echo 'export PATH="/usr/local/go/bin:$PATH"' >> $BASH_ENV
+              source $BASH_ENV
+            fi
+            go version
+
+            # Clone and build 1sat-stack
+            if [ ! -d ~/1sat-stack ]; then
+              git clone --depth 1 https://github.com/b-open-io/1sat-stack.git ~/1sat-stack
+            fi
+            cd ~/1sat-stack
+            go build -o ~/project/packages/wallet-desktop/1sat-stack-binary ./cmd/server
+            echo "1sat-stack binary built successfully"
+            ls -la ~/project/packages/wallet-desktop/1sat-stack-binary
+
+      - run:
           name: Build workspace dependencies
           command: |
             cd ~/project
