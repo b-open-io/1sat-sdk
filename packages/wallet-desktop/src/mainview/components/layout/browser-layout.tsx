@@ -68,7 +68,7 @@ import {
 	rpc,
 } from '../../rpc'
 import { useWallet } from '../../hooks/use-wallet'
-import type { IdentityInfo } from '../../../shared/types'
+import type { AccountInfo, IdentityInfo } from '../../../shared/types'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -81,7 +81,7 @@ const TRAFFIC_LIGHT_PAD = 60
 const TAB_BAR_HEIGHT = 30
 
 /** Height of the toolbar row */
-const TOOLBAR_HEIGHT = 36
+const TOOLBAR_HEIGHT = 40
 
 /** Home page URL for new tabs */
 const NEW_TAB_URL = '1sat://browser/new'
@@ -596,15 +596,28 @@ function IdentityChip({ onNavigate, onPopoverOpen, onPopoverClose }: IdentityChi
 		else onPopoverClose?.()
 	}, [onPopoverOpen, onPopoverClose])
 
-	// Fetch identity on mount and whenever wallet unlocks
+	const [otherAccounts, setOtherAccounts] = useState<AccountInfo[]>([])
+
+	// Fetch identity and accounts on mount and whenever wallet unlocks
 	useEffect(() => {
 		if (status !== 'unlocked') {
 			setIdentity(null)
+			setOtherAccounts([])
 			return
 		}
 		rpc.request.getIdentity().then(
 			(info) => setIdentity(info),
 			(err) => console.error('getIdentity failed:', err),
+		)
+		Promise.all([
+			rpc.request.listAccounts(),
+			rpc.request.getActiveAccount(),
+		]).then(
+			([list, active]) => {
+				const activeId = active.account?.id
+				setOtherAccounts(list.accounts.filter((a) => a.id !== activeId))
+			},
+			() => {},
 		)
 	}, [status])
 
@@ -642,16 +655,30 @@ function IdentityChip({ onNavigate, onPopoverOpen, onPopoverClose }: IdentityChi
 			<PopoverTrigger asChild>
 				<button
 					type="button"
-					className="flex items-center gap-1 px-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors shrink-0"
-					style={{ borderRadius: 5 }}
-					aria-label="Identity"
+					className="flex items-center justify-center shrink-0 rounded-full transition-all hover:ring-2 hover:ring-primary/30"
+					style={{ width: 26, height: 26 }}
+					aria-label="Profile"
 				>
-					<span
-						className="font-[family-name:var(--font-mono)] text-[10px]"
-					>
-						{displayName ?? 'anonymous'}
-					</span>
-					<ChevronDown size={10} />
+					{identity?.profile?.image ? (
+						<img
+							src={identity.profile.image as string}
+							alt=""
+							className="rounded-full object-cover"
+							style={{ width: 26, height: 26 }}
+						/>
+					) : (
+						<div
+							className={cn(
+								'rounded-full flex items-center justify-center text-[10px] font-semibold',
+								isPublished
+									? 'bg-primary/15 text-primary'
+									: 'bg-muted text-muted-foreground',
+							)}
+							style={{ width: 26, height: 26 }}
+						>
+							{initials ?? <UserCircle2 size={14} />}
+						</div>
+					)}
 				</button>
 			</PopoverTrigger>
 			<PopoverContent

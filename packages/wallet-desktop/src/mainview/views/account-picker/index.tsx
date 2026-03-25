@@ -56,6 +56,7 @@ export function AccountPicker() {
 	const [loading, setLoading] = useState<string | null>(null)
 	const [view, setView] = useState<PickerView>({ kind: 'grid' })
 	const [showOnStartup, setShowOnStartup] = useState(true)
+	const [setupComplete, setSetupComplete] = useState<Set<string>>(new Set())
 
 	// Fetch accounts on mount
 	const refreshAccounts = useCallback(() => {
@@ -104,12 +105,13 @@ export function AccountPicker() {
 	useEffect(() => {
 		if (view.kind !== 'grid' || accounts.length === 0) return
 		const needsSetup = accounts.find((a) =>
-			a.displayName === 'Account 1' || a.displayName === a.identityKey.slice(0, 8),
+			!setupComplete.has(a.id) &&
+			(a.displayName === 'Account 1' || a.displayName === a.identityKey.slice(0, 8)),
 		)
 		if (needsSetup) {
 			setView({ kind: 'profile-setup', accountId: needsSetup.id })
 		}
-	}, [accounts, view.kind])
+	}, [accounts, view.kind, setupComplete])
 
 	// If a new account was just created (status changed to 'unlocked' during create/import),
 	// lock it back and show profile setup. The wallet stays created but locked until the user
@@ -147,6 +149,11 @@ export function AccountPicker() {
 	}
 
 	const handleProfileSetupComplete = () => {
+		// Track this account as setup-complete so the auto-detect effect
+		// doesn't re-trigger before refreshAccounts resolves
+		if (view.kind === 'profile-setup') {
+			setSetupComplete((prev) => new Set(prev).add(view.accountId))
+		}
 		refreshAccounts()
 		setView({ kind: 'grid' })
 	}
