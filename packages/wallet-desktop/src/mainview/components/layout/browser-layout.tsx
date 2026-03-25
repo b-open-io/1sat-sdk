@@ -1055,12 +1055,7 @@ function getFullUrl(route: ParsedRoute): string {
 // BrowserLayout
 // ---------------------------------------------------------------------------
 
-const INITIAL_TAB = makeNewTab()
-// Override initial tab to start at wallet/overview (same as legacy behavior)
-const FIRST_TAB: TabState = {
-	...INITIAL_TAB,
-	nav: NAV_INITIAL_STATE,
-}
+const FIRST_TAB: TabState = makeNewTab()
 
 export function BrowserLayout() {
 	const { events } = useSyncEvents()
