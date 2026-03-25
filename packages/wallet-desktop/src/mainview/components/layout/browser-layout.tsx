@@ -35,6 +35,7 @@ import {
 	X,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Avatar from 'sigma-avatars'
 import {
 	type BrowserSettings,
 	loadBrowserSettings,
@@ -694,7 +695,7 @@ function IdentityChip({
 			<PopoverTrigger asChild>
 				<button
 					type="button"
-					className="flex items-center justify-center shrink-0 rounded-full transition-all hover:ring-2 hover:ring-primary/30"
+					className="flex items-center justify-center shrink-0 rounded-full transition-all hover:ring-2 hover:ring-primary/30 overflow-hidden"
 					style={{ width: 26, height: 26 }}
 					aria-label="Profile"
 				>
@@ -702,20 +703,19 @@ function IdentityChip({
 						<img
 							src={identity.profile.image as string}
 							alt=""
-							className="rounded-full object-cover"
-							style={{ width: 26, height: 26 }}
+							className="rounded-full object-cover size-[26px]"
+						/>
+					) : activeAccount?.identityKey ? (
+						<Avatar
+							name={activeAccount.identityKey}
+							variant="pixel"
+							size={26}
+							colors={['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']}
+							className="rounded-full"
 						/>
 					) : (
-						<div
-							className={cn(
-								'rounded-full flex items-center justify-center text-[10px] font-semibold',
-								isPublished
-									? 'bg-primary/15 text-primary'
-									: 'bg-muted text-muted-foreground',
-							)}
-							style={{ width: 26, height: 26 }}
-						>
-							{initials ?? <UserCircle2 size={14} />}
+						<div className="rounded-full flex items-center justify-center text-[10px] font-semibold bg-muted text-muted-foreground size-[26px]">
+							<UserCircle2 size={14} />
 						</div>
 					)}
 				</button>
@@ -732,17 +732,20 @@ function IdentityChip({
 					onClick={() => navigate('1sat://identity/profile')}
 					className="w-full flex items-center gap-3 px-4 py-3 border-b border-border hover:bg-muted/30 transition-colors text-left"
 				>
-					<div
-						className={cn(
-							'size-8 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold',
-							activeAccount?.color
-								? `bg-${activeAccount.color}-500 text-white`
-								: isPublished
-									? 'bg-primary/15 text-primary'
-									: 'bg-muted text-muted-foreground',
+					<div className="size-8 rounded-full overflow-hidden shrink-0">
+						{activeAccount?.identityKey ? (
+							<Avatar
+								name={activeAccount.identityKey}
+								variant="pixel"
+								size={32}
+								colors={['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']}
+								className="rounded-full"
+							/>
+						) : (
+							<div className="size-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground">
+								<UserCircle2 size={16} />
+							</div>
 						)}
-					>
-						{initials ?? <UserCircle2 size={16} />}
 					</div>
 					<div className="flex flex-col min-w-0 flex-1">
 						<span className="text-[12px] font-semibold text-foreground truncate leading-tight">
