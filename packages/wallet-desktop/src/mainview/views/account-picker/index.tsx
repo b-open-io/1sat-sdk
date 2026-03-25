@@ -104,9 +104,11 @@ export function AccountPicker() {
 	// Auto-show profile setup for accounts with placeholder names (e.g. migrated accounts)
 	useEffect(() => {
 		if (view.kind !== 'grid' || accounts.length === 0) return
-		const needsSetup = accounts.find((a) =>
-			!setupComplete.has(a.id) &&
-			(a.displayName === 'Account 1' || a.displayName === a.identityKey.slice(0, 8)),
+		const needsSetup = accounts.find(
+			(a) =>
+				!setupComplete.has(a.id) &&
+				(a.displayName === 'Account 1' ||
+					a.displayName === a.identityKey.slice(0, 8)),
 		)
 		if (needsSetup) {
 			setView({ kind: 'profile-setup', accountId: needsSetup.id })
@@ -117,7 +119,10 @@ export function AccountPicker() {
 	// lock it back and show profile setup. The wallet stays created but locked until the user
 	// selects it from the picker after setting up their profile.
 	useEffect(() => {
-		if (status === 'unlocked' && (view.kind === 'create' || view.kind === 'import')) {
+		if (
+			status === 'unlocked' &&
+			(view.kind === 'create' || view.kind === 'import')
+		) {
 			// Get the newly created account ID, lock wallet, show profile setup
 			rpc.request.getActiveAccount().then((r) => {
 				if (r.account) {
@@ -236,7 +241,17 @@ export function AccountPicker() {
 				{/* Footer */}
 				<div className="flex justify-between items-center pt-3 border-t border-border">
 					<p className="text-[10px] text-muted-foreground/60">
-						<kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">&larr;</kbd> <kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">&rarr;</kbd> navigate, <kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">Enter</kbd> select
+						<kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">
+							&larr;
+						</kbd>{' '}
+						<kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">
+							&rarr;
+						</kbd>{' '}
+						navigate,{' '}
+						<kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">
+							Enter
+						</kbd>{' '}
+						select
 					</p>
 					<label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
 						<input

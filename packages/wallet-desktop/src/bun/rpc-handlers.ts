@@ -46,22 +46,22 @@ import type {
 	TokenBalance,
 } from '../shared/types'
 import {
+	addAccount,
+	getAccount,
+	getShowPickerOnStartup,
+	listAccounts,
+	removeAccount,
+	setLastActiveAccountId,
+	setShowPickerOnStartup,
+	touchAccount,
+	updateAccount as updateAccountRegistry,
+} from './account-registry'
+import {
 	fetchChannelMessages,
 	getChatChannels,
 	subscribeChannel,
 	unsubscribeChannel,
 } from './chat-manager'
-import {
-	addAccount,
-	getAccount,
-	listAccounts,
-	getShowPickerOnStartup,
-	setShowPickerOnStartup,
-	setLastActiveAccountId,
-	touchAccount,
-	updateAccount as updateAccountRegistry,
-	removeAccount,
-} from './account-registry'
 import { getConfigStore } from './config-store'
 import { getStackUrl, isStackRunning } from './sidecar-manager'
 import {
@@ -172,7 +172,10 @@ export function createRpcHandlers() {
 				setLastActiveAccountId(accountId)
 				return { success: true }
 			} catch (err) {
-				return { success: false, error: err instanceof Error ? err.message : String(err) }
+				return {
+					success: false,
+					error: err instanceof Error ? err.message : String(err),
+				}
 			}
 		},
 
@@ -181,7 +184,12 @@ export function createRpcHandlers() {
 			passphrase,
 			displayName,
 			color,
-		}: { mnemonic: string; passphrase?: string; displayName?: string; color?: string }) => {
+		}: {
+			mnemonic: string
+			passphrase?: string
+			displayName?: string
+			color?: string
+		}) => {
 			try {
 				// Derive identity key to compute accountId
 				const { Mnemonic: M, HD: H } = await import('@bsv/sdk')
@@ -209,7 +217,10 @@ export function createRpcHandlers() {
 				setLastActiveAccountId(accountId)
 				return { success: true, accountId }
 			} catch (err) {
-				return { success: false, error: err instanceof Error ? err.message : String(err) }
+				return {
+					success: false,
+					error: err instanceof Error ? err.message : String(err),
+				}
 			}
 		},
 
@@ -218,7 +229,12 @@ export function createRpcHandlers() {
 			passphrase,
 			displayName,
 			color,
-		}: { mnemonic: string; passphrase?: string; displayName?: string; color?: string }) => {
+		}: {
+			mnemonic: string
+			passphrase?: string
+			displayName?: string
+			color?: string
+		}) => {
 			try {
 				if (!isValidMnemonic(mnemonic)) {
 					return { success: false, error: 'Invalid mnemonic phrase' }
@@ -254,7 +270,10 @@ export function createRpcHandlers() {
 				setLastActiveAccountId(accountId)
 				return { success: true, accountId }
 			} catch (err) {
-				return { success: false, error: err instanceof Error ? err.message : String(err) }
+				return {
+					success: false,
+					error: err instanceof Error ? err.message : String(err),
+				}
 			}
 		},
 
@@ -267,7 +286,10 @@ export function createRpcHandlers() {
 				updateAccountRegistry(accountId, { displayName, color })
 				return { success: true }
 			} catch (err) {
-				return { success: false, error: err instanceof Error ? err.message : String(err) }
+				return {
+					success: false,
+					error: err instanceof Error ? err.message : String(err),
+				}
 			}
 		},
 
@@ -280,7 +302,10 @@ export function createRpcHandlers() {
 				}
 				return { success: true }
 			} catch (err) {
-				return { success: false, error: err instanceof Error ? err.message : String(err) }
+				return {
+					success: false,
+					error: err instanceof Error ? err.message : String(err),
+				}
 			}
 		},
 
@@ -293,13 +318,16 @@ export function createRpcHandlers() {
 				setLastActiveAccountId(accountId)
 				return { success: true }
 			} catch (err) {
-				return { success: false, error: err instanceof Error ? err.message : String(err) }
+				return {
+					success: false,
+					error: err instanceof Error ? err.message : String(err),
+				}
 			}
 		},
 
 		getActiveAccount: () => {
 			const id = getActiveAccountId()
-			return { account: id ? getAccount(id) ?? null : null }
+			return { account: id ? (getAccount(id) ?? null) : null }
 		},
 
 		setShowPickerOnStartup: ({ show }: { show: boolean }) => {
@@ -740,9 +768,15 @@ export function createRpcHandlers() {
 			return { txid: result.txid, error: result.error }
 		},
 
-		listOrdinal: async ({ outpoint, price }: { outpoint: string; price: number }) => {
+		listOrdinal: async ({
+			outpoint,
+			price,
+		}: { outpoint: string; price: number }) => {
 			const w = requireWallet()
-			const ctx = createContext(w.wallet, { services: w.services, chain: 'main' })
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
 			const { listOrdinal } = await import('@1sat/actions')
 			const listResult = await w.wallet.listOutputs({
 				basket: 'ordinals',
@@ -762,7 +796,10 @@ export function createRpcHandlers() {
 
 		cancelListing: async ({ outpoint }: { outpoint: string }) => {
 			const w = requireWallet()
-			const ctx = createContext(w.wallet, { services: w.services, chain: 'main' })
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
 			const { cancelListing } = await import('@1sat/actions')
 			const listResult = await w.wallet.listOutputs({
 				basket: 'ordinals',
@@ -781,17 +818,31 @@ export function createRpcHandlers() {
 
 		purchaseOrdinal: async ({ outpoint }: { outpoint: string }) => {
 			const w = requireWallet()
-			const ctx = createContext(w.wallet, { services: w.services, chain: 'main' })
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
 			const { purchaseOrdinal } = await import('@1sat/actions')
 			const result = await purchaseOrdinal.execute(ctx, { outpoint })
 			return { txid: result.txid, error: result.error }
 		},
 
-		purchaseBsv21: async ({ tokenId, outpoint, amount }: { tokenId: string; outpoint: string; amount: string }) => {
+		purchaseBsv21: async ({
+			tokenId,
+			outpoint,
+			amount,
+		}: { tokenId: string; outpoint: string; amount: string }) => {
 			const w = requireWallet()
-			const ctx = createContext(w.wallet, { services: w.services, chain: 'main' })
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
 			const { purchaseBsv21 } = await import('@1sat/actions')
-			const result = await purchaseBsv21.execute(ctx, { tokenId, outpoint, amount })
+			const result = await purchaseBsv21.execute(ctx, {
+				tokenId,
+				outpoint,
+				amount,
+			})
 			return { txid: result.txid, error: result.error }
 		},
 
@@ -830,10 +881,14 @@ export function createRpcHandlers() {
 
 			// Try Ollama-native endpoint first (/api/tags)
 			try {
-				const res = await fetch(`${stripped}/api/tags`, { signal: AbortSignal.timeout(3000) })
+				const res = await fetch(`${stripped}/api/tags`, {
+					signal: AbortSignal.timeout(3000),
+				})
 				if (res.ok) {
 					const data = await res.json()
-					const models = (data.models ?? []).map((m: { name: string }) => m.name)
+					const models = (data.models ?? []).map(
+						(m: { name: string }) => m.name,
+					)
 					if (models.length > 0) return { available: true, models }
 				}
 			} catch {
@@ -843,7 +898,9 @@ export function createRpcHandlers() {
 			// Try OpenAI-compatible endpoint (/v1/models) — LM Studio, etc.
 			try {
 				const v1Base = url.endsWith('/v1') ? url : `${stripped}/v1`
-				const res = await fetch(`${v1Base}/models`, { signal: AbortSignal.timeout(3000) })
+				const res = await fetch(`${v1Base}/models`, {
+					signal: AbortSignal.timeout(3000),
+				})
 				if (res.ok) {
 					const data = await res.json()
 					const models = (data.data ?? []).map((m: { id: string }) => m.id)

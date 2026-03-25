@@ -612,21 +612,6 @@ function NetworkTab({ onNavigate }: { onNavigate?: (url: string) => void }) {
 	const uptimeDisplay =
 		health.uptimeSeconds !== null ? formatUptime(health.uptimeSeconds) : '—'
 
-	const switchClasses = (enabled: boolean, disabled: boolean) =>
-		[
-			'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors',
-			'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-			'disabled:cursor-not-allowed disabled:opacity-50',
-			enabled ? 'bg-primary' : 'bg-input',
-			disabled ? 'opacity-50' : '',
-		].join(' ')
-
-	const thumbClasses = (enabled: boolean) =>
-		[
-			'pointer-events-none block size-4 rounded-full bg-white shadow-sm ring-0 transition-transform',
-			enabled ? 'translate-x-4' : 'translate-x-0',
-		].join(' ')
-
 	return (
 		<div className="space-y-8 py-4">
 			{/* Status Section */}

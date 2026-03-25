@@ -1,13 +1,3 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-	CheckCircle2,
-	ExternalLink,
-	RefreshCw,
-	Server,
-	SkipForward,
-	Sparkles,
-	UserCircle2,
-} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -20,12 +10,22 @@ import {
 	SelectValue,
 } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
-import { StepIndicator, type Step } from '@/components/ui/step-indicator'
+import { type Step, StepIndicator } from '@/components/ui/step-indicator'
+import {
+	CheckCircle2,
+	ExternalLink,
+	RefreshCw,
+	Server,
+	SkipForward,
+	Sparkles,
+	UserCircle2,
+} from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { rpc } from '../../rpc'
 
 import {
-	type AiProvider,
 	AI_SETTINGS_KEY,
+	type AiProvider,
 	LOCAL_PROVIDERS,
 	PROVIDER_DEFAULTS,
 } from '../../../shared/ai-providers'
@@ -76,7 +76,8 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
 	const steps: Step[] = STEP_LABELS.map((label, i) => ({
 		id: String(i),
 		label,
-		status: i < currentStep ? 'complete' : i === currentStep ? 'active' : 'pending',
+		status:
+			i < currentStep ? 'complete' : i === currentStep ? 'active' : 'pending',
 	}))
 
 	return (
@@ -97,7 +98,9 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
 					<CardContent>
 						{currentStep === 0 && <StackStep onAdvance={handleStackAdvance} />}
 						{currentStep === 1 && <AiStep onAdvance={handleAiAdvance} />}
-						{currentStep === 2 && <IdentityStep onAdvance={handleIdentityAdvance} />}
+						{currentStep === 2 && (
+							<IdentityStep onAdvance={handleIdentityAdvance} />
+						)}
 						{currentStep === 3 && (
 							<ReadyStep result={result} onComplete={onComplete} />
 						)}
@@ -171,7 +174,9 @@ function StackStep({
 		return (
 			<div className="flex flex-col items-center gap-4 py-8">
 				<Spinner className="size-6" />
-				<p className="text-sm text-muted-foreground">Checking stack status...</p>
+				<p className="text-sm text-muted-foreground">
+					Checking stack status...
+				</p>
 			</div>
 		)
 	}
@@ -188,9 +193,7 @@ function StackStep({
 						Blockchain sync is ready
 					</p>
 					{autoAdvancing && (
-						<p className="text-xs text-muted-foreground mt-1">
-							Continuing...
-						</p>
+						<p className="text-xs text-muted-foreground mt-1">Continuing...</p>
 					)}
 				</div>
 			</div>
@@ -232,9 +235,7 @@ function StackStep({
 // Step 2: AI Assistant (Optional)
 // ---------------------------------------------------------------------------
 
-function AiStep({
-	onAdvance,
-}: { onAdvance: (model: string | null) => void }) {
+function AiStep({ onAdvance }: { onAdvance: (model: string | null) => void }) {
 	const [loading, setLoading] = useState(true)
 	const [available, setAvailable] = useState(false)
 	const [models, setModels] = useState<string[]>([])
@@ -248,7 +249,10 @@ function AiStep({
 		setModels([])
 
 		const tryProvider = async (provider: AiProvider): Promise<boolean> => {
-			const baseUrl = PROVIDER_DEFAULTS[provider].baseUrl.replace(/\/v1\/?$/, '')
+			const baseUrl = PROVIDER_DEFAULTS[provider].baseUrl.replace(
+				/\/v1\/?$/,
+				'',
+			)
 			try {
 				const res = await rpc.request.checkAiProvider({ baseUrl })
 				if (res.available && res.models.length > 0) {
@@ -259,7 +263,9 @@ function AiStep({
 					setSelectedProvider(provider)
 					return true
 				}
-			} catch { /* continue */ }
+			} catch {
+				/* continue */
+			}
 			return false
 		}
 
@@ -308,7 +314,10 @@ function AiStep({
 	const providerSelector = (
 		<div className="w-full max-w-xs space-y-2">
 			<Label>AI Provider</Label>
-			<Select value={selectedProvider} onValueChange={(v) => handleProviderChange(v as AiProvider)}>
+			<Select
+				value={selectedProvider}
+				onValueChange={(v) => handleProviderChange(v as AiProvider)}
+			>
 				<SelectTrigger className="w-full">
 					<SelectValue />
 				</SelectTrigger>
@@ -327,7 +336,9 @@ function AiStep({
 		return (
 			<div className="flex flex-col items-center gap-4 py-8">
 				<Spinner className="size-6" />
-				<p className="text-sm text-muted-foreground">Detecting AI provider...</p>
+				<p className="text-sm text-muted-foreground">
+					Detecting AI provider...
+				</p>
 			</div>
 		)
 	}
@@ -363,11 +374,7 @@ function AiStep({
 					</Select>
 				</div>
 				<div className="flex w-full justify-between pt-2">
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={() => onAdvance(null)}
-					>
+					<Button variant="ghost" size="sm" onClick={() => onAdvance(null)}>
 						Skip
 						<SkipForward className="size-3.5" />
 					</Button>
@@ -386,9 +393,7 @@ function AiStep({
 				<Sparkles className="size-6 text-muted-foreground" />
 			</div>
 			<div className="text-center max-w-sm">
-				<p className="text-sm font-medium text-foreground mb-1">
-					AI Assistant
-				</p>
+				<p className="text-sm font-medium text-foreground mb-1">AI Assistant</p>
 				<p className="text-xs text-muted-foreground">
 					Local AI via Ollama or LM Studio enables chat and page summarization.
 				</p>
@@ -405,11 +410,7 @@ function AiStep({
 				</Button>
 			</div>
 			<div className="flex w-full justify-between pt-2">
-				<Button
-					variant="ghost"
-					size="sm"
-					onClick={() => onAdvance(null)}
-				>
+				<Button variant="ghost" size="sm" onClick={() => onAdvance(null)}>
 					Skip
 					<SkipForward className="size-3.5" />
 				</Button>
@@ -434,6 +435,7 @@ function IdentityStep({
 	const [publishing, setPublishing] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 	const [displayName, setDisplayName] = useState('')
+	const [accountColor, setAccountColor] = useState('blue')
 	const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
 	useEffect(() => {
@@ -443,10 +445,19 @@ function IdentityStep({
 	}, [])
 
 	useEffect(() => {
-		Promise.all([rpc.request.getBalance(), rpc.request.getIdentity()])
-			.then(([bal, identity]) => {
+		Promise.all([
+			rpc.request.getBalance(),
+			rpc.request.getIdentity(),
+			rpc.request.getActiveAccount().catch(() => ({ account: null })),
+		])
+			.then(([bal, identity, active]) => {
 				setBalance(bal.confirmed + bal.unconfirmed)
 				setBapId(identity.bapId)
+				if (active.account) {
+					if (active.account.displayName)
+						setDisplayName(active.account.displayName)
+					if (active.account.color) setAccountColor(active.account.color)
+				}
 			})
 			.catch(() => {
 				// leave defaults
@@ -481,12 +492,35 @@ function IdentityStep({
 		)
 	}
 
+	// Account avatar helper
+	const accountInitials = displayName
+		? displayName
+				.split(/\s+/)
+				.slice(0, 2)
+				.map((w) => w[0]?.toUpperCase() ?? '')
+				.join('')
+		: '?'
+
+	const avatarNode = (
+		<div
+			className={`flex size-14 items-center justify-center rounded-full bg-${accountColor}-500 text-white text-lg font-bold`}
+		>
+			{accountInitials}
+		</div>
+	)
+
 	// Already published
 	if (bapId) {
 		return (
 			<div className="flex flex-col items-center gap-4 py-8">
-				<div className="flex size-12 items-center justify-center rounded-full bg-green-500/10">
-					<CheckCircle2 className="size-6 text-green-500" />
+				{avatarNode}
+				{displayName && (
+					<p className="text-sm font-semibold text-foreground -mb-2">
+						{displayName}
+					</p>
+				)}
+				<div className="flex size-8 items-center justify-center rounded-full bg-green-500/10 -mt-1">
+					<CheckCircle2 className="size-4 text-green-500" />
 				</div>
 				<div className="text-center">
 					<p className="text-sm font-medium text-foreground">
@@ -504,9 +538,12 @@ function IdentityStep({
 	if (balance > 0) {
 		return (
 			<div className="flex flex-col items-center gap-4 py-6">
-				<div className="flex size-12 items-center justify-center rounded-full bg-muted">
-					<UserCircle2 className="size-6 text-muted-foreground" />
-				</div>
+				{avatarNode}
+				{displayName && (
+					<p className="text-sm font-semibold text-foreground -mb-2">
+						{displayName}
+					</p>
+				)}
 				<div className="text-center">
 					<p className="text-sm font-medium text-foreground mb-1">
 						Publish your identity on-chain?
@@ -524,9 +561,7 @@ function IdentityStep({
 						onChange={(e) => setDisplayName(e.target.value)}
 					/>
 				</div>
-				{error && (
-					<p className="text-xs text-destructive">{error}</p>
-				)}
+				{error && <p className="text-xs text-destructive">{error}</p>}
 				<div className="flex w-full justify-between pt-2">
 					<Button
 						variant="ghost"
@@ -548,9 +583,12 @@ function IdentityStep({
 	// Zero balance
 	return (
 		<div className="flex flex-col items-center gap-4 py-6">
-			<div className="flex size-12 items-center justify-center rounded-full bg-muted">
-				<UserCircle2 className="size-6 text-muted-foreground" />
-			</div>
+			{avatarNode}
+			{displayName && (
+				<p className="text-sm font-semibold text-foreground -mb-2">
+					{displayName}
+				</p>
+			)}
 			<div className="text-center max-w-sm">
 				<p className="text-sm font-medium text-foreground mb-1">Identity</p>
 				<p className="text-xs text-muted-foreground">
@@ -625,7 +663,9 @@ function ReadyStep({
 						>
 							{item.value}
 						</span>
-						{item.done && <CheckCircle2 className="size-3.5 text-green-500 shrink-0" />}
+						{item.done && (
+							<CheckCircle2 className="size-3.5 text-green-500 shrink-0" />
+						)}
 					</div>
 				))}
 			</div>
