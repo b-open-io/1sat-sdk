@@ -762,34 +762,30 @@ function IdentityChip({
 				{/* Other accounts */}
 				{otherAccounts.length > 0 && (
 					<div className="p-1.5 border-b border-border">
-						{otherAccounts.map((account) => {
-							const acctInitials = account.displayName
-								.split(/\s+/)
-								.slice(0, 2)
-								.map((w) => w[0]?.toUpperCase() ?? '')
-								.join('')
-							return (
+						{otherAccounts.map((account) => (
 								<button
 									key={account.id}
 									type="button"
 									onClick={() => {
 										setOpen(false)
-										// TODO: open as separate window (singleton per account)
 										rpc.request.switchAccount({ accountId: account.id })
 									}}
 									className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-[12px] text-foreground hover:bg-muted/50 transition-colors rounded-[3px] cursor-default"
 								>
-									<div
-										className={`size-6 rounded-full flex items-center justify-center text-[9px] font-semibold shrink-0 bg-${account.color}-500 text-white`}
-									>
-										{acctInitials}
+									<div className="size-6 rounded-full overflow-hidden shrink-0">
+										<Avatar
+											name={account.identityKey}
+											variant="pixel"
+											size={24}
+											colors={['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']}
+											className="rounded-full"
+										/>
 									</div>
 									<span className="text-[12px] truncate flex-1">
 										{account.displayName}
 									</span>
 								</button>
-							)
-						})}
+							))}
 					</div>
 				)}
 
