@@ -25,12 +25,6 @@ import { closeMcpClient } from './mcp/client'
 import { startMcpServer, stopMcpServer } from './mcp/server'
 import { createRpcHandlers } from './rpc-handlers'
 import {
-	getStackUrl,
-	isStackSetupComplete,
-	startStack,
-	stopStack,
-} from './sidecar-manager'
-import {
 	checkVault,
 	setBalanceUpdatedCallback,
 	setStatusChangedCallback,
@@ -98,8 +92,7 @@ const rpc = BrowserView.defineRPC<WalletDesktopRPC>({
 				return { success: true }
 			},
 			openOrdfsContent: ({ path }: { path: string }) => {
-				const stackUrl = getStackUrl()
-				const contentUrl = `${stackUrl}/content/${path}`
+				const contentUrl = `https://ordfs.network/${path}`
 				const log = createLogger({ context: 'rpc' })
 				log.set({ event: 'open_ordfs_content', path, contentUrl })
 				log.emit()
@@ -231,9 +224,7 @@ Electrobun.events.on('application-menu-clicked', (e) => {
 		shutdownChatManager()
 		closeMcpClient()
 		stopMcpServer()
-		stopStack()
 		flushLogs().finally(() => Utils.quit())
-		return
 	}
 	if (e.data.action === 'toggle-devtools') {
 		mainWindow.webview.toggleDevTools()
@@ -298,59 +289,13 @@ setPermissionPusher((request) => {
 startWalletServer()
 startMcpServer(mainWindow)
 
-// Start the 1sat-stack sidecar (local indexer + ORDFS server).
-// Errors are non-fatal: the wallet continues if the binary is unavailable.
-startStack().then(async () => {
-	// Poll until the stack health endpoint responds (up to 30 seconds)
-	for (let i = 0; i < 15; i++) {
-		await Bun.sleep(2000)
-		try {
-			const res = await fetch(`${getStackUrl()}/1sat/health`, { signal: AbortSignal.timeout(1000) })
-			if (res.ok) break
-		} catch {
-			// Stack still starting
-		}
-	}
-
-	const ready = await isStackSetupComplete()
-	if (!ready) {
-		const log = createLogger({ context: 'stack' })
-		log.set({ event: 'onboarding_required', adminUrl: `${getStackUrl()}/1sat/admin` })
-		log.emit()
-		mainWindow.webview.rpc.send.stackOnboardingRequired({
-			adminUrl: `${getStackUrl()}/1sat/admin`,
-		})
-
-		// Keep polling until setup completes (user finishes the wizard)
-		for (let attempt = 0; attempt < 300; attempt++) {
-			await Bun.sleep(3000)
-			if (await isStackSetupComplete()) {
-				const log = createLogger({ context: 'stack' })
-				log.set({ event: 'onboarding_complete' })
-				log.emit()
-				mainWindow.webview.rpc.send.stackOnboardingComplete({})
-				break
-			}
-		}
-	} else {
-		const log = createLogger({ context: 'stack' })
-		log.set({ event: 'setup_complete' })
-		log.emit()
-	}
-}).catch((err) => {
-	const log = createLogger({ context: 'stack' })
-	log.set({ event: 'start_failed', error: err instanceof Error ? err.message : String(err) })
-	log.emit()
-	console.error('1sat-stack failed to start:', err.message)
-})
 
 // ============================================================================
 // 1sat:// deep link handler + ORDFS content viewer
 // ============================================================================
 
 function openOrdfsWindow(path: string): void {
-	const stackUrl = getStackUrl()
-	const contentUrl = `${stackUrl}/content/${path}`
+	const contentUrl = `https://ordfs.network/${path}`
 	const log = createLogger({ context: 'ordfs' })
 	log.set({ event: 'open_window', path, contentUrl })
 	log.emit()

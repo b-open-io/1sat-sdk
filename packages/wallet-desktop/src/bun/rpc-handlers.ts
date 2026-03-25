@@ -250,6 +250,7 @@ export function createRpcHandlers() {
 		},
 
 		getTokenBalances: async () => {
+			console.log('[RPC] getTokenBalances called')
 			const w = requireWallet()
 			const ctx = createContext(w.wallet, {
 				services: w.services,
@@ -263,6 +264,7 @@ export function createRpcHandlers() {
 				dec: b.dec,
 				amt: b.amt,
 			}))
+			console.log(`[RPC] getTokenBalances done: ${mapped.length} results`)
 			return { balances: mapped }
 		},
 
@@ -270,6 +272,7 @@ export function createRpcHandlers() {
 			limit,
 			offset,
 		}: { limit?: number; offset?: number } = {}) => {
+			console.log('[RPC] getTransactionHistory called')
 			const { wallet } = requireWallet()
 			const result = await wallet.listActions({
 				labels: [],
@@ -285,6 +288,7 @@ export function createRpcHandlers() {
 				isOutgoing: a.isOutgoing ?? false,
 				dateCreated: '', // WalletAction has no timestamp — populated later from block data if available
 			}))
+			console.log(`[RPC] getTransactionHistory done: ${entries.length} results`)
 			return { entries }
 		},
 
@@ -366,12 +370,14 @@ export function createRpcHandlers() {
 		},
 
 		getLockData: async () => {
+			console.log('[RPC] getLockData called')
 			const w = requireWallet()
 			const ctx = createContext(w.wallet, {
 				services: w.services,
 				chain: 'main',
 			})
 			const data = await getLockData.execute(ctx, {} as Record<string, never>)
+			console.log('[RPC] getLockData done:', JSON.stringify(data))
 			return data as LockDataInfo
 		},
 

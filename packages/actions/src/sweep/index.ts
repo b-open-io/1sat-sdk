@@ -890,6 +890,9 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 	},
 }
 
+// Export transfer functions (raw legacy-to-legacy)
+export { legacySendOrdinals, type LegacySendOrdinalsRequest, type LegacySendResult } from './transfer'
+
 // Export actions array for registry
 export const sweepActions = [sweepBsv, sweepOrdinals, sweepBsv21]
 

@@ -155,6 +155,15 @@ export interface TransferOrdinalsRequest extends ActionOptions {
 	inputBEEF?: number[]
 }
 
+export interface BurnOrdinalsRequest extends ActionOptions {
+	/** Ordinal outputs to burn */
+	ordinals: WalletOutput[]
+	/** BEEF data — resolved automatically via ID tag if omitted */
+	inputBEEF?: number[]
+	/** Application name for MAP metadata (default: "1sat") */
+	app?: string
+}
+
 export interface ListOrdinalRequest extends ActionOptions {
 	/** The ordinal output to list (from listOutputs) */
 	ordinal: WalletOutput
@@ -451,6 +460,54 @@ export async function buildListOrdinal(
 					protocolID: ONESAT_PROTOCOL,
 					keyID: outpoint,
 				}),
+			},
+		],
+	}
+}
+
+/**
+ * Build CreateActionArgs for burning one or more ordinals.
+ * Does NOT execute - returns params for createAction.
+ */
+export async function buildBurnOrdinals(
+	ctx: OneSatContext,
+	request: BurnOrdinalsRequest,
+): Promise<CreateActionArgs | { error: string }> {
+	const { ordinals } = request
+
+	if (!ordinals.length) {
+		return { error: 'no-ordinals' }
+	}
+
+	const inputs: CreateActionArgs['inputs'] = ordinals.map((ordinal) => ({
+		outpoint: ordinal.outpoint,
+		inputDescription: 'Ordinal to burn',
+		unlockingScriptLength: 108,
+	}))
+
+	const inputBEEF =
+		request.inputBEEF ??
+		(await resolveBeef(ctx.wallet, ORDINALS_BASKET, ordinals[0]))
+
+	const mapScript = MAPTemplate.set({
+		app: request.app ?? '1sat',
+		type: 'ord',
+		op: 'burn',
+	})
+	const burnScript = new Script().writeOpCode(OP.OP_FALSE).writeScript(mapScript)
+
+	return {
+		description:
+			ordinals.length === 1
+				? 'Burn ordinal'
+				: `Burn ${ordinals.length} ordinals`,
+		inputBEEF,
+		inputs,
+		outputs: [
+			{
+				lockingScript: burnScript.toHex(),
+				satoshis: 0,
+				outputDescription: 'Burn ordinals',
 			},
 		],
 	}
@@ -1177,6 +1234,140 @@ export const purchaseOrdinal: Action<
 	},
 }
 
+/**
+ * Burn one or more ordinals (send to OP_FALSE OP_RETURN).
+ */
+export const burnOrdinals: Action<
+	BurnOrdinalsRequest,
+	OrdinalOperationResponse
+> = {
+	meta: {
+		name: 'burnOrdinals',
+		description: 'Burn one or more ordinals by sending to OP_RETURN',
+		category: 'ordinals',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				ordinals: {
+					type: 'array',
+					description: 'WalletOutputs to burn',
+					items: {
+						type: 'object',
+						description: 'WalletOutput from listOutputs',
+					},
+				},
+				inputBEEF: {
+					type: 'array',
+					description:
+						'BEEF — resolved automatically via ID tag if omitted',
+				},
+			},
+			required: ['ordinals'],
+		},
+	},
+	async execute(ctx, input) {
+		try {
+			const params = await buildBurnOrdinals(ctx, input)
+			if ('error' in params) {
+				return params
+			}
+
+			console.log(
+				'[burnOrdinals] params:',
+				JSON.stringify(
+					{
+						description: params.description,
+						inputBEEF: params.inputBEEF
+							? `[${params.inputBEEF.length} bytes]`
+							: 'undefined',
+						inputs: params.inputs,
+						outputs: params.outputs?.map((o) => ({
+							...o,
+							lockingScript: `${o.lockingScript?.slice(0, 20)}...`,
+						})),
+					},
+					null,
+					2,
+				),
+			)
+
+			const createResult = await executeTrackedAction(
+				ctx.wallet,
+				{
+					...params,
+					options: { signAndProcess: false, randomizeOutputs: false },
+				},
+				input.fundingProvider,
+			)
+
+			if ('error' in createResult && createResult.error) {
+				return { error: String(createResult.error) }
+			}
+
+			const result = await completeSignedAction(
+				ctx.wallet,
+				createResult,
+				params.inputBEEF as number[],
+				async (tx) => {
+					const spends: Record<number, { unlockingScript: string }> = {}
+					for (let i = 0; i < input.ordinals.length; i++) {
+						const ordinal = input.ordinals[i]
+						if (!ordinal.customInstructions) {
+							throw new Error(
+								`missing-custom-instructions-for-${ordinal.outpoint}`,
+							)
+						}
+						const { protocolID, keyID } = JSON.parse(ordinal.customInstructions)
+						const unlocking = await signP2PKHInput(
+							ctx,
+							tx,
+							i,
+							protocolID,
+							keyID,
+						)
+						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
+						spends[i] = { unlockingScript: unlocking }
+					}
+					return spends
+				},
+			)
+
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'burnOrdinals',
+					input: {
+						ordinals: input.ordinals.map((o) => ({
+							outpoint: o.outpoint,
+						})),
+					},
+					txid: result.txid,
+					rawtx: result.rawtx,
+				})
+			}
+
+			return result
+		} catch (error) {
+			console.error('[burnOrdinals]', error)
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'burnOrdinals',
+					input: {
+						ordinals: input.ordinals.map((o) => ({
+							outpoint: o.outpoint,
+						})),
+					},
+					error: error instanceof Error ? error.message : 'unknown-error',
+				})
+			}
+			return {
+				error: error instanceof Error ? error.message : 'unknown-error',
+			}
+		}
+	},
+}
+
 // ============================================================================
 // Module exports
 // ============================================================================
@@ -1189,4 +1380,5 @@ export const ordinalsActions = [
 	listOrdinal,
 	cancelListing,
 	purchaseOrdinal,
+	burnOrdinals,
 ]

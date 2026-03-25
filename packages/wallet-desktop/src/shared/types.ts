@@ -483,7 +483,7 @@ type WebviewRequests = {
 		response: { result: string; error?: string }
 	}
 	mainviewGetUrl: {
-		params: Record<never, never>
+		params: undefined
 		response: { url: string }
 	}
 }
