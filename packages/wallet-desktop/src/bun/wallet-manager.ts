@@ -294,13 +294,14 @@ export async function lock(): Promise<void> {
 		await walletResult.destroy()
 		walletResult = undefined
 	}
+	activeAccountId = undefined
 	onSyncEvent?.({
 		timestamp: Date.now(),
 		source: 'wallet',
 		level: 'log',
 		message: 'Wallet locked',
 	})
-	setStatus('locked')
+	setStatus('account-selection')
 }
 
 /**

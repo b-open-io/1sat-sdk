@@ -26,7 +26,7 @@ export function ImportWallet({ onCancel }: { onCancel: () => void }) {
 	)
 
 	return (
-		<div className="max-w-lg mx-auto p-6">
+		<div className="max-w-lg mx-auto p-6 min-h-screen flex flex-col justify-center">
 			<h1 className="text-2xl font-bold text-foreground mb-1">Import Wallet</h1>
 			<p className="text-sm text-muted-foreground mb-6">
 				Enter your 12-word recovery phrase to restore your wallet.

@@ -1,10 +1,11 @@
 import { Button } from '@/components/ui/button'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { AccountInfo } from '../../../shared/types'
 import { useWallet } from '../../hooks/use-wallet'
 import { rpc } from '../../rpc'
 import { CreateWallet } from '../onboarding/create-wallet'
 import { ImportWallet } from '../onboarding/import-wallet'
+import { ProfileSetup } from './profile-setup'
 
 const ACCENT_COLORS: Record<string, string> = {
 	blue: 'bg-blue-500',
@@ -18,6 +19,7 @@ const ACCENT_COLORS: Record<string, string> = {
 }
 
 function getInitials(name: string): string {
+	if (!name.trim()) return '?'
 	return name
 		.split(/\s+/)
 		.map((w) => w[0])
@@ -41,25 +43,59 @@ function formatLastUsed(iso: string): string {
 	return `${days}d ago`
 }
 
-type AddMode = 'none' | 'create' | 'import'
+type PickerView =
+	| { kind: 'grid' }
+	| { kind: 'create' }
+	| { kind: 'import' }
+	| { kind: 'profile-setup'; accountId: string }
 
 export function AccountPicker() {
-	const { accounts: pushedAccounts, selectAccount } = useWallet()
+	const { accounts: pushedAccounts, selectAccount, status } = useWallet()
 	const [fetchedAccounts, setFetchedAccounts] = useState<AccountInfo[]>([])
 	const [loading, setLoading] = useState<string | null>(null)
-	const [addMode, setAddMode] = useState<AddMode>('none')
+	const [view, setView] = useState<PickerView>({ kind: 'grid' })
 	const [showOnStartup, setShowOnStartup] = useState(true)
 
-	// Fetch accounts on mount (push message may arrive before React subscribes)
-	useEffect(() => {
+	// Fetch accounts on mount
+	const refreshAccounts = useCallback(() => {
 		rpc.request.listAccounts().then((r) => {
 			setFetchedAccounts(r.accounts)
 			setShowOnStartup(r.showPickerOnStartup)
 		})
 	}, [])
 
-	// Use pushed accounts if available, otherwise fetched
+	useEffect(() => {
+		refreshAccounts()
+	}, [refreshAccounts])
+
 	const accounts = pushedAccounts.length > 0 ? pushedAccounts : fetchedAccounts
+
+	// Auto-show profile setup for accounts with placeholder names (e.g. migrated accounts)
+	useEffect(() => {
+		if (view.kind !== 'grid' || accounts.length === 0) return
+		const needsSetup = accounts.find((a) =>
+			a.displayName === 'Account 1' || a.displayName === a.identityKey.slice(0, 8),
+		)
+		if (needsSetup) {
+			setView({ kind: 'profile-setup', accountId: needsSetup.id })
+		}
+	}, [accounts, view.kind])
+
+	// If a new account was just created (status changed to 'unlocked' during create/import),
+	// lock it back and show profile setup. The wallet stays created but locked until the user
+	// selects it from the picker after setting up their profile.
+	useEffect(() => {
+		if (status === 'unlocked' && (view.kind === 'create' || view.kind === 'import')) {
+			// Get the newly created account ID, lock wallet, show profile setup
+			rpc.request.getActiveAccount().then((r) => {
+				if (r.account) {
+					rpc.request.lockWallet().then(() => {
+						setView({ kind: 'profile-setup', accountId: r.account!.id })
+					})
+				}
+			})
+		}
+	}, [status, view.kind])
 
 	const handleSelect = async (accountId: string) => {
 		setLoading(accountId)
@@ -80,11 +116,24 @@ export function AccountPicker() {
 		rpc.request.setShowPickerOnStartup({ show: checked })
 	}
 
-	if (addMode === 'create') {
-		return <CreateWallet onCancel={() => setAddMode('none')} />
+	const handleProfileSetupComplete = () => {
+		refreshAccounts()
+		setView({ kind: 'grid' })
 	}
-	if (addMode === 'import') {
-		return <ImportWallet onCancel={() => setAddMode('none')} />
+
+	if (view.kind === 'create') {
+		return <CreateWallet onCancel={() => setView({ kind: 'grid' })} />
+	}
+	if (view.kind === 'import') {
+		return <ImportWallet onCancel={() => setView({ kind: 'grid' })} />
+	}
+	if (view.kind === 'profile-setup') {
+		return (
+			<ProfileSetup
+				accountId={view.accountId}
+				onComplete={handleProfileSetupComplete}
+			/>
+		)
 	}
 
 	return (
@@ -119,7 +168,7 @@ export function AccountPicker() {
 					<button
 						type="button"
 						className="w-[120px] border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-muted-foreground/50 transition-colors"
-						onClick={() => setAddMode('create')}
+						onClick={() => setView({ kind: 'create' })}
 						disabled={loading !== null}
 					>
 						<div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center text-2xl text-muted-foreground">
@@ -135,7 +184,7 @@ export function AccountPicker() {
 						variant="ghost"
 						size="sm"
 						className="text-xs text-muted-foreground"
-						onClick={() => setAddMode('import')}
+						onClick={() => setView({ kind: 'import' })}
 						disabled={loading !== null}
 					>
 						Import existing wallet
