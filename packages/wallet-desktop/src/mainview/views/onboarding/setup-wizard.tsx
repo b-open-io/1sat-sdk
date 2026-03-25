@@ -165,7 +165,22 @@ function StackStep({
 		}, 3000)
 	}, [checkStatus, onAdvance])
 
-	const handleSetup = useCallback(() => {
+	const [waitingForStack, setWaitingForStack] = useState(false)
+
+	const handleSetup = useCallback(async () => {
+		setWaitingForStack(true)
+		// Wait for the stack to actually respond before opening the window
+		const maxAttempts = 20
+		for (let i = 0; i < maxAttempts; i++) {
+			try {
+				const res = await fetch(adminUrl, { method: 'HEAD', signal: AbortSignal.timeout(2000) })
+				if (res.ok) break
+			} catch {
+				// Stack not ready yet
+			}
+			await new Promise((r) => setTimeout(r, 1500))
+		}
+		setWaitingForStack(false)
 		rpc.request.openBrowserWindow({ url: adminUrl, title: '1Sat Stack Setup' })
 		startPolling()
 	}, [adminUrl, startPolling])
@@ -215,12 +230,19 @@ function StackStep({
 					features work in read-only mode.
 				</p>
 			</div>
-			{adminUrl && (
-				<Button onClick={handleSetup}>
-					Complete Setup
-					<ExternalLink className="size-3.5" />
-				</Button>
-			)}
+			<Button onClick={handleSetup} disabled={waitingForStack}>
+				{waitingForStack ? (
+					<>
+						<Spinner className="size-3.5" />
+						Starting stack...
+					</>
+				) : (
+					<>
+						Complete Setup
+						<ExternalLink className="size-3.5" />
+					</>
+				)}
+			</Button>
 			<div className="flex w-full justify-end pt-2">
 				<Button variant="ghost" size="sm" onClick={() => onAdvance('skipped')}>
 					Skip
