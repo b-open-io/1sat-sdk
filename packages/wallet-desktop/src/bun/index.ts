@@ -25,6 +25,7 @@ import {
 import { closeConfigStore } from './config-store'
 import { closeMcpClient } from './mcp/client'
 import { startMcpServer, stopMcpServer } from './mcp/server'
+import { startStack, stopStack } from './sidecar-manager'
 import { createRpcHandlers } from './rpc-handlers'
 import {
 	checkForUpdatesManual,
@@ -235,6 +236,7 @@ Electrobun.events.on('application-menu-clicked', (e) => {
 		shutdownChatManager()
 		closeMcpClient()
 		stopMcpServer()
+		stopStack()
 		closeConfigStore()
 		flushLogs().finally(() => Utils.quit())
 	}
@@ -258,6 +260,7 @@ process.on('SIGTERM', () => {
 	closeMcpClient()
 	stopMcpServer()
 	stopWalletServer()
+	stopStack()
 	closeConfigStore()
 	flushLogs().finally(() => process.exit(0))
 })
@@ -326,6 +329,10 @@ setPermissionPusher((request) => {
 startWalletServer()
 startMcpServer(mainWindow)
 
+// Start the 1sat-stack sidecar (non-blocking — wallet does not depend on it)
+startStack().catch((err) => {
+	console.error('1sat-stack sidecar failed to start:', err instanceof Error ? err.message : err)
+})
 
 // ============================================================================
 // 1sat:// deep link handler + ORDFS content viewer
