@@ -72,11 +72,12 @@ initVaultChannel(buildChannel)
 // Migration: single-account → multi-account
 // ============================================================================
 
-let migrationResult: { accountId: string; identityKey: string } | null = null
 if (listAccounts().length === 0) {
+	const log = createLogger({ context: 'migration' })
+
+	// Phase 1: Try legacy single-account migration (v0.0.8 and earlier)
 	try {
-		// Try channel-aware label first (from PR #8), then original pre-channel label
-		migrationResult = await migrateLegacyWallet(legacyVaultLabel())
+		const migrationResult = await migrateLegacyWallet(legacyVaultLabel())
 			?? await migrateLegacyWallet('1sat-wallet-root-key')
 		if (migrationResult) {
 			addAccount({
@@ -89,14 +90,30 @@ if (listAccounts().length === 0) {
 			})
 			setLastActiveAccountId(migrationResult.accountId)
 			setPickerPref(true)
-			const log = createLogger({ context: 'migration' })
 			log.set({ event: 'legacy_migrated', accountId: migrationResult.accountId })
 			log.emit()
 		}
 	} catch (err) {
-		const log = createLogger({ context: 'migration' })
 		log.set({ event: 'migration_failed', error: err instanceof Error ? err.message : String(err) })
 		log.emit()
+	}
+
+	// Phase 2: Recover orphaned accounts — vault entries that exist but
+	// have no registry entry (e.g. config.db moved to new path)
+	if (listAccounts().length === 0) {
+		try {
+			const { recoverOrphanedAccounts } = await import('./wallet-manager')
+			const recovered = await recoverOrphanedAccounts()
+			if (recovered > 0) {
+				const rlog = createLogger({ context: 'migration' })
+				rlog.set({ event: 'orphans_recovered', count: recovered })
+				rlog.emit()
+			}
+		} catch (err) {
+			const rlog = createLogger({ context: 'migration' })
+			rlog.set({ event: 'orphan_recovery_failed', error: err instanceof Error ? err.message : String(err) })
+			rlog.emit()
+		}
 	}
 }
 

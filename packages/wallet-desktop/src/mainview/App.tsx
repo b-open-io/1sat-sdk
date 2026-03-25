@@ -25,7 +25,7 @@ function ChannelBadge() {
 			<span>v{info.version}</span>
 			<span className="text-muted-foreground/50">|</span>
 			<span>{info.channel}</span>
-			{info.hash && (
+			{info.hash && info.hash !== info.channel && (
 				<>
 					<span className="text-muted-foreground/50">|</span>
 					<span>{info.hash.slice(0, 7)}</span>

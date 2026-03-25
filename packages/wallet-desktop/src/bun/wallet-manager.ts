@@ -387,3 +387,56 @@ export async function migrateLegacyWallet(
 
 	return { accountId, identityKey }
 }
+
+/**
+ * Recover orphaned accounts — vault entries that match the pattern
+ * `1sat-wallet-{accountId}-{channel}` but have no registry entry.
+ * This handles cases where the config.db was lost (e.g. path change).
+ *
+ * Triggers Touch ID to read each orphaned key and re-create the registry entry.
+ */
+export async function recoverOrphanedAccounts(): Promise<number> {
+	const { addAccount, getAccount } = await import('./account-registry')
+	const { getBuildChannel } = await import('./vault-manager')
+
+	const v = getVault()
+	const channel = getBuildChannel()
+	const prefix = `1sat-wallet-`
+	const suffix = `-${channel}`
+	const secrets = v.listSecrets()
+	let recovered = 0
+
+	for (const secret of secrets) {
+		// Match pattern: 1sat-wallet-{accountId}-{channel}
+		if (!secret.label.startsWith(prefix) || !secret.label.endsWith(suffix)) continue
+		// Exclude legacy labels
+		if (secret.label === `1sat-wallet-root-key-${channel}`) continue
+
+		const accountId = secret.label.slice(prefix.length, -suffix.length)
+		if (!accountId || getAccount(accountId)) continue
+
+		try {
+			// Read the key to get the identity (triggers Touch ID)
+			const { plaintext: rootKeyHex } = await v.unlockSecret(secret.label)
+			const rootKey = PrivateKey.fromHex(rootKeyHex)
+			const identityKey = rootKey.toPublicKey().toString()
+
+			addAccount({
+				id: accountId,
+				identityKey,
+				displayName: 'Account 1',
+				color: 'amber',
+				createdAt: new Date().toISOString(),
+				lastUsedAt: new Date().toISOString(),
+			})
+
+			const { setLastActiveAccountId } = await import('./account-registry')
+			setLastActiveAccountId(accountId)
+			recovered++
+		} catch {
+			// Touch ID cancelled or key unreadable — skip
+		}
+	}
+
+	return recovered
+}

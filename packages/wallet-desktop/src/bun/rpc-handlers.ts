@@ -45,6 +45,7 @@ import type {
 	SweepScanResult,
 	TokenBalance,
 } from '../shared/types'
+import { importMasterBackup } from './backup-import'
 import {
 	addAccount,
 	getAccount,
@@ -333,6 +334,26 @@ export function createRpcHandlers() {
 		setShowPickerOnStartup: ({ show }: { show: boolean }) => {
 			setShowPickerOnStartup(show)
 			return { success: true }
+		},
+
+		importBackup: async ({
+			encryptedData,
+			password,
+		}: { encryptedData: string; password: string }) => {
+			try {
+				const result = await importMasterBackup(encryptedData, password)
+				return {
+					success: true,
+					accounts: result.accounts,
+					errors: result.errors,
+				}
+			} catch (err) {
+				return {
+					success: false,
+					accounts: [],
+					errors: [err instanceof Error ? err.message : String(err)],
+				}
+			}
 		},
 
 		// ---- Wallet lifecycle ----

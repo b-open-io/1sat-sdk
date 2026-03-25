@@ -6,6 +6,7 @@ import { useWallet } from '../../hooks/use-wallet'
 import { rpc } from '../../rpc'
 import { CreateWallet } from '../onboarding/create-wallet'
 import { ImportWallet } from '../onboarding/import-wallet'
+import { ImportBackup } from './import-backup'
 import { ProfileSetup } from './profile-setup'
 
 const ACCENT_COLORS: Record<string, string> = {
@@ -48,6 +49,7 @@ type PickerView =
 	| { kind: 'grid' }
 	| { kind: 'create' }
 	| { kind: 'import' }
+	| { kind: 'import-backup' }
 	| { kind: 'profile-setup'; accountId: string }
 
 export function AccountPicker() {

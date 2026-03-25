@@ -296,6 +296,10 @@ type BunRequests = {
 		params: { show: boolean }
 		response: { success: boolean }
 	}
+	importBackup: {
+		params: { encryptedData: string; password: string }
+		response: { success: boolean; accounts: AccountInfo[]; errors: string[] }
+	}
 	// Wallet lifecycle
 	lockWallet: {
 		params: undefined
