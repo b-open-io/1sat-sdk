@@ -162,26 +162,17 @@ const OVERLAY_KEYS = [
 // AI Settings types and helpers
 // ---------------------------------------------------------------------------
 
-type AiProvider = 'ollama' | 'lmstudio' | 'openrouter' | 'openai' | 'anthropic'
+import {
+	type AiProvider,
+	AI_SETTINGS_KEY,
+	PROVIDER_DEFAULTS,
+} from '../../../shared/ai-providers'
 
 interface AiSettings {
 	provider: AiProvider
 	baseUrl: string
 	apiKey: string
 	model: string
-}
-
-const AI_SETTINGS_KEY = '1sat-ai-settings'
-
-const PROVIDER_DEFAULTS: Record<
-	AiProvider,
-	{ baseUrl: string; label: string }
-> = {
-	ollama: { baseUrl: 'http://localhost:11434/v1', label: 'Ollama (Local)' },
-	lmstudio: { baseUrl: 'http://localhost:1234/v1', label: 'LM Studio (Local)' },
-	openrouter: { baseUrl: 'https://openrouter.ai/api/v1', label: 'OpenRouter' },
-	openai: { baseUrl: 'https://api.openai.com/v1', label: 'OpenAI' },
-	anthropic: { baseUrl: 'https://api.anthropic.com/v1', label: 'Anthropic' },
 }
 
 function loadAiSettings(): AiSettings {
@@ -273,7 +264,7 @@ function formatLastAccess(ms: number): string {
 // ---------------------------------------------------------------------------
 
 function SecurityTab() {
-	const { deleteWallet } = useWallet()
+	const { deleteAccount, activeAccount } = useWallet()
 	const [autoLock, setAutoLock] = useState(loadAutoLock)
 	const [connectedApps, setConnectedApps] = useState<ConnectedApp[]>(
 		loadConnectedApps,
@@ -293,9 +284,10 @@ function SecurityTab() {
 	}, [])
 
 	const handleDeleteWallet = useCallback(async () => {
+		if (!activeAccount) return
 		setDeleting(true)
 		setDeleteError('')
-		const result = await deleteWallet()
+		const result = await deleteAccount(activeAccount.id)
 		if (!result.success) {
 			setDeleteError(result.error ?? 'Failed to delete wallet')
 			setDeleting(false)
@@ -303,7 +295,7 @@ function SecurityTab() {
 		}
 		setDeleteDialogOpen(false)
 		setDeleting(false)
-	}, [deleteWallet])
+	}, [deleteAccount, activeAccount])
 
 	return (
 		<div className="space-y-6 py-4">
@@ -619,21 +611,6 @@ function NetworkTab({ onNavigate }: { onNavigate?: (url: string) => void }) {
 
 	const uptimeDisplay =
 		health.uptimeSeconds !== null ? formatUptime(health.uptimeSeconds) : '—'
-
-	const switchClasses = (enabled: boolean, disabled: boolean) =>
-		[
-			'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors',
-			'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-			'disabled:cursor-not-allowed disabled:opacity-50',
-			enabled ? 'bg-primary' : 'bg-input',
-			disabled ? 'opacity-50' : '',
-		].join(' ')
-
-	const thumbClasses = (enabled: boolean) =>
-		[
-			'pointer-events-none block size-4 rounded-full bg-white shadow-sm ring-0 transition-transform',
-			enabled ? 'translate-x-4' : 'translate-x-0',
-		].join(' ')
 
 	return (
 		<div className="space-y-8 py-4">

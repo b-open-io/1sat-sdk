@@ -46,6 +46,17 @@ import type {
 	TokenBalance,
 } from '../shared/types'
 import {
+	addAccount,
+	getAccount,
+	getShowPickerOnStartup,
+	listAccounts,
+	removeAccount,
+	setLastActiveAccountId,
+	setShowPickerOnStartup,
+	touchAccount,
+	updateAccount as updateAccountRegistry,
+} from './account-registry'
+import {
 	fetchChannelMessages,
 	getChatChannels,
 	subscribeChannel,
@@ -59,11 +70,14 @@ import {
 	getAppVersionInfo,
 } from './updater'
 import {
+	computeAccountId,
 	create,
 	deleteWallet,
+	getActiveAccountId,
 	getStatus,
 	getWallet,
 	lock,
+	switchAccount,
 	unlock,
 } from './wallet-manager'
 
@@ -106,6 +120,22 @@ function requireWallet() {
 	return w
 }
 
+/** Try to resolve the BAP profile display name for the currently unlocked wallet. */
+async function resolveProfileName(): Promise<string | undefined> {
+	try {
+		const w = getWallet()
+		if (!w) return undefined
+		const ctx = createContext(w.wallet, { services: w.services, chain: 'main' })
+		const bapId = await resolveBapId(ctx)
+		if (!bapId) return undefined
+		const result = await getProfile.execute(ctx, {} as Record<string, never>)
+		const name = result.profile?.name ?? result.profile?.alternateName
+		return typeof name === 'string' && name.trim() ? name.trim() : undefined
+	} catch {
+		return undefined
+	}
+}
+
 // ============================================================================
 // Handler map
 // ============================================================================
@@ -124,12 +154,22 @@ export function createRpcHandlers() {
 			return { status: getStatus() }
 		},
 
-		createWallet: async ({
-			mnemonic,
-			passphrase,
-		}: { mnemonic: string; passphrase?: string }) => {
+		// ---- Account management ----
+
+		listAccounts: () => {
+			return {
+				accounts: listAccounts(),
+				showPickerOnStartup: getShowPickerOnStartup(),
+			}
+		},
+
+		selectAccount: async ({ accountId }: { accountId: string }) => {
 			try {
-				await create(mnemonic, passphrase ?? '')
+				const account = getAccount(accountId)
+				if (!account) return { success: false, error: 'Account not found' }
+				await unlock(accountId, '')
+				touchAccount(accountId)
+				setLastActiveAccountId(accountId)
 				return { success: true }
 			} catch (err) {
 				return {
@@ -139,15 +179,111 @@ export function createRpcHandlers() {
 			}
 		},
 
-		importWallet: async ({
+		createAccount: async ({
 			mnemonic,
 			passphrase,
-		}: { mnemonic: string; passphrase?: string }) => {
+			displayName,
+			color,
+		}: {
+			mnemonic: string
+			passphrase?: string
+			displayName?: string
+			color?: string
+		}) => {
+			try {
+				// Derive identity key to compute accountId
+				const { Mnemonic: M, HD: H } = await import('@bsv/sdk')
+				const seed = M.fromString(mnemonic).toSeed()
+				const master = H.fromSeed(seed)
+				const identityKey = master.privKey.toPublicKey().toString()
+				const accountId = computeAccountId(identityKey)
+
+				await create(accountId, mnemonic, passphrase ?? '')
+
+				// Try to resolve BAP profile for display name
+				let resolvedName = displayName
+				if (!resolvedName) {
+					resolvedName = await resolveProfileName()
+				}
+
+				addAccount({
+					id: accountId,
+					identityKey,
+					displayName: resolvedName ?? identityKey.slice(0, 8),
+					color: color ?? 'blue',
+					createdAt: new Date().toISOString(),
+					lastUsedAt: new Date().toISOString(),
+				})
+				setLastActiveAccountId(accountId)
+				return { success: true, accountId }
+			} catch (err) {
+				return {
+					success: false,
+					error: err instanceof Error ? err.message : String(err),
+				}
+			}
+		},
+
+		importAccount: async ({
+			mnemonic,
+			passphrase,
+			displayName,
+			color,
+		}: {
+			mnemonic: string
+			passphrase?: string
+			displayName?: string
+			color?: string
+		}) => {
 			try {
 				if (!isValidMnemonic(mnemonic)) {
 					return { success: false, error: 'Invalid mnemonic phrase' }
 				}
-				await create(mnemonic, passphrase ?? '')
+				// Derive identity key to compute accountId before creating
+				const { Mnemonic: M, HD: H } = await import('@bsv/sdk')
+				const seed = M.fromString(mnemonic).toSeed()
+				const master = H.fromSeed(seed)
+				const identityKey = master.privKey.toPublicKey().toString()
+				const accountId = computeAccountId(identityKey)
+
+				// Check for duplicate
+				if (getAccount(accountId)) {
+					return { success: false, error: 'This wallet is already imported' }
+				}
+
+				await create(accountId, mnemonic, passphrase ?? '')
+
+				// Try to resolve BAP profile for display name
+				let resolvedName = displayName
+				if (!resolvedName) {
+					resolvedName = await resolveProfileName()
+				}
+
+				addAccount({
+					id: accountId,
+					identityKey,
+					displayName: resolvedName ?? identityKey.slice(0, 8),
+					color: color ?? 'blue',
+					createdAt: new Date().toISOString(),
+					lastUsedAt: new Date().toISOString(),
+				})
+				setLastActiveAccountId(accountId)
+				return { success: true, accountId }
+			} catch (err) {
+				return {
+					success: false,
+					error: err instanceof Error ? err.message : String(err),
+				}
+			}
+		},
+
+		updateAccount: async ({
+			accountId,
+			displayName,
+			color,
+		}: { accountId: string; displayName?: string; color?: string }) => {
+			try {
+				updateAccountRegistry(accountId, { displayName, color })
 				return { success: true }
 			} catch (err) {
 				return {
@@ -157,9 +293,13 @@ export function createRpcHandlers() {
 			}
 		},
 
-		unlockWallet: async ({ passphrase }: { passphrase?: string } = {}) => {
+		deleteAccount: async ({ accountId }: { accountId: string }) => {
 			try {
-				await unlock(passphrase ?? '')
+				await deleteWallet(accountId)
+				removeAccount(accountId)
+				if (listAccounts().length === 0) {
+					// No accounts left
+				}
 				return { success: true }
 			} catch (err) {
 				return {
@@ -168,22 +308,38 @@ export function createRpcHandlers() {
 				}
 			}
 		},
+
+		switchAccount: async ({ accountId }: { accountId: string }) => {
+			try {
+				const account = getAccount(accountId)
+				if (!account) return { success: false, error: 'Account not found' }
+				await switchAccount(accountId, '')
+				touchAccount(accountId)
+				setLastActiveAccountId(accountId)
+				return { success: true }
+			} catch (err) {
+				return {
+					success: false,
+					error: err instanceof Error ? err.message : String(err),
+				}
+			}
+		},
+
+		getActiveAccount: () => {
+			const id = getActiveAccountId()
+			return { account: id ? (getAccount(id) ?? null) : null }
+		},
+
+		setShowPickerOnStartup: ({ show }: { show: boolean }) => {
+			setShowPickerOnStartup(show)
+			return { success: true }
+		},
+
+		// ---- Wallet lifecycle ----
 
 		lockWallet: async () => {
 			await lock()
 			return { success: true }
-		},
-
-		deleteWallet: async () => {
-			try {
-				await deleteWallet()
-				return { success: true }
-			} catch (err) {
-				return {
-					success: false,
-					error: err instanceof Error ? err.message : String(err),
-				}
-			}
 		},
 
 		getBalance: async () => {
@@ -612,9 +768,15 @@ export function createRpcHandlers() {
 			return { txid: result.txid, error: result.error }
 		},
 
-		listOrdinal: async ({ outpoint, price }: { outpoint: string; price: number }) => {
+		listOrdinal: async ({
+			outpoint,
+			price,
+		}: { outpoint: string; price: number }) => {
 			const w = requireWallet()
-			const ctx = createContext(w.wallet, { services: w.services, chain: 'main' })
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
 			const { listOrdinal } = await import('@1sat/actions')
 			const listResult = await w.wallet.listOutputs({
 				basket: 'ordinals',
@@ -634,7 +796,10 @@ export function createRpcHandlers() {
 
 		cancelListing: async ({ outpoint }: { outpoint: string }) => {
 			const w = requireWallet()
-			const ctx = createContext(w.wallet, { services: w.services, chain: 'main' })
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
 			const { cancelListing } = await import('@1sat/actions')
 			const listResult = await w.wallet.listOutputs({
 				basket: 'ordinals',
@@ -653,17 +818,31 @@ export function createRpcHandlers() {
 
 		purchaseOrdinal: async ({ outpoint }: { outpoint: string }) => {
 			const w = requireWallet()
-			const ctx = createContext(w.wallet, { services: w.services, chain: 'main' })
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
 			const { purchaseOrdinal } = await import('@1sat/actions')
 			const result = await purchaseOrdinal.execute(ctx, { outpoint })
 			return { txid: result.txid, error: result.error }
 		},
 
-		purchaseBsv21: async ({ tokenId, outpoint, amount }: { tokenId: string; outpoint: string; amount: string }) => {
+		purchaseBsv21: async ({
+			tokenId,
+			outpoint,
+			amount,
+		}: { tokenId: string; outpoint: string; amount: string }) => {
 			const w = requireWallet()
-			const ctx = createContext(w.wallet, { services: w.services, chain: 'main' })
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
 			const { purchaseBsv21 } = await import('@1sat/actions')
-			const result = await purchaseBsv21.execute(ctx, { tokenId, outpoint, amount })
+			const result = await purchaseBsv21.execute(ctx, {
+				tokenId,
+				outpoint,
+				amount,
+			})
 			return { txid: result.txid, error: result.error }
 		},
 
@@ -698,15 +877,40 @@ export function createRpcHandlers() {
 
 		checkAiProvider: async ({ baseUrl }: { baseUrl?: string }) => {
 			const url = baseUrl ?? 'http://localhost:11434'
+			const stripped = url.replace(/\/v1\/?$/, '')
+
+			// Try Ollama-native endpoint first (/api/tags)
 			try {
-				const res = await fetch(`${url}/api/tags`, { signal: AbortSignal.timeout(3000) })
-				if (!res.ok) return { available: false, models: [] }
-				const data = await res.json()
-				const models = (data.models ?? []).map((m: { name: string }) => m.name)
-				return { available: true, models }
+				const res = await fetch(`${stripped}/api/tags`, {
+					signal: AbortSignal.timeout(3000),
+				})
+				if (res.ok) {
+					const data = await res.json()
+					const models = (data.models ?? []).map(
+						(m: { name: string }) => m.name,
+					)
+					if (models.length > 0) return { available: true, models }
+				}
 			} catch {
-				return { available: false, models: [] }
+				// fall through to OpenAI-compatible
 			}
+
+			// Try OpenAI-compatible endpoint (/v1/models) — LM Studio, etc.
+			try {
+				const v1Base = url.endsWith('/v1') ? url : `${stripped}/v1`
+				const res = await fetch(`${v1Base}/models`, {
+					signal: AbortSignal.timeout(3000),
+				})
+				if (res.ok) {
+					const data = await res.json()
+					const models = (data.data ?? []).map((m: { id: string }) => m.id)
+					if (models.length > 0) return { available: true, models }
+				}
+			} catch {
+				// not available
+			}
+
+			return { available: false, models: [] }
 		},
 
 		getChatChannels: () => {

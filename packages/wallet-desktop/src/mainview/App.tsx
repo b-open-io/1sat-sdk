@@ -5,6 +5,7 @@ import { PermissionApproval } from '@/components/blocks/permission-approval'
 import { onPermissionRequest, rpc } from './rpc'
 import { BrowserLayout } from './components/layout/browser-layout'
 import { useWallet } from './hooks/use-wallet'
+import { AccountPicker } from './views/account-picker'
 import { CreateWallet } from './views/onboarding/create-wallet'
 import { ImportWallet } from './views/onboarding/import-wallet'
 import { SetupWizard } from './views/onboarding/setup-wizard'
@@ -79,25 +80,40 @@ function OnboardingChoice({
 }
 
 function App() {
-	const { status } = useWallet()
+	const { status, activeAccount } = useWallet()
 	const [onboardingChoice, setOnboardingChoice] =
 		useState<OnboardingChoice>('none')
+
+	// Per-account setup tracking
+	const setupKey = activeAccount
+		? `1sat-setup-complete-${activeAccount.id}`
+		: '1sat-setup-complete'
+
 	const [setupComplete, setSetupComplete] = useState(
-		() => localStorage.getItem('1sat-setup-complete') === 'true',
+		() => localStorage.getItem(setupKey) === 'true',
 	)
 
 	const prevStatus = useRef(status)
 	useEffect(() => {
 		// Returning users who go locked -> unlocked already have a wallet
 		if (prevStatus.current === 'locked' && status === 'unlocked') {
-			localStorage.setItem('1sat-setup-complete', 'true')
+			localStorage.setItem(setupKey, 'true')
 			setSetupComplete(true)
 		}
 		prevStatus.current = status
-	}, [status])
+	}, [status, setupKey])
+
+	// Re-check setup complete when active account changes
+	useEffect(() => {
+		setSetupComplete(localStorage.getItem(setupKey) === 'true')
+	}, [setupKey])
 
 	if (status === 'initializing') {
 		return <LoadingScreen />
+	}
+
+	if (status === 'account-selection') {
+		return <AccountPicker />
 	}
 
 	if (status === 'locked') {
@@ -109,7 +125,7 @@ function App() {
 			return (
 				<SetupWizard
 					onComplete={() => {
-						localStorage.setItem('1sat-setup-complete', 'true')
+						localStorage.setItem(setupKey, 'true')
 						setSetupComplete(true)
 					}}
 				/>

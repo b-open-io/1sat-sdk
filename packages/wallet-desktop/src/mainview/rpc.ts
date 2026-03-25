@@ -1,5 +1,6 @@
 import Electrobun, { Electroview } from 'electrobun/view'
 import type {
+	AccountInfo,
 	BalanceInfo,
 	ChatMessage,
 	OrdinalInfo,
@@ -101,6 +102,12 @@ const rpc = Electroview.defineRPC<WalletDesktopRPC>({
 			walletStateChanged: (payload: { status: WalletStatus }) => {
 				emit('walletStateChanged', payload)
 			},
+			accountsLoaded: (payload: { accounts: AccountInfo[] }) => {
+				emit('accountsLoaded', payload)
+			},
+			activeAccountChanged: (payload: { accountId: string; account: AccountInfo }) => {
+				emit('activeAccountChanged', payload)
+			},
 			balanceUpdated: (payload: BalanceInfo) => {
 				emit('balanceUpdated', payload)
 			},
@@ -190,6 +197,14 @@ function onUpdateStatus(fn: Listener<UpdateStatusPayload>): Unsubscribe {
 	return subscribe('updateStatus', fn)
 }
 
+function onAccountsLoaded(fn: Listener<{ accounts: AccountInfo[] }>): Unsubscribe {
+	return subscribe('accountsLoaded', fn)
+}
+
+function onActiveAccountChanged(fn: Listener<{ accountId: string; account: AccountInfo }>): Unsubscribe {
+	return subscribe('activeAccountChanged', fn)
+}
+
 export {
 	electroview,
 	rpc,
@@ -205,4 +220,6 @@ export {
 	onNavigateToUrl,
 	onToggleSyncLog,
 	onUpdateStatus,
+	onAccountsLoaded,
+	onActiveAccountChanged,
 }

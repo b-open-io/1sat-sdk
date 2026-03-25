@@ -1,7 +1,17 @@
 import type { ElectrobunRPCSchema, RPCSchema } from 'electrobun/view'
 
 // Wallet status lifecycle
-export type WalletStatus = 'initializing' | 'no-wallet' | 'locked' | 'unlocked'
+export type WalletStatus = 'initializing' | 'account-selection' | 'no-wallet' | 'locked' | 'unlocked'
+
+// Account info for profile picker
+export interface AccountInfo {
+	id: string
+	identityKey: string
+	displayName: string
+	color: string
+	createdAt: string
+	lastUsedAt: string
+}
 
 // Balance info
 export interface BalanceInfo {
@@ -249,25 +259,47 @@ export interface AppVersionInfo {
 // ---- RPC Schema ----
 // Requests the webview can make to bun
 type BunRequests = {
-	createWallet: {
-		params: { mnemonic: string; passphrase?: string }
+	// Account management
+	listAccounts: {
+		params: undefined
+		response: { accounts: AccountInfo[]; showPickerOnStartup: boolean }
+	}
+	selectAccount: {
+		params: { accountId: string }
 		response: { success: boolean; error?: string }
 	}
-	importWallet: {
-		params: { mnemonic: string; passphrase?: string }
+	createAccount: {
+		params: { mnemonic: string; passphrase?: string; displayName?: string; color?: string }
+		response: { success: boolean; accountId?: string; error?: string }
+	}
+	importAccount: {
+		params: { mnemonic: string; passphrase?: string; displayName?: string; color?: string }
+		response: { success: boolean; accountId?: string; error?: string }
+	}
+	updateAccount: {
+		params: { accountId: string; displayName?: string; color?: string }
 		response: { success: boolean; error?: string }
 	}
-	unlockWallet: {
-		params: { passphrase?: string }
+	deleteAccount: {
+		params: { accountId: string }
 		response: { success: boolean; error?: string }
 	}
+	switchAccount: {
+		params: { accountId: string }
+		response: { success: boolean; error?: string }
+	}
+	getActiveAccount: {
+		params: undefined
+		response: { account: AccountInfo | null }
+	}
+	setShowPickerOnStartup: {
+		params: { show: boolean }
+		response: { success: boolean }
+	}
+	// Wallet lifecycle
 	lockWallet: {
 		params: undefined
 		response: { success: boolean }
-	}
-	deleteWallet: {
-		params: undefined
-		response: { success: boolean; error?: string }
 	}
 	generateMnemonic: {
 		params: undefined
@@ -466,6 +498,8 @@ export interface PermissionRequest {
 // Messages bun can send to the webview (push notifications)
 type BunMessages = {
 	walletStateChanged: { status: WalletStatus }
+	accountsLoaded: { accounts: AccountInfo[] }
+	activeAccountChanged: { accountId: string; account: AccountInfo }
 	balanceUpdated: BalanceInfo
 	syncEvent: SyncEvent
 	ordinalsUpdated: { ordinals: OrdinalInfo[] }

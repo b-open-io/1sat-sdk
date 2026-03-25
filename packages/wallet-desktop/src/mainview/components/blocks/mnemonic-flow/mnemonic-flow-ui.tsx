@@ -1,7 +1,8 @@
 "use client"
 
 import { useMemo } from "react"
-import { Check, ClipboardCopy, Loader2, X } from "lucide-react"
+import { useHotkeys } from "@tanstack/react-hotkeys"
+import { Check, ChevronLeft, ChevronRight, ClipboardCopy, Loader2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -135,6 +136,25 @@ export function MnemonicFlowUi({
 }: MnemonicFlowUiProps) {
   const config = getModeConfig(mode, wordCount)
 
+  // Keyboard navigation: Left = back, Right/Enter = forward
+  useHotkeys([
+    {
+      hotkey: 'ArrowLeft',
+      callback: () => {
+        // Don't trigger if user is typing in an input
+        if (document.activeElement?.tagName === 'INPUT') return
+        onCancel()
+      },
+    },
+    {
+      hotkey: 'ArrowRight',
+      callback: () => {
+        if (document.activeElement?.tagName === 'INPUT') return
+        if (canSubmit && !isLoading) onSubmit()
+      },
+    },
+  ])
+
   // Build position sets for the grid
   const editablePositions = useMemo(() => {
     if (mode === "import") {
@@ -244,25 +264,34 @@ export function MnemonicFlowUi({
 
       {/* Footer with action buttons (hidden in pure display mode) */}
       {mode !== "display" && (
-        <CardFooter className="flex gap-3">
-          <Button variant="outline" className="flex-1" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button
-            className="flex-1"
-            onClick={onSubmit}
-            disabled={!canSubmit || isLoading}
-            aria-busy={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="animate-spin" data-icon="inline-start" />
-                Processing...
-              </>
-            ) : (
-              config.submitLabel
-            )}
-          </Button>
+        <CardFooter className="flex flex-col gap-3">
+          <div className="flex gap-3 w-full">
+            <Button variant="outline" className="flex-1" onClick={onCancel}>
+              <ChevronLeft className="size-4" />
+              Back
+            </Button>
+            <Button
+              className="flex-1"
+              onClick={onSubmit}
+              disabled={!canSubmit || isLoading}
+              aria-busy={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="animate-spin" data-icon="inline-start" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  {config.submitLabel}
+                  <ChevronRight className="size-4" />
+                </>
+              )}
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground/60 text-center">
+            Use <kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">&larr;</kbd> <kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">&rarr;</kbd> arrow keys to navigate
+          </p>
         </CardFooter>
       )}
     </Card>

@@ -1,12 +1,3 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-	CheckCircle2,
-	ExternalLink,
-	Server,
-	SkipForward,
-	Sparkles,
-	UserCircle2,
-} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -19,10 +10,25 @@ import {
 	SelectValue,
 } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
-import { StepIndicator, type Step } from '@/components/ui/step-indicator'
+import { type Step, StepIndicator } from '@/components/ui/step-indicator'
+import {
+	CheckCircle2,
+	ExternalLink,
+	RefreshCw,
+	Server,
+	SkipForward,
+	Sparkles,
+	UserCircle2,
+} from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { rpc } from '../../rpc'
 
-const AI_SETTINGS_KEY = '1sat-ai-settings'
+import {
+	AI_SETTINGS_KEY,
+	type AiProvider,
+	LOCAL_PROVIDERS,
+	PROVIDER_DEFAULTS,
+} from '../../../shared/ai-providers'
 const STEP_LABELS = ['Stack', 'AI', 'Identity', 'Ready'] as const
 
 interface StepResult {
@@ -70,7 +76,8 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
 	const steps: Step[] = STEP_LABELS.map((label, i) => ({
 		id: String(i),
 		label,
-		status: i < currentStep ? 'complete' : i === currentStep ? 'active' : 'pending',
+		status:
+			i < currentStep ? 'complete' : i === currentStep ? 'active' : 'pending',
 	}))
 
 	return (
@@ -91,7 +98,9 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
 					<CardContent>
 						{currentStep === 0 && <StackStep onAdvance={handleStackAdvance} />}
 						{currentStep === 1 && <AiStep onAdvance={handleAiAdvance} />}
-						{currentStep === 2 && <IdentityStep onAdvance={handleIdentityAdvance} />}
+						{currentStep === 2 && (
+							<IdentityStep onAdvance={handleIdentityAdvance} />
+						)}
 						{currentStep === 3 && (
 							<ReadyStep result={result} onComplete={onComplete} />
 						)}
@@ -165,7 +174,9 @@ function StackStep({
 		return (
 			<div className="flex flex-col items-center gap-4 py-8">
 				<Spinner className="size-6" />
-				<p className="text-sm text-muted-foreground">Checking stack status...</p>
+				<p className="text-sm text-muted-foreground">
+					Checking stack status...
+				</p>
 			</div>
 		)
 	}
@@ -182,9 +193,7 @@ function StackStep({
 						Blockchain sync is ready
 					</p>
 					{autoAdvancing && (
-						<p className="text-xs text-muted-foreground mt-1">
-							Continuing...
-						</p>
+						<p className="text-xs text-muted-foreground mt-1">Continuing...</p>
 					)}
 				</div>
 			</div>
@@ -226,46 +235,110 @@ function StackStep({
 // Step 2: AI Assistant (Optional)
 // ---------------------------------------------------------------------------
 
-function AiStep({
-	onAdvance,
-}: { onAdvance: (model: string | null) => void }) {
+function AiStep({ onAdvance }: { onAdvance: (model: string | null) => void }) {
 	const [loading, setLoading] = useState(true)
 	const [available, setAvailable] = useState(false)
 	const [models, setModels] = useState<string[]>([])
 	const [selectedModel, setSelectedModel] = useState<string>('')
+	const [detectedProvider, setDetectedProvider] = useState<AiProvider>('ollama')
+	const [selectedProvider, setSelectedProvider] = useState<AiProvider>('ollama')
+
+	const detect = useCallback(async (providerOverride?: AiProvider) => {
+		setLoading(true)
+		setAvailable(false)
+		setModels([])
+
+		const tryProvider = async (provider: AiProvider): Promise<boolean> => {
+			const baseUrl = PROVIDER_DEFAULTS[provider].baseUrl.replace(
+				/\/v1\/?$/,
+				'',
+			)
+			try {
+				const res = await rpc.request.checkAiProvider({ baseUrl })
+				if (res.available && res.models.length > 0) {
+					setAvailable(true)
+					setModels(res.models)
+					setSelectedModel(res.models[0])
+					setDetectedProvider(provider)
+					setSelectedProvider(provider)
+					return true
+				}
+			} catch {
+				/* continue */
+			}
+			return false
+		}
+
+		// If a specific provider was requested, try only that one
+		if (providerOverride) {
+			await tryProvider(providerOverride)
+			setLoading(false)
+			return
+		}
+
+		// Auto-detect: try all local providers
+		for (const provider of LOCAL_PROVIDERS) {
+			if (await tryProvider(provider)) {
+				setLoading(false)
+				return
+			}
+		}
+
+		setLoading(false)
+	}, [])
 
 	useEffect(() => {
-		rpc.request
-			.checkAiProvider({})
-			.then((res) => {
-				setAvailable(res.available)
-				setModels(res.models)
-				if (res.models.length > 0) {
-					setSelectedModel(res.models[0])
-				}
-			})
-			.catch(() => {
-				setAvailable(false)
-			})
-			.finally(() => setLoading(false))
-	}, [])
+		detect()
+	}, [detect])
+
+	const handleProviderChange = useCallback(
+		(provider: AiProvider) => {
+			setSelectedProvider(provider)
+			detect(provider)
+		},
+		[detect],
+	)
 
 	const handleSave = useCallback(() => {
 		const settings = {
-			provider: 'ollama',
-			baseUrl: 'http://localhost:11434/v1',
+			provider: selectedProvider,
+			baseUrl: PROVIDER_DEFAULTS[selectedProvider].baseUrl,
 			apiKey: '',
 			model: selectedModel,
 		}
 		localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(settings))
 		onAdvance(selectedModel)
-	}, [selectedModel, onAdvance])
+	}, [selectedProvider, selectedModel, onAdvance])
+
+	// Provider selector (shown in all states)
+	const providerSelector = (
+		<div className="w-full max-w-xs space-y-2">
+			<Label>AI Provider</Label>
+			<Select
+				value={selectedProvider}
+				onValueChange={(v) => handleProviderChange(v as AiProvider)}
+			>
+				<SelectTrigger className="w-full">
+					<SelectValue />
+				</SelectTrigger>
+				<SelectContent>
+					{LOCAL_PROVIDERS.map((key) => (
+						<SelectItem key={key} value={key}>
+							{PROVIDER_DEFAULTS[key].label}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+		</div>
+	)
 
 	if (loading) {
 		return (
 			<div className="flex flex-col items-center gap-4 py-8">
 				<Spinner className="size-6" />
-				<p className="text-sm text-muted-foreground">Detecting AI provider...</p>
+				<p className="text-sm text-muted-foreground">
+					Detecting AI provider...
+				</p>
 			</div>
 		)
 	}
@@ -277,11 +350,14 @@ function AiStep({
 					<Sparkles className="size-6 text-green-500" />
 				</div>
 				<div className="text-center">
-					<p className="text-sm font-medium text-foreground">Ollama detected</p>
+					<p className="text-sm font-medium text-foreground">
+						{PROVIDER_DEFAULTS[detectedProvider].label} detected
+					</p>
 					<p className="text-xs text-muted-foreground mt-0.5">
 						{models.length} model{models.length !== 1 ? 's' : ''} available
 					</p>
 				</div>
+				{providerSelector}
 				<div className="w-full max-w-xs space-y-2">
 					<Label>Select a model</Label>
 					<Select value={selectedModel} onValueChange={setSelectedModel}>
@@ -298,11 +374,7 @@ function AiStep({
 					</Select>
 				</div>
 				<div className="flex w-full justify-between pt-2">
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={() => onAdvance(null)}
-					>
+					<Button variant="ghost" size="sm" onClick={() => onAdvance(null)}>
 						Skip
 						<SkipForward className="size-3.5" />
 					</Button>
@@ -321,32 +393,24 @@ function AiStep({
 				<Sparkles className="size-6 text-muted-foreground" />
 			</div>
 			<div className="text-center max-w-sm">
-				<p className="text-sm font-medium text-foreground mb-1">
-					AI Assistant
-				</p>
+				<p className="text-sm font-medium text-foreground mb-1">AI Assistant</p>
 				<p className="text-xs text-muted-foreground">
-					Local AI via Ollama enables chat and page summarization.
+					Local AI via Ollama or LM Studio enables chat and page summarization.
 				</p>
 			</div>
-			<Button
-				variant="outline"
-				size="sm"
-				onClick={() =>
-					rpc.request.openBrowserWindow({
-						url: 'https://ollama.com',
-						title: 'Install Ollama',
-					})
-				}
-			>
-				Install Ollama
-				<ExternalLink className="size-3.5" />
-			</Button>
-			<div className="flex w-full justify-between pt-2">
+			{providerSelector}
+			<div className="flex items-center gap-2">
 				<Button
-					variant="ghost"
+					variant="outline"
 					size="sm"
-					onClick={() => onAdvance(null)}
+					onClick={() => detect(selectedProvider)}
 				>
+					<RefreshCw className="size-3.5" />
+					Retry Detection
+				</Button>
+			</div>
+			<div className="flex w-full justify-between pt-2">
+				<Button variant="ghost" size="sm" onClick={() => onAdvance(null)}>
 					Skip
 					<SkipForward className="size-3.5" />
 				</Button>
@@ -371,6 +435,7 @@ function IdentityStep({
 	const [publishing, setPublishing] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 	const [displayName, setDisplayName] = useState('')
+	const [accountColor, setAccountColor] = useState('blue')
 	const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
 	useEffect(() => {
@@ -380,10 +445,19 @@ function IdentityStep({
 	}, [])
 
 	useEffect(() => {
-		Promise.all([rpc.request.getBalance(), rpc.request.getIdentity()])
-			.then(([bal, identity]) => {
+		Promise.all([
+			rpc.request.getBalance(),
+			rpc.request.getIdentity(),
+			rpc.request.getActiveAccount().catch(() => ({ account: null })),
+		])
+			.then(([bal, identity, active]) => {
 				setBalance(bal.confirmed + bal.unconfirmed)
 				setBapId(identity.bapId)
+				if (active.account) {
+					if (active.account.displayName)
+						setDisplayName(active.account.displayName)
+					if (active.account.color) setAccountColor(active.account.color)
+				}
 			})
 			.catch(() => {
 				// leave defaults
@@ -418,12 +492,35 @@ function IdentityStep({
 		)
 	}
 
+	// Account avatar helper
+	const accountInitials = displayName
+		? displayName
+				.split(/\s+/)
+				.slice(0, 2)
+				.map((w) => w[0]?.toUpperCase() ?? '')
+				.join('')
+		: '?'
+
+	const avatarNode = (
+		<div
+			className={`flex size-14 items-center justify-center rounded-full bg-${accountColor}-500 text-white text-lg font-bold`}
+		>
+			{accountInitials}
+		</div>
+	)
+
 	// Already published
 	if (bapId) {
 		return (
 			<div className="flex flex-col items-center gap-4 py-8">
-				<div className="flex size-12 items-center justify-center rounded-full bg-green-500/10">
-					<CheckCircle2 className="size-6 text-green-500" />
+				{avatarNode}
+				{displayName && (
+					<p className="text-sm font-semibold text-foreground -mb-2">
+						{displayName}
+					</p>
+				)}
+				<div className="flex size-8 items-center justify-center rounded-full bg-green-500/10 -mt-1">
+					<CheckCircle2 className="size-4 text-green-500" />
 				</div>
 				<div className="text-center">
 					<p className="text-sm font-medium text-foreground">
@@ -441,9 +538,12 @@ function IdentityStep({
 	if (balance > 0) {
 		return (
 			<div className="flex flex-col items-center gap-4 py-6">
-				<div className="flex size-12 items-center justify-center rounded-full bg-muted">
-					<UserCircle2 className="size-6 text-muted-foreground" />
-				</div>
+				{avatarNode}
+				{displayName && (
+					<p className="text-sm font-semibold text-foreground -mb-2">
+						{displayName}
+					</p>
+				)}
 				<div className="text-center">
 					<p className="text-sm font-medium text-foreground mb-1">
 						Publish your identity on-chain?
@@ -461,9 +561,7 @@ function IdentityStep({
 						onChange={(e) => setDisplayName(e.target.value)}
 					/>
 				</div>
-				{error && (
-					<p className="text-xs text-destructive">{error}</p>
-				)}
+				{error && <p className="text-xs text-destructive">{error}</p>}
 				<div className="flex w-full justify-between pt-2">
 					<Button
 						variant="ghost"
@@ -485,9 +583,12 @@ function IdentityStep({
 	// Zero balance
 	return (
 		<div className="flex flex-col items-center gap-4 py-6">
-			<div className="flex size-12 items-center justify-center rounded-full bg-muted">
-				<UserCircle2 className="size-6 text-muted-foreground" />
-			</div>
+			{avatarNode}
+			{displayName && (
+				<p className="text-sm font-semibold text-foreground -mb-2">
+					{displayName}
+				</p>
+			)}
 			<div className="text-center max-w-sm">
 				<p className="text-sm font-medium text-foreground mb-1">Identity</p>
 				<p className="text-xs text-muted-foreground">
@@ -562,7 +663,9 @@ function ReadyStep({
 						>
 							{item.value}
 						</span>
-						{item.done && <CheckCircle2 className="size-3.5 text-green-500 shrink-0" />}
+						{item.done && (
+							<CheckCircle2 className="size-3.5 text-green-500 shrink-0" />
+						)}
 					</div>
 				))}
 			</div>
