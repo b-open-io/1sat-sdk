@@ -2,17 +2,8 @@ import Avatar from 'sigma-avatars'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from '@/components/ui/dialog'
 import { Empty } from '@/components/ui/empty'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { ImageSelectionModal } from '@/components/blocks/image-selection-modal'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { BitcoinAvatar } from '@/components/blocks/bitcoin-avatar'
@@ -88,108 +79,8 @@ function profileTypeLabel(
 	return t === 'Organization' ? 'Organization' : 'Person'
 }
 
-// --- ImageSelectionModal ----------------------------------------------------
-
-interface ImageSelectionModalProps {
-	open: boolean
-	onOpenChange: (open: boolean) => void
-	title: string
-	description?: string
-	currentUrl?: string
-	onSave: (url: string) => void
-}
-
-function ImageSelectionModal({
-	open,
-	onOpenChange,
-	title,
-	description,
-	currentUrl,
-	onSave,
-}: ImageSelectionModalProps) {
-	const [url, setUrl] = useState(currentUrl ?? '')
-	const [saving, setSaving] = useState(false)
-
-	useEffect(() => {
-		if (open) {
-			setUrl(currentUrl ?? '')
-		}
-	}, [open, currentUrl])
-
-	const handleSave = useCallback(async () => {
-		const trimmed = url.trim()
-		if (!trimmed) return
-		setSaving(true)
-		try {
-			onSave(trimmed)
-			onOpenChange(false)
-		} finally {
-			setSaving(false)
-		}
-	}, [url, onSave, onOpenChange])
-
-	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-[480px]">
-				<DialogHeader>
-					<DialogTitle>{title}</DialogTitle>
-					{description && (
-						<DialogDescription>{description}</DialogDescription>
-					)}
-				</DialogHeader>
-
-				<div className="space-y-4 py-4">
-					{url.trim() && (
-						<div className="flex justify-center">
-							<div className="h-32 w-full overflow-hidden rounded-lg border bg-muted">
-								<img
-									src={url.trim()}
-									alt="Preview"
-									className="h-full w-full object-cover"
-									onError={(e) => {
-										;(e.target as HTMLImageElement).style.display = 'none'
-									}}
-								/>
-							</div>
-						</div>
-					)}
-					<div className="space-y-2">
-						<Label htmlFor="img-url">Image URL</Label>
-						<Input
-							id="img-url"
-							type="url"
-							placeholder="ord://txid or https://..."
-							value={url}
-							onChange={(e) => setUrl(e.target.value)}
-						/>
-						<p className="text-xs text-muted-foreground">
-							On-chain ordinal URL or any image URL
-						</p>
-					</div>
-				</div>
-
-				<DialogFooter>
-					<Button
-						type="button"
-						variant="outline"
-						disabled={saving}
-						onClick={() => onOpenChange(false)}
-					>
-						Cancel
-					</Button>
-					<Button
-						type="button"
-						disabled={saving || !url.trim()}
-						onClick={handleSave}
-					>
-						{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-						Save
-					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
-	)
-}
+// ImageSelectionModal is imported from the standalone component
+// which has Ordinals, URL, and Upload tabs
 
 // --- DetailRow --------------------------------------------------------------
 
@@ -804,18 +695,16 @@ function OwnProfileView({
 				open={bannerModalOpen}
 				onOpenChange={setBannerModalOpen}
 				title="Edit Banner"
-				description="Set a banner image for your profile"
-				currentUrl={bannerUrl}
-				onSave={handleBannerSave}
+				aspectRatio={3}
+				onImageSelected={handleBannerSave}
 			/>
 
 			<ImageSelectionModal
 				open={avatarModalOpen}
 				onOpenChange={setAvatarModalOpen}
 				title="Edit Avatar"
-				description="Set a profile picture"
-				currentUrl={parsed?.image}
-				onSave={handleAvatarSave}
+				aspectRatio={1}
+				onImageSelected={handleAvatarSave}
 			/>
 		</>
 	)
