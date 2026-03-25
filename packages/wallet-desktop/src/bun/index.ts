@@ -246,6 +246,26 @@ try {
 }
 
 // ============================================================================
+// Popup / new window handling
+// ============================================================================
+
+mainWindow.webview.on('new-window-open', (e) => {
+	const data = typeof e.data === 'string' ? { url: e.data } : e.data
+	const popupUrl = data?.url
+	if (!popupUrl) return
+
+	const log = createLogger({ context: 'popup' })
+	log.set({ event: 'new_window_open', url: popupUrl })
+	log.emit()
+
+	new BrowserWindow({
+		title: new URL(popupUrl).hostname,
+		url: popupUrl,
+		frame: { width: 900, height: 700, x: 150, y: 150 },
+	})
+})
+
+// ============================================================================
 // Application menu
 // ============================================================================
 
