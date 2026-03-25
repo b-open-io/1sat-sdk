@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.0.8] - 2026-03-25
+
+### Added
+- Auto-updater: check on launch, hourly background checks, manual trigger via menu
+- "Check for Updates..." app menu item
+- Settings About tab: version/channel/hash display, live update status, Restart to Update button
+
+### Fixed
+- Agent sidebar: removed all custom --agent-* CSS variables, uses standard theme vars
+- AI chat, context menu: replaced agent gradient/accent vars with primary/muted-foreground
+
 ## [0.0.7] - 2026-03-25
 
 ### Added
