@@ -43,10 +43,9 @@ if (!existsSync(macOSDir)) {
 cpSync(enclaveSrc, enclaveDest)
 console.log(`[post-build] Copied enclave → ${enclaveDest}`)
 
-// Copy 1sat-stack sidecar binary into Resources/
-const resourcesDir = join(buildDir, `${appName}.app`, 'Contents', 'Resources')
+// Copy 1sat-stack sidecar binary into MacOS/ so Electrobun codesigns it
 const stackSrc = resolve(__dirname, '..', '1sat-stack-binary')
-const stackDest = join(resourcesDir, '1sat-stack')
+const stackDest = join(macOSDir, '1sat-stack')
 
 console.log(`[post-build] Looking for 1sat-stack at: ${stackSrc}`)
 

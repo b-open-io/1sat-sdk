@@ -104,9 +104,10 @@ async function findServerBinary(): Promise<string> {
 		return outPath
 	}
 
-	// 3. Production bundle (Electrobun postBuild copies it here)
-	// __dirname is the Bun entry-point directory at runtime
-	const bundledPath = `${import.meta.dir}/../../../Contents/Resources/1sat-stack`
+	// 3. Production bundle — postBuild copies into MacOS/ alongside the main binary
+	// process.argv0 points to the bun binary inside MacOS/
+	const { resolve } = await import('node:path')
+	const bundledPath = resolve(process.argv0, '..', '1sat-stack')
 	if (existsSync(bundledPath)) {
 		console.log(`1sat-stack: using bundled binary at ${bundledPath}`)
 		return bundledPath
