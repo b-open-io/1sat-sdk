@@ -81,7 +81,7 @@ export async function openAccountWindow(accountId: string): Promise<boolean> {
 	log.set({ event: 'new_window', accountId })
 	log.emit()
 
-	const handlers = createRpcHandlers()
+	const handlers = createRpcHandlers(accountId)
 	const rpc = BrowserView.defineRPC<WalletDesktopRPC>({
 		maxRequestTime: 60000,
 		handlers: {

@@ -79,6 +79,7 @@ import {
 	getActiveAccountId,
 	getStatus,
 	getWallet,
+	getWalletForAccount,
 	isAccountOpen,
 	lockAccount,
 	unlock,
@@ -116,39 +117,48 @@ function guessMimeType(filename: string): string {
 // Helpers
 // ============================================================================
 
-function requireWallet() {
-	const w = getWallet()
-	if (!w) {
-		throw new Error('Wallet is not unlocked')
-	}
-	return w
-}
-
-/** Try to resolve the BAP profile display name for the currently unlocked wallet. */
-async function resolveProfileName(): Promise<string | undefined> {
-	try {
-		const w = getWallet()
-		if (!w) return undefined
-		const ctx = createContext(w.wallet, { services: w.services, chain: 'main' })
-		const bapId = await resolveBapId(ctx)
-		if (!bapId) return undefined
-		const result = await getProfile.execute(ctx, {} as Record<string, never>)
-		const name = result.profile?.name ?? result.profile?.alternateName
-		return typeof name === 'string' && name.trim() ? name.trim() : undefined
-	} catch {
-		return undefined
-	}
-}
-
 // ============================================================================
 // Handler map
 // ============================================================================
 
 /**
  * Returns the request handlers object to pass into `BrowserView.defineRPC`.
- * Each function signature matches the RPC schema params -> response contract.
+ * Optionally scoped to a specific accountId — when provided, requireWallet
+ * and getActiveAccountId return data for that account instead of the first
+ * wallet in the map.
  */
-export function createRpcHandlers() {
+export function createRpcHandlers(scopedAccountId?: string) {
+	function requireWallet() {
+		const w = scopedAccountId
+			? getWalletForAccount(scopedAccountId)
+			: getWallet()
+		if (!w) {
+			throw new Error('Wallet is not unlocked')
+		}
+		return w
+	}
+
+	function scopedActiveAccountId(): string | undefined {
+		return scopedAccountId ?? getActiveAccountId()
+	}
+
+	async function resolveProfileName(): Promise<string | undefined> {
+		try {
+			const w = scopedAccountId
+				? getWalletForAccount(scopedAccountId)
+				: getWallet()
+			if (!w) return undefined
+			const ctx = createContext(w.wallet, { services: w.services, chain: 'main' })
+			const bapId = await resolveBapId(ctx)
+			if (!bapId) return undefined
+			const result = await getProfile.execute(ctx, {} as Record<string, never>)
+			const name = result.profile?.name ?? result.profile?.alternateName
+			return typeof name === 'string' && name.trim() ? name.trim() : undefined
+		} catch {
+			return undefined
+		}
+	}
+
 	return {
 		generateMnemonic: () => {
 			return { mnemonic: generateMnemonic() }
@@ -328,7 +338,7 @@ export function createRpcHandlers() {
 		},
 
 		getActiveAccount: () => {
-			const id = getActiveAccountId()
+			const id = scopedActiveAccountId()
 			return { account: id ? (getAccount(id) ?? null) : null }
 		},
 
@@ -360,7 +370,7 @@ export function createRpcHandlers() {
 		// ---- Wallet lifecycle ----
 
 		lockWallet: async () => {
-			const accountId = getActiveAccountId()
+			const accountId = scopedActiveAccountId()
 			if (accountId) {
 				await lockAccount(accountId)
 			}
@@ -722,7 +732,7 @@ export function createRpcHandlers() {
 
 		saveDraftProfile: ({ profile }: { profile: DraftProfile }) => {
 			try {
-				const accountId = getActiveAccountId()
+				const accountId = scopedActiveAccountId()
 				if (!accountId) return { success: false, error: 'No active account' }
 				const store = getConfigStore()
 				store.set(`draft-profile-${accountId}`, JSON.stringify(profile))
@@ -736,7 +746,7 @@ export function createRpcHandlers() {
 		},
 
 		getDraftProfile: () => {
-			const accountId = getActiveAccountId()
+			const accountId = scopedActiveAccountId()
 			if (!accountId) return { profile: null }
 			const store = getConfigStore()
 			const raw = store.get(`draft-profile-${accountId}`)
@@ -749,7 +759,7 @@ export function createRpcHandlers() {
 		},
 
 		discardDraftProfile: () => {
-			const accountId = getActiveAccountId()
+			const accountId = scopedActiveAccountId()
 			if (!accountId) return { success: true }
 			const store = getConfigStore()
 			store.delete(`draft-profile-${accountId}`)
@@ -758,7 +768,7 @@ export function createRpcHandlers() {
 
 		publishProfile: async () => {
 			try {
-				const accountId = getActiveAccountId()
+				const accountId = scopedActiveAccountId()
 				if (!accountId) return { success: false, error: 'No active account' }
 
 				const store = getConfigStore()
