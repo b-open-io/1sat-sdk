@@ -34,12 +34,30 @@ import {
 	startBackgroundUpdateCheck,
 	stopBackgroundUpdateCheck,
 } from './updater'
+import { initVaultLabel } from './vault-manager'
 import {
 	checkVault,
 	setBalanceUpdatedCallback,
 	setStatusChangedCallback,
 	setSyncEventCallback,
 } from './wallet-manager'
+
+// ============================================================================
+// Build channel — drives vault label + HMR detection
+// ============================================================================
+
+let buildChannel = 'stable'
+try {
+	buildChannel = await Updater.localInfo.channel()
+} catch (err) {
+	const log = createLogger({ context: 'startup' })
+	log.set({ event: 'channel_detection_failed', error: err instanceof Error ? err.message : String(err) })
+	log.emit()
+}
+
+// Each channel gets its own Secure Enclave key so dev/stable/canary vaults
+// never overwrite each other's SE key material.
+initVaultLabel(`1sat-wallet-root-key-${buildChannel}`)
 
 // ============================================================================
 // Dev server detection (HMR support)
@@ -49,26 +67,18 @@ const DEV_SERVER_PORT = 5173
 const DEV_SERVER_URL = `http://localhost:${DEV_SERVER_PORT}`
 
 async function getMainViewUrl(): Promise<string> {
-	try {
-		const channel = await Updater.localInfo.channel()
-		if (channel === 'dev') {
-			try {
-				await fetch(DEV_SERVER_URL, { method: 'HEAD' })
-				const log = createLogger({ context: 'startup' })
-				log.set({ event: 'hmr_enabled', devServerUrl: DEV_SERVER_URL })
-				log.emit()
-				return DEV_SERVER_URL
-			} catch {
-				const log = createLogger({ context: 'startup' })
-				log.set({ event: 'hmr_unavailable', hint: "Run 'bun run dev:hmr' for HMR support" })
-				log.emit()
-			}
+	if (buildChannel === 'dev') {
+		try {
+			await fetch(DEV_SERVER_URL, { method: 'HEAD' })
+			const log = createLogger({ context: 'startup' })
+			log.set({ event: 'hmr_enabled', devServerUrl: DEV_SERVER_URL })
+			log.emit()
+			return DEV_SERVER_URL
+		} catch {
+			const log = createLogger({ context: 'startup' })
+			log.set({ event: 'hmr_unavailable', hint: "Run 'bun run dev:hmr' for HMR support" })
+			log.emit()
 		}
-	} catch (err) {
-		const log = createLogger({ context: 'startup' })
-		log.set({ event: 'channel_detection_failed', error: err instanceof Error ? err.message : String(err) })
-		log.emit()
-		console.error('Failed to detect update channel:', err)
 	}
 	return 'views://mainview/index.html'
 }
