@@ -75,7 +75,9 @@ initVaultChannel(buildChannel)
 let migrationResult: { accountId: string; identityKey: string } | null = null
 if (listAccounts().length === 0) {
 	try {
+		// Try channel-aware label first (from PR #8), then original pre-channel label
 		migrationResult = await migrateLegacyWallet(legacyVaultLabel())
+			?? await migrateLegacyWallet('1sat-wallet-root-key')
 		if (migrationResult) {
 			addAccount({
 				id: migrationResult.accountId,

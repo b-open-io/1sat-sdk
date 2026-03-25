@@ -3,15 +3,17 @@ import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 
 
-const SCHEMA = `CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)`
+import { Utils } from 'electrobun/bun'
 
-const CONFIG_PATH = `${process.env.HOME}/.1sat-wallet/config.db`
+const SCHEMA = `CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)`
 
 let instance: ConfigStore | undefined
 
 export function getConfigStore(): ConfigStore {
 	if (!instance) {
-		instance = new ConfigStore(CONFIG_PATH)
+		// Use Electrobun's channel-isolated userData directory
+		const configPath = `${Utils.paths.userData}/config.db`
+		instance = new ConfigStore(configPath)
 	}
 	return instance
 }

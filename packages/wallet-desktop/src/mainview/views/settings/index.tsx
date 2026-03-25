@@ -1329,6 +1329,17 @@ function AboutTab() {
 					</Badge>
 				</div>
 				<Separator />
+				{versionInfo?.hash && (
+					<>
+						<div className="flex items-center justify-between py-3">
+							<p className="text-sm font-medium">Build</p>
+							<p className="text-sm text-muted-foreground font-[family-name:var(--font-mono)]">
+								{versionInfo.hash.slice(0, 8)}
+							</p>
+						</div>
+						<Separator />
+					</>
+				)}
 				<div className="flex items-center justify-between py-3">
 					<p className="text-sm font-medium">Framework</p>
 					<p className="text-sm text-muted-foreground">Electrobun</p>
