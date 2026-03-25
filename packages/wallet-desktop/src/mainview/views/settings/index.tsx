@@ -273,7 +273,7 @@ function formatLastAccess(ms: number): string {
 // ---------------------------------------------------------------------------
 
 function SecurityTab() {
-	const { deleteWallet } = useWallet()
+	const { deleteAccount, activeAccount } = useWallet()
 	const [autoLock, setAutoLock] = useState(loadAutoLock)
 	const [connectedApps, setConnectedApps] = useState<ConnectedApp[]>(
 		loadConnectedApps,
@@ -293,9 +293,10 @@ function SecurityTab() {
 	}, [])
 
 	const handleDeleteWallet = useCallback(async () => {
+		if (!activeAccount) return
 		setDeleting(true)
 		setDeleteError('')
-		const result = await deleteWallet()
+		const result = await deleteAccount(activeAccount.id)
 		if (!result.success) {
 			setDeleteError(result.error ?? 'Failed to delete wallet')
 			setDeleting(false)
@@ -303,7 +304,7 @@ function SecurityTab() {
 		}
 		setDeleteDialogOpen(false)
 		setDeleting(false)
-	}, [deleteWallet])
+	}, [deleteAccount, activeAccount])
 
 	return (
 		<div className="space-y-6 py-4">

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type {
+	AccountInfo,
 	BalanceInfo,
 	CreateSocialPostParams,
 	FileReadResult,
@@ -27,24 +28,27 @@ import type {
 	TokenBalance,
 	WalletStatus,
 } from '../../shared/types'
-import { onBalanceUpdated, onWalletStateChanged, rpc } from '../rpc'
+import {
+	onAccountsLoaded,
+	onActiveAccountChanged,
+	onBalanceUpdated,
+	onWalletStateChanged,
+	rpc,
+} from '../rpc'
 
 interface UseWalletReturn {
 	status: WalletStatus
 	balance: BalanceInfo
-	createWallet: (
-		mnemonic: string,
-		passphrase: string,
-	) => Promise<{ success: boolean; error?: string }>
-	importWallet: (
-		mnemonic: string,
-		passphrase: string,
-	) => Promise<{ success: boolean; error?: string }>
-	unlockWallet: (
-		passphrase: string,
-	) => Promise<{ success: boolean; error?: string }>
+	accounts: AccountInfo[]
+	activeAccount: AccountInfo | null
+	// Account management
+	selectAccount: (accountId: string) => Promise<{ success: boolean; error?: string }>
+	createAccount: (mnemonic: string, opts?: { passphrase?: string; displayName?: string; color?: string }) => Promise<{ success: boolean; accountId?: string; error?: string }>
+	importAccount: (mnemonic: string, opts?: { passphrase?: string; displayName?: string; color?: string }) => Promise<{ success: boolean; accountId?: string; error?: string }>
+	switchAccount: (accountId: string) => Promise<{ success: boolean; error?: string }>
+	deleteAccount: (accountId: string) => Promise<{ success: boolean; error?: string }>
+	// Wallet lifecycle
 	lockWallet: () => Promise<{ success: boolean }>
-	deleteWallet: () => Promise<{ success: boolean; error?: string }>
 	sendBsv: (address: string, amount: number) => Promise<{ txid: string }>
 	getReceiveInfo: () => Promise<ReceiveInfo>
 	generateMnemonic: () => Promise<string>
@@ -85,6 +89,8 @@ export function useWallet(): UseWalletReturn {
 		confirmed: 0,
 		unconfirmed: 0,
 	})
+	const [accounts, setAccounts] = useState<AccountInfo[]>([])
+	const [activeAccount, setActiveAccount] = useState<AccountInfo | null>(null)
 
 	useEffect(() => {
 		// Fetch initial wallet status
@@ -103,46 +109,66 @@ export function useWallet(): UseWalletReturn {
 			setBalance(payload)
 		})
 
+		// Subscribe to account list updates
+		const unsubAccounts = onAccountsLoaded((payload) => {
+			setAccounts(payload.accounts)
+		})
+
+		// Subscribe to active account changes
+		const unsubActive = onActiveAccountChanged((payload) => {
+			setActiveAccount(payload.account)
+		})
+
 		return () => {
 			unsubState()
 			unsubBalance()
+			unsubAccounts()
+			unsubActive()
 		}
 	}, [])
 
-	// Fetch balance when wallet is unlocked
+	// Fetch balance and active account when wallet is unlocked
 	useEffect(() => {
 		if (status === 'unlocked') {
 			rpc.request.getBalance().then(
 				(result) => setBalance(result),
 				(err) => console.error('Failed to get balance:', err),
 			)
+			rpc.request.getActiveAccount().then(
+				(result) => setActiveAccount(result.account),
+				(err) => console.error('Failed to get active account:', err),
+			)
 		}
 	}, [status])
 
-	const createWallet = useCallback(
-		async (mnemonic: string, passphrase: string) => {
-			return rpc.request.createWallet({ mnemonic, passphrase })
+	const selectAccount = useCallback(async (accountId: string) => {
+		return rpc.request.selectAccount({ accountId })
+	}, [])
+
+	const createAccount = useCallback(
+		async (mnemonic: string, opts?: { passphrase?: string; displayName?: string; color?: string }) => {
+			return rpc.request.createAccount({ mnemonic, ...opts })
 		},
 		[],
 	)
 
-	const importWallet = useCallback(
-		async (mnemonic: string, passphrase: string) => {
-			return rpc.request.importWallet({ mnemonic, passphrase })
+	const importAccount = useCallback(
+		async (mnemonic: string, opts?: { passphrase?: string; displayName?: string; color?: string }) => {
+			return rpc.request.importAccount({ mnemonic, ...opts })
 		},
 		[],
 	)
 
-	const unlockWallet = useCallback(async (passphrase: string) => {
-		return rpc.request.unlockWallet({ passphrase })
+	const switchAccountAction = useCallback(async (accountId: string) => {
+		return rpc.request.switchAccount({ accountId })
 	}, [])
 
 	const lockWallet = useCallback(async () => {
 		return rpc.request.lockWallet()
 	}, [])
 
-	const deleteWallet = useCallback(async () => {
-		return rpc.request.deleteWallet()
+	const deleteAccount = useCallback(async (accountId: string) => {
+		return rpc.request.deleteAccount({ accountId })
 	}, [])
 
 	const sendBsv = useCallback(async (address: string, amount: number) => {
@@ -252,11 +278,14 @@ export function useWallet(): UseWalletReturn {
 	return {
 		status,
 		balance,
-		createWallet,
-		importWallet,
-		unlockWallet,
+		accounts,
+		activeAccount,
+		selectAccount,
+		createAccount,
+		importAccount,
+		switchAccount: switchAccountAction,
+		deleteAccount,
 		lockWallet,
-		deleteWallet,
 		sendBsv,
 		getReceiveInfo,
 		generateMnemonic,

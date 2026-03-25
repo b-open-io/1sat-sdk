@@ -34,9 +34,18 @@ import {
 	startBackgroundUpdateCheck,
 	stopBackgroundUpdateCheck,
 } from './updater'
-import { initVaultLabel } from './vault-manager'
+import { initVaultChannel, legacyVaultLabel } from './vault-manager'
+import {
+	listAccounts,
+	getShowPickerOnStartup,
+	getLastActiveAccountId,
+	addAccount,
+	setLastActiveAccountId,
+	setShowPickerOnStartup as setPickerPref,
+} from './account-registry'
 import {
 	checkVault,
+	migrateLegacyWallet,
 	setBalanceUpdatedCallback,
 	setStatusChangedCallback,
 	setSyncEventCallback,
@@ -55,9 +64,38 @@ try {
 	log.emit()
 }
 
-// Each channel gets its own Secure Enclave key so dev/stable/canary vaults
-// never overwrite each other's SE key material.
-initVaultLabel(`1sat-wallet-root-key-${buildChannel}`)
+// Each channel gets its own Secure Enclave key namespace
+initVaultChannel(buildChannel)
+
+// ============================================================================
+// Migration: single-account → multi-account
+// ============================================================================
+
+let migrationResult: { accountId: string; identityKey: string } | null = null
+if (listAccounts().length === 0) {
+	try {
+		migrationResult = await migrateLegacyWallet(legacyVaultLabel())
+		if (migrationResult) {
+			addAccount({
+				id: migrationResult.accountId,
+				identityKey: migrationResult.identityKey,
+				displayName: 'Account 1',
+				color: 'amber',
+				createdAt: new Date().toISOString(),
+				lastUsedAt: new Date().toISOString(),
+			})
+			setLastActiveAccountId(migrationResult.accountId)
+			setPickerPref(true)
+			const log = createLogger({ context: 'migration' })
+			log.set({ event: 'legacy_migrated', accountId: migrationResult.accountId })
+			log.emit()
+		}
+	} catch (err) {
+		const log = createLogger({ context: 'migration' })
+		log.set({ event: 'migration_failed', error: err instanceof Error ? err.message : String(err) })
+		log.emit()
+	}
+}
 
 // ============================================================================
 // Dev server detection (HMR support)
@@ -304,16 +342,24 @@ setUpdateStatusPusher((status, version, error) => {
 	mainWindow.webview.rpc.send.updateStatus({ status, version, error })
 })
 
-// Check vault on launch — triggers setStatusChangedCallback which pushes to WebView.
-// Also send the initial state once the webview DOM is ready.
-const hasKey = checkVault()
+// Determine initial state based on account registry
+const accounts = listAccounts()
 mainWindow.webview.on('dom-ready', () => {
 	const log = createLogger({ context: 'startup' })
-	log.set({ event: 'dom_ready', url, hasKey })
+	log.set({ event: 'dom_ready', url, accountCount: accounts.length })
 	log.emit()
-	mainWindow.webview.rpc.send.walletStateChanged({
-		status: hasKey ? 'locked' : 'no-wallet',
-	})
+
+	if (accounts.length === 0) {
+		// Fresh install or failed migration
+		mainWindow.webview.rpc.send.walletStateChanged({ status: 'no-wallet' })
+	} else if (accounts.length === 1 && !getShowPickerOnStartup()) {
+		// Single account with picker disabled — auto-unlock
+		mainWindow.webview.rpc.send.walletStateChanged({ status: 'locked' })
+	} else {
+		// Show profile picker
+		mainWindow.webview.rpc.send.accountsLoaded({ accounts })
+		mainWindow.webview.rpc.send.walletStateChanged({ status: 'account-selection' })
+	}
 
 	// Auto-update: check on launch (non-blocking), then hourly in the background
 	checkForUpdatesOnLaunch()

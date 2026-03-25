@@ -5,29 +5,44 @@
  * On macOS the Secure Enclave + Touch ID protects the root key.
  * Non-macOS platforms throw immediately — add a provider when ready.
  *
- * The vault label is set once via `initVaultLabel()` before any operations.
- * Different build channels (dev, stable, canary) should use distinct labels
- * so each channel gets its own Secure Enclave key pair.
+ * All operations are parameterized by accountId. The build channel is set
+ * once via `initVaultChannel()` so each channel + account combination gets
+ * its own Secure Enclave key pair.
  */
 import { FileVaultStorage, type Vault, createVault } from '@1sat/vault'
 import { SecureEnclaveProvider, isMacOS } from '@1sat/wallet-mac'
 import { Utils } from 'electrobun/bun'
 
-let vaultLabel: string | undefined
+let buildChannel: string | undefined
 
 /**
- * Set the vault label used for all SE key operations.
- * Must be called once before checkVault / create / unlock.
+ * Set the build channel (dev, stable, canary).
+ * Must be called once at startup before any vault operations.
  */
-export function initVaultLabel(label: string): void {
-	vaultLabel = label
+export function initVaultChannel(channel: string): void {
+	buildChannel = channel
 }
 
-function getLabel(): string {
-	if (!vaultLabel) {
-		throw new Error('Vault label not initialized — call initVaultLabel() first')
+export function getBuildChannel(): string {
+	if (!buildChannel) {
+		throw new Error('Vault channel not initialized — call initVaultChannel() first')
 	}
-	return vaultLabel
+	return buildChannel
+}
+
+/**
+ * Compute the vault label for a specific account + channel.
+ * Format: `1sat-wallet-{accountId}-{channel}`
+ */
+export function vaultLabelForAccount(accountId: string): string {
+	return `1sat-wallet-${accountId}-${getBuildChannel()}`
+}
+
+/**
+ * The old single-account vault label format, used for migration detection.
+ */
+export function legacyVaultLabel(): string {
+	return `1sat-wallet-root-key-${getBuildChannel()}`
 }
 
 export function createDesktopVault(): Vault {
@@ -46,21 +61,28 @@ export function createDesktopVault(): Vault {
 
 export async function protectRootKey(
 	vault: Vault,
+	accountId: string,
 	rootKeyHex: string,
 ): Promise<void> {
-	await vault.protectSecret(getLabel(), rootKeyHex)
+	await vault.protectSecret(vaultLabelForAccount(accountId), rootKeyHex)
 }
 
-export async function retrieveRootKey(vault: Vault): Promise<string> {
-	const { plaintext } = await vault.unlockSecret(getLabel())
+export async function retrieveRootKey(
+	vault: Vault,
+	accountId: string,
+): Promise<string> {
+	const { plaintext } = await vault.unlockSecret(vaultLabelForAccount(accountId))
 	return plaintext
 }
 
-export function hasStoredKey(vault: Vault): boolean {
-	const secrets = vault.listSecrets()
-	return secrets.some((s) => s.label === getLabel())
+export function hasStoredKey(vault: Vault, accountId: string): boolean {
+	const label = vaultLabelForAccount(accountId)
+	return vault.listSecrets().some((s) => s.label === label)
 }
 
-export async function removeStoredKey(vault: Vault): Promise<void> {
-	await vault.removeSecret(getLabel())
+export async function removeStoredKey(
+	vault: Vault,
+	accountId: string,
+): Promise<void> {
+	await vault.removeSecret(vaultLabelForAccount(accountId))
 }

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useWallet } from '../../hooks/use-wallet'
 
 export function CreateWallet({ onCancel }: { onCancel: () => void }) {
-	const { createWallet, generateMnemonic } = useWallet()
+	const { createAccount, generateMnemonic } = useWallet()
 	const [words, setWords] = useState<string[] | null>(null)
 	const [error, setError] = useState<string | null>(null)
 	const [loading, setLoading] = useState(false)
@@ -20,7 +20,7 @@ export function CreateWallet({ onCancel }: { onCancel: () => void }) {
 			setError(null)
 			setLoading(true)
 			try {
-				const result = await createWallet(completedWords.join(' '), '')
+				const result = await createAccount(completedWords.join(' '))
 				if (!result.success) {
 					setError(result.error ?? 'Failed to create wallet')
 				}
@@ -30,7 +30,7 @@ export function CreateWallet({ onCancel }: { onCancel: () => void }) {
 				setLoading(false)
 			}
 		},
-		[createWallet],
+		[createAccount],
 	)
 
 	if (!words) {

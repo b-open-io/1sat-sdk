@@ -1,0 +1,196 @@
+import { Button } from '@/components/ui/button'
+import { useState } from 'react'
+import type { AccountInfo } from '../../../shared/types'
+import { useWallet } from '../../hooks/use-wallet'
+import { rpc } from '../../rpc'
+import { CreateWallet } from '../onboarding/create-wallet'
+import { ImportWallet } from '../onboarding/import-wallet'
+
+const ACCENT_COLORS: Record<string, string> = {
+	blue: 'bg-blue-500',
+	amber: 'bg-amber-500',
+	rose: 'bg-rose-500',
+	emerald: 'bg-emerald-500',
+	violet: 'bg-violet-500',
+	cyan: 'bg-cyan-500',
+	orange: 'bg-orange-500',
+	pink: 'bg-pink-500',
+}
+
+function getInitials(name: string): string {
+	return name
+		.split(/\s+/)
+		.map((w) => w[0])
+		.join('')
+		.toUpperCase()
+		.slice(0, 2)
+}
+
+function getColorClass(color: string): string {
+	return ACCENT_COLORS[color] ?? 'bg-blue-500'
+}
+
+function formatLastUsed(iso: string): string {
+	const diff = Date.now() - new Date(iso).getTime()
+	const mins = Math.floor(diff / 60_000)
+	if (mins < 1) return 'Just now'
+	if (mins < 60) return `${mins}m ago`
+	const hrs = Math.floor(mins / 60)
+	if (hrs < 24) return `${hrs}h ago`
+	const days = Math.floor(hrs / 24)
+	return `${days}d ago`
+}
+
+type AddMode = 'none' | 'create' | 'import'
+
+export function AccountPicker() {
+	const { accounts, selectAccount } = useWallet()
+	const [loading, setLoading] = useState<string | null>(null)
+	const [addMode, setAddMode] = useState<AddMode>('none')
+	const [showOnStartup, setShowOnStartup] = useState(true)
+
+	// Load initial preference
+	useState(() => {
+		rpc.request.listAccounts().then((r) => {
+			setShowOnStartup(r.showPickerOnStartup)
+		})
+	})
+
+	const handleSelect = async (accountId: string) => {
+		setLoading(accountId)
+		try {
+			const result = await selectAccount(accountId)
+			if (!result.success) {
+				console.error('Failed to select account:', result.error)
+				setLoading(null)
+			}
+		} catch (err) {
+			console.error('Account selection failed:', err)
+			setLoading(null)
+		}
+	}
+
+	const handleTogglePicker = (checked: boolean) => {
+		setShowOnStartup(checked)
+		rpc.request.setShowPickerOnStartup({ show: checked })
+	}
+
+	if (addMode === 'create') {
+		return <CreateWallet onCancel={() => setAddMode('none')} />
+	}
+	if (addMode === 'import') {
+		return <ImportWallet onCancel={() => setAddMode('none')} />
+	}
+
+	return (
+		<div className="min-h-screen flex flex-col items-center justify-center select-none">
+			<div className="max-w-lg w-full px-6">
+				{/* Branding */}
+				<div className="flex flex-col items-center mb-8">
+					<div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-lg font-bold text-background mb-3">
+						1S
+					</div>
+					<h1 className="text-xl font-semibold text-foreground">
+						Who's using 1Sat?
+					</h1>
+					<p className="text-sm text-muted-foreground mt-1">
+						Choose a profile to get started
+					</p>
+				</div>
+
+				{/* Account grid */}
+				<div className="flex flex-wrap justify-center gap-3 mb-8">
+					{accounts.map((account) => (
+						<AccountCard
+							key={account.id}
+							account={account}
+							loading={loading === account.id}
+							disabled={loading !== null}
+							onSelect={handleSelect}
+						/>
+					))}
+
+					{/* Add card */}
+					<button
+						type="button"
+						className="w-[120px] border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-muted-foreground/50 transition-colors"
+						onClick={() => setAddMode('create')}
+						disabled={loading !== null}
+					>
+						<div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center text-2xl text-muted-foreground">
+							+
+						</div>
+						<span className="text-sm text-muted-foreground">Add</span>
+					</button>
+				</div>
+
+				{/* Import option */}
+				<div className="flex justify-center mb-6">
+					<Button
+						variant="ghost"
+						size="sm"
+						className="text-xs text-muted-foreground"
+						onClick={() => setAddMode('import')}
+						disabled={loading !== null}
+					>
+						Import existing wallet
+					</Button>
+				</div>
+
+				{/* Footer */}
+				<div className="flex justify-end items-center pt-3 border-t border-border">
+					<label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+						<input
+							type="checkbox"
+							checked={showOnStartup}
+							onChange={(e) => handleTogglePicker(e.target.checked)}
+							className="accent-amber-500"
+						/>
+						Show on startup
+					</label>
+				</div>
+			</div>
+		</div>
+	)
+}
+
+function AccountCard({
+	account,
+	loading,
+	disabled,
+	onSelect,
+}: {
+	account: AccountInfo
+	loading: boolean
+	disabled: boolean
+	onSelect: (id: string) => void
+}) {
+	return (
+		<button
+			type="button"
+			className={`w-[120px] bg-card rounded-xl p-4 flex flex-col items-center gap-2 cursor-pointer border-2 transition-all ${
+				loading
+					? 'border-primary'
+					: 'border-transparent hover:border-muted-foreground/30'
+			} ${disabled && !loading ? 'opacity-50' : ''}`}
+			onClick={() => onSelect(account.id)}
+			disabled={disabled}
+		>
+			<div
+				className={`w-14 h-14 rounded-full ${getColorClass(account.color)} flex items-center justify-center text-lg font-bold text-white`}
+			>
+				{loading ? (
+					<span className="animate-pulse">...</span>
+				) : (
+					getInitials(account.displayName)
+				)}
+			</div>
+			<span className="text-sm font-medium text-foreground truncate w-full text-center">
+				{account.displayName}
+			</span>
+			<span className="text-[10px] text-muted-foreground">
+				{formatLastUsed(account.lastUsedAt)}
+			</span>
+		</button>
+	)
+}

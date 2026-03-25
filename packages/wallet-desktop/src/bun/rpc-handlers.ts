@@ -51,6 +51,17 @@ import {
 	subscribeChannel,
 	unsubscribeChannel,
 } from './chat-manager'
+import {
+	addAccount,
+	getAccount,
+	listAccounts,
+	getShowPickerOnStartup,
+	setShowPickerOnStartup,
+	setLastActiveAccountId,
+	touchAccount,
+	updateAccount as updateAccountRegistry,
+	removeAccount,
+} from './account-registry'
 import { getConfigStore } from './config-store'
 import { getStackUrl, isStackRunning } from './sidecar-manager'
 import {
@@ -59,11 +70,14 @@ import {
 	getAppVersionInfo,
 } from './updater'
 import {
+	computeAccountId,
 	create,
 	deleteWallet,
+	getActiveAccountId,
 	getStatus,
 	getWallet,
 	lock,
+	switchAccount,
 	unlock,
 } from './wallet-manager'
 
@@ -106,6 +120,22 @@ function requireWallet() {
 	return w
 }
 
+/** Try to resolve the BAP profile display name for the currently unlocked wallet. */
+async function resolveProfileName(): Promise<string | undefined> {
+	try {
+		const w = getWallet()
+		if (!w) return undefined
+		const ctx = createContext(w.wallet, { services: w.services, chain: 'main' })
+		const bapId = await resolveBapId(ctx)
+		if (!bapId) return undefined
+		const result = await getProfile.execute(ctx, {} as Record<string, never>)
+		const name = result.profile?.name ?? result.profile?.alternateName
+		return typeof name === 'string' && name.trim() ? name.trim() : undefined
+	} catch {
+		return undefined
+	}
+}
+
 // ============================================================================
 // Handler map
 // ============================================================================
@@ -124,66 +154,164 @@ export function createRpcHandlers() {
 			return { status: getStatus() }
 		},
 
-		createWallet: async ({
-			mnemonic,
-			passphrase,
-		}: { mnemonic: string; passphrase?: string }) => {
-			try {
-				await create(mnemonic, passphrase ?? '')
-				return { success: true }
-			} catch (err) {
-				return {
-					success: false,
-					error: err instanceof Error ? err.message : String(err),
-				}
+		// ---- Account management ----
+
+		listAccounts: () => {
+			return {
+				accounts: listAccounts(),
+				showPickerOnStartup: getShowPickerOnStartup(),
 			}
 		},
 
-		importWallet: async ({
+		selectAccount: async ({ accountId }: { accountId: string }) => {
+			try {
+				const account = getAccount(accountId)
+				if (!account) return { success: false, error: 'Account not found' }
+				await unlock(accountId, '')
+				touchAccount(accountId)
+				setLastActiveAccountId(accountId)
+				return { success: true }
+			} catch (err) {
+				return { success: false, error: err instanceof Error ? err.message : String(err) }
+			}
+		},
+
+		createAccount: async ({
 			mnemonic,
 			passphrase,
-		}: { mnemonic: string; passphrase?: string }) => {
+			displayName,
+			color,
+		}: { mnemonic: string; passphrase?: string; displayName?: string; color?: string }) => {
+			try {
+				// Derive identity key to compute accountId
+				const { Mnemonic: M, HD: H } = await import('@bsv/sdk')
+				const seed = M.fromString(mnemonic).toSeed()
+				const master = H.fromSeed(seed)
+				const identityKey = master.privKey.toPublicKey().toString()
+				const accountId = computeAccountId(identityKey)
+
+				await create(accountId, mnemonic, passphrase ?? '')
+
+				// Try to resolve BAP profile for display name
+				let resolvedName = displayName
+				if (!resolvedName) {
+					resolvedName = await resolveProfileName()
+				}
+
+				addAccount({
+					id: accountId,
+					identityKey,
+					displayName: resolvedName ?? identityKey.slice(0, 8),
+					color: color ?? 'blue',
+					createdAt: new Date().toISOString(),
+					lastUsedAt: new Date().toISOString(),
+				})
+				setLastActiveAccountId(accountId)
+				return { success: true, accountId }
+			} catch (err) {
+				return { success: false, error: err instanceof Error ? err.message : String(err) }
+			}
+		},
+
+		importAccount: async ({
+			mnemonic,
+			passphrase,
+			displayName,
+			color,
+		}: { mnemonic: string; passphrase?: string; displayName?: string; color?: string }) => {
 			try {
 				if (!isValidMnemonic(mnemonic)) {
 					return { success: false, error: 'Invalid mnemonic phrase' }
 				}
-				await create(mnemonic, passphrase ?? '')
-				return { success: true }
-			} catch (err) {
-				return {
-					success: false,
-					error: err instanceof Error ? err.message : String(err),
+				// Derive identity key to compute accountId before creating
+				const { Mnemonic: M, HD: H } = await import('@bsv/sdk')
+				const seed = M.fromString(mnemonic).toSeed()
+				const master = H.fromSeed(seed)
+				const identityKey = master.privKey.toPublicKey().toString()
+				const accountId = computeAccountId(identityKey)
+
+				// Check for duplicate
+				if (getAccount(accountId)) {
+					return { success: false, error: 'This wallet is already imported' }
 				}
+
+				await create(accountId, mnemonic, passphrase ?? '')
+
+				// Try to resolve BAP profile for display name
+				let resolvedName = displayName
+				if (!resolvedName) {
+					resolvedName = await resolveProfileName()
+				}
+
+				addAccount({
+					id: accountId,
+					identityKey,
+					displayName: resolvedName ?? identityKey.slice(0, 8),
+					color: color ?? 'blue',
+					createdAt: new Date().toISOString(),
+					lastUsedAt: new Date().toISOString(),
+				})
+				setLastActiveAccountId(accountId)
+				return { success: true, accountId }
+			} catch (err) {
+				return { success: false, error: err instanceof Error ? err.message : String(err) }
 			}
 		},
 
-		unlockWallet: async ({ passphrase }: { passphrase?: string } = {}) => {
+		updateAccount: async ({
+			accountId,
+			displayName,
+			color,
+		}: { accountId: string; displayName?: string; color?: string }) => {
 			try {
-				await unlock(passphrase ?? '')
+				updateAccountRegistry(accountId, { displayName, color })
 				return { success: true }
 			} catch (err) {
-				return {
-					success: false,
-					error: err instanceof Error ? err.message : String(err),
-				}
+				return { success: false, error: err instanceof Error ? err.message : String(err) }
 			}
 		},
+
+		deleteAccount: async ({ accountId }: { accountId: string }) => {
+			try {
+				await deleteWallet(accountId)
+				removeAccount(accountId)
+				if (listAccounts().length === 0) {
+					// No accounts left
+				}
+				return { success: true }
+			} catch (err) {
+				return { success: false, error: err instanceof Error ? err.message : String(err) }
+			}
+		},
+
+		switchAccount: async ({ accountId }: { accountId: string }) => {
+			try {
+				const account = getAccount(accountId)
+				if (!account) return { success: false, error: 'Account not found' }
+				await switchAccount(accountId, '')
+				touchAccount(accountId)
+				setLastActiveAccountId(accountId)
+				return { success: true }
+			} catch (err) {
+				return { success: false, error: err instanceof Error ? err.message : String(err) }
+			}
+		},
+
+		getActiveAccount: () => {
+			const id = getActiveAccountId()
+			return { account: id ? getAccount(id) ?? null : null }
+		},
+
+		setShowPickerOnStartup: ({ show }: { show: boolean }) => {
+			setShowPickerOnStartup(show)
+			return { success: true }
+		},
+
+		// ---- Wallet lifecycle ----
 
 		lockWallet: async () => {
 			await lock()
 			return { success: true }
-		},
-
-		deleteWallet: async () => {
-			try {
-				await deleteWallet()
-				return { success: true }
-			} catch (err) {
-				return {
-					success: false,
-					error: err instanceof Error ? err.message : String(err),
-				}
-			}
 		},
 
 		getBalance: async () => {
