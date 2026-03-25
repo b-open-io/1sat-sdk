@@ -7,12 +7,13 @@ import { onPermissionRequest, rpc } from './rpc'
 import { BrowserLayout } from './components/layout/browser-layout'
 import { useWallet } from './hooks/use-wallet'
 import { AccountPicker } from './views/account-picker'
+import { ImportBackup } from './views/account-picker/import-backup'
 import { CreateWallet } from './views/onboarding/create-wallet'
 import { ImportWallet } from './views/onboarding/import-wallet'
 import { SetupWizard } from './views/onboarding/setup-wizard'
 import { UnlockWallet } from './views/onboarding/unlock-wallet'
 
-type OnboardingChoice = 'none' | 'create' | 'import'
+type OnboardingChoice = 'none' | 'create' | 'import' | 'import-backup'
 
 function ChannelBadge() {
 	const [info, setInfo] = useState<AppVersionInfo | null>(null)
@@ -93,7 +94,15 @@ function OnboardingChoice({
 						size="lg"
 						onClick={() => onChoose('import')}
 					>
-						Import Existing Wallet
+						Import Mnemonic
+					</Button>
+					<Button
+						variant="secondary"
+						className="w-full"
+						size="lg"
+						onClick={() => onChoose('import-backup')}
+					>
+						Import Backup
 					</Button>
 				</div>
 			</div>
@@ -161,6 +170,7 @@ function App() {
 		const cancelOnboarding = () => setOnboardingChoice('none')
 		if (onboardingChoice === 'create') return <CreateWallet onCancel={cancelOnboarding} />
 		if (onboardingChoice === 'import') return <ImportWallet onCancel={cancelOnboarding} />
+		if (onboardingChoice === 'import-backup') return <ImportBackup onComplete={cancelOnboarding} onCancel={cancelOnboarding} />
 		return <OnboardingChoice onChoose={setOnboardingChoice} />
 	})()
 

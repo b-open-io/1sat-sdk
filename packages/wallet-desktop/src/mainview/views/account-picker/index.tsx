@@ -171,6 +171,17 @@ export function AccountPicker() {
 	if (view.kind === 'import') {
 		return <ImportWallet onCancel={() => setView({ kind: 'grid' })} />
 	}
+	if (view.kind === 'import-backup') {
+		return (
+			<ImportBackup
+				onComplete={() => {
+					refreshAccounts()
+					setView({ kind: 'grid' })
+				}}
+				onCancel={() => setView({ kind: 'grid' })}
+			/>
+		)
+	}
 	if (view.kind === 'profile-setup') {
 		return (
 			<ProfileSetup
@@ -227,8 +238,8 @@ export function AccountPicker() {
 					</button>
 				</div>
 
-				{/* Import option */}
-				<div className="flex justify-center mb-6">
+				{/* Import options */}
+				<div className="flex justify-center gap-3 mb-6">
 					<Button
 						variant="ghost"
 						size="sm"
@@ -236,7 +247,16 @@ export function AccountPicker() {
 						onClick={() => setView({ kind: 'import' })}
 						disabled={loading !== null}
 					>
-						Import existing wallet
+						Import mnemonic
+					</Button>
+					<Button
+						variant="ghost"
+						size="sm"
+						className="text-xs text-muted-foreground"
+						onClick={() => setView({ kind: 'import-backup' })}
+						disabled={loading !== null}
+					>
+						Import backup
 					</Button>
 				</div>
 
