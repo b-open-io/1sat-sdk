@@ -35,7 +35,7 @@ import {
 	stopBackgroundUpdateCheck,
 } from './updater'
 import { initVaultChannel, legacyVaultLabel } from './vault-manager'
-import { setPickerWindow } from './window-manager'
+import { setMainWindow } from './window-manager'
 import {
 	listAccounts,
 	getShowPickerOnStartup,
@@ -236,7 +236,7 @@ try {
 		titleBarStyle: 'hiddenInset',
 		rpc,
 	})
-	setPickerWindow(mainWindow)
+	setMainWindow(mainWindow)
 	const log = createLogger({ context: 'startup' })
 	log.set({ event: 'window_created', url })
 	log.emit()
