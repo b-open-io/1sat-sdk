@@ -26,7 +26,7 @@ export default {
 		},
 		watchIgnore: ["dist/**"],
 		mac: {
-			bundleCEF: false,
+			bundleCEF: true,
 			icons: "icon.iconset",
 			codesign: true,
 			notarize: true,

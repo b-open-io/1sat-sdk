@@ -232,7 +232,7 @@ function TabBar({
 }: TabBarProps) {
 	return (
 		<div
-			className="electrobun-webkit-app-region-drag flex items-end shrink-0"
+			className="electrobun-webkit-app-region-drag flex items-end shrink-0 select-none cursor-default"
 			style={{
 				height: TAB_BAR_HEIGHT,
 				paddingLeft: TRAFFIC_LIGHT_PAD,
@@ -283,7 +283,7 @@ function VerticalTabSidebar({
 }: VerticalTabSidebarProps) {
 	return (
 		<div
-			className="electrobun-webkit-app-region-drag flex flex-col shrink-0 border-r border-border bg-card"
+			className="electrobun-webkit-app-region-drag flex flex-col shrink-0 border-r border-border bg-card select-none cursor-default"
 			style={{ width: VERTICAL_SIDEBAR_WIDTH }}
 			onDoubleClick={() => rpc.request.toggleMaximize()}
 		>
