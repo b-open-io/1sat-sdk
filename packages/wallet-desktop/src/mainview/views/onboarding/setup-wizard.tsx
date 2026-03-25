@@ -39,6 +39,10 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
 		identity: 'skipped',
 	})
 
+	const advance = useCallback(() => {
+		setCurrentStep((s) => Math.min(s + 1, 3))
+	}, [])
+
 	const handleStackAdvance = useCallback(
 		(status: 'running' | 'skipped') => {
 			setResult((r) => ({ ...r, stack: status }))
@@ -68,10 +72,6 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
 		label,
 		status: i < currentStep ? 'complete' : i === currentStep ? 'active' : 'pending',
 	}))
-
-	const advance = useCallback(() => {
-		setCurrentStep((s) => Math.min(s + 1, 3))
-	}, [])
 
 	return (
 		<div className="min-h-screen flex items-center justify-center bg-background p-4">

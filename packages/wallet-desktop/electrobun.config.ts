@@ -24,9 +24,6 @@ export default {
 			"dist/assets": "views/mainview/assets",
 			"src/preloads/cwi.ts": "views/cwi-preload/index.js",
 		},
-		scripts: {
-			postBuild: "scripts/post-build.ts",
-		},
 		watchIgnore: ["dist/**"],
 		mac: {
 			bundleCEF: false,
@@ -40,6 +37,9 @@ export default {
 		win: {
 			bundleCEF: false,
 		},
+	},
+	scripts: {
+		postBuild: "scripts/post-build.ts",
 	},
 	release: {
 		baseUrl: process.env.RELEASE_BUCKET_URL || "",
