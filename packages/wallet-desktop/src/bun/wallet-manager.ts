@@ -403,17 +403,31 @@ export function getStatus(): WalletStatus {
 	return globalStatus
 }
 
-// Legacy callbacks — used by index.ts for the picker window
+// Legacy callbacks — used by index.ts for the picker window.
+// These are wired to the global status and also forwarded to
+// any running wallet (for the picker-reuse case).
+let legacyBalanceCb: ((balance: BalanceInfo) => void) | undefined
+let legacySyncCb: ((event: SyncEvent) => void) | undefined
+
 export function setStatusChangedCallback(cb: (status: WalletStatus) => void): void {
 	globalStatusCallback = cb
 }
 
-export function setBalanceUpdatedCallback(_cb: (balance: BalanceInfo) => void): void {
-	// No-op in multi-instance mode — each window wires its own callbacks
+export function setBalanceUpdatedCallback(cb: (balance: BalanceInfo) => void): void {
+	legacyBalanceCb = cb
 }
 
-export function setSyncEventCallback(_cb: (event: SyncEvent) => void): void {
-	// No-op in multi-instance mode
+export function setSyncEventCallback(cb: (event: SyncEvent) => void): void {
+	legacySyncCb = cb
+}
+
+/** Get legacy callbacks for the picker window reuse case. */
+export function getLegacyCallbacks(): WalletCallbacks {
+	return {
+		onStatusChanged: (status) => globalStatusCallback?.(status),
+		onBalanceUpdated: (balance) => legacyBalanceCb?.(balance),
+		onSyncEvent: (event) => legacySyncCb?.(event),
+	}
 }
 
 // ============================================================================

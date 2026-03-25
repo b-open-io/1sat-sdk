@@ -13,7 +13,7 @@ import { createLogger } from 'evlog'
 import type { WalletDesktopRPC } from '../shared/types'
 import { touchAccount, setLastActiveAccountId } from './account-registry'
 import { createRpcHandlers } from './rpc-handlers'
-import { unlock, lockAccount, type WalletCallbacks } from './wallet-manager'
+import { unlock, lockAccount, getLegacyCallbacks, type WalletCallbacks } from './wallet-manager'
 
 // ============================================================================
 // State
@@ -106,38 +106,44 @@ export async function openAccountWindow(accountId: string): Promise<boolean> {
 
 	accountWindows.set(accountId, win)
 
-	// Wire wallet callbacks to push to this window's RPC
-	const callbacks: WalletCallbacks = {
-		onStatusChanged: (status) => {
-			try { win.webview.rpc.send.walletStateChanged({ status }) } catch {}
-		},
-		onBalanceUpdated: (balance) => {
-			try { win.webview.rpc.send.balanceUpdated(balance) } catch {}
-		},
-		onSyncEvent: (event) => {
-			try { win.webview.rpc.send.syncEvent(event) } catch {}
-		},
-	}
+	// Wire wallet callbacks to push to this window's RPC.
+	// When reusing the picker window, use the legacy callbacks that index.ts
+	// already wired to mainWindow's RPC. For new windows, push via the new window's RPC.
+	const callbacks: WalletCallbacks = reusePickerWindow
+		? getLegacyCallbacks()
+		: {
+			onStatusChanged: (status) => {
+				try { win.webview.rpc.send.walletStateChanged({ status }) } catch {}
+			},
+			onBalanceUpdated: (balance) => {
+				try { win.webview.rpc.send.balanceUpdated(balance) } catch {}
+			},
+			onSyncEvent: (event) => {
+				try { win.webview.rpc.send.syncEvent(event) } catch {}
+			},
+		}
 
-	// Handle window close
-	win.on('close', () => {
-		log.set({ event: 'account_window_closed', accountId })
-		log.emit()
-		accountWindows.delete(accountId)
-		lockAccount(accountId).catch(() => {})
-	})
-
-	// Handle popup windows from this account window
-	win.webview.on('new-window-open', (e) => {
-		const data = typeof e.data === 'string' ? { url: e.data } : e.data
-		const popupUrl = data?.url
-		if (!popupUrl) return
-		new BrowserWindow({
-			title: new URL(popupUrl).hostname,
-			url: popupUrl,
-			frame: { width: 900, height: 700, x: 150, y: 150 },
+	if (!reusePickerWindow) {
+		// Only wire close/popup handlers for new windows
+		// (picker window already has these from index.ts)
+		win.on('close', () => {
+			log.set({ event: 'account_window_closed', accountId })
+			log.emit()
+			accountWindows.delete(accountId)
+			lockAccount(accountId).catch(() => {})
 		})
-	})
+
+		win.webview.on('new-window-open', (e) => {
+			const data = typeof e.data === 'string' ? { url: e.data } : e.data
+			const popupUrl = data?.url
+			if (!popupUrl) return
+			new BrowserWindow({
+				title: new URL(popupUrl).hostname,
+				url: popupUrl,
+				frame: { width: 900, height: 700, x: 150, y: 150 },
+			})
+		})
+	}
 
 	// Unlock the wallet for this account (triggers Touch ID)
 	try {
@@ -145,10 +151,15 @@ export async function openAccountWindow(accountId: string): Promise<boolean> {
 		touchAccount(accountId)
 		setLastActiveAccountId(accountId)
 
-		// Once DOM is ready, push the unlocked state
-		win.webview.on('dom-ready', () => {
-			win.webview.rpc.send.walletStateChanged({ status: 'unlocked' })
-		})
+		if (reusePickerWindow) {
+			// Picker window DOM is already ready — push status immediately
+			try { win.webview.rpc.send.walletStateChanged({ status: 'unlocked' }) } catch {}
+		} else {
+			// New window — wait for DOM to be ready
+			win.webview.on('dom-ready', () => {
+				try { win.webview.rpc.send.walletStateChanged({ status: 'unlocked' }) } catch {}
+			})
+		}
 	} catch (err) {
 		log.set({ event: 'account_unlock_failed', accountId, error: err instanceof Error ? err.message : String(err) })
 		log.emit()
