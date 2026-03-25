@@ -2,7 +2,17 @@ import Avatar from 'sigma-avatars'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog'
 import { Empty } from '@/components/ui/empty'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { BitcoinAvatar } from '@/components/blocks/bitcoin-avatar'
@@ -12,8 +22,9 @@ import type { FollowResult } from '@/components/blocks/follow-button'
 import type { BapProfile } from '@/components/blocks/profile-card/use-profile-card'
 import { cn } from '@/lib/utils'
 import {
+	Camera,
 	ExternalLink,
-	Globe,
+	ImageIcon,
 	Loader2,
 	MessageCircle,
 	Pencil,
@@ -56,6 +67,11 @@ function parseProfile(raw: Record<string, unknown>): BapProfile {
 	}
 }
 
+function parseBanner(raw: Record<string, unknown>): string | undefined {
+	const banner = raw.banner ?? raw.coverImage
+	return typeof banner === 'string' ? banner : undefined
+}
+
 function buildDisplayName(profile: BapProfile): string | undefined {
 	if (profile.name) return profile.name
 	if (profile.givenName || profile.familyName) {
@@ -70,6 +86,109 @@ function profileTypeLabel(
 	if (!raw) return 'Person'
 	const t = (raw as Record<string, unknown>)['@type']
 	return t === 'Organization' ? 'Organization' : 'Person'
+}
+
+// --- ImageSelectionModal ----------------------------------------------------
+
+interface ImageSelectionModalProps {
+	open: boolean
+	onOpenChange: (open: boolean) => void
+	title: string
+	description?: string
+	currentUrl?: string
+	onSave: (url: string) => void
+}
+
+function ImageSelectionModal({
+	open,
+	onOpenChange,
+	title,
+	description,
+	currentUrl,
+	onSave,
+}: ImageSelectionModalProps) {
+	const [url, setUrl] = useState(currentUrl ?? '')
+	const [saving, setSaving] = useState(false)
+
+	useEffect(() => {
+		if (open) {
+			setUrl(currentUrl ?? '')
+		}
+	}, [open, currentUrl])
+
+	const handleSave = useCallback(async () => {
+		const trimmed = url.trim()
+		if (!trimmed) return
+		setSaving(true)
+		try {
+			onSave(trimmed)
+			onOpenChange(false)
+		} finally {
+			setSaving(false)
+		}
+	}, [url, onSave, onOpenChange])
+
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent className="sm:max-w-[480px]">
+				<DialogHeader>
+					<DialogTitle>{title}</DialogTitle>
+					{description && (
+						<DialogDescription>{description}</DialogDescription>
+					)}
+				</DialogHeader>
+
+				<div className="space-y-4 py-4">
+					{url.trim() && (
+						<div className="flex justify-center">
+							<div className="h-32 w-full overflow-hidden rounded-lg border bg-muted">
+								<img
+									src={url.trim()}
+									alt="Preview"
+									className="h-full w-full object-cover"
+									onError={(e) => {
+										;(e.target as HTMLImageElement).style.display = 'none'
+									}}
+								/>
+							</div>
+						</div>
+					)}
+					<div className="space-y-2">
+						<Label htmlFor="img-url">Image URL</Label>
+						<Input
+							id="img-url"
+							type="url"
+							placeholder="ord://txid or https://..."
+							value={url}
+							onChange={(e) => setUrl(e.target.value)}
+						/>
+						<p className="text-xs text-muted-foreground">
+							On-chain ordinal URL or any image URL
+						</p>
+					</div>
+				</div>
+
+				<DialogFooter>
+					<Button
+						type="button"
+						variant="outline"
+						disabled={saving}
+						onClick={() => onOpenChange(false)}
+					>
+						Cancel
+					</Button>
+					<Button
+						type="button"
+						disabled={saving || !url.trim()}
+						onClick={handleSave}
+					>
+						{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+						Save
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	)
 }
 
 // --- DetailRow --------------------------------------------------------------
@@ -109,6 +228,46 @@ function DetailRow({
 				</span>
 			)}
 		</div>
+	)
+}
+
+// --- ProfileAvatar ----------------------------------------------------------
+
+function ProfileAvatar({
+	identityKey,
+	imageUrl,
+	size = 160,
+}: {
+	identityKey: string
+	imageUrl?: string
+	size?: number
+}) {
+	const [imgError, setImgError] = useState(false)
+
+	useEffect(() => {
+		setImgError(false)
+	}, [imageUrl])
+
+	if (imageUrl && !imgError) {
+		return (
+			<img
+				src={imageUrl}
+				alt="Profile"
+				className="h-full w-full object-cover"
+				width={size}
+				height={size}
+				onError={() => setImgError(true)}
+			/>
+		)
+	}
+
+	return (
+		<Avatar
+			colors={THEME_COLORS}
+			name={identityKey}
+			size={size}
+			variant="pixel"
+		/>
 	)
 }
 
@@ -324,8 +483,11 @@ function OwnProfileView({
 		type: 'success' | 'error'
 		text: string
 	} | null>(null)
+	const [bannerModalOpen, setBannerModalOpen] = useState(false)
+	const [avatarModalOpen, setAvatarModalOpen] = useState(false)
 
 	const parsed = profile ? parseProfile(profile) : null
+	const bannerUrl = profile ? parseBanner(profile) : undefined
 	const displayName =
 		parsed?.name ??
 		parsed?.alternateName ??
@@ -399,6 +561,55 @@ function OwnProfileView({
 		fetchDraft()
 	}, [fetchDraft])
 
+	const handleBannerSave = useCallback(
+		(url: string) => {
+			// Save banner as part of a draft profile update
+			const current: DraftProfile = draft ?? {
+				'@type':
+					(profile?.['@type'] as 'Person' | 'Organization') ?? 'Person',
+				alternateName: parsed?.alternateName,
+				description: parsed?.description,
+				image: parsed?.image,
+				url: parsed?.url,
+				givenName: parsed?.givenName,
+				familyName: parsed?.familyName,
+			}
+			// Banner is stored in the profile record but not in DraftProfile type
+			// We pass it through as an extra field for the draft save
+			void rpc.request
+				.saveDraftProfile({
+					profile: { ...current, banner: url } as DraftProfile,
+				})
+				.then(() => {
+					fetchDraft()
+					onRefresh()
+				})
+		},
+		[draft, profile, parsed, fetchDraft, onRefresh],
+	)
+
+	const handleAvatarSave = useCallback(
+		(url: string) => {
+			const current: DraftProfile = draft ?? {
+				'@type':
+					(profile?.['@type'] as 'Person' | 'Organization') ?? 'Person',
+				alternateName: parsed?.alternateName,
+				description: parsed?.description,
+				image: parsed?.image,
+				url: parsed?.url,
+				givenName: parsed?.givenName,
+				familyName: parsed?.familyName,
+			}
+			void rpc.request
+				.saveDraftProfile({ profile: { ...current, image: url } })
+				.then(() => {
+					fetchDraft()
+					onRefresh()
+				})
+		},
+		[draft, profile, parsed, fetchDraft, onRefresh],
+	)
+
 	// Build the current profile for the editor (merge published + draft)
 	const editorProfile: DraftProfile | null = draft ?? {
 		'@type':
@@ -414,40 +625,62 @@ function OwnProfileView({
 	return (
 		<>
 			<div className="space-y-6">
-				{/* Hero section */}
-				<div className="flex items-start gap-6">
-					<div className="shrink-0">
-						<Avatar
-							name={identityKey}
-							variant="marble"
-							size={96}
-							colors={THEME_COLORS}
-							className="rounded-full"
-						/>
+				{/* ---- Profile Hero ---- */}
+				<div className="relative">
+					{/* Banner */}
+					<div className="relative h-48 w-full overflow-hidden rounded-t-xl bg-gradient-to-r from-chart-1/40 to-chart-3/40 md:h-64">
+						{bannerUrl && (
+							<img
+								src={bannerUrl}
+								alt="Profile banner"
+								className="h-full w-full object-cover object-center"
+							/>
+						)}
+						<Button
+							className="absolute top-4 right-4 z-10"
+							onClick={() => setBannerModalOpen(true)}
+							size="sm"
+							variant="secondary"
+						>
+							<ImageIcon className="mr-2 h-4 w-4" />
+							Edit Banner
+						</Button>
 					</div>
-					<div className="flex flex-1 flex-col gap-2 min-w-0">
-						<h2 className="text-2xl font-semibold text-foreground truncate">
+
+					{/* Avatar overlapping the banner */}
+					<div className="relative z-10 -mt-16 flex justify-center px-4 md:-mt-20">
+						<div className="relative">
+							<div className="h-32 w-32 overflow-hidden rounded-full border-4 border-background shadow-lg md:h-40 md:w-40">
+								<ProfileAvatar
+									identityKey={identityKey}
+									imageUrl={parsed?.image}
+									size={160}
+								/>
+							</div>
+							<Button
+								className="absolute right-0 bottom-0"
+								onClick={() => setAvatarModalOpen(true)}
+								size="icon"
+								variant="secondary"
+							>
+								<Camera className="h-4 w-4" />
+							</Button>
+						</div>
+					</div>
+
+					{/* Centered user info */}
+					<div className="mt-4 space-y-2 text-center">
+						<h2 className="text-2xl font-bold md:text-3xl text-foreground">
 							{displayName}
 						</h2>
-						<Badge variant="secondary" className="w-fit font-mono text-xs">
-							{truncate(bapId, 10, 8)}
-						</Badge>
 						{parsed?.description && (
-							<p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+							<p className="text-muted-foreground">
 								{parsed.description}
 							</p>
 						)}
-						{parsed?.url && (
-							<a
-								href={parsed.url}
-								target="_blank"
-								rel="noopener noreferrer"
-								className="mt-1 flex items-center gap-1.5 text-sm text-primary hover:underline"
-							>
-								<Globe className="h-3.5 w-3.5 shrink-0" />
-								{parsed.url}
-							</a>
-						)}
+						<p className="font-mono text-sm text-muted-foreground">
+							{bapId}
+						</p>
 					</div>
 				</div>
 
@@ -503,7 +736,7 @@ function OwnProfileView({
 				)}
 
 				{/* Actions */}
-				<div className="flex gap-2">
+				<div className="flex justify-center gap-2">
 					<Button
 						variant="outline"
 						size="sm"
@@ -566,6 +799,24 @@ function OwnProfileView({
 				bapId={bapId}
 				onSaved={handleEditorSaved}
 			/>
+
+			<ImageSelectionModal
+				open={bannerModalOpen}
+				onOpenChange={setBannerModalOpen}
+				title="Edit Banner"
+				description="Set a banner image for your profile"
+				currentUrl={bannerUrl}
+				onSave={handleBannerSave}
+			/>
+
+			<ImageSelectionModal
+				open={avatarModalOpen}
+				onOpenChange={setAvatarModalOpen}
+				title="Edit Avatar"
+				description="Set a profile picture"
+				currentUrl={parsed?.image}
+				onSave={handleAvatarSave}
+			/>
 		</>
 	)
 }
@@ -620,13 +871,17 @@ export function IdentityView({ params, onNavigate }: IdentityViewProps = {}) {
 		return (
 			<div className="mx-auto w-full max-w-3xl px-6 py-8">
 				<Skeleton className="mb-6 h-6 w-32" />
-				<div className="flex items-center gap-6">
-					<Skeleton className="h-24 w-24 rounded-full" />
-					<div className="space-y-3">
-						<Skeleton className="h-6 w-48" />
-						<Skeleton className="h-4 w-32" />
-						<Skeleton className="h-4 w-64" />
-					</div>
+				{/* Banner skeleton */}
+				<Skeleton className="h-48 w-full rounded-t-xl md:h-64" />
+				{/* Avatar skeleton overlapping */}
+				<div className="relative z-10 -mt-16 flex justify-center md:-mt-20">
+					<Skeleton className="h-32 w-32 rounded-full border-4 border-background md:h-40 md:w-40" />
+				</div>
+				{/* Name / description skeleton */}
+				<div className="mt-4 flex flex-col items-center gap-2">
+					<Skeleton className="h-8 w-48" />
+					<Skeleton className="h-4 w-64" />
+					<Skeleton className="h-4 w-96" />
 				</div>
 				<Skeleton className="mt-6 h-40 w-full rounded-xl" />
 			</div>
