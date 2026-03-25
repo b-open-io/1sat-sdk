@@ -5,6 +5,7 @@ import { BigBlocksProvider } from '@/components/blocks/bigblocks-provider'
 import { PermissionApproval } from '@/components/blocks/permission-approval'
 import { onPermissionRequest, rpc } from './rpc'
 import { BrowserLayout } from './components/layout/browser-layout'
+import { useAppearance } from './hooks/use-appearance'
 import { useWallet } from './hooks/use-wallet'
 import { AccountPicker } from './views/account-picker'
 import { ImportBackup } from './views/account-picker/import-backup'
@@ -105,6 +106,9 @@ function App() {
 	const { status, activeAccount } = useWallet()
 	const [onboardingChoice, setOnboardingChoice] =
 		useState<OnboardingChoice>('none')
+
+	// Apply per-account appearance mode (light/dark/system) when account is known
+	useAppearance(activeAccount?.id)
 
 	// Per-account setup tracking
 	const setupKey = activeAccount
