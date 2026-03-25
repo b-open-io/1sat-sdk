@@ -130,16 +130,15 @@
 	--protocol-http-fg: oklch(0.35 0.09 50);
 	--protocol-ai-bg: oklch(0.88 0.08 300);
 	--protocol-ai-fg: oklch(0.35 0.14 300);
-	/* Agent / AI gradient endpoints */
-	--agent-gradient-from: #7c3aed;
-	--agent-gradient-to: #2563eb;
-	/* Agent popover accent (purple-ish hue 290) */
-	--agent-accent-bg: oklch(0.88 0.1 290);
-	--agent-accent-fg: oklch(0.35 0.2 290);
-	--agent-accent-muted: oklch(0.42 0.18 290);
-	--agent-accent-dim: oklch(0.5 0.14 290);
-	--agent-accent-border: oklch(0.78 0.1 290);
-	--agent-accent-subtle: oklch(0.95 0.04 290);
+	/* Agent / AI accent — derived from primary (hue 96) */
+	--agent-gradient-from: oklch(0.72 0.18 96);
+	--agent-gradient-to: oklch(0.62 0.16 60);
+	--agent-accent-bg: oklch(0.92 0.06 96);
+	--agent-accent-fg: oklch(0.35 0.12 96);
+	--agent-accent-muted: oklch(0.42 0.1 96);
+	--agent-accent-dim: oklch(0.5 0.08 96);
+	--agent-accent-border: oklch(0.82 0.08 96);
+	--agent-accent-subtle: oklch(0.96 0.03 96);
 }
 
 /* -------------------------------------------------------------------------
@@ -189,16 +188,15 @@
 	--protocol-http-fg: oklch(0.7 0.1 50);
 	--protocol-ai-bg: oklch(0.3 0.12 300);
 	--protocol-ai-fg: oklch(0.75 0.15 300);
-	/* Agent / AI gradient endpoints */
-	--agent-gradient-from: #8b5cf6;
-	--agent-gradient-to: #3b82f6;
-	/* Agent popover accent (purple-ish hue 290) */
-	--agent-accent-bg: oklch(0.35 0.15 290);
-	--agent-accent-fg: oklch(0.78 0.18 290);
-	--agent-accent-muted: oklch(0.72 0.18 290);
-	--agent-accent-dim: oklch(0.65 0.12 290);
-	--agent-accent-border: oklch(0.35 0.08 290);
-	--agent-accent-subtle: oklch(0.9 0.05 290);
+	/* Agent / AI accent — derived from primary (hue 96) */
+	--agent-gradient-from: oklch(0.75 0.2 96);
+	--agent-gradient-to: oklch(0.65 0.18 60);
+	--agent-accent-bg: oklch(0.25 0.06 96);
+	--agent-accent-fg: oklch(0.82 0.18 96);
+	--agent-accent-muted: oklch(0.72 0.14 96);
+	--agent-accent-dim: oklch(0.6 0.1 96);
+	--agent-accent-border: oklch(0.3 0.04 96);
+	--agent-accent-subtle: oklch(0.18 0.02 96);
 }
 
 /* -------------------------------------------------------------------------
@@ -248,14 +246,14 @@
 		--protocol-http-fg: oklch(0.7 0.1 50);
 		--protocol-ai-bg: oklch(0.3 0.12 300);
 		--protocol-ai-fg: oklch(0.75 0.15 300);
-		--agent-gradient-from: #8b5cf6;
-		--agent-gradient-to: #3b82f6;
-		--agent-accent-bg: oklch(0.35 0.15 290);
-		--agent-accent-fg: oklch(0.78 0.18 290);
-		--agent-accent-muted: oklch(0.72 0.18 290);
-		--agent-accent-dim: oklch(0.65 0.12 290);
-		--agent-accent-border: oklch(0.35 0.08 290);
-		--agent-accent-subtle: oklch(0.9 0.05 290);
+		--agent-gradient-from: oklch(0.75 0.2 96);
+		--agent-gradient-to: oklch(0.65 0.18 60);
+		--agent-accent-bg: oklch(0.25 0.06 96);
+		--agent-accent-fg: oklch(0.82 0.18 96);
+		--agent-accent-muted: oklch(0.72 0.14 96);
+		--agent-accent-dim: oklch(0.6 0.1 96);
+		--agent-accent-border: oklch(0.3 0.04 96);
+		--agent-accent-subtle: oklch(0.18 0.02 96);
 	}
 }
 
