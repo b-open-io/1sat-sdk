@@ -81,14 +81,23 @@ async function findServerBinary(): Promise<string> {
 	const log = createLogger({ context: 'stack' })
 	const { resolve } = await import('node:path')
 
-	// 1. Pre-compiled dev binary
+	// 1. Bundled binary (production) — check FIRST so stable builds don't
+	//    accidentally fall through to source compile when ~/code/1sat-stack exists
+	const bundledPath = resolve(process.argv0, '..', '1sat-stack')
+	log.set({ event: 'binary_search', candidate: 'bundled', path: bundledPath, argv0: process.argv0, exists: existsSync(bundledPath) })
+	log.emit()
+	if (existsSync(bundledPath)) {
+		return bundledPath
+	}
+
+	// 2. Pre-compiled dev binary
 	log.set({ event: 'binary_search', candidate: 'dev', path: DEV_BINARY, exists: existsSync(DEV_BINARY) })
 	log.emit()
 	if (existsSync(DEV_BINARY)) {
 		return DEV_BINARY
 	}
 
-	// 2. Compile from source if source tree is present
+	// 3. Compile from source as last resort (dev environment only)
 	const mainGo = `${DEV_SOURCE_DIR}/cmd/server/main.go`
 	log.set({ event: 'binary_search', candidate: 'source', path: mainGo, exists: existsSync(mainGo) })
 	log.emit()
@@ -105,21 +114,7 @@ async function findServerBinary(): Promise<string> {
 		return outPath
 	}
 
-	// 3. Production bundle — postBuild copies into MacOS/ alongside the main binary
-	const bundledPath = resolve(process.argv0, '..', '1sat-stack')
-	log.set({
-		event: 'binary_search',
-		candidate: 'bundled',
-		path: bundledPath,
-		argv0: process.argv0,
-		exists: existsSync(bundledPath),
-	})
-	log.emit()
-	if (existsSync(bundledPath)) {
-		return bundledPath
-	}
-
-	const error = `1sat-stack binary not found. Checked: ${DEV_BINARY}, ${mainGo}, ${bundledPath}`
+	const error = `1sat-stack binary not found. Checked: ${bundledPath}, ${DEV_BINARY}, ${mainGo}`
 	log.set({ event: 'binary_not_found', error, argv0: process.argv0 })
 	log.emit()
 	throw new Error(error)
