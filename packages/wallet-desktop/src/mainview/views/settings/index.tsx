@@ -162,26 +162,17 @@ const OVERLAY_KEYS = [
 // AI Settings types and helpers
 // ---------------------------------------------------------------------------
 
-type AiProvider = 'ollama' | 'lmstudio' | 'openrouter' | 'openai' | 'anthropic'
+import {
+	type AiProvider,
+	AI_SETTINGS_KEY,
+	PROVIDER_DEFAULTS,
+} from '../../../shared/ai-providers'
 
 interface AiSettings {
 	provider: AiProvider
 	baseUrl: string
 	apiKey: string
 	model: string
-}
-
-const AI_SETTINGS_KEY = '1sat-ai-settings'
-
-const PROVIDER_DEFAULTS: Record<
-	AiProvider,
-	{ baseUrl: string; label: string }
-> = {
-	ollama: { baseUrl: 'http://localhost:11434/v1', label: 'Ollama (Local)' },
-	lmstudio: { baseUrl: 'http://localhost:1234/v1', label: 'LM Studio (Local)' },
-	openrouter: { baseUrl: 'https://openrouter.ai/api/v1', label: 'OpenRouter' },
-	openai: { baseUrl: 'https://api.openai.com/v1', label: 'OpenAI' },
-	anthropic: { baseUrl: 'https://api.anthropic.com/v1', label: 'Anthropic' },
 }
 
 function loadAiSettings(): AiSettings {

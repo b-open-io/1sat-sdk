@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button'
+import { useHotkeys } from '@tanstack/react-hotkeys'
 import { useCallback, useEffect, useState } from 'react'
 import type { AccountInfo } from '../../../shared/types'
 import { useWallet } from '../../hooks/use-wallet'
@@ -69,6 +70,35 @@ export function AccountPicker() {
 	}, [refreshAccounts])
 
 	const accounts = pushedAccounts.length > 0 ? pushedAccounts : fetchedAccounts
+	const [focusedIndex, setFocusedIndex] = useState(0)
+
+	// Keyboard navigation for the grid
+	useHotkeys([
+		{
+			hotkey: 'ArrowLeft',
+			callback: () => {
+				setFocusedIndex((i) => Math.max(0, i - 1))
+			},
+		},
+		{
+			hotkey: 'ArrowRight',
+			callback: () => {
+				// +1 for the Add card
+				setFocusedIndex((i) => Math.min(accounts.length, i + 1))
+			},
+		},
+		{
+			hotkey: 'Enter',
+			callback: () => {
+				if (loading) return
+				if (focusedIndex < accounts.length) {
+					handleSelect(accounts[focusedIndex].id)
+				} else {
+					setView({ kind: 'create' })
+				}
+			},
+		},
+	])
 
 	// Auto-show profile setup for accounts with placeholder names (e.g. migrated accounts)
 	useEffect(() => {
@@ -154,12 +184,13 @@ export function AccountPicker() {
 
 				{/* Account grid */}
 				<div className="flex flex-wrap justify-center gap-3 mb-8">
-					{accounts.map((account) => (
+					{accounts.map((account, idx) => (
 						<AccountCard
 							key={account.id}
 							account={account}
 							loading={loading === account.id}
 							disabled={loading !== null}
+							focused={focusedIndex === idx}
 							onSelect={handleSelect}
 						/>
 					))}
@@ -167,7 +198,11 @@ export function AccountPicker() {
 					{/* Add card */}
 					<button
 						type="button"
-						className="w-[120px] border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-muted-foreground/50 transition-colors"
+						className={`w-[120px] border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors ${
+							focusedIndex === accounts.length
+								? 'border-primary'
+								: 'border-border hover:border-muted-foreground/50'
+						}`}
 						onClick={() => setView({ kind: 'create' })}
 						disabled={loading !== null}
 					>
@@ -192,7 +227,10 @@ export function AccountPicker() {
 				</div>
 
 				{/* Footer */}
-				<div className="flex justify-end items-center pt-3 border-t border-border">
+				<div className="flex justify-between items-center pt-3 border-t border-border">
+					<p className="text-[10px] text-muted-foreground/60">
+						<kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">&larr;</kbd> <kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">&rarr;</kbd> navigate, <kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">Enter</kbd> select
+					</p>
 					<label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
 						<input
 							type="checkbox"
@@ -212,11 +250,13 @@ function AccountCard({
 	account,
 	loading,
 	disabled,
+	focused,
 	onSelect,
 }: {
 	account: AccountInfo
 	loading: boolean
 	disabled: boolean
+	focused: boolean
 	onSelect: (id: string) => void
 }) {
 	return (
@@ -225,7 +265,9 @@ function AccountCard({
 			className={`w-[120px] bg-card rounded-xl p-4 flex flex-col items-center gap-2 cursor-pointer border-2 transition-all ${
 				loading
 					? 'border-primary'
-					: 'border-transparent hover:border-muted-foreground/30'
+					: focused
+						? 'border-primary/60'
+						: 'border-transparent hover:border-muted-foreground/30'
 			} ${disabled && !loading ? 'opacity-50' : ''}`}
 			onClick={() => onSelect(account.id)}
 			disabled={disabled}

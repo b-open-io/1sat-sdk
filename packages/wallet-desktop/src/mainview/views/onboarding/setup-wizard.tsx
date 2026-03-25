@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
 	CheckCircle2,
 	ExternalLink,
+	RefreshCw,
 	Server,
 	SkipForward,
 	Sparkles,
@@ -22,7 +23,12 @@ import { Spinner } from '@/components/ui/spinner'
 import { StepIndicator, type Step } from '@/components/ui/step-indicator'
 import { rpc } from '../../rpc'
 
-const AI_SETTINGS_KEY = '1sat-ai-settings'
+import {
+	type AiProvider,
+	AI_SETTINGS_KEY,
+	LOCAL_PROVIDERS,
+	PROVIDER_DEFAULTS,
+} from '../../../shared/ai-providers'
 const STEP_LABELS = ['Stack', 'AI', 'Identity', 'Ready'] as const
 
 interface StepResult {
@@ -233,33 +239,89 @@ function AiStep({
 	const [available, setAvailable] = useState(false)
 	const [models, setModels] = useState<string[]>([])
 	const [selectedModel, setSelectedModel] = useState<string>('')
+	const [detectedProvider, setDetectedProvider] = useState<AiProvider>('ollama')
+	const [selectedProvider, setSelectedProvider] = useState<AiProvider>('ollama')
+
+	const detect = useCallback(async (providerOverride?: AiProvider) => {
+		setLoading(true)
+		setAvailable(false)
+		setModels([])
+
+		const tryProvider = async (provider: AiProvider): Promise<boolean> => {
+			const baseUrl = PROVIDER_DEFAULTS[provider].baseUrl.replace(/\/v1\/?$/, '')
+			try {
+				const res = await rpc.request.checkAiProvider({ baseUrl })
+				if (res.available && res.models.length > 0) {
+					setAvailable(true)
+					setModels(res.models)
+					setSelectedModel(res.models[0])
+					setDetectedProvider(provider)
+					setSelectedProvider(provider)
+					return true
+				}
+			} catch { /* continue */ }
+			return false
+		}
+
+		// If a specific provider was requested, try only that one
+		if (providerOverride) {
+			await tryProvider(providerOverride)
+			setLoading(false)
+			return
+		}
+
+		// Auto-detect: try all local providers
+		for (const provider of LOCAL_PROVIDERS) {
+			if (await tryProvider(provider)) {
+				setLoading(false)
+				return
+			}
+		}
+
+		setLoading(false)
+	}, [])
 
 	useEffect(() => {
-		rpc.request
-			.checkAiProvider({})
-			.then((res) => {
-				setAvailable(res.available)
-				setModels(res.models)
-				if (res.models.length > 0) {
-					setSelectedModel(res.models[0])
-				}
-			})
-			.catch(() => {
-				setAvailable(false)
-			})
-			.finally(() => setLoading(false))
-	}, [])
+		detect()
+	}, [detect])
+
+	const handleProviderChange = useCallback(
+		(provider: AiProvider) => {
+			setSelectedProvider(provider)
+			detect(provider)
+		},
+		[detect],
+	)
 
 	const handleSave = useCallback(() => {
 		const settings = {
-			provider: 'ollama',
-			baseUrl: 'http://localhost:11434/v1',
+			provider: selectedProvider,
+			baseUrl: PROVIDER_DEFAULTS[selectedProvider].baseUrl,
 			apiKey: '',
 			model: selectedModel,
 		}
 		localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(settings))
 		onAdvance(selectedModel)
-	}, [selectedModel, onAdvance])
+	}, [selectedProvider, selectedModel, onAdvance])
+
+	// Provider selector (shown in all states)
+	const providerSelector = (
+		<div className="w-full max-w-xs space-y-2">
+			<Label>AI Provider</Label>
+			<Select value={selectedProvider} onValueChange={(v) => handleProviderChange(v as AiProvider)}>
+				<SelectTrigger className="w-full">
+					<SelectValue />
+				</SelectTrigger>
+				<SelectContent>
+					{LOCAL_PROVIDERS.map((key) => (
+						<SelectItem key={key} value={key}>
+							{PROVIDER_DEFAULTS[key].label}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+		</div>
+	)
 
 	if (loading) {
 		return (
@@ -277,11 +339,14 @@ function AiStep({
 					<Sparkles className="size-6 text-green-500" />
 				</div>
 				<div className="text-center">
-					<p className="text-sm font-medium text-foreground">Ollama detected</p>
+					<p className="text-sm font-medium text-foreground">
+						{PROVIDER_DEFAULTS[detectedProvider].label} detected
+					</p>
 					<p className="text-xs text-muted-foreground mt-0.5">
 						{models.length} model{models.length !== 1 ? 's' : ''} available
 					</p>
 				</div>
+				{providerSelector}
 				<div className="w-full max-w-xs space-y-2">
 					<Label>Select a model</Label>
 					<Select value={selectedModel} onValueChange={setSelectedModel}>
@@ -325,22 +390,20 @@ function AiStep({
 					AI Assistant
 				</p>
 				<p className="text-xs text-muted-foreground">
-					Local AI via Ollama enables chat and page summarization.
+					Local AI via Ollama or LM Studio enables chat and page summarization.
 				</p>
 			</div>
-			<Button
-				variant="outline"
-				size="sm"
-				onClick={() =>
-					rpc.request.openBrowserWindow({
-						url: 'https://ollama.com',
-						title: 'Install Ollama',
-					})
-				}
-			>
-				Install Ollama
-				<ExternalLink className="size-3.5" />
-			</Button>
+			{providerSelector}
+			<div className="flex items-center gap-2">
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() => detect(selectedProvider)}
+				>
+					<RefreshCw className="size-3.5" />
+					Retry Detection
+				</Button>
+			</div>
 			<div className="flex w-full justify-between pt-2">
 				<Button
 					variant="ghost"

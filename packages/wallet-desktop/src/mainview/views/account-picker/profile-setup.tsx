@@ -1,4 +1,6 @@
 import { Button } from '@/components/ui/button'
+import { useHotkeys } from '@tanstack/react-hotkeys'
+import { ChevronRight } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { rpc } from '../../rpc'
 
@@ -35,6 +37,31 @@ export function ProfileSetup({
 	const [saving, setSaving] = useState(false)
 
 	const colorOption = COLOR_OPTIONS.find((c) => c.name === selectedColor) ?? COLOR_OPTIONS[0]
+	const [colorIndex, setColorIndex] = useState(() =>
+		COLOR_OPTIONS.findIndex((c) => c.name === selectedColor),
+	)
+
+	// Arrow keys: Left/Right cycle colors, Right also submits when input not focused
+	useHotkeys([
+		{
+			hotkey: 'ArrowLeft',
+			callback: () => {
+				if (document.activeElement?.tagName === 'INPUT') return
+				const next = (colorIndex - 1 + COLOR_OPTIONS.length) % COLOR_OPTIONS.length
+				setColorIndex(next)
+				setSelectedColor(COLOR_OPTIONS[next].name)
+			},
+		},
+		{
+			hotkey: 'ArrowRight',
+			callback: () => {
+				if (document.activeElement?.tagName === 'INPUT') return
+				const next = (colorIndex + 1) % COLOR_OPTIONS.length
+				setColorIndex(next)
+				setSelectedColor(COLOR_OPTIONS[next].name)
+			},
+		},
+	])
 
 	const handleDone = useCallback(async () => {
 		if (!displayName.trim()) return
@@ -117,8 +144,16 @@ export function ProfileSetup({
 					disabled={!displayName.trim() || saving}
 					onClick={handleDone}
 				>
-					{saving ? 'Saving...' : 'Done'}
+					{saving ? 'Saving...' : (
+						<>
+							Done
+							<ChevronRight className="size-4" />
+						</>
+					)}
 				</Button>
+				<p className="text-[10px] text-muted-foreground/60 text-center mt-2">
+					Use <kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">&larr;</kbd> <kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">&rarr;</kbd> to cycle colors, <kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">Enter</kbd> to continue
+				</p>
 			</div>
 		</div>
 	)

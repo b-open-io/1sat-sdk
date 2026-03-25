@@ -826,15 +826,34 @@ export function createRpcHandlers() {
 
 		checkAiProvider: async ({ baseUrl }: { baseUrl?: string }) => {
 			const url = baseUrl ?? 'http://localhost:11434'
+			const stripped = url.replace(/\/v1\/?$/, '')
+
+			// Try Ollama-native endpoint first (/api/tags)
 			try {
-				const res = await fetch(`${url}/api/tags`, { signal: AbortSignal.timeout(3000) })
-				if (!res.ok) return { available: false, models: [] }
-				const data = await res.json()
-				const models = (data.models ?? []).map((m: { name: string }) => m.name)
-				return { available: true, models }
+				const res = await fetch(`${stripped}/api/tags`, { signal: AbortSignal.timeout(3000) })
+				if (res.ok) {
+					const data = await res.json()
+					const models = (data.models ?? []).map((m: { name: string }) => m.name)
+					if (models.length > 0) return { available: true, models }
+				}
 			} catch {
-				return { available: false, models: [] }
+				// fall through to OpenAI-compatible
 			}
+
+			// Try OpenAI-compatible endpoint (/v1/models) — LM Studio, etc.
+			try {
+				const v1Base = url.endsWith('/v1') ? url : `${stripped}/v1`
+				const res = await fetch(`${v1Base}/models`, { signal: AbortSignal.timeout(3000) })
+				if (res.ok) {
+					const data = await res.json()
+					const models = (data.data ?? []).map((m: { id: string }) => m.id)
+					if (models.length > 0) return { available: true, models }
+				}
+			} catch {
+				// not available
+			}
+
+			return { available: false, models: [] }
 		},
 
 		getChatChannels: () => {
