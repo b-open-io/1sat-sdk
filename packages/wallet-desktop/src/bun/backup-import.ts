@@ -195,19 +195,32 @@ async function importFromMasterBackup(
 		bap.importIds(backup.ids)
 	}
 
-	// Discover additional identities from chain
+	const knownCount = bap.listIds().length
+	console.log(`[backup-import] ${knownCount} identities in backup, scanning chain for more...`)
+
+	// Discover additional identities from chain.
+	// Check identity existence (ID attestation), not just profile (ALIAS).
+	// An identity can exist on-chain without having a published profile.
+	let discovered = 0
 	for (let attempt = 0; attempt < 20; attempt++) {
 		try {
 			const nextId = bap.newId()
-			const profile = await fetchBapProfile(nextId.bapId)
-			if (!profile) {
+			console.log(`[backup-import] Checking identity ${nextId.bapId.slice(0, 16)}...`)
+			const exists = await checkIdentityOnChain(nextId.bapId)
+			if (!exists) {
+				console.log(`[backup-import] Not found on chain, stopping discovery`)
 				bap.removeId(nextId.bapId)
 				break
 			}
-		} catch {
+			discovered++
+			console.log(`[backup-import] Found on chain! (${discovered} discovered)`)
+		} catch (err) {
+			console.error(`[backup-import] Discovery error:`, err)
 			break
 		}
 	}
+
+	console.log(`[backup-import] Discovery complete: ${knownCount} from backup + ${discovered} from chain`)
 
 	// Create wallet accounts for all identities
 	const allIds = bap.listIds()
@@ -263,28 +276,46 @@ function getMasterRootKey(backup: BapMasterBackup): string {
 	return HD.fromString(backup.xprv).privKey.toHex()
 }
 
-async function fetchBapProfile(bapId: string): Promise<Record<string, unknown> | null> {
-	// Try local stack
-	try {
-		const res = await fetch(`http://127.0.0.1:8080/1sat/bap/profile/${bapId}`, {
-			signal: AbortSignal.timeout(3000),
-		})
-		if (res.ok) {
-			const data = await res.json()
-			if (data?.result) return data.result as Record<string, unknown>
-		}
-	} catch { /* stack not available */ }
+const STACK_URL = 'http://127.0.0.1:8080'
 
-	// Try remote
+/**
+ * Check if a BAP identity exists on chain (ID attestation).
+ * Uses the local 1sat-stack POST /identity/get endpoint.
+ */
+async function checkIdentityOnChain(bapId: string): Promise<boolean> {
+	// Try local stack (POST /1sat/bap/identity/get)
 	try {
-		const res = await fetch(`https://bap-api.com/v1/identity/get/${bapId}`, {
+		const res = await fetch(`${STACK_URL}/1sat/bap/identity/get`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ idKey: bapId }),
 			signal: AbortSignal.timeout(5000),
 		})
 		if (res.ok) {
 			const data = await res.json()
+			return Boolean(data?.idKey || data?.rootAddress)
+		}
+	} catch { /* stack not available */ }
+
+	return false
+}
+
+/**
+ * Fetch the BAP profile (ALIAS attestation) for display name/avatar.
+ * Falls back to remote API if local stack is unavailable.
+ */
+async function fetchBapProfile(bapId: string): Promise<Record<string, unknown> | null> {
+	// Try local stack
+	try {
+		const res = await fetch(`${STACK_URL}/1sat/bap/profile/${bapId}`, {
+			signal: AbortSignal.timeout(3000),
+		})
+		if (res.ok) {
+			const data = await res.json()
+			if (data?.alternateName || data?.name) return data as Record<string, unknown>
 			if (data?.result) return data.result as Record<string, unknown>
 		}
-	} catch { /* remote not available */ }
+	} catch { /* stack not available */ }
 
 	return null
 }
