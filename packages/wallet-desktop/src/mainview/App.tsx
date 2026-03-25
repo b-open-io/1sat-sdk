@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button'
+import type { AppVersionInfo } from '../shared/types'
 import { useEffect, useRef, useState } from 'react'
 import { BigBlocksProvider } from '@/components/blocks/bigblocks-provider'
 import { PermissionApproval } from '@/components/blocks/permission-approval'
@@ -12,6 +13,27 @@ import { SetupWizard } from './views/onboarding/setup-wizard'
 import { UnlockWallet } from './views/onboarding/unlock-wallet'
 
 type OnboardingChoice = 'none' | 'create' | 'import'
+
+function ChannelBadge() {
+	const [info, setInfo] = useState<AppVersionInfo | null>(null)
+	useEffect(() => {
+		rpc.request.getAppVersion().then(setInfo).catch(() => {})
+	}, [])
+	if (!info) return null
+	return (
+		<div className="fixed bottom-2 right-2 z-50 flex items-center gap-1.5 px-2 py-0.5 rounded bg-muted/80 backdrop-blur-sm text-[10px] text-muted-foreground font-mono select-none pointer-events-none">
+			<span>v{info.version}</span>
+			<span className="text-muted-foreground/50">|</span>
+			<span>{info.channel}</span>
+			{info.hash && (
+				<>
+					<span className="text-muted-foreground/50">|</span>
+					<span>{info.hash.slice(0, 7)}</span>
+				</>
+			)}
+		</div>
+	)
+}
 
 function LoadingScreen() {
 	const [elapsed, setElapsed] = useState(0)
@@ -108,52 +130,46 @@ function App() {
 		setSetupComplete(localStorage.getItem(setupKey) === 'true')
 	}, [setupKey])
 
-	if (status === 'initializing') {
-		return <LoadingScreen />
-	}
+	const content = (() => {
+		if (status === 'initializing') return <LoadingScreen />
+		if (status === 'account-selection') return <AccountPicker />
+		if (status === 'locked') return <UnlockWallet />
 
-	if (status === 'account-selection') {
-		return <AccountPicker />
-	}
-
-	if (status === 'locked') {
-		return <UnlockWallet />
-	}
-
-	if (status === 'unlocked') {
-		if (!setupComplete) {
+		if (status === 'unlocked') {
+			if (!setupComplete) {
+				return (
+					<SetupWizard
+						onComplete={() => {
+							localStorage.setItem(setupKey, 'true')
+							setSetupComplete(true)
+						}}
+					/>
+				)
+			}
 			return (
-				<SetupWizard
-					onComplete={() => {
-						localStorage.setItem(setupKey, 'true')
-						setSetupComplete(true)
-					}}
-				/>
+				<BigBlocksProvider>
+					<BrowserLayout />
+					<PermissionApproval
+						subscribe={onPermissionRequest}
+						resolve={(params) => rpc.request.resolvePermission(params)}
+					/>
+				</BigBlocksProvider>
 			)
 		}
-		return (
-			<BigBlocksProvider>
-				<BrowserLayout />
-				<PermissionApproval
-					subscribe={onPermissionRequest}
-					resolve={(params) => rpc.request.resolvePermission(params)}
-				/>
-			</BigBlocksProvider>
-		)
-	}
 
-	const cancelOnboarding = () => setOnboardingChoice('none')
+		// status === "no-wallet"
+		const cancelOnboarding = () => setOnboardingChoice('none')
+		if (onboardingChoice === 'create') return <CreateWallet onCancel={cancelOnboarding} />
+		if (onboardingChoice === 'import') return <ImportWallet onCancel={cancelOnboarding} />
+		return <OnboardingChoice onChoose={setOnboardingChoice} />
+	})()
 
-	// status === "no-wallet"
-	if (onboardingChoice === 'create') {
-		return <CreateWallet onCancel={cancelOnboarding} />
-	}
-
-	if (onboardingChoice === 'import') {
-		return <ImportWallet onCancel={cancelOnboarding} />
-	}
-
-	return <OnboardingChoice onChoose={setOnboardingChoice} />
+	return (
+		<>
+			{content}
+			<ChannelBadge />
+		</>
+	)
 }
 
 export default App
