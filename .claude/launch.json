@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "wallet-desktop",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "hmr"],
+      "port": 5173,
+      "cwd": "packages/wallet-desktop"
+    }
+  ]
+}
