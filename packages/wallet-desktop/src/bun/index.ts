@@ -20,7 +20,9 @@ import {
 	resolvePermission,
 	setPermissionPusher,
 	startWalletServer,
+	stopWalletServer,
 } from './http-server'
+import { closeConfigStore } from './config-store'
 import { closeMcpClient } from './mcp/client'
 import { startMcpServer, stopMcpServer } from './mcp/server'
 import { createRpcHandlers } from './rpc-handlers'
@@ -224,6 +226,7 @@ Electrobun.events.on('application-menu-clicked', (e) => {
 		shutdownChatManager()
 		closeMcpClient()
 		stopMcpServer()
+		closeConfigStore()
 		flushLogs().finally(() => Utils.quit())
 	}
 	if (e.data.action === 'toggle-devtools') {
@@ -232,6 +235,19 @@ Electrobun.events.on('application-menu-clicked', (e) => {
 	if (e.data.action === 'toggle-sync-log') {
 		mainWindow.webview.rpc.send.toggleSyncLog({})
 	}
+})
+
+// ============================================================================
+// Graceful shutdown on SIGTERM (electrobun watcher restart)
+// ============================================================================
+
+process.on('SIGTERM', () => {
+	shutdownChatManager()
+	closeMcpClient()
+	stopMcpServer()
+	stopWalletServer()
+	closeConfigStore()
+	flushLogs().finally(() => process.exit(0))
 })
 
 // ============================================================================

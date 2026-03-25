@@ -9,6 +9,7 @@ dist
 *.db-wal
 
 # Build artifacts
+.next/
 artifacts/
 icon-build/
 store/

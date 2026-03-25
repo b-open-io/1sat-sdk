@@ -51,6 +51,7 @@ import {
 	subscribeChannel,
 	unsubscribeChannel,
 } from './chat-manager'
+import { getConfigStore } from './config-store'
 import { getStackUrl, isStackRunning } from './sidecar-manager'
 import {
 	create,
@@ -714,6 +715,23 @@ export function createRpcHandlers() {
 
 		unsubscribeChatChannel: ({ channel }: { channel: string }) => {
 			unsubscribeChannel(channel)
+			return { success: true }
+		},
+
+		getConfig: ({ prefix }: { prefix?: string }) => {
+			return { config: getConfigStore().list(prefix) }
+		},
+
+		setConfig: ({ entries }: { entries: Record<string, string> }) => {
+			const store = getConfigStore()
+			for (const [key, value] of Object.entries(entries)) {
+				store.set(key, value)
+			}
+			return { success: true }
+		},
+
+		deleteConfig: ({ key }: { key: string }) => {
+			getConfigStore().delete(key)
 			return { success: true }
 		},
 	}

@@ -7,7 +7,6 @@ import {
 	ThemeTokenProvider,
 	ThemeTokenSettings,
 } from '@/components/blocks/theme-token-provider'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Empty } from '@/components/ui/empty'
 import {
@@ -33,17 +32,14 @@ import {
 	ExternalLink,
 	Globe,
 	Info,
-	RefreshCw,
-	RotateCcw,
 	ShieldCheck,
 	Trash2,
 } from 'lucide-react'
 import { Switch } from 'radix-ui'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
 	type BrowserSettings,
 	type SearchMode,
-	STACK_URL as STACK_BASE_URL,
 	WALLET_HTTP_PORT,
 	WALLET_HTTP_URL,
 	WALLET_HTTPS_PORT,
@@ -99,97 +95,6 @@ function saveAiSettings(settings: AiSettings) {
 	localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(settings))
 }
 
-// ---------------------------------------------------------------------------
-// Stack health types
-// ---------------------------------------------------------------------------
-
-interface StackHealth {
-	blockHeight: number | null
-	uptimeSeconds: number | null
-	running: boolean
-	syncPercent: number | null
-}
-
-async function fetchStackHealth(): Promise<StackHealth> {
-	try {
-		const res = await fetch(`${STACK_BASE_URL}/1sat/health`, {
-			signal: AbortSignal.timeout(4000),
-		})
-		if (!res.ok)
-			return {
-				blockHeight: null,
-				uptimeSeconds: null,
-				running: false,
-				syncPercent: null,
-			}
-		const data = await res.json()
-		const rawUptime = data.uptime ?? data.uptimeSeconds ?? null
-		const uptimeSeconds = typeof rawUptime === 'number' ? rawUptime : null
-		const syncPercent: number | null =
-			typeof data.syncPercent === 'number'
-				? data.syncPercent
-				: typeof data.sync_percent === 'number'
-					? data.sync_percent
-					: null
-		return {
-			blockHeight: data.blockHeight ?? data.block_height ?? null,
-			uptimeSeconds,
-			running: true,
-			syncPercent,
-		}
-	} catch {
-		return {
-			blockHeight: null,
-			uptimeSeconds: null,
-			running: false,
-			syncPercent: null,
-		}
-	}
-}
-
-function formatUptime(seconds: number): string {
-	const h = Math.floor(seconds / 3600)
-	const m = Math.floor((seconds % 3600) / 60)
-	if (h > 0) return `${h}h ${m}m`
-	return `${m}m`
-}
-
-// ---------------------------------------------------------------------------
-// Stack admin API helpers
-// ---------------------------------------------------------------------------
-
-async function stackFetch(path: string, options?: RequestInit) {
-	const res = await fetch(`${STACK_BASE_URL}${path}`, {
-		...options,
-		signal: AbortSignal.timeout(5000),
-	})
-	if (!res.ok) {
-		const body = await res.text().catch(() => '')
-		if (body.includes('authentication')) {
-			throw new Error('authentication required — open the admin panel to authenticate')
-		}
-		throw new Error(`Stack API error: ${res.status}`)
-	}
-	return res.json()
-}
-
-interface StackConfig {
-	[key: string]: string
-}
-
-interface StackProgressEntry {
-	id: string
-	currentBlock: number | null
-	status: string
-}
-
-const OVERLAY_KEYS = [
-	{ key: 'overlay.bap.enabled', label: 'BAP' },
-	{ key: 'overlay.opns.enabled', label: 'OpNS' },
-	{ key: 'overlay.bsv21.enabled', label: 'BSV21' },
-	{ key: 'overlay.bsocial.enabled', label: 'BSocial' },
-	{ key: 'overlay.ordlock.enabled', label: 'OrdLock' },
-] as const
 
 // ---------------------------------------------------------------------------
 // Connected Apps storage
@@ -489,214 +394,84 @@ function SecurityTab() {
 // Network Tab
 // ---------------------------------------------------------------------------
 
-function NetworkTab({ onNavigate }: { onNavigate?: (url: string) => void }) {
-	const [health, setHealth] = useState<StackHealth>({
-		blockHeight: null,
-		uptimeSeconds: null,
-		running: false,
-		syncPercent: null,
-	})
-	const [lastChecked, setLastChecked] = useState<Date | null>(null)
-	const [config, setConfig] = useState<StackConfig>({})
-	const [progress, setProgress] = useState<StackProgressEntry[]>([])
-	const [togglingKey, setTogglingKey] = useState<string | null>(null)
-	const [restartDialogOpen, setRestartDialogOpen] = useState(false)
-	const [restarting, setRestarting] = useState(false)
-	const [restartError, setRestartError] = useState('')
-	const [restartRequired, setRestartRequired] = useState(false)
-	const isMounted = useRef(true)
+const DEFAULT_REMOTE_URL = 'https://api.1sat.app'
+
+function NetworkTab(_props: { onNavigate?: (url: string) => void }) {
+	const [remoteEnabled, setRemoteEnabled] = useState(false)
+	const [remoteUrl, setRemoteUrl] = useState(DEFAULT_REMOTE_URL)
+	const [beefFallback, setBeefFallback] = useState(true)
+	const [spendFallback, setSpendFallback] = useState(true)
+	const [saving, setSaving] = useState(false)
+	const [loaded, setLoaded] = useState(false)
 
 	useEffect(() => {
-		isMounted.current = true
-		return () => {
-			isMounted.current = false
-		}
+		rpc.request.getConfig({ prefix: 'remote.' }).then((result) => {
+			const cfg = result.config
+			setRemoteEnabled(cfg['remote.enabled'] === 'true')
+			if (cfg['remote.url']) setRemoteUrl(cfg['remote.url'])
+			setBeefFallback(cfg['remote.beef'] !== 'false')
+			setSpendFallback(cfg['remote.spends'] !== 'false')
+			setLoaded(true)
+		})
 	}, [])
 
-	const fetchAdminData = useCallback(async () => {
-		try {
-			const [cfg, prog] = await Promise.all([
-				stackFetch('/1sat/admin/api/config') as Promise<StackConfig>,
-				stackFetch('/1sat/admin/api/progress').then((data: unknown) => {
-					// Accept both array and object shapes
-					if (Array.isArray(data)) return data as StackProgressEntry[]
-					if (data && typeof data === 'object') {
-						return Object.entries(data as Record<string, unknown>).map(
-							([id, val]) => {
-								const entry = val as Record<string, unknown>
-								return {
-									id,
-									currentBlock:
-										typeof entry.currentBlock === 'number'
-											? entry.currentBlock
-											: typeof entry.current_block === 'number'
-												? entry.current_block
-												: null,
-									status:
-										typeof entry.status === 'string' ? entry.status : 'unknown',
-								} satisfies StackProgressEntry
-							},
-						)
-					}
-					return []
-				}),
-			])
-			if (isMounted.current) {
-				setConfig(cfg)
-				setProgress(prog)
-			}
-		} catch {
-			// Stack offline — config/progress remain stale or empty
-		}
-	}, [])
-
-	const refresh = useCallback(async () => {
-		const result = await fetchStackHealth()
-		if (isMounted.current) {
-			setHealth(result)
-			setLastChecked(new Date())
-		}
-		if (result.running) {
-			await fetchAdminData()
-		}
-	}, [fetchAdminData])
-
-	useEffect(() => {
-		refresh()
-		const interval = setInterval(refresh, 10_000)
-		return () => clearInterval(interval)
-	}, [refresh])
-
-	const handleOverlayToggle = useCallback(
-		async (key: string, currentValue: boolean) => {
-			setTogglingKey(key)
+	const saveConfig = useCallback(
+		async (entries: Record<string, string>) => {
+			setSaving(true)
 			try {
-				await stackFetch('/1sat/admin/api/config', {
-					method: 'PUT',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ [key]: String(!currentValue) }),
-				})
-				setConfig((prev) => ({ ...prev, [key]: String(!currentValue) }))
-				setRestartRequired(true)
-			} catch (err) {
-				const msg = err instanceof Error ? err.message : String(err)
-				if (msg.includes('authentication')) {
-					// Stack admin requires auth — direct user to admin panel
-					onNavigate?.(`${STACK_BASE_URL}/1sat/admin/`)
-				}
-				console.error('Failed to update overlay config:', msg)
+				await rpc.request.setConfig({ entries })
 			} finally {
-				if (isMounted.current) setTogglingKey(null)
+				setSaving(false)
 			}
 		},
 		[],
 	)
 
-	const handleRestart = useCallback(async () => {
-		setRestarting(true)
-		setRestartError('')
-		try {
-			await stackFetch('/1sat/admin/api/restart', { method: 'POST' })
-			setRestartRequired(false)
-			setRestartDialogOpen(false)
-		} catch (err) {
-			setRestartError(err instanceof Error ? err.message : 'Restart failed')
-		} finally {
-			if (isMounted.current) setRestarting(false)
-		}
-	}, [])
+	const handleRemoteToggle = useCallback(
+		(checked: boolean) => {
+			setRemoteEnabled(checked)
+			saveConfig({ 'remote.enabled': String(checked) })
+		},
+		[saveConfig],
+	)
 
-	const uptimeDisplay =
-		health.uptimeSeconds !== null ? formatUptime(health.uptimeSeconds) : '—'
+	const handleUrlBlur = useCallback(() => {
+		saveConfig({ 'remote.url': remoteUrl })
+	}, [remoteUrl, saveConfig])
+
+	const handleBeefToggle = useCallback(
+		(checked: boolean) => {
+			setBeefFallback(checked)
+			saveConfig({ 'remote.beef': String(checked) })
+		},
+		[saveConfig],
+	)
+
+	const handleSpendToggle = useCallback(
+		(checked: boolean) => {
+			setSpendFallback(checked)
+			saveConfig({ 'remote.spends': String(checked) })
+		},
+		[saveConfig],
+	)
+
+	const switchClasses = (enabled: boolean, disabled: boolean) =>
+		[
+			'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors',
+			'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+			'disabled:cursor-not-allowed disabled:opacity-50',
+			enabled ? 'bg-primary' : 'bg-input',
+			disabled ? 'opacity-50' : '',
+		].join(' ')
+
+	const thumbClasses = (enabled: boolean) =>
+		[
+			'pointer-events-none block size-4 rounded-full bg-white shadow-sm ring-0 transition-transform',
+			enabled ? 'translate-x-4' : 'translate-x-0',
+		].join(' ')
 
 	return (
 		<div className="space-y-8 py-4">
-			{/* Status Section */}
-			<div>
-				<div className="flex items-center justify-between mb-3">
-					<p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-						Status
-					</p>
-					{lastChecked && (
-						<p className="text-[10px] text-muted-foreground">
-							Updated {lastChecked.toLocaleTimeString()}
-						</p>
-					)}
-				</div>
-
-				{!health.running && (
-					<div className="mb-4 p-3 border border-destructive/30 bg-destructive/5 flex items-center gap-3">
-						<span className="size-2 rounded-full bg-destructive shrink-0" />
-						<p className="text-sm text-destructive font-medium">
-							Stack Offline — start the 1sat-stack to enable these features
-						</p>
-					</div>
-				)}
-
-				<div className="grid grid-cols-3 gap-3">
-					{/* Status indicator */}
-					<div className="bg-card rounded-lg p-4">
-						<p className="text-xs text-muted-foreground mb-1">Status</p>
-						<div className="flex items-center gap-2 mt-1">
-							<span
-								className={`size-2.5 rounded-full shrink-0 ${
-									health.running ? 'bg-primary' : 'bg-destructive'
-								}`}
-							/>
-							<p
-								className={`text-base font-bold ${
-									health.running ? 'text-primary' : 'text-destructive'
-								}`}
-							>
-								{health.running ? 'Running' : 'Offline'}
-							</p>
-						</div>
-					</div>
-
-					{/* Block Height */}
-					<div className="bg-card rounded-lg p-4">
-						<p className="text-xs text-muted-foreground mb-1">Block Height</p>
-						<p className="text-xl font-bold font-[family-name:var(--font-mono)]">
-							{health.blockHeight !== null
-								? health.blockHeight.toLocaleString()
-								: '—'}
-						</p>
-					</div>
-
-					{/* Uptime */}
-					<div className="bg-card rounded-lg p-4">
-						<p className="text-xs text-muted-foreground mb-1">Uptime</p>
-						<p className="text-xl font-bold font-[family-name:var(--font-mono)]">{uptimeDisplay}</p>
-					</div>
-				</div>
-			</div>
-
-			{/* Sync Progress Bar Section */}
-			{health.syncPercent !== null && (
-				<div className="bg-card rounded-lg p-4 space-y-2.5">
-					<div className="flex items-center justify-between">
-						<p className="text-sm font-semibold">Sync Progress</p>
-						<p className="text-sm font-semibold text-primary font-[family-name:var(--font-mono)]">
-							{health.syncPercent.toFixed(1)}%
-						</p>
-					</div>
-					<div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
-						<div
-							className="h-full rounded-full bg-primary transition-all duration-500"
-							style={{ width: `${Math.min(health.syncPercent, 100)}%` }}
-						/>
-					</div>
-					{health.blockHeight !== null && (
-						<p className="text-xs text-muted-foreground">
-							{health.syncPercent.toFixed(1)}% synced — Block{' '}
-							<span className="font-[family-name:var(--font-mono)]">
-								{health.blockHeight.toLocaleString()}
-							</span>
-						</p>
-					)}
-				</div>
-			)}
-
 			{/* Local Services Card */}
 			<div>
 				<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
@@ -719,196 +494,86 @@ function NetworkTab({ onNavigate }: { onNavigate?: (url: string) => void }) {
 				</div>
 			</div>
 
-			{/* Overlay Services Section */}
+			{/* Remote Server Configuration */}
 			<div>
-				<div className="flex items-center gap-3 mb-3">
-					<p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-						Overlay Services
-					</p>
-					{restartRequired && (
-						<Badge
-							variant="outline"
-							className="text-[10px] text-primary border-primary/40 bg-primary/10 py-0"
+				<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+					Remote Server
+				</p>
+				<div className="bg-card rounded-xl p-5 space-y-4">
+					{/* Enable toggle */}
+					<div className="flex items-center justify-between">
+						<div>
+							<p className="text-sm font-medium">Enable Remote</p>
+							<p className="text-xs text-muted-foreground mt-0.5">
+								Connect to a 1Sat server for transaction and content lookups
+							</p>
+						</div>
+						<Switch.Root
+							checked={remoteEnabled}
+							disabled={!loaded || saving}
+							onCheckedChange={handleRemoteToggle}
+							className={switchClasses(remoteEnabled, !loaded || saving)}
 						>
-							Restart required
-						</Badge>
-					)}
-				</div>
-
-				<div className="bg-card rounded-lg divide-y divide-border overflow-hidden">
-					{OVERLAY_KEYS.map(({ key, label }) => {
-						const enabled = config[key] === 'true' || config[key] === '1'
-						const isToggling = togglingKey === key
-						return (
-							<div key={key} className="flex items-center gap-3 px-4 py-3">
-								<span className="flex-1 text-sm font-medium">{label}</span>
-								<span className="text-xs text-muted-foreground font-[family-name:var(--font-mono)] mr-3">
-									{key}
-								</span>
-								<Switch.Root
-									checked={enabled}
-									disabled={!health.running || isToggling}
-									onCheckedChange={() => handleOverlayToggle(key, enabled)}
-									className={[
-										'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors',
-										'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-										'disabled:cursor-not-allowed disabled:opacity-50',
-										enabled ? 'bg-primary' : 'bg-input',
-									].join(' ')}
-								>
-									<Switch.Thumb
-										className={[
-											'pointer-events-none block size-4 rounded-full bg-white shadow-sm ring-0 transition-transform',
-											enabled ? 'translate-x-4' : 'translate-x-0',
-										].join(' ')}
-									/>
-								</Switch.Root>
-							</div>
-						)
-					})}
-				</div>
-			</div>
-
-			{/* Sync Progress Section */}
-			<div>
-				<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
-					Sync Progress
-				</p>
-
-				{progress.length === 0 ? (
-					<div className="bg-card rounded-lg px-4 py-6 text-center">
-						<p className="text-sm text-muted-foreground">
-							{health.running ? 'No indexers reported' : 'Stack offline'}
-						</p>
+							<Switch.Thumb className={thumbClasses(remoteEnabled)} />
+						</Switch.Root>
 					</div>
-				) : (
-					<div className="bg-card rounded-lg overflow-hidden">
-						<div className="grid grid-cols-3 px-4 py-2 border-b border-border">
-							<p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-								Indexer
-							</p>
-							<p className="text-[10px] uppercase tracking-widest text-muted-foreground text-right">
-								Current Block
-							</p>
-							<p className="text-[10px] uppercase tracking-widest text-muted-foreground text-right">
-								Status
-							</p>
-						</div>
-						<div className="divide-y divide-border">
-							{progress.map((entry) => (
-								<div
-									key={entry.id}
-									className="grid grid-cols-3 px-4 py-3 items-center"
-								>
-									<span className="text-sm font-[family-name:var(--font-mono)] truncate">{entry.id}</span>
-									<span className="text-sm font-[family-name:var(--font-mono)] text-right text-muted-foreground">
-										{entry.currentBlock !== null
-											? entry.currentBlock.toLocaleString()
-											: '—'}
-									</span>
-									<span
-										className={`text-xs text-right font-medium ${
-											entry.status === 'synced' || entry.status === 'running'
-												? 'text-primary'
-												: entry.status === 'error'
-													? 'text-destructive'
-													: 'text-muted-foreground'
-										}`}
-									>
-										{entry.status}
-									</span>
-								</div>
-							))}
-						</div>
+
+					<Separator />
+
+					{/* URL */}
+					<div className="space-y-1.5">
+						<label htmlFor="remote-url" className="text-xs text-muted-foreground">
+							Server URL
+						</label>
+						<Input
+							id="remote-url"
+							value={remoteUrl}
+							onChange={(e) => setRemoteUrl(e.target.value)}
+							onBlur={handleUrlBlur}
+							placeholder={DEFAULT_REMOTE_URL}
+							disabled={!loaded || saving}
+							className="font-[family-name:var(--font-mono)] text-sm"
+						/>
 					</div>
-				)}
-			</div>
 
-			{/* Configuration Section */}
-			<div>
-				<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
-					Configuration
-				</p>
+					<Separator />
 
-				<div className="bg-card rounded-lg divide-y divide-border overflow-hidden">
-					{[
-						{ label: 'JungleBus URL', value: config['junglebus.url'] },
-						{ label: 'Store Provider', value: config['store.provider'] },
-						{ label: 'Auth Mode', value: config['auth.mode'] },
-						{ label: 'Stack Data Path', value: '~/.1sat-wallet/stack/' },
-					].map(({ label, value }) => (
-						<div key={label} className="flex items-center gap-3 px-4 py-3">
-							<span className="flex-1 text-sm text-muted-foreground shrink-0 w-36">
-								{label}
-							</span>
-							<span className="text-sm font-[family-name:var(--font-mono)] text-right truncate max-w-[240px]">
-								{value ?? '—'}
-							</span>
+					{/* Beef fallback toggle */}
+					<div className="flex items-center justify-between">
+						<div>
+							<p className="text-sm font-medium">Transaction Lookups</p>
+							<p className="text-xs text-muted-foreground mt-0.5">
+								Fetch BEEF data from the remote server when not available locally
+							</p>
 						</div>
-					))}
+						<Switch.Root
+							checked={beefFallback && remoteEnabled}
+							disabled={!loaded || saving || !remoteEnabled}
+							onCheckedChange={handleBeefToggle}
+							className={switchClasses(beefFallback && remoteEnabled, !remoteEnabled)}
+						>
+							<Switch.Thumb className={thumbClasses(beefFallback && remoteEnabled)} />
+						</Switch.Root>
+					</div>
+
+					{/* Spend fallback toggle */}
+					<div className="flex items-center justify-between">
+						<div>
+							<p className="text-sm font-medium">Spend Lookups</p>
+							<p className="text-xs text-muted-foreground mt-0.5">
+								Query spend data from the remote server when not indexed locally
+							</p>
+						</div>
+						<Switch.Root
+							checked={spendFallback && remoteEnabled}
+							disabled={!loaded || saving || !remoteEnabled}
+							onCheckedChange={handleSpendToggle}
+							className={switchClasses(spendFallback && remoteEnabled, !remoteEnabled)}
+						>
+							<Switch.Thumb className={thumbClasses(spendFallback && remoteEnabled)} />
+						</Switch.Root>
+					</div>
 				</div>
-
-				<p className="text-xs text-muted-foreground mt-2">
-					Use the admin panel to edit configuration values.
-				</p>
-			</div>
-
-			{/* Actions Section */}
-			<div className="flex items-center justify-between py-1 gap-4">
-				<Button
-					variant="outline"
-					size="sm"
-					onClick={() => onNavigate?.(`${STACK_BASE_URL}/1sat/admin/`)}
-				>
-					<ExternalLink className="size-3.5 mr-1.5" />
-					Open Admin Panel
-				</Button>
-
-				<Dialog open={restartDialogOpen} onOpenChange={setRestartDialogOpen}>
-					<DialogTrigger asChild>
-						<Button variant="secondary" size="sm" disabled={!health.running}>
-							<RotateCcw className="size-3.5 mr-1.5" />
-							Restart Stack
-						</Button>
-					</DialogTrigger>
-					<DialogContent className="sm:max-w-sm">
-						<DialogHeader>
-							<DialogTitle>Restart Stack</DialogTitle>
-							<DialogDescription>
-								This will restart the 1sat-stack process. Active connections
-								will be interrupted briefly.
-							</DialogDescription>
-						</DialogHeader>
-						{restartError && (
-							<div className="p-3 border border-destructive/50 bg-destructive/5 text-destructive text-xs font-[family-name:var(--font-mono)] rounded-md">
-								{restartError}
-							</div>
-						)}
-						<DialogFooter>
-							<Button
-								variant="ghost"
-								onClick={() => setRestartDialogOpen(false)}
-								disabled={restarting}
-							>
-								Cancel
-							</Button>
-							<Button
-								variant="destructive"
-								onClick={handleRestart}
-								disabled={restarting}
-							>
-								{restarting ? (
-									<>
-										<RefreshCw className="size-3.5 mr-1.5 animate-spin" />
-										Restarting...
-									</>
-								) : (
-									'Restart'
-								)}
-							</Button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
 			</div>
 		</div>
 	)

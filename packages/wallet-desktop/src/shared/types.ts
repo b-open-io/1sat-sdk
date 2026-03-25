@@ -413,6 +413,18 @@ type BunRequests = {
 		params: { channel: string }
 		response: { success: boolean }
 	}
+	getConfig: {
+		params: { prefix?: string }
+		response: { config: Record<string, string> }
+	}
+	setConfig: {
+		params: { entries: Record<string, string> }
+		response: { success: boolean }
+	}
+	deleteConfig: {
+		params: { key: string }
+		response: { success: boolean }
+	}
 }
 
 // Permission request from BRC-100 HTTP server
