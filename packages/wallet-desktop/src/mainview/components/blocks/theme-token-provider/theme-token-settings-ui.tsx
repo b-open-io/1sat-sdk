@@ -3,11 +3,8 @@
 import { useCallback, useState } from "react"
 import { Loader2, Palette, RotateCcw, Check, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 import type { ThemeTokenStatus } from "./use-theme-token"
 
@@ -15,11 +12,9 @@ import type { ThemeTokenStatus } from "./use-theme-token"
 // Types
 // ---------------------------------------------------------------------------
 
-/** Color swatch entry for the preview grid */
+/** Color swatch entry for the compact preview strip */
 interface ColorSwatch {
-  /** Display label */
   label: string
-  /** CSS variable name (e.g. "primary") */
   variable: string
 }
 
@@ -46,14 +41,12 @@ export interface ThemeTokenSettingsUiProps {
 // ---------------------------------------------------------------------------
 
 const COLOR_SWATCHES: ColorSwatch[] = [
+  { label: "Bg", variable: "background" },
   { label: "Primary", variable: "primary" },
   { label: "Secondary", variable: "secondary" },
   { label: "Accent", variable: "accent" },
   { label: "Muted", variable: "muted" },
   { label: "Destructive", variable: "destructive" },
-  { label: "Background", variable: "background" },
-  { label: "Card", variable: "card" },
-  { label: "Border", variable: "border" },
 ]
 
 // ---------------------------------------------------------------------------
@@ -61,10 +54,10 @@ const COLOR_SWATCHES: ColorSwatch[] = [
 // ---------------------------------------------------------------------------
 
 /**
- * Settings panel for selecting and applying on-chain themes.
+ * Compact inline settings row for selecting and applying on-chain themes.
  *
- * Displays an origin input, apply/reset buttons, the current theme status,
- * and a preview grid of the active color swatches read from CSS variables.
+ * Intentionally minimal — no Card wrapper. Fits naturally inside a settings
+ * section row alongside other content.
  */
 export function ThemeTokenSettingsUi({
   origin,
@@ -85,9 +78,7 @@ export function ThemeTokenSettingsUi({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter") {
-        handleApply()
-      }
+      if (e.key === "Enter") handleApply()
     },
     [handleApply],
   )
@@ -97,132 +88,81 @@ export function ThemeTokenSettingsUi({
   const isError = status === "error"
 
   return (
-    <Card className={cn("w-full max-w-md", className)}>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Palette className="size-5 text-muted-foreground" aria-hidden="true" />
-          <CardTitle>Theme Token</CardTitle>
-        </div>
-        <CardDescription>
-          Apply an on-chain theme by entering its origin (txid_vout format).
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="flex flex-col gap-4">
-        {/* Origin input */}
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="theme-origin">Origin</Label>
-          <Input
-            id="theme-origin"
-            placeholder="e.g. abc123def456…_0"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isLoading}
-            aria-describedby="theme-origin-hint"
-          />
-          <p id="theme-origin-hint" className="text-xs text-muted-foreground">
-            The origin outpoint of an inscribed ThemeToken.
-          </p>
-        </div>
-
-        {/* Status badge */}
-        {status !== "idle" && (
-          <div className="flex items-center gap-2">
-            {isLoading && (
-              <Badge variant="secondary" className="gap-1.5">
-                <Loader2
-                  className="size-3 animate-spin"
-                  aria-hidden="true"
-                  data-icon="inline-start"
-                />
-                Loading theme...
-              </Badge>
-            )}
-            {isApplied && (
-              <Badge variant="default" className="gap-1.5">
-                <Check
-                  className="size-3"
-                  aria-hidden="true"
-                  data-icon="inline-start"
-                />
-                {themeName ?? "Theme applied"}
-              </Badge>
-            )}
-            {isError && (
-              <Badge variant="destructive" className="gap-1.5">
-                <AlertCircle
-                  className="size-3"
-                  aria-hidden="true"
-                  data-icon="inline-start"
-                />
-                {errorMessage ?? "Error"}
-              </Badge>
-            )}
-          </div>
-        )}
-
-        {/* Color swatches preview */}
-        {isApplied && (
-          <>
-            <Separator />
-            <div className="flex flex-col gap-2">
-              <p className="text-sm font-medium text-foreground">
-                Active Colors
-              </p>
-              <div className="grid grid-cols-4 gap-2">
-                {COLOR_SWATCHES.map((swatch) => (
-                  <div
-                    key={swatch.variable}
-                    className="flex flex-col items-center gap-1"
-                  >
-                    <div
-                      className="size-8 rounded-md border border-border"
-                      style={{
-                        backgroundColor: `var(--${swatch.variable})`,
-                      }}
-                      aria-label={`${swatch.label} color swatch`}
-                    />
-                    <span className="text-[10px] leading-tight text-muted-foreground">
-                      {swatch.label}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-      </CardContent>
-
-      <CardFooter className="flex gap-2">
+    <div className={cn("space-y-3 w-full", className)}>
+      {/* Origin input row */}
+      <div className="flex items-center gap-2">
+        <Input
+          id="theme-origin"
+          placeholder="txid_vout origin"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={isLoading}
+          className="h-8 text-xs font-[family-name:var(--font-mono)] flex-1"
+          aria-label="Theme Token origin"
+        />
         <Button
+          size="sm"
+          variant="secondary"
           onClick={handleApply}
           disabled={isLoading || inputValue.trim().length === 0}
           aria-busy={isLoading}
-          className="gap-2"
+          className="h-8 shrink-0"
         >
           {isLoading ? (
-            <Loader2
-              className="animate-spin"
-              aria-hidden="true"
-              data-icon="inline-start"
-            />
+            <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
           ) : (
-            <Palette aria-hidden="true" data-icon="inline-start" />
+            <Palette className="size-3.5" aria-hidden="true" />
           )}
-          Apply Theme
+          <span className="ml-1.5">Apply</span>
         </Button>
+        {isApplied && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onClear}
+            disabled={isLoading}
+            className="h-8 shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label="Reset theme"
+          >
+            <RotateCcw className="size-3.5" aria-hidden="true" />
+          </Button>
+        )}
+      </div>
 
-        <Button
-          variant="outline"
-          onClick={onClear}
-          disabled={isLoading || status === "idle"}
-          className="gap-2"
-        >
-          <RotateCcw aria-hidden="true" data-icon="inline-start" />
-          Reset to Default
-        </Button>
-      </CardFooter>
-    </Card>
+      {/* Status + active theme name */}
+      {isApplied && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge
+            variant="secondary"
+            className="gap-1.5 text-[11px] py-0.5 font-normal"
+          >
+            <Check className="size-3 text-primary shrink-0" aria-hidden="true" />
+            {themeName ?? "Custom theme"}
+          </Badge>
+          {/* Compact color swatch dots */}
+          <div className="flex items-center gap-1 ml-1" aria-label="Active colors">
+            {COLOR_SWATCHES.map((swatch) => (
+              <div
+                key={swatch.variable}
+                className="size-3.5 rounded-full border border-border/50 shrink-0"
+                style={{ backgroundColor: `var(--${swatch.variable})` }}
+                title={swatch.label}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Error message */}
+      {isError && (
+        <div className="flex items-start gap-2 p-2 border border-destructive/40 bg-destructive/5 rounded-sm">
+          <AlertCircle className="size-3.5 text-destructive mt-0.5 shrink-0" aria-hidden="true" />
+          <p className="text-xs text-destructive leading-relaxed">
+            {errorMessage ?? "Failed to apply theme"}
+          </p>
+        </div>
+      )}
+    </div>
   )
 }

@@ -29,14 +29,27 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
+	CheckCircle2,
+	Download,
 	ExternalLink,
 	Globe,
 	Info,
+	Loader2,
+	Monitor,
+	Moon,
+	RefreshCw,
+	RotateCcw,
 	ShieldCheck,
+	Sun,
 	Trash2,
+	XCircle,
 } from 'lucide-react'
 import { Switch } from 'radix-ui'
 import { useCallback, useEffect, useState } from 'react'
+import {
+	type AppearanceMode,
+	useAppearance,
+} from '../../hooks/use-appearance'
 import {
 	type BrowserSettings,
 	type SearchMode,
@@ -47,8 +60,9 @@ import {
 	loadBrowserSettings,
 	saveBrowserSettings,
 } from '../../../shared/constants'
+import type { AppVersionInfo, UpdateStatusPayload } from '../../../shared/types'
 import { useWallet } from '../../hooks/use-wallet'
-import { rpc } from '../../rpc'
+import { onUpdateStatus, rpc } from '../../rpc'
 
 // ---------------------------------------------------------------------------
 // AI Settings types and helpers
@@ -917,6 +931,270 @@ function BrowserTab() {
 }
 
 // ---------------------------------------------------------------------------
+// Appearance Section
+// ---------------------------------------------------------------------------
+
+const MODE_OPTIONS: {
+	value: AppearanceMode
+	label: string
+	Icon: React.ComponentType<{ className?: string }>
+}[] = [
+	{ value: 'light', label: 'Light', Icon: Sun },
+	{ value: 'dark', label: 'Dark', Icon: Moon },
+	{ value: 'system', label: 'System', Icon: Monitor },
+]
+
+function AppearanceSection() {
+	const { mode, setMode, resolvedTheme } = useAppearance()
+
+	return (
+		<div>
+			<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+				Appearance
+			</p>
+
+			{/* Mode selector row */}
+			<div className="flex items-center justify-between py-3">
+				<div>
+					<p className="text-sm font-medium">Color Mode</p>
+					<p className="text-xs text-muted-foreground">
+						Choose light, dark, or follow system preference
+					</p>
+				</div>
+				<div
+					className="flex items-center bg-muted rounded-sm p-0.5 gap-0.5"
+					role="group"
+					aria-label="Color mode"
+				>
+					{MODE_OPTIONS.map(({ value, label, Icon }) => (
+						<button
+							key={value}
+							type="button"
+							onClick={() => setMode(value)}
+							aria-pressed={mode === value}
+							className={[
+								'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors rounded-sm',
+								mode === value
+									? 'bg-background text-foreground shadow-sm'
+									: 'text-muted-foreground hover:text-foreground',
+							].join(' ')}
+						>
+							<Icon className="size-3.5 shrink-0" aria-hidden="true" />
+							{label}
+						</button>
+					))}
+				</div>
+			</div>
+
+			<Separator />
+
+			{/* Theme Token row */}
+			<div className="py-3 space-y-2">
+				<div className="flex items-center justify-between">
+					<div>
+						<p className="text-sm font-medium">Theme Token</p>
+						<p className="text-xs text-muted-foreground">
+							Apply an on-chain theme to customize the wallet appearance
+						</p>
+					</div>
+				</div>
+				<ThemeTokenProvider resolvedTheme={resolvedTheme}>
+					<ThemeTokenSettings />
+				</ThemeTokenProvider>
+			</div>
+		</div>
+	)
+}
+
+// ---------------------------------------------------------------------------
+// About Tab
+// ---------------------------------------------------------------------------
+
+function AboutTab() {
+	const [versionInfo, setVersionInfo] = useState<AppVersionInfo | null>(null)
+	const [updateStatus, setUpdateStatus] = useState<UpdateStatusPayload | null>(
+		null,
+	)
+
+	// Fetch version info on mount
+	useEffect(() => {
+		rpc.request.getAppVersion().then(setVersionInfo)
+	}, [])
+
+	// Subscribe to update status pushes from the bun process
+	useEffect(() => {
+		return onUpdateStatus((payload) => {
+			setUpdateStatus(payload)
+		})
+	}, [])
+
+	const handleCheckForUpdates = useCallback(() => {
+		setUpdateStatus({ status: 'checking' })
+		rpc.request.checkForUpdates()
+	}, [])
+
+	const handleApplyUpdate = useCallback(() => {
+		rpc.request.applyUpdate()
+	}, [])
+
+	const statusDisplay = updateStatus?.status
+	const isActive =
+		statusDisplay === 'checking' || statusDisplay === 'downloading'
+
+	return (
+		<div className="space-y-6 py-4">
+			<div>
+				<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+					Application
+				</p>
+				<div className="flex items-center justify-between py-3">
+					<p className="text-sm font-medium">App</p>
+					<p className="text-sm text-muted-foreground">1Sat</p>
+				</div>
+				<Separator />
+				<div className="flex items-center justify-between py-3">
+					<p className="text-sm font-medium">Version</p>
+					<p className="text-sm text-muted-foreground font-[family-name:var(--font-mono)]">
+						{versionInfo?.version ?? '...'}
+					</p>
+				</div>
+				<Separator />
+				<div className="flex items-center justify-between py-3">
+					<p className="text-sm font-medium">Channel</p>
+					<Badge variant="secondary" className="font-[family-name:var(--font-mono)]">
+						{versionInfo?.channel ?? '...'}
+					</Badge>
+				</div>
+				<Separator />
+				<div className="flex items-center justify-between py-3">
+					<p className="text-sm font-medium">Framework</p>
+					<p className="text-sm text-muted-foreground">Electrobun</p>
+				</div>
+			</div>
+
+			{/* Update section */}
+			<div>
+				<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+					Updates
+				</p>
+
+				<div className="bg-card rounded-xl p-5 space-y-4">
+					{/* Status indicator */}
+					<div className="flex items-center gap-3">
+						{statusDisplay === 'checking' && (
+							<>
+								<Loader2 className="size-5 animate-spin text-muted-foreground" />
+								<div>
+									<p className="text-sm font-medium">Checking for updates...</p>
+								</div>
+							</>
+						)}
+						{statusDisplay === 'downloading' && (
+							<>
+								<Download className="size-5 text-primary animate-pulse" />
+								<div>
+									<p className="text-sm font-medium">
+										Downloading update{updateStatus?.version ? ` v${updateStatus.version}` : ''}...
+									</p>
+								</div>
+							</>
+						)}
+						{statusDisplay === 'ready' && (
+							<>
+								<CheckCircle2 className="size-5 text-primary" />
+								<div>
+									<p className="text-sm font-medium">
+										Update ready{updateStatus?.version ? ` — v${updateStatus.version}` : ''}
+									</p>
+									<p className="text-xs text-muted-foreground mt-0.5">
+										Restart the app to apply the update.
+									</p>
+								</div>
+							</>
+						)}
+						{statusDisplay === 'up-to-date' && (
+							<>
+								<CheckCircle2 className="size-5 text-muted-foreground" />
+								<div>
+									<p className="text-sm font-medium">You're up to date</p>
+									<p className="text-xs text-muted-foreground mt-0.5">
+										Running the latest version.
+									</p>
+								</div>
+							</>
+						)}
+						{statusDisplay === 'error' && (
+							<>
+								<XCircle className="size-5 text-destructive" />
+								<div>
+									<p className="text-sm font-medium">Update check failed</p>
+									<p className="text-xs text-muted-foreground mt-0.5">
+										{updateStatus?.error ?? 'An unknown error occurred.'}
+									</p>
+								</div>
+							</>
+						)}
+						{!statusDisplay && (
+							<>
+								<Info className="size-5 text-muted-foreground" />
+								<div>
+									<p className="text-sm font-medium">Updates</p>
+									<p className="text-xs text-muted-foreground mt-0.5">
+										Check for the latest version of 1Sat.
+									</p>
+								</div>
+							</>
+						)}
+					</div>
+
+					{/* Action buttons */}
+					<div className="flex gap-2">
+						{statusDisplay === 'ready' ? (
+							<Button size="sm" onClick={handleApplyUpdate}>
+								<RotateCcw className="size-3.5 mr-1.5" />
+								Restart to Update
+							</Button>
+						) : (
+							<Button
+								variant="secondary"
+								size="sm"
+								onClick={handleCheckForUpdates}
+								disabled={isActive}
+							>
+								{isActive ? (
+									<Loader2 className="size-3.5 mr-1.5 animate-spin" />
+								) : (
+									<RefreshCw className="size-3.5 mr-1.5" />
+								)}
+								Check for Updates
+							</Button>
+						)}
+					</div>
+				</div>
+			</div>
+
+			<div>
+				<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+					Links
+				</p>
+				<div className="flex items-center justify-between py-3">
+					<p className="text-sm font-medium">GitHub</p>
+					<a
+						href="https://github.com/bitcoin-sv/1sat-sdk"
+						target="_blank"
+						rel="noreferrer"
+						className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+					>
+						View on GitHub
+						<ExternalLink className="size-3.5" />
+					</a>
+				</div>
+			</div>
+		</div>
+	)
+}
+
+// ---------------------------------------------------------------------------
 // Main SettingsView
 // ---------------------------------------------------------------------------
 
@@ -1025,24 +1303,8 @@ export function SettingsView({
 						</div>
 					</div>
 
-					{/* Theme section */}
-					<div>
-						<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
-							Theme
-						</p>
-						<div className="flex items-center justify-between py-3">
-							<div>
-								<p className="text-sm font-medium">Theme Token</p>
-								<p className="text-xs text-muted-foreground">
-									Apply an on-chain theme token to customize the wallet
-									appearance
-								</p>
-							</div>
-							<ThemeTokenProvider>
-								<ThemeTokenSettings />
-							</ThemeTokenProvider>
-						</div>
-					</div>
+					{/* Appearance section */}
+					<AppearanceSection />
 
 					{/* Sweep section */}
 					<div>
@@ -1080,45 +1342,7 @@ export function SettingsView({
 
 				{/* About Tab */}
 				<TabsContent value="about">
-					<div className="space-y-6 py-4">
-						<div>
-							<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
-								Application
-							</p>
-							<div className="flex items-center justify-between py-3">
-								<p className="text-sm font-medium">App</p>
-								<p className="text-sm text-muted-foreground">1Sat</p>
-							</div>
-							<Separator />
-							<div className="flex items-center justify-between py-3">
-								<p className="text-sm font-medium">Version</p>
-								<p className="text-sm text-muted-foreground">0.0.1</p>
-							</div>
-							<Separator />
-							<div className="flex items-center justify-between py-3">
-								<p className="text-sm font-medium">Framework</p>
-								<p className="text-sm text-muted-foreground">Electrobun</p>
-							</div>
-						</div>
-
-						<div>
-							<p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
-								Links
-							</p>
-							<div className="flex items-center justify-between py-3">
-								<p className="text-sm font-medium">GitHub</p>
-								<a
-									href="https://github.com/bitcoin-sv/1sat-sdk"
-									target="_blank"
-									rel="noreferrer"
-									className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-								>
-									View on GitHub
-									<ExternalLink className="size-3.5" />
-								</a>
-							</div>
-						</div>
-					</div>
+					<AboutTab />
 				</TabsContent>
 			</Tabs>
 

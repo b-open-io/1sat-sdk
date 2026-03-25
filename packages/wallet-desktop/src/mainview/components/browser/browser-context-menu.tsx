@@ -154,9 +154,9 @@ export function BrowserContextMenu({
 				{/* Agent */}
 				<ContextMenuItem
 					onClick={onAskAgent}
-					className="flex items-center gap-2 text-[var(--agent-accent-fg)] focus:text-[var(--agent-accent-fg)]"
+					className="flex items-center gap-2 text-primary focus:text-primary"
 				>
-					<Bot size={14} className="text-[var(--agent-accent-fg)]" />
+					<Bot size={14} className="text-primary" />
 					<span className="text-[11px]">Ask Agent About This</span>
 				</ContextMenuItem>
 			</ContextMenuContent>

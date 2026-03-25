@@ -4,6 +4,10 @@ import './index.css'
 import './rpc'
 import App from './App'
 import { ErrorBoundary } from './error-boundary'
+import { bootstrapTheme } from './hooks/use-appearance'
+
+// Apply the correct dark/light class before React renders to avoid FOUC
+bootstrapTheme()
 
 createRoot(document.getElementById('root')!).render(
 	<StrictMode>

@@ -54,6 +54,11 @@ import {
 import { getConfigStore } from './config-store'
 import { getStackUrl, isStackRunning } from './sidecar-manager'
 import {
+	applyUpdate,
+	checkForUpdatesManual,
+	getAppVersionInfo,
+} from './updater'
+import {
 	create,
 	deleteWallet,
 	getStatus,
@@ -733,6 +738,20 @@ export function createRpcHandlers() {
 		deleteConfig: ({ key }: { key: string }) => {
 			getConfigStore().delete(key)
 			return { success: true }
+		},
+
+		checkForUpdates: () => {
+			checkForUpdatesManual()
+			return { success: true }
+		},
+
+		applyUpdate: async () => {
+			await applyUpdate()
+			return { success: true }
+		},
+
+		getAppVersion: async () => {
+			return await getAppVersionInfo()
 		},
 	}
 }

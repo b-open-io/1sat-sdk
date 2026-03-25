@@ -80,6 +80,7 @@ export function ThemeTokenProvider({
   className,
   defaultOrigin,
   storageKey,
+  resolvedTheme,
   onThemeApplied,
   onThemeCleared,
   onError,
@@ -87,6 +88,7 @@ export function ThemeTokenProvider({
   const themeToken = useThemeToken({
     defaultOrigin,
     storageKey,
+    resolvedTheme,
     onThemeApplied,
     onThemeCleared,
     onError,

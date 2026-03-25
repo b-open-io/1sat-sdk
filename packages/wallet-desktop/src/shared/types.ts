@@ -230,6 +230,22 @@ export interface MintCollectionItemResult {
 	error?: string
 }
 
+// Update status pushed from bun to webview
+export type UpdateStatusKind = 'checking' | 'downloading' | 'ready' | 'up-to-date' | 'error'
+
+export interface UpdateStatusPayload {
+	status: UpdateStatusKind
+	version?: string
+	error?: string
+}
+
+// App version info returned by getAppVersion RPC
+export interface AppVersionInfo {
+	version: string
+	channel: string
+	hash: string
+}
+
 // ---- RPC Schema ----
 // Requests the webview can make to bun
 type BunRequests = {
@@ -425,6 +441,18 @@ type BunRequests = {
 		params: { key: string }
 		response: { success: boolean }
 	}
+	checkForUpdates: {
+		params: undefined
+		response: { success: boolean }
+	}
+	applyUpdate: {
+		params: undefined
+		response: { success: boolean }
+	}
+	getAppVersion: {
+		params: undefined
+		response: AppVersionInfo
+	}
 }
 
 // Permission request from BRC-100 HTTP server
@@ -447,6 +475,7 @@ type BunMessages = {
 	stackOnboardingComplete: {}
 	navigateToUrl: { url: string }
 	toggleSyncLog: {}
+	updateStatus: UpdateStatusPayload
 }
 
 // Tab info for MCP browser automation

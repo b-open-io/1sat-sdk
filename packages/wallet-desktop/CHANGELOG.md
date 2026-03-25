@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.0.8] - 2026-03-25
+
+### Added
+- Auto-updater: check on launch, hourly background checks, manual trigger via menu
+- "Check for Updates..." app menu item
+- Settings About tab: version/channel/hash display, live update status, Restart to Update button
+
+### Fixed
+- Agent sidebar: removed all custom --agent-* CSS variables, uses standard theme vars
+- AI chat, context menu: replaced agent gradient/accent vars with primary/muted-foreground
+
+## [0.0.7] - 2026-03-25
+
+### Added
+- Light/Dark/System appearance toggle in Settings > General
+- `useAppearance` hook with localStorage persistence and system preference detection
+- `bootstrapTheme()` prevents flash of wrong theme before React renders
+- Light theme CSS variables for all custom properties (tab bar, protocol badges, agent accents)
+- ThemeToken re-applies automatically when appearance mode changes
+
+### Fixed
+- 10 view files: replaced hardcoded Tailwind colors with theme CSS variables
+- AI elements: added dark: variants for status colors
+- Chat: oklch inline styles replaced with bg-primary/text-primary
+- Publish: 30+ hardcoded blue/purple classes replaced with primary/accent vars
+- Dashboard: status colors now use chart-*/destructive variables
+- About menu crashed on click — role was 'hide' instead of 'about'
+- Join channel dialog positioned in 220px sidebar instead of viewport center
+- MCP proxy hung on every tool call — was calling res.text() on SSE stream
+- Dead transfer re-export in actions/sweep broke CI build
+- ThemeToken loaded light mode only — CSS had no .dark class, no light/dark split
+
+### Changed
+- Theme settings redesigned: compact inline UI replaces heavy Card component
+- CSS architecture: :root = light, .dark = dark, @media fallback for system pref
+
 ## [0.0.6] - 2026-03-24
 
 ### Fixed

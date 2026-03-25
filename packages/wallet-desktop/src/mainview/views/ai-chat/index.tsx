@@ -77,7 +77,7 @@ function ModelSelector({
 				)}
 				style={{ borderRadius: 4 }}
 			>
-				<Sparkles size={10} style={{ color: 'var(--agent-accent-muted)' }} />
+				<Sparkles size={10} className="text-muted-foreground" />
 				<span className={cn('text-muted-foreground', !value && 'italic')}>
 					{value ? value.replace(':latest', '') : 'Select model'}
 				</span>
@@ -228,7 +228,7 @@ export function AiChatView({
 						style={{
 							borderRadius: 12,
 							background:
-								'linear-gradient(135deg, var(--agent-gradient-from), var(--agent-gradient-to))',
+								'hsl(var(--primary))',
 						}}
 					>
 						<Bot size={12} className="text-primary-foreground" />
@@ -283,7 +283,7 @@ export function AiChatView({
 							style={{
 								borderRadius: 24,
 								background:
-									'linear-gradient(135deg, var(--agent-gradient-from), var(--agent-gradient-to))',
+									'hsl(var(--primary))',
 							}}
 						>
 							<Bot size={24} className="text-primary-foreground" />

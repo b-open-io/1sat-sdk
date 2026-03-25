@@ -150,7 +150,7 @@ export function AgentSidebar({
 					className="flex items-center justify-center size-6 shrink-0"
 					style={{
 						borderRadius: 12,
-						background: 'linear-gradient(135deg, var(--agent-gradient-from), var(--agent-gradient-to))',
+						background: 'hsl(var(--primary))',
 					}}
 				>
 					<Bot size={12} className="text-primary-foreground" />
@@ -197,13 +197,13 @@ export function AgentSidebar({
 					className="flex items-center gap-1.5 px-2 py-0.5 max-w-full overflow-hidden"
 					style={{
 						borderRadius: 4,
-						background: 'var(--agent-accent-bg)',
-						border: '1px solid var(--agent-accent-border)',
+						background: 'hsl(var(--muted))',
+						border: '1px solid hsl(var(--border))',
 					}}
 				>
 					<span
 						className={cn('text-[9px] truncate', MONO)}
-						style={{ color: 'var(--agent-accent-muted)' }}
+						style={{ color: 'hsl(var(--muted-foreground))' }}
 					>
 						{currentUrl || '1sat://browser/new'}
 					</span>
@@ -222,7 +222,7 @@ export function AgentSidebar({
 								className="flex items-center justify-center size-10"
 								style={{
 									borderRadius: 20,
-									background: 'linear-gradient(135deg, var(--agent-gradient-from), var(--agent-gradient-to))',
+									background: 'hsl(var(--primary))',
 								}}
 							>
 								<Bot size={20} className="text-primary-foreground" />
@@ -319,14 +319,14 @@ export function AgentSidebar({
 						className="flex items-center gap-1 px-1.5 py-0.5"
 						style={{
 							borderRadius: 3,
-							background: 'var(--agent-accent-bg)',
-							border: '1px solid var(--agent-accent-border)',
+							background: 'hsl(var(--muted))',
+							border: '1px solid hsl(var(--border))',
 						}}
 					>
-						<Bot size={8} style={{ color: 'var(--agent-accent-muted)' }} />
+						<Bot size={8} style={{ color: 'hsl(var(--muted-foreground))' }} />
 						<span
 							className={cn('text-[9px]', MONO)}
-							style={{ color: 'var(--agent-accent-muted)' }}
+							style={{ color: 'hsl(var(--muted-foreground))' }}
 						>
 							Research Agent
 						</span>
