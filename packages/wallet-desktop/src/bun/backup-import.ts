@@ -277,7 +277,7 @@ function getMasterRootKey(backup: BapMasterBackup): string {
 }
 
 const STACK_URL = 'http://127.0.0.1:8080'
-const REMOTE_BAP_API = 'https://bap-api.com/v1'
+const REMOTE_BAP_API = 'https://api.1sat.app/1sat/bap'
 
 /**
  * Check if a BAP identity exists on chain.
@@ -334,7 +334,7 @@ async function checkIdentityOnChain(bapId: string): Promise<boolean> {
 
 	// 4. Try remote profile endpoint as last resort
 	try {
-		const res = await fetch(`${REMOTE_BAP_API}/profile/get/${bapId}`, {
+		const res = await fetch(`${REMOTE_BAP_API}/profile/${bapId}`, {
 			signal: AbortSignal.timeout(5000),
 		})
 		if (res.ok) {
@@ -371,7 +371,7 @@ async function fetchBapProfile(bapId: string): Promise<Record<string, unknown> |
 
 	// Try remote
 	try {
-		const res = await fetch(`${REMOTE_BAP_API}/profile/get/${bapId}`, {
+		const res = await fetch(`${REMOTE_BAP_API}/profile/${bapId}`, {
 			signal: AbortSignal.timeout(5000),
 		})
 		if (res.ok) {
