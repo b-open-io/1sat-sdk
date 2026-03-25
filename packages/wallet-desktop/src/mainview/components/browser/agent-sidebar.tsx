@@ -145,14 +145,8 @@ export function AgentSidebar({
 		>
 			{/* Header */}
 			<div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border shrink-0">
-				{/* Gradient avatar */}
-				<div
-					className="flex items-center justify-center size-6 shrink-0"
-					style={{
-						borderRadius: 12,
-						background: 'hsl(var(--primary))',
-					}}
-				>
+				{/* Agent avatar */}
+				<div className="flex items-center justify-center size-6 shrink-0 rounded-xl bg-primary">
 					<Bot size={12} className="text-primary-foreground" />
 				</div>
 
@@ -193,18 +187,8 @@ export function AgentSidebar({
 
 			{/* Page context pill */}
 			<div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
-				<div
-					className="flex items-center gap-1.5 px-2 py-0.5 max-w-full overflow-hidden"
-					style={{
-						borderRadius: 4,
-						background: 'hsl(var(--muted))',
-						border: '1px solid hsl(var(--border))',
-					}}
-				>
-					<span
-						className={cn('text-[9px] truncate', MONO)}
-						style={{ color: 'hsl(var(--muted-foreground))' }}
-					>
+				<div className="flex items-center gap-1.5 px-2 py-0.5 max-w-full overflow-hidden rounded bg-muted border border-border">
+					<span className={cn('text-[9px] truncate text-muted-foreground', MONO)}>
 						{currentUrl || '1sat://browser/new'}
 					</span>
 				</div>
@@ -218,13 +202,7 @@ export function AgentSidebar({
 				>
 					{messages.length === 0 && (
 						<div className="flex flex-col items-center justify-center h-full gap-3 text-center py-8">
-							<div
-								className="flex items-center justify-center size-10"
-								style={{
-									borderRadius: 20,
-									background: 'hsl(var(--primary))',
-								}}
-							>
+							<div className="flex items-center justify-center size-10 rounded-full bg-primary">
 								<Bot size={20} className="text-primary-foreground" />
 							</div>
 							<div>
@@ -247,10 +225,9 @@ export function AgentSidebar({
 											inputRef.current?.focus()
 										}}
 										className={cn(
-											'px-2 py-1 text-[10px] border border-border text-muted-foreground hover:text-foreground hover:border-border/80 hover:bg-muted/30 transition-colors',
+											'px-2 py-1 text-[10px] rounded border border-border text-muted-foreground hover:text-foreground hover:border-border/80 hover:bg-muted/30 transition-colors',
 											SANS,
 										)}
-										style={{ borderRadius: 4 }}
 									>
 										{action}
 									</button>
@@ -315,19 +292,9 @@ export function AgentSidebar({
 			<div className="px-3 py-2.5 border-t border-border shrink-0">
 				{/* Context label above input */}
 				<div className="flex items-center gap-1.5 mb-1.5">
-					<div
-						className="flex items-center gap-1 px-1.5 py-0.5"
-						style={{
-							borderRadius: 3,
-							background: 'hsl(var(--muted))',
-							border: '1px solid hsl(var(--border))',
-						}}
-					>
-						<Bot size={8} style={{ color: 'hsl(var(--muted-foreground))' }} />
-						<span
-							className={cn('text-[9px]', MONO)}
-							style={{ color: 'hsl(var(--muted-foreground))' }}
-						>
+					<div className="flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-muted border border-border">
+						<Bot size={8} className="text-muted-foreground" />
+						<span className={cn('text-[9px] text-muted-foreground', MONO)}>
 							Research Agent
 						</span>
 					</div>
@@ -356,18 +323,16 @@ export function AgentSidebar({
 						placeholder="Ask about this page..."
 						rows={1}
 						className={cn(
-							'flex-1 resize-none bg-muted/40 border border-border px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground outline-none',
+							'flex-1 resize-none bg-muted/40 border border-border rounded-md px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground outline-none max-h-[100px]',
 							SANS,
 						)}
-						style={{ borderRadius: 6, maxHeight: 100 }}
 						disabled={isStreaming}
 					/>
 					<button
 						type="button"
 						onClick={handleSubmit}
 						disabled={!input.trim() || status !== 'ready'}
-						className="flex items-center justify-center size-7 shrink-0 bg-primary disabled:opacity-30 transition-opacity"
-						style={{ borderRadius: 14 }}
+						className="flex items-center justify-center size-7 shrink-0 rounded-full bg-primary disabled:opacity-30 transition-opacity"
 						aria-label="Send"
 					>
 						<ArrowUp size={12} className="text-primary-foreground" />
