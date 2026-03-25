@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.6] - 2026-03-24
+
+### Fixed
+- Secure Enclave binary missing from production builds — `scripts` was nested inside `build` in electrobun.config.ts but Electrobun reads it at the top level, so postBuild hook never executed
+- postBuild script uses `__dirname` for absolute path resolution instead of relying on CWD
+- postBuild exits fatally if enclave binary not found (was silently skipping)
+- Setup wizard TDZ crash in production bundle — `advance` referenced before declaration
+
 ## [0.0.5] - 2026-03-24
 
 ### Added
