@@ -4,6 +4,7 @@ import { registerBrowserTools } from './browser'
 import { registerDataTools } from './data'
 import { registerTabTools } from './tabs'
 import { registerLogTools } from './logs'
+import { registerMainviewTools } from './mainview'
 import { registerWalletTools } from './wallet'
 
 export function registerAllMcpTools(
@@ -12,6 +13,7 @@ export function registerAllMcpTools(
 ): void {
 	registerBrowserTools(server, getMainWindow)
 	registerTabTools(server, getMainWindow)
+	registerMainviewTools(server, getMainWindow)
 	registerDataTools(server)
 	registerWalletTools(server)
 	registerLogTools(server)

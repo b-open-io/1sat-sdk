@@ -478,6 +478,14 @@ type WebviewRequests = {
 		params: { tabId: string }
 		response: { success: boolean }
 	}
+	mainviewEval: {
+		params: { code: string }
+		response: { result: string; error?: string }
+	}
+	mainviewGetUrl: {
+		params: Record<never, never>
+		response: { url: string }
+	}
 }
 
 // Messages webview can send to bun (currently none)

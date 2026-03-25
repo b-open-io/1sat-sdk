@@ -220,15 +220,11 @@ export async function create(
 
 	await protectRootKey(v, rootKeyHex)
 
-	const stackReady = await isStackSetupComplete()
-	const stackRemote = stackReady ? `${getStackUrl()}/1sat/wallet` : undefined
-
 	walletResult = await createNodeWallet({
 		privateKey: rootKey.toWif(),
 		chain: 'main',
 		storageIdentityKey: `1sat-wallet:${identityKey}`,
 		filename: dbPath(),
-		activeRemote: stackRemote,
 	})
 
 	setStatus('unlocked')
@@ -241,15 +237,6 @@ export async function create(
 		level: 'success',
 		message: 'Wallet created',
 	})
-
-	if (stackRemote) {
-		onSyncEvent?.({
-			timestamp: Date.now(),
-			source: 'wallet',
-			level: 'log',
-			message: 'Connected to 1sat-stack',
-		})
-	}
 
 	await pushBalance()
 }

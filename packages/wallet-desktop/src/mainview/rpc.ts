@@ -80,6 +80,21 @@ const rpc = Electroview.defineRPC<WalletDesktopRPC>({
 				if (!ctrl) return { success: false }
 				return { success: ctrl.reload(tabId) }
 			},
+			mainviewEval: ({ code }: { code: string }) => {
+				try {
+					const fn = new Function(code)
+					const raw = fn()
+					const result = raw === undefined || raw === null
+						? String(raw)
+						: typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2)
+					return { result }
+				} catch (err) {
+					return { result: '', error: err instanceof Error ? err.message : String(err) }
+				}
+			},
+			mainviewGetUrl: () => {
+				return { url: window.location.href }
+			},
 		},
 		messages: {
 			walletStateChanged: (payload: { status: WalletStatus }) => {
