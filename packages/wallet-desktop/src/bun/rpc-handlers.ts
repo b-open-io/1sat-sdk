@@ -45,7 +45,7 @@ import type {
 	SweepScanResult,
 	TokenBalance,
 } from '../shared/types'
-import { importMasterBackup } from './backup-import'
+import { importBackup } from './backup-import'
 import {
 	addAccount,
 	getAccount,
@@ -341,7 +341,7 @@ export function createRpcHandlers() {
 			password,
 		}: { encryptedData: string; password: string }) => {
 			try {
-				const result = await importMasterBackup(encryptedData, password)
+				const result = await importBackup(encryptedData, password)
 				return {
 					success: true,
 					accounts: result.accounts,

@@ -5,7 +5,6 @@ import type { AccountInfo } from '../../../shared/types'
 import { useWallet } from '../../hooks/use-wallet'
 import { rpc } from '../../rpc'
 import { CreateWallet } from '../onboarding/create-wallet'
-import { ImportWallet } from '../onboarding/import-wallet'
 import { ImportBackup } from './import-backup'
 import { ProfileSetup } from './profile-setup'
 
@@ -48,7 +47,6 @@ function formatLastUsed(iso: string): string {
 type PickerView =
 	| { kind: 'grid' }
 	| { kind: 'create' }
-	| { kind: 'import' }
 	| { kind: 'import-backup' }
 	| { kind: 'profile-setup'; accountId: string }
 
@@ -168,9 +166,6 @@ export function AccountPicker() {
 	if (view.kind === 'create') {
 		return <CreateWallet onCancel={() => setView({ kind: 'grid' })} />
 	}
-	if (view.kind === 'import') {
-		return <ImportWallet onCancel={() => setView({ kind: 'grid' })} />
-	}
 	if (view.kind === 'import-backup') {
 		return (
 			<ImportBackup
@@ -238,17 +233,8 @@ export function AccountPicker() {
 					</button>
 				</div>
 
-				{/* Import options */}
-				<div className="flex justify-center gap-3 mb-6">
-					<Button
-						variant="ghost"
-						size="sm"
-						className="text-xs text-muted-foreground"
-						onClick={() => setView({ kind: 'import' })}
-						disabled={loading !== null}
-					>
-						Import mnemonic
-					</Button>
+				{/* Import option */}
+				<div className="flex justify-center mb-6">
 					<Button
 						variant="ghost"
 						size="sm"
@@ -256,7 +242,7 @@ export function AccountPicker() {
 						onClick={() => setView({ kind: 'import-backup' })}
 						disabled={loading !== null}
 					>
-						Import backup
+						Use backup
 					</Button>
 				</div>
 
