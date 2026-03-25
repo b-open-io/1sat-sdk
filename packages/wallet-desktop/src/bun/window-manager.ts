@@ -74,6 +74,14 @@ export async function openAccountWindow(accountId: string): Promise<boolean> {
 		// Push unlocked status immediately (DOM is already ready)
 		try { mainWindow.webview.rpc.send.walletStateChanged({ status: 'unlocked' }) } catch {}
 
+		// Verify sync event chain is working
+		callbacks.onSyncEvent?.({
+			timestamp: Date.now(),
+			source: 'window-manager',
+			level: 'success',
+			message: `Account ${accountId} window ready`,
+		})
+
 		return true
 	}
 
