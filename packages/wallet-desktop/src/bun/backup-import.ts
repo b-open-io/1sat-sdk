@@ -205,7 +205,7 @@ async function importFromMasterBackup(
 	for (let attempt = 0; attempt < 20; attempt++) {
 		try {
 			const nextId = bap.newId()
-			console.log(`[backup-import] Checking identity ${nextId.bapId.slice(0, 16)}...`)
+			console.log(`[backup-import] Checking identity ${nextId.bapId}...`)
 			const exists = await checkIdentityOnChain(nextId.bapId)
 			if (!exists) {
 				console.log(`[backup-import] Not found on chain, stopping discovery`)
@@ -277,15 +277,47 @@ function getMasterRootKey(backup: BapMasterBackup): string {
 }
 
 const STACK_URL = 'http://127.0.0.1:8080'
+const REMOTE_BAP_API = 'https://bap-api.com/v1'
 
 /**
- * Check if a BAP identity exists on chain (ID attestation).
- * Uses the local 1sat-stack POST /identity/get endpoint.
+ * Check if a BAP identity exists on chain.
+ * Tries local stack first, then remote BAP API, then profile endpoint.
  */
 async function checkIdentityOnChain(bapId: string): Promise<boolean> {
-	// Try local stack (POST /1sat/bap/identity/get)
+	// 1. Try local stack identity endpoint
 	try {
 		const res = await fetch(`${STACK_URL}/1sat/bap/identity/get`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ idKey: bapId }),
+			signal: AbortSignal.timeout(3000),
+		})
+		if (res.ok) {
+			const data = await res.json()
+			if (data?.idKey || data?.rootAddress) {
+				console.log(`[backup-import] Found via local stack identity/get`)
+				return true
+			}
+		}
+	} catch { /* stack not available */ }
+
+	// 2. Try local stack profile endpoint (might find ALIAS even if identity/get doesn't)
+	try {
+		const res = await fetch(`${STACK_URL}/1sat/bap/profile/${bapId}`, {
+			signal: AbortSignal.timeout(3000),
+		})
+		if (res.ok) {
+			const data = await res.json()
+			if (data && !data.message?.includes('not found')) {
+				console.log(`[backup-import] Found via local stack profile`)
+				return true
+			}
+		}
+	} catch { /* stack not available */ }
+
+	// 3. Try remote BAP API
+	try {
+		const res = await fetch(`${REMOTE_BAP_API}/identity/get`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ idKey: bapId }),
@@ -293,16 +325,34 @@ async function checkIdentityOnChain(bapId: string): Promise<boolean> {
 		})
 		if (res.ok) {
 			const data = await res.json()
-			return Boolean(data?.idKey || data?.rootAddress)
+			if (data?.idKey || data?.rootAddress || data?.status === 'OK') {
+				console.log(`[backup-import] Found via remote BAP API identity/get`)
+				return true
+			}
 		}
-	} catch { /* stack not available */ }
+	} catch { /* remote not available */ }
 
+	// 4. Try remote profile endpoint as last resort
+	try {
+		const res = await fetch(`${REMOTE_BAP_API}/profile/get/${bapId}`, {
+			signal: AbortSignal.timeout(5000),
+		})
+		if (res.ok) {
+			const data = await res.json()
+			if (data?.status === 'OK' || data?.result) {
+				console.log(`[backup-import] Found via remote BAP API profile`)
+				return true
+			}
+		}
+	} catch { /* remote not available */ }
+
+	console.log(`[backup-import] ${bapId} not found on any source`)
 	return false
 }
 
 /**
  * Fetch the BAP profile (ALIAS attestation) for display name/avatar.
- * Falls back to remote API if local stack is unavailable.
+ * Tries local stack first, then remote.
  */
 async function fetchBapProfile(bapId: string): Promise<Record<string, unknown> | null> {
 	// Try local stack
@@ -312,10 +362,23 @@ async function fetchBapProfile(bapId: string): Promise<Record<string, unknown> |
 		})
 		if (res.ok) {
 			const data = await res.json()
-			if (data?.alternateName || data?.name) return data as Record<string, unknown>
-			if (data?.result) return data.result as Record<string, unknown>
+			if (data && !data.message?.includes('not found')) {
+				if (data?.alternateName || data?.name) return data as Record<string, unknown>
+				if (data?.result) return data.result as Record<string, unknown>
+			}
 		}
 	} catch { /* stack not available */ }
+
+	// Try remote
+	try {
+		const res = await fetch(`${REMOTE_BAP_API}/profile/get/${bapId}`, {
+			signal: AbortSignal.timeout(5000),
+		})
+		if (res.ok) {
+			const data = await res.json()
+			if (data?.result) return data.result as Record<string, unknown>
+		}
+	} catch { /* remote not available */ }
 
 	return null
 }
