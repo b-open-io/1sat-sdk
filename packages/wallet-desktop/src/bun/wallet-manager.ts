@@ -57,6 +57,11 @@ function setStatus(status: WalletStatus): void {
 	onStatusChanged?.(status)
 }
 
+/** Allow index.ts to set status for account-selection before wallet lifecycle begins. */
+export function setInitialStatus(status: WalletStatus): void {
+	currentStatus = status
+}
+
 function accountDir(accountId: string): string {
 	return `${Utils.paths.userData}/accounts/${accountId}`
 }

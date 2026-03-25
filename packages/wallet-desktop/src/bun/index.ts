@@ -47,6 +47,7 @@ import {
 	checkVault,
 	migrateLegacyWallet,
 	setBalanceUpdatedCallback,
+	setInitialStatus,
 	setStatusChangedCallback,
 	setSyncEventCallback,
 } from './wallet-manager'
@@ -351,13 +352,16 @@ mainWindow.webview.on('dom-ready', () => {
 
 	if (currentAccounts.length === 0) {
 		// Fresh install or failed migration
+		setInitialStatus('no-wallet')
 		mainWindow.webview.rpc.send.walletStateChanged({ status: 'no-wallet' })
 	} else if (currentAccounts.length === 1 && !getShowPickerOnStartup()) {
 		// Single account with picker disabled — auto-unlock
+		setInitialStatus('locked')
 		mainWindow.webview.rpc.send.accountsLoaded({ accounts: currentAccounts })
 		mainWindow.webview.rpc.send.walletStateChanged({ status: 'locked' })
 	} else {
 		// Show profile picker
+		setInitialStatus('account-selection')
 		mainWindow.webview.rpc.send.accountsLoaded({ accounts: currentAccounts })
 		mainWindow.webview.rpc.send.walletStateChanged({ status: 'account-selection' })
 	}
