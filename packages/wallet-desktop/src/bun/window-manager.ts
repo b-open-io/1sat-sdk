@@ -44,10 +44,15 @@ export async function openAccountWindow(accountId: string): Promise<boolean> {
 	// 1. Already open? Focus it.
 	const existing = accountWindows.get(accountId)
 	if (existing) {
-		log.set({ event: 'focus_existing', accountId })
+		log.set({ event: 'focus_existing', accountId, windowCount: accountWindows.size })
 		log.emit()
-		existing.show()
-		existing.focus()
+		try {
+			existing.focus()
+		} catch (err) {
+			const errLog = createLogger({ context: 'window-manager' })
+			errLog.set({ event: 'focus_failed', accountId, error: err instanceof Error ? err.message : String(err) })
+			errLog.emit()
+		}
 		return false
 	}
 

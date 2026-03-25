@@ -1208,7 +1208,8 @@ const MODE_OPTIONS: {
 ]
 
 function AppearanceSection() {
-	const { mode, setMode, resolvedTheme } = useAppearance()
+	const { activeAccount } = useWallet()
+	const { mode, setMode, resolvedTheme } = useAppearance(activeAccount?.id)
 
 	return (
 		<div>

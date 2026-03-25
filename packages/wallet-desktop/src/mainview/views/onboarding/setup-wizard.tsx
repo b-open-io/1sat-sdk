@@ -685,7 +685,13 @@ const APPEARANCE_OPTIONS: {
 ]
 
 function AppearanceStep({ onComplete }: { onComplete: () => void }) {
-	const { mode, setMode } = useAppearance()
+	const [accountId, setAccountId] = useState<string | undefined>()
+	useEffect(() => {
+		rpc.request.getActiveAccount().then((r) => {
+			if (r.account) setAccountId(r.account.id)
+		}).catch(() => {})
+	}, [])
+	const { mode, setMode } = useAppearance(accountId)
 
 	useHotkeys([
 		{
