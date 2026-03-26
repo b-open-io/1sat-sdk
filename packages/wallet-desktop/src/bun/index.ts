@@ -6,7 +6,7 @@
  */
 import './log' // Side-effect: initializes evlog FIRST — file drain + ring buffer
 import { createLogger } from 'evlog'
-import { flushLogs } from './log'
+import { flushLogs, setSyncDrainCallback } from './log'
 import Electrobun, {
 	ApplicationMenu,
 	BrowserView,
@@ -397,7 +397,6 @@ setSyncEventCallback((event) => {
 })
 
 // Pipe evlog events to the sync terminal too
-import { setSyncDrainCallback } from './log'
 setSyncDrainCallback((event) => {
 	try { mainWindow.webview.rpc.send.syncEvent(event) } catch {}
 })
