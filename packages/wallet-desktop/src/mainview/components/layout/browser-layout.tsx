@@ -1165,6 +1165,33 @@ export function BrowserLayout() {
 		})
 	}, [])
 
+	// ── Type-to-search: open launcher on any printable key when on home page ──
+	useEffect(() => {
+		const isHomePage = () => {
+			const nav = tabNavStates.current[activeTabId]
+			if (!nav) return false
+			const parsed = parseUrl(getFullUrl(nav.current))
+			return parsed.type === 'internal' && parsed.page === 'browser/new'
+		}
+
+		const handleKeyDown = (e: KeyboardEvent) => {
+			// Ignore if launcher already open, modifier keys, or focus is in an input
+			if (isLauncherOpen) return
+			if (e.metaKey || e.ctrlKey || e.altKey) return
+			if (e.key.length !== 1) return // only printable characters
+			const tag = (e.target as HTMLElement)?.tagName
+			if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+			if (isHomePage()) {
+				e.preventDefault()
+				openLauncher(e.key)
+			}
+		}
+
+		window.addEventListener('keydown', handleKeyDown)
+		return () => window.removeEventListener('keydown', handleKeyDown)
+	}, [activeTabId, isLauncherOpen, openLauncher])
+
 	// ── Native menu actions (Cmd+W, Cmd+T, etc. from Electrobun menus) ───
 	useEffect(() => {
 		return onMenuAction(({ action }) => {
@@ -1432,9 +1459,9 @@ export function BrowserLayout() {
 		const tab = makeNewTab()
 		setTabs((prev) => [...prev, tab])
 		setActiveTabId(tab.id)
-		// Focus the address bar after the tab renders
-		setTimeout(() => addressBarRef.current?.focus(), 50)
-	}, [])
+		// Open the launcher overlay after the new tab renders
+		setTimeout(() => openLauncher(), 50)
+	}, [openLauncher])
 
 	const switchToTab = useCallback((index: number) => {
 		setTabs((prev) => {
