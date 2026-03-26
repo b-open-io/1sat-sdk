@@ -199,7 +199,7 @@ export async function scanAddress(
 	});
 
 	onProgress?.({ phase: "categorize", detail: "Loading token details..." });
-	return await categorizeOutputs(allOutputs);
+	return await categorizeOutputs(allOutputs ?? []);
 }
 
 export async function scanAddresses(
