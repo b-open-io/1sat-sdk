@@ -12,15 +12,17 @@ import { executeSweep } from "../lib/sweeper";
 import { legacySendBsv, legacySendOrdinals, legacyBurnOrdinals } from "../lib/legacy-send";
 import { getWallet } from "../lib/wallet";
 import type { LegacyKeys } from "../types";
+import type { WalletInterface } from "@bsv/sdk";
 
 type TabId = "ordinals" | "opns" | "bsv21" | "bsv20" | "locks";
 
 export interface SweepAppProps {
 	legacyKeys?: LegacyKeys;
+	wallet?: WalletInterface | null;
 }
 
-export function SweepApp({ legacyKeys: initialKeys }: SweepAppProps) {
-	const [walletConnected, setWalletConnected] = useState(false);
+export function SweepApp({ legacyKeys: initialKeys, wallet: externalWallet }: SweepAppProps) {
+	const [walletConnected, setWalletConnected] = useState(!!externalWallet);
 	const [scanning, setScanning] = useState(false);
 	const [scanProgress, setScanProgress] = useState("");
 	const [assets, setAssets] = useState<ScannedAssets | null>(null);
@@ -32,6 +34,14 @@ export function SweepApp({ legacyKeys: initialKeys }: SweepAppProps) {
 	const [selectedOpns, setSelectedOpns] = useState<Set<string>>(new Set());
 	const [sweepAmount, setSweepAmount] = useState<number | null>(null);
 	const [activeTab, setActiveTab] = useState<TabId>("ordinals");
+
+	useEffect(() => {
+		setWalletConnected(!!externalWallet);
+	}, [externalWallet]);
+
+	const resolveWallet = useCallback((): WalletInterface | null => {
+		return externalWallet ?? getWallet();
+	}, [externalWallet]);
 
 	const addTx = useCallback((label: string, txid: string, error?: string) => {
 		setTxHistory((prev) => [...prev, { label, txid, timestamp: new Date(), error }]);
@@ -98,7 +108,6 @@ export function SweepApp({ legacyKeys: initialKeys }: SweepAppProps) {
 		}
 	}, []);
 
-	// Auto-scan when keys are provided via props
 	useEffect(() => {
 		if (initialKeys) handleScan(initialKeys);
 	}, [initialKeys, handleScan]);
@@ -134,14 +143,14 @@ export function SweepApp({ legacyKeys: initialKeys }: SweepAppProps) {
 	}, [assets, sweepAmount]);
 
 	const handleSweepBsv = useCallback(async () => {
-		const wallet = getWallet();
+		const wallet = resolveWallet();
 		if (!wallet || !legacyKeys || !assets) return;
 		await runOperation("Sweep BSV", async () => {
 			const result = await executeSweep({ wallet, wif: legacyKeys.payPk, funding: getSelectedFunding(), ordinals: [], bsv21Tokens: [], amount: sweepAmount ?? undefined, onProgress: setSweepProgress });
 			if (result.errors.length > 0) throw new Error(result.errors[0]);
 			return result.bsvTxid ?? "";
 		});
-	}, [legacyKeys, assets, sweepAmount, getSelectedFunding, runOperation]);
+	}, [resolveWallet, legacyKeys, assets, sweepAmount, getSelectedFunding, runOperation]);
 
 	const handleSendBsv = useCallback(async (destination: string) => {
 		if (!legacyKeys || !assets) return;
@@ -152,7 +161,7 @@ export function SweepApp({ legacyKeys: initialKeys }: SweepAppProps) {
 	}, [legacyKeys, assets, sweepAmount, getSelectedFunding, runOperation]);
 
 	const handleSweepOrdinals = useCallback(async () => {
-		const wallet = getWallet();
+		const wallet = resolveWallet();
 		if (!wallet || !legacyKeys || !assets) return;
 		const selected = assets.ordinals.filter((o) => selectedOrdinals.has(o.outpoint));
 		if (selected.length === 0) return;
@@ -161,7 +170,7 @@ export function SweepApp({ legacyKeys: initialKeys }: SweepAppProps) {
 			if (result.errors.length > 0) throw new Error(result.errors[0]);
 			return result.ordinalTxids[0] ?? "";
 		});
-	}, [legacyKeys, assets, selectedOrdinals, runOperation]);
+	}, [resolveWallet, legacyKeys, assets, selectedOrdinals, runOperation]);
 
 	const handleSendOrdinals = useCallback(async (destination: string) => {
 		if (!legacyKeys || !assets) return;
@@ -184,7 +193,7 @@ export function SweepApp({ legacyKeys: initialKeys }: SweepAppProps) {
 	}, [legacyKeys, assets, selectedOrdinals, runOperation]);
 
 	const handleSweepOpns = useCallback(async () => {
-		const wallet = getWallet();
+		const wallet = resolveWallet();
 		if (!wallet || !legacyKeys || !assets) return;
 		const selected = assets.opnsNames.filter((o) => selectedOpns.has(o.outpoint));
 		if (selected.length === 0) return;
@@ -193,7 +202,7 @@ export function SweepApp({ legacyKeys: initialKeys }: SweepAppProps) {
 			if (result.errors.length > 0) throw new Error(result.errors[0]);
 			return result.ordinalTxids[0] ?? "";
 		});
-	}, [legacyKeys, assets, selectedOpns, runOperation]);
+	}, [resolveWallet, legacyKeys, assets, selectedOpns, runOperation]);
 
 	const handleSendOpns = useCallback(async (destination: string) => {
 		if (!legacyKeys || !assets) return;
@@ -224,7 +233,9 @@ export function SweepApp({ legacyKeys: initialKeys }: SweepAppProps) {
 					<p className="text-sm text-muted-foreground">Transfer or sweep legacy assets</p>
 				</div>
 
-				<ConnectWallet onConnected={() => setWalletConnected(true)} onDisconnected={() => setWalletConnected(false)} connected={walletConnected} />
+				{!externalWallet && (
+					<ConnectWallet onConnected={() => setWalletConnected(true)} onDisconnected={() => setWalletConnected(false)} connected={walletConnected} />
+				)}
 
 				{!initialKeys && (
 					<WifInput onScan={handleScan} scanning={scanning} disabled={sweeping} />
