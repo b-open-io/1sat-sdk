@@ -1165,57 +1165,6 @@ export function BrowserLayout() {
 		})
 	}, [])
 
-	// ── Type-to-search: open launcher on any printable key when on home page ──
-	useEffect(() => {
-		const isHomePage = () => {
-			const nav = tabNavStates.current[activeTabId]
-			if (!nav) return false
-			const parsed = parseUrl(getFullUrl(nav.current))
-			return parsed.type === 'internal' && parsed.page === 'browser/new'
-		}
-
-		const handleKeyDown = (e: KeyboardEvent) => {
-			// Ignore if launcher already open, modifier keys, or focus is in an input
-			if (isLauncherOpen) return
-			if (e.metaKey || e.ctrlKey || e.altKey) return
-			if (e.key.length !== 1) return // only printable characters
-			const tag = (e.target as HTMLElement)?.tagName
-			if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
-
-			if (isHomePage()) {
-				e.preventDefault()
-				openLauncher(e.key)
-			}
-		}
-
-		window.addEventListener('keydown', handleKeyDown)
-		return () => window.removeEventListener('keydown', handleKeyDown)
-	}, [activeTabId, isLauncherOpen, openLauncher])
-
-	// ── Native menu actions (Cmd+W, Cmd+T, etc. from Electrobun menus) ───
-	useEffect(() => {
-		return onMenuAction(({ action }) => {
-			switch (action) {
-				case 'new-tab':
-					createNewTab()
-					break
-				case 'close-tab':
-					closeTab(activeTabId)
-					break
-				case 'next-tab': {
-					const idx = tabs.findIndex((t) => t.id === activeTabId)
-					if (idx < tabs.length - 1) switchToTab(idx + 1)
-					break
-				}
-				case 'prev-tab': {
-					const idx = tabs.findIndex((t) => t.id === activeTabId)
-					if (idx > 0) switchToTab(idx - 1)
-					break
-				}
-			}
-		})
-	}, [activeTabId, tabs, createNewTab, closeTab, switchToTab])
-
 	// ── Link hover tooltip (Chrome-style status bar) ──────────────────────
 	const [hoveredLink, setHoveredLink] = useState<string | null>(null)
 
@@ -1545,6 +1494,52 @@ export function BrowserLayout() {
 	}, [navigate])
 
 	// Onboarding is handled by App.tsx — BrowserLayout only renders when unlocked
+
+	// ── Type-to-search: open launcher on any printable key when on home page ──
+	useEffect(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (isLauncherOpen) return
+			if (e.metaKey || e.ctrlKey || e.altKey) return
+			if (e.key.length !== 1) return
+			const tag = (e.target as HTMLElement)?.tagName
+			if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+			const nav = tabNavStates.current[activeTabId]
+			if (!nav) return
+			const parsed = parseUrl(getFullUrl(nav.current))
+			if (parsed.type === 'internal' && parsed.page === 'browser/new') {
+				e.preventDefault()
+				openLauncher(e.key)
+			}
+		}
+
+		window.addEventListener('keydown', handleKeyDown)
+		return () => window.removeEventListener('keydown', handleKeyDown)
+	}, [activeTabId, isLauncherOpen, openLauncher])
+
+	// ── Native menu actions (Cmd+W, Cmd+T, etc. from Electrobun menus) ───
+	useEffect(() => {
+		return onMenuAction(({ action }) => {
+			switch (action) {
+				case 'new-tab':
+					createNewTab()
+					break
+				case 'close-tab':
+					closeTab(activeTabId)
+					break
+				case 'next-tab': {
+					const idx = tabs.findIndex((t) => t.id === activeTabId)
+					if (idx < tabs.length - 1) switchToTab(idx + 1)
+					break
+				}
+				case 'prev-tab': {
+					const idx = tabs.findIndex((t) => t.id === activeTabId)
+					if (idx > 0) switchToTab(idx - 1)
+					break
+				}
+			}
+		})
+	}, [activeTabId, tabs, createNewTab, closeTab, switchToTab])
 
 	// ── Keyboard shortcuts via TanStack Hotkeys ──────────────────────────
 
