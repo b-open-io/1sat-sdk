@@ -19,9 +19,10 @@ type TabId = "ordinals" | "opns" | "bsv21" | "bsv20" | "locks";
 export interface SweepAppProps {
 	legacyKeys?: LegacyKeys;
 	wallet?: WalletInterface | null;
+	sweepOnly?: boolean;
 }
 
-export function SweepApp({ legacyKeys: initialKeys, wallet: externalWallet }: SweepAppProps) {
+export function SweepApp({ legacyKeys: initialKeys, wallet: externalWallet, sweepOnly }: SweepAppProps) {
 	const [walletConnected, setWalletConnected] = useState(!!externalWallet);
 	const [scanning, setScanning] = useState(false);
 	const [scanProgress, setScanProgress] = useState("");
@@ -248,7 +249,7 @@ export function SweepApp({ legacyKeys: initialKeys, wallet: externalWallet }: Sw
 
 				{assets && !sweeping && (
 					<div className="space-y-3">
-						<FundingSection funding={assets.funding} totalBsv={assets.totalBsv} sweepAmount={sweepAmount} onSweepAmountChange={setSweepAmount} onSweep={handleSweepBsv} onSend={handleSendBsv} walletConnected={walletConnected} />
+						<FundingSection funding={assets.funding} totalBsv={assets.totalBsv} sweepAmount={sweepAmount} onSweepAmountChange={setSweepAmount} onSweep={handleSweepBsv} onSend={sweepOnly ? undefined : handleSendBsv} walletConnected={walletConnected} />
 
 						{tabs.length > 0 && (
 							<Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabId)}>
@@ -261,10 +262,10 @@ export function SweepApp({ legacyKeys: initialKeys, wallet: externalWallet }: Sw
 									))}
 								</TabsList>
 								<TabsContent value="ordinals">
-									<OrdinalsSection ordinals={assets.ordinals} selectedOrdinals={selectedOrdinals} onToggle={handleToggleOrdinal} onSelectAll={handleSelectAllOrdinals} onDeselectAll={handleDeselectAllOrdinals} onSweep={handleSweepOrdinals} onSend={handleSendOrdinals} onBurn={handleBurnOrdinals} walletConnected={walletConnected} />
+									<OrdinalsSection ordinals={assets.ordinals} selectedOrdinals={selectedOrdinals} onToggle={handleToggleOrdinal} onSelectAll={handleSelectAllOrdinals} onDeselectAll={handleDeselectAllOrdinals} onSweep={handleSweepOrdinals} onSend={sweepOnly ? undefined : handleSendOrdinals} onBurn={sweepOnly ? undefined : handleBurnOrdinals} walletConnected={walletConnected} />
 								</TabsContent>
 								<TabsContent value="opns">
-									<OpnsSection opnsNames={assets.opnsNames} selectedOpns={selectedOpns} onToggle={handleToggleOpns} onSelectAll={handleSelectAllOpns} onDeselectAll={handleDeselectAllOpns} onSweep={handleSweepOpns} onSend={handleSendOpns} onBurn={handleBurnOpns} walletConnected={walletConnected} />
+									<OpnsSection opnsNames={assets.opnsNames} selectedOpns={selectedOpns} onToggle={handleToggleOpns} onSelectAll={handleSelectAllOpns} onDeselectAll={handleDeselectAllOpns} onSweep={handleSweepOpns} onSend={sweepOnly ? undefined : handleSendOpns} onBurn={sweepOnly ? undefined : handleBurnOpns} walletConnected={walletConnected} />
 								</TabsContent>
 								<TabsContent value="bsv21"><Bsv21Section tokens={assets.bsv21Tokens} /></TabsContent>
 								<TabsContent value="bsv20"><Bsv20Section tokens={assets.bsv20Tokens} /></TabsContent>

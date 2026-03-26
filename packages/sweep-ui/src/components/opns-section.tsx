@@ -5,7 +5,7 @@ import type { EnrichedOrdinal } from "../lib/scanner";
 import { getServices } from "../lib/services";
 
 export function OpnsSection({ opnsNames, selectedOpns, onToggle, onSelectAll, onDeselectAll, onSweep, onSend, onBurn, walletConnected }: {
-	opnsNames: EnrichedOrdinal[]; selectedOpns: Set<string>; onToggle: (outpoint: string) => void; onSelectAll: () => void; onDeselectAll: () => void; onSweep: () => void; onSend: (destination: string) => void; onBurn: () => void; walletConnected: boolean;
+	opnsNames: EnrichedOrdinal[]; selectedOpns: Set<string>; onToggle: (outpoint: string) => void; onSelectAll: () => void; onDeselectAll: () => void; onSweep: () => void; onSend?: (destination: string) => void; onBurn?: () => void; walletConnected: boolean;
 }) {
 	const [address, setAddress] = useState("");
 	const [resolvedNames, setResolvedNames] = useState<Map<string, string>>(new Map());
@@ -95,11 +95,17 @@ export function OpnsSection({ opnsNames, selectedOpns, onToggle, onSelectAll, on
 			</div>
 			{selectedOpns.size > 0 && (
 				<div className="mt-3 space-y-2">
-					<Input type="text" placeholder="Destination address..." value={address} onChange={(e) => setAddress(e.target.value)} className="font-mono text-xs" />
+					{onSend && (
+						<Input type="text" placeholder="Destination address..." value={address} onChange={(e) => setAddress(e.target.value)} className="font-mono text-xs" />
+					)}
 					<div className="flex gap-2">
-						<Button variant="outline" size="sm" className="flex-1" disabled={!address.trim()} onClick={() => onSend(address.trim())}>Send {selectedOpns.size} Domain{selectedOpns.size !== 1 ? "s" : ""}</Button>
+						{onSend && (
+							<Button variant="outline" size="sm" className="flex-1" disabled={!address.trim()} onClick={() => onSend(address.trim())}>Send {selectedOpns.size} Domain{selectedOpns.size !== 1 ? "s" : ""}</Button>
+						)}
 						<Button size="sm" className="flex-1" onClick={onSweep} disabled={!walletConnected} title={walletConnected ? undefined : "Connect BRC-100 wallet to sweep"}>Sweep to Wallet</Button>
-						<Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => { if (window.confirm(`Permanently burn ${selectedOpns.size} domain${selectedOpns.size !== 1 ? "s" : ""}? This cannot be undone.`)) onBurn(); }}>Burn</Button>
+						{onBurn && (
+							<Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => { if (window.confirm(`Permanently burn ${selectedOpns.size} domain${selectedOpns.size !== 1 ? "s" : ""}? This cannot be undone.`)) onBurn(); }}>Burn</Button>
+						)}
 					</div>
 				</div>
 			)}

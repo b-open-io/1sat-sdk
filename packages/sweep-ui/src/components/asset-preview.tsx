@@ -51,7 +51,7 @@ function OrdinalCard({ ordinal, isSelected, onToggle }: { ordinal: EnrichedOrdin
 }
 
 export function FundingSection({ funding, totalBsv, sweepAmount, onSweepAmountChange, onSweep, onSend, walletConnected }: {
-	funding: IndexedOutput[]; totalBsv: number; sweepAmount: number | null; onSweepAmountChange: (amount: number | null) => void; onSweep: () => void; onSend: (destination: string) => void; walletConnected: boolean;
+	funding: IndexedOutput[]; totalBsv: number; sweepAmount: number | null; onSweepAmountChange: (amount: number | null) => void; onSweep: () => void; onSend?: (destination: string) => void; walletConnected: boolean;
 }) {
 	const [address, setAddress] = useState("");
 	if (funding.length === 0) return null;
@@ -77,9 +77,13 @@ export function FundingSection({ funding, totalBsv, sweepAmount, onSweepAmountCh
 				<Button variant="outline" size="sm" className="h-9 text-xs" onClick={() => onSweepAmountChange(null)} disabled={isMax}>Max</Button>
 			</div>
 			<div className="mt-3 space-y-2">
-				<Input type="text" placeholder="Destination address..." value={address} onChange={(e) => setAddress(e.target.value)} className="font-mono text-xs" />
+				{onSend && (
+					<Input type="text" placeholder="Destination address..." value={address} onChange={(e) => setAddress(e.target.value)} className="font-mono text-xs" />
+				)}
 				<div className="flex gap-2">
-					<Button variant="outline" size="sm" className="flex-1" disabled={!address.trim()} onClick={() => onSend(address.trim())}>Send {displayAmount} sats</Button>
+					{onSend && (
+						<Button variant="outline" size="sm" className="flex-1" disabled={!address.trim()} onClick={() => onSend(address.trim())}>Send {displayAmount} sats</Button>
+					)}
 					<Button size="sm" className="flex-1" onClick={onSweep} disabled={!walletConnected} title={walletConnected ? undefined : "Connect BRC-100 wallet to sweep"}>Sweep to Wallet</Button>
 				</div>
 			</div>
@@ -88,7 +92,7 @@ export function FundingSection({ funding, totalBsv, sweepAmount, onSweepAmountCh
 }
 
 export function OrdinalsSection({ ordinals, selectedOrdinals, onToggle, onSelectAll, onDeselectAll, onSweep, onSend, onBurn, walletConnected }: {
-	ordinals: EnrichedOrdinal[]; selectedOrdinals: Set<string>; onToggle: (outpoint: string) => void; onSelectAll: () => void; onDeselectAll: () => void; onSweep: () => void; onSend: (destination: string) => void; onBurn: () => void; walletConnected: boolean;
+	ordinals: EnrichedOrdinal[]; selectedOrdinals: Set<string>; onToggle: (outpoint: string) => void; onSelectAll: () => void; onDeselectAll: () => void; onSweep: () => void; onSend?: (destination: string) => void; onBurn?: () => void; walletConnected: boolean;
 }) {
 	const [page, setPage] = useState(0);
 	const [address, setAddress] = useState("");
@@ -127,11 +131,17 @@ export function OrdinalsSection({ ordinals, selectedOrdinals, onToggle, onSelect
 			)}
 			{selectedOrdinals.size > 0 && (
 				<div className="mt-3 space-y-2">
-					<Input type="text" placeholder="Destination address..." value={address} onChange={(e) => setAddress(e.target.value)} className="font-mono text-xs" />
+					{onSend && (
+						<Input type="text" placeholder="Destination address..." value={address} onChange={(e) => setAddress(e.target.value)} className="font-mono text-xs" />
+					)}
 					<div className="flex gap-2">
-						<Button variant="outline" size="sm" className="flex-1" disabled={!address.trim()} onClick={() => onSend(address.trim())}>Send {selectedOrdinals.size} Ordinal{selectedOrdinals.size !== 1 ? "s" : ""}</Button>
+						{onSend && (
+							<Button variant="outline" size="sm" className="flex-1" disabled={!address.trim()} onClick={() => onSend(address.trim())}>Send {selectedOrdinals.size} Ordinal{selectedOrdinals.size !== 1 ? "s" : ""}</Button>
+						)}
 						<Button size="sm" className="flex-1" onClick={onSweep} disabled={!walletConnected} title={walletConnected ? undefined : "Connect BRC-100 wallet to sweep"}>Sweep to Wallet</Button>
-						<Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => { if (window.confirm(`Permanently burn ${selectedOrdinals.size} ordinal${selectedOrdinals.size !== 1 ? "s" : ""}? This cannot be undone.`)) onBurn(); }}>Burn</Button>
+						{onBurn && (
+							<Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => { if (window.confirm(`Permanently burn ${selectedOrdinals.size} ordinal${selectedOrdinals.size !== 1 ? "s" : ""}? This cannot be undone.`)) onBurn(); }}>Burn</Button>
+						)}
 					</div>
 				</div>
 			)}
