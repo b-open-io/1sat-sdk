@@ -2,6 +2,8 @@
  * Sweep Module Types
  */
 
+import type { PrivateKey } from '@bsv/sdk'
+
 /** Input for sweep operations - a UTXO to be swept */
 export interface SweepInput {
 	/** Outpoint in format "txid_vout" */
@@ -16,8 +18,8 @@ export interface SweepInput {
 export interface SweepBsvRequest {
 	/** UTXOs to spend from source wallet */
 	inputs: SweepInput[]
-	/** WIF private key controlling the inputs */
-	wif: string
+	/** Private keys for signing, parallel to inputs */
+	keys: PrivateKey[]
 	/** Amount to sweep (in satoshis). If omitted, sweeps all input value. */
 	amount?: number
 }
@@ -36,8 +38,8 @@ export interface SweepBsvResponse {
 export interface SweepOrdinalsRequest {
 	/** Ordinal UTXOs to sweep */
 	inputs: SweepInput[]
-	/** WIF private key controlling the inputs */
-	wif: string
+	/** Private keys for signing, parallel to inputs */
+	keys: PrivateKey[]
 }
 
 /** Response from ordinal sweep operation */
@@ -62,8 +64,8 @@ export interface SweepBsv21Input extends SweepInput {
 export interface SweepBsv21Request {
 	/** Token UTXOs to sweep (must all be same tokenId) */
 	inputs: SweepBsv21Input[]
-	/** WIF private key controlling the inputs */
-	wif: string
+	/** Private keys for signing, parallel to inputs */
+	keys: PrivateKey[]
 }
 
 /** Response from BSV-21 token sweep operation */

@@ -12,7 +12,7 @@ import { executeSweep } from "../lib/sweeper";
 import { legacySendBsv, legacySendOrdinals, legacyBurnOrdinals } from "../lib/legacy-send";
 import { getWallet } from "../lib/wallet";
 import type { LegacyKeys } from "../types";
-import type { WalletInterface } from "@bsv/sdk";
+import { PrivateKey, type WalletInterface } from "@bsv/sdk";
 
 type TabId = "ordinals" | "opns" | "bsv21" | "bsv20" | "locks";
 
@@ -43,6 +43,17 @@ export function SweepApp({ legacyKeys: initialKeys, wallet: externalWallet, swee
 	const resolveWallet = useCallback((): WalletInterface | null => {
 		return externalWallet ?? getWallet();
 	}, [externalWallet]);
+
+	const keyMap = useMemo(() => {
+		if (!legacyKeys) return new Map<string, PrivateKey>();
+		const map = new Map<string, PrivateKey>();
+		map.set(deriveAddress(legacyKeys.payPk), PrivateKey.fromWif(legacyKeys.payPk));
+		map.set(deriveAddress(legacyKeys.ordPk), PrivateKey.fromWif(legacyKeys.ordPk));
+		if (legacyKeys.identityPk) {
+			map.set(deriveAddress(legacyKeys.identityPk), PrivateKey.fromWif(legacyKeys.identityPk));
+		}
+		return map;
+	}, [legacyKeys]);
 
 	const addTx = useCallback((label: string, txid: string, error?: string) => {
 		setTxHistory((prev) => [...prev, { label, txid, timestamp: new Date(), error }]);
@@ -148,7 +159,7 @@ export function SweepApp({ legacyKeys: initialKeys, wallet: externalWallet, swee
 		const wallet = resolveWallet();
 		if (!wallet || !legacyKeys || !assets) return;
 		await runOperation("Sweep BSV", async () => {
-			const result = await executeSweep({ wallet, wif: legacyKeys.payPk, funding: getSelectedFunding(), ordinals: [], bsv21Tokens: [], amount: sweepAmount ?? undefined, onProgress: setSweepProgress });
+			const result = await executeSweep({ wallet, keys: keyMap, funding: getSelectedFunding(), ordinals: [], bsv21Tokens: [], amount: sweepAmount ?? undefined, onProgress: setSweepProgress });
 			if (result.errors.length > 0) throw new Error(result.errors[0]);
 			return result.bsvTxid ?? "";
 		});
@@ -168,7 +179,7 @@ export function SweepApp({ legacyKeys: initialKeys, wallet: externalWallet, swee
 		const selected = assets.ordinals.filter((o) => selectedOrdinals.has(o.outpoint));
 		if (selected.length === 0) return;
 		await runOperation(`Sweep ${selected.length} ordinal${selected.length !== 1 ? "s" : ""}`, async () => {
-			const result = await executeSweep({ wallet, wif: legacyKeys.payPk, funding: [], ordinals: selected, bsv21Tokens: [], onProgress: setSweepProgress });
+			const result = await executeSweep({ wallet, keys: keyMap, funding: [], ordinals: selected, bsv21Tokens: [], onProgress: setSweepProgress });
 			if (result.errors.length > 0) throw new Error(result.errors[0]);
 			return result.ordinalTxids[0] ?? "";
 		});
@@ -200,7 +211,7 @@ export function SweepApp({ legacyKeys: initialKeys, wallet: externalWallet, swee
 		const selected = assets.opnsNames.filter((o) => selectedOpns.has(o.outpoint));
 		if (selected.length === 0) return;
 		await runOperation(`Sweep ${selected.length} domain${selected.length !== 1 ? "s" : ""}`, async () => {
-			const result = await executeSweep({ wallet, wif: legacyKeys.payPk, funding: [], ordinals: selected, bsv21Tokens: [], onProgress: setSweepProgress });
+			const result = await executeSweep({ wallet, keys: keyMap, funding: [], ordinals: selected, bsv21Tokens: [], onProgress: setSweepProgress });
 			if (result.errors.length > 0) throw new Error(result.errors[0]);
 			return result.ordinalTxids[0] ?? "";
 		});

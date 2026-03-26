@@ -82,6 +82,16 @@ export async function prepareSweepInputs(
 	return results
 }
 
+/** Build a map of SDK-formatted outpoint → PrivateKey from parallel arrays */
+function buildKeyMap(inputs: SweepInput[], keys: PrivateKey[]): Map<string, PrivateKey> {
+	const map = new Map<string, PrivateKey>()
+	for (let i = 0; i < inputs.length; i++) {
+		const { txid, vout } = parseOutpoint(inputs[i].outpoint)
+		map.set(formatOutpoint(txid, vout), keys[i])
+	}
+	return map
+}
+
 /**
  * Sweep BSV from external inputs into the destination wallet.
  *
@@ -135,15 +145,14 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 		}
 
 		try {
-			const { inputs, wif, amount } = request
+			const { inputs, keys, amount } = request
 
 			if (!inputs || inputs.length === 0) {
 				return { error: 'no-inputs' }
 			}
 
-			// Parse WIF and derive source address
-			const privateKey = PrivateKey.fromWif(wif)
-			const sourceAddress = privateKey.toPublicKey().toAddress()
+			const keyMap = buildKeyMap(inputs, keys)
+			const sourceAddress = keys[0].toPublicKey().toAddress()
 
 			// Calculate totals
 			const inputTotal = inputs.reduce((sum, i) => sum + i.satoshis, 0)
@@ -234,20 +243,18 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 				createResult,
 				beefData as number[],
 				async (tx) => {
-					// Set up P2PKH unlocker on each input we control
 					for (let i = 0; i < tx.inputs.length; i++) {
 						const txInput = tx.inputs[i]
 						const inputOutpoint = formatOutpoint(
 							txInput.sourceTXID!,
 							txInput.sourceOutputIndex,
 						)
-
-						if (ourOutpoints.has(inputOutpoint)) {
-							const p2pkh = new P2PKH()
-							txInput.unlockingScriptTemplate = p2pkh.unlock(
-								privateKey,
+						const key = keyMap.get(inputOutpoint)
+						if (key) {
+							txInput.unlockingScriptTemplate = new P2PKH().unlock(
+								key,
 								'all',
-								true, // anyoneCanPay
+								true,
 							)
 						}
 					}
@@ -261,8 +268,7 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 							txInput.sourceTXID!,
 							txInput.sourceOutputIndex,
 						)
-
-						if (ourOutpoints.has(inputOutpoint)) {
+						if (keyMap.has(inputOutpoint)) {
 							spends[i] = {
 								unlockingScript: txInput.unlockingScript?.toHex() ?? '',
 							}
@@ -372,11 +378,13 @@ export const sweepOrdinals: Action<
 		}
 
 		try {
-			const { inputs, wif } = request
+			const { inputs, keys } = request
 
 			if (!inputs || inputs.length === 0) {
 				return { error: 'no-inputs' }
 			}
+
+			const keyMap = buildKeyMap(inputs, keys)
 
 			// Resolve metadata for all inputs from ORDFS
 			const outpoints = inputs.map((i) => i.outpoint)
@@ -392,9 +400,6 @@ export const sweepOrdinals: Action<
 			for (const [op, meta] of Object.entries(metadataMap)) {
 				if (meta) metadata.set(op.replace(/:-2$/, ''), meta)
 			}
-
-			// Parse WIF
-			const privateKey = PrivateKey.fromWif(wif)
 
 			// Fetch BEEF for all input transactions and merge them
 			const txids = [
@@ -505,13 +510,12 @@ export const sweepOrdinals: Action<
 							txInput.sourceTXID!,
 							txInput.sourceOutputIndex,
 						)
-
-						if (ourOutpoints.has(inputOutpoint)) {
-							const p2pkh = new P2PKH()
-							txInput.unlockingScriptTemplate = p2pkh.unlock(
-								privateKey,
+						const key = keyMap.get(inputOutpoint)
+						if (key) {
+							txInput.unlockingScriptTemplate = new P2PKH().unlock(
+								key,
 								'all',
-								true, // anyoneCanPay
+								true,
 							)
 						}
 					}
@@ -525,8 +529,7 @@ export const sweepOrdinals: Action<
 							txInput.sourceTXID!,
 							txInput.sourceOutputIndex,
 						)
-
-						if (ourOutpoints.has(inputOutpoint)) {
+						if (keyMap.has(inputOutpoint)) {
 							spends[i] = {
 								unlockingScript: txInput.unlockingScript?.toHex() ?? '',
 							}
@@ -647,11 +650,13 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 		}
 
 		try {
-			const { inputs, wif } = request
+			const { inputs, keys } = request
 
 			if (!inputs || inputs.length === 0) {
 				return { error: 'no-inputs' }
 			}
+
+			const keyMap = buildKeyMap(inputs, keys)
 
 			// Validate all inputs have the same tokenId
 			const tokenId = inputs[0].tokenId
@@ -680,9 +685,6 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 					error: `unvalidated-inputs: ${invalidInputs.map((i) => i.outpoint).join(', ')}`,
 				}
 			}
-
-			// Parse WIF
-			const privateKey = PrivateKey.fromWif(wif)
 
 			// Sum all input amounts
 			const totalAmount = inputs.reduce((sum, i) => sum + BigInt(i.amount), 0n)
@@ -803,12 +805,12 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 							txInput.sourceTXID!,
 							txInput.sourceOutputIndex,
 						)
-
-						if (ourOutpoints.has(inputOutpoint)) {
-							txInput.unlockingScriptTemplate = p2pkh.unlock(
-								privateKey,
+						const key = keyMap.get(inputOutpoint)
+						if (key) {
+							txInput.unlockingScriptTemplate = new P2PKH().unlock(
+								key,
 								'all',
-								true, // anyoneCanPay
+								true,
 							)
 						}
 					}
@@ -822,8 +824,7 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 							txInput.sourceTXID!,
 							txInput.sourceOutputIndex,
 						)
-
-						if (ourOutpoints.has(inputOutpoint)) {
+						if (keyMap.has(inputOutpoint)) {
 							spends[i] = {
 								unlockingScript: txInput.unlockingScript?.toHex() ?? '',
 							}
