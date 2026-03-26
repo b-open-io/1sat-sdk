@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.0.11] - 2026-03-26
+
+### Added
+- Universal launcher overlay — Raycast-style address bar with Cmd+K
+- Address bar click opens launcher with bookmarked apps grid, fuzzy search, AI fallback
+- classifyInput() pattern matching: bookmarks, URLs, outpoints, internal pages, AI queries
+- Home page search bar opens launcher (no separate address bar on new tab page)
+- Native Tab menu with Cmd+W (close), Cmd+T (new), Cmd+Shift+[/] (prev/next tab)
+- Bookmark favicon field — auto-fetched on bookmark creation
+- AI chat proper empty state when no model configured
+
+### Fixed
+- Cmd+W now works when webview has focus (native menu accelerator bypasses CEF)
+- Setup wizard shows for accounts that never completed onboarding (was auto-skipping)
+- New tab page opens on startup instead of wallet/overview
+- Sync event chain verified, debug traces removed
+- Version badge moved into sync terminal header bar
+
 ## [0.0.10] - 2026-03-25
 
 ### Added
