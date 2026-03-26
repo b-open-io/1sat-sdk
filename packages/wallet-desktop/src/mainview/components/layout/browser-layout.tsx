@@ -55,6 +55,7 @@ import {
 	onNavigateToUrl,
 	onStackOnboardingComplete,
 	onStackOnboardingRequired,
+	onMenuAction,
 	onToggleSyncLog,
 	rpc,
 } from '../../rpc'
@@ -1163,6 +1164,30 @@ export function BrowserLayout() {
 			setSyncLogEnabled((prev) => !prev)
 		})
 	}, [])
+
+	// ── Native menu actions (Cmd+W, Cmd+T, etc. from Electrobun menus) ───
+	useEffect(() => {
+		return onMenuAction(({ action }) => {
+			switch (action) {
+				case 'new-tab':
+					createNewTab()
+					break
+				case 'close-tab':
+					closeTab(activeTabId)
+					break
+				case 'next-tab': {
+					const idx = tabs.findIndex((t) => t.id === activeTabId)
+					if (idx < tabs.length - 1) switchToTab(idx + 1)
+					break
+				}
+				case 'prev-tab': {
+					const idx = tabs.findIndex((t) => t.id === activeTabId)
+					if (idx > 0) switchToTab(idx - 1)
+					break
+				}
+			}
+		})
+	}, [activeTabId, tabs, createNewTab, closeTab, switchToTab])
 
 	// ── Link hover tooltip (Chrome-style status bar) ──────────────────────
 	const [hoveredLink, setHoveredLink] = useState<string | null>(null)

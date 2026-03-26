@@ -135,6 +135,9 @@ const rpc = Electroview.defineRPC<WalletDesktopRPC>({
 			toggleSyncLog: (_payload: Record<string, never>) => {
 				emit('toggleSyncLog', {})
 			},
+			menuAction: (payload: { action: string }) => {
+				emit('menuAction', payload)
+			},
 			updateStatus: (payload: UpdateStatusPayload) => {
 				emit('updateStatus', payload)
 			},
@@ -193,6 +196,10 @@ function onToggleSyncLog(fn: Listener<Record<string, never>>): Unsubscribe {
 	return subscribe('toggleSyncLog', fn)
 }
 
+function onMenuAction(fn: Listener<{ action: string }>): Unsubscribe {
+	return subscribe('menuAction', fn)
+}
+
 function onUpdateStatus(fn: Listener<UpdateStatusPayload>): Unsubscribe {
 	return subscribe('updateStatus', fn)
 }
@@ -220,6 +227,7 @@ export {
 	onNavigateToUrl,
 	onToggleSyncLog,
 	onUpdateStatus,
+	onMenuAction,
 	onAccountsLoaded,
 	onActiveAccountChanged,
 }

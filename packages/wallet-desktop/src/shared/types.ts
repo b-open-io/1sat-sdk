@@ -542,6 +542,7 @@ type BunMessages = {
 	stackOnboardingComplete: {}
 	navigateToUrl: { url: string }
 	toggleSyncLog: {}
+	menuAction: { action: string }
 	updateStatus: UpdateStatusPayload
 }
 

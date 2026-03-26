@@ -298,6 +298,16 @@ ApplicationMenu.setApplicationMenu([
 		],
 	},
 	{
+		label: 'Tab',
+		submenu: [
+			{ label: 'New Tab', action: 'new-tab', accelerator: 'meta+t' },
+			{ label: 'Close Tab', action: 'close-tab', accelerator: 'meta+w' },
+			{ type: 'separator' },
+			{ label: 'Next Tab', action: 'next-tab', accelerator: 'shift+meta+]' },
+			{ label: 'Previous Tab', action: 'prev-tab', accelerator: 'shift+meta+[' },
+		],
+	},
+	{
 		label: 'View',
 		submenu: [
 			{ role: 'toggleFullScreen' },
@@ -338,6 +348,18 @@ Electrobun.events.on('application-menu-clicked', (e) => {
 	}
 	if (e.data.action === 'check-updates') {
 		checkForUpdatesManual()
+	}
+	if (e.data.action === 'new-tab') {
+		mainWindow.webview.rpc.send.menuAction({ action: 'new-tab' })
+	}
+	if (e.data.action === 'close-tab') {
+		mainWindow.webview.rpc.send.menuAction({ action: 'close-tab' })
+	}
+	if (e.data.action === 'next-tab') {
+		mainWindow.webview.rpc.send.menuAction({ action: 'next-tab' })
+	}
+	if (e.data.action === 'prev-tab') {
+		mainWindow.webview.rpc.send.menuAction({ action: 'prev-tab' })
 	}
 })
 
