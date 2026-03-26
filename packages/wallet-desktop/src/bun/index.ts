@@ -396,6 +396,12 @@ setSyncEventCallback((event) => {
 	mainWindow.webview.rpc.send.syncEvent(event)
 })
 
+// Pipe evlog events to the sync terminal too
+import { setSyncDrainCallback } from './log'
+setSyncDrainCallback((event) => {
+	try { mainWindow.webview.rpc.send.syncEvent(event) } catch {}
+})
+
 // Push incoming chat messages to the WebView
 setChatMessageCallback((msg) => {
 	mainWindow.webview.rpc.send.chatMessageReceived(msg)
