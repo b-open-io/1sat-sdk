@@ -102,6 +102,7 @@ export function SweepApp({ legacyKeys: initialKeys, wallet: externalWallet }: Sw
 			else if (result.bsv20Tokens.length > 0) setActiveTab("bsv20");
 			else if (result.locked.length > 0) setActiveTab("locks");
 		} catch (e) {
+			console.error("Scan failed:", e);
 			toast.error(e instanceof Error ? e.message : "Scan failed");
 		} finally {
 			setScanning(false);
