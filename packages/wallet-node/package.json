@@ -27,9 +27,6 @@
 		"@bsv/wallet-toolbox": "^2.1.8"
 	},
 	"peerDependenciesMeta": {
-		"knex": {
-			"optional": true
-		},
 		"better-sqlite3": {
 			"optional": true
 		}

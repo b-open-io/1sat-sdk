@@ -12,18 +12,10 @@ import {
 	Wallet,
 	WalletStorageManager,
 } from '@bsv/wallet-toolbox'
-import type { Knex } from 'knex'
 import { StorageBunSqlite } from './storage-bun-sqlite'
 
 const DEFAULT_STORAGE_NAME = 'wallet'
 const DEFAULT_FILENAME = './wallet.db'
-const DEFAULT_KNEX_STORAGE: Knex.Config = {
-	client: 'better-sqlite3',
-	connection: { filename: DEFAULT_FILENAME },
-	useNullAsDefault: true,
-}
-
-const isBun = typeof globalThis.Bun !== 'undefined'
 
 export interface NodeWalletConfig {
 	privateKey: PrivateKey | string
@@ -33,7 +25,6 @@ export interface NodeWalletConfig {
 	backups?: string[]
 	storageIdentityKey: string
 	connectionTimeout?: number
-	storage?: Knex.Config
 	filename?: string
 	onTransactionBroadcasted?: (txid: string) => void
 	onTransactionProven?: (txid: string, blockHeight: number) => void
@@ -57,26 +48,10 @@ export async function createNodeWallet(
 	const storageOptions = StorageProvider.createStorageBaseOptions(config.chain)
 	storageOptions.feeModel = feeModel
 
-	let localStorage: StorageProvider
-	let knexInstance: Knex | undefined
-
-	if (isBun) {
-		localStorage = new StorageBunSqlite({
-			...storageOptions,
-			filename: config.filename ?? DEFAULT_FILENAME,
-		})
-	} else {
-		const [{ StorageKnex }, { knex: makeKnex }] = await Promise.all([
-			import('@bsv/wallet-toolbox'),
-			import('knex'),
-		])
-		const knexConfig = config.storage ?? {
-			...DEFAULT_KNEX_STORAGE,
-			connection: { filename: config.filename ?? DEFAULT_FILENAME },
-		}
-		knexInstance = makeKnex(knexConfig)
-		localStorage = new StorageKnex({ ...storageOptions, knex: knexInstance })
-	}
+	const localStorage = new StorageBunSqlite({
+		...storageOptions,
+		filename: config.filename ?? DEFAULT_FILENAME,
+	})
 
 	await localStorage.migrate(DEFAULT_STORAGE_NAME, config.storageIdentityKey)
 
@@ -123,7 +98,6 @@ export async function createNodeWallet(
 			await monitor.destroy()
 		}
 		await core.destroy()
-		if (knexInstance) await knexInstance.destroy()
 	}
 
 	return {
