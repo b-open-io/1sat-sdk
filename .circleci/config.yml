@@ -128,6 +128,10 @@ jobs:
               git clone --depth 1 https://github.com/b-open-io/1sat-stack.git ~/1sat-stack
             fi
             cd ~/1sat-stack
+            # Build embedded UIs before Go build (go:embed requires dist/ files)
+            (cd admin/ui && bun install && bun run build)
+            (cd sweep/ui && bun install && bun run build)
+            (cd landing/ui && bun install && bun run build)
             go build -o ~/project/packages/wallet-desktop/1sat-stack-binary ./cmd/server
             echo "1sat-stack binary built successfully"
             ls -la ~/project/packages/wallet-desktop/1sat-stack-binary
