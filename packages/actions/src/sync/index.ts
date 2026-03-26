@@ -29,13 +29,10 @@ function toBase64Prefix(prefix: string): string {
 	return Utils.toBase64(Array.from(new TextEncoder().encode(prefix)))
 }
 
+// TEMPORARY: single-byte encoding to match initSyncContext derivation
+// TODO: switch both to 4-byte big-endian encoding
 function toBase64Suffix(index: number): string {
-	return Utils.toBase64([
-		(index >>> 24) & 0xff,
-		(index >>> 16) & 0xff,
-		(index >>> 8) & 0xff,
-		index & 0xff,
-	])
+	return Utils.toBase64([index])
 }
 
 // ============================================================================
