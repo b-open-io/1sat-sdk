@@ -218,6 +218,22 @@ export function AiChatView({
 
 	const isStreaming = status === 'streaming'
 
+	if (!activeModel) {
+		return (
+			<div className="flex flex-col h-full items-center justify-center bg-background">
+				<Empty
+					icon={Bot}
+					title="No AI model configured"
+					description="Set up a local AI provider to start chatting."
+					action={{
+						label: 'Open AI Settings',
+						onClick: () => onNavigate?.('1sat://settings/ai'),
+					}}
+				/>
+			</div>
+		)
+	}
+
 	return (
 		<div className="flex flex-col h-full min-h-0 bg-background overflow-hidden">
 			{/* Header */}

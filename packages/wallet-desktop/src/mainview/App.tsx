@@ -100,10 +100,12 @@ function App() {
 
 	const prevStatus = useRef(status)
 	useEffect(() => {
-		// Returning users who go locked -> unlocked already have a wallet
+		// Only skip wizard for returning users who already completed setup
 		if (prevStatus.current === 'locked' && status === 'unlocked') {
-			localStorage.setItem(setupKey, 'true')
-			setSetupComplete(true)
+			if (localStorage.getItem(setupKey) === 'true') {
+				setSetupComplete(true)
+			}
+			// Otherwise let the wizard show for accounts that never ran it
 		}
 		prevStatus.current = status
 	}, [status, setupKey])

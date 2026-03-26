@@ -9,12 +9,13 @@ import {
 	Store,
 	Upload,
 } from 'lucide-react'
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface HomeViewProps {
 	onNavigate?: (url: string) => void
+	onOpenLauncher?: (initialQuery?: string) => void
 	params?: Record<string, string>
 }
 
@@ -132,18 +133,21 @@ function ShortcutTile({ shortcut, onNavigate }: ShortcutTileProps) {
 
 // ─── HomeView ─────────────────────────────────────────────────────────────────
 
-export function HomeView({ onNavigate }: HomeViewProps) {
-	const inputRef = useRef<HTMLInputElement>(null)
-
-	const handleSearchSubmit = useCallback(
-		(e: React.FormEvent<HTMLFormElement>) => {
-			e.preventDefault()
-			const value = inputRef.current?.value.trim()
-			if (!value) return
-			onNavigate?.(value)
+export function HomeView({ onNavigate, onOpenLauncher }: HomeViewProps) {
+	const handleShortcut = useCallback(
+		(url: string) => {
+			if (url === '1sat://apps' && onOpenLauncher) {
+				onOpenLauncher()
+			} else {
+				onNavigate?.(url)
+			}
 		},
-		[onNavigate],
+		[onNavigate, onOpenLauncher],
 	)
+
+	const handleSearchClick = useCallback(() => {
+		onOpenLauncher?.()
+	}, [onOpenLauncher])
 
 	return (
 		<div className="flex flex-col items-center justify-center h-full gap-8 bg-background">
@@ -163,14 +167,15 @@ export function HomeView({ onNavigate }: HomeViewProps) {
 				</span>
 			</div>
 
-			{/* Search bar */}
-			<form
-				onSubmit={handleSearchSubmit}
-				className="w-full"
+			{/* Search bar — clicking opens the launcher overlay */}
+			<button
+				type="button"
+				onClick={handleSearchClick}
+				className="w-full cursor-text text-left"
 				style={{ maxWidth: 560 }}
 			>
 				<div
-					className="flex items-center gap-3 bg-card border border-border"
+					className="flex items-center gap-3 bg-card border border-border hover:border-border/80 transition-colors"
 					style={{ padding: 14, borderRadius: 8 }}
 				>
 					<Search
@@ -178,18 +183,17 @@ export function HomeView({ onNavigate }: HomeViewProps) {
 						className="text-muted-foreground shrink-0"
 						strokeWidth={1.75}
 					/>
-					<input
-						ref={inputRef}
-						type="text"
-						placeholder="Search ordinals, dApps, or enter address..."
-						className="flex-1 bg-transparent text-foreground placeholder:text-muted-foreground outline-none border-none"
+					<span
+						className="text-muted-foreground"
 						style={{
 							fontFamily: 'var(--font-sans)',
 							fontSize: 13,
 						}}
-					/>
+					>
+						Search apps, URLs, or ask AI...
+					</span>
 				</div>
-			</form>
+			</button>
 
 			{/* Shortcut grid */}
 			<div className="flex flex-row items-start gap-4 flex-wrap justify-center">
@@ -197,7 +201,7 @@ export function HomeView({ onNavigate }: HomeViewProps) {
 					<ShortcutTile
 						key={shortcut.url}
 						shortcut={shortcut}
-						onNavigate={onNavigate}
+						onNavigate={handleShortcut}
 					/>
 				))}
 			</div>

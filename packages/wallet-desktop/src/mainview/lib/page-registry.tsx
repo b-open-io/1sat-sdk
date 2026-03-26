@@ -1,46 +1,52 @@
-import React, { type ReactElement, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import type React from 'react'
+import { type ReactElement, useState } from 'react'
 import type { InternalPage, ParsedRoute } from '../../shared/url-types'
+import { ImportBackup } from '../views/account-picker/import-backup'
 import { AiChatView } from '../views/ai-chat/index'
 import { AppsView } from '../views/apps/index'
-import { BrowserView } from '../views/browser/index'
 import { ChatView } from '../views/chat/index'
-import { DmView } from '../views/dm/index'
 import { CollectionsView } from '../views/collections/index'
 import { OverviewView } from '../views/dashboard/index'
+import { DmView } from '../views/dm/index'
 import { DownloadsView } from '../views/downloads/index'
 import { HistoryView } from '../views/history/index'
 import { HomeView } from '../views/home/index'
-import { IdentityView } from '../views/identity/index'
 import { ExternalProfileView } from '../views/identity/external-profile'
+import { IdentityView } from '../views/identity/index'
 import { InscribeView } from '../views/inscribe/index'
 import { LocksView } from '../views/locks/index'
-import { OpnsView } from '../views/opns/index'
-import { OrdinalsView } from '../views/ordinals/index'
 import { MarketView } from '../views/market/index'
+import { CreateWallet } from '../views/onboarding/create-wallet'
+import { UnlockWallet } from '../views/onboarding/unlock-wallet'
+import { OpnsView } from '../views/opns/index'
+import { OrdinalDetailView } from '../views/ordinal-detail/index'
+import { OrdinalsView } from '../views/ordinals/index'
 import { PublishView } from '../views/publish/index'
 import { ReceiveView } from '../views/receive/index'
 import { SendView } from '../views/send/index'
-import { OrdinalDetailView } from '../views/ordinal-detail/index'
 import { SettingsView } from '../views/settings/index'
 import { SocialView } from '../views/social/index'
 import { SweepView } from '../views/sweep/index'
-import { TokensView } from '../views/tokens/index'
 import { TokenDetailView } from '../views/token-detail/index'
+import { TokensView } from '../views/tokens/index'
 import { TxDetailView } from '../views/tx-detail/index'
-import { CreateWallet } from '../views/onboarding/create-wallet'
-import { ImportBackup } from '../views/account-picker/import-backup'
-import { UnlockWallet } from '../views/onboarding/unlock-wallet'
 
-function SettingsSecurityView({ onNavigate }: { onNavigate?: (url: string) => void }): ReactElement {
+function SettingsSecurityView({
+	onNavigate,
+}: { onNavigate?: (url: string) => void }): ReactElement {
 	return <SettingsView params={{ tab: 'security' }} onNavigate={onNavigate} />
 }
 
-function SettingsNetworkView({ onNavigate }: { onNavigate?: (url: string) => void }): ReactElement {
+function SettingsNetworkView({
+	onNavigate,
+}: { onNavigate?: (url: string) => void }): ReactElement {
 	return <SettingsView params={{ tab: 'network' }} onNavigate={onNavigate} />
 }
 
-function SettingsAiView({ onNavigate }: { onNavigate?: (url: string) => void }): ReactElement {
+function SettingsAiView({
+	onNavigate,
+}: { onNavigate?: (url: string) => void }): ReactElement {
 	return <SettingsView params={{ tab: 'ai' }} onNavigate={onNavigate} />
 }
 
@@ -54,9 +60,7 @@ function OnboardingCreateView({
 	const [step, setStep] = useState<OnboardingStep>('choice')
 
 	if (step === 'create') {
-		return (
-			<CreateWallet onCancel={() => setStep('choice')} />
-		)
+		return <CreateWallet onCancel={() => setStep('choice')} />
 	}
 
 	return (
@@ -165,10 +169,11 @@ const PAGE_REGISTRY: Record<InternalPage, PageComponent> = {
 export function renderPage(
 	route: ParsedRoute,
 	onNavigate?: (url: string) => void,
+	extraProps?: Record<string, unknown>,
 ): ReactElement | null {
 	if (route.type !== 'internal') return null
 	const Component = PAGE_REGISTRY[route.page]
 	if (!Component) return null
 	const params = route.params ?? {}
-	return <Component params={params} onNavigate={onNavigate} />
+	return <Component params={params} onNavigate={onNavigate} {...extraProps} />
 }

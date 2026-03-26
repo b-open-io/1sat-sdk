@@ -23,14 +23,12 @@ import {
 	Globe,
 	Home,
 	Lock,
-	LogIn,
 	Plus,
 	RotateCw,
 	Search,
 	Server,
 	Settings2,
 	UserCircle2,
-	UserPlus,
 	Wallet,
 	X,
 } from 'lucide-react'
@@ -68,6 +66,7 @@ import { BrowserContextMenu } from '../browser/browser-context-menu'
 import { MenuPopover } from '../browser/menu-popover'
 import { PermissionOverlay } from '../browser/permission-overlay'
 import { WalletPopover } from '../browser/wallet-popover'
+import { LauncherOverlay } from '../launcher/launcher-overlay'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -505,9 +504,10 @@ interface AddressBarProps {
 	route: ParsedRoute
 	onNavigate: (input: string) => void
 	inputRef: React.RefObject<HTMLInputElement | null>
+	onOpenLauncher?: (initialQuery: string) => void
 }
 
-function AddressBar({ route, onNavigate, inputRef }: AddressBarProps) {
+function AddressBar({ route, onNavigate, inputRef, onOpenLauncher }: AddressBarProps) {
 	const displayLabel = getDisplayLabel(route)
 	const fullUrl =
 		route.type === 'internal'
@@ -531,11 +531,17 @@ function AddressBar({ route, onNavigate, inputRef }: AddressBarProps) {
 	}, [fullUrl, editing])
 
 	const handleFocus = useCallback(() => {
+		if (onOpenLauncher) {
+			// Don't pre-fill internal pages like browser/new — they aren't real addresses
+			const prefill = route.type === 'internal' ? '' : fullUrl
+			onOpenLauncher(prefill)
+			return
+		}
 		setEditing(true)
 		setInputValue(fullUrl)
 		// Select all text for easy replacement
 		setTimeout(() => inputRef.current?.select(), 0)
-	}, [fullUrl, inputRef])
+	}, [fullUrl, inputRef, onOpenLauncher])
 
 	const handleBlur = useCallback(() => {
 		setEditing(false)
@@ -555,6 +561,13 @@ function AddressBar({ route, onNavigate, inputRef }: AddressBarProps) {
 		},
 		[inputValue, fullUrl, onNavigate, inputRef],
 	)
+
+	const isHomePage = route.type === 'internal' && route.page === 'browser/new'
+
+	// On the home page, render an empty flex spacer — the home search bar IS the input
+	if (isHomePage) {
+		return <div className="flex-1 min-w-0" />
+	}
 
 	return (
 		<div
@@ -710,7 +723,13 @@ function IdentityChip({
 							name={activeAccount.identityKey}
 							variant="pixel"
 							size={26}
-							colors={['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']}
+							colors={[
+								'var(--chart-1)',
+								'var(--chart-2)',
+								'var(--chart-3)',
+								'var(--chart-4)',
+								'var(--chart-5)',
+							]}
 							className="rounded-full"
 						/>
 					) : (
@@ -738,7 +757,13 @@ function IdentityChip({
 								name={activeAccount.identityKey}
 								variant="pixel"
 								size={32}
-								colors={['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']}
+								colors={[
+									'var(--chart-1)',
+									'var(--chart-2)',
+									'var(--chart-3)',
+									'var(--chart-4)',
+									'var(--chart-5)',
+								]}
 								className="rounded-full"
 							/>
 						) : (
@@ -763,29 +788,35 @@ function IdentityChip({
 				{otherAccounts.length > 0 && (
 					<div className="p-1.5 border-b border-border">
 						{otherAccounts.map((account) => (
-								<button
-									key={account.id}
-									type="button"
-									onClick={() => {
-										setOpen(false)
-										rpc.request.switchAccount({ accountId: account.id })
-									}}
-									className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-[12px] text-foreground hover:bg-muted/50 transition-colors rounded-[3px] cursor-default"
-								>
-									<div className="size-6 rounded-full overflow-hidden shrink-0">
-										<Avatar
-											name={account.identityKey}
-											variant="pixel"
-											size={24}
-											colors={['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']}
-											className="rounded-full"
-										/>
-									</div>
-									<span className="text-[12px] truncate flex-1">
-										{account.displayName}
-									</span>
-								</button>
-							))}
+							<button
+								key={account.id}
+								type="button"
+								onClick={() => {
+									setOpen(false)
+									rpc.request.switchAccount({ accountId: account.id })
+								}}
+								className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-[12px] text-foreground hover:bg-muted/50 transition-colors rounded-[3px] cursor-default"
+							>
+								<div className="size-6 rounded-full overflow-hidden shrink-0">
+									<Avatar
+										name={account.identityKey}
+										variant="pixel"
+										size={24}
+										colors={[
+											'var(--chart-1)',
+											'var(--chart-2)',
+											'var(--chart-3)',
+											'var(--chart-4)',
+											'var(--chart-5)',
+										]}
+										className="rounded-full"
+									/>
+								</div>
+								<span className="text-[12px] truncate flex-1">
+									{account.displayName}
+								</span>
+							</button>
+						))}
 					</div>
 				)}
 
@@ -840,6 +871,7 @@ interface ToolbarProps {
 	currentTitle: string
 	onPopoverOpen?: () => void
 	onPopoverClose?: () => void
+	onOpenLauncher?: (initialQuery: string) => void
 }
 
 function Toolbar({
@@ -859,6 +891,7 @@ function Toolbar({
 	currentTitle,
 	onPopoverOpen,
 	onPopoverClose,
+	onOpenLauncher,
 }: ToolbarProps) {
 	const [bookmarksOpen, setBookmarksOpen] = useState(false)
 
@@ -907,6 +940,7 @@ function Toolbar({
 				route={route}
 				onNavigate={onNavigate}
 				inputRef={addressBarRef}
+				onOpenLauncher={onOpenLauncher}
 			/>
 
 			{/* Identity + action buttons */}
@@ -1059,14 +1093,23 @@ const FIRST_TAB: TabState = makeNewTab()
 
 export function BrowserLayout() {
 	const { events } = useSyncEvents()
-	const [versionInfo, setVersionInfo] = useState<{ version: string; channel: string; hash: string } | null>(null)
+	const [versionInfo, setVersionInfo] = useState<{
+		version: string
+		channel: string
+		hash: string
+	} | null>(null)
 	useEffect(() => {
-		rpc.request.getAppVersion().then(setVersionInfo).catch(() => {})
+		rpc.request
+			.getAppVersion()
+			.then(setVersionInfo)
+			.catch(() => {})
 	}, [])
 	const versionLabel = versionInfo ? (
 		<span className="text-[10px] text-muted-foreground font-mono select-none pointer-events-none">
 			v{versionInfo.version} | {versionInfo.channel}
-			{versionInfo.hash && versionInfo.hash !== versionInfo.channel ? ` | ${versionInfo.hash.slice(0, 7)}` : ''}
+			{versionInfo.hash && versionInfo.hash !== versionInfo.channel
+				? ` | ${versionInfo.hash.slice(0, 7)}`
+				: ''}
 		</span>
 	) : null
 	const [stackOnboardingUrl, setStackOnboardingUrl] = useState<string | null>(
@@ -1088,6 +1131,18 @@ export function BrowserLayout() {
 
 	// ── Bookmarks ──────────────────────────────────────────────────────────
 	const bookmarksApi = useBookmarks()
+
+	// ── Launcher overlay ────────────────────────────────────────────────────
+	const [isLauncherOpen, setIsLauncherOpen] = useState(false)
+	const [launcherInitialQuery, setLauncherInitialQuery] = useState('')
+	const openLauncher = useCallback((initialQuery?: string) => {
+		setLauncherInitialQuery(initialQuery ?? '')
+		setIsLauncherOpen(true)
+	}, [])
+	const closeLauncher = useCallback(() => {
+		setIsLauncherOpen(false)
+		setLauncherInitialQuery('')
+	}, [])
 
 	// ── Agent sidebar ──────────────────────────────────────────────────────
 	const [agentSidebarOpen, setAgentSidebarOpen] = useState(false)
@@ -1260,6 +1315,13 @@ export function BrowserLayout() {
 		[dispatchNav, browserSettings],
 	)
 
+	const handleLauncherAi = useCallback(
+		(query: string) => {
+			navigate(`ai://${encodeURIComponent(query)}`)
+		},
+		[navigate],
+	)
+
 	const goBack = useCallback(() => {
 		const route = activeTab.nav.current
 		if (
@@ -1391,8 +1453,8 @@ export function BrowserLayout() {
 	}, [closeTab, activeTabId])
 
 	const focusAddressBar = useCallback(() => {
-		addressBarRef.current?.focus()
-	}, [])
+		openLauncher()
+	}, [openLauncher])
 
 	// ── Stack onboarding ───────────────────────────────────────────────────
 
@@ -1568,7 +1630,7 @@ export function BrowserLayout() {
 					}
 				>
 					{route.type === 'internal' ? (
-						renderPage(route, navigate)
+						renderPage(route, navigate, { onOpenLauncher: openLauncher })
 					) : route.type === 'ai-chat' ? (
 						<AiChatView initialQuery={route.query} onNavigate={navigate} />
 					) : (
@@ -1705,6 +1767,7 @@ export function BrowserLayout() {
 						currentTitle={currentTitle}
 						onPopoverOpen={onPopoverOpen}
 						onPopoverClose={onPopoverClose}
+						onOpenLauncher={openLauncher}
 					/>
 
 					{/* Divider */}
@@ -1715,7 +1778,9 @@ export function BrowserLayout() {
 					{contentArea}
 
 					{/* Sync terminal — toggled via Cmd+Shift+J */}
-					{syncLogEnabled && <SyncTerminal events={events} headerRight={versionLabel} />}
+					{syncLogEnabled && (
+						<SyncTerminal events={events} headerRight={versionLabel} />
+					)}
 
 					{/* Link hover tooltip — Chrome-style status bar */}
 					{hoveredLink && (
@@ -1724,6 +1789,19 @@ export function BrowserLayout() {
 						</div>
 					)}
 				</div>
+
+				{/* Launcher overlay */}
+				{isLauncherOpen && (
+					<LauncherOverlay
+						bookmarks={bookmarksApi.bookmarks}
+						onClose={closeLauncher}
+						onNavigate={(url) => {
+							closeLauncher()
+							navigate(url)
+						}}
+						onOpenAi={handleLauncherAi}
+					/>
+				)}
 
 				{/* Permission overlay — modal dialog for wallet access requests */}
 				<PermissionOverlay />
@@ -1760,6 +1838,7 @@ export function BrowserLayout() {
 				currentTitle={currentTitle}
 				onPopoverOpen={onPopoverOpen}
 				onPopoverClose={onPopoverClose}
+				onOpenLauncher={openLauncher}
 			/>
 
 			{/* Divider */}
@@ -1770,13 +1849,29 @@ export function BrowserLayout() {
 			{contentArea}
 
 			{/* Sync terminal — toggled via Cmd+Shift+J */}
-			{syncLogEnabled && <SyncTerminal events={events} headerRight={versionLabel} />}
+			{syncLogEnabled && (
+				<SyncTerminal events={events} headerRight={versionLabel} />
+			)}
 
 			{/* Link hover tooltip — Chrome-style status bar */}
 			{hoveredLink && (
 				<div className="absolute bottom-0 left-0 max-w-[60%] px-2 py-1 text-xs text-muted-foreground bg-card/95 border border-border rounded-tr-md truncate z-50">
 					{hoveredLink}
 				</div>
+			)}
+
+			{/* Launcher overlay */}
+			{isLauncherOpen && (
+				<LauncherOverlay
+					bookmarks={bookmarksApi.bookmarks}
+					initialQuery={launcherInitialQuery}
+					onClose={closeLauncher}
+					onNavigate={(url) => {
+						closeLauncher()
+						navigate(url)
+					}}
+					onOpenAi={handleLauncherAi}
+				/>
 			)}
 
 			{/* Permission overlay — modal dialog for wallet access requests */}
