@@ -25,7 +25,6 @@ import type {
 	ActionOptions,
 	OneSatContext,
 } from '../types'
-import { completeSignedAction } from '../utils/completeSignedAction'
 import { executeTrackedAction } from '../utils/createTrackedAction'
 import { signP2PKHInput } from '../utils/signP2PKH'
 
@@ -88,7 +87,7 @@ export interface PurchaseBsv21Request extends ActionOptions {
 
 export interface TokenOperationResponse {
 	txid?: string
-	rawtx?: string
+	tx?: number[]
 	error?: string
 }
 
@@ -499,7 +498,7 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 				}
 				inputBEEF = beef.toBinary()
 			}
-			const createResult = await executeTrackedAction(
+			const result = await executeTrackedAction(
 				ctx.wallet,
 				{
 					description: `Send ${amount} ${symbol}`,
@@ -510,18 +509,9 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 						unlockingScriptLength: 108,
 					})),
 					outputs,
-					options: { signAndProcess: false, randomizeOutputs: false },
+					options: { randomizeOutputs: false },
 				},
 				input.fundingProvider,
-			)
-
-			if ('error' in createResult && createResult.error) {
-				return { error: String(createResult.error) }
-			}
-
-			const result = await completeSignedAction(
-				ctx.wallet,
-				createResult,
 				inputBEEF as number[],
 				async (tx) => {
 					const spends: Record<number, { unlockingScript: string }> = {}
@@ -544,10 +534,10 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 			)
 
 			// Submit to overlay service for indexing
-			if (result.rawtx && ctx.services) {
+			if (result.tx && ctx.services) {
 				try {
 					const overlayResult = await ctx.services.overlay.submitBsv21(
-						Utils.toArray(result.rawtx, 'hex'),
+						result.tx,
 						tokenId,
 					)
 					console.log('[sendBsv21] Overlay submission result:', overlayResult)
@@ -586,7 +576,7 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 						paymail,
 					},
 					txid: result.txid,
-					rawtx: result.rawtx,
+					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 					outputs: logOutputs,
 				})
 			}
@@ -768,7 +758,7 @@ export const purchaseBsv21: Action<
 
 			const beefBinary = beef.toBinary()
 
-			const createResult = await executeTrackedAction(
+			const result = await executeTrackedAction(
 				ctx.wallet,
 				{
 					description: `Purchase ${tokenAmount} tokens for ${payoutSatoshis} sats`,
@@ -781,18 +771,9 @@ export const purchaseBsv21: Action<
 						},
 					],
 					outputs,
-					options: { signAndProcess: false, randomizeOutputs: false },
+					options: { randomizeOutputs: false },
 				},
 				input.fundingProvider,
-			)
-
-			if ('error' in createResult && createResult.error) {
-				return { error: String(createResult.error) }
-			}
-
-			const result = await completeSignedAction(
-				ctx.wallet,
-				createResult,
 				beefBinary as number[],
 				async (tx) => {
 					const unlockingScript = await buildPurchaseUnlockingScript(
@@ -806,10 +787,10 @@ export const purchaseBsv21: Action<
 			)
 
 			// Submit to overlay service for indexing
-			if (result.rawtx && ctx.services) {
+			if (result.tx && ctx.services) {
 				try {
 					const overlayResult = await ctx.services.overlay.submitBsv21(
-						Utils.toArray(result.rawtx, 'hex'),
+						result.tx,
 						tokenId,
 					)
 					console.log(
@@ -830,7 +811,7 @@ export const purchaseBsv21: Action<
 					action: 'purchaseBsv21',
 					input: { tokenId, outpoint, amount: tokenAmount.toString() },
 					txid: result.txid,
-					rawtx: result.rawtx,
+					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 					outputs: [
 						{
 							index: 0,

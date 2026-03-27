@@ -14,7 +14,6 @@ import {
 } from '../constants'
 import { applySigma } from '../signing/sigma'
 import type { Action, ActionOptions, OneSatContext } from '../types'
-import { completeSignedAction } from '../utils/completeSignedAction'
 import { executeTrackedAction } from '../utils/createTrackedAction'
 import { signP2PKHInput } from '../utils/signP2PKH'
 
@@ -35,7 +34,7 @@ export interface InscribeRequest extends ActionOptions {
 
 export interface InscribeResponse {
 	txid?: string
-	rawtx?: string
+	tx?: number[]
 	error?: string
 }
 
@@ -123,7 +122,7 @@ async function inscribeWithSigma(
 	)
 
 	// Step 3: Create inscription tx, spending the anchor and broadcasting both
-	const inscribeResult = await executeTrackedAction(
+	const result = await executeTrackedAction(
 		ctx.wallet,
 		{
 			description: 'Create inscription',
@@ -150,25 +149,16 @@ async function inscribeWithSigma(
 				},
 			],
 			options: {
-				signAndProcess: false,
 				randomizeOutputs: false,
 				noSend: true,
 				noSendChange: anchorResult.noSendChange,
 				knownTxids: [anchorResult.txid],
 				acceptDelayedBroadcast: true,
 				trustSelf: 'known',
+				sendWith: [anchorResult.txid],
 			},
 		},
 		input.fundingProvider,
-	)
-
-	if ('error' in inscribeResult && inscribeResult.error) {
-		return { error: String(inscribeResult.error) }
-	}
-
-	const result = await completeSignedAction(
-		ctx.wallet,
-		inscribeResult,
 		anchorResult.tx as number[],
 		async (tx) => {
 			const unlocking = await signP2PKHInput(
@@ -180,10 +170,6 @@ async function inscribeWithSigma(
 			)
 			if (typeof unlocking !== 'string') throw new Error(unlocking.error)
 			return { 0: { unlockingScript: unlocking } }
-		},
-		{
-			acceptDelayedBroadcast: true,
-			sendWith: [anchorResult.txid],
 		},
 	)
 
@@ -198,7 +184,7 @@ async function inscribeWithSigma(
 				anchorTxid: anchorResult.txid,
 			},
 			txid: result.txid,
-			rawtx: result.rawtx,
+			rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 			outputs: [
 				{
 					index: 0,
@@ -335,7 +321,7 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 
 			return {
 				txid: result.txid,
-				rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
+				tx: result.tx,
 			}
 		} catch (error) {
 			console.error('[inscribe]', error)

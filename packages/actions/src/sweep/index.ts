@@ -19,8 +19,7 @@ import {
 import { BSV21_BASKET, BSV21_PROTOCOL, ONESAT_PROTOCOL } from '../constants'
 import { resolveOrdinalTags } from '../ordinals'
 import type { Action, ActionLogEntry, OneSatContext } from '../types'
-import { completeSignedAction } from '../utils/completeSignedAction'
-import { executeTrackedAction } from '../utils/createTrackedAction'
+import { createTrackedAction, executeTrackedAction } from '../utils/createTrackedAction'
 import type {
 	SweepBsv21Request,
 	SweepBsv21Response,
@@ -215,32 +214,17 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 			}
 			// If no amount specified, no outputs - wallet creates change for everything
 
-			// Step 1: Create action to get the signable transaction
-			const createResult = await executeTrackedAction(ctx.wallet, {
-				description: amount
-					? `Sweep ${amount} sats`
-					: `Sweep ${inputTotal} sats`,
-				inputBEEF: beefData,
-				inputs: inputDescriptors,
-				outputs,
-				options: { signAndProcess: false },
-			})
-
-			if ('error' in createResult && createResult.error) {
-				return { error: String(createResult.error) }
-			}
-
-			// Build a set of outpoints we control (using SDK format with ".")
-			const ourOutpoints = new Set(
-				inputs.map((input) => {
-					const { txid, vout } = parseOutpoint(input.outpoint)
-					return formatOutpoint(txid, vout)
-				}),
-			)
-
-			const result = await completeSignedAction(
+			const result = await executeTrackedAction(
 				ctx.wallet,
-				createResult,
+				{
+					description: amount
+						? `Sweep ${amount} sats`
+						: `Sweep ${inputTotal} sats`,
+					inputBEEF: beefData,
+					inputs: inputDescriptors,
+					outputs,
+				},
+				undefined,
 				beefData as number[],
 				async (tx) => {
 					for (let i = 0; i < tx.inputs.length; i++) {
@@ -284,13 +268,13 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 					action: 'sweepBsv',
 					input: { inputCount: inputs.length, amount },
 					txid: result.txid,
-					rawtx: result.rawtx,
+					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 				})
 			}
 
 			return {
 				txid: result.txid,
-				beef: result.rawtx ? Utils.toArray(result.rawtx, 'hex') : undefined,
+				beef: result.tx,
 			}
 		} catch (error) {
 			console.error('[sweepBsv]', error)
@@ -477,31 +461,17 @@ export const sweepOrdinals: Action<
 
 			const beefData = firstBeef.toBinary()
 
-			// Create action to get signable transaction
 			// CRITICAL: randomizeOutputs must be false to preserve ordinal satoshi positions
-			const createResult = await executeTrackedAction(ctx.wallet, {
-				description: `Sweep ${inputs.length} ordinal${inputs.length !== 1 ? 's' : ''}`,
-				inputBEEF: beefData,
-				inputs: inputDescriptors,
-				outputs,
-				options: { signAndProcess: false, randomizeOutputs: false },
-			})
-
-			if ('error' in createResult && createResult.error) {
-				return { error: String(createResult.error) }
-			}
-
-			// Build a set of outpoints we control
-			const ourOutpoints = new Set(
-				inputs.map((input) => {
-					const { txid, vout } = parseOutpoint(input.outpoint)
-					return formatOutpoint(txid, vout)
-				}),
-			)
-
-			const result = await completeSignedAction(
+			const result = await executeTrackedAction(
 				ctx.wallet,
-				createResult,
+				{
+					description: `Sweep ${inputs.length} ordinal${inputs.length !== 1 ? 's' : ''}`,
+					inputBEEF: beefData,
+					inputs: inputDescriptors,
+					outputs,
+					options: { randomizeOutputs: false },
+				},
+				undefined,
 				beefData as number[],
 				async (tx) => {
 					for (let i = 0; i < tx.inputs.length; i++) {
@@ -551,14 +521,14 @@ export const sweepOrdinals: Action<
 					action: 'sweepOrdinals',
 					input: { inputCount: inputs.length },
 					txid: result.txid,
-					rawtx: result.rawtx,
+					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 					outputs: logOutputs,
 				})
 			}
 
 			return {
 				txid: result.txid,
-				beef: result.rawtx ? Utils.toArray(result.rawtx, 'hex') : undefined,
+				beef: result.tx,
 			}
 		} catch (error) {
 			console.error('[sweepOrdinals]', error)
@@ -773,30 +743,16 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 
 			const beefData = firstBeef.toBinary()
 
-			// Create action to get signable transaction
-			const createResult = await executeTrackedAction(ctx.wallet, {
-				description: `Sweep ${inputs.length} token UTXO${inputs.length !== 1 ? 's' : ''}`,
-				inputBEEF: beefData,
-				inputs: inputDescriptors,
-				outputs,
-				options: { signAndProcess: false, randomizeOutputs: false },
-			})
-
-			if ('error' in createResult && createResult.error) {
-				return { error: String(createResult.error) }
-			}
-
-			// Build a set of outpoints we control
-			const ourOutpoints = new Set(
-				inputs.map((input) => {
-					const { txid, vout } = parseOutpoint(input.outpoint)
-					return formatOutpoint(txid, vout)
-				}),
-			)
-
-			const result = await completeSignedAction(
+			const result = await executeTrackedAction(
 				ctx.wallet,
-				createResult,
+				{
+					description: `Sweep ${inputs.length} token UTXO${inputs.length !== 1 ? 's' : ''}`,
+					inputBEEF: beefData,
+					inputs: inputDescriptors,
+					outputs,
+					options: { randomizeOutputs: false },
+				},
+				undefined,
 				beefData as number[],
 				async (tx) => {
 					for (let i = 0; i < tx.inputs.length; i++) {
@@ -835,10 +791,10 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 			)
 
 			// Submit to overlay service for indexing
-			if (result.rawtx) {
+			if (result.tx) {
 				try {
 					const overlayResult = await ctx.services.overlay.submitBsv21(
-						Utils.toArray(result.rawtx, 'hex'),
+						result.tx,
 						tokenId,
 					)
 					console.log('[sweepBsv21] Overlay submission result:', overlayResult)
@@ -857,7 +813,7 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 						totalAmount: totalAmount.toString(),
 					},
 					txid: result.txid,
-					rawtx: result.rawtx,
+					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 					outputs: [
 						{
 							index: 0,
@@ -872,7 +828,7 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 
 			return {
 				txid: result.txid,
-				beef: result.rawtx ? Utils.toArray(result.rawtx, 'hex') : undefined,
+				beef: result.tx,
 			}
 		} catch (error) {
 			console.error('[sweepBsv21]', error)
@@ -944,13 +900,11 @@ export async function prepareSweepBsv(
 	// handle partial sweeps by adding a return output before calling this.
 	// For prepareSweepBsv, always sweep all -- wallet creates change.
 
-	// Step 1: Create action to get the signable transaction
-	const createResult = await executeTrackedAction(ctx.wallet, {
+	const createResult = await createTrackedAction(ctx.wallet, {
 		description: amount ? `Sweep ${amount} sats` : `Sweep ${inputTotal} sats`,
 		inputBEEF: firstBeef.toBinary(),
 		inputs: inputDescriptors,
 		outputs,
-		options: { signAndProcess: false },
 	})
 
 	if ('error' in createResult && createResult.error) {

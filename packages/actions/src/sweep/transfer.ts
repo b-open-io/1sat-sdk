@@ -31,7 +31,7 @@ export interface LegacySendOrdinalsRequest {
 
 export interface LegacySendResult {
 	txid?: string
-	rawtx?: string
+	tx?: number[]
 	error?: string
 }
 
@@ -105,7 +105,7 @@ async function transferWithLegacyFunding(
 
 	return {
 		txid: result.txid,
-		rawtx: Utils.toHex(rawTx),
+		tx: Array.from(rawTx),
 	}
 }
 
@@ -218,7 +218,7 @@ async function transferWithWalletFunding(
 
 	return {
 		txid: signResult.txid,
-		rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+		tx: signResult.tx ? Array.from(signResult.tx) : undefined,
 	}
 }
 

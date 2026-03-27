@@ -11,7 +11,8 @@ import {
 
 export interface CompleteSignedActionResult {
 	txid?: string
-	rawtx?: string
+	tx?: number[]
+	noSendChange?: string[]
 	error?: string
 }
 
@@ -29,14 +30,14 @@ export type SigningCallback = (
  *
  * @param wallet - BRC-100 wallet
  * @param createResult - Result from createAction with signAndProcess: false
- * @param inputBEEF - Original BEEF with full merkle proofs
+ * @param inputBEEF - Optional BEEF for external inputs (merged with signable BEEF for verification). When omitted, only the signable BEEF is used.
  * @param sign - Callback that receives the verified tx and returns spends
  * @param options - Options for signAction
  */
 export async function completeSignedAction(
 	wallet: WalletInterface,
 	createResult: CreateActionResult,
-	inputBEEF: number[],
+	inputBEEF: number[] | undefined,
 	sign: SigningCallback,
 	options?: SignActionOptions,
 ): Promise<CompleteSignedActionResult> {
@@ -47,12 +48,18 @@ export async function completeSignedAction(
 	const reference = createResult.signableTransaction.reference
 
 	try {
-		// Build complete BEEF by merging the signable transaction BEEF (which has funding
-		// input proof chains) into inputBEEF (which has ordinal/asset proof chains).
 		const signableBeef = Beef.fromBinary(createResult.signableTransaction.tx)
 		const signingTx = Transaction.fromBEEF(createResult.signableTransaction.tx)
-		const beef = Beef.fromBinary(inputBEEF)
-		beef.mergeBeef(signableBeef)
+
+		// When inputBEEF is provided, merge it with the signable BEEF so source
+		// transactions for external inputs are available for signing and verification.
+		// When absent, the signable BEEF alone is sufficient (wallet-only inputs).
+		const beef = inputBEEF
+			? Beef.fromBinary(inputBEEF)
+			: signableBeef
+		if (inputBEEF) {
+			beef.mergeBeef(signableBeef)
+		}
 		const tx = beef.findAtomicTransaction(signingTx.id('hex'))
 		if (!tx) {
 			await wallet.abortAction({ reference })
@@ -110,7 +117,8 @@ export async function completeSignedAction(
 
 		return {
 			txid: signResult.txid,
-			rawtx: signResult.tx ? Utils.toHex(signResult.tx) : undefined,
+			tx: signResult.tx ? Array.from(signResult.tx) : undefined,
+			noSendChange: createResult.noSendChange,
 		}
 	} catch (error) {
 		await wallet.abortAction({ reference }).catch(() => {})

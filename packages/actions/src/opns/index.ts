@@ -9,7 +9,6 @@ import type { BEEF, WalletOutput } from '@bsv/sdk'
 import { OPNS_BASKET } from '../constants'
 import { buildTransferOrdinals } from '../ordinals'
 import type { Action, ActionOptions } from '../types'
-import { completeSignedAction } from '../utils/completeSignedAction'
 import { executeTrackedAction } from '../utils/createTrackedAction'
 import { resolveBeef } from '../utils/resolveBeef'
 import { signP2PKHInput } from '../utils/signP2PKH'
@@ -34,7 +33,7 @@ export interface OpnsDeregisterRequest extends ActionOptions {
 
 export interface OpnsOperationResponse {
 	txid?: string
-	rawtx?: string
+	tx?: number[]
 	error?: string
 }
 
@@ -157,27 +156,18 @@ export const opnsRegister: Action<OpnsRegisterRequest, OpnsOperationResponse> =
 					return params
 				}
 
-				const createResult = await executeTrackedAction(
-					ctx.wallet,
-					{
-						...params,
-						options: { signAndProcess: false, randomizeOutputs: false },
-					},
-					input.fundingProvider,
-				)
-
-				if ('error' in createResult && createResult.error) {
-					return { error: String(createResult.error) }
-				}
-
 				if (!ordinal.customInstructions) {
 					return { error: 'missing-custom-instructions' }
 				}
 				const { protocolID, keyID } = JSON.parse(ordinal.customInstructions)
 
-				const result = await completeSignedAction(
+				const result = await executeTrackedAction(
 					ctx.wallet,
-					createResult,
+					{
+						...params,
+						options: { randomizeOutputs: false },
+					},
+					input.fundingProvider,
 					inputBEEF,
 					async (tx) => {
 						const unlocking = await signP2PKHInput(
@@ -264,27 +254,18 @@ export const opnsDeregister: Action<
 				return params
 			}
 
-			const createResult = await executeTrackedAction(
-				ctx.wallet,
-				{
-					...params,
-					options: { signAndProcess: false, randomizeOutputs: false },
-				},
-				input.fundingProvider,
-			)
-
-			if ('error' in createResult && createResult.error) {
-				return { error: String(createResult.error) }
-			}
-
 			if (!ordinal.customInstructions) {
 				return { error: 'missing-custom-instructions' }
 			}
 			const { protocolID, keyID } = JSON.parse(ordinal.customInstructions)
 
-			const result = await completeSignedAction(
+			const result = await executeTrackedAction(
 				ctx.wallet,
-				createResult,
+				{
+					...params,
+					options: { randomizeOutputs: false },
+				},
+				input.fundingProvider,
 				inputBEEF,
 				async (tx) => {
 					const unlocking = await signP2PKHInput(ctx, tx, 0, protocolID, keyID)

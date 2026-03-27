@@ -5,6 +5,11 @@ import {
 	type WalletInterface,
 } from '@bsv/sdk'
 import type { FundingProvider } from '../funding'
+import {
+	type SigningCallback,
+	type CompleteSignedActionResult,
+	completeSignedAction,
+} from './completeSignedAction'
 
 /**
  * Generate a random hex string for action tracking.
@@ -34,12 +39,12 @@ function applyTrackingTags(args: CreateActionArgs, actionId: string): void {
  * into every output that has a basket. All outputs in the same action
  * share the same ID, allowing targeted lookups via listOutputs tag filter.
  *
- * Uses two-phase flow (createAction + signAction) so the wallet's
- * permission system can intercept between creation and signing.
+ * Only calls createAction(signAndProcess: false). Does NOT call signAction.
+ * All signAction calls go through completeSignedAction for abort protection.
  *
  * @param wallet - BRC-100 wallet
  * @param args - Standard createAction args
- * @returns The createAction result, plus the generated actionId
+ * @returns The createAction result with signableTransaction, plus the generated actionId
  */
 export async function createTrackedAction(
 	wallet: WalletInterface,
@@ -57,64 +62,80 @@ export async function createTrackedAction(
 		},
 	})
 
-	if (!createResult.signableTransaction) {
-		return { ...createResult, actionId }
-	}
-
-	const signResult = await wallet.signAction({
-		reference: createResult.signableTransaction.reference,
-		spends: {},
-		options: {
-			acceptDelayedBroadcast: options?.acceptDelayedBroadcast ?? false,
-		},
-	})
-
-	return { ...signResult, actionId }
+	return { ...createResult, actionId }
 }
 
+const noOpSign: SigningCallback = async () => ({})
+
 /**
- * Execute a tracked action with optional external funding.
+ * Execute a tracked action end-to-end.
  *
- * If a fundingProvider is supplied, the full args are passed to the provider
- * to build, fund, and broadcast the transaction. The result is then
- * internalized into the wallet so it tracks the outputs.
- * Otherwise, delegates to createTrackedAction (wallet funds the transaction).
+ * If a fundingProvider is supplied, the provider builds, funds, and broadcasts
+ * the transaction externally. The result is then internalized into the wallet.
+ *
+ * Otherwise, creates the action via createTrackedAction then completes it
+ * via completeSignedAction (which handles signing, script verification,
+ * signAction, and abort on failure).
  *
  * @param wallet - BRC-100 wallet
  * @param args - Standard createAction args
- * @param fundingProvider - Optional external funder (e.g. Droplit)
+ * @param fundingProvider - Optional external funder
+ * @param inputBEEF - Optional BEEF for external inputs (merged with signable BEEF for verification)
+ * @param sign - Optional signing callback for caller-signed inputs. When omitted, no external spends are provided.
  * @returns The action result, plus the generated actionId
  */
 export async function executeTrackedAction(
 	wallet: WalletInterface,
 	args: CreateActionArgs,
 	fundingProvider?: FundingProvider,
-): Promise<CreateActionResult & { actionId: string }> {
-	if (!fundingProvider) {
-		return createTrackedAction(wallet, args)
+	inputBEEF?: number[],
+	sign?: SigningCallback,
+): Promise<
+	CompleteSignedActionResult & { actionId: string }
+> {
+	if (fundingProvider) {
+		const actionId = randomActionId()
+		applyTrackingTags(args, actionId)
+
+		const funded = await fundingProvider.fund(args)
+
+		const internalizeOutputs = (args.outputs ?? []).map((o, i) => ({
+			outputIndex: i,
+			protocol: 'basket insertion' as const,
+			insertionRemittance: {
+				basket: o.basket ?? 'default',
+				customInstructions: o.customInstructions,
+				tags: o.tags ?? [],
+			},
+		}))
+
+		await wallet.internalizeAction({
+			tx: funded.tx,
+			outputs: internalizeOutputs,
+			description: args.description,
+			labels: args.labels,
+		})
+
+		return { txid: funded.txid, actionId }
 	}
 
-	const actionId = randomActionId()
-	applyTrackingTags(args, actionId)
+	const createResult = await createTrackedAction(wallet, args)
 
-	const funded = await fundingProvider.fund(args)
+	if (!createResult.signableTransaction) {
+		return {
+			txid: createResult.txid,
+			tx: createResult.tx ? Array.from(createResult.tx) : undefined,
+			noSendChange: createResult.noSendChange,
+			actionId: createResult.actionId,
+		}
+	}
 
-	const internalizeOutputs = (args.outputs ?? []).map((o, i) => ({
-		outputIndex: i,
-		protocol: 'basket insertion' as const,
-		insertionRemittance: {
-			basket: o.basket ?? 'default',
-			customInstructions: o.customInstructions,
-			tags: o.tags ?? [],
-		},
-	}))
+	const result = await completeSignedAction(
+		wallet,
+		createResult,
+		inputBEEF,
+		sign ?? noOpSign,
+	)
 
-	await wallet.internalizeAction({
-		tx: funded.tx,
-		outputs: internalizeOutputs,
-		description: args.description,
-		labels: args.labels,
-	})
-
-	return { txid: funded.txid, actionId }
+	return { ...result, actionId: createResult.actionId }
 }

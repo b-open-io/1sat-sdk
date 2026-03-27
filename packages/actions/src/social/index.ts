@@ -35,7 +35,7 @@ export interface CreateSocialPostRequest extends ActionOptions {
 
 export interface SocialResponse {
 	txid?: string
-	rawtx?: string
+	tx?: number[]
 	error?: string
 }
 
@@ -163,7 +163,7 @@ export const createSocialPost: Action<CreateSocialPostRequest, SocialResponse> =
 
 				return {
 					txid: result.txid,
-					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
+					tx: result.tx,
 				}
 			} catch (error) {
 				console.error('[createSocialPost]', error)

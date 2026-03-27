@@ -13,7 +13,6 @@ import {
 } from '@bsv/sdk'
 import { LOCK_BASKET, MIN_UNLOCK_SATS } from '../constants'
 import type { Action, ActionLogEntry, ActionOptions } from '../types'
-import { completeSignedAction } from '../utils/completeSignedAction'
 import { executeTrackedAction } from '../utils/createTrackedAction'
 
 // ============================================================================
@@ -45,7 +44,7 @@ export interface LockData {
 
 export interface LockOperationResponse {
 	txid?: string
-	rawtx?: string
+	tx?: number[]
 	error?: string
 }
 
@@ -213,7 +212,7 @@ export const lockBsv: Action<LockBsvInput, LockOperationResponse> = {
 
 			return {
 				txid: result.txid,
-				rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
+				tx: result.tx,
 			}
 		} catch (error) {
 			console.error('[lockBsv]', error)
@@ -317,27 +316,21 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 				inputBEEF = beef.toBinary()
 			}
 
-			const createResult = await executeTrackedAction(ctx.wallet, {
-				description: `Unlock ${maturedLocks.length} lock(s)`,
-				inputBEEF,
-				inputs: maturedLocks.map((l) => ({
-					outpoint: l.output.outpoint,
-					inputDescription: 'Locked BSV',
-					unlockingScriptLength: 1205,
-					sequenceNumber: 0,
-				})),
-				outputs: [],
-				lockTime: maxUntil,
-				options: { signAndProcess: false },
-			})
-
-			if ('error' in createResult && createResult.error) {
-				return { error: String(createResult.error) }
-			}
-
-			const result = await completeSignedAction(
+			const result = await executeTrackedAction(
 				ctx.wallet,
-				createResult,
+				{
+					description: `Unlock ${maturedLocks.length} lock(s)`,
+					inputBEEF,
+					inputs: maturedLocks.map((l) => ({
+						outpoint: l.output.outpoint,
+						inputDescription: 'Locked BSV',
+						unlockingScriptLength: 1205,
+						sequenceNumber: 0,
+					})),
+					outputs: [],
+					lockTime: maxUntil,
+				},
+				undefined,
 				inputBEEF as number[],
 				async (tx) => {
 					const spends: Record<number, { unlockingScript: string }> = {}
@@ -362,7 +355,7 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 					action: 'unlockBsv',
 					input: { lockCount: maturedLocks.length },
 					txid: result.txid,
-					rawtx: result.rawtx,
+					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 					outputs: maturedLocks.map((l, i) => ({
 						index: i,
 						protocolID: l.protocolID,

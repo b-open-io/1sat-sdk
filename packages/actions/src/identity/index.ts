@@ -118,7 +118,7 @@ export interface UpdateProfileRequest extends ActionOptions {
 
 export interface IdentityResponse {
 	txid?: string
-	rawtx?: string
+	tx?: number[]
 	bapId?: string
 	error?: string
 }
@@ -206,7 +206,7 @@ export const publishIdentity: Action<ActionOptions, IdentityResponse> = {
 
 			return {
 				txid: result.txid,
-				rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
+				tx: result.tx,
 				bapId,
 			}
 		} catch (error) {
@@ -302,7 +302,7 @@ export const rotateIdentity: Action<ActionOptions, IdentityResponse> = {
 
 			return {
 				txid: result.txid,
-				rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
+				tx: result.tx,
 				bapId,
 			}
 		} catch (error) {
@@ -383,7 +383,7 @@ export const attest: Action<AttestRequest, IdentityResponse> = {
 
 			return {
 				txid: result.txid,
-				rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
+				tx: result.tx,
 			}
 		} catch (error) {
 			console.error('[attest]', error)
@@ -472,7 +472,7 @@ export const updateProfile: Action<UpdateProfileRequest, IdentityResponse> = {
 
 			return {
 				txid: result.txid,
-				rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
+				tx: result.tx,
 			}
 		} catch (error) {
 			console.error('[updateProfile]', error)

@@ -41,7 +41,7 @@ export interface SendBsvRequest extends ActionOptions {
 
 export interface SendBsvResponse {
 	txid?: string
-	rawtx?: string
+	tx?: number[]
 	error?: string
 }
 
@@ -222,7 +222,7 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 
 			return {
 				txid: result.txid,
-				rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
+				tx: result.tx,
 			}
 		} catch (error) {
 			console.error('[sendBsv]', error)
@@ -309,7 +309,7 @@ export const sendAllBsv: Action<SendAllBsvInput, SendBsvResponse> = {
 
 			return {
 				txid: result.txid,
-				rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
+				tx: result.tx,
 			}
 		} catch (error) {
 			console.error('[sendAllBsv]', error)

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.68
+
+### Fixed
+- All actions now route `signAction` through `completeSignedAction` for abort protection. Previously `createTrackedAction` called `signAction(spends: {})` directly, which broke actions with caller-signed inputs (sweep, ordinal transfer, cancel listing, etc.) and left funding UTXOs locked on failure.
+- `createTrackedAction` no longer calls `signAction` — it only handles `createAction` + output tagging.
+- `executeTrackedAction` now accepts optional `inputBEEF` and signing callback, wiring them through `completeSignedAction`.
+
+### Changed
+- Action response types return `tx: number[]` (AtomicBEEF) instead of `rawtx: string`. Matches `signAction` return type. Hex conversion done inline only where needed (P2P delivery, debug logging).
+- `completeSignedAction` accepts optional `inputBEEF` for actions with no external inputs.
+
 ## 0.0.62
 
 ### Added

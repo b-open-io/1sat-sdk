@@ -37,7 +37,6 @@ import type {
 	ActionOptions,
 	OneSatContext,
 } from '../types'
-import { completeSignedAction } from '../utils/completeSignedAction'
 import { executeTrackedAction } from '../utils/createTrackedAction'
 import { resolveBeef } from '../utils/resolveBeef'
 import { signP2PKHInput } from '../utils/signP2PKH'
@@ -192,7 +191,7 @@ export interface PurchaseOrdinalRequest extends ActionOptions {
 
 export interface OrdinalOperationResponse {
 	txid?: string
-	rawtx?: string
+	tx?: number[]
 	error?: string
 }
 
@@ -691,22 +690,13 @@ export const transferOrdinals: Action<
 				console.log('[transferOrdinals] BEEF parse error:', e)
 			}
 
-			const createResult = await executeTrackedAction(
+			const result = await executeTrackedAction(
 				ctx.wallet,
 				{
 					...params,
-					options: { signAndProcess: false, randomizeOutputs: false },
+					options: { randomizeOutputs: false },
 				},
 				input.fundingProvider,
-			)
-
-			if ('error' in createResult && createResult.error) {
-				return { error: String(createResult.error) }
-			}
-
-			const result = await completeSignedAction(
-				ctx.wallet,
-				createResult,
 				params.inputBEEF as number[],
 				async (tx) => {
 					const spends: Record<number, { unlockingScript: string }> = {}
@@ -753,7 +743,7 @@ export const transferOrdinals: Action<
 						})),
 					},
 					txid: result.txid,
-					rawtx: result.rawtx,
+					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 					outputs: logOutputs,
 				})
 			}
@@ -817,19 +807,6 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 					return params
 				}
 
-				const createResult = await executeTrackedAction(
-					ctx.wallet,
-					{
-						...params,
-						options: { signAndProcess: false, randomizeOutputs: false },
-					},
-					input.fundingProvider,
-				)
-
-				if ('error' in createResult && createResult.error) {
-					return { error: String(createResult.error) }
-				}
-
 				if (!input.ordinal.customInstructions) {
 					return { error: 'missing-custom-instructions' }
 				}
@@ -837,9 +814,13 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 					input.ordinal.customInstructions,
 				)
 
-				const result = await completeSignedAction(
+				const result = await executeTrackedAction(
 					ctx.wallet,
-					createResult,
+					{
+						...params,
+						options: { randomizeOutputs: false },
+					},
+					input.fundingProvider,
 					params.inputBEEF as number[],
 					async (tx) => {
 						const unlocking = await signP2PKHInput(
@@ -860,7 +841,7 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 						action: 'listOrdinal',
 						input: { outpoint: input.ordinal.outpoint, price: input.price },
 						txid: result.txid,
-						rawtx: result.rawtx,
+						rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 						outputs: [
 							{
 								index: 0,
@@ -946,7 +927,13 @@ export const cancelListing: Action<
 				tags: listing.tags,
 			})
 
-			const createResult = await executeTrackedAction(
+			const cancelUnlock = OrdLock.cancelWithWallet(
+				ctx.wallet,
+				protocolID,
+				keyID,
+			)
+
+			const result = await executeTrackedAction(
 				ctx.wallet,
 				{
 					description: 'Cancel ordinal listing',
@@ -971,24 +958,9 @@ export const cancelListing: Action<
 							}),
 						},
 					],
-					options: { signAndProcess: false, randomizeOutputs: false },
+					options: { randomizeOutputs: false },
 				},
 				input.fundingProvider,
-			)
-
-			if ('error' in createResult && createResult.error) {
-				return { error: String(createResult.error) }
-			}
-
-			const cancelUnlock = OrdLock.cancelWithWallet(
-				ctx.wallet,
-				protocolID,
-				keyID,
-			)
-
-			const result = await completeSignedAction(
-				ctx.wallet,
-				createResult,
 				inputBEEF,
 				async (tx) => {
 					const unlockingScript = await cancelUnlock.sign(tx, 0)
@@ -1002,7 +974,7 @@ export const cancelListing: Action<
 					action: 'cancelListing',
 					input: { outpoint, keyID },
 					txid: result.txid,
-					rawtx: result.rawtx,
+					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 					outputs: [
 						{
 							index: 0,
@@ -1160,7 +1132,7 @@ export const purchaseOrdinal: Action<
 
 			const beefBinary = beef.toBinary()
 
-			const createResult = await executeTrackedAction(
+			const result = await executeTrackedAction(
 				ctx.wallet,
 				{
 					description: `Purchase ordinal for ${payoutSatoshis} sats`,
@@ -1173,18 +1145,9 @@ export const purchaseOrdinal: Action<
 						},
 					],
 					outputs,
-					options: { signAndProcess: false, randomizeOutputs: false },
+					options: { randomizeOutputs: false },
 				},
 				input.fundingProvider,
-			)
-
-			if ('error' in createResult && createResult.error) {
-				return { error: String(createResult.error) }
-			}
-
-			const result = await completeSignedAction(
-				ctx.wallet,
-				createResult,
 				beefBinary as number[],
 				async (tx) => {
 					const unlockingScript = await buildPurchaseUnlockingScript(
@@ -1203,7 +1166,7 @@ export const purchaseOrdinal: Action<
 					action: 'purchaseOrdinal',
 					input: { outpoint },
 					txid: result.txid,
-					rawtx: result.rawtx,
+					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 					outputs: [
 						{
 							index: 0,
@@ -1291,22 +1254,13 @@ export const burnOrdinals: Action<
 				),
 			)
 
-			const createResult = await executeTrackedAction(
+			const result = await executeTrackedAction(
 				ctx.wallet,
 				{
 					...params,
-					options: { signAndProcess: false, randomizeOutputs: false },
+					options: { randomizeOutputs: false },
 				},
 				input.fundingProvider,
-			)
-
-			if ('error' in createResult && createResult.error) {
-				return { error: String(createResult.error) }
-			}
-
-			const result = await completeSignedAction(
-				ctx.wallet,
-				createResult,
 				params.inputBEEF as number[],
 				async (tx) => {
 					const spends: Record<number, { unlockingScript: string }> = {}
@@ -1342,7 +1296,7 @@ export const burnOrdinals: Action<
 						})),
 					},
 					txid: result.txid,
-					rawtx: result.rawtx,
+					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 				})
 			}
 
