@@ -427,9 +427,11 @@ export const sweepOrdinals: Action<
 					}
 				}
 
+				const mapName = meta?.map?.name
 				const { tags, basket } = await resolveOrdinalTags(ctx, input.outpoint, {
 					contentType,
 					origin: meta?.origin,
+					name: typeof mapName === 'string' ? mapName : undefined,
 				})
 
 				const pubKeyResult = await ctx.wallet.getPublicKey({

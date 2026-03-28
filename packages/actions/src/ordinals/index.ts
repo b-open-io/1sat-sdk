@@ -70,7 +70,8 @@ export async function resolveOrdinalTags(
 	if (source?.tags) {
 		for (const tag of source.tags) {
 			if (!contentType && tag.startsWith('type:')) contentType = tag.slice(5)
-			if (!origin && tag.startsWith('origin:')) origin = tag.slice(7)
+			if (!origin && tag === 'origin') origin = outpoint
+			else if (!origin && tag.startsWith('origin:')) origin = tag.slice(7)
 			if (name === undefined && tag.startsWith('name:')) name = tag.slice(5)
 		}
 	}

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.69
+
+### Fixed
+- Sweep ordinals now passes name from ORDFS metadata to tag resolution
+- `resolveOrdinalTags` handles bare `origin` tag (no outpoint suffix) by using the input outpoint as the origin
+
 ## 0.0.68
 
 ### Fixed
