@@ -621,8 +621,6 @@ function AddressBar({ route, onNavigate, inputRef, onOpenLauncher }: AddressBarP
 
 interface IdentityChipProps {
 	onNavigate: (url: string) => void
-	onPopoverOpen?: () => void
-	onPopoverClose?: () => void
 }
 
 function truncateBapId(id: string, chars = 6): string {
@@ -632,21 +630,10 @@ function truncateBapId(id: string, chars = 6): string {
 
 function IdentityChip({
 	onNavigate,
-	onPopoverOpen,
-	onPopoverClose,
 }: IdentityChipProps) {
 	const { status, lockWallet, activeAccount } = useWallet()
-	const [open, setOpenInternal] = useState(false)
+	const [open, setOpen] = useState(false)
 	const [identity, setIdentity] = useState<IdentityInfo | null>(null)
-
-	const setOpen = useCallback(
-		(v: boolean) => {
-			setOpenInternal(v)
-			if (v) onPopoverOpen?.()
-			else onPopoverClose?.()
-		},
-		[onPopoverOpen, onPopoverClose],
-	)
 
 	const [otherAccounts, setOtherAccounts] = useState<AccountInfo[]>([])
 
