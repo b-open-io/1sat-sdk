@@ -1,10 +1,11 @@
 import type { ElectrobunConfig } from "electrobun";
+import pkg from "./package.json";
 
 export default {
 	app: {
 		name: "1Sat",
 		identifier: "app.1sat",
-		version: "0.0.1",
+		version: pkg.version,
 		urlSchemes: ["1sat", "bap"],
 	},
 	build: {
