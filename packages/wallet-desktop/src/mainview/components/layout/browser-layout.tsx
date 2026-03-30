@@ -621,6 +621,8 @@ function AddressBar({ route, onNavigate, inputRef, onOpenLauncher }: AddressBarP
 
 interface IdentityChipProps {
 	onNavigate: (url: string) => void
+	onPopoverOpen?: () => void
+	onPopoverClose?: () => void
 }
 
 function truncateBapId(id: string, chars = 6): string {
@@ -630,10 +632,21 @@ function truncateBapId(id: string, chars = 6): string {
 
 function IdentityChip({
 	onNavigate,
+	onPopoverOpen,
+	onPopoverClose,
 }: IdentityChipProps) {
 	const { status, lockWallet, activeAccount } = useWallet()
-	const [open, setOpen] = useState(false)
+	const [open, setOpenInternal] = useState(false)
 	const [identity, setIdentity] = useState<IdentityInfo | null>(null)
+
+	const setOpen = useCallback(
+		(v: boolean) => {
+			setOpenInternal(v)
+			if (v) onPopoverOpen?.()
+			else onPopoverClose?.()
+		},
+		[onPopoverOpen, onPopoverClose],
+	)
 
 	const [otherAccounts, setOtherAccounts] = useState<AccountInfo[]>([])
 
@@ -1199,22 +1212,18 @@ export function BrowserLayout() {
 	// Ref to the active electrobun-webview element (set by WebViewContent)
 	const activeWebviewRef = useRef<HTMLElement | null>(null)
 
-	// Track open popovers — when any is open, passthrough the webview so popover clicks work
+	// Track open popovers — when any is open, hide the webview so popover content is visible
 	const openPopoverCount = useRef(0)
 	const setWebviewPassthrough = useCallback((passthrough: boolean) => {
 		const wv = activeWebviewRef.current as
 			| (HTMLElement & {
-					togglePassthrough?: (v: boolean) => void
 					toggleHidden?: (v: boolean) => void
+					togglePassthrough?: (v: boolean) => void
 			  })
 			| null
-		if (wv) {
-			// Hide the native overlay so DOM popovers can receive clicks
-			wv.toggleHidden?.(passthrough)
-			wv.togglePassthrough?.(passthrough)
-			// Also visually hide via CSS so it doesn't flash
-			wv.style.opacity = passthrough ? '0' : '1'
-		}
+		if (!wv) return
+		wv.toggleHidden?.(passthrough)
+		wv.togglePassthrough?.(passthrough)
 	}, [])
 	const onPopoverOpen = useCallback(() => {
 		openPopoverCount.current++

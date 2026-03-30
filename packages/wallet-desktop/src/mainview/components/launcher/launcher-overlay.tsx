@@ -96,7 +96,7 @@ export function LauncherOverlay({
 
 			{/* Dia/Raycast-style panel — centered, generous sizing */}
 			<div
-				className="relative w-[680px] max-h-[min(520px,75vh)] mt-[15vh] bg-card border border-border/40 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-[0.97] duration-150"
+				className="launcher-overlay relative w-[680px] max-h-[min(520px,75vh)] mt-[15vh] bg-card border border-border/40 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-[0.97] duration-150"
 				onClick={(e) => e.stopPropagation()}
 				onKeyDown={(e) => e.stopPropagation()}
 			>
