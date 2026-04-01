@@ -6,7 +6,7 @@ import { createContext, inscribe } from '@1sat/actions'
 import { createRemoteWallet } from '@1sat/wallet-remote'
 import { Utils } from '@bsv/sdk'
 
-const REMOTE_STORAGE_URL = 'https://1sat.shruggr.cloud/1sat/wallet'
+const REMOTE_STORAGE_URL = 'https://api.1sat.app/1sat/wallet'
 
 function getContentType(filePath: string): string {
 	const ext = extname(filePath).toLowerCase()
