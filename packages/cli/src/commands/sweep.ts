@@ -106,11 +106,29 @@ async function sweepScan(args: string[], opts: GlobalFlags): Promise<void> {
 			}
 		}
 
+		console.log(
+			`\n  ${formatLabel('RUN Tokens:')} ${result.run.length}`,
+		)
+		if (result.run.length > 0) {
+			const runSats = result.run.reduce((sum, r) => sum + r.satoshis, 0)
+			console.log(
+				`  ${formatLabel('Total locked:')} ${formatValue(runSats)} satoshis (not sweepable)`,
+			)
+			for (const r of result.run) {
+				console.log(
+					`    ${formatValue(r.outpoint)}  ${formatLabel(`${r.satoshis} sats`)}`,
+				)
+			}
+		}
+
 		const total =
 			result.funding.length +
 			result.ordinals.length +
 			result.bsv21Tokens.reduce((n, t) => n + t.inputs.length, 0)
-		console.log(`\n  ${total} total UTXO(s) found.`)
+		console.log(`\n  ${total} sweepable UTXO(s) found.`)
+		if (result.run.length > 0) {
+			console.log(`  ${result.run.length} RUN token output(s) excluded.`)
+		}
 	} finally {
 		await destroy()
 	}
@@ -147,6 +165,9 @@ async function sweepImport(args: string[], opts: GlobalFlags): Promise<void> {
 		const hasTokens = scan.bsv21Tokens.length > 0
 
 		if (!hasFunding && !hasOrdinals && !hasTokens) {
+			if (scan.run.length > 0) {
+				fatal(`No sweepable UTXOs found at ${address} (${scan.run.length} RUN token output(s) excluded)`)
+			}
 			fatal(`No UTXOs found at ${address}`)
 		}
 
@@ -161,6 +182,9 @@ async function sweepImport(args: string[], opts: GlobalFlags): Promise<void> {
 					`${t.totalAmount} ${t.symbol ?? t.tokenId.slice(0, 12)} token(s)`,
 				)
 			}
+		}
+		if (scan.run.length > 0) {
+			parts.push(`${scan.run.length} RUN token output(s) excluded`)
 		}
 
 		if (!opts.yes) {

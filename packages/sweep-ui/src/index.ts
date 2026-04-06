@@ -4,7 +4,7 @@ export { SweepApp, type SweepAppProps } from "./components/SweepApp";
 // Feature components
 export { ConnectWallet } from "./components/connect-wallet";
 export { WifInput } from "./components/wif-input";
-export { FundingSection, OrdinalsSection, Bsv21Section, Bsv20Section, LockedSection } from "./components/asset-preview";
+export { FundingSection, OrdinalsSection, Bsv21Section, Bsv20Section, LockedSection, RunSection } from "./components/asset-preview";
 export { OpnsSection } from "./components/opns-section";
 export { TxHistory, type TxRecord } from "./components/tx-history";
 export { SweepProgress } from "./components/sweep-progress";

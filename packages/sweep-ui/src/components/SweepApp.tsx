@@ -4,7 +4,7 @@ import { Badge } from "./ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import { ConnectWallet } from "./connect-wallet";
 import { WifInput } from "./wif-input";
-import { FundingSection, OrdinalsSection, Bsv21Section, Bsv20Section, LockedSection } from "./asset-preview";
+import { FundingSection, OrdinalsSection, Bsv21Section, Bsv20Section, LockedSection, RunSection } from "./asset-preview";
 import { OpnsSection } from "./opns-section";
 import { TxHistory, type TxRecord } from "./tx-history";
 import { deriveAddress, scanAddresses, type ScannedAssets } from "../lib/scanner";
@@ -14,7 +14,7 @@ import { getWallet } from "../lib/wallet";
 import type { LegacyKeys } from "../types";
 import { PrivateKey, type WalletInterface } from "@bsv/sdk";
 
-type TabId = "ordinals" | "opns" | "bsv21" | "bsv20" | "locks";
+type TabId = "ordinals" | "opns" | "bsv21" | "bsv20" | "locks" | "run";
 
 export interface SweepAppProps {
 	legacyKeys?: LegacyKeys;
@@ -67,6 +67,7 @@ export function SweepApp({ legacyKeys: initialKeys, wallet: externalWallet, swee
 		if (assets.bsv21Tokens.length > 0) t.push({ id: "bsv21", label: "BSV-21", count: assets.bsv21Tokens.length });
 		if (assets.bsv20Tokens.length > 0) t.push({ id: "bsv20", label: "BSV-20", count: assets.bsv20Tokens.length });
 		if (assets.locked.length > 0) t.push({ id: "locks", label: "Locks", count: assets.locked.length });
+			if (assets.run.length > 0) t.push({ id: "run", label: "RUN", count: assets.run.length });
 		return t;
 	}, [assets]);
 
@@ -105,7 +106,7 @@ export function SweepApp({ legacyKeys: initialKeys, wallet: externalWallet, swee
 			const result = await scanAddresses(addresses, (p) => setScanProgress(p.detail ?? p.phase));
 			setAssets(result);
 
-			const total = result.funding.length + result.ordinals.length + result.opnsNames.length + result.bsv21Tokens.reduce((n, t) => n + t.outputs.length, 0) + result.bsv20Tokens.length + result.locked.length;
+			const total = result.funding.length + result.ordinals.length + result.opnsNames.length + result.bsv21Tokens.reduce((n, t) => n + t.outputs.length, 0) + result.bsv20Tokens.length + result.locked.length + result.run.length;
 			if (total === 0) toast.info("No assets found at legacy addresses");
 
 			if (result.ordinals.length > 0) setActiveTab("ordinals");
@@ -281,6 +282,7 @@ export function SweepApp({ legacyKeys: initialKeys, wallet: externalWallet, swee
 								<TabsContent value="bsv21"><Bsv21Section tokens={assets.bsv21Tokens} /></TabsContent>
 								<TabsContent value="bsv20"><Bsv20Section tokens={assets.bsv20Tokens} /></TabsContent>
 								<TabsContent value="locks"><LockedSection locked={assets.locked} /></TabsContent>
+								<TabsContent value="run"><RunSection run={assets.run} /></TabsContent>
 							</Tabs>
 						)}
 					</div>

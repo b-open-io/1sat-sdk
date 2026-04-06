@@ -232,3 +232,19 @@ export function LockedSection({ locked }: { locked: IndexedOutput[] }) {
 		</div>
 	);
 }
+
+export function RunSection({ run }: { run: IndexedOutput[] }) {
+	if (run.length === 0) return null;
+	const totalSats = run.reduce((sum, o) => sum + (o.satoshis ?? 0), 0);
+	return (
+		<div className="border border-orange-500/20 bg-orange-500/5 p-4 rounded-lg">
+			<div className="flex items-center gap-2 mb-2">
+				<span className="h-2 w-2 rounded-full bg-orange-500" />
+				<span className="text-sm font-semibold text-orange-500">RUN Protocol Tokens</span>
+			</div>
+			<p className="text-xs text-muted-foreground">
+				{run.length} output{run.length !== 1 ? "s" : ""} ({totalSats.toLocaleString()} sats). These are RUN protocol token outputs and cannot be swept as BSV.
+			</p>
+		</div>
+	);
+}

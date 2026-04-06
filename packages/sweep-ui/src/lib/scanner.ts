@@ -1,6 +1,10 @@
 import { PrivateKey } from "@bsv/sdk";
 import type { IndexedOutput } from "@1sat/types";
+import { parseOutpoint } from "@1sat/utils";
 import { getServices } from "./services";
+
+/** RUN protocol OP_RETURN prefix: OP_FALSE OP_RETURN OP_PUSH3 "run" */
+const RUN_PREFIX = Uint8Array.from([0x00, 0x6a, 0x03, 0x72, 0x75, 0x6e]);
 
 export interface EnrichedOrdinal extends IndexedOutput {
 	origin?: string;
@@ -26,6 +30,7 @@ export interface ScannedAssets {
 	bsv21Tokens: TokenBalance[];
 	bsv20Tokens: IndexedOutput[];
 	locked: IndexedOutput[];
+	run: IndexedOutput[];
 	totalBsv: number;
 }
 
@@ -160,14 +165,31 @@ async function categorizeOutputs(outputs: IndexedOutput[]): Promise<ScannedAsset
 		}
 	}
 
+	// Check funding outputs for RUN token transactions
+	const run: IndexedOutput[] = [];
+	const cleanFunding: IndexedOutput[] = [];
+
+	if (funding.length > 0) {
+		const runTxids = await detectRunTransactions(funding);
+		for (const f of funding) {
+			const { txid } = parseOutpoint(f.outpoint);
+			if (runTxids.has(txid)) {
+				run.push(f);
+			} else {
+				cleanFunding.push(f);
+			}
+		}
+	}
+
 	return {
-		funding,
+		funding: cleanFunding,
 		ordinals: rawOrdinals.map(enrichOrdinal),
 		opnsNames: opnsRaw.map(enrichOrdinal),
 		bsv21Tokens: await groupBsv21Tokens(bsv21Raw),
 		bsv20Tokens,
 		locked,
-		totalBsv: funding.reduce((sum, o) => sum + (o.satoshis ?? 0), 0),
+		run,
+		totalBsv: cleanFunding.reduce((sum, o) => sum + (o.satoshis ?? 0), 0),
 	};
 }
 
@@ -221,6 +243,45 @@ export async function scanAddresses(
 		bsv21Tokens: allResults.flatMap((r) => r.bsv21Tokens),
 		bsv20Tokens: allResults.flatMap((r) => r.bsv20Tokens),
 		locked: allResults.flatMap((r) => r.locked),
+		run: allResults.flatMap((r) => r.run),
 		totalBsv: allResults.reduce((sum, r) => sum + r.totalBsv, 0),
 	};
+}
+
+/**
+ * Check source transactions for the RUN protocol OP_RETURN pattern.
+ * Returns the set of txids that contain a RUN OP_RETURN output.
+ */
+async function detectRunTransactions(funding: IndexedOutput[]): Promise<Set<string>> {
+	const services = getServices();
+	const txids = [...new Set(funding.map((f) => parseOutpoint(f.outpoint).txid))];
+	const runTxids = new Set<string>();
+
+	for (const txid of txids) {
+		try {
+			const beef = await services.getBeefForTxid(txid);
+			const beefTx = beef.findTxid(txid);
+			if (!beefTx?.tx) continue;
+
+			for (const output of beefTx.tx.outputs) {
+				const script = output.lockingScript?.toBinary();
+				if (script && hasRunPrefix(script)) {
+					runTxids.add(txid);
+					break;
+				}
+			}
+		} catch {
+			// If we can't fetch the tx, leave the output in funding
+		}
+	}
+
+	return runTxids;
+}
+
+function hasRunPrefix(script: number[]): boolean {
+	if (script.length < RUN_PREFIX.length) return false;
+	for (let i = 0; i < RUN_PREFIX.length; i++) {
+		if (script[i] !== RUN_PREFIX[i]) return false;
+	}
+	return true;
 }

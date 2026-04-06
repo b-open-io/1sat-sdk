@@ -7,7 +7,11 @@
 
 import type { OneSatServices } from '@1sat/client'
 import type { IndexedOutput } from '@1sat/types'
+import { parseOutpoint } from '@1sat/utils'
 import type { SweepBsv21Input, SweepInput } from './types'
+
+/** RUN protocol OP_RETURN prefix: OP_FALSE OP_RETURN OP_PUSH3 "run" */
+const RUN_PREFIX = Uint8Array.from([0x00, 0x6a, 0x03, 0x72, 0x75, 0x6e])
 
 /** A group of BSV-21 token UTXOs with the same tokenId */
 export interface TokenBalance {
@@ -24,6 +28,7 @@ export interface ScanResult {
 	funding: SweepInput[]
 	ordinals: SweepInput[]
 	bsv21Tokens: TokenBalance[]
+	run: SweepInput[]
 	totalFundingSats: number
 }
 
@@ -113,7 +118,64 @@ export async function scanAddressUtxos(
 		})
 	}
 
-	const totalFundingSats = funding.reduce((sum, f) => sum + f.satoshis, 0)
+	// Check funding outputs for RUN token transactions
+	const run: SweepInput[] = []
+	const cleanFunding: SweepInput[] = []
 
-	return { address, funding, ordinals, bsv21Tokens, totalFundingSats }
+	if (funding.length > 0) {
+		const runTxids = await detectRunTransactions(services, funding)
+		for (const f of funding) {
+			const { txid } = parseOutpoint(f.outpoint)
+			if (runTxids.has(txid)) {
+				run.push(f)
+			} else {
+				cleanFunding.push(f)
+			}
+		}
+	}
+
+	const totalFundingSats = cleanFunding.reduce((sum, f) => sum + f.satoshis, 0)
+
+	return { address, funding: cleanFunding, ordinals, bsv21Tokens, run, totalFundingSats }
+}
+
+/**
+ * Check source transactions for the RUN protocol OP_RETURN pattern.
+ * Returns the set of txids that contain a RUN OP_RETURN output.
+ */
+async function detectRunTransactions(
+	services: OneSatServices,
+	funding: SweepInput[],
+): Promise<Set<string>> {
+	const txids = [...new Set(funding.map((f) => parseOutpoint(f.outpoint).txid))]
+	const runTxids = new Set<string>()
+
+	for (const txid of txids) {
+		try {
+			const beef = await services.getBeefForTxid(txid)
+			const beefTx = beef.findTxid(txid)
+			if (!beefTx?.tx) continue
+
+			for (const output of beefTx.tx.outputs) {
+				const script = output.lockingScript?.toBinary()
+				if (script && hasRunPrefix(script)) {
+					runTxids.add(txid)
+					break
+				}
+			}
+		} catch {
+			// If we can't fetch the tx, leave the output in funding
+		}
+	}
+
+	return runTxids
+}
+
+/** Check if a locking script starts with the RUN OP_RETURN prefix */
+function hasRunPrefix(script: number[]): boolean {
+	if (script.length < RUN_PREFIX.length) return false
+	for (let i = 0; i < RUN_PREFIX.length; i++) {
+		if (script[i] !== RUN_PREFIX[i]) return false
+	}
+	return true
 }
