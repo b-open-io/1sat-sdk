@@ -112,7 +112,7 @@ export class Bsv21Indexer extends Indexer {
 		return {
 			data: bsv21,
 			tags,
-			basket: 'bsv21',
+			basket: tokenId === 'ae59f3b898ec61acbdb6cc7a245fabeded0c094bf046f35206a3aec60ef88127_0' ? 'mnee' : 'bsv21',
 		}
 	}
 
