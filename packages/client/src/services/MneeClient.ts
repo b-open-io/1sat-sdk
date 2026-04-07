@@ -18,6 +18,8 @@ export interface MneeConfig {
 	burnAddress: string
 	mintAddress: string
 	fees: MneeFeeTier[]
+	decimals: number
+	tokenId: string
 }
 
 export interface MneeFeeTier {
