@@ -61,6 +61,7 @@ export * from './signing'
 export * from './social'
 export * from './identity'
 export * from './opns'
+export * from './mnee'
 
 // Export sweep module (uses external signing, not action-based)
 export * from './sweep'
@@ -85,6 +86,7 @@ import { socialActions } from './social'
 import { sweepActions } from './sweep'
 import { syncActions } from './sync'
 import { tokensActions } from './tokens'
+import { mneeActions } from './mnee'
 
 actionRegistry.registerAll([
 	...addressesActions,
@@ -100,6 +102,7 @@ actionRegistry.registerAll([
 	...sweepActions,
 	...opnsActions,
 	...syncActions,
+	...mneeActions,
 ])
 
 // Re-export SDK types that consumers commonly need

@@ -15,4 +15,15 @@ export {
 	type OpnsMineResult,
 } from './OpnsClient'
 export { OverlayClient } from './OverlayClient'
+export {
+	MneeClient,
+	type MneeConfig,
+	type MneeBalance,
+	type MneeUtxo,
+	type MneeTransferResponse,
+	type MneeTransferStatus,
+	type MneeTxHistory,
+	type MneeTxHistoryResponse,
+	type MneeFeeTier,
+} from './MneeClient'
 export { OneSatServices } from './OneSatServices'

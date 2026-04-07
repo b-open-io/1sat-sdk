@@ -18,6 +18,7 @@ import {
 	Bsv21Client,
 	ChaintracksClient,
 	MarketClient,
+	MneeClient,
 	OpnsClient,
 	OrdfsClient,
 	OverlayClient,
@@ -75,6 +76,7 @@ export class OneSatServices implements WalletServices {
 	readonly ordfs: OrdfsClient
 	readonly bsv21: Bsv21Client
 	readonly market: MarketClient
+	readonly mnee: MneeClient
 	readonly opns: OpnsClient
 	readonly overlay: OverlayClient
 
@@ -110,6 +112,7 @@ export class OneSatServices implements WalletServices {
 		this.ordfs = new OrdfsClient(this.baseUrl, opts)
 		this.bsv21 = new Bsv21Client(this.baseUrl, opts)
 		this.market = new MarketClient(this.baseUrl, opts)
+		this.mnee = new MneeClient()
 		this.opns = new OpnsClient(this.baseUrl, opts)
 		this.overlay = new OverlayClient(this.baseUrl, opts)
 	}
