@@ -22,8 +22,7 @@ export {
 	type MneeUtxo,
 	type MneeTransferResponse,
 	type MneeTransferStatus,
-	type MneeTxHistory,
-	type MneeTxHistoryResponse,
+	type MneeSyncEntry,
 	type MneeFeeTier,
 } from './MneeClient'
 export { OneSatServices } from './OneSatServices'
