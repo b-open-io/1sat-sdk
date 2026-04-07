@@ -767,7 +767,7 @@ export const purchaseBsv21: Action<
 						{
 							outpoint,
 							inputDescription: 'Listed token',
-							unlockingScriptLength: 500,
+							unlockingScriptLength: 1402,
 						},
 					],
 					outputs,

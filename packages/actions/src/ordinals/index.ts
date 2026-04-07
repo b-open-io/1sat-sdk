@@ -1142,7 +1142,7 @@ export const purchaseOrdinal: Action<
 						{
 							outpoint,
 							inputDescription: 'Listed ordinal',
-							unlockingScriptLength: 500,
+							unlockingScriptLength: 1368,
 						},
 					],
 					outputs,
