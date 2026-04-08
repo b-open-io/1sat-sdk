@@ -721,7 +721,7 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 				outputDescription: `Sweep ${totalAmount} tokens`,
 				basket: BSV21_BASKET,
 				tags: [
-					`id:${tokenId}`,
+					`bsv21:${tokenId}`,
 					`amt:${totalAmount}`,
 					`dec:${tokenDetails.token.dec ?? 0}`,
 					...(tokenDetails.token.sym ? [`sym:${tokenDetails.token.sym}`] : []),

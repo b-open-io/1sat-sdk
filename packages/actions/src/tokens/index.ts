@@ -237,11 +237,11 @@ export const getBsv21Balances: Action<GetBsv21BalancesInput, Bsv21Balance[]> = {
 		>()
 
 		for (const o of outputs) {
-			const idTag = o.tags?.find((t) => t.startsWith('id:'))
+			const idTag = o.tags?.find((t) => t.startsWith('bsv21:'))
 			const amtTag = o.tags?.find((t) => t.startsWith('amt:'))?.slice(4)
 			if (!idTag || !amtTag) continue
 
-			const tokenId = idTag.slice(3)
+			const tokenId = idTag.slice(6)
 			const amt = BigInt(amtTag)
 			const dec = Number.parseInt(
 				o.tags?.find((t) => t.startsWith('dec:'))?.slice(4) || '0',
@@ -346,9 +346,9 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 			})
 
 			const tokenUtxos = listResult.outputs.filter((o) => {
-				const idTag = o.tags?.find((t) => t.startsWith('id:'))
+				const idTag = o.tags?.find((t) => t.startsWith('bsv21:'))
 				if (!idTag) return false
-				return idTag.slice(3) === tokenId
+				return idTag.slice(6) === tokenId
 			})
 
 			// Batch-validate all candidate outpoints against the overlay
@@ -459,7 +459,7 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 					outputDescription: 'Token change',
 					basket: BSV21_BASKET,
 					tags: [
-						`id:${tokenId}`,
+						`bsv21:${tokenId}`,
 						`amt:${change}`,
 						`dec:${tokenDetails.token.dec ?? 0}`,
 						...(tokenDetails.token.sym
@@ -710,7 +710,7 @@ export const purchaseBsv21: Action<
 				outputDescription: 'Purchased tokens',
 				basket: BSV21_BASKET,
 				tags: [
-					`id:${tokenId}`,
+					`bsv21:${tokenId}`,
 					`amt:${tokenAmount}`,
 					`dec:${tokenDetails.token.dec ?? 0}`,
 					...(tokenDetails.token.sym ? [`sym:${tokenDetails.token.sym}`] : []),
