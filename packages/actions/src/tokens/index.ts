@@ -461,7 +461,7 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 					tags: [
 						`id:${tokenId}`,
 						`amt:${change}`,
-						`dec:${tokenDetails.token.dec}`,
+						`dec:${tokenDetails.token.dec ?? 0}`,
 						...(tokenDetails.token.sym
 							? [`sym:${tokenDetails.token.sym}`]
 							: []),
@@ -712,7 +712,7 @@ export const purchaseBsv21: Action<
 				tags: [
 					`id:${tokenId}`,
 					`amt:${tokenAmount}`,
-					`dec:${tokenDetails.token.dec}`,
+					`dec:${tokenDetails.token.dec ?? 0}`,
 					...(tokenDetails.token.sym ? [`sym:${tokenDetails.token.sym}`] : []),
 					...(tokenDetails.token.icon
 						? [`icon:${tokenDetails.token.icon}`]
