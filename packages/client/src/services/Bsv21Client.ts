@@ -30,15 +30,18 @@ export interface OutputQueryOptions {
  * Provides BSV21 token queries.
  *
  * Routes:
- * - POST /lookup - Bulk lookup token details with funding status
- * - GET /:tokenId - Get token details with funding status
- * - GET /:tokenId/tx/:txid - Get token transaction data
- * - GET /:tokenId/:lockType/:address/balance - Get token balance
- * - GET /:tokenId/:lockType/:address/unspent - Get unspent token UTXOs
- * - GET /:tokenId/:lockType/:address/history - Get token transaction history
- * - POST /:tokenId/:lockType/balance - Multi-address token balance
- * - POST /:tokenId/:lockType/unspent - Multi-address unspent token UTXOs
- * - POST /:tokenId/:lockType/history - Multi-address token transaction history
+ * - GET /tokens - List tokens
+ * - POST /tokens - Lookup tokens (bulk)
+ * - GET /:tokenId - Get token details
+ * - GET /:tokenId/tx/:txid - Get transaction
+ * - POST /:tokenId/outputs - Validate outpoints (bulk)
+ * - GET /:tokenId/outputs/:outpoint - Validate outpoint
+ * - GET /:tokenId/:lockType/:address/balance - Get address balance
+ * - GET /:tokenId/:lockType/:address/unspent - Get address unspent
+ * - GET /:tokenId/:lockType/:address/history - Get address history
+ * - POST /:tokenId/:lockType/balance - Get balance (multi-address)
+ * - POST /:tokenId/:lockType/unspent - Get unspent (multi-address)
+ * - POST /:tokenId/:lockType/history - Get history (multi-address)
  */
 export class Bsv21Client extends BaseClient {
 	private cache = new Map<string, TokenDetailResponse>()
@@ -53,7 +56,7 @@ export class Bsv21Client extends BaseClient {
 	 * @param tokenIds - Array of token IDs (max 100)
 	 */
 	async lookupTokens(tokenIds: string[]): Promise<TokenDetailResponse[]> {
-		return this.request<TokenDetailResponse[]>('/lookup', {
+		return this.request<TokenDetailResponse[]>('/tokens', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify(tokenIds),
