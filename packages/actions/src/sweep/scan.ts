@@ -1,126 +1,151 @@
 /**
  * Sweep Scan Module
  *
- * Scans an address for UTXOs using the owner sync service and categorizes them
- * into funding, ordinals, and BSV-21 tokens.
+ * Scans addresses for UTXOs and categorizes them into asset types.
+ * For BSV-21 tokens, validates against the overlay to get confirmed amounts.
  */
 
 import type { OneSatServices } from '@1sat/client'
 import type { IndexedOutput } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
-import type { SweepBsv21Input, SweepInput } from './types'
+import type { ScanProgress, ScanResult, TokenBalance } from './types'
 
 /** RUN protocol OP_RETURN prefix: OP_FALSE OP_RETURN OP_PUSH3 "run" */
 const RUN_PREFIX = Uint8Array.from([0x00, 0x6a, 0x03, 0x72, 0x75, 0x6e])
 
-/** A group of BSV-21 token UTXOs with the same tokenId */
-export interface TokenBalance {
-	tokenId: string
-	symbol?: string
-	decimals: number
-	totalAmount: string
-	inputs: SweepBsv21Input[]
-}
-
-/** Categorized UTXOs from scanning an address */
-export interface ScanResult {
-	address: string
-	funding: SweepInput[]
-	ordinals: SweepInput[]
-	bsv21Tokens: TokenBalance[]
-	run: SweepInput[]
-	totalFundingSats: number
+function getEvent(events: string[], prefix: string): string | undefined {
+	const e = events.find((ev) => ev.startsWith(prefix))
+	return e ? e.slice(prefix.length) : undefined
 }
 
 /**
- * Scan an address for UTXOs and categorize them into funding, ordinals, and BSV-21 tokens.
- * Uses the owner sync service to fetch unspent outputs.
+ * Scan a single address: sync, search, categorize, and validate BSV-21 tokens.
  */
-export async function scanAddressUtxos(
+export async function scanAddress(
 	services: OneSatServices,
 	address: string,
+	onProgress?: (p: ScanProgress) => void,
 ): Promise<ScanResult> {
-	const utxos: IndexedOutput[] = []
-
+	// Phase 1: Sync the address
+	onProgress?.({ phase: 'sync', detail: 'Syncing address...' })
 	for await (const event of services.owner.getTxos(address, {
-		unspent: true,
-		sats: true,
+		refresh: true,
+		limit: 1,
 	})) {
-		if (event.type === 'txo') {
-			utxos.push(event.data)
-		} else if (event.type === 'error') {
-			throw event.error
-		}
-	}
-
-	const funding: SweepInput[] = []
-	const ordinals: SweepInput[] = []
-	const bsv21Raw: Array<{
-		input: SweepBsv21Input
-		sym?: string
-		dec?: number
-	}> = []
-
-	for (const utxo of utxos) {
-		const outpoint = utxo.outpoint
-		const satoshis = utxo.satoshis ?? 0
-		const data = utxo.data as Record<string, unknown> | undefined
-
-		// lockingScript resolved later via BEEF in prepareSweepBsv
-		const base: SweepInput = {
-			outpoint,
-			satoshis,
-			lockingScript: '',
-		}
-
-		if (data?.bsv21) {
-			const bsv21 = data.bsv21 as Record<string, unknown>
-			const tokenId = (bsv21.id as string) || ''
-			const amount = (bsv21.amt as string) || '0'
-			bsv21Raw.push({
-				input: { ...base, tokenId, amount },
-				sym: bsv21.sym as string | undefined,
-				dec: (bsv21.dec as number) ?? 0,
+		if (event.type === 'sync') {
+			const p = event.data
+			onProgress?.({
+				phase: 'sync',
+				detail: `${p.phase}: ${p.processed ?? 0}/${p.total ?? '?'}`,
 			})
-		} else if (data?.insc || data?.origin) {
-			ordinals.push(base)
-		} else {
-			funding.push(base)
+		} else if (event.type === 'done' || event.type === 'error') {
+			break
 		}
 	}
 
-	// Group BSV-21 tokens by tokenId
-	const tokenGroups = new Map<
-		string,
-		{ inputs: SweepBsv21Input[]; sym?: string; dec: number }
-	>()
-	for (const { input, sym, dec } of bsv21Raw) {
-		let group = tokenGroups.get(input.tokenId)
-		if (!group) {
-			group = { inputs: [], sym, dec: dec ?? 0 }
-			tokenGroups.set(input.tokenId, group)
-		}
-		group.inputs.push(input)
-	}
+	// Phase 2: Search for all unspent outputs
+	onProgress?.({ phase: 'search', detail: 'Searching for assets...' })
+	const allOutputs =
+		(await services.txo.search(`own:${address}`, {
+			unspent: true,
+			events: true,
+			sats: true,
+			limit: 0,
+		})) ?? []
 
-	const bsv21Tokens: TokenBalance[] = []
-	for (const [tokenId, group] of tokenGroups) {
-		let totalAmount = BigInt(0)
-		for (const inp of group.inputs) {
-			totalAmount += BigInt(inp.amount)
-		}
-		bsv21Tokens.push({
-			tokenId,
-			symbol: group.sym,
-			decimals: group.dec,
-			totalAmount: totalAmount.toString(),
-			inputs: group.inputs,
+	// Phase 3: Categorize and enrich
+	onProgress?.({ phase: 'categorize', detail: 'Loading token details...' })
+	return categorizeOutputs(services, allOutputs)
+}
+
+/**
+ * Scan multiple addresses and merge results.
+ */
+export async function scanAddresses(
+	services: OneSatServices,
+	addresses: string[],
+	onProgress?: (p: ScanProgress) => void,
+): Promise<ScanResult> {
+	const unique = [...new Set(addresses)]
+	const allResults: ScanResult[] = []
+
+	for (const addr of unique) {
+		onProgress?.({
+			phase: 'sync',
+			detail: `Scanning ${addr.slice(0, 8)}...`,
 		})
+		allResults.push(await scanAddress(services, addr, onProgress))
 	}
 
-	// Check funding outputs for RUN token transactions
-	const run: SweepInput[] = []
-	const cleanFunding: SweepInput[] = []
+	return {
+		funding: allResults.flatMap((r) => r.funding),
+		ordinals: allResults.flatMap((r) => r.ordinals),
+		opnsNames: allResults.flatMap((r) => r.opnsNames),
+		bsv21Tokens: allResults.flatMap((r) => r.bsv21Tokens),
+		bsv20Tokens: allResults.flatMap((r) => r.bsv20Tokens),
+		locked: allResults.flatMap((r) => r.locked),
+		run: allResults.flatMap((r) => r.run),
+		totalFundingSats: allResults.reduce(
+			(sum, r) => sum + r.totalFundingSats,
+			0,
+		),
+	}
+}
+
+/**
+ * Categorize outputs by event tags into asset types.
+ */
+async function categorizeOutputs(
+	services: OneSatServices,
+	outputs: IndexedOutput[],
+): Promise<ScanResult> {
+	const funding: IndexedOutput[] = []
+	const ordinals: IndexedOutput[] = []
+	const opnsNames: IndexedOutput[] = []
+	const bsv21Raw: IndexedOutput[] = []
+	const bsv20Tokens: IndexedOutput[] = []
+	const locked: IndexedOutput[] = []
+
+	for (const out of outputs) {
+		const events = out.events ?? []
+		const sats = out.satoshis ?? 0
+
+		if (events.some((e) => e.startsWith('bsv21:'))) {
+			bsv21Raw.push(out)
+			continue
+		}
+
+		if (events.some((e) => e.startsWith('lock:'))) {
+			locked.push(out)
+			continue
+		}
+
+		if (
+			events.some(
+				(e) => e === 'type:application/bsv-20' || e === 'type:Token',
+			)
+		) {
+			bsv20Tokens.push(out)
+			continue
+		}
+
+		if (sats === 1) {
+			if (events.some((e) => e === 'type:application/op-ns')) {
+				opnsNames.push(out)
+			} else {
+				ordinals.push(out)
+			}
+			continue
+		}
+
+		if (sats > 1) {
+			funding.push(out)
+		}
+	}
+
+	// Detect RUN protocol transactions in funding
+	const run: IndexedOutput[] = []
+	const cleanFunding: IndexedOutput[] = []
 
 	if (funding.length > 0) {
 		const runTxids = await detectRunTransactions(services, funding)
@@ -134,20 +159,120 @@ export async function scanAddressUtxos(
 		}
 	}
 
-	const totalFundingSats = cleanFunding.reduce((sum, f) => sum + f.satoshis, 0)
+	return {
+		funding: cleanFunding,
+		ordinals,
+		opnsNames,
+		bsv21Tokens: await groupBsv21Tokens(services, bsv21Raw),
+		bsv20Tokens,
+		locked,
+		run,
+		totalFundingSats: cleanFunding.reduce(
+			(sum, o) => sum + (o.satoshis ?? 0),
+			0,
+		),
+	}
+}
 
-	return { address, funding: cleanFunding, ordinals, bsv21Tokens, run, totalFundingSats }
+/**
+ * Group BSV-21 outputs by token ID, fetch metadata, and validate
+ * active tokens against the overlay for confirmed amounts.
+ */
+async function groupBsv21Tokens(
+	services: OneSatServices,
+	outputs: IndexedOutput[],
+): Promise<TokenBalance[]> {
+	const groups = new Map<string, IndexedOutput[]>()
+
+	for (const out of outputs) {
+		const events = out.events ?? []
+		const tokenId = getEvent(events, 'bsv21:')
+		if (!tokenId) continue
+
+		let group = groups.get(tokenId)
+		if (!group) {
+			group = []
+			groups.set(tokenId, group)
+		}
+		group.push(out)
+	}
+
+	if (groups.size === 0) return []
+
+	const tokenIds = [...groups.keys()]
+
+	// Fetch token metadata and active status from overlay
+	let details: Array<{
+		tokenId: string
+		token?: { sym?: string; dec?: string; icon?: string }
+		status?: { is_active?: boolean }
+	}> = []
+	try {
+		details = await services.bsv21.lookupTokens(tokenIds)
+	} catch {
+		// BSV21 service may not be available
+	}
+
+	const detailMap = new Map(details.map((d) => [d.tokenId, d]))
+
+	const balances: TokenBalance[] = []
+	for (const [tokenId, outs] of groups) {
+		const detail = detailMap.get(tokenId)
+		const isActive = detail?.status?.is_active ?? false
+
+		let totalAmount = 0n
+		const amounts = new Map<string, string>()
+		let validatedOutputs = outs
+
+		// For active tokens, validate against the overlay for real amounts
+		if (isActive) {
+			try {
+				const outpoints = outs.map((o) => o.outpoint)
+				const validated = await services.bsv21.validateOutputs(
+					tokenId,
+					outpoints,
+					{ unspent: true },
+				)
+				const validOutpoints = new Set(validated.map((v) => v.outpoint))
+
+				for (const v of validated) {
+					const bsv21 = v.data?.bsv21 as { amt?: string } | undefined
+					const amt = bsv21?.amt ?? '0'
+					amounts.set(v.outpoint, amt)
+					totalAmount += BigInt(amt)
+				}
+
+				// Keep only original outputs that the overlay validated
+				validatedOutputs = outs.filter((o) => validOutpoints.has(o.outpoint))
+			} catch {
+				// Validation failed — show outputs without amounts
+			}
+		}
+
+		balances.push({
+			tokenId,
+			symbol: detail?.token?.sym,
+			decimals: Number(detail?.token?.dec ?? 0),
+			icon: detail?.token?.icon,
+			totalAmount,
+			outputs: validatedOutputs,
+			amounts,
+			isActive,
+		})
+	}
+	return balances
 }
 
 /**
  * Check source transactions for the RUN protocol OP_RETURN pattern.
- * Returns the set of txids that contain a RUN OP_RETURN output.
  */
 async function detectRunTransactions(
 	services: OneSatServices,
-	funding: SweepInput[],
+	funding: IndexedOutput[],
 ): Promise<Set<string>> {
-	const txids = [...new Set(funding.map((f) => parseOutpoint(f.outpoint).txid))]
+	const txids = [
+		...new Set(funding.map((f) => parseOutpoint(f.outpoint).txid)),
+	]
 	const runTxids = new Set<string>()
 
 	for (const txid of txids) {
@@ -171,7 +296,6 @@ async function detectRunTransactions(
 	return runTxids
 }
 
-/** Check if a locking script starts with the RUN OP_RETURN prefix */
 function hasRunPrefix(script: number[]): boolean {
 	if (script.length < RUN_PREFIX.length) return false
 	for (let i = 0; i < RUN_PREFIX.length; i++) {

@@ -3,6 +3,7 @@
  */
 
 import type { PrivateKey } from '@bsv/sdk'
+import type { IndexedOutput } from '@1sat/types'
 
 /** Input for sweep operations - a UTXO to be swept */
 export interface SweepInput {
@@ -52,8 +53,10 @@ export interface SweepOrdinalsResponse {
 	error?: string
 }
 
-/** Input for BSV-21 token sweep operations */
-export interface SweepBsv21Input extends SweepInput {
+/** Input for BSV-21 token sweep — only the fields the action reads */
+export interface SweepBsv21Input {
+	/** Outpoint in format "txid_vout" */
+	outpoint: string
 	/** Token ID (txid_vout format) */
 	tokenId: string
 	/** Token amount as string (bigint serialization) */
@@ -95,4 +98,36 @@ export interface PrepareResult {
 		/** Locking script hex */
 		lockingScript: string
 	}>
+}
+
+/** Progress during address scanning */
+export interface ScanProgress {
+	phase: string
+	detail?: string
+}
+
+/** A group of BSV-21 token outputs with overlay-validated data */
+export interface TokenBalance {
+	tokenId: string
+	symbol?: string
+	decimals: number
+	icon?: string
+	totalAmount: bigint
+	/** Original outputs from the general indexer (have own: events for key resolution) */
+	outputs: IndexedOutput[]
+	/** Overlay-validated amounts: outpoint → token amount string */
+	amounts: Map<string, string>
+	isActive: boolean
+}
+
+/** Categorized UTXOs from scanning an address */
+export interface ScanResult {
+	funding: IndexedOutput[]
+	ordinals: IndexedOutput[]
+	opnsNames: IndexedOutput[]
+	bsv21Tokens: TokenBalance[]
+	bsv20Tokens: IndexedOutput[]
+	locked: IndexedOutput[]
+	run: IndexedOutput[]
+	totalFundingSats: number
 }

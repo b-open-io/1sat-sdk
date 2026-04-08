@@ -82,7 +82,7 @@ export async function prepareSweepInputs(
 }
 
 /** Build a map of SDK-formatted outpoint → PrivateKey from parallel arrays */
-function buildKeyMap(inputs: SweepInput[], keys: PrivateKey[]): Map<string, PrivateKey> {
+function buildKeyMap(inputs: { outpoint: string }[], keys: PrivateKey[]): Map<string, PrivateKey> {
 	const map = new Map<string, PrivateKey>()
 	for (let i = 0; i < inputs.length; i++) {
 		const { txid, vout } = parseOutpoint(inputs[i].outpoint)
@@ -852,11 +852,16 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 // Export actions array for registry
 export const sweepActions = [sweepBsv, sweepOrdinals, sweepBsv21]
 
-// Export scan module (pure HTTP, no OneSatContext needed)
-export { scanAddressUtxos, type ScanResult, type TokenBalance } from './scan'
+// Export scan module
+export { scanAddress, scanAddresses } from './scan'
 
-// Export PrepareResult type
-export type { PrepareResult } from './types'
+// Export types
+export type {
+	PrepareResult,
+	ScanProgress,
+	ScanResult,
+	TokenBalance,
+} from './types'
 
 /**
  * Prepare a BSV sweep transaction for client-side signing.

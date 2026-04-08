@@ -6,7 +6,7 @@
 
 import {
 	prepareSweepInputs,
-	scanAddressUtxos,
+	scanAddress,
 	sweepBsv,
 	sweepBsv21,
 	sweepOrdinals,
@@ -65,7 +65,7 @@ async function sweepScan(args: string[], opts: GlobalFlags): Promise<void> {
 			fatal('Services required for sweep scan')
 		}
 
-		const result = await scanAddressUtxos(ctx.services, address)
+		const result = await scanAddress(ctx.services, address)
 
 		if (opts.json) {
 			output(result, opts)
@@ -81,7 +81,7 @@ async function sweepScan(args: string[], opts: GlobalFlags): Promise<void> {
 			)
 			for (const f of result.funding) {
 				console.log(
-					`    ${formatValue(f.outpoint)}  ${formatLabel(`${f.satoshis} sats`)}`,
+					`    ${formatValue(f.outpoint)}  ${formatLabel(`${f.satoshis ?? 0} sats`)}`,
 				)
 			}
 		}
@@ -101,7 +101,7 @@ async function sweepScan(args: string[], opts: GlobalFlags): Promise<void> {
 		if (result.bsv21Tokens.length > 0) {
 			for (const t of result.bsv21Tokens) {
 				console.log(
-					`    ${formatValue(t.symbol ?? t.tokenId.slice(0, 12))}  ${formatLabel('amount:')} ${formatValue(t.totalAmount)}  ${formatLabel('UTXOs:')} ${t.inputs.length}  ${formatLabel('dec:')} ${t.decimals}`,
+					`    ${formatValue(t.symbol ?? t.tokenId.slice(0, 12))}  ${formatLabel('amount:')} ${formatValue(t.totalAmount.toString())}  ${formatLabel('UTXOs:')} ${t.outputs.length}  ${formatLabel('dec:')} ${t.decimals}`,
 				)
 			}
 		}
@@ -110,13 +110,13 @@ async function sweepScan(args: string[], opts: GlobalFlags): Promise<void> {
 			`\n  ${formatLabel('RUN Tokens:')} ${result.run.length}`,
 		)
 		if (result.run.length > 0) {
-			const runSats = result.run.reduce((sum, r) => sum + r.satoshis, 0)
+			const runSats = result.run.reduce((sum, r) => sum + (r.satoshis ?? 0), 0)
 			console.log(
 				`  ${formatLabel('Total locked:')} ${formatValue(runSats)} satoshis (not sweepable)`,
 			)
 			for (const r of result.run) {
 				console.log(
-					`    ${formatValue(r.outpoint)}  ${formatLabel(`${r.satoshis} sats`)}`,
+					`    ${formatValue(r.outpoint)}  ${formatLabel(`${r.satoshis ?? 0} sats`)}`,
 				)
 			}
 		}
@@ -124,7 +124,7 @@ async function sweepScan(args: string[], opts: GlobalFlags): Promise<void> {
 		const total =
 			result.funding.length +
 			result.ordinals.length +
-			result.bsv21Tokens.reduce((n, t) => n + t.inputs.length, 0)
+			result.bsv21Tokens.reduce((n, t) => n + t.outputs.length, 0)
 		console.log(`\n  ${total} sweepable UTXO(s) found.`)
 		if (result.run.length > 0) {
 			console.log(`  ${result.run.length} RUN token output(s) excluded.`)
@@ -157,12 +157,11 @@ async function sweepImport(args: string[], opts: GlobalFlags): Promise<void> {
 			fatal('Services required for sweep import')
 		}
 
-		// Scan first to discover what's available
-		const scan = await scanAddressUtxos(ctx.services, address)
+		const scan = await scanAddress(ctx.services, address)
 
 		const hasFunding = scan.funding.length > 0
 		const hasOrdinals = scan.ordinals.length > 0
-		const hasTokens = scan.bsv21Tokens.length > 0
+		const hasTokens = scan.bsv21Tokens.some((t) => t.isActive && t.outputs.length > 0)
 
 		if (!hasFunding && !hasOrdinals && !hasTokens) {
 			if (scan.run.length > 0) {
@@ -171,16 +170,17 @@ async function sweepImport(args: string[], opts: GlobalFlags): Promise<void> {
 			fatal(`No UTXOs found at ${address}`)
 		}
 
-		// Summarize what will be swept
 		const parts: string[] = []
 		if (hasFunding)
 			parts.push(`${scan.totalFundingSats} sats (${scan.funding.length} UTXOs)`)
 		if (hasOrdinals) parts.push(`${scan.ordinals.length} ordinal(s)`)
 		if (hasTokens) {
 			for (const t of scan.bsv21Tokens) {
-				parts.push(
-					`${t.totalAmount} ${t.symbol ?? t.tokenId.slice(0, 12)} token(s)`,
-				)
+				if (t.isActive && t.outputs.length > 0) {
+					parts.push(
+						`${t.totalAmount} ${t.symbol ?? t.tokenId.slice(0, 12)} token(s)`,
+					)
+				}
 			}
 		}
 		if (scan.run.length > 0) {
@@ -198,18 +198,9 @@ async function sweepImport(args: string[], opts: GlobalFlags): Promise<void> {
 
 		const txids: string[] = []
 
-		// Convert SweepInput to IndexedOutput shape for prepareSweepInputs
-		const toIndexed = (items: Array<{ outpoint: string; satoshis: number }>) =>
-			items.map((item) => ({
-				outpoint: item.outpoint,
-				satoshis: item.satoshis,
-				score: 0,
-			}))
-
 		// Sweep BSV funding UTXOs
 		if (hasFunding) {
-			const inputs = await prepareSweepInputs(ctx, toIndexed(scan.funding))
-
+			const inputs = await prepareSweepInputs(ctx, scan.funding)
 			const result = await sweepBsv.execute(ctx, { inputs, wif })
 			if (result.error) {
 				fatal(`BSV sweep failed: ${result.error}`)
@@ -219,8 +210,7 @@ async function sweepImport(args: string[], opts: GlobalFlags): Promise<void> {
 
 		// Sweep ordinals
 		if (hasOrdinals) {
-			const inputs = await prepareSweepInputs(ctx, toIndexed(scan.ordinals))
-
+			const inputs = await prepareSweepInputs(ctx, scan.ordinals)
 			const result = await sweepOrdinals.execute(ctx, { inputs, wif })
 			if (result.error) {
 				fatal(`Ordinals sweep failed: ${result.error}`)
@@ -228,27 +218,21 @@ async function sweepImport(args: string[], opts: GlobalFlags): Promise<void> {
 			if (result.txid) txids.push(result.txid)
 		}
 
-		// Sweep BSV-21 tokens (one sweep per tokenId)
+		// Sweep BSV-21 tokens (one sweep per active tokenId)
 		if (hasTokens) {
-			for (const tokenGroup of scan.bsv21Tokens) {
-				const inputs = await prepareSweepInputs(
-					ctx,
-					toIndexed(tokenGroup.inputs),
-				)
+			for (const token of scan.bsv21Tokens) {
+				if (!token.isActive || token.outputs.length === 0) continue
 
-				const sweepInputs = inputs.map((inp, idx) => ({
-					...inp,
-					tokenId: tokenGroup.inputs[idx].tokenId,
-					amount: tokenGroup.inputs[idx].amount,
+				const inputs = token.outputs.map((out) => ({
+					outpoint: out.outpoint,
+					tokenId: token.tokenId,
+					amount: token.amounts.get(out.outpoint) ?? '0',
 				}))
 
-				const result = await sweepBsv21.execute(ctx, {
-					inputs: sweepInputs,
-					wif,
-				})
+				const result = await sweepBsv21.execute(ctx, { inputs, wif })
 				if (result.error) {
 					fatal(
-						`Token sweep failed (${tokenGroup.symbol ?? tokenGroup.tokenId.slice(0, 12)}): ${result.error}`,
+						`Token sweep failed (${token.symbol ?? token.tokenId.slice(0, 12)}): ${result.error}`,
 					)
 				}
 				if (result.txid) txids.push(result.txid)

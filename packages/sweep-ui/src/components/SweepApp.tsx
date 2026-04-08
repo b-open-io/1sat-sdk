@@ -8,7 +8,7 @@ import { FundingSection, OrdinalsSection, Bsv21Section, Bsv20Section, LockedSect
 import { OpnsSection } from "./opns-section";
 import { TxHistory, type TxRecord } from "./tx-history";
 import { deriveAddress, scanAddresses, type ScannedAssets } from "../lib/scanner";
-import { executeSweep } from "../lib/sweeper";
+import { executeSweep, sweepBsv21Token } from "../lib/sweeper";
 import { legacySendBsv, legacySendOrdinals, legacyBurnOrdinals } from "../lib/legacy-send";
 import { getWallet } from "../lib/wallet";
 import type { LegacyKeys } from "../types";
@@ -160,7 +160,7 @@ export function SweepApp({ legacyKeys: initialKeys, wallet: externalWallet, swee
 		const wallet = resolveWallet();
 		if (!wallet || !legacyKeys || !assets) return;
 		await runOperation("Sweep BSV", async () => {
-			const result = await executeSweep({ wallet, keys: keyMap, funding: getSelectedFunding(), ordinals: [], bsv21Tokens: [], amount: sweepAmount ?? undefined, onProgress: setSweepProgress });
+			const result = await executeSweep({ wallet, keys: keyMap, funding: getSelectedFunding(), ordinals: [], amount: sweepAmount ?? undefined, onProgress: setSweepProgress });
 			if (result.errors.length > 0) throw new Error(result.errors[0]);
 			return result.bsvTxid ?? "";
 		});
@@ -180,7 +180,7 @@ export function SweepApp({ legacyKeys: initialKeys, wallet: externalWallet, swee
 		const selected = assets.ordinals.filter((o) => selectedOrdinals.has(o.outpoint));
 		if (selected.length === 0) return;
 		await runOperation(`Sweep ${selected.length} ordinal${selected.length !== 1 ? "s" : ""}`, async () => {
-			const result = await executeSweep({ wallet, keys: keyMap, funding: [], ordinals: selected, bsv21Tokens: [], onProgress: setSweepProgress });
+			const result = await executeSweep({ wallet, keys: keyMap, funding: [], ordinals: selected, onProgress: setSweepProgress });
 			if (result.errors.length > 0) throw new Error(result.errors[0]);
 			return result.ordinalTxids[0] ?? "";
 		});
@@ -212,7 +212,7 @@ export function SweepApp({ legacyKeys: initialKeys, wallet: externalWallet, swee
 		const selected = assets.opnsNames.filter((o) => selectedOpns.has(o.outpoint));
 		if (selected.length === 0) return;
 		await runOperation(`Sweep ${selected.length} domain${selected.length !== 1 ? "s" : ""}`, async () => {
-			const result = await executeSweep({ wallet, keys: keyMap, funding: [], ordinals: selected, bsv21Tokens: [], onProgress: setSweepProgress });
+			const result = await executeSweep({ wallet, keys: keyMap, funding: [], ordinals: selected, onProgress: setSweepProgress });
 			if (result.errors.length > 0) throw new Error(result.errors[0]);
 			return result.ordinalTxids[0] ?? "";
 		});
@@ -237,6 +237,18 @@ export function SweepApp({ legacyKeys: initialKeys, wallet: externalWallet, swee
 			return result.txid;
 		});
 	}, [legacyKeys, assets, selectedOpns, runOperation]);
+
+	const handleSweepBsv21Token = useCallback(async (tokenId: string) => {
+		const wallet = resolveWallet();
+		if (!wallet || !assets) return;
+		const token = assets.bsv21Tokens.find((t) => t.tokenId === tokenId);
+		if (!token) return;
+		await runOperation(`Sweep ${token.symbol ?? tokenId.slice(0, 8)}`, async () => {
+			const result = await sweepBsv21Token({ wallet, keys: keyMap, token, onProgress: setSweepProgress });
+			if (result.error) throw new Error(result.error);
+			return result.txid ?? "";
+		});
+	}, [resolveWallet, assets, keyMap, runOperation]);
 
 	return (
 		<div className="min-h-screen bg-background text-foreground">
@@ -279,7 +291,7 @@ export function SweepApp({ legacyKeys: initialKeys, wallet: externalWallet, swee
 								<TabsContent value="opns">
 									<OpnsSection opnsNames={assets.opnsNames} selectedOpns={selectedOpns} onToggle={handleToggleOpns} onSelectAll={handleSelectAllOpns} onDeselectAll={handleDeselectAllOpns} onSweep={handleSweepOpns} onSend={sweepOnly ? undefined : handleSendOpns} onBurn={sweepOnly ? undefined : handleBurnOpns} walletConnected={walletConnected} />
 								</TabsContent>
-								<TabsContent value="bsv21"><Bsv21Section tokens={assets.bsv21Tokens} /></TabsContent>
+								<TabsContent value="bsv21"><Bsv21Section tokens={assets.bsv21Tokens} onSweep={handleSweepBsv21Token} walletConnected={walletConnected} /></TabsContent>
 								<TabsContent value="bsv20"><Bsv20Section tokens={assets.bsv20Tokens} /></TabsContent>
 								<TabsContent value="locks"><LockedSection locked={assets.locked} /></TabsContent>
 								<TabsContent value="run"><RunSection run={assets.run} /></TabsContent>

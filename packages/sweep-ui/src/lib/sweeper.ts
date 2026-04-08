@@ -7,6 +7,7 @@ import {
 } from "@1sat/actions";
 import type { IndexedOutput } from "@1sat/types";
 import { PrivateKey, type WalletInterface } from "@bsv/sdk";
+import type { TokenBalance } from "./scanner";
 import { getServices } from "./services";
 
 export interface SweepResult {
@@ -29,16 +30,18 @@ function buildKeys(outputs: IndexedOutput[], keyMap: Map<string, PrivateKey>): P
 	});
 }
 
+/**
+ * Sweep BSV funding and ordinals into the connected wallet.
+ */
 export async function executeSweep(params: {
 	wallet: WalletInterface;
 	keys: Map<string, PrivateKey>;
 	funding: IndexedOutput[];
 	ordinals: IndexedOutput[];
-	bsv21Tokens: IndexedOutput[];
 	amount?: number;
 	onProgress: (stage: string) => void;
 }): Promise<SweepResult> {
-	const { wallet, keys, funding, ordinals, bsv21Tokens, amount, onProgress } = params;
+	const { wallet, keys, funding, ordinals, amount, onProgress } = params;
 	const ctx = createContext(wallet, { services: getServices(), chain: "main" });
 
 	const result: SweepResult = {
@@ -71,36 +74,38 @@ export async function executeSweep(params: {
 		}
 	}
 
-	if (bsv21Tokens.length > 0) {
-		const groups = new Map<string, IndexedOutput[]>();
-		for (const token of bsv21Tokens) {
-			const tokenEvent = token.events?.find((e) => e.startsWith("tokenId:"));
-			const tokenId = tokenEvent?.slice(8) ?? "unknown";
-			const group = groups.get(tokenId) ?? [];
-			group.push(token);
-			groups.set(tokenId, group);
-		}
-
-		for (const [tokenId, tokens] of groups) {
-			onProgress(`Sweeping ${tokens.length} tokens (${tokenId.slice(0, 8)}...)...`);
-			try {
-				const inputs = await prepareSweepInputs(ctx, tokens);
-				const tokenResult = await sweepBsv21.execute(ctx, {
-					inputs: inputs.map((inp) => ({
-						...inp,
-						tokenId,
-						amount: "0",
-					})),
-					keys: buildKeys(tokens, keys),
-				});
-				if (tokenResult.error) result.errors.push(`BSV-21 (${tokenId.slice(0, 8)}): ${tokenResult.error}`);
-				else if (tokenResult.txid) result.bsv21Txids.push(tokenResult.txid);
-			} catch (e) {
-				result.errors.push(`BSV-21 (${tokenId.slice(0, 8)}): ${e instanceof Error ? e.message : String(e)}`);
-			}
-		}
-	}
-
 	onProgress("Sweep complete");
 	return result;
+}
+
+/**
+ * Sweep a single BSV-21 token into the connected wallet.
+ * Each token requires its own transaction since all inputs must share a tokenId.
+ */
+export async function sweepBsv21Token(params: {
+	wallet: WalletInterface;
+	keys: Map<string, PrivateKey>;
+	token: TokenBalance;
+	onProgress: (stage: string) => void;
+}): Promise<{ txid?: string; error?: string }> {
+	const { wallet, keys, token, onProgress } = params;
+	const ctx = createContext(wallet, { services: getServices(), chain: "main" });
+
+	onProgress(`Sweeping ${token.symbol ?? token.tokenId.slice(0, 8)}...`);
+
+	try {
+		const inputs = token.outputs.map((out) => ({
+			outpoint: out.outpoint,
+			tokenId: token.tokenId,
+			amount: token.amounts.get(out.outpoint) ?? "0",
+		}));
+
+		const tokenKeys = buildKeys(token.outputs, keys);
+
+		const result = await sweepBsv21.execute(ctx, { inputs, keys: tokenKeys });
+		if (result.error) return { error: result.error };
+		return { txid: result.txid };
+	} catch (e) {
+		return { error: e instanceof Error ? e.message : String(e) };
+	}
 }
