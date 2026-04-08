@@ -73,23 +73,20 @@ function resolveIconOutpoint(tokenId: string, icon?: string): string | undefined
 }
 
 async function groupBsv21Tokens(outputs: IndexedOutput[]): Promise<TokenBalance[]> {
-	const groups = new Map<string, { outputs: IndexedOutput[]; totalAmount: bigint }>();
+	// Group outputs by token ID from general indexer events
+	const groups = new Map<string, IndexedOutput[]>();
 
 	for (const out of outputs) {
 		const events = out.events ?? [];
 		const tokenId = getEvent(events, "bsv21:");
 		if (!tokenId) continue;
 
-		const amtStr = getEvent(events, "amt:");
-		const amount = amtStr ? BigInt(amtStr) : 0n;
-
 		let group = groups.get(tokenId);
 		if (!group) {
-			group = { outputs: [], totalAmount: 0n };
+			group = [];
 			groups.set(tokenId, group);
 		}
-		group.outputs.push(out);
-		group.totalAmount += amount;
+		group.push(out);
 	}
 
 	if (groups.size === 0) return [];
@@ -97,6 +94,7 @@ async function groupBsv21Tokens(outputs: IndexedOutput[]): Promise<TokenBalance[
 	const services = getServices();
 	const tokenIds = [...groups.keys()];
 
+	// Get token metadata and active status from overlay
 	let details: Array<{ tokenId: string; token?: { sym?: string; dec?: string; icon?: string }; status?: { is_active?: boolean } }> = [];
 	try {
 		details = await services.bsv21.lookupTokens(tokenIds);
@@ -107,18 +105,37 @@ async function groupBsv21Tokens(outputs: IndexedOutput[]): Promise<TokenBalance[
 	const detailMap = new Map(details.map((d) => [d.tokenId, d]));
 
 	const balances: TokenBalance[] = [];
-	for (const [tokenId, group] of groups) {
+	for (const [tokenId, outs] of groups) {
 		const detail = detailMap.get(tokenId);
+		const isActive = detail?.status?.is_active ?? false;
 		const iconOutpoint = resolveIconOutpoint(tokenId, detail?.token?.icon);
+
+		let totalAmount = 0n;
+		let validatedOutputs = outs;
+
+		// For active tokens, validate outputs against the overlay to get real amounts
+		if (isActive) {
+			try {
+				const outpoints = outs.map((o) => o.outpoint);
+				const validated = await services.bsv21.validateOutputs(tokenId, outpoints, { unspent: true });
+				totalAmount = validated.reduce((sum, v) => {
+					const bsv21 = v.data?.bsv21 as { amt?: string } | undefined;
+					return sum + (bsv21?.amt ? BigInt(bsv21.amt) : 0n);
+				}, 0n);
+				validatedOutputs = validated;
+			} catch {
+				// Validation failed — show outputs without amounts
+			}
+		}
 
 		balances.push({
 			tokenId,
 			symbol: detail?.token?.sym,
 			icon: iconOutpoint ? services.ordfs.getContentUrl(iconOutpoint) : "",
 			decimals: Number(detail?.token?.dec ?? 0),
-			totalAmount: group.totalAmount,
-			outputs: group.outputs,
-			isActive: detail?.status?.is_active ?? false,
+			totalAmount,
+			outputs: validatedOutputs,
+			isActive,
 		});
 	}
 	return balances;
