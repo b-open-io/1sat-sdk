@@ -248,7 +248,10 @@ export const getBsv21Balances: Action<GetBsv21BalancesInput, Bsv21Balance[]> = {
 				10,
 			)
 			const symTag = o.tags?.find((t) => t.startsWith('sym:'))?.slice(4)
-			const iconTag = o.tags?.find((t) => t.startsWith('icon:'))?.slice(5)
+			const rawIcon = o.tags?.find((t) => t.startsWith('icon:'))?.slice(5)
+			const icon = rawIcon?.startsWith('_')
+				? `${tokenId.split('_')[0]}${rawIcon}`
+				: rawIcon
 
 			const existing = balanceMap.get(tokenId)
 			if (existing) {
@@ -258,7 +261,7 @@ export const getBsv21Balances: Action<GetBsv21BalancesInput, Bsv21Balance[]> = {
 					id: tokenId,
 					amt,
 					sym: symTag,
-					icon: iconTag,
+					icon,
 					dec,
 				})
 			}

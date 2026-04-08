@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/actions",
-	"version": "0.0.75",
+	"version": "0.0.76",
 	"description": "Action definitions for the 1Sat SDK",
 	"type": "module",
 	"main": "./dist/index.js",
