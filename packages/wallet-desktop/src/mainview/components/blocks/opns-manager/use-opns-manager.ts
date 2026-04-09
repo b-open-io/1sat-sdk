@@ -56,9 +56,15 @@ export interface UseOpnsManagerReturn {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Extract the name string from OpNS output tags */
-function extractNameFromTags(tags: string[]): string {
-  for (const tag of tags) {
+/** Extract the name from customInstructions (case-preserved) or tags (lowercased) */
+function extractName(output: { customInstructions?: string; tags?: string[] }): string {
+  if (output.customInstructions) {
+    try {
+      const parsed = JSON.parse(output.customInstructions)
+      if (parsed.name) return parsed.name
+    } catch {}
+  }
+  for (const tag of output.tags ?? []) {
     if (tag.startsWith("name:")) {
       return tag.slice(5)
     }
@@ -122,7 +128,7 @@ export function useOpnsManager(
         const tags = output.tags ?? []
         return {
           outpoint: output.outpoint,
-          name: extractNameFromTags(tags),
+          name: extractName(output),
           registered: isRegistered(tags),
           identityKey: undefined, // Identity key is resolved server-side
         }

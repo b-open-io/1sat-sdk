@@ -375,6 +375,14 @@ export async function buildTransferOrdinals(
 			lockingScript = p2pkhScript.toHex()
 		}
 
+		// Carry forward the name from the source output's customInstructions
+		let sourceName: string | undefined
+		if (ordinal.customInstructions) {
+			try {
+				sourceName = JSON.parse(ordinal.customInstructions).name
+			} catch {}
+		}
+
 		if (counterparty) {
 			outputs?.push({
 				lockingScript,
@@ -385,6 +393,7 @@ export async function buildTransferOrdinals(
 				customInstructions: JSON.stringify({
 					protocolID: ONESAT_PROTOCOL,
 					keyID: outpoint,
+					...(sourceName && { name: sourceName }),
 				}),
 			})
 		} else {
@@ -435,6 +444,13 @@ export async function buildListOrdinal(
 	})
 	tags.push('ordlock', `price:${price}`)
 
+	let sourceName: string | undefined
+	if (ordinal.customInstructions) {
+		try {
+			sourceName = JSON.parse(ordinal.customInstructions).name
+		} catch {}
+	}
+
 	const inputBEEF =
 		request.inputBEEF ??
 		(await resolveBeef(ctx.wallet, ORDINALS_BASKET, ordinal))
@@ -459,6 +475,7 @@ export async function buildListOrdinal(
 				customInstructions: JSON.stringify({
 					protocolID: ONESAT_PROTOCOL,
 					keyID: outpoint,
+					...(sourceName && { name: sourceName }),
 				}),
 			},
 		],
@@ -1103,6 +1120,7 @@ export const purchaseOrdinal: Action<
 				customInstructions: JSON.stringify({
 					protocolID: ONESAT_PROTOCOL,
 					keyID: outpoint,
+					...(input.name && { name: input.name }),
 				}),
 			})
 

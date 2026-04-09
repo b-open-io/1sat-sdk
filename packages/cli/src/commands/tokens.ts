@@ -4,6 +4,7 @@
 
 import {
 	getBsv21Balances,
+	getDisplayValue,
 	listTokens,
 	purchaseBsv21,
 	sendBsv21,
@@ -117,7 +118,7 @@ async function tokenList(args: string[], opts: GlobalFlags): Promise<void> {
 			const idTag =
 				o.tags?.find((t) => t.startsWith('id:'))?.slice(3) ?? 'unknown'
 			const amtTag = o.tags?.find((t) => t.startsWith('amt:'))?.slice(4) ?? '0'
-			const symTag = o.tags?.find((t) => t.startsWith('sym:'))?.slice(4) ?? ''
+			const symTag = getDisplayValue(o, 'sym', 'sym') ?? ''
 
 			console.log(
 				`  ${formatValue(o.outpoint)}  ${formatLabel(symTag || idTag.slice(0, 12))}  ${formatLabel('amt:')} ${formatValue(amtTag)}`,

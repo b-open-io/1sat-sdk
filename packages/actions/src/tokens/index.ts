@@ -26,6 +26,7 @@ import type {
 	OneSatContext,
 } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
+import { getDisplayValue } from '../utils/displayValue'
 import { signP2PKHInput } from '../utils/signP2PKH'
 
 // ============================================================================
@@ -247,7 +248,7 @@ export const getBsv21Balances: Action<GetBsv21BalancesInput, Bsv21Balance[]> = {
 				o.tags?.find((t) => t.startsWith('dec:'))?.slice(4) || '0',
 				10,
 			)
-			const symTag = o.tags?.find((t) => t.startsWith('sym:'))?.slice(4)
+			const symTag = getDisplayValue(o, 'sym', 'sym')
 			const rawIcon = o.tags?.find((t) => t.startsWith('icon:'))?.slice(5)
 			const icon = rawIcon?.startsWith('_')
 				? `${tokenId.split('_')[0]}${rawIcon}`
@@ -472,6 +473,9 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 					customInstructions: JSON.stringify({
 						protocolID: BSV21_PROTOCOL,
 						keyID: changeKeyID,
+						...(tokenDetails.token.sym && {
+							sym: tokenDetails.token.sym,
+						}),
 					}),
 				})
 			}
@@ -721,6 +725,9 @@ export const purchaseBsv21: Action<
 				customInstructions: JSON.stringify({
 					protocolID: BSV21_PROTOCOL,
 					keyID: bsv21KeyID,
+					...(tokenDetails.token.sym && {
+						sym: tokenDetails.token.sym,
+					}),
 				}),
 			})
 

@@ -35,10 +35,20 @@ function getTag(tags: string[], prefix: string): string | undefined {
 	return tag ? tag.slice(prefix.length) : undefined
 }
 
+function getDisplayField(o: OrdinalInfo, field: string, tagPrefix: string): string | undefined {
+	if (o.customInstructions) {
+		try {
+			const parsed = JSON.parse(o.customInstructions)
+			if (parsed[field]) return parsed[field]
+		} catch {}
+	}
+	return getTag(o.tags, tagPrefix)
+}
+
 function toOrdinalCard(o: OrdinalInfo): OrdinalCard {
 	return {
 		outpoint: o.outpoint,
-		name: getTag(o.tags, 'name:'),
+		name: getDisplayField(o, 'name', 'name:'),
 		contentType: getTag(o.tags, 'type:') ?? '',
 	}
 }

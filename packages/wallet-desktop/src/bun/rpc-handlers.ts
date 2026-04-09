@@ -442,6 +442,7 @@ export function createRpcHandlers(scopedAccountId?: string) {
 				outpoint: o.outpoint,
 				tags: o.tags ?? [],
 				satoshis: o.satoshis,
+				customInstructions: o.customInstructions,
 			}))
 			return { ordinals }
 		},

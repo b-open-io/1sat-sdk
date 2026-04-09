@@ -448,6 +448,7 @@ export const sweepOrdinals: Action<
 					pubKeyResult.publicKey,
 				).toAddress()
 
+				const ordName = typeof mapName === 'string' ? mapName.slice(0, 64) : undefined
 				outputs.push({
 					lockingScript: new P2PKH().lock(derivedAddress).toHex(),
 					satoshis: 1,
@@ -457,6 +458,7 @@ export const sweepOrdinals: Action<
 					customInstructions: JSON.stringify({
 						protocolID: ONESAT_PROTOCOL,
 						keyID: input.outpoint,
+						...(ordName && { name: ordName }),
 					}),
 				})
 			}
@@ -732,6 +734,9 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 				customInstructions: JSON.stringify({
 					protocolID: BSV21_PROTOCOL,
 					keyID,
+					...(tokenDetails.token.sym && {
+						sym: tokenDetails.token.sym,
+					}),
 				}),
 			})
 

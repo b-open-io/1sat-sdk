@@ -49,6 +49,7 @@ export interface OrdinalInfo {
 	outpoint: string
 	tags: string[]
 	satoshis: number
+	customInstructions?: string
 }
 
 // Token balance info

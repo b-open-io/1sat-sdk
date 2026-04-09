@@ -7,6 +7,7 @@ import { basename, extname } from 'node:path'
 import {
 	cancelListing,
 	deriveDepositAddresses,
+	getDisplayValue,
 	getOrdinals,
 	inscribe,
 	listOrdinal,
@@ -83,7 +84,7 @@ async function ordinalsList(_args: string[], opts: GlobalFlags): Promise<void> {
 				o.tags?.find((t) => t.startsWith('type:'))?.slice(5) ?? 'unknown'
 			const originTag =
 				o.tags?.find((t) => t.startsWith('origin:'))?.slice(7) ?? ''
-			const nameTag = o.tags?.find((t) => t.startsWith('name:'))?.slice(5) ?? ''
+			const nameTag = getDisplayValue(o, 'name', 'name') ?? ''
 
 			console.log(
 				`  ${formatValue(o.outpoint)}  ${formatLabel(typeTag)}${nameTag ? `  ${nameTag}` : ''}${originTag ? `  origin:${originTag}` : ''}`,

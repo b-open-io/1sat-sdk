@@ -259,6 +259,7 @@ function buildInternalizeOutput(
 		const basket = txo.basket || 'custom'
 		const tags = [...collectTags(txo), idTag]
 		const nameTag = tags.find((t) => t.startsWith('name:'))
+		const sym = (txo.data.bsv21?.data as { sym?: string })?.sym
 
 		return {
 			outputIndex: vout,
@@ -271,6 +272,7 @@ function buildInternalizeOutput(
 					derivationSuffix: derivation.derivationSuffix,
 					senderIdentityKey: derivation.senderIdentityKey,
 					...(nameTag && { name: nameTag.slice(5).slice(0, 64) }),
+					...(sym && { sym }),
 				}),
 			},
 		}
@@ -280,6 +282,7 @@ function buildInternalizeOutput(
 	if (txo.basket && txo.basket !== 'fund') {
 		const tags = [...collectTags(txo), idTag]
 		const nameTag = tags.find((t) => t.startsWith('name:'))
+		const sym = (txo.data.bsv21?.data as { sym?: string })?.sym
 
 		return {
 			outputIndex: vout,
@@ -291,6 +294,7 @@ function buildInternalizeOutput(
 					protocolID: BRC29_PROTOCOL_ID,
 					keyID: `${derivation.derivationPrefix} ${derivation.derivationSuffix}`,
 					...(nameTag && { name: nameTag.slice(5).slice(0, 64) }),
+					...(sym && { sym }),
 				}),
 			},
 		}

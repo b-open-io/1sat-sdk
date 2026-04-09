@@ -42,6 +42,7 @@ export type {
 	FundingResult,
 } from './funding'
 export { resolveBeef, extractIdTag } from './utils/resolveBeef'
+export { getDisplayValue } from './utils/displayValue'
 export {
 	internalizeBeef,
 	type InternalizeBeefOptions,

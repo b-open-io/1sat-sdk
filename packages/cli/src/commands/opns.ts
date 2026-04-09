@@ -5,6 +5,7 @@
  */
 
 import {
+	getDisplayValue,
 	getOpnsNames,
 	opnsDeregister as opnsDeregisterAction,
 	opnsRegister as opnsRegisterAction,
@@ -149,7 +150,7 @@ async function opnsLookup(_args: string[], opts: GlobalFlags): Promise<void> {
 		}
 
 		for (const o of result.outputs) {
-			const nameTag = o.tags?.find((t) => t.startsWith('name:'))?.slice(5) ?? ''
+			const nameTag = getDisplayValue(o, 'name', 'name') ?? ''
 			const publishedTag = o.tags?.find((t) => t === 'opns:published')
 			const status = publishedTag ? 'registered' : 'unregistered'
 
