@@ -169,6 +169,7 @@ async function listTokensInternal(
 	const result = await ctx.wallet.listOutputs({
 		basket: BSV21_BASKET,
 		includeTags: true,
+		includeCustomInstructions: true,
 		limit,
 	})
 	return result.outputs
