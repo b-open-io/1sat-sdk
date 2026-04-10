@@ -94,8 +94,8 @@ async function tokenList(args: string[], opts: GlobalFlags): Promise<void> {
 
 		const filtered = tokenId
 			? outputs.filter((o) => {
-					const idTag = o.tags?.find((t) => t.startsWith('id:'))
-					return idTag && idTag.slice(3) === tokenId
+					const idTag = o.tags?.find((t) => t.startsWith('bsv21:'))
+					return idTag && idTag.slice(6) === tokenId
 				})
 			: outputs
 
@@ -116,7 +116,7 @@ async function tokenList(args: string[], opts: GlobalFlags): Promise<void> {
 
 		for (const o of filtered) {
 			const idTag =
-				o.tags?.find((t) => t.startsWith('id:'))?.slice(3) ?? 'unknown'
+				o.tags?.find((t) => t.startsWith('bsv21:'))?.slice(6) ?? 'unknown'
 			const amtTag = o.tags?.find((t) => t.startsWith('amt:'))?.slice(4) ?? '0'
 			const symTag = getDisplayValue(o, 'sym', 'sym') ?? ''
 

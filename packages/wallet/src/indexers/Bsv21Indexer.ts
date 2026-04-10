@@ -101,7 +101,7 @@ export class Bsv21Indexer extends Indexer {
 
 		const tags: string[] = []
 		if (txo.owner && this.owners.has(txo.owner)) {
-			tags.push(`id:${bsv21.id}`)
+			tags.push(`bsv21:${bsv21.id}`)
 			tags.push(`amt:${bsv21.amt.toString()}`)
 			// Add metadata tags for efficient querying
 			if (bsv21.sym) tags.push(`sym:${bsv21.sym}`)
