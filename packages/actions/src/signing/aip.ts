@@ -69,6 +69,7 @@ export async function resolveCurrentKeyId(ctx: OneSatContext): Promise<string> {
 function getAipMessageBuffer(lockingScript: Script): number[] {
 	const buf: number[] = []
 	let foundOpReturn = false
+	let hasContent = false
 
 	for (const chunk of lockingScript.chunks) {
 		if (chunk.op === OP.OP_RETURN) {
@@ -79,7 +80,18 @@ function getAipMessageBuffer(lockingScript: Script): number[] {
 		if (!foundOpReturn) continue
 		if (chunk.data != null && chunk.data.length > 0) {
 			buf.push(...Array.from(chunk.data))
+			hasContent = true
 		}
+	}
+
+	// Trailing '|' is part of the AIP signed message — matches the protocol
+	// separator the validator walks when reconstructing signed bytes. Only
+	// appended when there was actual content, matching the original bsv-bap
+	// semantic (`if (opReturn.length > 0) buffers.push(toArray("|"))`). Do not
+	// remove: every AIP validator (go-templates, bmap, @1sat/templates' own
+	// validateAIP) requires it.
+	if (hasContent) {
+		buf.push(0x7c)
 	}
 
 	return buf

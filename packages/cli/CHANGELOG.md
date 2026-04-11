@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.20
+
+### Fixed
+- Picks up `@1sat/actions@0.0.82` — AIP signed-message now includes the trailing `|` separator required by the canonical AIP protocol. BAP identity and profile signing via the CLI (`1sat identity ...`) produced signatures that were silently rejected by every AIP validator until this release.
+
 ## 0.0.9
 
 ### Changed

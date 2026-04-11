@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.82
+
+### Fixed
+- `getAipMessageBuffer` now appends the trailing `|` separator to the signed message, matching every canonical AIP validator (go-templates `validateAip`, bmap, the `@1sat/templates` internal `validateAIP`, and pre-regression bsv-bap). BAP identity and profile transactions signed by `applyBapAip` were silently rejected by every overlay validator because the signed bytes were missing the final `0x7c` that the protocol spec requires. The bug was inherited from a May 2025 regression in bsv-bap (`b1dd05d`, "fix AIP OP_RETURN signing issue", which deleted the trailing-pipe append that had been in place since the library's 2021 initial commit and survived three refactors). Verified against a 2019-era on-chain BAP identity at block 590194 that validates under the corrected format.
+
 ## 0.0.69
 
 ### Fixed

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.19
+
+### Fixed
+- Picks up `@1sat/actions@0.0.82` — AIP signed-message fix (trailing `|` separator now included). Affects any sweep flow that produces BAP identity or profile transactions.
+
 ## 0.0.10
 
 ### Fixed
