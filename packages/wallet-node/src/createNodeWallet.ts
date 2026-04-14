@@ -92,12 +92,18 @@ export async function createNodeWallet(
 	}
 
 	const destroy = async (): Promise<void> => {
-		if (monitor) {
-			monitor.stopTasks()
-			await new Promise((r) => setTimeout(r, 100))
-			await monitor.destroy()
-		}
-		await core.destroy()
+		try {
+			if (monitor) {
+				monitor.stopTasks()
+				if (monitor._tasksRunningPromise) {
+					await monitor._tasksRunningPromise
+				}
+				await monitor.destroy()
+			}
+		} catch {}
+		try {
+			await core.destroy()
+		} catch {}
 	}
 
 	return {

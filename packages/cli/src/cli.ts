@@ -8,13 +8,14 @@
 
 import { parseGlobalFlags } from './args'
 import { handleActionCommand } from './commands/action'
-import { handleMcpProxyCommand } from './commands/mcp-proxy'
 import { handleConfigCommand } from './commands/config'
 import { handleIdentityCommand } from './commands/identity'
 import { handleInitCommand } from './commands/init'
 import { handleLocksCommand } from './commands/locks'
+import { handleMcpProxyCommand } from './commands/mcp-proxy'
 import { handleOpnsCommand } from './commands/opns'
 import { handleOrdinalsCommand } from './commands/ordinals'
+import { handleRemoteCommand } from './commands/remote'
 import { handleSocialCommand } from './commands/social'
 import { handleSweepCommand } from './commands/sweep'
 import { handleTokensCommand } from './commands/tokens'
@@ -47,6 +48,10 @@ async function main(): Promise<void> {
 
 		case 'config':
 			await handleConfigCommand(rest, flags)
+			break
+
+		case 'remote':
+			await handleRemoteCommand(rest, flags)
 			break
 
 		case 'wallet':

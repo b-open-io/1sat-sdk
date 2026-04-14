@@ -7,7 +7,12 @@
 import { type OneSatContext, createContext } from '@1sat/actions'
 import { type NodeWalletResult, createNodeWallet } from '@1sat/wallet-node'
 import type { PrivateKey } from '@bsv/sdk'
-import { ensureDataDir, loadConfig } from './config'
+import {
+	ensureDataDir,
+	loadConfig,
+	loadMonitorState,
+	saveMonitorState,
+} from './config'
 
 /** Extended context that includes cleanup */
 export interface CliContext {
@@ -17,12 +22,34 @@ export interface CliContext {
 }
 
 /**
+ * Run the monitor once if the interval has elapsed.
+ * This is called lazily by commands that need current state.
+ */
+async function runMonitorIfStale(
+	walletResult: NodeWalletResult,
+	intervalMinutes: number,
+): Promise<void> {
+	if (!walletResult.monitor) return // remote active, monitor runs remotely
+	if (intervalMinutes === 0) return // disabled by user
+
+	const state = loadMonitorState()
+	const now = Date.now()
+	const elapsed = now - state.lastMonitorRun
+	const intervalMs = intervalMinutes * 60 * 1000
+
+	if (elapsed >= intervalMs) {
+		await walletResult.monitor.runOnce()
+		saveMonitorState({ lastMonitorRun: Date.now() })
+	}
+}
+
+/**
  * Create a fully initialized OneSatContext for CLI use.
  *
  * Sets up:
  * - Node wallet with SQLite storage
  * - 1Sat services for API access
- * - Monitor for transaction lifecycle
+ * - Monitor for transaction lifecycle (lazy, interval-based)
  */
 export async function loadContext(
 	privateKey: PrivateKey,
@@ -37,17 +64,13 @@ export async function loadContext(
 		privateKey,
 		chain: opts.chain,
 		storageIdentityKey,
-		storage: {
-			client: 'better-sqlite3',
-			connection: {
-				filename: `${dataDir}/wallet-${opts.chain}.db`,
-			},
-			useNullAsDefault: true,
-		},
+		filename: `${dataDir}/wallet-${opts.chain}.db`,
 		activeRemote: config.activeRemote,
+		backups: config.backups,
 	})
 
-	walletResult.monitor?.startTasks()
+	// Run monitor once if interval has elapsed (lazy refresh)
+	await runMonitorIfStale(walletResult, config.monitorIntervalMinutes)
 
 	const ctx = createContext(walletResult.wallet, {
 		services: walletResult.services,

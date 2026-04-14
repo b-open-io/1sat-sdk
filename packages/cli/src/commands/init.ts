@@ -173,7 +173,33 @@ export async function handleInitCommand(
 		process.exit(0)
 	}
 
-	// 5. Save everything
+	// 5. Optional: remote storage configuration
+	const useRemote = await confirm({
+		message: 'Configure remote storage? (remote is active, local is backup)',
+		defaultValue: false,
+	})
+	let activeRemote: string | undefined
+
+	if (useRemote) {
+		const url = await text({
+			message: 'Primary remote storage URL:',
+			validate(value) {
+				if (!value) return 'Required'
+				try {
+					new URL(value)
+				} catch {
+					return 'Invalid URL'
+				}
+			},
+		})
+		if (isCancel(url)) {
+			cancel('Setup cancelled.')
+			process.exit(0)
+		}
+		activeRemote = url as string
+	}
+
+	// 6. Save everything
 	ensureConfigDir()
 
 	await saveKey(wif, pw as string)
@@ -195,6 +221,7 @@ export async function handleInitCommand(
 		...loadConfig(),
 		chain: chain as 'main' | 'test',
 		storageIdentityKey: storageId as string,
+		activeRemote,
 	})
 
 	const pk = PrivateKey.fromWif(wif)

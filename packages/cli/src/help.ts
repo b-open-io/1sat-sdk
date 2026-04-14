@@ -38,6 +38,7 @@ ${bold('Usage:')}
 ${bold('Setup:')}
   ${cyan('init')}                     Interactive wallet setup wizard
   ${cyan('config')} <subcommand>      Manage configuration
+  ${cyan('remote')} <subcommand>      Manage remote storage
 
 ${bold('Wallet:')}
   ${cyan('wallet balance')}           Show wallet balance
@@ -100,7 +101,7 @@ ${bold('Environment Variables:')}
   ${dim('PRIVATE_KEY_WIF')}          Private key (bypasses encrypted keyfile)
   ${dim('ONESAT_PASSWORD')}          Password for encrypted keyfile
 
-${bold('Config:')} ~/.1sat/
+${bold('Config:')} ~/.1sat/cli/
 `)
 }
 

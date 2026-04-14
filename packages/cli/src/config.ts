@@ -1,5 +1,5 @@
 /**
- * Config management for ~/.1sat/
+ * Config management for ~/.1sat/cli/
  *
  * Handles persistent configuration on disk with secure file permissions.
  */
@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-const CONFIG_DIR = join(homedir(), '.1sat')
+const CONFIG_DIR = join(homedir(), '.1sat', 'cli')
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json')
 
 export interface OneSatCliConfig {
@@ -16,19 +16,48 @@ export interface OneSatCliConfig {
 	chain: 'main' | 'test'
 	/** Data directory for wallet databases */
 	dataDir: string
-	/** Remote storage URL for wallet sync */
+	/** Primary remote storage URL (active or backup) */
 	activeRemote?: string
+	/** Backup remote storage URLs */
+	backups?: string[]
 	/** Storage identity key for wallet persistence */
 	storageIdentityKey?: string
+	/** How often to run the monitor refresh (minutes). 0 disables auto-refresh. */
+	monitorIntervalMinutes: number
 }
 
 const DEFAULT_CONFIG: OneSatCliConfig = {
 	chain: 'main',
 	dataDir: join(CONFIG_DIR, 'data'),
+	monitorIntervalMinutes: 5,
+}
+
+// Monitor state — stored separately so we don't rewrite config.json on every command
+const MONITOR_STATE_FILE = join(CONFIG_DIR, 'monitor-state.json')
+
+export interface MonitorState {
+	lastMonitorRun: number // unix ms timestamp
+}
+
+export function loadMonitorState(): MonitorState {
+	if (!existsSync(MONITOR_STATE_FILE)) return { lastMonitorRun: 0 }
+	try {
+		const raw = readFileSync(MONITOR_STATE_FILE, 'utf8')
+		return JSON.parse(raw)
+	} catch {
+		return { lastMonitorRun: 0 }
+	}
+}
+
+export function saveMonitorState(state: MonitorState): void {
+	ensureConfigDir()
+	writeFileSync(MONITOR_STATE_FILE, JSON.stringify(state, null, 2), {
+		mode: 0o600,
+	})
 }
 
 /**
- * Ensure ~/.1sat/ exists with secure permissions.
+ * Ensure ~/.1sat/cli/ exists with secure permissions.
  */
 export function ensureConfigDir(): void {
 	if (!existsSync(CONFIG_DIR)) {
