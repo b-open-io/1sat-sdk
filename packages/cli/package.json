@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/cli",
-"version": "0.0.21",
+"version": "0.0.22",
 	"description": "CLI for 1Sat Ordinals SDK",
 	"type": "module",
 	"main": "./src/cli.ts",
