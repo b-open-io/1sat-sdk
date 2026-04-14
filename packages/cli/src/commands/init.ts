@@ -8,6 +8,7 @@
  * 4. Config file creation
  */
 
+import { randomBytes } from 'node:crypto'
 import { PrivateKey } from '@bsv/sdk'
 import {
 	cancel,
@@ -162,16 +163,8 @@ export async function handleInitCommand(
 		// bitcoin-backup Touch ID not available — skip silently
 	}
 
-	// 4. Optional: storage identity key
-	const storageId = await text({
-		message: 'Storage identity key (for wallet persistence):',
-		defaultValue: '1sat-cli-default',
-		placeholder: '1sat-cli-default',
-	})
-	if (isCancel(storageId)) {
-		cancel('Setup cancelled.')
-		process.exit(0)
-	}
+	// 4. Generate random storage identity key
+	const storageId = `1sat-cli-${randomBytes(8).toString('hex')}`
 
 	// 5. Optional: remote storage configuration
 	const useRemote = await confirm({
@@ -220,7 +213,7 @@ export async function handleInitCommand(
 	saveConfig({
 		...loadConfig(),
 		chain: chain as 'main' | 'test',
-		storageIdentityKey: storageId as string,
+		storageIdentityKey: storageId,
 		activeRemote,
 	})
 

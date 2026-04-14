@@ -81,6 +81,9 @@ async function remoteAdd(args: string[], opts: GlobalFlags): Promise<void> {
 		chain: opts.chain,
 	})
 
+	// Load config early — needed for storage identity key lookups
+	const config = loadConfig()
+
 	try {
 		// For backup-only, we use StorageClient via wallet-node
 		// biome-ignore lint/suspicious/noExplicitAny: StorageClient constructor not typed in wallet-toolbox
@@ -99,7 +102,6 @@ async function remoteAdd(args: string[], opts: GlobalFlags): Promise<void> {
 		await walletResult.storage.updateBackups()
 
 		// Persist to config — connectivity will be validated on next monitor run
-		const config = loadConfig()
 		const existing = config.backups ?? []
 		if (!existing.includes(url)) {
 			saveConfig({ ...config, backups: [...existing, url] })
