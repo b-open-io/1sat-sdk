@@ -32,7 +32,6 @@
     "@1sat/actions": "workspace:*",
     "@1sat/client": "workspace:*",
     "@1sat/connect": "workspace:*",
-    "@1sat/sweep-ui": "workspace:*",
     "@1sat/types": "workspace:*",
     "@1sat/utils": "workspace:*",
     "bitcoin-backup": "^0.0.11",
