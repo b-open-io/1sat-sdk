@@ -4,7 +4,7 @@
  * Functions for sweeping assets from external wallets into a BRC-100 wallet.
  */
 
-import { BSV21 } from '@1sat/templates'
+import { BSV21, OrdLock } from '@1sat/templates'
 import type { IndexedOutput } from '@1sat/types'
 import type { OrdfsMetadata } from '@1sat/types'
 import { formatOutpoint, parseOutpoint } from '@1sat/utils'
@@ -515,13 +515,23 @@ export const sweepOrdinals: Action<
 						const key = keyMap.get(inputOutpoint)
 						const source = sourceMap.get(inputOutpoint)
 						if (key) {
-							txInput.unlockingScriptTemplate = new P2PKH().unlock(
-								key,
-								'all',
-								true,
-								source?.satoshis,
-								source?.script,
-							)
+							if (source?.script && OrdLock.isOrdLock(source.script)) {
+								txInput.unlockingScriptTemplate = OrdLock.cancelListing(
+									key,
+									'all',
+									true,
+									source.satoshis,
+									source.script,
+								)
+							} else {
+								txInput.unlockingScriptTemplate = new P2PKH().unlock(
+									key,
+									'all',
+									true,
+									source?.satoshis,
+									source?.script,
+								)
+							}
 						}
 					}
 
