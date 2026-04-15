@@ -161,10 +161,6 @@ Locks are stored in the `locks` basket with tags:
 
 Custom instructions store the protocol and key info for unlocking.
 
-## Minimum Unlock Amount
-
-There is a minimum unlock threshold (`MIN_UNLOCK_SATS`) to prevent dust unlock attempts. If your matured locks total less than this threshold per lock, they won't appear as unlockable.
-
 ## Current Block Height
 
 The lock module uses `services.chaintracks.currentHeight()` to determine the current block height. You can also check it directly:

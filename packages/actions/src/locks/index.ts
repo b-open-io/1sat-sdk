@@ -11,7 +11,7 @@ import {
 	Utils,
 	type WalletOutput,
 } from '@bsv/sdk'
-import { LOCK_BASKET, MIN_UNLOCK_SATS } from '../constants'
+import { LOCK_BASKET } from '../constants'
 import type { Action, ActionLogEntry, ActionOptions } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
 
@@ -94,10 +94,6 @@ export const getLockData: Action<GetLockDataInput, LockData> = {
 			} else if (!lockData.nextUnlock || until < lockData.nextUnlock) {
 				lockData.nextUnlock = until
 			}
-		}
-
-		if (lockData.unlockable < MIN_UNLOCK_SATS * outputs.length) {
-			lockData.unlockable = 0
 		}
 
 		return lockData
@@ -288,14 +284,6 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 
 			if (maturedLocks.length === 0) {
 				return { error: 'no-matured-locks' }
-			}
-
-			const totalSats = maturedLocks.reduce(
-				(sum, l) => sum + l.output.satoshis,
-				0,
-			)
-			if (totalSats < MIN_UNLOCK_SATS * maturedLocks.length) {
-				return { error: 'insufficient-unlock-amount' }
 			}
 
 			const maxUntil = Math.max(...maturedLocks.map((l) => l.until))

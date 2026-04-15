@@ -38,8 +38,6 @@ export const DUST_LIMIT = 1
 /** BSV21 per-output fee in satoshis */
 export const BSV21_FEE_SATS = 1000
 
-/** Minimum sats required to unlock certain scripts */
-export const MIN_UNLOCK_SATS = 1500
 
 // ============================================================================
 // API Endpoints
