@@ -107,11 +107,18 @@ export async function sweepBsv21Token(params: {
 	onProgress(`Sweeping ${token.symbol ?? token.tokenId.slice(0, 8)}...`)
 
 	try {
-		const inputs = token.outputs.map((out) => ({
-			outpoint: out.outpoint,
-			tokenId: token.tokenId,
-			amount: token.amounts.get(out.outpoint) ?? '0',
-		}))
+		const sweepInputs = await prepareSweepInputs(ctx, token.outputs)
+		const sweepInputMap = new Map(sweepInputs.map((s) => [s.outpoint, s]))
+
+		const inputs = token.outputs.map((out) => {
+			const base = sweepInputMap.get(out.outpoint)
+			if (!base) throw new Error(`Missing sweep input for ${out.outpoint}`)
+			return {
+				...base,
+				tokenId: token.tokenId,
+				amount: token.amounts.get(out.outpoint) ?? '0',
+			}
+		})
 
 		const tokenKeys = buildKeys(token.outputs, keys)
 
