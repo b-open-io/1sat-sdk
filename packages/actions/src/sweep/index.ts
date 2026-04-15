@@ -13,6 +13,7 @@ import {
 	P2PKH,
 	type PrivateKey,
 	PublicKey,
+	Script,
 	Transaction,
 	Utils,
 } from '@bsv/sdk'
@@ -97,6 +98,21 @@ function buildKeyMap(
 	return map
 }
 
+/** Build a map of SDK-formatted outpoint → source output info */
+function buildSourceMap(
+	inputs: { outpoint: string; satoshis: number; lockingScript: string }[],
+): Map<string, { script: Script; satoshis: number }> {
+	const map = new Map<string, { script: Script; satoshis: number }>()
+	for (const input of inputs) {
+		const { txid, vout } = parseOutpoint(input.outpoint)
+		map.set(formatOutpoint(txid, vout), {
+			script: Script.fromHex(input.lockingScript),
+			satoshis: input.satoshis,
+		})
+	}
+	return map
+}
+
 /**
  * Sweep BSV from external inputs into the destination wallet.
  *
@@ -157,6 +173,7 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 			}
 
 			const keyMap = buildKeyMap(inputs, keys)
+			const sourceMap = buildSourceMap(inputs)
 			const sourceAddress = keys[0].toPublicKey().toAddress()
 
 			// Calculate totals
@@ -240,11 +257,14 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 							txInput.sourceOutputIndex,
 						)
 						const key = keyMap.get(inputOutpoint)
+						const source = sourceMap.get(inputOutpoint)
 						if (key) {
 							txInput.unlockingScriptTemplate = new P2PKH().unlock(
 								key,
 								'all',
 								true,
+								source?.satoshis,
+								source?.script,
 							)
 						}
 					}
@@ -375,6 +395,7 @@ export const sweepOrdinals: Action<
 			}
 
 			const keyMap = buildKeyMap(inputs, keys)
+			const sourceMap = buildSourceMap(inputs)
 
 			// Resolve metadata for all inputs from ORDFS
 			const outpoints = inputs.map((i) => i.outpoint)
@@ -492,11 +513,14 @@ export const sweepOrdinals: Action<
 							txInput.sourceOutputIndex,
 						)
 						const key = keyMap.get(inputOutpoint)
+						const source = sourceMap.get(inputOutpoint)
 						if (key) {
 							txInput.unlockingScriptTemplate = new P2PKH().unlock(
 								key,
 								'all',
 								true,
+								source?.satoshis,
+								source?.script,
 							)
 						}
 					}
@@ -638,6 +662,7 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 			}
 
 			const keyMap = buildKeyMap(inputs, keys)
+			const sourceMap = buildSourceMap(inputs)
 
 			// Validate all inputs have the same tokenId
 			const tokenId = inputs[0].tokenId
@@ -776,11 +801,14 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 							txInput.sourceOutputIndex,
 						)
 						const key = keyMap.get(inputOutpoint)
+						const source = sourceMap.get(inputOutpoint)
 						if (key) {
 							txInput.unlockingScriptTemplate = new P2PKH().unlock(
 								key,
 								'all',
 								true,
+								source?.satoshis,
+								source?.script,
 							)
 						}
 					}

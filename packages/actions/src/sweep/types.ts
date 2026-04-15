@@ -53,10 +53,8 @@ export interface SweepOrdinalsResponse {
 	error?: string
 }
 
-/** Input for BSV-21 token sweep — only the fields the action reads */
-export interface SweepBsv21Input {
-	/** Outpoint in format "txid_vout" */
-	outpoint: string
+/** Input for BSV-21 token sweep */
+export interface SweepBsv21Input extends SweepInput {
 	/** Token ID (txid_vout format) */
 	tokenId: string
 	/** Token amount as string (bigint serialization) */
