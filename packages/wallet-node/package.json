@@ -1,40 +1,50 @@
 {
-	"name": "@1sat/wallet-node",
-	"version": "0.0.22",
-	"description": "Node/Bun wallet factory for 1Sat Ordinals SDK",
-	"type": "module",
-	"main": "./dist/index.js",
-	"types": "./dist/index.d.ts",
-	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js"
-		}
-	},
-	"files": ["dist"],
-	"scripts": {
-		"build": "tsc",
-		"dev": "tsc --watch",
-		"clean": "rm -rf dist"
-	},
-	"keywords": ["1sat", "bsv", "ordinals", "wallet", "node", "server", "cli"],
-	"license": "MIT",
-	"dependencies": {
-		"@1sat/wallet": "workspace:*"
-	},
-	"peerDependencies": {
-		"@bsv/sdk": "^2.0.6",
-		"@bsv/wallet-toolbox": "^2.1.8"
-	},
-	"peerDependenciesMeta": {
-		"better-sqlite3": {
-			"optional": true
-		}
-	},
-	"devDependencies": {
-		"@1sat/client": "workspace:*",
-		"@bsv/sdk": "^2.0.6",
-		"@bsv/wallet-toolbox": "^2.1.9",
-		"typescript": "^5.9.3"
-	}
+  "name": "@1sat/wallet-node",
+	"version": "0.0.23",
+  "description": "Node/Bun wallet factory for 1Sat Ordinals SDK",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "1sat",
+    "bsv",
+    "ordinals",
+    "wallet",
+    "node",
+    "server",
+    "cli"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@1sat/wallet": "workspace:*"
+  },
+  "peerDependencies": {
+    "@bsv/sdk": "^2.0.6",
+    "@bsv/wallet-toolbox": "^2.1.8"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@1sat/client": "workspace:*",
+    "@bsv/sdk": "^2.0.6",
+    "@bsv/wallet-toolbox": "^2.1.9",
+    "typescript": "^5.9.3"
+  }
 }
