@@ -29,7 +29,7 @@
     },
     "packages/actions": {
       "name": "@1sat/actions",
-      "version": "0.0.84",
+      "version": "0.0.85",
       "dependencies": {
         "@1sat/client": "workspace:*",
         "@1sat/templates": "workspace:*",
@@ -176,7 +176,7 @@
     },
     "packages/templates": {
       "name": "@1sat/templates",
-      "version": "0.0.6",
+      "version": "0.0.7",
       "dependencies": {
         "@1sat/types": "workspace:*",
       },

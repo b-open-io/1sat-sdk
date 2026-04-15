@@ -1,6 +1,6 @@
 {
   "name": "@1sat/templates",
-	"version": "0.0.6",
+	"version": "0.0.7",
   "description": "Bitcoin script templates for 1Sat Ordinals SDK",
   "type": "module",
   "main": "./dist/index.js",
