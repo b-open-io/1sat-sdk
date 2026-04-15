@@ -106,9 +106,7 @@ async function sweepScan(args: string[], opts: GlobalFlags): Promise<void> {
 			}
 		}
 
-		console.log(
-			`\n  ${formatLabel('RUN Tokens:')} ${result.run.length}`,
-		)
+		console.log(`\n  ${formatLabel('RUN Tokens:')} ${result.run.length}`)
 		if (result.run.length > 0) {
 			const runSats = result.run.reduce((sum, r) => sum + (r.satoshis ?? 0), 0)
 			console.log(
@@ -161,11 +159,15 @@ async function sweepImport(args: string[], opts: GlobalFlags): Promise<void> {
 
 		const hasFunding = scan.funding.length > 0
 		const hasOrdinals = scan.ordinals.length > 0
-		const hasTokens = scan.bsv21Tokens.some((t) => t.isActive && t.outputs.length > 0)
+		const hasTokens = scan.bsv21Tokens.some(
+			(t) => t.isActive && t.outputs.length > 0,
+		)
 
 		if (!hasFunding && !hasOrdinals && !hasTokens) {
 			if (scan.run.length > 0) {
-				fatal(`No sweepable UTXOs found at ${address} (${scan.run.length} RUN token output(s) excluded)`)
+				fatal(
+					`No sweepable UTXOs found at ${address} (${scan.run.length} RUN token output(s) excluded)`,
+				)
 			}
 			fatal(`No UTXOs found at ${address}`)
 		}

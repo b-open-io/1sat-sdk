@@ -13,12 +13,12 @@ import {
 	X,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { STACK_URL } from '../../../shared/constants'
 import {
 	registerBrowserController,
 	unregisterBrowserController,
 } from '../../lib/browser-controller'
 import { onStackOnboardingRequired, rpc } from '../../rpc'
-import { STACK_URL } from '../../../shared/constants'
 
 // ORDFS resolution -- routes on-chain content through the local 1sat-stack sidecar
 const OUTPOINT_RE = /^[0-9a-fA-F]{64}[_.]?\d*$/

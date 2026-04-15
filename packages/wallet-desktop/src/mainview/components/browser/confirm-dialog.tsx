@@ -1,5 +1,4 @@
-import { useCallback } from "react"
-import { AlertTriangle } from "lucide-react"
+import { Button } from '@/components/ui/button'
 import {
 	Dialog,
 	DialogContent,
@@ -7,9 +6,10 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+} from '@/components/ui/dialog'
+import { cn } from '@/lib/utils'
+import { AlertTriangle } from 'lucide-react'
+import { useCallback } from 'react'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -28,7 +28,7 @@ function satsToBsv(sats: number): string {
 
 function satsToUsd(sats: number): string {
 	const usd = (sats / SATS_PER_BSV) * BSV_USD_ESTIMATE
-	if (usd < 0.01) return "< $0.01"
+	if (usd < 0.01) return '< $0.01'
 	return `≈ $${usd.toFixed(2)}`
 }
 
@@ -81,8 +81,8 @@ function DetailRow({ label, value, valueClassName, mono }: DetailRowProps) {
 			<span className="shrink-0 text-xs text-muted-foreground">{label}</span>
 			<span
 				className={cn(
-					"min-w-0 break-all text-right text-sm",
-					mono ? "font-mono" : "",
+					'min-w-0 break-all text-right text-sm',
+					mono ? 'font-mono' : '',
 					valueClassName,
 				)}
 			>
@@ -138,11 +138,7 @@ export function ConfirmDialog({
 				</DialogHeader>
 
 				<div className="divide-y divide-border border border-border">
-					<DetailRow
-						label="To"
-						value={truncateAddress(toAddress)}
-						mono
-					/>
+					<DetailRow label="To" value={truncateAddress(toAddress)} mono />
 					<DetailRow
 						label="Amount"
 						value={`${formatSats(amountSats)} sats`}
@@ -187,7 +183,7 @@ export function ConfirmDialog({
 						aria-busy={isLoading}
 						className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
 					>
-						{isLoading ? "Sending..." : "Send"}
+						{isLoading ? 'Sending...' : 'Send'}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

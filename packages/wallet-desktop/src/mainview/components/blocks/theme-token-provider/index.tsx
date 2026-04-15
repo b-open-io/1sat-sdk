@@ -1,26 +1,23 @@
-import { createContext, useContext } from "react"
+import { createContext, useContext } from 'react'
+import { ThemeTokenSettingsUi } from './theme-token-settings-ui'
 import {
-  useThemeToken,
-  type UseThemeTokenOptions,
-  type UseThemeTokenReturn,
-} from "./use-theme-token"
-import {
-  ThemeTokenSettingsUi,
-  type ThemeTokenSettingsUiProps,
-} from "./theme-token-settings-ui"
+	type UseThemeTokenOptions,
+	type UseThemeTokenReturn,
+	useThemeToken,
+} from './use-theme-token'
 
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 
-export { useThemeToken } from "./use-theme-token"
+export { useThemeToken } from './use-theme-token'
 export type {
-  UseThemeTokenOptions,
-  UseThemeTokenReturn,
-  ThemeTokenStatus,
-} from "./use-theme-token"
-export { ThemeTokenSettingsUi } from "./theme-token-settings-ui"
-export type { ThemeTokenSettingsUiProps } from "./theme-token-settings-ui"
+	UseThemeTokenOptions,
+	UseThemeTokenReturn,
+	ThemeTokenStatus,
+} from './use-theme-token'
+export { ThemeTokenSettingsUi } from './theme-token-settings-ui'
+export type { ThemeTokenSettingsUiProps } from './theme-token-settings-ui'
 
 // ---------------------------------------------------------------------------
 // Context
@@ -39,13 +36,13 @@ const ThemeTokenContext = createContext<UseThemeTokenReturn | null>(null)
  * ```
  */
 export function useThemeTokenContext(): UseThemeTokenReturn {
-  const ctx = useContext(ThemeTokenContext)
-  if (!ctx) {
-    throw new Error(
-      "useThemeTokenContext must be used within a <ThemeTokenProvider>",
-    )
-  }
-  return ctx
+	const ctx = useContext(ThemeTokenContext)
+	if (!ctx) {
+		throw new Error(
+			'useThemeTokenContext must be used within a <ThemeTokenProvider>',
+		)
+	}
+	return ctx
 }
 
 // ---------------------------------------------------------------------------
@@ -54,10 +51,10 @@ export function useThemeTokenContext(): UseThemeTokenReturn {
 
 /** Props for the ThemeTokenProvider component */
 export interface ThemeTokenProviderProps extends UseThemeTokenOptions {
-  /** Child elements to wrap */
-  children?: React.ReactNode
-  /** Additional CSS classes on the wrapper div */
-  className?: string
+	/** Child elements to wrap */
+	children?: React.ReactNode
+	/** Additional CSS classes on the wrapper div */
+	className?: string
 }
 
 /**
@@ -76,29 +73,29 @@ export interface ThemeTokenProviderProps extends UseThemeTokenOptions {
  * ```
  */
 export function ThemeTokenProvider({
-  children,
-  className,
-  defaultOrigin,
-  storageKey,
-  resolvedTheme,
-  onThemeApplied,
-  onThemeCleared,
-  onError,
+	children,
+	className,
+	defaultOrigin,
+	storageKey,
+	resolvedTheme,
+	onThemeApplied,
+	onThemeCleared,
+	onError,
 }: ThemeTokenProviderProps) {
-  const themeToken = useThemeToken({
-    defaultOrigin,
-    storageKey,
-    resolvedTheme,
-    onThemeApplied,
-    onThemeCleared,
-    onError,
-  })
+	const themeToken = useThemeToken({
+		defaultOrigin,
+		storageKey,
+		resolvedTheme,
+		onThemeApplied,
+		onThemeCleared,
+		onError,
+	})
 
-  return (
-    <ThemeTokenContext.Provider value={themeToken}>
-      <div className={className}>{children}</div>
-    </ThemeTokenContext.Provider>
-  )
+	return (
+		<ThemeTokenContext.Provider value={themeToken}>
+			<div className={className}>{children}</div>
+		</ThemeTokenContext.Provider>
+	)
 }
 
 // ---------------------------------------------------------------------------
@@ -107,12 +104,12 @@ export function ThemeTokenProvider({
 
 /** Props for the composed ThemeTokenSettings component */
 export interface ThemeTokenSettingsProps {
-  /** Callback fired after a theme is applied */
-  onApply?: (origin: string) => void
-  /** Callback fired when the theme is cleared */
-  onClear?: () => void
-  /** Additional CSS classes */
-  className?: string
+	/** Callback fired after a theme is applied */
+	onApply?: (origin: string) => void
+	/** Callback fired when the theme is cleared */
+	onClear?: () => void
+	/** Additional CSS classes */
+	className?: string
 }
 
 /**
@@ -129,32 +126,32 @@ export interface ThemeTokenSettingsProps {
  * ```
  */
 export function ThemeTokenSettings({
-  onApply,
-  onClear,
-  className,
+	onApply,
+	onClear,
+	className,
 }: ThemeTokenSettingsProps) {
-  const { origin, theme, status, error, setOrigin, clearOrigin } =
-    useThemeTokenContext()
+	const { origin, theme, status, error, setOrigin, clearOrigin } =
+		useThemeTokenContext()
 
-  const handleApply = async (newOrigin: string) => {
-    await setOrigin(newOrigin)
-    onApply?.(newOrigin)
-  }
+	const handleApply = async (newOrigin: string) => {
+		await setOrigin(newOrigin)
+		onApply?.(newOrigin)
+	}
 
-  const handleClear = () => {
-    clearOrigin()
-    onClear?.()
-  }
+	const handleClear = () => {
+		clearOrigin()
+		onClear?.()
+	}
 
-  return (
-    <ThemeTokenSettingsUi
-      origin={origin}
-      themeName={theme?.name ?? null}
-      status={status}
-      errorMessage={error?.message ?? null}
-      onApply={handleApply}
-      onClear={handleClear}
-      className={className}
-    />
-  )
+	return (
+		<ThemeTokenSettingsUi
+			origin={origin}
+			themeName={theme?.name ?? null}
+			status={status}
+			errorMessage={error?.message ?? null}
+			onApply={handleApply}
+			onClear={handleClear}
+			className={className}
+		/>
+	)
 }

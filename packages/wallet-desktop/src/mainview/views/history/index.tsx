@@ -1,9 +1,9 @@
+import { Empty } from '@/components/ui/empty'
+import { Clock } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { HistoryEntry } from '../../../shared/types'
 import { cn } from '../../lib/utils'
 import { rpc } from '../../rpc'
-import { Empty } from '@/components/ui/empty'
-import { Clock } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -276,7 +276,9 @@ export function HistoryView({ onNavigate }: HistoryViewProps) {
 										paddingRight: 16,
 										cursor: 'pointer',
 									}}
-									onClick={() => onNavigate?.(`1sat://wallet/tx?txid=${entry.txid}`)}
+									onClick={() =>
+										onNavigate?.(`1sat://wallet/tx?txid=${entry.txid}`)
+									}
 								>
 									{/* Status dot */}
 									<div

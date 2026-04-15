@@ -4,7 +4,7 @@
  * Connects to the local MCP server on :3322 with BRC-31 authentication.
  * Provides tools for use with the AI SDK's streamText().
  */
-import { createMCPClient, type MCPClient } from '@ai-sdk/mcp'
+import { type MCPClient, createMCPClient } from '@ai-sdk/mcp'
 import {
 	clearSession,
 	ensureSession,
@@ -45,7 +45,9 @@ export async function getMcpTools() {
 		const client = await getMcpClient()
 		const tools = await client.tools()
 		const toolNames = Object.keys(tools)
-		console.log(`[MCP Client] Got ${toolNames.length} tools: ${toolNames.slice(0, 5).join(', ')}${toolNames.length > 5 ? '...' : ''}`)
+		console.log(
+			`[MCP Client] Got ${toolNames.length} tools: ${toolNames.slice(0, 5).join(', ')}${toolNames.length > 5 ? '...' : ''}`,
+		)
 		return tools
 	} catch (err) {
 		console.error(

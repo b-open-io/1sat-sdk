@@ -1,3 +1,4 @@
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 /**
  * AI Chat API handler for the BRC-100 HTTP server.
  *
@@ -10,8 +11,14 @@
  * from the user's AI settings. The handler creates the appropriate provider
  * instance and passes MCP tools for tool-calling models.
  */
-import { convertToModelMessages, extractReasoningMiddleware, stepCountIs, streamText, wrapLanguageModel, type UIMessage } from 'ai'
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
+import {
+	type UIMessage,
+	convertToModelMessages,
+	extractReasoningMiddleware,
+	stepCountIs,
+	streamText,
+	wrapLanguageModel,
+} from 'ai'
 import { ollama } from 'ai-sdk-ollama'
 import { createRequestLogger } from 'evlog'
 import { getMcpTools } from './mcp/client'
@@ -56,7 +63,12 @@ function sanitizeContextField(value: unknown): string {
 // Provider factory
 // ---------------------------------------------------------------------------
 
-type ProviderType = 'ollama' | 'lmstudio' | 'openai' | 'openrouter' | 'anthropic'
+type ProviderType =
+	| 'ollama'
+	| 'lmstudio'
+	| 'openai'
+	| 'openrouter'
+	| 'anthropic'
 
 function createModel(
 	provider: ProviderType,
@@ -155,7 +167,8 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 			log.emit()
 			return new Response(
 				JSON.stringify({
-					error: 'No AI model specified. Go to Settings > AI and select a model.',
+					error:
+						'No AI model specified. Go to Settings > AI and select a model.',
 				}),
 				{ status: 400, headers: { 'Content-Type': 'application/json' } },
 			)
@@ -198,7 +211,10 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 		// Wrap with reasoning extraction for models that use <think> tags (qwen3, etc.)
 		const model = wrapLanguageModel({
 			model: baseModel,
-			middleware: extractReasoningMiddleware({ tagName: 'think', startWithReasoning: true }),
+			middleware: extractReasoningMiddleware({
+				tagName: 'think',
+				startWithReasoning: true,
+			}),
 		})
 
 		const result = streamText({
@@ -213,13 +229,9 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 		log.emit()
 		return result.toUIMessageStreamResponse()
 	} catch (error) {
-		const message =
-			error instanceof Error ? error.message : 'Unknown error'
+		const message = error instanceof Error ? error.message : 'Unknown error'
 
-		if (
-			message.includes('ECONNREFUSED') ||
-			message.includes('fetch failed')
-		) {
+		if (message.includes('ECONNREFUSED') || message.includes('fetch failed')) {
 			log.set({ status: 503, error: 'provider_unreachable' })
 			log.emit()
 			return new Response(

@@ -51,7 +51,9 @@ export function ImportBackup({ onComplete, onCancel }: ImportBackupProps) {
 		}
 		setFileName(result.filename)
 		try {
-			const bytes = Uint8Array.from(atob(result.base64Content), (c) => c.charCodeAt(0))
+			const bytes = Uint8Array.from(atob(result.base64Content), (c) =>
+				c.charCodeAt(0),
+			)
 			const text = new TextDecoder().decode(bytes)
 			setInputData(text)
 
@@ -97,7 +99,9 @@ export function ImportBackup({ onComplete, onCancel }: ImportBackupProps) {
 				{importErrors.length > 0 && (
 					<div className="mb-6 p-3 bg-destructive/5 border border-destructive/20 rounded-lg">
 						{importErrors.map((err, i) => (
-							<p key={`err-${i}`} className="text-xs text-destructive">{err}</p>
+							<p key={`err-${i}`} className="text-xs text-destructive">
+								{err}
+							</p>
 						))}
 					</div>
 				)}
@@ -116,7 +120,9 @@ export function ImportBackup({ onComplete, onCancel }: ImportBackupProps) {
 				<div className="text-center">
 					<Loader2 className="size-8 animate-spin text-primary mx-auto mb-4" />
 					<p className="text-sm font-medium text-foreground">Importing...</p>
-					<p className="text-xs text-muted-foreground mt-1">This may take a moment</p>
+					<p className="text-xs text-muted-foreground mt-1">
+						This may take a moment
+					</p>
 				</div>
 			</CenteredContainer>
 		)
@@ -128,7 +134,9 @@ export function ImportBackup({ onComplete, onCancel }: ImportBackupProps) {
 			<CenteredContainer>
 				<div className="flex flex-col items-center mb-6">
 					<KeyRound className="size-8 text-muted-foreground mb-3" />
-					<h2 className="text-lg font-semibold text-foreground">Enter Recovery Phrase</h2>
+					<h2 className="text-lg font-semibold text-foreground">
+						Enter Recovery Phrase
+					</h2>
 					<p className="text-sm text-muted-foreground mt-1 text-center">
 						Enter your 12 or 24 word mnemonic
 					</p>
@@ -143,10 +151,20 @@ export function ImportBackup({ onComplete, onCancel }: ImportBackupProps) {
 					className="w-full px-3 py-2 bg-card border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm mb-4 resize-none"
 				/>
 
-				{error && <p className="text-sm text-destructive mb-4 text-center">{error}</p>}
+				{error && (
+					<p className="text-sm text-destructive mb-4 text-center">{error}</p>
+				)}
 
 				<div className="flex gap-3">
-					<Button variant="outline" className="flex-1" onClick={() => { setStep('choose'); setInputData(''); setError(null) }}>
+					<Button
+						variant="outline"
+						className="flex-1"
+						onClick={() => {
+							setStep('choose')
+							setInputData('')
+							setError(null)
+						}}
+					>
 						<ChevronLeft className="size-4" />
 						Back
 					</Button>
@@ -168,9 +186,13 @@ export function ImportBackup({ onComplete, onCancel }: ImportBackupProps) {
 			<CenteredContainer>
 				<div className="flex flex-col items-center mb-6">
 					<FileKey className="size-8 text-primary mb-3" />
-					<h2 className="text-lg font-semibold text-foreground">Enter Password</h2>
+					<h2 className="text-lg font-semibold text-foreground">
+						Enter Password
+					</h2>
 					{fileName && (
-						<p className="text-xs text-muted-foreground mt-1 font-mono">{fileName}</p>
+						<p className="text-xs text-muted-foreground mt-1 font-mono">
+							{fileName}
+						</p>
 					)}
 				</div>
 
@@ -186,14 +208,29 @@ export function ImportBackup({ onComplete, onCancel }: ImportBackupProps) {
 					className="w-full px-3 py-2 bg-card border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary mb-4"
 				/>
 
-				{error && <p className="text-sm text-destructive mb-4 text-center">{error}</p>}
+				{error && (
+					<p className="text-sm text-destructive mb-4 text-center">{error}</p>
+				)}
 
 				<div className="flex gap-3">
-					<Button variant="outline" className="flex-1" onClick={() => { setStep('choose'); setInputData(''); setPassword(''); setError(null) }}>
+					<Button
+						variant="outline"
+						className="flex-1"
+						onClick={() => {
+							setStep('choose')
+							setInputData('')
+							setPassword('')
+							setError(null)
+						}}
+					>
 						<ChevronLeft className="size-4" />
 						Back
 					</Button>
-					<Button className="flex-1" disabled={!password} onClick={() => handleImport(inputData, password)}>
+					<Button
+						className="flex-1"
+						disabled={!password}
+						onClick={() => handleImport(inputData, password)}
+					>
 						Decrypt & Import
 					</Button>
 				</div>
@@ -212,14 +249,21 @@ export function ImportBackup({ onComplete, onCancel }: ImportBackupProps) {
 				</p>
 			</div>
 
-			{error && <p className="text-sm text-destructive mb-4 text-center">{error}</p>}
+			{error && (
+				<p className="text-sm text-destructive mb-4 text-center">{error}</p>
+			)}
 
 			<div className="flex flex-col gap-3">
 				<Button className="w-full" size="lg" onClick={handlePickFile}>
 					<Upload className="size-4" />
 					Choose Backup File
 				</Button>
-				<Button variant="secondary" className="w-full" size="lg" onClick={() => setStep('mnemonic')}>
+				<Button
+					variant="secondary"
+					className="w-full"
+					size="lg"
+					onClick={() => setStep('mnemonic')}
+				>
 					<KeyRound className="size-4" />
 					Enter Recovery Phrase
 				</Button>
@@ -249,7 +293,9 @@ function AccountRow({ account }: { account: AccountInfo }) {
 		.slice(0, 2)
 	return (
 		<div className="flex items-center gap-3 p-3 bg-card rounded-lg">
-			<div className={`w-8 h-8 rounded-full bg-${account.color}-500 flex items-center justify-center text-xs font-bold text-white`}>
+			<div
+				className={`w-8 h-8 rounded-full bg-${account.color}-500 flex items-center justify-center text-xs font-bold text-white`}
+			>
 				{initials}
 			</div>
 			<div className="flex-1 min-w-0">

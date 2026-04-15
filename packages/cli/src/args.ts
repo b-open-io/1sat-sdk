@@ -83,6 +83,24 @@ export function extractFlag(args: string[], flag: string): string | undefined {
 }
 
 /**
+ * Extract multiple values for a flag, supporting comma-delimited and multiple flag occurrences.
+ * Example: --tags a,b,c OR --tags a --tags b --tags c
+ */
+export function extractFlags(args: string[], flag: string): string[] {
+	const values: string[] = []
+	for (let i = 0; i < args.length - 1; i++) {
+		if (args[i] === flag) {
+			const value = args[i + 1]
+			if (value && !value.startsWith('--')) {
+				// Split comma-delimited values
+				values.push(...value.split(',').filter((v) => v.length > 0))
+			}
+		}
+	}
+	return values
+}
+
+/**
  * Check if a boolean flag is present.
  */
 export function hasFlag(args: string[], flag: string): boolean {

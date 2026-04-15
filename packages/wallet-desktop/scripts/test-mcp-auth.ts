@@ -42,14 +42,16 @@ async function testHandshake() {
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({
 			messageType: 'initialRequest',
-			identityKey: '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
+			identityKey:
+				'0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
 			nonce: clientNonce,
 		}),
 	})
 	if (!res.ok) throw new Error(`Handshake failed: ${res.status}`)
 	const data = await res.json()
 	if (!data.signature) throw new Error('No signature in handshake response')
-	if (data.yourNonce !== clientNonce) throw new Error('Server did not echo client nonce')
+	if (data.yourNonce !== clientNonce)
+		throw new Error('Server did not echo client nonce')
 	console.log(`   Server nonce: ${data.nonce.slice(0, 16)}...`)
 	console.log(`   Signature: ${data.signature.slice(0, 16)}...`)
 	console.log('   PASS')
@@ -66,7 +68,9 @@ async function main() {
 	console.log(`\nMCP Server Smoke Test (${MCP_URL})\n${'='.repeat(40)}\n`)
 
 	try {
-		await fetch(`${MCP_URL}/.well-known/auth`, { signal: AbortSignal.timeout(2000) })
+		await fetch(`${MCP_URL}/.well-known/auth`, {
+			signal: AbortSignal.timeout(2000),
+		})
 	} catch {
 		console.error('MCP server is not running on port 3322.')
 		console.error('Start the wallet-desktop app first: bun run dev')
@@ -76,12 +80,19 @@ async function main() {
 	let passed = 0
 	let failed = 0
 
-	for (const test of [testAuthDiscovery, testUnauthenticatedRejection, testHandshake, testNotFound]) {
+	for (const test of [
+		testAuthDiscovery,
+		testUnauthenticatedRejection,
+		testHandshake,
+		testNotFound,
+	]) {
 		try {
 			await test()
 			passed++
 		} catch (err) {
-			console.error(`   FAIL: ${err instanceof Error ? err.message : String(err)}`)
+			console.error(
+				`   FAIL: ${err instanceof Error ? err.message : String(err)}`,
+			)
 			failed++
 		}
 	}

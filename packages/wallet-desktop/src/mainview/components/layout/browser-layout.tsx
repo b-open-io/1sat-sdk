@@ -52,10 +52,10 @@ import { useWallet } from '../../hooks/use-wallet'
 import { renderPage } from '../../lib/page-registry'
 import { ORDFS_BASE, parseUrl } from '../../lib/url-parser'
 import {
+	onMenuAction,
 	onNavigateToUrl,
 	onStackOnboardingComplete,
 	onStackOnboardingRequired,
-	onMenuAction,
 	onToggleSyncLog,
 	rpc,
 } from '../../rpc'
@@ -508,7 +508,12 @@ interface AddressBarProps {
 	onOpenLauncher?: (initialQuery: string) => void
 }
 
-function AddressBar({ route, onNavigate, inputRef, onOpenLauncher }: AddressBarProps) {
+function AddressBar({
+	route,
+	onNavigate,
+	inputRef,
+	onOpenLauncher,
+}: AddressBarProps) {
 	const displayLabel = getDisplayLabel(route)
 	const fullUrl =
 		route.type === 'internal'

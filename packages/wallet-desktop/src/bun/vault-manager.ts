@@ -25,7 +25,9 @@ export function initVaultChannel(channel: string): void {
 
 export function getBuildChannel(): string {
 	if (!buildChannel) {
-		throw new Error('Vault channel not initialized — call initVaultChannel() first')
+		throw new Error(
+			'Vault channel not initialized — call initVaultChannel() first',
+		)
 	}
 	return buildChannel
 }
@@ -71,7 +73,9 @@ export async function retrieveRootKey(
 	vault: Vault,
 	accountId: string,
 ): Promise<string> {
-	const { plaintext } = await vault.unlockSecret(vaultLabelForAccount(accountId))
+	const { plaintext } = await vault.unlockSecret(
+		vaultLabelForAccount(accountId),
+	)
 	return plaintext
 }
 

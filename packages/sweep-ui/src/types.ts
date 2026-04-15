@@ -1,5 +1,5 @@
 export interface LegacyKeys {
-	payPk: string;
-	ordPk: string;
-	identityPk?: string;
+	payPk: string
+	ordPk: string
+	identityPk?: string
 }

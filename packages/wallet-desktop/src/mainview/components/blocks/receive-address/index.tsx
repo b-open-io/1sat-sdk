@@ -1,44 +1,44 @@
-"use client"
+'use client'
 
-import { ReceiveAddressUI } from "./receive-address-ui"
-import { useReceiveAddress } from "./use-receive-address"
-import type { ReactNode } from "react"
-import type { ReceiveAddressVariant } from "./receive-address-ui"
+import type { ReactNode } from 'react'
+import { ReceiveAddressUI } from './receive-address-ui'
+import type { ReceiveAddressVariant } from './receive-address-ui'
+import { useReceiveAddress } from './use-receive-address'
 
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 
 export {
-  ReceiveAddressUI,
-  type ReceiveAddressUIProps,
-  type ReceiveAddressVariant,
-} from "./receive-address-ui"
+	ReceiveAddressUI,
+	type ReceiveAddressUIProps,
+	type ReceiveAddressVariant,
+} from './receive-address-ui'
 export {
-  useReceiveAddress,
-  type UseReceiveAddressOptions,
-  type UseReceiveAddressReturn,
-} from "./use-receive-address"
+	useReceiveAddress,
+	type UseReceiveAddressOptions,
+	type UseReceiveAddressReturn,
+} from './use-receive-address'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface ReceiveAddressProps {
-  /** The deposit address to display */
-  address: string | null
-  /** Callback to rotate to a new address */
-  onRotate?: () => Promise<string>
-  /** Callback fired after address is copied */
-  onCopy?: (address: string) => void
-  /** Visual layout variant */
-  variant?: ReceiveAddressVariant
-  /** QR code pixel dimensions (default 200) */
-  qrSize?: number
-  /** Custom QR code renderer — receives the address and returns a ReactNode */
-  renderQr?: (address: string) => ReactNode
-  /** Additional CSS classes */
-  className?: string
+	/** The deposit address to display */
+	address: string | null
+	/** Callback to rotate to a new address */
+	onRotate?: () => Promise<string>
+	/** Callback fired after address is copied */
+	onCopy?: (address: string) => void
+	/** Visual layout variant */
+	variant?: ReceiveAddressVariant
+	/** QR code pixel dimensions (default 200) */
+	qrSize?: number
+	/** Custom QR code renderer — receives the address and returns a ReactNode */
+	renderQr?: (address: string) => ReactNode
+	/** Additional CSS classes */
+	className?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -71,35 +71,30 @@ export interface ReceiveAddressProps {
  * ```
  */
 export function ReceiveAddress({
-  address,
-  onRotate,
-  onCopy,
-  variant,
-  qrSize,
-  renderQr,
-  className,
+	address,
+	onRotate,
+	onCopy,
+	variant,
+	qrSize,
+	renderQr,
+	className,
 }: ReceiveAddressProps) {
-  const {
-    copied,
-    isRotating,
-    rotateError,
-    copyAddress,
-    rotateAddress,
-  } = useReceiveAddress({ address, onRotate, onCopy })
+	const { copied, isRotating, rotateError, copyAddress, rotateAddress } =
+		useReceiveAddress({ address, onRotate, onCopy })
 
-  return (
-    <ReceiveAddressUI
-      address={address}
-      variant={variant}
-      qrSize={qrSize}
-      copied={copied}
-      isRotating={isRotating}
-      rotateError={rotateError}
-      canRotate={!!onRotate}
-      renderQr={renderQr}
-      onCopy={copyAddress}
-      onRotate={rotateAddress}
-      className={className}
-    />
-  )
+	return (
+		<ReceiveAddressUI
+			address={address}
+			variant={variant}
+			qrSize={qrSize}
+			copied={copied}
+			isRotating={isRotating}
+			rotateError={rotateError}
+			canRotate={!!onRotate}
+			renderQr={renderQr}
+			onCopy={copyAddress}
+			onRotate={rotateAddress}
+			className={className}
+		/>
+	)
 }

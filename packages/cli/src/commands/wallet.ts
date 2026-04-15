@@ -1,11 +1,12 @@
 /**
  * Wallet commands - balance, address, send, send-all, info.
+ * BRC-100 interface commands - list-outputs, relinquish-output, list-actions, etc.
  */
 
 import { deriveDepositAddresses, sendAllBsv, sendBsv } from '@1sat/actions'
 import { confirm, isCancel } from '@clack/prompts'
 import type { GlobalFlags } from '../args'
-import { extractFlag } from '../args'
+import { extractFlag, extractFlags } from '../args'
 import { loadContext } from '../context'
 import { printCommandHelp } from '../help'
 import { loadKey, resolvePassword } from '../keys'
@@ -28,6 +29,22 @@ export async function handleWalletCommand(
 			return walletSendAll(rest, opts)
 		case 'info':
 			return walletInfo(rest, opts)
+		case 'list-outputs':
+			return walletListOutputs(rest, opts)
+		case 'relinquish-output':
+			return walletRelinquishOutput(rest, opts)
+		case 'list-actions':
+			return walletListActions(rest, opts)
+		case 'create-action':
+			return walletCreateAction(rest, opts)
+		case 'sign-action':
+			return walletSignAction(rest, opts)
+		case 'abort-action':
+			return walletAbortAction(rest, opts)
+		case 'list-certificates':
+			return walletListCertificates(rest, opts)
+		case 'relinquish-certificate':
+			return walletRelinquishCertificate(rest, opts)
 		default:
 			printCommandHelp('wallet', {
 				balance: 'Show wallet balance in satoshis',
@@ -35,6 +52,17 @@ export async function handleWalletCommand(
 				send: 'Send BSV to an address (--to <addr> --sats <amount>)',
 				'send-all': 'Send all BSV to an address (--to <addr>)',
 				info: 'Show wallet info (address, balance, network)',
+				'list-outputs':
+					'List wallet outputs (--basket <name> [--tags <t1,t2>] [--limit N] [--include-tags] [--include <val>])',
+				'relinquish-output':
+					'Remove output from basket (--basket <name> --output <txid.vout>)',
+				'list-actions': 'List wallet actions [--labels <l1,l2>] [--limit N]',
+				'create-action': 'Create action (JSON args)',
+				'sign-action': 'Sign action (JSON args)',
+				'abort-action': 'Abort action (--reference <ref>)',
+				'list-certificates': 'List certificates',
+				'relinquish-certificate':
+					'Relinquish certificate (--type <t> --serialNumber <s> --certifier <c>)',
 			})
 			if (subcommand && subcommand !== 'help') {
 				process.exit(1)
@@ -211,6 +239,288 @@ async function walletInfo(_args: string[], opts: GlobalFlags): Promise<void> {
 				'Balance (sats)': info.balance,
 				UTXOs: info.utxos,
 			})
+		}
+	} finally {
+		await destroy()
+	}
+}
+
+// BRC-100 Interface Commands
+
+async function walletListOutputs(
+	args: string[],
+	opts: GlobalFlags,
+): Promise<void> {
+	const basket = extractFlag(args, '--basket')
+	if (!basket) fatal('Missing required --basket <name>')
+
+	const tags = extractFlags(args, '--tags')
+	const limitStr = extractFlag(args, '--limit')
+	const limit = limitStr ? Number.parseInt(limitStr, 10) : 10
+	if (!Number.isFinite(limit) || limit < 1 || limit > 10000) {
+		fatal('--limit must be between 1 and 10000')
+	}
+
+	const includeTags = args.includes('--include-tags')
+	const include = extractFlag(args, '--include')
+
+	const privateKey = await loadKey(resolvePassword())
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const listArgs: Parameters<typeof ctx.wallet.listOutputs>[0] = {
+			basket,
+			limit,
+			includeTags,
+			include,
+		}
+		if (tags.length > 0) {
+			listArgs.tags = tags
+		}
+
+		const result = await ctx.wallet.listOutputs(listArgs)
+
+		if (opts.json) {
+			output(result, opts)
+		} else {
+			console.log(
+				`\n${result.totalOutputs} total outputs in basket '${basket}':\n`,
+			)
+			for (const out of result.outputs) {
+				const tags = out.tags?.join(', ') || 'none'
+				console.log(`  ${out.outpoint} | ${out.satoshis} sats | tags: ${tags}`)
+			}
+			console.log()
+		}
+	} finally {
+		await destroy()
+	}
+}
+
+async function walletRelinquishOutput(
+	args: string[],
+	opts: GlobalFlags,
+): Promise<void> {
+	const basket = extractFlag(args, '--basket')
+	const outpoint = extractFlag(args, '--output')
+
+	if (!basket) fatal('Missing required --basket <name>')
+	if (!outpoint) fatal('Missing required --output <txid.vout>')
+
+	// Validate output format (txid.vout)
+	if (!outpoint.includes('.') || outpoint.split('.').length !== 2) {
+		fatal('Invalid --output format. Expected: txid.vout (e.g., abc123...0)')
+	}
+
+	const privateKey = await loadKey(resolvePassword())
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const result = await ctx.wallet.relinquishOutput({
+			basket,
+			output: outpoint,
+		})
+
+		if (opts.json) {
+			output(result, opts)
+		} else {
+			output({ relinquished: true, basket, output: outpoint }, opts)
+		}
+	} finally {
+		await destroy()
+	}
+}
+
+async function walletListActions(
+	args: string[],
+	opts: GlobalFlags,
+): Promise<void> {
+	const labels = extractFlags(args, '--labels')
+	const limitStr = extractFlag(args, '--limit')
+	const limit = limitStr ? Number.parseInt(limitStr, 10) : 10
+	if (!Number.isFinite(limit) || limit < 1 || limit > 10000) {
+		fatal('--limit must be between 1 and 10000')
+	}
+
+	const privateKey = await loadKey(resolvePassword())
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const listArgs: Parameters<typeof ctx.wallet.listActions>[0] = {
+			labels: labels.length > 0 ? labels : ['*'], // Default to all labels if none specified
+			limit,
+		}
+
+		const result = await ctx.wallet.listActions(listArgs)
+
+		if (opts.json) {
+			output(result, opts)
+		} else {
+			console.log(`\n${result.totalActions} total actions:\n`)
+			for (const action of result.actions) {
+				console.log(`  ${action.txid || 'pending'} | status: ${action.status}`)
+			}
+			console.log()
+		}
+	} finally {
+		await destroy()
+	}
+}
+
+async function walletCreateAction(
+	args: string[],
+	opts: GlobalFlags,
+): Promise<void> {
+	const jsonInput = args[0]
+
+	if (!jsonInput)
+		fatal("Missing JSON arguments. Usage: wallet create-action '{...}'")
+
+	let actionArgs: Parameters<typeof ctx.wallet.createAction>[0]
+	try {
+		actionArgs = JSON.parse(jsonInput)
+	} catch {
+		fatal(`Invalid JSON: ${jsonInput}`)
+	}
+
+	const privateKey = await loadKey(resolvePassword())
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const result = await ctx.wallet.createAction(actionArgs)
+		output(result, opts)
+	} finally {
+		await destroy()
+	}
+}
+
+async function walletSignAction(
+	args: string[],
+	opts: GlobalFlags,
+): Promise<void> {
+	const jsonInput = args[0]
+
+	if (!jsonInput)
+		fatal("Missing JSON arguments. Usage: wallet sign-action '{...}'")
+
+	let signArgs: Parameters<typeof ctx.wallet.signAction>[0]
+	try {
+		signArgs = JSON.parse(jsonInput)
+	} catch {
+		fatal(`Invalid JSON: ${jsonInput}`)
+	}
+
+	const privateKey = await loadKey(resolvePassword())
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const result = await ctx.wallet.signAction(signArgs)
+		output(result, opts)
+	} finally {
+		await destroy()
+	}
+}
+
+async function walletAbortAction(
+	args: string[],
+	opts: GlobalFlags,
+): Promise<void> {
+	const reference = extractFlag(args, '--reference')
+
+	if (!reference) fatal('Missing required --reference <ref>')
+
+	const privateKey = await loadKey(resolvePassword())
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const result = await ctx.wallet.abortAction({ reference })
+		output(result, opts)
+	} finally {
+		await destroy()
+	}
+}
+
+async function walletListCertificates(
+	args: string[],
+	opts: GlobalFlags,
+): Promise<void> {
+	const certifiers = extractFlags(args, '--certifiers')
+	const types = extractFlags(args, '--types')
+	const limitStr = extractFlag(args, '--limit')
+	const limit = limitStr ? Number.parseInt(limitStr, 10) : 10
+
+	if (!Number.isFinite(limit) || limit < 1 || limit > 10000) {
+		fatal('--limit must be between 1 and 10000')
+	}
+
+	const privateKey = await loadKey(resolvePassword())
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const listArgs: Parameters<typeof ctx.wallet.listCertificates>[0] = {
+			certifiers: certifiers.length > 0 ? certifiers : [],
+			types: types.length > 0 ? types : [],
+			limit,
+		}
+
+		const result = await ctx.wallet.listCertificates(listArgs)
+
+		if (opts.json) {
+			output(result, opts)
+		} else {
+			console.log(`\n${result.totalCertificates} total certificates:\n`)
+			for (const cert of result.certificates) {
+				console.log(`  ${cert.type} | ${cert.serialNumber} | ${cert.certifier}`)
+			}
+			console.log()
+		}
+	} finally {
+		await destroy()
+	}
+}
+
+async function walletRelinquishCertificate(
+	args: string[],
+	opts: GlobalFlags,
+): Promise<void> {
+	const type = extractFlag(args, '--type')
+	const serialNumber = extractFlag(args, '--serialNumber')
+	const certifier = extractFlag(args, '--certifier')
+
+	if (!type) fatal('Missing required --type <type>')
+	if (!serialNumber) fatal('Missing required --serialNumber <serial>')
+	if (!certifier) fatal('Missing required --certifier <certifier>')
+
+	const privateKey = await loadKey(resolvePassword())
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const result = await ctx.wallet.relinquishCertificate({
+			type,
+			serialNumber,
+			certifier,
+		})
+
+		if (opts.json) {
+			output(result, opts)
+		} else {
+			output({ relinquished: true, type, serialNumber, certifier }, opts)
 		}
 	} finally {
 		await destroy()

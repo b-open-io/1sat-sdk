@@ -11,7 +11,7 @@ import { formatOutpoint, parseOutpoint } from '@1sat/utils'
 import {
 	type CreateActionOutput,
 	P2PKH,
-	PrivateKey,
+	type PrivateKey,
 	PublicKey,
 	Transaction,
 	Utils,
@@ -19,7 +19,10 @@ import {
 import { BSV21_BASKET, BSV21_PROTOCOL, ONESAT_PROTOCOL } from '../constants'
 import { resolveOrdinalTags } from '../ordinals'
 import type { Action, ActionLogEntry, OneSatContext } from '../types'
-import { createTrackedAction, executeTrackedAction } from '../utils/createTrackedAction'
+import {
+	createTrackedAction,
+	executeTrackedAction,
+} from '../utils/createTrackedAction'
 import type {
 	SweepBsv21Request,
 	SweepBsv21Response,
@@ -82,7 +85,10 @@ export async function prepareSweepInputs(
 }
 
 /** Build a map of SDK-formatted outpoint → PrivateKey from parallel arrays */
-function buildKeyMap(inputs: { outpoint: string }[], keys: PrivateKey[]): Map<string, PrivateKey> {
+function buildKeyMap(
+	inputs: { outpoint: string }[],
+	keys: PrivateKey[],
+): Map<string, PrivateKey> {
 	const map = new Map<string, PrivateKey>()
 	for (let i = 0; i < inputs.length; i++) {
 		const { txid, vout } = parseOutpoint(inputs[i].outpoint)
@@ -448,7 +454,8 @@ export const sweepOrdinals: Action<
 					pubKeyResult.publicKey,
 				).toAddress()
 
-				const ordName = typeof mapName === 'string' ? mapName.slice(0, 64) : undefined
+				const ordName =
+					typeof mapName === 'string' ? mapName.slice(0, 64) : undefined
 				outputs.push({
 					lockingScript: new P2PKH().lock(derivedAddress).toHex(),
 					satoshis: 1,

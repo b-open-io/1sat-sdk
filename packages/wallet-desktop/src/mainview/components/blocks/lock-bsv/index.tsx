@@ -1,20 +1,20 @@
-import { useLockBsv } from "./use-lock-bsv"
-import { LockBsvUi } from "./lock-bsv-ui"
+import { LockBsvUi } from './lock-bsv-ui'
+import { useLockBsv } from './use-lock-bsv'
 
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 
-export { useLockBsv } from "./use-lock-bsv"
-export { LockBsvUi } from "./lock-bsv-ui"
+export { useLockBsv } from './use-lock-bsv'
+export { LockBsvUi } from './lock-bsv-ui'
 export type {
-  LockData,
-  LockParams,
-  LockOperationResult,
-  UseLockBsvOptions,
-  UseLockBsvReturn,
-} from "./use-lock-bsv"
-export type { LockBsvUiProps } from "./lock-bsv-ui"
+	LockData,
+	LockParams,
+	LockOperationResult,
+	UseLockBsvOptions,
+	UseLockBsvReturn,
+} from './use-lock-bsv'
+export type { LockBsvUiProps } from './lock-bsv-ui'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -22,25 +22,25 @@ export type { LockBsvUiProps } from "./lock-bsv-ui"
 
 /** Props for the composed LockBsv block */
 export interface LockBsvProps {
-  /** Pre-populated lock summary data */
-  lockData?: {
-    totalLocked: number
-    unlockable: number
-    nextUnlock: number
-  }
-  /** Execute a lock operation (connect to @1sat/actions lockBsv) */
-  onLock?: (params: {
-    satoshis: number
-    until: number
-  }) => Promise<{ txid?: string; error?: string }>
-  /** Execute an unlock of matured locks (connect to @1sat/actions unlockBsv) */
-  onUnlock?: () => Promise<{ txid?: string; error?: string }>
-  /** Callback on successful lock or unlock */
-  onSuccess?: (result: { txid?: string; error?: string }) => void
-  /** Callback on error */
-  onError?: (error: Error) => void
-  /** Additional CSS classes */
-  className?: string
+	/** Pre-populated lock summary data */
+	lockData?: {
+		totalLocked: number
+		unlockable: number
+		nextUnlock: number
+	}
+	/** Execute a lock operation (connect to @1sat/actions lockBsv) */
+	onLock?: (params: {
+		satoshis: number
+		until: number
+	}) => Promise<{ txid?: string; error?: string }>
+	/** Execute an unlock of matured locks (connect to @1sat/actions unlockBsv) */
+	onUnlock?: () => Promise<{ txid?: string; error?: string }>
+	/** Callback on successful lock or unlock */
+	onSuccess?: (result: { txid?: string; error?: string }) => void
+	/** Callback on error */
+	onError?: (error: Error) => void
+	/** Additional CSS classes */
+	className?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -74,33 +74,41 @@ export interface LockBsvProps {
  * ```
  */
 export function LockBsv({
-  lockData: initialLockData,
-  onLock,
-  onUnlock,
-  onSuccess,
-  onError,
-  className,
+	lockData: initialLockData,
+	onLock,
+	onUnlock,
+	onSuccess,
+	onError,
+	className,
 }: LockBsvProps) {
-  const { lockData, isLocking, isUnlocking, error, lastResult, lock, unlock, reset } =
-    useLockBsv({
-      lockData: initialLockData,
-      onLock,
-      onUnlock,
-      onSuccess,
-      onError,
-    })
+	const {
+		lockData,
+		isLocking,
+		isUnlocking,
+		error,
+		lastResult,
+		lock,
+		unlock,
+		reset,
+	} = useLockBsv({
+		lockData: initialLockData,
+		onLock,
+		onUnlock,
+		onSuccess,
+		onError,
+	})
 
-  return (
-    <LockBsvUi
-      lockData={lockData}
-      isLocking={isLocking}
-      isUnlocking={isUnlocking}
-      error={error}
-      lastResult={lastResult}
-      onLock={lock}
-      onUnlock={unlock}
-      onReset={reset}
-      className={className}
-    />
-  )
+	return (
+		<LockBsvUi
+			lockData={lockData}
+			isLocking={isLocking}
+			isUnlocking={isUnlocking}
+			error={error}
+			lastResult={lastResult}
+			onLock={lock}
+			onUnlock={unlock}
+			onReset={reset}
+			className={className}
+		/>
+	)
 }

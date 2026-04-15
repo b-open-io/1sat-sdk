@@ -1,3 +1,4 @@
+import { HD, Mnemonic, PrivateKey } from '@bsv/sdk'
 /**
  * Unified backup import — handles all bitcoin-backup formats plus raw mnemonics.
  *
@@ -23,11 +24,10 @@ import {
 	isYoursWalletBackup,
 } from 'bitcoin-backup'
 import { BAP } from 'bsv-bap'
-import { HD, Mnemonic, PrivateKey } from '@bsv/sdk'
 import type { AccountInfo } from '../shared/types'
-import { addAccount, getAccount, listAccounts } from './account-registry'
-import { computeAccountId } from './wallet-manager'
+import { addAccount, getAccount } from './account-registry'
 import { createDesktopVault, protectRootKey } from './vault-manager'
+import { computeAccountId } from './wallet-manager'
 
 export interface ImportResult {
 	accounts: AccountInfo[]
@@ -48,7 +48,10 @@ export async function importBackup(
 
 	// Check if it's a mnemonic (12 or 24 words, all lowercase alpha)
 	const words = trimmed.split(/\s+/)
-	if ((words.length === 12 || words.length === 24) && words.every((w) => /^[a-z]+$/.test(w))) {
+	if (
+		(words.length === 12 || words.length === 24) &&
+		words.every((w) => /^[a-z]+$/.test(w))
+	) {
 		return importFromMnemonic(trimmed)
 	}
 
@@ -86,7 +89,10 @@ async function importFromMnemonic(mnemonic: string): Promise<ImportResult> {
 	const accountId = computeAccountId(identityKey)
 
 	if (getAccount(accountId)) {
-		return { accounts: [getAccount(accountId)!], errors: ['This wallet is already imported'] }
+		return {
+			accounts: [getAccount(accountId)!],
+			errors: ['This wallet is already imported'],
+		}
 	}
 
 	const vault = createDesktopVault()
@@ -107,7 +113,9 @@ async function importFromMnemonic(mnemonic: string): Promise<ImportResult> {
 /**
  * Import a decrypted backup — dispatches to the appropriate handler.
  */
-async function importDecryptedBackup(backup: DecryptedBackup): Promise<ImportResult> {
+async function importDecryptedBackup(
+	backup: DecryptedBackup,
+): Promise<ImportResult> {
 	const backupType = getBackupType(backup)
 
 	if (isMasterBackup(backup)) {
@@ -152,7 +160,10 @@ async function importSingleKey(
 	const accountId = computeAccountId(identityKey)
 
 	if (getAccount(accountId)) {
-		return { accounts: [getAccount(accountId)!], errors: ['This wallet is already imported'] }
+		return {
+			accounts: [getAccount(accountId)!],
+			errors: ['This wallet is already imported'],
+		}
 	}
 
 	const vault = createDesktopVault()
@@ -196,7 +207,9 @@ async function importFromMasterBackup(
 	}
 
 	const knownCount = bap.listIds().length
-	console.log(`[backup-import] ${knownCount} identities in backup, scanning chain for more...`)
+	console.log(
+		`[backup-import] ${knownCount} identities in backup, scanning chain for more...`,
+	)
 
 	// Discover additional identities from chain.
 	// Check identity existence (ID attestation), not just profile (ALIAS).
@@ -220,13 +233,24 @@ async function importFromMasterBackup(
 		}
 	}
 
-	console.log(`[backup-import] Discovery complete: ${knownCount} from backup + ${discovered} from chain`)
+	console.log(
+		`[backup-import] Discovery complete: ${knownCount} from backup + ${discovered} from chain`,
+	)
 
 	// Create wallet accounts for all identities
 	const allIds = bap.listIds()
 	const vault = createDesktopVault()
 	const masterRootKeyHex = getMasterRootKey(backup)
-	const colors = ['blue', 'amber', 'rose', 'emerald', 'violet', 'cyan', 'orange', 'pink']
+	const colors = [
+		'blue',
+		'amber',
+		'rose',
+		'emerald',
+		'violet',
+		'cyan',
+		'orange',
+		'pink',
+	]
 
 	for (let i = 0; i < allIds.length; i++) {
 		const bapId = allIds[i]
@@ -262,7 +286,9 @@ async function importFromMasterBackup(
 			addAccount(account)
 			accounts.push(account)
 		} catch (err) {
-			errors.push(`${bapId.slice(0, 12)}: ${err instanceof Error ? err.message : String(err)}`)
+			errors.push(
+				`${bapId.slice(0, 12)}: ${err instanceof Error ? err.message : String(err)}`,
+			)
 		}
 	}
 
@@ -299,7 +325,9 @@ async function checkIdentityOnChain(bapId: string): Promise<boolean> {
 				return true
 			}
 		}
-	} catch { /* stack not available */ }
+	} catch {
+		/* stack not available */
+	}
 
 	// 2. Try local stack profile endpoint (might find ALIAS even if identity/get doesn't)
 	try {
@@ -313,7 +341,9 @@ async function checkIdentityOnChain(bapId: string): Promise<boolean> {
 				return true
 			}
 		}
-	} catch { /* stack not available */ }
+	} catch {
+		/* stack not available */
+	}
 
 	// 3. Try remote BAP API
 	try {
@@ -330,7 +360,9 @@ async function checkIdentityOnChain(bapId: string): Promise<boolean> {
 				return true
 			}
 		}
-	} catch { /* remote not available */ }
+	} catch {
+		/* remote not available */
+	}
 
 	// 4. Try remote profile endpoint as last resort
 	try {
@@ -344,7 +376,9 @@ async function checkIdentityOnChain(bapId: string): Promise<boolean> {
 				return true
 			}
 		}
-	} catch { /* remote not available */ }
+	} catch {
+		/* remote not available */
+	}
 
 	console.log(`[backup-import] ${bapId} not found on any source`)
 	return false
@@ -354,7 +388,9 @@ async function checkIdentityOnChain(bapId: string): Promise<boolean> {
  * Fetch the BAP profile (ALIAS attestation) for display name/avatar.
  * Tries local stack first, then remote.
  */
-async function fetchBapProfile(bapId: string): Promise<Record<string, unknown> | null> {
+async function fetchBapProfile(
+	bapId: string,
+): Promise<Record<string, unknown> | null> {
 	// Try local stack
 	try {
 		const res = await fetch(`${STACK_URL}/1sat/bap/profile/${bapId}`, {
@@ -363,11 +399,14 @@ async function fetchBapProfile(bapId: string): Promise<Record<string, unknown> |
 		if (res.ok) {
 			const data = await res.json()
 			if (data && !data.message?.includes('not found')) {
-				if (data?.alternateName || data?.name) return data as Record<string, unknown>
+				if (data?.alternateName || data?.name)
+					return data as Record<string, unknown>
 				if (data?.result) return data.result as Record<string, unknown>
 			}
 		}
-	} catch { /* stack not available */ }
+	} catch {
+		/* stack not available */
+	}
 
 	// Try remote
 	try {
@@ -378,7 +417,9 @@ async function fetchBapProfile(bapId: string): Promise<Record<string, unknown> |
 			const data = await res.json()
 			if (data?.result) return data.result as Record<string, unknown>
 		}
-	} catch { /* remote not available */ }
+	} catch {
+		/* remote not available */
+	}
 
 	return null
 }

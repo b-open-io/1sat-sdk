@@ -2,7 +2,7 @@
 
 import { completeSigmaOAuth, connectSigmaWallet } from '@1sat/connect'
 import { type ReactNode, useEffect, useState } from 'react'
-import { useWallet, clearSigmaGuard } from './wallet-context'
+import { clearSigmaGuard, useWallet } from './wallet-context'
 
 export interface SigmaCallbackProps {
 	/** Where to redirect after successful auth (default: '/') */

@@ -6,10 +6,10 @@
  */
 import { describe, expect, it } from 'bun:test'
 import {
-	applyNavAction,
 	NAV_INITIAL_STATE,
 	type NavAction,
 	type NavState,
+	applyNavAction,
 } from './use-browser-navigation'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -46,17 +46,30 @@ describe('NAV_INITIAL_STATE', () => {
 
 describe('applyNavAction — navigate', () => {
 	it('changes current route after navigate', () => {
-		const state = apply(NAV_INITIAL_STATE, { type: 'navigate', input: '1sat://ordinals/gallery' })
-		expect(state.current).toEqual({ type: 'internal', page: 'ordinals/gallery', params: {} })
+		const state = apply(NAV_INITIAL_STATE, {
+			type: 'navigate',
+			input: '1sat://ordinals/gallery',
+		})
+		expect(state.current).toEqual({
+			type: 'internal',
+			page: 'ordinals/gallery',
+			params: {},
+		})
 	})
 
 	it('sets canGoBack to true after one navigation', () => {
-		const state = apply(NAV_INITIAL_STATE, { type: 'navigate', input: '1sat://settings' })
+		const state = apply(NAV_INITIAL_STATE, {
+			type: 'navigate',
+			input: '1sat://settings',
+		})
 		expect(state.canGoBack).toBe(true)
 	})
 
 	it('keeps canGoForward false after a forward navigation', () => {
-		const state = apply(NAV_INITIAL_STATE, { type: 'navigate', input: '1sat://settings' })
+		const state = apply(NAV_INITIAL_STATE, {
+			type: 'navigate',
+			input: '1sat://settings',
+		})
 		expect(state.canGoForward).toBe(false)
 	})
 
@@ -70,7 +83,11 @@ describe('applyNavAction — navigate', () => {
 			{ type: 'navigate', input: '1sat://settings' },
 		)
 		expect(state.canGoForward).toBe(false)
-		expect(state.current).toEqual({ type: 'internal', page: 'settings', params: {} })
+		expect(state.current).toEqual({
+			type: 'internal',
+			page: 'settings',
+			params: {},
+		})
 	})
 
 	it('parses a web URL', () => {
@@ -82,7 +99,10 @@ describe('applyNavAction — navigate', () => {
 	})
 
 	it('falls back to search for unrecognised input', () => {
-		const state = apply(NAV_INITIAL_STATE, { type: 'navigate', input: 'who is satoshi' })
+		const state = apply(NAV_INITIAL_STATE, {
+			type: 'navigate',
+			input: 'who is satoshi',
+		})
 		expect(state.current.type).toBe('search')
 	})
 
@@ -101,7 +121,11 @@ describe('applyNavAction — back', () => {
 			{ type: 'navigate', input: '1sat://settings' },
 			{ type: 'back' },
 		)
-		expect(state.current).toEqual({ type: 'internal', page: 'wallet/overview', params: {} })
+		expect(state.current).toEqual({
+			type: 'internal',
+			page: 'wallet/overview',
+			params: {},
+		})
 	})
 
 	it('sets canGoForward to true after going back', () => {
@@ -130,7 +154,11 @@ describe('applyNavAction — forward', () => {
 			{ type: 'back' },
 			{ type: 'forward' },
 		)
-		expect(state.current).toEqual({ type: 'internal', page: 'settings', params: {} })
+		expect(state.current).toEqual({
+			type: 'internal',
+			page: 'settings',
+			params: {},
+		})
 	})
 
 	it('restores canGoBack after going forward', () => {
@@ -154,10 +182,10 @@ describe('applyNavAction — forward', () => {
 	})
 
 	it('does nothing when already at the end of history', () => {
-		const state = apply(
-			NAV_INITIAL_STATE,
-			{ type: 'navigate', input: '1sat://settings' },
-		)
+		const state = apply(NAV_INITIAL_STATE, {
+			type: 'navigate',
+			input: '1sat://settings',
+		})
 		const afterForward = applyNavAction(state, { type: 'forward' })
 		expect(afterForward.current).toEqual(state.current)
 	})
@@ -175,17 +203,25 @@ describe('applyNavAction — multi-step history', () => {
 		// history: overview → ordinals → tokens (current)
 
 		state = applyNavAction(state, { type: 'back' })
-		expect(state.current.type === 'internal' && state.current.page).toBe('ordinals/gallery')
+		expect(state.current.type === 'internal' && state.current.page).toBe(
+			'ordinals/gallery',
+		)
 
 		state = applyNavAction(state, { type: 'back' })
-		expect(state.current.type === 'internal' && state.current.page).toBe('wallet/overview')
+		expect(state.current.type === 'internal' && state.current.page).toBe(
+			'wallet/overview',
+		)
 		expect(state.canGoBack).toBe(false)
 
 		state = applyNavAction(state, { type: 'forward' })
-		expect(state.current.type === 'internal' && state.current.page).toBe('ordinals/gallery')
+		expect(state.current.type === 'internal' && state.current.page).toBe(
+			'ordinals/gallery',
+		)
 
 		state = applyNavAction(state, { type: 'forward' })
-		expect(state.current.type === 'internal' && state.current.page).toBe('tokens/all')
+		expect(state.current.type === 'internal' && state.current.page).toBe(
+			'tokens/all',
+		)
 		expect(state.canGoForward).toBe(false)
 	})
 })

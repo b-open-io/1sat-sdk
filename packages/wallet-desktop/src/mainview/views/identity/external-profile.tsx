@@ -2,13 +2,13 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { MessageCircle } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { STACK_URL } from '../../../shared/constants'
 import { FollowButton } from '../../components/blocks/follow-button'
 import type { FollowResult } from '../../components/blocks/follow-button'
 import type { BapProfile } from '../../components/blocks/profile-card/use-profile-card'
-import type { SocialPost } from '../../components/blocks/social-feed/use-social-feed'
 import { PostCardUI } from '../../components/blocks/social-feed/post-card-ui'
+import type { SocialPost } from '../../components/blocks/social-feed/use-social-feed'
 import { rpc } from '../../rpc'
-import { STACK_URL } from '../../../shared/constants'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -449,10 +449,7 @@ export function ExternalProfileView({
 						) : (
 							<div className="flex flex-col border-t border-border -mx-6">
 								{posts.map((post) => (
-									<div
-										key={post.txid}
-										className="border-b border-border"
-									>
+									<div key={post.txid} className="border-b border-border">
 										<PostCardUI
 											post={post}
 											onAuthorClick={handlePostAuthorClick}

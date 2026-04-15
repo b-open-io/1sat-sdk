@@ -1,11 +1,15 @@
+import { Message, MessageContent } from '@/components/ai-elements/message'
+import {
+	Reasoning,
+	ReasoningContent,
+	ReasoningTrigger,
+} from '@/components/ai-elements/reasoning'
+import { Tool, ToolHeader } from '@/components/ai-elements/tool'
 import { Button } from '@/components/ui/button'
 import { Empty } from '@/components/ui/empty'
 import { cn } from '@/lib/utils'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport, isToolUIPart } from 'ai'
-import { Message, MessageContent } from '@/components/ai-elements/message'
-import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning'
-import { Tool, ToolHeader } from '@/components/ai-elements/tool'
 import {
 	ArrowUp,
 	Bot,
@@ -145,7 +149,12 @@ export function AiChatView({
 	const { models, loading } = useAvailableModels()
 
 	// Load AI settings — re-read on mount
-	const [aiSettings, setAiSettings] = useState<{ provider?: string; baseUrl?: string; apiKey?: string; model?: string }>({})
+	const [aiSettings, setAiSettings] = useState<{
+		provider?: string
+		baseUrl?: string
+		apiKey?: string
+		model?: string
+	}>({})
 	useEffect(() => {
 		try {
 			const raw = localStorage.getItem('1sat-ai-settings')
@@ -174,7 +183,13 @@ export function AiChatView({
 					apiKey: aiSettings.apiKey,
 				},
 			}),
-		[activeModel, pageContext, aiSettings.provider, aiSettings.baseUrl, aiSettings.apiKey],
+		[
+			activeModel,
+			pageContext,
+			aiSettings.provider,
+			aiSettings.baseUrl,
+			aiSettings.apiKey,
+		],
 	)
 
 	const { messages, sendMessage, status, error } = useChat({ transport })
@@ -243,8 +258,7 @@ export function AiChatView({
 						className="flex items-center justify-center w-6 h-6"
 						style={{
 							borderRadius: 12,
-							background:
-								'hsl(var(--primary))',
+							background: 'hsl(var(--primary))',
 						}}
 					>
 						<Bot size={12} className="text-primary-foreground" />
@@ -282,15 +296,21 @@ export function AiChatView({
 				ref={scrollRef}
 				className="flex-1 overflow-y-auto px-4 py-3 space-y-4"
 			>
-				{!activeModel && models.length === 0 && !loading && messages.length === 0 && (
-					<Empty
-						icon={Sparkles}
-						title="Set up AI to get started"
-						description="Configure an AI provider in settings to start chatting."
-						action={{ label: "Open AI Settings", onClick: () => onNavigate?.('1sat://settings?tab=ai') }}
-						className="h-full"
-					/>
-				)}
+				{!activeModel &&
+					models.length === 0 &&
+					!loading &&
+					messages.length === 0 && (
+						<Empty
+							icon={Sparkles}
+							title="Set up AI to get started"
+							description="Configure an AI provider in settings to start chatting."
+							action={{
+								label: 'Open AI Settings',
+								onClick: () => onNavigate?.('1sat://settings?tab=ai'),
+							}}
+							className="h-full"
+						/>
+					)}
 
 				{messages.length === 0 && !initialQuery && (
 					<div className="flex flex-col items-center justify-center h-full gap-3 text-center">
@@ -298,8 +318,7 @@ export function AiChatView({
 							className="flex items-center justify-center w-12 h-12"
 							style={{
 								borderRadius: 24,
-								background:
-									'hsl(var(--primary))',
+								background: 'hsl(var(--primary))',
 							}}
 						>
 							<Bot size={24} className="text-primary-foreground" />
@@ -335,7 +354,10 @@ export function AiChatView({
 								}
 								if (part.type === 'reasoning') {
 									return (
-										<Reasoning key={`${message.id}-${i}`} isStreaming={isStreaming}>
+										<Reasoning
+											key={`${message.id}-${i}`}
+											isStreaming={isStreaming}
+										>
 											<ReasoningTrigger />
 											<ReasoningContent>{part.text}</ReasoningContent>
 										</Reasoning>
@@ -344,7 +366,11 @@ export function AiChatView({
 								if (isToolUIPart(part)) {
 									return (
 										<Tool key={`${message.id}-${i}`}>
-											<ToolHeader type={part.type} state={part.state} title={part.toolName} />
+											<ToolHeader
+												type={part.type}
+												state={part.state}
+												title={part.toolName}
+											/>
 										</Tool>
 									)
 								}
@@ -371,7 +397,10 @@ export function AiChatView({
 							icon={Sparkles}
 							title="AI provider not reachable"
 							description="Could not connect to your AI provider. Check that it's running or update your settings."
-							action={{ label: "Open AI Settings", onClick: () => onNavigate?.('1sat://settings?tab=ai') }}
+							action={{
+								label: 'Open AI Settings',
+								onClick: () => onNavigate?.('1sat://settings?tab=ai'),
+							}}
 						/>
 					</div>
 				) : (

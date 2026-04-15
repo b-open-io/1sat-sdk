@@ -1,5 +1,6 @@
 'use client'
 
+import { usePermissionApproval } from '@/components/blocks/permission-approval'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -11,7 +12,6 @@ import {
 	DialogTitle,
 } from '@/components/ui/dialog'
 import { ShieldAlert } from 'lucide-react'
-import { usePermissionApproval } from '@/components/blocks/permission-approval'
 import { onPermissionRequest, rpc } from '../../rpc'
 
 // ---------------------------------------------------------------------------

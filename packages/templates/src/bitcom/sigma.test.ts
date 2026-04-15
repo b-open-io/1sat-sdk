@@ -12,8 +12,12 @@ import Sigma, { SigmaAlgorithm } from './sigma'
 const { toHex, toArray } = Utils
 
 describe('Sigma Protocol', () => {
-	const privateKey = PrivateKey.fromWif('KzmFJcMXHufPNHixgHNwXBt3mHpErEUG6WFbmuQdy525DezYAi82')
-	const privateKey2 = PrivateKey.fromWif('L1U5FS1PzJwCiFA43hahBUSLytqVoGjSymKSz5WJ92v8YQBBsGZ1')
+	const privateKey = PrivateKey.fromWif(
+		'KzmFJcMXHufPNHixgHNwXBt3mHpErEUG6WFbmuQdy525DezYAi82',
+	)
+	const privateKey2 = PrivateKey.fromWif(
+		'L1U5FS1PzJwCiFA43hahBUSLytqVoGjSymKSz5WJ92v8YQBBsGZ1',
+	)
 
 	const outputScriptAsm = `OP_0 OP_RETURN ${toHex(toArray('pushdata1'))} ${toHex(toArray('pushdata2'))}`
 	const script = Script.fromASM(outputScriptAsm)
@@ -40,7 +44,9 @@ describe('Sigma Protocol', () => {
 		const { signedTx } = Sigma.signTransaction(tx, privateKey)
 
 		const inputHash2 = toHex(Sigma.computeInputHash(signedTx, 0))
-		const dataHash2 = toHex(Sigma.computeDataHash(signedTx.outputs[0].lockingScript))
+		const dataHash2 = toHex(
+			Sigma.computeDataHash(signedTx.outputs[0].lockingScript),
+		)
 
 		expect(inputHash2).toBe(inputHash)
 		expect(dataHash2).toBe(dataHash)
@@ -52,7 +58,8 @@ describe('Sigma Protocol', () => {
 		const hashBefore = toHex(Sigma.computeInputHash(tx, 0))
 
 		tx.addInput({
-			sourceTXID: '810755d937913d4228e1a4d192046d96c0642e2678d6a90e1cb794b0c2aeb78c',
+			sourceTXID:
+				'810755d937913d4228e1a4d192046d96c0642e2678d6a90e1cb794b0c2aeb78c',
 			sourceOutputIndex: 0,
 			sequence: 0xffffffff,
 		} as TransactionInput)
@@ -67,12 +74,14 @@ describe('Sigma Protocol', () => {
 	it('targets a specific input via refVin', () => {
 		const tx = new Transaction(1, [], [txOut])
 		tx.addInput({
-			sourceTXID: '810755d937913d4228e1a4d192046d96c0642e2678d6a90e1cb794b0c2aeb78b',
+			sourceTXID:
+				'810755d937913d4228e1a4d192046d96c0642e2678d6a90e1cb794b0c2aeb78b',
 			sourceOutputIndex: 0,
 			sequence: 0xffffffff,
 		} as TransactionInput)
 		tx.addInput({
-			sourceTXID: '810755d937913d4228e1a4d192046d96c0642e2678d6a90e1cb794b0c2aeb78c',
+			sourceTXID:
+				'810755d937913d4228e1a4d192046d96c0642e2678d6a90e1cb794b0c2aeb78c',
 			sourceOutputIndex: 0,
 			sequence: 0xffffffff,
 		} as TransactionInput)
@@ -87,7 +96,11 @@ describe('Sigma Protocol', () => {
 		const { signedTx } = Sigma.signTransaction(tx, privateKey)
 		expect(Sigma.verifyTransaction(signedTx)).toBe(true)
 
-		const { signedTx: signedTx2 } = Sigma.signTransaction(signedTx, privateKey2, { sigmaInstance: 1 })
+		const { signedTx: signedTx2 } = Sigma.signTransaction(
+			signedTx,
+			privateKey2,
+			{ sigmaInstance: 1 },
+		)
 		expect(Sigma.countInstances(signedTx2.outputs[0].lockingScript)).toBe(2)
 
 		expect(Sigma.verifyTransaction(signedTx2, 0, 0)).toBe(true)
@@ -107,7 +120,9 @@ describe('Sigma Protocol', () => {
 
 	it('signs and verifies with BRC-77', () => {
 		const tx = new Transaction(1, [], [txOut])
-		const { signedTx } = Sigma.signTransaction(tx, privateKey, { algorithm: SigmaAlgorithm.BRC77 })
+		const { signedTx } = Sigma.signTransaction(tx, privateKey, {
+			algorithm: SigmaAlgorithm.BRC77,
+		})
 		expect(Sigma.verifyTransaction(signedTx)).toBe(true)
 
 		const sigs = Sigma.parseFromScript(signedTx.outputs[0].lockingScript)
@@ -116,7 +131,9 @@ describe('Sigma Protocol', () => {
 
 	it('BRC-77 survives parse roundtrip', () => {
 		const tx = new Transaction(1, [], [txOut])
-		const { signedTx } = Sigma.signTransaction(tx, privateKey, { algorithm: SigmaAlgorithm.BRC77 })
+		const { signedTx } = Sigma.signTransaction(tx, privateKey, {
+			algorithm: SigmaAlgorithm.BRC77,
+		})
 
 		const sigs = Sigma.parseFromScript(signedTx.outputs[0].lockingScript)
 		expect(sigs[0].algorithm).toBe(SigmaAlgorithm.BRC77)
@@ -127,13 +144,19 @@ describe('Sigma Protocol', () => {
 	it('supports mixed BSM + BRC-77 on same output', () => {
 		const tx = new Transaction(1, [], [txOut])
 
-		const { signedTx } = Sigma.signTransaction(tx, privateKey, { algorithm: SigmaAlgorithm.BSM })
+		const { signedTx } = Sigma.signTransaction(tx, privateKey, {
+			algorithm: SigmaAlgorithm.BSM,
+		})
 		expect(Sigma.verifyTransaction(signedTx)).toBe(true)
 
-		const { signedTx: signedTx2 } = Sigma.signTransaction(signedTx, privateKey2, {
-			sigmaInstance: 1,
-			algorithm: SigmaAlgorithm.BRC77,
-		})
+		const { signedTx: signedTx2 } = Sigma.signTransaction(
+			signedTx,
+			privateKey2,
+			{
+				sigmaInstance: 1,
+				algorithm: SigmaAlgorithm.BRC77,
+			},
+		)
 
 		expect(Sigma.countInstances(signedTx2.outputs[0].lockingScript)).toBe(2)
 

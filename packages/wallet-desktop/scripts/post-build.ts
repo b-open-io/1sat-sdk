@@ -12,16 +12,27 @@ const buildDir = process.env.ELECTROBUN_BUILD_DIR
 const appName = process.env.ELECTROBUN_APP_NAME
 
 console.log(`[post-build] cwd=${process.cwd()} __dirname=${__dirname}`)
-console.log(`[post-build] ELECTROBUN_BUILD_DIR=${buildDir ?? '(unset)'} ELECTROBUN_APP_NAME=${appName ?? '(unset)'}`)
+console.log(
+	`[post-build] ELECTROBUN_BUILD_DIR=${buildDir ?? '(unset)'} ELECTROBUN_APP_NAME=${appName ?? '(unset)'}`,
+)
 
 if (!buildDir || !appName) {
-	console.error('[post-build] Missing ELECTROBUN_BUILD_DIR or ELECTROBUN_APP_NAME — not in Electrobun build context')
+	console.error(
+		'[post-build] Missing ELECTROBUN_BUILD_DIR or ELECTROBUN_APP_NAME — not in Electrobun build context',
+	)
 	process.exit(1)
 }
 
 // Use __dirname (this script's location) for reliable path resolution
 // regardless of CWD. Script is at packages/wallet-desktop/scripts/post-build.ts
-const enclaveSrc = resolve(__dirname, '..', '..', 'wallet-mac', 'swift', 'enclave')
+const enclaveSrc = resolve(
+	__dirname,
+	'..',
+	'..',
+	'wallet-mac',
+	'swift',
+	'enclave',
+)
 const macOSDir = join(buildDir, `${appName}.app`, 'Contents', 'MacOS')
 const enclaveDest = join(macOSDir, 'enclave')
 
@@ -30,8 +41,12 @@ console.log(`[post-build] Target: ${enclaveDest}`)
 
 if (!existsSync(enclaveSrc)) {
 	console.error(`[post-build] FATAL: Enclave binary not found at ${enclaveSrc}`)
-	console.error('[post-build] Wallet creation requires the Secure Enclave binary.')
-	console.error('[post-build] Build it: cd packages/wallet-mac/swift && sh build.sh')
+	console.error(
+		'[post-build] Wallet creation requires the Secure Enclave binary.',
+	)
+	console.error(
+		'[post-build] Build it: cd packages/wallet-mac/swift && sh build.sh',
+	)
 	process.exit(1)
 }
 
@@ -54,6 +69,10 @@ if (existsSync(stackSrc)) {
 	chmodSync(stackDest, 0o755)
 	console.log(`[post-build] Copied 1sat-stack → ${stackDest}`)
 } else {
-	console.warn(`[post-build] WARNING: 1sat-stack binary not found at ${stackSrc}`)
-	console.warn('[post-build] The app will not be able to run the blockchain sidecar.')
+	console.warn(
+		`[post-build] WARNING: 1sat-stack binary not found at ${stackSrc}`,
+	)
+	console.warn(
+		'[post-build] The app will not be able to run the blockchain sidecar.',
+	)
 }

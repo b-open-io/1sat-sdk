@@ -7,12 +7,7 @@
  */
 
 import { parseOutpoint } from '@1sat/utils'
-import {
-	P2PKH,
-	PrivateKey,
-	Transaction,
-	Utils,
-} from '@bsv/sdk'
+import { P2PKH, PrivateKey, Transaction } from '@bsv/sdk'
 import type { OneSatContext } from '../types'
 import type { SweepInput } from './types'
 
@@ -24,9 +19,7 @@ export interface LegacySendOrdinalsRequest {
 	/** Destination BSV address */
 	destination: string
 	/** Funding source */
-	funding:
-		| { source: 'legacy'; inputs: SweepInput[] }
-		| { source: 'wallet' }
+	funding: { source: 'legacy'; inputs: SweepInput[] } | { source: 'wallet' }
 }
 
 export interface LegacySendResult {
@@ -126,7 +119,9 @@ async function transferWithWalletFunding(
 	const p2pkh = new P2PKH()
 
 	// Fetch and merge BEEF for all ordinal input transactions
-	const txids = [...new Set(ordinals.map((o) => parseOutpoint(o.outpoint).txid))]
+	const txids = [
+		...new Set(ordinals.map((o) => parseOutpoint(o.outpoint).txid)),
+	]
 	const firstBeef = await ctx.services.getBeefForTxid(txids[0])
 	for (let i = 1; i < txids.length; i++) {
 		firstBeef.mergeBeef(await ctx.services.getBeefForTxid(txids[i]))
@@ -243,10 +238,21 @@ export async function legacySendOrdinals(
 
 		if (funding.source === 'legacy') {
 			if (!funding.inputs.length) return { error: 'no-funding-inputs' }
-			return await transferWithLegacyFunding(ctx, ordinals, funding.inputs, privateKey, destination)
+			return await transferWithLegacyFunding(
+				ctx,
+				ordinals,
+				funding.inputs,
+				privateKey,
+				destination,
+			)
 		}
 
-		return await transferWithWalletFunding(ctx, ordinals, privateKey, destination)
+		return await transferWithWalletFunding(
+			ctx,
+			ordinals,
+			privateKey,
+			destination,
+		)
 	} catch (error) {
 		console.error('[legacySendOrdinals]', error)
 		return { error: error instanceof Error ? error.message : 'unknown-error' }
@@ -254,7 +260,10 @@ export async function legacySendOrdinals(
 }
 
 /** Fetch a source transaction from BEEF for use as sourceTransaction on inputs */
-async function fetchSourceTx(ctx: OneSatContext, txid: string): Promise<Transaction> {
+async function fetchSourceTx(
+	ctx: OneSatContext,
+	txid: string,
+): Promise<Transaction> {
 	if (!ctx.services) throw new Error('Services required')
 	const beef = await ctx.services.getBeefForTxid(txid)
 	const found = beef.findTxid(txid)

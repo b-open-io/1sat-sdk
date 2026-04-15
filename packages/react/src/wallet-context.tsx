@@ -174,7 +174,11 @@ export function WalletProvider({
 
 	// Auto-reconnect on mount
 	useEffect(() => {
-		const { autoReconnect: shouldReconnect, availableProviders: configured, connect: doConnect } = mountRef.current
+		const {
+			autoReconnect: shouldReconnect,
+			availableProviders: configured,
+			connect: doConnect,
+		} = mountRef.current
 
 		if (!shouldReconnect) {
 			setStatus('disconnected')

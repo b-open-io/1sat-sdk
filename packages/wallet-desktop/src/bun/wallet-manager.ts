@@ -1,3 +1,4 @@
+import { existsSync, mkdirSync, renameSync, unlinkSync } from 'node:fs'
 /**
  * Wallet lifecycle manager — multi-instance.
  *
@@ -9,9 +10,8 @@
 import type { Vault } from '@1sat/vault'
 import type { NodeWalletResult } from '@1sat/wallet-node'
 import { createNodeWallet } from '@1sat/wallet-node'
-import { HD, Mnemonic, PrivateKey, Hash } from '@bsv/sdk'
+import { HD, Hash, Mnemonic, PrivateKey } from '@bsv/sdk'
 import { BAP } from 'bsv-bap'
-import { existsSync, mkdirSync, renameSync, unlinkSync } from 'node:fs'
 import { Utils } from 'electrobun/bun'
 import type { BalanceInfo, SyncEvent, WalletStatus } from '../shared/types'
 import {
@@ -86,7 +86,10 @@ function deriveRootKey(mnemonic: string): PrivateKey {
 /**
  * Derive the primary BAP ID from a root private key.
  */
-export function deriveBapId(rootKeyWif: string): { bapId: string; ids: string } {
+export function deriveBapId(rootKeyWif: string): {
+	bapId: string
+	ids: string
+} {
 	const bap = new BAP(rootKeyWif)
 	const ids = bap.listIds()
 	if (ids.length === 0) {
@@ -160,7 +163,9 @@ function wireMonitorEvents(instance: WalletInstance): void {
 // Global status (for picker window)
 // ============================================================================
 
-export function setGlobalStatusCallback(cb: (status: WalletStatus) => void): void {
+export function setGlobalStatusCallback(
+	cb: (status: WalletStatus) => void,
+): void {
 	globalStatusCallback = cb
 }
 
@@ -192,7 +197,9 @@ export function checkVault(accountId: string): boolean {
 /**
  * Get a running wallet instance for a specific account.
  */
-export function getWalletForAccount(accountId: string): NodeWalletResult | undefined {
+export function getWalletForAccount(
+	accountId: string,
+): NodeWalletResult | undefined {
 	return wallets.get(accountId)?.wallet
 }
 
@@ -236,7 +243,11 @@ export async function create(
 		filename: dbPath(accountId),
 	})
 
-	const instance: WalletInstance = { accountId, wallet: walletResult, callbacks }
+	const instance: WalletInstance = {
+		accountId,
+		wallet: walletResult,
+		callbacks,
+	}
 	wallets.set(accountId, instance)
 
 	callbacks.onStatusChanged?.('unlocked')
@@ -285,7 +296,11 @@ export async function unlock(
 		filename: dbPath(accountId),
 	})
 
-	const instance: WalletInstance = { accountId, wallet: walletResult, callbacks }
+	const instance: WalletInstance = {
+		accountId,
+		wallet: walletResult,
+		callbacks,
+	}
 	wallets.set(accountId, instance)
 
 	callbacks.onStatusChanged?.('unlocked')
@@ -409,11 +424,15 @@ export function getStatus(): WalletStatus {
 let legacyBalanceCb: ((balance: BalanceInfo) => void) | undefined
 let legacySyncCb: ((event: SyncEvent) => void) | undefined
 
-export function setStatusChangedCallback(cb: (status: WalletStatus) => void): void {
+export function setStatusChangedCallback(
+	cb: (status: WalletStatus) => void,
+): void {
 	globalStatusCallback = cb
 }
 
-export function setBalanceUpdatedCallback(cb: (balance: BalanceInfo) => void): void {
+export function setBalanceUpdatedCallback(
+	cb: (balance: BalanceInfo) => void,
+): void {
 	legacyBalanceCb = cb
 }
 
@@ -481,7 +500,8 @@ export async function recoverOrphanedAccounts(): Promise<number> {
 	let recovered = 0
 
 	for (const secret of secrets) {
-		if (!secret.label.startsWith(prefix) || !secret.label.endsWith(suffix)) continue
+		if (!secret.label.startsWith(prefix) || !secret.label.endsWith(suffix))
+			continue
 		if (secret.label === `1sat-wallet-root-key-${channel}`) continue
 
 		const accountId = secret.label.slice(prefix.length, -suffix.length)

@@ -22,7 +22,10 @@ export class CosignIndexer extends Indexer {
 
 		// Use template decode
 		// biome-ignore lint/suspicious/noExplicitAny: cross-version @bsv/sdk Script type mismatch
-		const decoded = Cosign.decode(lockingScript as any, this.network === 'mainnet')
+		const decoded = Cosign.decode(
+			lockingScript as any,
+			this.network === 'mainnet',
+		)
 		if (!decoded) return
 
 		return {

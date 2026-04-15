@@ -1,20 +1,18 @@
-import { WALLET_HTTP_URL } from '../../../shared/constants'
-import { useChat } from '@ai-sdk/react'
-import { DefaultChatTransport, isToolUIPart } from 'ai'
 import { Message, MessageContent } from '@/components/ai-elements/message'
-import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning'
-import { Tool, ToolHeader } from '@/components/ai-elements/tool'
 import {
-	ArrowUp,
-	ArrowUpRight,
-	Bot,
-	Loader2,
-	X,
-} from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+	Reasoning,
+	ReasoningContent,
+	ReasoningTrigger,
+} from '@/components/ai-elements/reasoning'
+import { Tool, ToolHeader } from '@/components/ai-elements/tool'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
+import { useChat } from '@ai-sdk/react'
+import { DefaultChatTransport, isToolUIPart } from 'ai'
+import { ArrowUp, ArrowUpRight, Bot, Loader2, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { WALLET_HTTP_URL } from '../../../shared/constants'
 import type { ParsedRoute } from '../../../shared/url-types'
 import { getDisplayLabel } from '../../../shared/url-types'
 
@@ -22,8 +20,8 @@ import { getDisplayLabel } from '../../../shared/url-types'
 // Constants
 // ---------------------------------------------------------------------------
 
-const MONO = "font-[family-name:var(--font-mono)]"
-const SANS = "font-[family-name:var(--font-sans)]"
+const MONO = 'font-[family-name:var(--font-mono)]'
+const SANS = 'font-[family-name:var(--font-sans)]'
 
 const SIDEBAR_WIDTH = 340
 
@@ -79,7 +77,12 @@ export function AgentSidebar({
 	const currentLabel = getDisplayLabel(currentRoute)
 
 	// Load AI settings — re-read every time sidebar opens
-	const [aiSettings, setAiSettings] = useState<{ provider?: string; baseUrl?: string; apiKey?: string; model?: string }>({})
+	const [aiSettings, setAiSettings] = useState<{
+		provider?: string
+		baseUrl?: string
+		apiKey?: string
+		model?: string
+	}>({})
 	useEffect(() => {
 		try {
 			const raw = localStorage.getItem('1sat-ai-settings')
@@ -90,17 +93,27 @@ export function AgentSidebar({
 	const selectedModel = aiSettings.model ?? 'qwen3:14b'
 
 	const { messages, sendMessage, status, error } = useChat({
-		transport: useMemo(() => new DefaultChatTransport({
-			api: WALLET_HTTP_URL + '/api/chat',
-			headers: { 'X-Requested-With': '1SatBrowser' },
-			body: {
-				model: selectedModel,
-				provider: aiSettings.provider,
-				baseUrl: aiSettings.baseUrl,
-				apiKey: aiSettings.apiKey,
-				context: { url: currentUrl },
-			},
-		}), [selectedModel, aiSettings.provider, aiSettings.baseUrl, aiSettings.apiKey, currentUrl]),
+		transport: useMemo(
+			() =>
+				new DefaultChatTransport({
+					api: WALLET_HTTP_URL + '/api/chat',
+					headers: { 'X-Requested-With': '1SatBrowser' },
+					body: {
+						model: selectedModel,
+						provider: aiSettings.provider,
+						baseUrl: aiSettings.baseUrl,
+						apiKey: aiSettings.apiKey,
+						context: { url: currentUrl },
+					},
+				}),
+			[
+				selectedModel,
+				aiSettings.provider,
+				aiSettings.baseUrl,
+				aiSettings.apiKey,
+				currentUrl,
+			],
+		),
 	})
 
 	// Auto-scroll on new messages
@@ -155,7 +168,9 @@ export function AgentSidebar({
 					<span className={cn('text-xs font-semibold text-foreground', SANS)}>
 						Research Agent
 					</span>
-					<span className={cn('text-[9px] text-muted-foreground truncate', MONO)}>
+					<span
+						className={cn('text-[9px] text-muted-foreground truncate', MONO)}
+					>
 						{selectedModel}
 					</span>
 				</div>
@@ -188,7 +203,9 @@ export function AgentSidebar({
 			{/* Page context pill */}
 			<div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
 				<div className="flex items-center gap-1.5 px-2 py-0.5 max-w-full overflow-hidden rounded bg-muted border border-border">
-					<span className={cn('text-[9px] truncate text-muted-foreground', MONO)}>
+					<span
+						className={cn('text-[9px] truncate text-muted-foreground', MONO)}
+					>
 						{currentUrl || '1sat://browser/new'}
 					</span>
 				</div>
@@ -196,20 +213,27 @@ export function AgentSidebar({
 
 			{/* Messages area */}
 			<ScrollArea className="flex-1 overflow-hidden">
-				<div
-					ref={scrollRef}
-					className="px-3 py-3 space-y-3"
-				>
+				<div ref={scrollRef} className="px-3 py-3 space-y-3">
 					{messages.length === 0 && (
 						<div className="flex flex-col items-center justify-center h-full gap-3 text-center py-8">
 							<div className="flex items-center justify-center size-10 rounded-full bg-primary">
 								<Bot size={20} className="text-primary-foreground" />
 							</div>
 							<div>
-								<p className={cn('text-xs font-medium text-foreground mb-1', SANS)}>
+								<p
+									className={cn(
+										'text-xs font-medium text-foreground mb-1',
+										SANS,
+									)}
+								>
 									Research Agent
 								</p>
-								<p className={cn('text-[10px] text-muted-foreground max-w-[220px] leading-relaxed', SANS)}>
+								<p
+									className={cn(
+										'text-[10px] text-muted-foreground max-w-[220px] leading-relaxed',
+										SANS,
+									)}
+								>
 									Ask me anything about this page or any on-chain content.
 								</p>
 							</div>
@@ -237,19 +261,29 @@ export function AgentSidebar({
 					)}
 
 					{messages.map((message) => (
-						<Message key={message.id} from={message.role} className="text-[11px]">
+						<Message
+							key={message.id}
+							from={message.role}
+							className="text-[11px]"
+						>
 							<MessageContent>
 								{message.parts.map((part, i) => {
 									if (part.type === 'text') {
 										return (
-											<span key={`${message.id}-${i}`} className="whitespace-pre-wrap">
+											<span
+												key={`${message.id}-${i}`}
+												className="whitespace-pre-wrap"
+											>
 												{part.text}
 											</span>
 										)
 									}
 									if (part.type === 'reasoning') {
 										return (
-											<Reasoning key={`${message.id}-${i}`} isStreaming={isStreaming}>
+											<Reasoning
+												key={`${message.id}-${i}`}
+												isStreaming={isStreaming}
+											>
 												<ReasoningTrigger />
 												<ReasoningContent>{part.text}</ReasoningContent>
 											</Reasoning>
@@ -258,7 +292,11 @@ export function AgentSidebar({
 									if (isToolUIPart(part)) {
 										return (
 											<Tool key={`${message.id}-${i}`}>
-												<ToolHeader type={part.type} state={part.state} title={part.toolName} />
+												<ToolHeader
+													type={part.type}
+													state={part.state}
+													title={part.toolName}
+												/>
 											</Tool>
 										)
 									}
@@ -268,12 +306,13 @@ export function AgentSidebar({
 						</Message>
 					))}
 
-					{isStreaming && messages[messages.length - 1]?.role !== 'assistant' && (
-						<div className="flex items-center gap-2 text-muted-foreground">
-							<Loader2 size={11} className="animate-spin" />
-							<span className={cn('text-[10px]', SANS)}>Thinking...</span>
-						</div>
-					)}
+					{isStreaming &&
+						messages[messages.length - 1]?.role !== 'assistant' && (
+							<div className="flex items-center gap-2 text-muted-foreground">
+								<Loader2 size={11} className="animate-spin" />
+								<span className={cn('text-[10px]', SANS)}>Thinking...</span>
+							</div>
+						)}
 				</div>
 			</ScrollArea>
 
@@ -281,7 +320,8 @@ export function AgentSidebar({
 			{error && (
 				<div className="px-3 py-2 border-t border-destructive/30 bg-destructive/5 shrink-0">
 					<p className={cn('text-[10px] text-destructive', SANS)}>
-						{error.message.includes('Ollama is not running') || error.message.includes('ECONNREFUSED')
+						{error.message.includes('Ollama is not running') ||
+						error.message.includes('ECONNREFUSED')
 							? 'Ollama not running. Start with: ollama serve'
 							: error.message}
 					</p>

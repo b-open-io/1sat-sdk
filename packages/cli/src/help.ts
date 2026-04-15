@@ -47,6 +47,22 @@ ${bold('Wallet:')}
   ${cyan('wallet send-all')}          Send all BSV to an address
   ${cyan('wallet info')}              Show wallet info
 
+${bold('Wallet (BRC-100 Interface):')}
+  ${cyan('wallet list-outputs')}      List outputs in basket
+                               ${dim('--basket <name> [--tags <t1,t2>] [--limit N]')}
+  ${cyan('wallet relinquish-output')} Remove output from basket
+                               ${dim('--basket <name> --output <txid.vout>')}
+  ${cyan('wallet list-actions')}      List wallet actions
+                               ${dim('[--labels <l1,l2>] [--limit N]')}
+  ${cyan('wallet create-action')}     Create raw action (JSON args)
+  ${cyan('wallet sign-action')}       Sign raw action (JSON args)
+  ${cyan('wallet abort-action')}      Abort pending action
+                               ${dim('--reference <ref>')}
+  ${cyan('wallet list-certificates')} List certificates
+                               ${dim('[--certifiers <c1,c2>] [--types <t1,t2>] [--limit N]')}
+  ${cyan('wallet relinquish-certificate')} Relinquish certificate
+                               ${dim('--type <t> --serialNumber <s> --certifier <c>')}
+
 ${bold('Ordinals:')}
   ${cyan('ordinals list')}            List owned ordinals
   ${cyan('ordinals mint')}            Mint a new ordinal inscription
@@ -69,6 +85,7 @@ ${bold('Locks:')}
 
 ${bold('Identity (BAP):')}
   ${cyan('identity create')}          Create a new BAP identity
+  ${cyan('identity update-profile')}  Update BAP identity profile (--profile <json>)
   ${cyan('identity info')}            Show identity information
   ${cyan('identity sign')}            Sign a message with identity key
   ${cyan('identity verify')}          Verify a signed message

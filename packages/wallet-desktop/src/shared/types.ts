@@ -1,7 +1,12 @@
 import type { ElectrobunRPCSchema, RPCSchema } from 'electrobun/view'
 
 // Wallet status lifecycle
-export type WalletStatus = 'initializing' | 'account-selection' | 'no-wallet' | 'locked' | 'unlocked'
+export type WalletStatus =
+	| 'initializing'
+	| 'account-selection'
+	| 'no-wallet'
+	| 'locked'
+	| 'unlocked'
 
 // Account info for profile picker
 export interface AccountInfo {
@@ -243,7 +248,12 @@ export interface MintCollectionItemResult {
 }
 
 // Update status pushed from bun to webview
-export type UpdateStatusKind = 'checking' | 'downloading' | 'ready' | 'up-to-date' | 'error'
+export type UpdateStatusKind =
+	| 'checking'
+	| 'downloading'
+	| 'ready'
+	| 'up-to-date'
+	| 'error'
 
 export interface UpdateStatusPayload {
 	status: UpdateStatusKind
@@ -283,11 +293,21 @@ type BunRequests = {
 		response: { success: boolean; error?: string }
 	}
 	createAccount: {
-		params: { mnemonic: string; passphrase?: string; displayName?: string; color?: string }
+		params: {
+			mnemonic: string
+			passphrase?: string
+			displayName?: string
+			color?: string
+		}
 		response: { success: boolean; accountId?: string; error?: string }
 	}
 	importAccount: {
-		params: { mnemonic: string; passphrase?: string; displayName?: string; color?: string }
+		params: {
+			mnemonic: string
+			passphrase?: string
+			displayName?: string
+			color?: string
+		}
 		response: { success: boolean; accountId?: string; error?: string }
 	}
 	updateAccount: {

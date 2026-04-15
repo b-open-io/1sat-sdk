@@ -1,4 +1,4 @@
-import Electrobun, { Electroview } from 'electrobun/view'
+import { Electroview } from 'electrobun/view'
 import type {
 	AccountInfo,
 	BalanceInfo,
@@ -86,12 +86,18 @@ const rpc = Electroview.defineRPC<WalletDesktopRPC>({
 				try {
 					const fn = new Function(code)
 					const raw = fn()
-					const result = raw === undefined || raw === null
-						? String(raw)
-						: typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2)
+					const result =
+						raw === undefined || raw === null
+							? String(raw)
+							: typeof raw === 'string'
+								? raw
+								: JSON.stringify(raw, null, 2)
 					return { result }
 				} catch (err) {
-					return { result: '', error: err instanceof Error ? err.message : String(err) }
+					return {
+						result: '',
+						error: err instanceof Error ? err.message : String(err),
+					}
 				}
 			},
 			mainviewGetUrl: () => {
@@ -105,7 +111,10 @@ const rpc = Electroview.defineRPC<WalletDesktopRPC>({
 			accountsLoaded: (payload: { accounts: AccountInfo[] }) => {
 				emit('accountsLoaded', payload)
 			},
-			activeAccountChanged: (payload: { accountId: string; account: AccountInfo }) => {
+			activeAccountChanged: (payload: {
+				accountId: string
+				account: AccountInfo
+			}) => {
 				emit('activeAccountChanged', payload)
 			},
 			balanceUpdated: (payload: BalanceInfo) => {
@@ -184,7 +193,9 @@ function onStackOnboardingRequired(
 	return subscribe('stackOnboardingRequired', fn)
 }
 
-function onStackOnboardingComplete(fn: Listener<Record<string, never>>): Unsubscribe {
+function onStackOnboardingComplete(
+	fn: Listener<Record<string, never>>,
+): Unsubscribe {
 	return subscribe('stackOnboardingComplete', fn)
 }
 
@@ -204,11 +215,15 @@ function onUpdateStatus(fn: Listener<UpdateStatusPayload>): Unsubscribe {
 	return subscribe('updateStatus', fn)
 }
 
-function onAccountsLoaded(fn: Listener<{ accounts: AccountInfo[] }>): Unsubscribe {
+function onAccountsLoaded(
+	fn: Listener<{ accounts: AccountInfo[] }>,
+): Unsubscribe {
 	return subscribe('accountsLoaded', fn)
 }
 
-function onActiveAccountChanged(fn: Listener<{ accountId: string; account: AccountInfo }>): Unsubscribe {
+function onActiveAccountChanged(
+	fn: Listener<{ accountId: string; account: AccountInfo }>,
+): Unsubscribe {
 	return subscribe('activeAccountChanged', fn)
 }
 

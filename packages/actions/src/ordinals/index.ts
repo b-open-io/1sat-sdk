@@ -511,7 +511,9 @@ export async function buildBurnOrdinals(
 		type: 'ord',
 		op: 'burn',
 	})
-	const burnScript = new Script().writeOpCode(OP.OP_FALSE).writeScript(mapScript)
+	const burnScript = new Script()
+		.writeOpCode(OP.OP_FALSE)
+		.writeScript(mapScript)
 
 	return {
 		description:
@@ -1240,8 +1242,7 @@ export const burnOrdinals: Action<
 				},
 				inputBEEF: {
 					type: 'array',
-					description:
-						'BEEF — resolved automatically via ID tag if omitted',
+					description: 'BEEF — resolved automatically via ID tag if omitted',
 				},
 			},
 			required: ['ordinals'],

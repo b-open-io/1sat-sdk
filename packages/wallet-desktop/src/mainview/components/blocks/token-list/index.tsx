@@ -1,52 +1,51 @@
-import { TokenListUI } from "./token-list-ui"
+import { TokenListUI } from './token-list-ui'
 import {
-  useTokenList,
-  type UseTokenListOptions,
-  type TokenHolding,
-  type TokenProtocol,
-} from "./use-token-list"
+	type TokenHolding,
+	type TokenProtocol,
+	useTokenList,
+} from './use-token-list'
 
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 
-export { TokenListUI, type TokenListUIProps } from "./token-list-ui"
+export { TokenListUI, type TokenListUIProps } from './token-list-ui'
 export {
-  useTokenList,
-  type UseTokenListOptions,
-  type UseTokenListReturn,
-  type TokenHolding,
-  type TokenType,
-  type TokenProtocol,
-} from "./use-token-list"
+	useTokenList,
+	type UseTokenListOptions,
+	type UseTokenListReturn,
+	type TokenHolding,
+	type TokenType,
+	type TokenProtocol,
+} from './use-token-list'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface TokenListProps {
-  /** BSV payment address to fetch token holdings for */
-  address: string | null
-  /** Token IDs to fetch balances for */
-  tokenIds?: string[]
-  /** Pre-populated token holdings (skips API fetch for tokens with matching IDs) */
-  tokens?: TokenHolding[]
-  /** Custom API base URL (default: https://api.1sat.app) */
-  apiUrl?: string
-  /** ORDFS base URL for icon resolution (default: https://ordfs.network) */
-  ordfsBase?: string
-  /** Filter by protocol type (default: "all") */
-  protocol?: TokenProtocol
-  /** Whether to auto-fetch on mount (default: true) */
-  autoFetch?: boolean
-  /** Callback when a token row is selected */
-  onSelect?: (token: TokenHolding) => void
-  /** Callback when an external link action is triggered. Receives the URL string. */
-  onExternalLink?: (url: string) => void
-  /** Number of skeleton rows to show while loading (default: 3) */
-  skeletonCount?: number
-  /** Optional CSS class name */
-  className?: string
+	/** BSV payment address to fetch token holdings for */
+	address: string | null
+	/** Token IDs to fetch balances for */
+	tokenIds?: string[]
+	/** Pre-populated token holdings (skips API fetch for tokens with matching IDs) */
+	tokens?: TokenHolding[]
+	/** Custom API base URL (default: https://api.1sat.app) */
+	apiUrl?: string
+	/** ORDFS base URL for icon resolution (default: https://ordfs.network) */
+	ordfsBase?: string
+	/** Filter by protocol type (default: "all") */
+	protocol?: TokenProtocol
+	/** Whether to auto-fetch on mount (default: true) */
+	autoFetch?: boolean
+	/** Callback when a token row is selected */
+	onSelect?: (token: TokenHolding) => void
+	/** Callback when an external link action is triggered. Receives the URL string. */
+	onExternalLink?: (url: string) => void
+	/** Number of skeleton rows to show while loading (default: 3) */
+	skeletonCount?: number
+	/** Optional CSS class name */
+	className?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -77,37 +76,37 @@ export interface TokenListProps {
  * ```
  */
 export function TokenList({
-  address,
-  tokenIds,
-  tokens: prePopulated,
-  apiUrl,
-  ordfsBase,
-  protocol,
-  autoFetch,
-  onSelect,
-  onExternalLink,
-  skeletonCount,
-  className,
+	address,
+	tokenIds,
+	tokens: prePopulated,
+	apiUrl,
+	ordfsBase,
+	protocol,
+	autoFetch,
+	onSelect,
+	onExternalLink,
+	skeletonCount,
+	className,
 }: TokenListProps) {
-  const { tokens, isLoading, error } = useTokenList({
-    address,
-    tokenIds,
-    tokens: prePopulated,
-    apiUrl,
-    ordfsBase,
-    protocol,
-    autoFetch,
-  })
+	const { tokens, isLoading, error } = useTokenList({
+		address,
+		tokenIds,
+		tokens: prePopulated,
+		apiUrl,
+		ordfsBase,
+		protocol,
+		autoFetch,
+	})
 
-  return (
-    <TokenListUI
-      tokens={tokens}
-      isLoading={isLoading}
-      error={error}
-      onSelect={onSelect}
-      onExternalLink={onExternalLink}
-      skeletonCount={skeletonCount}
-      className={className}
-    />
-  )
+	return (
+		<TokenListUI
+			tokens={tokens}
+			isLoading={isLoading}
+			error={error}
+			onSelect={onSelect}
+			onExternalLink={onExternalLink}
+			skeletonCount={skeletonCount}
+			className={className}
+		/>
+	)
 }

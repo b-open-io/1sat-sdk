@@ -1,41 +1,36 @@
-"use client"
+'use client'
 
-import { ProfileCardUI, type ProfileCardUIProps } from "./profile-card-ui"
-import {
-  useProfileCard,
-  type UseProfileCardOptions,
-  type UseProfileCardReturn,
-  type BapProfile,
-} from "./use-profile-card"
-import type { ReactNode } from "react"
+import type { ReactNode } from 'react'
+import { ProfileCardUI } from './profile-card-ui'
+import { useProfileCard } from './use-profile-card'
 
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 
-export { ProfileCardUI, type ProfileCardUIProps } from "./profile-card-ui"
+export { ProfileCardUI, type ProfileCardUIProps } from './profile-card-ui'
 export {
-  useProfileCard,
-  type UseProfileCardOptions,
-  type UseProfileCardReturn,
-  type BapProfile,
-} from "./use-profile-card"
+	useProfileCard,
+	type UseProfileCardOptions,
+	type UseProfileCardReturn,
+	type BapProfile,
+} from './use-profile-card'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface ProfileCardProps {
-  /** BAP ID to look up directly */
-  bapId?: string
-  /** Bitcoin address to resolve to a BAP identity */
-  address?: string
-  /** Base URL for the 1sat-stack API (default: https://api.1sat.app) */
-  apiUrl?: string
-  /** Optional CSS class name */
-  className?: string
-  /** Render prop for a follow button or other action in the header */
-  renderAction?: (bapId: string) => ReactNode
+	/** BAP ID to look up directly */
+	bapId?: string
+	/** Bitcoin address to resolve to a BAP identity */
+	address?: string
+	/** Base URL for the 1sat-stack API (default: https://api.1sat.app) */
+	apiUrl?: string
+	/** Optional CSS class name */
+	className?: string
+	/** Render prop for a follow button or other action in the header */
+	renderAction?: (bapId: string) => ReactNode
 }
 
 // ---------------------------------------------------------------------------
@@ -62,24 +57,24 @@ export interface ProfileCardProps {
  * ```
  */
 export function ProfileCard({
-  bapId: bapIdProp,
-  address,
-  apiUrl,
-  className,
-  renderAction,
+	bapId: bapIdProp,
+	address,
+	apiUrl,
+	className,
+	renderAction,
 }: ProfileCardProps) {
-  const hook = useProfileCard({ bapId: bapIdProp, address, apiUrl })
+	const hook = useProfileCard({ bapId: bapIdProp, address, apiUrl })
 
-  return (
-    <ProfileCardUI
-      className={className}
-      bapId={hook.bapId}
-      profile={hook.profile}
-      currentAddress={hook.currentAddress}
-      isLoading={hook.isLoading}
-      error={hook.error}
-      onRetry={hook.refetch}
-      renderAction={renderAction}
-    />
-  )
+	return (
+		<ProfileCardUI
+			className={className}
+			bapId={hook.bapId}
+			profile={hook.profile}
+			currentAddress={hook.currentAddress}
+			isLoading={hook.isLoading}
+			error={hook.error}
+			onRetry={hook.refetch}
+			renderAction={renderAction}
+		/>
+	)
 }

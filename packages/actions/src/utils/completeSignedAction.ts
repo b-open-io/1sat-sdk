@@ -5,7 +5,6 @@ import {
 	type SignActionOptions,
 	Spend,
 	Transaction,
-	Utils,
 	type WalletInterface,
 } from '@bsv/sdk'
 
@@ -54,9 +53,7 @@ export async function completeSignedAction(
 		// When inputBEEF is provided, merge it with the signable BEEF so source
 		// transactions for external inputs are available for signing and verification.
 		// When absent, the signable BEEF alone is sufficient (wallet-only inputs).
-		const beef = inputBEEF
-			? Beef.fromBinary(inputBEEF)
-			: signableBeef
+		const beef = inputBEEF ? Beef.fromBinary(inputBEEF) : signableBeef
 		if (inputBEEF) {
 			beef.mergeBeef(signableBeef)
 		}

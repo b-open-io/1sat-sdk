@@ -40,6 +40,29 @@ bunx @1sat/cli wallet send --to 1Address... --amount 50000
 
 Config directory: `~/.1sat/`
 
+### Monitor (Background Sync)
+
+The CLI runs a background monitor that automatically syncs wallet state on wallet commands. Configured via `monitorIntervalMinutes` in `~/.1sat/config.json` (default: 5 minutes).
+
+- Monitor runs automatically when you run wallet-related commands
+- No manual `wallet sync` needed — just run your command
+- Set to `0` to disable auto-monitor
+
+```bash
+# Check current config
+bunx @1sat/cli config show
+
+# Disable auto-monitor (set to 0)
+bunx @1sat/cli config set monitorIntervalMinutes 0
+```
+
+### Database Locations
+
+- **Wallet DB:** `~/.1sat/data/wallet-main.db` (or `wallet-test.db` for testnet)
+- **Sync DB:** `~/.1sat/data/sync-<identityKeyPrefix>.db`
+- **Config:** `~/.1sat/config.json`
+- **Keys:** `~/.1sat/keys.bep`
+
 ### Key Management
 
 Keys can be provided in three ways:
@@ -68,6 +91,16 @@ bunx @1sat/cli wallet balance              # Show BSV balance
 bunx @1sat/cli wallet send                 # Send BSV to address
 bunx @1sat/cli wallet send-all             # Send entire balance
 bunx @1sat/cli wallet utxos                # List payment UTXOs
+```
+
+### Remote Storage
+
+```bash
+bunx @1sat/cli remote add <url>                    # Add remote as backup (no immediate validation)
+bunx @1sat/cli remote list                         # Show all remotes and status
+bunx @1sat/cli remote delete <url>                 # Remove a remote from backup list
+bunx @1sat/cli remote set-active <url>             # Migrate TO this remote as primary
+bunx @1sat/cli remote set-active local             # Switch back to local-primary
 ```
 
 ### Ordinals
@@ -147,6 +180,43 @@ bunx @1sat/cli action inscribe '{"base64Content":"SGVsbG8=","contentType":"text/
 ```
 
 This is the escape hatch for any operation supported by the `@1sat/actions` registry, even those without dedicated CLI subcommands.
+
+### Origin Tag Resolution
+
+When working with ordinal outputs from `ordinals list --json`, the `tags` array indicates origin relationships for building content URLs:
+
+- **`"origin"`** (bare tag, no colon) — This output **IS the origin**. Use the output's own `outpoint` for content URLs.
+- **`"origin:<txid.vout>"`** (tag with colon and outpoint) — This is a **transfer**. Use the origin outpoint from the tag for content URLs.
+
+**Example:**
+```json
+{
+  "outpoint": "5148d8dae125c2851283ca90519eae787ab24baca5a008ee72c03ba3c290def4.1",
+  "tags": ["origin:04fc3e5f92004f89c7efe94fb97113bd672faa87708f9e0cd67fdef861767c2c.0", ...]
+}
+```
+→ Content URL: `.../content/04fc3e5f92004f89c7efe94fb97113bd672faa87708f9e0cd67fdef861767c2c.0` (from tag)
+
+```json
+{
+  "outpoint": "a70be5c136d23ab10fbe1e4344552797faa5017ff7f5a58c4b9bf14e7a3e1006.0",
+  "tags": ["origin", ...]
+}
+```
+→ Content URL: `.../content/a70be5c136d23ab10fbe1e4344552797faa5017ff7f5a58c4b9bf14e7a3e1006.0` (own outpoint)
+
+**Outpoint format:** Always use the outpoint as-is (`txid.vout` or `txid_vout`). Do NOT modify the separator.
+
+## Global Flags
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output as JSON (for scripting/piping) |
+| `--quiet, -q` | Suppress output |
+| `--yes, -y` | Skip confirmations |
+| `--chain <main\|test>` | Network (default: main) |
+| `--help, -h` | Show help |
+| `--version, -v` | Show version |
 
 ## Output Modes
 

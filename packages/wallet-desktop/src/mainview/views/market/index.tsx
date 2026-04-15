@@ -264,8 +264,7 @@ export function MarketView({ onNavigate }: MarketViewProps) {
 			})
 			.catch((err: unknown) => {
 				if (cancelled) return
-				const isAbort =
-					err instanceof DOMException && err.name === 'AbortError'
+				const isAbort = err instanceof DOMException && err.name === 'AbortError'
 				const isNetwork = err instanceof TypeError
 				if (isAbort || isNetwork) {
 					setError(
@@ -380,10 +379,7 @@ export function MarketView({ onNavigate }: MarketViewProps) {
 				<div className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground">
 					<Store size={28} strokeWidth={1.5} />
 					<span
-						className={cn(
-							'text-sm',
-							'font-[family-name:var(--font-sans)]',
-						)}
+						className={cn('text-sm', 'font-[family-name:var(--font-sans)]')}
 					>
 						Failed to load listings
 					</span>
@@ -405,7 +401,9 @@ export function MarketView({ onNavigate }: MarketViewProps) {
 			{!loading && !error && filtered.length === 0 && (
 				<Empty
 					icon={Store}
-					title={query ? `No listings match "${query}"` : 'No listings available'}
+					title={
+						query ? `No listings match "${query}"` : 'No listings available'
+					}
 					description="Marketplace listings appear once items are listed for sale."
 				/>
 			)}

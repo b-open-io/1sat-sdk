@@ -1,6 +1,6 @@
-"use client"
+'use client'
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -81,7 +81,7 @@ export function usePermissionApproval({
 		try {
 			await resolve({ requestId: pending.requestId, approved: true })
 		} catch (err) {
-			console.error("[PermissionApproval] Failed to approve:", err)
+			console.error('[PermissionApproval] Failed to approve:', err)
 		}
 		cleanup()
 	}, [pending, responding, resolve, cleanup])
@@ -93,10 +93,10 @@ export function usePermissionApproval({
 			await resolve({
 				requestId: pending.requestId,
 				approved: false,
-				error: "User denied permission",
+				error: 'User denied permission',
 			})
 		} catch (err) {
-			console.error("[PermissionApproval] Failed to deny:", err)
+			console.error('[PermissionApproval] Failed to deny:', err)
 		}
 		cleanup()
 	}, [pending, responding, resolve, cleanup])

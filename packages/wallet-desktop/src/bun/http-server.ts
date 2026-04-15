@@ -20,7 +20,11 @@ import {
 } from './ai-chat-handler'
 import { getWallet } from './wallet-manager'
 
-import { WALLET_HTTP_PORT, WALLET_HTTPS_PORT, WALLET_HOST } from '../shared/constants'
+import {
+	WALLET_HOST,
+	WALLET_HTTPS_PORT,
+	WALLET_HTTP_PORT,
+} from '../shared/constants'
 
 const HTTP_PORT = WALLET_HTTP_PORT
 const HTTPS_PORT = WALLET_HTTPS_PORT
@@ -201,7 +205,12 @@ async function isOriginTrusted(origin: string): Promise<boolean> {
 
 			if (trust?.name && trust?.publicKey) {
 				const log = createLogger({ context: 'trust' })
-				log.set({ event: 'origin_trusted', scheme: 'manifest', origin, trustName: trust.name })
+				log.set({
+					event: 'origin_trusted',
+					scheme: 'manifest',
+					origin,
+					trustName: trust.name,
+				})
 				log.emit()
 				trustedOriginCache.set(origin, true)
 				return true
@@ -368,7 +377,11 @@ async function handleRequest(req: Request): Promise<Response> {
 	const url = new URL(req.url)
 	const pathname = url.pathname
 	const log = createRequestLogger(req)
-	log.set({ route: pathname, method: req.method, origin: req.headers.get('Origin') ?? undefined })
+	log.set({
+		route: pathname,
+		method: req.method,
+		origin: req.headers.get('Origin') ?? undefined,
+	})
 
 	// /api/chat uses restricted CORS — handle separately before the wildcard CORS preflight
 	if (pathname === '/api/chat') {
@@ -418,14 +431,22 @@ async function handleRequest(req: Request): Promise<Response> {
 				modelsUrl = `${baseUrl || 'http://localhost:1234/v1'}/models`
 			} else if (provider === 'anthropic') {
 				if (!apiKey) {
-					return jsonResponse({ error: 'API key required for Anthropic. Add it in Settings → AI.' }, 400)
+					return jsonResponse(
+						{
+							error: 'API key required for Anthropic. Add it in Settings → AI.',
+						},
+						400,
+					)
 				}
 				modelsUrl = `${baseUrl || 'https://api.anthropic.com'}/v1/models`
 				headers['x-api-key'] = apiKey
 				headers['anthropic-version'] = '2023-06-01'
 			} else if (provider === 'openai') {
 				if (!apiKey) {
-					return jsonResponse({ error: 'API key required for OpenAI. Add it in Settings → AI.' }, 400)
+					return jsonResponse(
+						{ error: 'API key required for OpenAI. Add it in Settings → AI.' },
+						400,
+					)
 				}
 				modelsUrl = `${baseUrl || 'https://api.openai.com/v1'}/models`
 				headers.Authorization = `Bearer ${apiKey}`
@@ -442,18 +463,23 @@ async function handleRequest(req: Request): Promise<Response> {
 				signal: AbortSignal.timeout(5000),
 			})
 			if (!res.ok) {
-				return jsonResponse({ error: `Provider returned ${res.status}` }, res.status)
+				return jsonResponse(
+					{ error: `Provider returned ${res.status}` },
+					res.status,
+				)
 			}
-			const data = await res.json() as Record<string, unknown>
+			const data = (await res.json()) as Record<string, unknown>
 
 			// Ollama returns { models: [{ name, size }] }
 			// OpenAI-compatible returns { data: [{ id }] }
 			let models: Array<{ name: string; size: number }>
 			if (Array.isArray(data.models)) {
-				models = (data.models as Array<{ name: string; size: number }>).map((m) => ({
-					name: m.name,
-					size: m.size ?? 0,
-				}))
+				models = (data.models as Array<{ name: string; size: number }>).map(
+					(m) => ({
+						name: m.name,
+						size: m.size ?? 0,
+					}),
+				)
 			} else if (Array.isArray(data.data)) {
 				models = (data.data as Array<{ id: string }>).map((m) => ({
 					name: m.id,
@@ -649,7 +675,10 @@ function promptCertTrust(): void {
 
 	if (proc.exitCode !== 0) {
 		const log = createLogger({ context: 'tls' })
-		log.set({ event: 'cert_trust_failed', detail: new TextDecoder().decode(proc.stderr) })
+		log.set({
+			event: 'cert_trust_failed',
+			detail: new TextDecoder().decode(proc.stderr),
+		})
 		log.emit()
 		console.warn(
 			`[BRC-100] Could not auto-trust cert (user may have cancelled): ${new TextDecoder().decode(proc.stderr)}`,
@@ -697,7 +726,10 @@ export async function startWalletServer(): Promise<void> {
 		httpsLog.emit()
 	} catch (err) {
 		const log = createLogger({ context: 'startup' })
-		log.set({ event: 'https_start_failed', error: err instanceof Error ? err.message : String(err) })
+		log.set({
+			event: 'https_start_failed',
+			error: err instanceof Error ? err.message : String(err),
+		})
 		log.emit()
 		console.error(
 			'[BRC-100] Failed to start HTTPS server:',

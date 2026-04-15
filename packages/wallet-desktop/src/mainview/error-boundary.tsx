@@ -45,8 +45,8 @@ export class ErrorBoundary extends Component<Props, State> {
 						Something went wrong
 					</h1>
 					<p style={{ fontSize: 13, color: '#a1a1aa', marginBottom: 24 }}>
-						The app encountered an error during startup. This information
-						can help diagnose the issue.
+						The app encountered an error during startup. This information can
+						help diagnose the issue.
 					</p>
 					<div
 						style={{

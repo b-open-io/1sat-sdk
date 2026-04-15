@@ -84,14 +84,25 @@ async function findServerBinary(): Promise<string> {
 	// 1. Bundled binary (production) — check FIRST so stable builds don't
 	//    accidentally fall through to source compile when ~/code/1sat-stack exists
 	const bundledPath = resolve(process.argv0, '..', '1sat-stack')
-	log.set({ event: 'binary_search', candidate: 'bundled', path: bundledPath, argv0: process.argv0, exists: existsSync(bundledPath) })
+	log.set({
+		event: 'binary_search',
+		candidate: 'bundled',
+		path: bundledPath,
+		argv0: process.argv0,
+		exists: existsSync(bundledPath),
+	})
 	log.emit()
 	if (existsSync(bundledPath)) {
 		return bundledPath
 	}
 
 	// 2. Pre-compiled dev binary
-	log.set({ event: 'binary_search', candidate: 'dev', path: DEV_BINARY, exists: existsSync(DEV_BINARY) })
+	log.set({
+		event: 'binary_search',
+		candidate: 'dev',
+		path: DEV_BINARY,
+		exists: existsSync(DEV_BINARY),
+	})
 	log.emit()
 	if (existsSync(DEV_BINARY)) {
 		return DEV_BINARY
@@ -99,14 +110,20 @@ async function findServerBinary(): Promise<string> {
 
 	// 3. Compile from source as last resort (dev environment only)
 	const mainGo = `${DEV_SOURCE_DIR}/cmd/server/main.go`
-	log.set({ event: 'binary_search', candidate: 'source', path: mainGo, exists: existsSync(mainGo) })
+	log.set({
+		event: 'binary_search',
+		candidate: 'source',
+		path: mainGo,
+		exists: existsSync(mainGo),
+	})
 	log.emit()
 	if (existsSync(mainGo)) {
 		const outPath = '/tmp/1sat-stack-server'
-		const proc = Bun.spawn(
-			['go', 'build', '-o', outPath, './cmd/server'],
-			{ cwd: DEV_SOURCE_DIR, stdout: 'inherit', stderr: 'inherit' },
-		)
+		const proc = Bun.spawn(['go', 'build', '-o', outPath, './cmd/server'], {
+			cwd: DEV_SOURCE_DIR,
+			stdout: 'inherit',
+			stderr: 'inherit',
+		})
 		const exitCode = await proc.exited
 		if (exitCode !== 0) {
 			throw new Error(`1sat-stack: go build failed with exit code ${exitCode}`)
@@ -192,7 +209,10 @@ export async function startStack(): Promise<void> {
 		log.set({ event: 'binary_found', path: serverPath })
 		log.emit()
 	} catch (err) {
-		log.set({ event: 'start_failed', error: err instanceof Error ? err.message : String(err) })
+		log.set({
+			event: 'start_failed',
+			error: err instanceof Error ? err.message : String(err),
+		})
 		log.emit()
 		throw err
 	}
@@ -207,18 +227,29 @@ export async function startStack(): Promise<void> {
 		},
 	})
 
-	log.set({ event: 'spawned', pid: stackProcess.pid, path: serverPath, port: STACK_PORT })
+	log.set({
+		event: 'spawned',
+		pid: stackProcess.pid,
+		path: serverPath,
+		port: STACK_PORT,
+	})
 	log.emit()
 
 	// Forward stdout/stderr without blocking the caller
 	forwardStream(stackProcess.stdout, '1sat-stack').catch((err) => {
 		const errLog = createLogger({ context: 'stack' })
-		errLog.set({ event: 'stdout_error', error: err instanceof Error ? err.message : String(err) })
+		errLog.set({
+			event: 'stdout_error',
+			error: err instanceof Error ? err.message : String(err),
+		})
 		errLog.emit()
 	})
 	forwardStream(stackProcess.stderr, '1sat-stack:err').catch((err) => {
 		const errLog = createLogger({ context: 'stack' })
-		errLog.set({ event: 'stderr_error', error: err instanceof Error ? err.message : String(err) })
+		errLog.set({
+			event: 'stderr_error',
+			error: err instanceof Error ? err.message : String(err),
+		})
 		errLog.emit()
 	})
 
@@ -276,9 +307,11 @@ export function getStackUrl(): string {
  */
 export async function isStackSetupComplete(): Promise<boolean> {
 	try {
-		const res = await fetch(`${STACK_URL}/1sat/admin/setup/status`, { signal: AbortSignal.timeout(2000) })
+		const res = await fetch(`${STACK_URL}/1sat/admin/setup/status`, {
+			signal: AbortSignal.timeout(2000),
+		})
 		if (!res.ok) return false
-		const data = await res.json() as { configured?: boolean }
+		const data = (await res.json()) as { configured?: boolean }
 		return data.configured === true
 	} catch {
 		return false

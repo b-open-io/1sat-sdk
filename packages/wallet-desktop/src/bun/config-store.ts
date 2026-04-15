@@ -2,7 +2,6 @@ import { Database } from 'bun:sqlite'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 
-
 import { Utils } from 'electrobun/bun'
 
 const SCHEMA = `CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)`
@@ -36,14 +35,18 @@ export class ConfigStore {
 	}
 
 	get(key: string): string | undefined {
-		const row = this.db.query<{ value: string }, [string]>(
-			'SELECT value FROM config WHERE key = ?',
-		).get(key)
+		const row = this.db
+			.query<{ value: string }, [string]>(
+				'SELECT value FROM config WHERE key = ?',
+			)
+			.get(key)
 		return row?.value
 	}
 
 	set(key: string, value: string): void {
-		this.db.query('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run(key, value)
+		this.db
+			.query('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)')
+			.run(key, value)
 	}
 
 	delete(key: string): void {
@@ -52,12 +55,16 @@ export class ConfigStore {
 
 	list(prefix?: string): Record<string, string> {
 		const rows = prefix
-			? this.db.query<{ key: string; value: string }, [string]>(
-					'SELECT key, value FROM config WHERE key LIKE ?',
-				).all(`${prefix}%`)
-			: this.db.query<{ key: string; value: string }, []>(
-					'SELECT key, value FROM config',
-				).all()
+			? this.db
+					.query<{ key: string; value: string }, [string]>(
+						'SELECT key, value FROM config WHERE key LIKE ?',
+					)
+					.all(`${prefix}%`)
+			: this.db
+					.query<{ key: string; value: string }, []>(
+						'SELECT key, value FROM config',
+					)
+					.all()
 
 		const result: Record<string, string> = {}
 		for (const row of rows) {

@@ -105,7 +105,9 @@ function configSet(args: string[], opts: GlobalFlags): void {
 	if (key === 'monitorIntervalMinutes') {
 		const n = Number(value)
 		if (!Number.isFinite(n) || n < 0) {
-			fatal('monitorIntervalMinutes must be a non-negative number (0 to disable)')
+			fatal(
+				'monitorIntervalMinutes must be a non-negative number (0 to disable)',
+			)
 		}
 	}
 

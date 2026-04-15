@@ -1,42 +1,38 @@
-import { OpnsManagerUI } from "./opns-manager-ui"
-import {
-  useOpnsManager,
-  type UseOpnsManagerOptions,
-  type OpnsName,
-} from "./use-opns-manager"
+import { OpnsManagerUI } from './opns-manager-ui'
+import { useOpnsManager } from './use-opns-manager'
 
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 
 export {
-  OpnsManagerUI,
-  type OpnsManagerUIProps,
-  type OpnsNameDisplay,
-  type OpnsOperationResult,
-} from "./opns-manager-ui"
+	OpnsManagerUI,
+	type OpnsManagerUIProps,
+	type OpnsNameDisplay,
+	type OpnsOperationResult,
+} from './opns-manager-ui'
 export {
-  useOpnsManager,
-  type UseOpnsManagerOptions,
-  type UseOpnsManagerReturn,
-  type OpnsName,
-} from "./use-opns-manager"
+	useOpnsManager,
+	type UseOpnsManagerOptions,
+	type UseOpnsManagerReturn,
+	type OpnsName,
+} from './use-opns-manager'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface OpnsManagerProps {
-  /** Whether to auto-fetch names on mount (default: true) */
-  autoFetch?: boolean
-  /** Callback on successful register or deregister */
-  onSuccess?: (result: { txid?: string; error?: string }) => void
-  /** Callback on error */
-  onError?: (error: Error) => void
-  /** Number of skeleton rows to show while loading (default: 3) */
-  skeletonCount?: number
-  /** Optional CSS class name */
-  className?: string
+	/** Whether to auto-fetch names on mount (default: true) */
+	autoFetch?: boolean
+	/** Callback on successful register or deregister */
+	onSuccess?: (result: { txid?: string; error?: string }) => void
+	/** Callback on error */
+	onError?: (error: Error) => void
+	/** Number of skeleton rows to show while loading (default: 3) */
+	skeletonCount?: number
+	/** Optional CSS class name */
+	className?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -67,33 +63,33 @@ export interface OpnsManagerProps {
  * ```
  */
 export function OpnsManager({
-  autoFetch = true,
-  onSuccess,
-  onError,
-  skeletonCount,
-  className,
+	autoFetch = true,
+	onSuccess,
+	onError,
+	skeletonCount,
+	className,
 }: OpnsManagerProps) {
-  const {
-    names,
-    isLoading,
-    isOperating,
-    error,
-    register,
-    deregister,
-    refresh,
-  } = useOpnsManager({ autoFetch, onSuccess, onError })
+	const {
+		names,
+		isLoading,
+		isOperating,
+		error,
+		register,
+		deregister,
+		refresh,
+	} = useOpnsManager({ autoFetch, onSuccess, onError })
 
-  return (
-    <OpnsManagerUI
-      names={names}
-      isLoading={isLoading}
-      isOperating={isOperating}
-      error={error}
-      onRegister={register}
-      onDeregister={deregister}
-      onRefresh={refresh}
-      skeletonCount={skeletonCount}
-      className={className}
-    />
-  )
+	return (
+		<OpnsManagerUI
+			names={names}
+			isLoading={isLoading}
+			isOperating={isOperating}
+			error={error}
+			onRegister={register}
+			onDeregister={deregister}
+			onRefresh={refresh}
+			skeletonCount={skeletonCount}
+			className={className}
+		/>
+	)
 }

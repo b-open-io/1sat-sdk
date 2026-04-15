@@ -4,7 +4,7 @@
  * BAP (Bitcoin Attestation Protocol) identity management.
  */
 
-import { publishIdentity, signBsm } from '@1sat/actions'
+import { publishIdentity, signBsm, updateProfile } from '@1sat/actions'
 import type { GlobalFlags } from '../args'
 import { extractFlag } from '../args'
 import { loadContext } from '../context'
@@ -21,6 +21,8 @@ export async function handleIdentityCommand(
 	switch (subcommand) {
 		case 'create':
 			return identityCreate(rest, opts)
+		case 'update-profile':
+			return identityUpdateProfile(rest, opts)
 		case 'info':
 			return identityInfo(rest, opts)
 		case 'sign':
@@ -30,6 +32,7 @@ export async function handleIdentityCommand(
 		default:
 			printCommandHelp('identity', {
 				create: 'Create/publish a BAP identity',
+				'update-profile': 'Update BAP identity profile (--profile <json>)',
 				info: 'Show BAP identity information',
 				sign: 'Sign a message with identity key (--message <text>)',
 				verify:
@@ -127,4 +130,37 @@ async function identityVerify(
 	fatal(
 		'identity verify is not yet implemented (needs direct BSM.verify integration)',
 	)
+}
+
+async function identityUpdateProfile(
+	args: string[],
+	opts: GlobalFlags,
+): Promise<void> {
+	const profileStr = extractFlag(args, '--profile')
+
+	if (!profileStr) fatal('Missing --profile <json>')
+
+	let profile: Record<string, unknown>
+	try {
+		profile = JSON.parse(profileStr)
+	} catch {
+		fatal(`Invalid JSON in --profile: ${profileStr}`)
+	}
+
+	const privateKey = await loadKey(resolvePassword())
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const result = await updateProfile.execute(ctx, { profile })
+
+		if (result.error) {
+			fatal(result.error)
+		}
+
+		output(result, opts)
+	} finally {
+		await destroy()
+	}
 }

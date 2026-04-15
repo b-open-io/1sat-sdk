@@ -38,7 +38,20 @@ async function runMonitorIfStale(
 	const intervalMs = intervalMinutes * 60 * 1000
 
 	if (elapsed >= intervalMs) {
-		await walletResult.monitor.runOnce()
+		const originalLog = console.log
+		const originalInfo = console.info
+		const originalWarn = console.warn
+		console.log = () => {}
+		console.info = () => {}
+		console.warn = () => {}
+
+		try {
+			await walletResult.monitor.runOnce()
+		} finally {
+			console.log = originalLog
+			console.info = originalInfo
+			console.warn = originalWarn
+		}
 		saveMonitorState({ lastMonitorRun: Date.now() })
 	}
 }

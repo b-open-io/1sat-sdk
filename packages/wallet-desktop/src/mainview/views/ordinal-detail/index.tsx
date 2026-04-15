@@ -181,7 +181,10 @@ function useListing(outpoint: string): {
 }
 
 /** Check whether the outpoint belongs to the current wallet's ordinals. */
-function useIsOwned(outpoint: string): { isOwned: boolean; ownershipLoading: boolean } {
+function useIsOwned(outpoint: string): {
+	isOwned: boolean
+	ownershipLoading: boolean
+} {
 	const [isOwned, setIsOwned] = useState(false)
 	const [ownershipLoading, setOwnershipLoading] = useState(true)
 
@@ -385,9 +388,7 @@ function MetadataPanel({
 				onListingChanged?.()
 			}
 		} catch (err) {
-			setActionError(
-				err instanceof Error ? err.message : 'Purchase failed',
-			)
+			setActionError(err instanceof Error ? err.message : 'Purchase failed')
 		} finally {
 			setActionLoading(false)
 		}
@@ -408,15 +409,15 @@ function MetadataPanel({
 			if (result.error) {
 				setActionError(result.error)
 			} else {
-				setActionSuccess(`Listed for ${price.toLocaleString()} sats! txid: ${result.txid}`)
+				setActionSuccess(
+					`Listed for ${price.toLocaleString()} sats! txid: ${result.txid}`,
+				)
 				setShowListInput(false)
 				setListPrice('')
 				onListingChanged?.()
 			}
 		} catch (err) {
-			setActionError(
-				err instanceof Error ? err.message : 'Listing failed',
-			)
+			setActionError(err instanceof Error ? err.message : 'Listing failed')
 		} finally {
 			setActionLoading(false)
 		}
@@ -434,9 +435,7 @@ function MetadataPanel({
 				onListingChanged?.()
 			}
 		} catch (err) {
-			setActionError(
-				err instanceof Error ? err.message : 'Cancel failed',
-			)
+			setActionError(err instanceof Error ? err.message : 'Cancel failed')
 		} finally {
 			setActionLoading(false)
 		}
@@ -650,9 +649,7 @@ function MetadataPanel({
 									size="sm"
 									className="h-7 text-xs px-3"
 									disabled={
-										actionLoading ||
-										!listPrice ||
-										Number(listPrice) <= 0
+										actionLoading || !listPrice || Number(listPrice) <= 0
 									}
 									onClick={handleListConfirm}
 								>
@@ -708,7 +705,11 @@ export function OrdinalDetailView({
 	onNavigate,
 }: OrdinalDetailViewProps) {
 	const outpoint = params.outpoint ?? ''
-	const { listing, listingLoading, refresh: refreshListing } = useListing(outpoint)
+	const {
+		listing,
+		listingLoading,
+		refresh: refreshListing,
+	} = useListing(outpoint)
 	const { isOwned, ownershipLoading } = useIsOwned(outpoint)
 
 	const handleBack = useCallback(() => {

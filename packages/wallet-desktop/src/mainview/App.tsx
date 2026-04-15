@@ -1,11 +1,11 @@
-import { Button } from '@/components/ui/button'
-import { useEffect, useRef, useState } from 'react'
 import { BigBlocksProvider } from '@/components/blocks/bigblocks-provider'
 import { PermissionApproval } from '@/components/blocks/permission-approval'
-import { onPermissionRequest, rpc } from './rpc'
+import { Button } from '@/components/ui/button'
+import { useEffect, useRef, useState } from 'react'
 import { BrowserLayout } from './components/layout/browser-layout'
 import { useAppearance } from './hooks/use-appearance'
 import { useWallet } from './hooks/use-wallet'
+import { onPermissionRequest, rpc } from './rpc'
 import { AccountPicker } from './views/account-picker'
 import { ImportBackup } from './views/account-picker/import-backup'
 import { CreateWallet } from './views/onboarding/create-wallet'
@@ -13,7 +13,6 @@ import { SetupWizard } from './views/onboarding/setup-wizard'
 import { UnlockWallet } from './views/onboarding/unlock-wallet'
 
 type OnboardingChoice = 'none' | 'create' | 'use-backup'
-
 
 function LoadingScreen() {
 	const [elapsed, setElapsed] = useState(0)
@@ -26,9 +25,7 @@ function LoadingScreen() {
 	return (
 		<div className="min-h-screen flex items-center justify-center">
 			<div className="text-center max-w-sm">
-				<div className="text-lg font-bold text-foreground mb-2">
-					1Sat
-				</div>
+				<div className="text-lg font-bold text-foreground mb-2">1Sat</div>
 				<div className="text-sm text-muted-foreground font-mono">
 					{elapsed < 10
 						? 'Initializing...'
@@ -144,8 +141,15 @@ function App() {
 
 		// status === "no-wallet"
 		const cancelOnboarding = () => setOnboardingChoice('none')
-		if (onboardingChoice === 'create') return <CreateWallet onCancel={cancelOnboarding} />
-		if (onboardingChoice === 'use-backup') return <ImportBackup onComplete={cancelOnboarding} onCancel={cancelOnboarding} />
+		if (onboardingChoice === 'create')
+			return <CreateWallet onCancel={cancelOnboarding} />
+		if (onboardingChoice === 'use-backup')
+			return (
+				<ImportBackup
+					onComplete={cancelOnboarding}
+					onCancel={cancelOnboarding}
+				/>
+			)
 		return <OnboardingChoice onChoose={setOnboardingChoice} />
 	})()
 

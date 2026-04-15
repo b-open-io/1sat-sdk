@@ -1637,36 +1637,33 @@ export function PublishView({ onNavigate }: PublishViewProps) {
 		onNavigate?.('1sat://browser/new')
 	}, [onNavigate])
 
-	const handlePickType = useCallback(
-		(type: ContentType, file?: File) => {
-			setPickedContentType(type)
-			if (type === 'html-app') {
-				// Enter the project folder wizard
-				setStep('select')
-				return
+	const handlePickType = useCallback((type: ContentType, file?: File) => {
+		setPickedContentType(type)
+		if (type === 'html-app') {
+			// Enter the project folder wizard
+			setStep('select')
+			return
+		}
+		// Single-file types: file was picked via native dialog
+		if (file) {
+			setPickedFile(file)
+			// Seed a synthetic "project" from the file and jump to configure
+			const syntheticProject: RecentProject = {
+				name: file.name.replace(/\.[^.]+$/, ''),
+				path: file.name,
+				type: 'Static',
 			}
-			// Single-file types: file was picked via native dialog
-			if (file) {
-				setPickedFile(file)
-				// Seed a synthetic "project" from the file and jump to configure
-				const syntheticProject: RecentProject = {
-					name: file.name.replace(/\.[^.]+$/, ''),
-					path: file.name,
-					type: 'Static',
-				}
-				setSelectedProject(syntheticProject)
-				setConfigForm((prev) => ({
-					...prev,
-					appName: syntheticProject.name
-						.split(/[-_\s]+/)
-						.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-						.join(' '),
-				}))
-				setStep('configure')
-			}
-		},
-		[],
-	)
+			setSelectedProject(syntheticProject)
+			setConfigForm((prev) => ({
+				...prev,
+				appName: syntheticProject.name
+					.split(/[-_\s]+/)
+					.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+					.join(' '),
+			}))
+			setStep('configure')
+		}
+	}, [])
 
 	const handleSelectProject = useCallback((project: RecentProject) => {
 		setSelectedProject(project)

@@ -42,11 +42,23 @@ interface UseWalletReturn {
 	accounts: AccountInfo[]
 	activeAccount: AccountInfo | null
 	// Account management
-	selectAccount: (accountId: string) => Promise<{ success: boolean; error?: string }>
-	createAccount: (mnemonic: string, opts?: { passphrase?: string; displayName?: string; color?: string }) => Promise<{ success: boolean; accountId?: string; error?: string }>
-	importAccount: (mnemonic: string, opts?: { passphrase?: string; displayName?: string; color?: string }) => Promise<{ success: boolean; accountId?: string; error?: string }>
-	switchAccount: (accountId: string) => Promise<{ success: boolean; error?: string }>
-	deleteAccount: (accountId: string) => Promise<{ success: boolean; error?: string }>
+	selectAccount: (
+		accountId: string,
+	) => Promise<{ success: boolean; error?: string }>
+	createAccount: (
+		mnemonic: string,
+		opts?: { passphrase?: string; displayName?: string; color?: string },
+	) => Promise<{ success: boolean; accountId?: string; error?: string }>
+	importAccount: (
+		mnemonic: string,
+		opts?: { passphrase?: string; displayName?: string; color?: string },
+	) => Promise<{ success: boolean; accountId?: string; error?: string }>
+	switchAccount: (
+		accountId: string,
+	) => Promise<{ success: boolean; error?: string }>
+	deleteAccount: (
+		accountId: string,
+	) => Promise<{ success: boolean; error?: string }>
 	// Wallet lifecycle
 	lockWallet: () => Promise<{ success: boolean }>
 	sendBsv: (address: string, amount: number) => Promise<{ txid: string }>
@@ -74,13 +86,19 @@ interface UseWalletReturn {
 	sendBsv21: (params: SendBsv21Params) => Promise<SendBsv21Result>
 	sweepScan: (wif: string) => Promise<SweepScanResult>
 	sweepBsv: (wif: string, assets: SweepScanResult) => Promise<SweepResultInfo>
-	createSocialPost: (params: CreateSocialPostParams) => Promise<SocialPostResult>
+	createSocialPost: (
+		params: CreateSocialPostParams,
+	) => Promise<SocialPostResult>
 	getIdentity: () => Promise<IdentityInfo>
 	publishIdentity: () => Promise<PublishIdentityResult>
 	opnsRegister: (params: OpnsOperationParams) => Promise<OpnsOperationResult>
 	opnsDeregister: (params: OpnsOperationParams) => Promise<OpnsOperationResult>
-	mintCollection: (params: MintCollectionParams) => Promise<MintCollectionResult>
-	mintCollectionItem: (params: MintCollectionItemParams) => Promise<MintCollectionItemResult>
+	mintCollection: (
+		params: MintCollectionParams,
+	) => Promise<MintCollectionResult>
+	mintCollectionItem: (
+		params: MintCollectionItemParams,
+	) => Promise<MintCollectionItemResult>
 }
 
 export function useWallet(): UseWalletReturn {
@@ -146,14 +164,20 @@ export function useWallet(): UseWalletReturn {
 	}, [])
 
 	const createAccount = useCallback(
-		async (mnemonic: string, opts?: { passphrase?: string; displayName?: string; color?: string }) => {
+		async (
+			mnemonic: string,
+			opts?: { passphrase?: string; displayName?: string; color?: string },
+		) => {
 			return rpc.request.createAccount({ mnemonic, ...opts })
 		},
 		[],
 	)
 
 	const importAccount = useCallback(
-		async (mnemonic: string, opts?: { passphrase?: string; displayName?: string; color?: string }) => {
+		async (
+			mnemonic: string,
+			opts?: { passphrase?: string; displayName?: string; color?: string },
+		) => {
 			return rpc.request.importAccount({ mnemonic, ...opts })
 		},
 		[],

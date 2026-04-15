@@ -22,11 +22,13 @@ const pipeline = createDrainPipeline({
 	batch: { size: 25, intervalMs: 2000 },
 })
 
-const fsDrain = pipeline(createFsDrain({
-	dir: LOG_DIR,
-	maxFiles: 7,
-	pretty: false,
-}))
+const fsDrain = pipeline(
+	createFsDrain({
+		dir: LOG_DIR,
+		maxFiles: 7,
+		pretty: false,
+	}),
+)
 
 // Mutable callback — set after wallet-manager wires up the sync terminal.
 // This breaks the import-order chicken-and-egg: log.ts loads before wallet-manager,
@@ -38,13 +40,13 @@ export function setSyncDrainCallback(cb: (event: SyncEvent) => void): void {
 }
 
 function formatSyncMessage(ctx: Record<string, unknown>): string {
-	const event = ctx.event as string ?? ''
-	const context = ctx.context as string ?? ''
-	const method = ctx.method as string ?? ''
-	const route = ctx.route as string ?? ''
+	const event = (ctx.event as string) ?? ''
+	const context = (ctx.context as string) ?? ''
+	const method = (ctx.method as string) ?? ''
+	const route = (ctx.route as string) ?? ''
 	const status = ctx.status as number | undefined
-	const duration = ctx.duration as string ?? ''
-	const error = ctx.error as string ?? ''
+	const duration = (ctx.duration as string) ?? ''
+	const error = (ctx.error as string) ?? ''
 
 	// Build a readable one-line message from the evlog fields
 	const parts: string[] = []
@@ -74,8 +76,8 @@ initLogger({
 		// 1. MCP ring buffer
 		pushLogEvent({
 			timestamp: new Date().toISOString(),
-			context: flat.context as string ?? 'app',
-			event: flat.event as string ?? 'unknown',
+			context: (flat.context as string) ?? 'app',
+			event: (flat.event as string) ?? 'unknown',
 			...flat,
 		})
 
@@ -86,7 +88,7 @@ initLogger({
 		if (syncCallback) {
 			syncCallback({
 				timestamp: Date.now(),
-				source: flat.context as string ?? 'app',
+				source: (flat.context as string) ?? 'app',
 				level: evlogLevelToSync(flat),
 				message: formatSyncMessage(flat),
 			})
@@ -97,7 +99,12 @@ initLogger({
 // Capture uncaught errors as evlog events
 process.on('uncaughtException', (err) => {
 	const log = createLogger({ context: 'crash' })
-	log.set({ event: 'uncaught_exception', error: err.message, stack: err.stack, name: err.name })
+	log.set({
+		event: 'uncaught_exception',
+		error: err.message,
+		stack: err.stack,
+		name: err.name,
+	})
 	log.emit()
 	fsDrain.flush()
 })

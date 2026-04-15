@@ -70,7 +70,9 @@ export function classifyInput(
  * Used when bookmarks already matched — provides the URL/outpoint/AI
  * suggestion that should show alongside the app grid.
  */
-export function classifyInputSecondary(text: string): InputClassification | null {
+export function classifyInputSecondary(
+	text: string,
+): InputClassification | null {
 	const trimmed = text.trim()
 	if (!trimmed) return null
 

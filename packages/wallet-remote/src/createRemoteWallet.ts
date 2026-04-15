@@ -1,8 +1,5 @@
-import {
-	createWalletCore,
-	DEFAULT_FEE_MODEL,
-} from '@1sat/wallet'
 import type { OneSatServices } from '@1sat/client'
+import { createWalletCore } from '@1sat/wallet'
 import type { PrivateKey } from '@bsv/sdk'
 import {
 	Services,
@@ -33,17 +30,13 @@ export interface RemoteWalletResult {
 export async function createRemoteWallet(
 	config: RemoteWalletConfig,
 ): Promise<RemoteWalletResult> {
-	const core = await createWalletCore(
-		config,
-		undefined,
-		{
-			Services,
-			StorageClient,
-			StorageProvider,
-			Wallet,
-			WalletStorageManager,
-		},
-	)
+	const core = await createWalletCore(config, undefined, {
+		Services,
+		StorageClient,
+		StorageProvider,
+		Wallet,
+		WalletStorageManager,
+	})
 
 	return {
 		wallet: core.wallet,

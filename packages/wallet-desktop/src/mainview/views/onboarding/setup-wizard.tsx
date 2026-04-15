@@ -36,11 +36,8 @@ import {
 	LOCAL_PROVIDERS,
 	PROVIDER_DEFAULTS,
 } from '../../../shared/ai-providers'
+import { type AppearanceMode, useAppearance } from '../../hooks/use-appearance'
 import { rpc } from '../../rpc'
-import {
-	type AppearanceMode,
-	useAppearance,
-} from '../../hooks/use-appearance'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -137,9 +134,7 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
 						{currentStep === 0 && <ProfileStep onAdvance={advance} />}
 						{currentStep === 1 && <StackStep onAdvance={advance} />}
 						{currentStep === 2 && <AiStep onAdvance={advance} />}
-						{currentStep === 3 && (
-							<AppearanceStep onComplete={onComplete} />
-						)}
+						{currentStep === 3 && <AppearanceStep onComplete={onComplete} />}
 					</CardContent>
 				</Card>
 
@@ -255,7 +250,10 @@ function ProfileStep({ onAdvance }: { onAdvance: () => void }) {
 
 			{/* BAP ID badge */}
 			{bapId && (
-				<Badge variant="outline" className="font-mono text-[10px] max-w-xs truncate">
+				<Badge
+					variant="outline"
+					className="font-mono text-[10px] max-w-xs truncate"
+				>
 					BAP: {bapId.slice(0, 16)}...
 				</Badge>
 			)}
@@ -325,9 +323,7 @@ function ProfileStep({ onAdvance }: { onAdvance: () => void }) {
 // Step 2: Blockchain Data (Stack)
 // ---------------------------------------------------------------------------
 
-function StackStep({
-	onAdvance,
-}: { onAdvance: () => void }) {
+function StackStep({ onAdvance }: { onAdvance: () => void }) {
 	const [loading, setLoading] = useState(true)
 	const [running, setRunning] = useState(false)
 	const [adminUrl, setAdminUrl] = useState('')
@@ -387,7 +383,10 @@ function StackStep({
 		let responded = false
 		for (let i = 0; i < 20; i++) {
 			try {
-				const res = await fetch(adminUrl, { method: 'HEAD', signal: AbortSignal.timeout(2000) })
+				const res = await fetch(adminUrl, {
+					method: 'HEAD',
+					signal: AbortSignal.timeout(2000),
+				})
 				if (res.ok) {
 					responded = true
 					break
@@ -705,9 +704,12 @@ const APPEARANCE_OPTIONS: {
 function AppearanceStep({ onComplete }: { onComplete: () => void }) {
 	const [accountId, setAccountId] = useState<string | undefined>()
 	useEffect(() => {
-		rpc.request.getActiveAccount().then((r) => {
-			if (r.account) setAccountId(r.account.id)
-		}).catch(() => {})
+		rpc.request
+			.getActiveAccount()
+			.then((r) => {
+				if (r.account) setAccountId(r.account.id)
+			})
+			.catch(() => {})
 	}, [])
 	const { mode, setMode } = useAppearance(accountId)
 
@@ -749,9 +751,7 @@ function AppearanceStep({ onComplete }: { onComplete: () => void }) {
 						>
 							<Icon
 								className={`size-5 shrink-0 ${
-									isSelected
-										? 'text-primary'
-										: 'text-muted-foreground'
+									isSelected ? 'text-primary' : 'text-muted-foreground'
 								}`}
 							/>
 							<div className="flex-1 min-w-0">

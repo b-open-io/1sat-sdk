@@ -47,7 +47,6 @@ import type {
 	SweepScanResult,
 	TokenBalance,
 } from '../shared/types'
-import { importBackup } from './backup-import'
 import {
 	addAccount,
 	getAccount,
@@ -56,9 +55,9 @@ import {
 	removeAccount,
 	setLastActiveAccountId,
 	setShowPickerOnStartup,
-	touchAccount,
 	updateAccount as updateAccountRegistry,
 } from './account-registry'
+import { importBackup } from './backup-import'
 import {
 	fetchChannelMessages,
 	getChatChannels,
@@ -80,11 +79,9 @@ import {
 	getStatus,
 	getWallet,
 	getWalletForAccount,
-	isAccountOpen,
 	lockAccount,
-	unlock,
 } from './wallet-manager'
-import { openAccountWindow, focusAccountWindow, isWindowOpen } from './window-manager'
+import { openAccountWindow } from './window-manager'
 
 // ============================================================================
 // MIME type lookup
@@ -148,7 +145,10 @@ export function createRpcHandlers(scopedAccountId?: string) {
 				? getWalletForAccount(scopedAccountId)
 				: getWallet()
 			if (!w) return undefined
-			const ctx = createContext(w.wallet, { services: w.services, chain: 'main' })
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
 			const bapId = await resolveBapId(ctx)
 			if (!bapId) return undefined
 			const result = await getProfile.execute(ctx, {} as Record<string, never>)
@@ -774,7 +774,8 @@ export function createRpcHandlers(scopedAccountId?: string) {
 
 				const store = getConfigStore()
 				const raw = store.get(`draft-profile-${accountId}`)
-				if (!raw) return { success: false, error: 'No draft profile to publish' }
+				if (!raw)
+					return { success: false, error: 'No draft profile to publish' }
 
 				const draft = JSON.parse(raw) as DraftProfile
 

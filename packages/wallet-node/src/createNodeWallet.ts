@@ -1,8 +1,5 @@
-import {
-	createWalletCore,
-	DEFAULT_FEE_MODEL,
-} from '@1sat/wallet'
 import type { OneSatServices } from '@1sat/client'
+import { DEFAULT_FEE_MODEL, createWalletCore } from '@1sat/wallet'
 import type { PrivateKey } from '@bsv/sdk'
 import {
 	Monitor,

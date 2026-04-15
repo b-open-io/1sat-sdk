@@ -1,6 +1,14 @@
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { AlertCircle, ArrowUp, Hash, Loader2, Plus, RefreshCw, X } from 'lucide-react'
+import {
+	AlertCircle,
+	ArrowUp,
+	Hash,
+	Loader2,
+	Plus,
+	RefreshCw,
+	X,
+} from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChatMessage } from '../../../shared/types'
 import { useChat } from '../../hooks/use-chat'
@@ -147,7 +155,10 @@ function JoinChannelDialog({
 	const available = SUGGESTED_CHANNELS.filter((ch) => !currentSet.has(ch.name))
 
 	const handleJoinCustom = () => {
-		const name = customName.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '')
+		const name = customName
+			.trim()
+			.toLowerCase()
+			.replace(/[^a-z0-9-_]/g, '')
 		if (!name) return
 		onJoin(name)
 		setCustomName('')
@@ -170,7 +181,9 @@ function JoinChannelDialog({
 				>
 					{/* Header */}
 					<div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
-						<span className={cn('text-[13px] font-semibold text-foreground', SANS)}>
+						<span
+							className={cn('text-[13px] font-semibold text-foreground', SANS)}
+						>
 							Join Channel
 						</span>
 						<button
@@ -212,7 +225,12 @@ function JoinChannelDialog({
 					<ScrollArea className="flex-1 overflow-hidden">
 						<div className="px-2 py-2">
 							{available.length === 0 ? (
-								<p className={cn('text-[11px] text-muted-foreground text-center py-4', SANS)}>
+								<p
+									className={cn(
+										'text-[11px] text-muted-foreground text-center py-4',
+										SANS,
+									)}
+								>
 									You&apos;ve joined all suggested channels
 								</p>
 							) : (
@@ -223,12 +241,25 @@ function JoinChannelDialog({
 										onClick={() => onJoin(ch.name)}
 										className="flex items-center gap-2.5 w-full px-2.5 py-2 hover:bg-muted/30 transition-colors text-left"
 									>
-										<Hash size={12} className="text-muted-foreground shrink-0" />
+										<Hash
+											size={12}
+											className="text-muted-foreground shrink-0"
+										/>
 										<div className="flex-1 min-w-0">
-											<p className={cn('text-[12px] font-medium text-foreground', MONO)}>
+											<p
+												className={cn(
+													'text-[12px] font-medium text-foreground',
+													MONO,
+												)}
+											>
 												{ch.name}
 											</p>
-											<p className={cn('text-[10px] text-muted-foreground', SANS)}>
+											<p
+												className={cn(
+													'text-[10px] text-muted-foreground',
+													SANS,
+												)}
+											>
 												{ch.desc}
 											</p>
 										</div>
@@ -267,7 +298,12 @@ function ChannelSidebar({
 		>
 			{/* Header */}
 			<div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0">
-				<span className={cn('text-[10px] font-semibold uppercase tracking-widest text-muted-foreground', MONO)}>
+				<span
+					className={cn(
+						'text-[10px] font-semibold uppercase tracking-widest text-muted-foreground',
+						MONO,
+					)}
+				>
 					Channels
 				</span>
 				<button

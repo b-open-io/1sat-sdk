@@ -1,13 +1,15 @@
+import { Updater } from 'electrobun/bun'
 /**
  * Auto-updater — wraps Electrobun's Updater API with evlog logging
  * and RPC-based status pushes to the frontend.
  */
 import { createLogger } from 'evlog'
-import { Updater } from 'electrobun/bun'
 import type { UpdateStatusKind } from '../shared/types'
 
 // Callback to push update status to the frontend via RPC
-let pushStatus: ((status: UpdateStatusKind, version?: string, error?: string) => void) | null = null
+let pushStatus:
+	| ((status: UpdateStatusKind, version?: string, error?: string) => void)
+	| null = null
 
 /** Register the RPC push callback — called once from index.ts after RPC is wired */
 export function setUpdateStatusPusher(
@@ -163,9 +165,12 @@ let backgroundInterval: ReturnType<typeof setInterval> | null = null
 /** Start the hourly background update check */
 export function startBackgroundUpdateCheck(): void {
 	if (backgroundInterval) return
-	backgroundInterval = setInterval(() => {
-		checkForUpdatesOnLaunch()
-	}, 60 * 60 * 1000) // every hour
+	backgroundInterval = setInterval(
+		() => {
+			checkForUpdatesOnLaunch()
+		},
+		60 * 60 * 1000,
+	) // every hour
 }
 
 /** Stop the background update check (call on quit) */

@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge'
-import { STACK_URL } from '../../../shared/constants'
+import { Empty } from '@/components/ui/empty'
 import {
 	Select,
 	SelectContent,
@@ -10,9 +10,9 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Gem, ImageOff } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { STACK_URL } from '../../../shared/constants'
 import type { OrdinalInfo } from '../../../shared/types'
 import { rpc } from '../../rpc'
-import { Empty } from '@/components/ui/empty'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -35,7 +35,11 @@ function getTag(tags: string[], prefix: string): string | undefined {
 	return tag ? tag.slice(prefix.length) : undefined
 }
 
-function getDisplayField(o: OrdinalInfo, field: string, tagPrefix: string): string | undefined {
+function getDisplayField(
+	o: OrdinalInfo,
+	field: string,
+	tagPrefix: string,
+): string | undefined {
 	if (o.customInstructions) {
 		try {
 			const parsed = JSON.parse(o.customInstructions)

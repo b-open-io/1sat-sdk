@@ -79,7 +79,9 @@ async function connectAutoDetect(): Promise<ConnectWalletResult> {
  * Build a connect function for a provider config.
  * Custom connect > url (CWI iframe bridge) > error.
  */
-function buildConnector(config: WalletProviderConfig): () => Promise<ConnectWalletResult> {
+function buildConnector(
+	config: WalletProviderConfig,
+): () => Promise<ConnectWalletResult> {
 	if (config.connect) return config.connect
 
 	if (config.url) {
@@ -88,18 +90,28 @@ function buildConnector(config: WalletProviderConfig): () => Promise<ConnectWall
 			const { wallet, destroy } = createWebCWI(webConfig)
 			await wallet.waitForAuthentication({})
 			const { publicKey } = await wallet.getPublicKey({ identityKey: true })
-			return { wallet, provider: config.type, identityKey: publicKey, disconnect: destroy }
+			return {
+				wallet,
+				provider: config.type,
+				identityKey: publicKey,
+				disconnect: destroy,
+			}
 		}
 	}
 
-	return () => Promise.reject(new Error(`Provider "${config.type}" has no url or connect function`))
+	return () =>
+		Promise.reject(
+			new Error(`Provider "${config.type}" has no url or connect function`),
+		)
 }
 
 /**
  * Get available wallet providers with connect functions.
  * Sorts by last successful provider for faster reconnects.
  */
-export function getAvailableProviders(config?: ConnectWalletConfig): AvailableProvider[] {
+export function getAvailableProviders(
+	config?: ConnectWalletConfig,
+): AvailableProvider[] {
 	const providerConfigs = config?.providers ?? []
 	const lastProvider = loadLastProvider()
 
@@ -122,7 +134,9 @@ export function getAvailableProviders(config?: ConnectWalletConfig): AvailablePr
  * If the last successful provider is known, it's attempted first
  * before falling back to the full race.
  */
-export async function connectWallet(config?: ConnectWalletConfig): Promise<ConnectWalletResult> {
+export async function connectWallet(
+	config?: ConnectWalletConfig,
+): Promise<ConnectWalletResult> {
 	const autoDetect = config?.autoDetect ?? true
 	const providers = config?.providers ?? []
 

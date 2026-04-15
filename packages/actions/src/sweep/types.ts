@@ -2,8 +2,8 @@
  * Sweep Module Types
  */
 
-import type { PrivateKey } from '@bsv/sdk'
 import type { IndexedOutput } from '@1sat/types'
+import type { PrivateKey } from '@bsv/sdk'
 
 /** Input for sweep operations - a UTXO to be swept */
 export interface SweepInput {

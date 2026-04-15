@@ -1,6 +1,3 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { ImageOff, Loader2, Upload, Link, Gem } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
 	Dialog,
@@ -14,6 +11,9 @@ import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { cn } from '@/lib/utils'
+import { Gem, ImageOff, Link, Loader2, Upload } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { STACK_URL } from '../../../../shared/constants'
 import type { OrdinalInfo } from '../../../../shared/types'
 import { rpc } from '../../../rpc'

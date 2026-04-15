@@ -1,5 +1,5 @@
 import { OneSatServices } from '@1sat/client'
-import { KeyDeriver, PrivateKey, type WalletInterface } from '@bsv/sdk'
+import { KeyDeriver, type PrivateKey, type WalletInterface } from '@bsv/sdk'
 import type { sdk as toolboxSdk } from '@bsv/wallet-toolbox'
 import { parsePrivateKey } from './parsePrivateKey'
 

@@ -1,54 +1,51 @@
-"use client"
+'use client'
 
-import { MarketGridUI } from "./market-grid-ui"
+import { MarketGridUI } from './market-grid-ui'
 import {
-  useMarketGrid,
-  type MarketListing,
-  type SortDirection,
-  type SortField,
-  type UseMarketGridOptions,
-  type UseMarketGridReturn,
-} from "./use-market-grid"
+	type SortDirection,
+	type SortField,
+	useMarketGrid,
+} from './use-market-grid'
 
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 
-export { ListingCardUI, type ListingCardUIProps } from "./listing-card-ui"
-export { MarketGridUI, type MarketGridUIProps } from "./market-grid-ui"
+export { ListingCardUI, type ListingCardUIProps } from './listing-card-ui'
+export { MarketGridUI, type MarketGridUIProps } from './market-grid-ui'
 export {
-  useMarketGrid,
-  type MarketListing,
-  type OneSatTxo,
-  type SortDirection,
-  type SortField,
-  type UseMarketGridOptions,
-  type UseMarketGridReturn,
-} from "./use-market-grid"
+	useMarketGrid,
+	type MarketListing,
+	type OneSatTxo,
+	type SortDirection,
+	type SortField,
+	type UseMarketGridOptions,
+	type UseMarketGridReturn,
+} from './use-market-grid'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface MarketGridProps {
-  /** Base URL of the 1sat-stack API */
-  apiUrl?: string
-  /** Number of listings per page */
-  pageSize?: number
-  /** Sort field */
-  sortBy?: SortField
-  /** Sort direction */
-  sortDir?: SortDirection
-  /** Optional content type filter (e.g. "image/png") */
-  contentTypeFilter?: string
-  /** Callback when "Buy" is clicked on a listing */
-  onBuy: (outpoint: string, price: number) => void
-  /** Callback when a listing card is clicked (navigation) */
-  onListingClick?: (outpoint: string) => void
-  /** Number of skeleton cards to show during loading */
-  skeletonCount?: number
-  /** Optional CSS class name */
-  className?: string
+	/** Base URL of the 1sat-stack API */
+	apiUrl?: string
+	/** Number of listings per page */
+	pageSize?: number
+	/** Sort field */
+	sortBy?: SortField
+	/** Sort direction */
+	sortDir?: SortDirection
+	/** Optional content type filter (e.g. "image/png") */
+	contentTypeFilter?: string
+	/** Callback when "Buy" is clicked on a listing */
+	onBuy: (outpoint: string, price: number) => void
+	/** Callback when a listing card is clicked (navigation) */
+	onListingClick?: (outpoint: string) => void
+	/** Number of skeleton cards to show during loading */
+	skeletonCount?: number
+	/** Optional CSS class name */
+	className?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -77,37 +74,37 @@ export interface MarketGridProps {
  * ```
  */
 export function MarketGrid({
-  apiUrl,
-  pageSize,
-  sortBy,
-  sortDir,
-  contentTypeFilter,
-  onBuy,
-  onListingClick,
-  skeletonCount,
-  className,
+	apiUrl,
+	pageSize,
+	sortBy,
+	sortDir,
+	contentTypeFilter,
+	onBuy,
+	onListingClick,
+	skeletonCount,
+	className,
 }: MarketGridProps) {
-  const grid = useMarketGrid({
-    apiUrl,
-    pageSize,
-    sortBy,
-    sortDir,
-    contentTypeFilter,
-  })
+	const grid = useMarketGrid({
+		apiUrl,
+		pageSize,
+		sortBy,
+		sortDir,
+		contentTypeFilter,
+	})
 
-  return (
-    <MarketGridUI
-      listings={grid.listings}
-      isLoading={grid.isLoading}
-      isLoadingMore={grid.isLoadingMore}
-      error={grid.error}
-      hasMore={grid.hasMore}
-      onLoadMore={grid.loadMore}
-      onRefresh={grid.refresh}
-      onBuy={onBuy}
-      onListingClick={onListingClick}
-      skeletonCount={skeletonCount}
-      className={className}
-    />
-  )
+	return (
+		<MarketGridUI
+			listings={grid.listings}
+			isLoading={grid.isLoading}
+			isLoadingMore={grid.isLoadingMore}
+			error={grid.error}
+			hasMore={grid.hasMore}
+			onLoadMore={grid.loadMore}
+			onRefresh={grid.refresh}
+			onBuy={onBuy}
+			onListingClick={onListingClick}
+			skeletonCount={skeletonCount}
+			className={className}
+		/>
+	)
 }

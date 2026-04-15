@@ -1,7 +1,10 @@
 import { Button } from '@/components/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-import type { HistoryEntry, ReceiveInfo } from '../../../shared/types'
 import {
 	ArrowDownLeft,
 	ArrowUpRight,
@@ -13,6 +16,7 @@ import {
 	Wallet,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { HistoryEntry, ReceiveInfo } from '../../../shared/types'
 import { useWallet } from '../../hooks/use-wallet'
 import { rpc } from '../../rpc'
 import { ReceiveDialog } from './receive-dialog'
@@ -23,9 +27,11 @@ import { SendDialog } from './send-dialog'
 // ---------------------------------------------------------------------------
 
 function satsToBsv(sats: number): string {
-	return (sats / 1e8).toFixed(8).replace(/\.?0+$/, (m) =>
-		m.startsWith('.') ? '.00000000'.slice(0, 9 - (8 - m.length + 1)) : '',
-	)
+	return (sats / 1e8)
+		.toFixed(8)
+		.replace(/\.?0+$/, (m) =>
+			m.startsWith('.') ? '.00000000'.slice(0, 9 - (8 - m.length + 1)) : '',
+		)
 }
 
 function formatBsvAmount(sats: number): string {
@@ -88,11 +94,7 @@ function TxRow({ entry }: { entry: HistoryEntry }) {
 						: 'bg-destructive/15 text-destructive',
 				)}
 			>
-				{positive ? (
-					<ArrowDownLeft size={10} />
-				) : (
-					<ArrowUpRight size={10} />
-				)}
+				{positive ? <ArrowDownLeft size={10} /> : <ArrowUpRight size={10} />}
 			</div>
 			<div className="flex-1 min-w-0">
 				<p className="text-xs text-foreground truncate leading-tight">
@@ -125,7 +127,10 @@ interface WalletPopoverProps {
 	onOpenChange?: (open: boolean) => void
 }
 
-export function WalletPopover({ onNavigate, onOpenChange }: WalletPopoverProps) {
+export function WalletPopover({
+	onNavigate,
+	onOpenChange,
+}: WalletPopoverProps) {
 	const { balance, status } = useWallet()
 	const [receiveInfo, setReceiveInfo] = useState<ReceiveInfo | null>(null)
 	const [history, setHistory] = useState<HistoryEntry[]>([])
@@ -149,7 +154,9 @@ export function WalletPopover({ onNavigate, onOpenChange }: WalletPopoverProps) 
 	}, [effectiveOpen, onOpenChange])
 
 	// Internal setter — does NOT call onOpenChange directly
-	const setOpen = useCallback((v: boolean) => { setOpenInternal(v) }, [])
+	const setOpen = useCallback((v: boolean) => {
+		setOpenInternal(v)
+	}, [])
 
 	const totalSats = balance.confirmed + balance.unconfirmed
 
@@ -199,137 +206,137 @@ export function WalletPopover({ onNavigate, onOpenChange }: WalletPopoverProps) 
 
 	return (
 		<>
-		<SendDialog open={sendOpen} onOpenChange={setSendOpen} />
-		<ReceiveDialog open={receiveOpen} onOpenChange={setReceiveOpen} />
-		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger>
-				<Button
-					variant="ghost"
-					size="icon-xs"
-					className="text-muted-foreground"
-					style={{ borderRadius: 5 }}
-					aria-label="Wallet"
+			<SendDialog open={sendOpen} onOpenChange={setSendOpen} />
+			<ReceiveDialog open={receiveOpen} onOpenChange={setReceiveOpen} />
+			<Popover open={open} onOpenChange={setOpen}>
+				<PopoverTrigger>
+					<Button
+						variant="ghost"
+						size="icon-xs"
+						className="text-muted-foreground"
+						style={{ borderRadius: 5 }}
+						aria-label="Wallet"
+					>
+						<Wallet size={14} />
+					</Button>
+				</PopoverTrigger>
+				<PopoverContent
+					align="end"
+					sideOffset={6}
+					className="p-0 border-border shadow-xl"
+					style={{ width: 320, borderRadius: 0 }}
 				>
-					<Wallet size={14} />
-				</Button>
-			</PopoverTrigger>
-			<PopoverContent
-				align="end"
-				sideOffset={6}
-				className="p-0 border-border shadow-xl"
-				style={{ width: 320, borderRadius: 0 }}
-			>
-				{/* Header */}
-				<div className="flex items-center justify-between px-4 py-3 border-b border-border">
-					<div className="flex items-center gap-2">
-						<Wallet size={13} className="text-muted-foreground" />
-						<span
-							className="text-[12px] font-semibold tracking-wide text-foreground"
-							style={{ fontFamily: 'var(--font-sans)' }}
-						>
-							Wallet
-						</span>
-					</div>
-					{status === 'unlocked' ? (
-						<span className="text-[10px] px-1.5 py-0.5 rounded-[3px] bg-chart-4/15 text-chart-4 font-medium">
-							unlocked
-						</span>
-					) : (
-						<Lock size={12} className="text-muted-foreground" />
-					)}
-				</div>
-
-				{/* Balance */}
-				<BalanceDisplay sats={totalSats} />
-
-				{/* Action buttons */}
-				<div className="flex gap-2 px-4 pb-3">
-					<Button
-						size="sm"
-						className="flex-1 h-7 text-xs font-medium"
-						onClick={handleSend}
-						disabled={status !== 'unlocked'}
-					>
-						Send
-					</Button>
-					<Button
-						variant="outline"
-						size="sm"
-						className="flex-1 h-7 text-xs font-medium border-border"
-						onClick={handleReceive}
-					>
-						Receive
-					</Button>
-				</div>
-
-				{/* Assets summary */}
-				{status === 'unlocked' && (
-					<div className="flex items-center gap-3 px-4 py-2 border-b border-border">
-						<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-							<Gem size={11} />
-							<span className="font-mono">{ordinalCount}</span>
-							<span>ordinals</span>
-						</div>
-						<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-							<Coins size={11} />
-							<span className="font-mono">{tokenCount}</span>
-							<span>tokens</span>
-						</div>
-					</div>
-				)}
-
-				{/* Receive address */}
-				{receiveInfo && (
-					<div className="px-4 pb-3">
-						<p className="text-[10px] text-muted-foreground mb-1 tracking-wide uppercase font-medium">
-							Receive Address
-						</p>
-						<div className="flex items-center gap-2 px-2 py-1.5 bg-muted/40 border border-border rounded-[3px]">
+					{/* Header */}
+					<div className="flex items-center justify-between px-4 py-3 border-b border-border">
+						<div className="flex items-center gap-2">
+							<Wallet size={13} className="text-muted-foreground" />
 							<span
-								className="flex-1 text-[10px] font-mono text-muted-foreground truncate"
-								style={{ fontFamily: 'var(--font-mono)' }}
+								className="text-[12px] font-semibold tracking-wide text-foreground"
+								style={{ fontFamily: 'var(--font-sans)' }}
 							>
-								{receiveInfo.address}
+								Wallet
 							</span>
-							<button
-								type="button"
-								onClick={copyAddress}
-								className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-								aria-label="Copy address"
-							>
-								<Copy size={11} className={copied ? 'text-chart-4' : ''} />
-							</button>
 						</div>
+						{status === 'unlocked' ? (
+							<span className="text-[10px] px-1.5 py-0.5 rounded-[3px] bg-chart-4/15 text-chart-4 font-medium">
+								unlocked
+							</span>
+						) : (
+							<Lock size={12} className="text-muted-foreground" />
+						)}
 					</div>
-				)}
 
-				{/* Recent activity */}
-				{history.length > 0 && (
-					<div className="px-4 pb-3 border-t border-border pt-3">
-						<p className="text-[10px] text-muted-foreground mb-1 tracking-wide uppercase font-medium">
-							Recent Activity
-						</p>
-						<div className="divide-y divide-border/50">
-							{history.map((entry) => (
-								<TxRow key={entry.txid} entry={entry} />
-							))}
+					{/* Balance */}
+					<BalanceDisplay sats={totalSats} />
+
+					{/* Action buttons */}
+					<div className="flex gap-2 px-4 pb-3">
+						<Button
+							size="sm"
+							className="flex-1 h-7 text-xs font-medium"
+							onClick={handleSend}
+							disabled={status !== 'unlocked'}
+						>
+							Send
+						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							className="flex-1 h-7 text-xs font-medium border-border"
+							onClick={handleReceive}
+						>
+							Receive
+						</Button>
+					</div>
+
+					{/* Assets summary */}
+					{status === 'unlocked' && (
+						<div className="flex items-center gap-3 px-4 py-2 border-b border-border">
+							<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+								<Gem size={11} />
+								<span className="font-mono">{ordinalCount}</span>
+								<span>ordinals</span>
+							</div>
+							<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+								<Coins size={11} />
+								<span className="font-mono">{tokenCount}</span>
+								<span>tokens</span>
+							</div>
 						</div>
-					</div>
-				)}
+					)}
 
-				{/* Footer link */}
-				<button
-					type="button"
-					onClick={handleOpenWallet}
-					className="w-full flex items-center justify-between px-4 py-2.5 border-t border-border text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
-				>
-					<span style={{ fontFamily: 'var(--font-sans)' }}>
-						Open full wallet
-					</span>
-					<ChevronRight size={12} />
-				</button>
-			</PopoverContent>
-		</Popover>
+					{/* Receive address */}
+					{receiveInfo && (
+						<div className="px-4 pb-3">
+							<p className="text-[10px] text-muted-foreground mb-1 tracking-wide uppercase font-medium">
+								Receive Address
+							</p>
+							<div className="flex items-center gap-2 px-2 py-1.5 bg-muted/40 border border-border rounded-[3px]">
+								<span
+									className="flex-1 text-[10px] font-mono text-muted-foreground truncate"
+									style={{ fontFamily: 'var(--font-mono)' }}
+								>
+									{receiveInfo.address}
+								</span>
+								<button
+									type="button"
+									onClick={copyAddress}
+									className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+									aria-label="Copy address"
+								>
+									<Copy size={11} className={copied ? 'text-chart-4' : ''} />
+								</button>
+							</div>
+						</div>
+					)}
+
+					{/* Recent activity */}
+					{history.length > 0 && (
+						<div className="px-4 pb-3 border-t border-border pt-3">
+							<p className="text-[10px] text-muted-foreground mb-1 tracking-wide uppercase font-medium">
+								Recent Activity
+							</p>
+							<div className="divide-y divide-border/50">
+								{history.map((entry) => (
+									<TxRow key={entry.txid} entry={entry} />
+								))}
+							</div>
+						</div>
+					)}
+
+					{/* Footer link */}
+					<button
+						type="button"
+						onClick={handleOpenWallet}
+						className="w-full flex items-center justify-between px-4 py-2.5 border-t border-border text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
+					>
+						<span style={{ fontFamily: 'var(--font-sans)' }}>
+							Open full wallet
+						</span>
+						<ChevronRight size={12} />
+					</button>
+				</PopoverContent>
+			</Popover>
 		</>
 	)
 }

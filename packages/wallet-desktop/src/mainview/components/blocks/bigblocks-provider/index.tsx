@@ -1,39 +1,39 @@
-import { useMemo } from "react"
+import { useMemo } from 'react'
 import {
-  BigBlocksContext,
-  DEFAULT_API_URL,
-  DEFAULT_ORDFS_URL,
-  type BigBlocksContextValue,
-  type GetBalanceFn,
-  type GetOrdinalsFn,
-  type GetTokenBalancesFn,
-  type GetHistoryFn,
-  type OnExternalLinkFn,
-} from "./bigblocks-context"
+	BigBlocksContext,
+	type BigBlocksContextValue,
+	DEFAULT_API_URL,
+	DEFAULT_ORDFS_URL,
+	type GetBalanceFn,
+	type GetHistoryFn,
+	type GetOrdinalsFn,
+	type GetTokenBalancesFn,
+	type OnExternalLinkFn,
+} from './bigblocks-context'
 
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 
 export {
-  useBigBlocks,
-  BigBlocksContext,
-  DEFAULT_API_URL,
-  DEFAULT_ORDFS_URL,
-} from "./bigblocks-context"
+	useBigBlocks,
+	BigBlocksContext,
+	DEFAULT_API_URL,
+	DEFAULT_ORDFS_URL,
+} from './bigblocks-context'
 
 export type {
-  BigBlocksContextValue,
-  BigBlocksBalance,
-  BigBlocksOrdinal,
-  BigBlocksTokenBalance,
-  BigBlocksHistoryEntry,
-  GetBalanceFn,
-  GetOrdinalsFn,
-  GetTokenBalancesFn,
-  GetHistoryFn,
-  OnExternalLinkFn,
-} from "./bigblocks-context"
+	BigBlocksContextValue,
+	BigBlocksBalance,
+	BigBlocksOrdinal,
+	BigBlocksTokenBalance,
+	BigBlocksHistoryEntry,
+	GetBalanceFn,
+	GetOrdinalsFn,
+	GetTokenBalancesFn,
+	GetHistoryFn,
+	OnExternalLinkFn,
+} from './bigblocks-context'
 
 // ---------------------------------------------------------------------------
 // Props
@@ -41,37 +41,37 @@ export type {
 
 /** Props for the BigBlocksProvider component */
 export interface BigBlocksProviderProps {
-  /** 1sat-stack API base URL for web mode (default: "https://api.1sat.app/1sat") */
-  apiUrl?: string
-  /** ORDFS base URL for on-chain image resolution (default: "https://ordfs.network") */
-  ordfsUrl?: string
-  /**
-   * Custom balance fetcher. When provided, hooks call this function
-   * instead of the 1sat-stack API. Useful for desktop RPC, testing, or SSR.
-   */
-  getBalance?: GetBalanceFn
-  /**
-   * Custom ordinals fetcher. When provided, hooks call this function
-   * instead of the 1sat-stack API.
-   */
-  getOrdinals?: GetOrdinalsFn
-  /**
-   * Custom token balance fetcher. When provided, hooks call this function
-   * instead of the 1sat-stack API.
-   */
-  getTokenBalances?: GetTokenBalancesFn
-  /**
-   * Custom transaction history fetcher. When provided, hooks call this
-   * function instead of the 1sat-stack API.
-   */
-  getHistory?: GetHistoryFn
-  /**
-   * External link handler for desktop apps. When provided, components use
-   * this instead of `window.open` for outbound links.
-   */
-  onExternalLink?: OnExternalLinkFn
-  /** Child components that can access the BigBlocks context */
-  children: React.ReactNode
+	/** 1sat-stack API base URL for web mode (default: "https://api.1sat.app/1sat") */
+	apiUrl?: string
+	/** ORDFS base URL for on-chain image resolution (default: "https://ordfs.network") */
+	ordfsUrl?: string
+	/**
+	 * Custom balance fetcher. When provided, hooks call this function
+	 * instead of the 1sat-stack API. Useful for desktop RPC, testing, or SSR.
+	 */
+	getBalance?: GetBalanceFn
+	/**
+	 * Custom ordinals fetcher. When provided, hooks call this function
+	 * instead of the 1sat-stack API.
+	 */
+	getOrdinals?: GetOrdinalsFn
+	/**
+	 * Custom token balance fetcher. When provided, hooks call this function
+	 * instead of the 1sat-stack API.
+	 */
+	getTokenBalances?: GetTokenBalancesFn
+	/**
+	 * Custom transaction history fetcher. When provided, hooks call this
+	 * function instead of the 1sat-stack API.
+	 */
+	getHistory?: GetHistoryFn
+	/**
+	 * External link handler for desktop apps. When provided, components use
+	 * this instead of `window.open` for outbound links.
+	 */
+	onExternalLink?: OnExternalLinkFn
+	/** Child components that can access the BigBlocks context */
+	children: React.ReactNode
 }
 
 // ---------------------------------------------------------------------------
@@ -107,31 +107,39 @@ export interface BigBlocksProviderProps {
  * ```
  */
 export function BigBlocksProvider({
-  apiUrl = DEFAULT_API_URL,
-  ordfsUrl = DEFAULT_ORDFS_URL,
-  getBalance,
-  getOrdinals,
-  getTokenBalances,
-  getHistory,
-  onExternalLink,
-  children,
+	apiUrl = DEFAULT_API_URL,
+	ordfsUrl = DEFAULT_ORDFS_URL,
+	getBalance,
+	getOrdinals,
+	getTokenBalances,
+	getHistory,
+	onExternalLink,
+	children,
 }: BigBlocksProviderProps) {
-  const value = useMemo<BigBlocksContextValue>(
-    () => ({
-      apiUrl,
-      ordfsUrl,
-      getBalance,
-      getOrdinals,
-      getTokenBalances,
-      getHistory,
-      onExternalLink,
-    }),
-    [apiUrl, ordfsUrl, getBalance, getOrdinals, getTokenBalances, getHistory, onExternalLink]
-  )
+	const value = useMemo<BigBlocksContextValue>(
+		() => ({
+			apiUrl,
+			ordfsUrl,
+			getBalance,
+			getOrdinals,
+			getTokenBalances,
+			getHistory,
+			onExternalLink,
+		}),
+		[
+			apiUrl,
+			ordfsUrl,
+			getBalance,
+			getOrdinals,
+			getTokenBalances,
+			getHistory,
+			onExternalLink,
+		],
+	)
 
-  return (
-    <BigBlocksContext.Provider value={value}>
-      {children}
-    </BigBlocksContext.Provider>
-  )
+	return (
+		<BigBlocksContext.Provider value={value}>
+			{children}
+		</BigBlocksContext.Provider>
+	)
 }

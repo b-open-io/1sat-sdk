@@ -1,40 +1,44 @@
-import { useCallback } from "react"
-import { DeployTokenUI } from "./ui"
+import { useCallback } from 'react'
+import { DeployTokenUI } from './ui'
 import {
-  useDeployToken,
-  type DeployTokenParams,
-  type DeployTokenResult,
-  type UseDeployTokenOptions,
-} from "./use-deploy-token"
+	type DeployTokenParams,
+	type DeployTokenResult,
+	type UseDeployTokenOptions,
+	useDeployToken,
+} from './use-deploy-token'
 
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 
-export { DeployTokenUI, type DeployTokenUIProps, type DeployTokenFormState } from "./ui"
 export {
-  useDeployToken,
-  type DeployTokenParams,
-  type DeployTokenResult,
-  type UseDeployTokenOptions,
-  type UseDeployTokenReturn,
-} from "./use-deploy-token"
+	DeployTokenUI,
+	type DeployTokenUIProps,
+	type DeployTokenFormState,
+} from './ui'
+export {
+	useDeployToken,
+	type DeployTokenParams,
+	type DeployTokenResult,
+	type UseDeployTokenOptions,
+	type UseDeployTokenReturn,
+} from './use-deploy-token'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface DeployTokenProps {
-  /** Callback that executes the on-chain deploy action */
-  onDeploy: (params: DeployTokenParams) => Promise<DeployTokenResult>
-  /** Callback on successful deployment */
-  onSuccess?: (result: DeployTokenResult) => void
-  /** Callback on error */
-  onError?: (error: Error) => void
-  /** Default form values */
-  defaults?: UseDeployTokenOptions
-  /** Optional CSS class name */
-  className?: string
+	/** Callback that executes the on-chain deploy action */
+	onDeploy: (params: DeployTokenParams) => Promise<DeployTokenResult>
+	/** Callback on successful deployment */
+	onSuccess?: (result: DeployTokenResult) => void
+	/** Callback on error */
+	onError?: (error: Error) => void
+	/** Default form values */
+	defaults?: UseDeployTokenOptions
+	/** Optional CSS class name */
+	className?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -71,43 +75,43 @@ export interface DeployTokenProps {
  * ```
  */
 export function DeployToken({
-  onDeploy,
-  onSuccess,
-  onError,
-  defaults,
-  className,
+	onDeploy,
+	onSuccess,
+	onError,
+	defaults,
+	className,
 }: DeployTokenProps) {
-  const token = useDeployToken(defaults)
+	const token = useDeployToken(defaults)
 
-  const handleDeploy = useCallback(() => {
-    void token.deploy(async (params) => {
-      const result = await onDeploy(params)
+	const handleDeploy = useCallback(() => {
+		void token.deploy(async (params) => {
+			const result = await onDeploy(params)
 
-      if (result.error) {
-        onError?.(new Error(result.error))
-      } else {
-        onSuccess?.(result)
-      }
+			if (result.error) {
+				onError?.(new Error(result.error))
+			} else {
+				onSuccess?.(result)
+			}
 
-      return result
-    })
-  }, [token.deploy, onDeploy, onSuccess, onError])
+			return result
+		})
+	}, [token.deploy, onDeploy, onSuccess, onError])
 
-  return (
-    <DeployTokenUI
-      form={token.form}
-      onSymbolChange={token.setSymbol}
-      onMaxSupplyChange={token.setMaxSupply}
-      onDecimalsChange={token.setDecimals}
-      onIconSelect={token.selectIcon}
-      onIconRemove={token.removeIcon}
-      onDeploy={handleDeploy}
-      isDeploying={token.isDeploying}
-      feeEstimate={token.feeEstimate}
-      resultTxid={token.resultTxid}
-      errorMessage={token.errorMessage}
-      isValid={token.isValid}
-      className={className}
-    />
-  )
+	return (
+		<DeployTokenUI
+			form={token.form}
+			onSymbolChange={token.setSymbol}
+			onMaxSupplyChange={token.setMaxSupply}
+			onDecimalsChange={token.setDecimals}
+			onIconSelect={token.selectIcon}
+			onIconRemove={token.removeIcon}
+			onDeploy={handleDeploy}
+			isDeploying={token.isDeploying}
+			feeEstimate={token.feeEstimate}
+			resultTxid={token.resultTxid}
+			errorMessage={token.errorMessage}
+			isValid={token.isValid}
+			className={className}
+		/>
+	)
 }

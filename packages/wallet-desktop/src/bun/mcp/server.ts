@@ -6,9 +6,9 @@
  */
 type HttpServer = ReturnType<typeof Bun.serve>
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { createLogger, createRequestLogger } from 'evlog'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import type { BrowserWindow } from 'electrobun/bun'
+import { createLogger, createRequestLogger } from 'evlog'
 import {
 	type AuthContext,
 	handleAuthDiscovery,
@@ -88,12 +88,15 @@ export function startMcpServer(mainWindow: BrowserWindow): void {
 			if (url.pathname === '/' && req.method === 'GET') {
 				log.set({ status: 200, type: 'health' })
 				log.emit()
-				return Response.json({
-					name: '1sat-browser',
-					version: '0.0.1',
-					transport: 'streamable-http',
-					auth: 'brc-103',
-				}, { headers: CORS_HEADERS })
+				return Response.json(
+					{
+						name: '1sat-browser',
+						version: '0.0.1',
+						transport: 'streamable-http',
+						auth: 'brc-103',
+					},
+					{ headers: CORS_HEADERS },
+				)
 			}
 
 			// BRC-103/104 auth discovery
@@ -127,7 +130,10 @@ export function startMcpServer(mainWindow: BrowserWindow): void {
 					}
 					log.set({ status: 404, error: 'session_not_found' })
 					log.emit()
-					return Response.json({ error: 'Session not found' }, { status: 404, headers: CORS_HEADERS })
+					return Response.json(
+						{ error: 'Session not found' },
+						{ status: 404, headers: CORS_HEADERS },
+					)
 				}
 
 				// Existing session — already authenticated at creation time.
@@ -137,9 +143,7 @@ export function startMcpServer(mainWindow: BrowserWindow): void {
 					const entry = mcpSessions.get(sessionId)!
 					const response = await entry.transport.handleRequest(req)
 					const auth = await verifyRequest(req)
-					const authHeaders = auth
-						? signResponseHeaders(auth)
-						: undefined
+					const authHeaders = auth ? signResponseHeaders(auth) : undefined
 					log.set({ status: response.status, type: 'mcp_request', sessionId })
 					log.emit()
 					return addCorsHeaders(response, authHeaders)

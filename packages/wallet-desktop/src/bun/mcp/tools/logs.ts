@@ -28,9 +28,15 @@ export function registerLogTools(server: McpServer): void {
 		'wallet_logs',
 		'Query recent application log events. Filter by context (startup, auth, mcp, rpc, stack, tls, shutdown) or event name. Returns newest first.',
 		{
-			context: z.string().optional().describe('Filter by log context (e.g. startup, auth, mcp)'),
+			context: z
+				.string()
+				.optional()
+				.describe('Filter by log context (e.g. startup, auth, mcp)'),
 			event: z.string().optional().describe('Filter by event name'),
-			limit: z.number().optional().describe('Max entries to return (default 50)'),
+			limit: z
+				.number()
+				.optional()
+				.describe('Max entries to return (default 50)'),
 		},
 		async ({ context, event, limit }) => {
 			const max = limit ?? 50
@@ -46,10 +52,12 @@ export function registerLogTools(server: McpServer): void {
 			results = results.slice(0, max)
 
 			return {
-				content: [{
-					type: 'text' as const,
-					text: JSON.stringify(results, null, 2),
-				}],
+				content: [
+					{
+						type: 'text' as const,
+						text: JSON.stringify(results, null, 2),
+					},
+				],
 			}
 		},
 	)

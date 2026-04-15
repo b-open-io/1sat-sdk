@@ -1,52 +1,47 @@
-"use client"
+'use client'
 
+import { IdentitySelectorUI } from './identity-selector-ui'
 import {
-  IdentitySelectorUI,
-  type IdentitySelectorUIProps,
-} from "./identity-selector-ui"
-import {
-  useIdentitySelector,
-  type UseIdentitySelectorOptions,
-  type UseIdentitySelectorReturn,
-  type IdentityEntry,
-} from "./use-identity-selector"
+	type IdentityEntry,
+	useIdentitySelector,
+} from './use-identity-selector'
 
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 
 export {
-  IdentitySelectorUI,
-  type IdentitySelectorUIProps,
-} from "./identity-selector-ui"
+	IdentitySelectorUI,
+	type IdentitySelectorUIProps,
+} from './identity-selector-ui'
 export {
-  useIdentitySelector,
-  type UseIdentitySelectorOptions,
-  type UseIdentitySelectorReturn,
-  type IdentityEntry,
-} from "./use-identity-selector"
+	useIdentitySelector,
+	type UseIdentitySelectorOptions,
+	type UseIdentitySelectorReturn,
+	type IdentityEntry,
+} from './use-identity-selector'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface IdentitySelectorProps {
-  /** Pre-loaded list of identities (skips API fetch if provided) */
-  identities?: IdentityEntry[]
-  /** BAP ID of the currently active identity */
-  activeBapId?: string
-  /** List of BAP IDs to fetch from the API (used when identities prop is not provided) */
-  bapIds?: string[]
-  /** Called when the user selects a different identity */
-  onSelect?: (bapId: string) => void
-  /** Called when the user clicks "Add identity" */
-  onAddIdentity?: () => void
-  /** Whether to show the "Add identity" button (default: true) */
-  showAddIdentity?: boolean
-  /** Base URL for the 1sat-stack API (default: https://api.1sat.app) */
-  apiUrl?: string
-  /** Optional CSS class name */
-  className?: string
+	/** Pre-loaded list of identities (skips API fetch if provided) */
+	identities?: IdentityEntry[]
+	/** BAP ID of the currently active identity */
+	activeBapId?: string
+	/** List of BAP IDs to fetch from the API (used when identities prop is not provided) */
+	bapIds?: string[]
+	/** Called when the user selects a different identity */
+	onSelect?: (bapId: string) => void
+	/** Called when the user clicks "Add identity" */
+	onAddIdentity?: () => void
+	/** Whether to show the "Add identity" button (default: true) */
+	showAddIdentity?: boolean
+	/** Base URL for the 1sat-stack API (default: https://api.1sat.app) */
+	apiUrl?: string
+	/** Optional CSS class name */
+	className?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -82,34 +77,34 @@ export interface IdentitySelectorProps {
  * ```
  */
 export function IdentitySelector({
-  identities: identitiesProp,
-  activeBapId: activeBapIdProp,
-  bapIds,
-  onSelect,
-  onAddIdentity,
-  showAddIdentity = true,
-  apiUrl,
-  className,
+	identities: identitiesProp,
+	activeBapId: activeBapIdProp,
+	bapIds,
+	onSelect,
+	onAddIdentity,
+	showAddIdentity = true,
+	apiUrl,
+	className,
 }: IdentitySelectorProps) {
-  const hook = useIdentitySelector({
-    identities: identitiesProp,
-    activeBapId: activeBapIdProp,
-    bapIds,
-    onSelect,
-    onAddIdentity,
-    apiUrl,
-  })
+	const hook = useIdentitySelector({
+		identities: identitiesProp,
+		activeBapId: activeBapIdProp,
+		bapIds,
+		onSelect,
+		onAddIdentity,
+		apiUrl,
+	})
 
-  return (
-    <IdentitySelectorUI
-      className={className}
-      identities={hook.identities}
-      activeBapId={hook.activeBapId}
-      isLoading={hook.isLoading}
-      error={hook.error}
-      onSelect={hook.selectIdentity}
-      onAddIdentity={hook.addIdentity}
-      showAddIdentity={showAddIdentity}
-    />
-  )
+	return (
+		<IdentitySelectorUI
+			className={className}
+			identities={hook.identities}
+			activeBapId={hook.activeBapId}
+			isLoading={hook.isLoading}
+			error={hook.error}
+			onSelect={hook.selectIdentity}
+			onAddIdentity={hook.addIdentity}
+			showAddIdentity={showAddIdentity}
+		/>
+	)
 }

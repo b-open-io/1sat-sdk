@@ -1,5 +1,4 @@
 import { SendBsv21Ui } from '@/components/blocks/send-bsv21'
-import { STACK_URL } from '../../../shared/constants'
 import { useSendBsv21 } from '@/components/blocks/send-bsv21'
 import type {
 	SendBsv21Params,
@@ -14,12 +13,13 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog'
+import { Empty } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Coins, Send } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { STACK_URL } from '../../../shared/constants'
 import type { TokenBalance } from '../../../shared/types'
 import { rpc } from '../../rpc'
-import { Empty } from '@/components/ui/empty'
 
 // ---------------------------------------------------------------------------
 // Helpers

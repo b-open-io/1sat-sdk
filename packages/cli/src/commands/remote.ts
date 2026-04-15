@@ -133,8 +133,10 @@ async function remoteList(_args: string[], opts: GlobalFlags): Promise<void> {
 	})
 
 	try {
-		const backups = walletResult.storage.getBackupStores?.() ?? []
 		const config = loadConfig()
+
+		// Use config.backups for display (remoteClients only populated for active connections)
+		const backupUrls = config.backups ?? []
 
 		// Use config for active determination — WalletStorageManager internal state
 		// can be misleading (a backup may appear as active after addWalletStorageProvider)
@@ -144,7 +146,7 @@ async function remoteList(_args: string[], opts: GlobalFlags): Promise<void> {
 			output(
 				{
 					activeStorage: isRemoteActive ? 'remote' : 'local',
-					backups: walletResult.storage.getAllStores?.() ?? [],
+					backups: backupUrls,
 					config: {
 						activeRemote: config.activeRemote ?? null,
 						backups: config.backups ?? [],
@@ -156,27 +158,19 @@ async function remoteList(_args: string[], opts: GlobalFlags): Promise<void> {
 		}
 
 		console.log()
-		console.log(`  ${bold('Active Storage:')} ${isRemoteActive ? 'remote' : 'local'}`)
+		console.log(
+			`  ${bold('Active Storage:')} ${isRemoteActive ? 'remote' : 'local'}`,
+		)
 		if (isRemoteActive) {
-			console.log(
-				`  ${bold('Active Remote:')} ${config.activeRemote}`,
-			)
+			console.log(`  ${bold('Active Remote:')} ${config.activeRemote}`)
 		}
 		console.log()
-		if (backups.length === 0 && !config.backups?.length) {
+		if (backupUrls.length === 0 && !config.backups?.length) {
 			console.log('  No remote storages configured')
 		} else {
 			console.log(`  ${bold('Backups:')}`)
-			const known = new Set(config.backups ?? [])
-			for (const b of backups) {
-				const isKnown = known.has(b)
-				console.log(`    ${isKnown ? '●' : '○'} ${b}`)
-			}
-			// Show configured but not yet connected
-			for (const url of config.backups ?? []) {
-				if (!backups.includes(url)) {
-					console.log(`    ? ${url} (not connected)`)
-				}
+			for (const url of backupUrls) {
+				console.log(`    ● ${url}`)
 			}
 		}
 		console.log()

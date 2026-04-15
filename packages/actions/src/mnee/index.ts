@@ -7,16 +7,14 @@
  */
 
 import type {
-	MneeBalance,
-	MneeUtxo,
-	MneeTransferResponse,
-	MneeTransferStatus,
-	MneeSyncEntry,
-	MneeConfig,
 	MneeClient,
+	MneeConfig,
+	MneeSyncEntry,
+	MneeTransferStatus,
+	MneeUtxo,
 } from '@1sat/client'
 import { Cosign, Inscription as InscriptionTemplate } from '@1sat/templates'
-import { BRC29_PROTOCOL_ID, type AddressDerivation } from '@1sat/types'
+import { type AddressDerivation, BRC29_PROTOCOL_ID } from '@1sat/types'
 import {
 	Hash,
 	LockingScript,
@@ -29,10 +27,6 @@ import {
 	Utils,
 } from '@bsv/sdk'
 import type { Action, OneSatContext } from '../types'
-import {
-	toBase64Prefix,
-	toBase64Suffix,
-} from '../addresses'
 
 // ============================================================================
 // Helpers
@@ -136,9 +130,7 @@ function parseInscriptionAmount(script: Script): number {
 					script.chunks[j + 1].data
 				) {
 					try {
-						const json = JSON.parse(
-							Utils.toUTF8(script.chunks[j + 1].data!),
-						)
+						const json = JSON.parse(Utils.toUTF8(script.chunks[j + 1].data!))
 						if (json.amt) return Number.parseInt(json.amt, 10)
 					} catch {
 						// not JSON
@@ -163,8 +155,7 @@ async function signCosignInput(
 	if (!sourceLockingScript)
 		throw new Error(`Missing source locking script for input ${inputIndex}`)
 
-	const sourceTXID =
-		input.sourceTXID ?? input.sourceTransaction?.id('hex')
+	const sourceTXID = input.sourceTXID ?? input.sourceTransaction?.id('hex')
 	if (!sourceTXID)
 		throw new Error(`Missing source TXID for input ${inputIndex}`)
 
@@ -184,8 +175,7 @@ async function signCosignInput(
 		otherInputs: tx.inputs
 			.filter((_, idx) => idx !== inputIndex)
 			.map((inp) => ({
-				sourceTXID:
-					inp.sourceTXID ?? inp.sourceTransaction?.id('hex') ?? '',
+				sourceTXID: inp.sourceTXID ?? inp.sourceTransaction?.id('hex') ?? '',
 				sourceOutputIndex: inp.sourceOutputIndex,
 				sequence: inp.sequence ?? 0xffffffff,
 			})),
@@ -262,9 +252,7 @@ export interface GetMneeUtxosResult {
 	utxos: MneeUtxo[]
 }
 
-export interface GetMneeConfigInput {
-	// no params
-}
+export type GetMneeConfigInput = {}
 
 export interface GetMneeHistoryInput {
 	/** Addresses to query history for */
@@ -340,7 +328,9 @@ function parseSyncToTxHistory(
 		let amount = 0
 		if (inscription?.file?.content) {
 			try {
-				const json = JSON.parse(Utils.toUTF8(Array.from(inscription.file.content)))
+				const json = JSON.parse(
+					Utils.toUTF8(Array.from(inscription.file.content)),
+				)
 				if (json.p === 'bsv-20' && json.id === config.tokenId && json.amt) {
 					amount = Number.parseInt(json.amt, 10)
 				}
@@ -419,37 +409,39 @@ function parseSyncToTxHistory(
 /**
  * Get MNEE balance across all yours wallet addresses.
  */
-export const getMneeBalance: Action<GetMneeBalanceInput, GetMneeBalanceResult> = {
-	meta: {
-		name: 'getMneeBalance',
-		description: 'Get MNEE stablecoin balance across yours wallet addresses',
-		category: 'payments',
-		requiresServices: true,
-		inputSchema: {
-			type: 'object',
-			properties: {
-				addresses: {
-					type: 'array',
-					description: 'Specific addresses to query (omit to use yours wallet addresses)',
+export const getMneeBalance: Action<GetMneeBalanceInput, GetMneeBalanceResult> =
+	{
+		meta: {
+			name: 'getMneeBalance',
+			description: 'Get MNEE stablecoin balance across yours wallet addresses',
+			category: 'payments',
+			requiresServices: true,
+			inputSchema: {
+				type: 'object',
+				properties: {
+					addresses: {
+						type: 'array',
+						description:
+							'Specific addresses to query (omit to use yours wallet addresses)',
+					},
 				},
 			},
 		},
-	},
-	async execute(ctx, input) {
-		const mnee = getMneeClient(ctx)
-		const rawBalances = await mnee.getBalances(input.addresses)
+		async execute(ctx, input) {
+			const mnee = getMneeClient(ctx)
+			const rawBalances = await mnee.getBalances(input.addresses)
 
-		const balances = rawBalances.map((b) => ({
-			address: b.address,
-			amount: b.amt,
-			decimalAmount: b.precised,
-		}))
-		const totalAtomic = balances.reduce((sum, b) => sum + b.amount, 0)
-		const totalDecimal = balances.reduce((sum, b) => sum + b.decimalAmount, 0)
+			const balances = rawBalances.map((b) => ({
+				address: b.address,
+				amount: b.amt,
+				decimalAmount: b.precised,
+			}))
+			const totalAtomic = balances.reduce((sum, b) => sum + b.amount, 0)
+			const totalDecimal = balances.reduce((sum, b) => sum + b.decimalAmount, 0)
 
-		return { balances, totalDecimal, totalAtomic }
-	},
-}
+			return { balances, totalDecimal, totalAtomic }
+		},
+	}
 
 /**
  * Get MNEE UTXOs across all yours wallet addresses.
@@ -465,7 +457,8 @@ export const getMneeUtxos: Action<GetMneeUtxosInput, GetMneeUtxosResult> = {
 			properties: {
 				addresses: {
 					type: 'array',
-					description: 'Specific addresses to query (omit to use yours wallet addresses)',
+					description:
+						'Specific addresses to query (omit to use yours wallet addresses)',
 				},
 			},
 		},
@@ -483,7 +476,8 @@ export const getMneeUtxos: Action<GetMneeUtxosInput, GetMneeUtxosResult> = {
 export const getMneeConfig: Action<GetMneeConfigInput, MneeConfig> = {
 	meta: {
 		name: 'getMneeConfig',
-		description: 'Get MNEE service configuration including cosigner and fee structure',
+		description:
+			'Get MNEE service configuration including cosigner and fee structure',
 		category: 'payments',
 		requiresServices: true,
 		inputSchema: {
@@ -500,81 +494,84 @@ export const getMneeConfig: Action<GetMneeConfigInput, MneeConfig> = {
 /**
  * Get MNEE transaction history for an address.
  */
-export const getMneeHistory: Action<GetMneeHistoryInput, GetMneeHistoryResult> = {
-	meta: {
-		name: 'getMneeHistory',
-		description: 'Get MNEE transaction history with parsed amounts and counterparties',
-		category: 'payments',
-		requiresServices: true,
-		inputSchema: {
-			type: 'object',
-			properties: {
-				address: {
-					type: 'string',
-					description: 'Address to query (omit for all yours addresses)',
-				},
-				fromScore: {
-					type: 'number',
-					description: 'Pagination cursor',
-				},
-				limit: {
-					type: 'number',
-					description: 'Max results (default 50)',
+export const getMneeHistory: Action<GetMneeHistoryInput, GetMneeHistoryResult> =
+	{
+		meta: {
+			name: 'getMneeHistory',
+			description:
+				'Get MNEE transaction history with parsed amounts and counterparties',
+			category: 'payments',
+			requiresServices: true,
+			inputSchema: {
+				type: 'object',
+				properties: {
+					address: {
+						type: 'string',
+						description: 'Address to query (omit for all yours addresses)',
+					},
+					fromScore: {
+						type: 'number',
+						description: 'Pagination cursor',
+					},
+					limit: {
+						type: 'number',
+						description: 'Max results (default 50)',
+					},
 				},
 			},
 		},
-	},
-	async execute(ctx, input) {
-		const mnee = getMneeClient(ctx)
-		const queryAddress = input.addresses[0]
+		async execute(ctx, input) {
+			const mnee = getMneeClient(ctx)
+			const queryAddress = input.addresses[0]
 
-		const config = await mnee.getConfig()
-		const syncEntries = await mnee.getTxHistory(
-			input.addresses,
-			input.fromScore,
-			input.limit,
-		)
+			const config = await mnee.getConfig()
+			const syncEntries = await mnee.getTxHistory(
+				input.addresses,
+				input.fromScore,
+				input.limit,
+			)
 
-		const history: MneeTxHistory[] = []
-		for (const entry of syncEntries) {
-			const parsed = parseSyncToTxHistory(entry, queryAddress, config)
-			if (parsed) history.push(parsed)
-		}
+			const history: MneeTxHistory[] = []
+			for (const entry of syncEntries) {
+				const parsed = parseSyncToTxHistory(entry, queryAddress, config)
+				if (parsed) history.push(parsed)
+			}
 
-		const nextScore =
-			syncEntries.length > 0
-				? syncEntries[syncEntries.length - 1].score
-				: undefined
+			const nextScore =
+				syncEntries.length > 0
+					? syncEntries[syncEntries.length - 1].score
+					: undefined
 
-		return { history, nextScore }
-	},
-}
+			return { history, nextScore }
+		},
+	}
 
 /**
  * Get the status of an MNEE transfer by ticket ID.
  */
-export const getMneeTxStatus: Action<GetMneeTxStatusInput, MneeTransferStatus> = {
-	meta: {
-		name: 'getMneeTxStatus',
-		description: 'Get the status of an MNEE transfer',
-		category: 'payments',
-		requiresServices: true,
-		inputSchema: {
-			type: 'object',
-			properties: {
-				ticketId: {
-					type: 'string',
-					description: 'Ticket ID from a transfer response',
+export const getMneeTxStatus: Action<GetMneeTxStatusInput, MneeTransferStatus> =
+	{
+		meta: {
+			name: 'getMneeTxStatus',
+			description: 'Get the status of an MNEE transfer',
+			category: 'payments',
+			requiresServices: true,
+			inputSchema: {
+				type: 'object',
+				properties: {
+					ticketId: {
+						type: 'string',
+						description: 'Ticket ID from a transfer response',
+					},
 				},
+				required: ['ticketId'],
 			},
-			required: ['ticketId'],
 		},
-	},
-	async execute(ctx, input) {
-		const mnee = getMneeClient(ctx)
-		return mnee.getTxStatus(input.ticketId)
-	},
-}
+		async execute(ctx, input) {
+			const mnee = getMneeClient(ctx)
+			return mnee.getTxStatus(input.ticketId)
+		},
+	}
 
 // ============================================================================
 // Send MNEE
@@ -647,14 +644,13 @@ export const sendMnee: Action<SendMneeInput, SendMneeResult> = {
 			// 4. Calculate fee
 			const fee = recipients.some((r) => r.address === config.burnAddress)
 				? 0
-				: config.fees.find(
-						(f) => totalAtomic >= f.min && totalAtomic <= f.max,
-					)?.fee
+				: config.fees.find((f) => totalAtomic >= f.min && totalAtomic <= f.max)
+						?.fee
 			if (fee === undefined) return { error: 'fee-ranges-inadequate' }
 
 			// 5. Get enough UTXOs across all addresses
 			const allUtxos = await mnee.getAllUtxos(addresses)
-			let tokensNeeded = totalAtomic + fee
+			const tokensNeeded = totalAtomic + fee
 			const selectedUtxos: MneeUtxo[] = []
 			let tokensIn = 0
 
@@ -711,9 +707,7 @@ export const sendMnee: Action<SendMneeInput, SendMneeResult> = {
 
 			// 8. Add fee output
 			if (fee > 0) {
-				tx.addOutput(
-					createInscriptionOutput(config.feeAddress, fee, config),
-				)
+				tx.addOutput(createInscriptionOutput(config.feeAddress, fee, config))
 			}
 
 			// 9. Add change output
@@ -729,9 +723,7 @@ export const sendMnee: Action<SendMneeInput, SendMneeResult> = {
 								].lockingScript,
 					) ??
 					addresses[0]
-				tx.addOutput(
-					createInscriptionOutput(changeAddr, change, config),
-				)
+				tx.addOutput(createInscriptionOutput(changeAddr, change, config))
 			}
 
 			// 10. Sign each input with the matching BRC-29 key
@@ -746,8 +738,7 @@ export const sendMnee: Action<SendMneeInput, SendMneeResult> = {
 				}
 
 				const unlockingHex = await signCosignInput(ctx, tx, i, keyID)
-				tx.inputs[i].unlockingScript =
-					UnlockingScript.fromHex(unlockingHex)
+				tx.inputs[i].unlockingScript = UnlockingScript.fromHex(unlockingHex)
 			}
 
 			// 11. Submit to MNEE for cosigner signature + broadcast
@@ -773,10 +764,7 @@ export const sendMnee: Action<SendMneeInput, SendMneeResult> = {
 							error: status.errors ?? 'transaction-failed',
 						}
 					}
-					if (
-						status.status === 'SUCCESS' ||
-						status.status === 'MINED'
-					) {
+					if (status.status === 'SUCCESS' || status.status === 'MINED') {
 						return { txid: status.tx_id, ticketId }
 					}
 					// BROADCASTING — keep polling

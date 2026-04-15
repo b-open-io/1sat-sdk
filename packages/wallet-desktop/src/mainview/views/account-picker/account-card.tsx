@@ -138,15 +138,12 @@ export function AccountCard({
 							<span className="font-semibold text-foreground">
 								{account.displayName}
 							</span>{' '}
-							and its wallet data from this device. This action cannot be undone.
+							and its wallet data from this device. This action cannot be
+							undone.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<div className="flex items-center gap-2 px-1 py-2">
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={handleDownloadBackup}
-						>
+						<Button variant="outline" size="sm" onClick={handleDownloadBackup}>
 							<Download data-icon="inline-start" />
 							Download backup first
 						</Button>

@@ -20,19 +20,31 @@ export function registerMainviewTools(
 		'mainview_eval',
 		'Execute JavaScript in the main wallet WebView and return the result. The code is wrapped in a function; use `return` for the result.',
 		{
-			code: z.string().describe('JavaScript code to execute. Use `return` to send a value back.'),
+			code: z
+				.string()
+				.describe(
+					'JavaScript code to execute. Use `return` to send a value back.',
+				),
 		},
 		async ({ code }) => {
 			try {
 				const req = getRpc(getMainWindow)
 				const { result, error } = await req.mainviewEval({ code })
 				if (error) {
-					return { content: [{ type: 'text' as const, text: `Error: ${error}` }], isError: true }
+					return {
+						content: [{ type: 'text' as const, text: `Error: ${error}` }],
+						isError: true,
+					}
 				}
 				return { content: [{ type: 'text' as const, text: result }] }
 			} catch (err) {
 				return {
-					content: [{ type: 'text' as const, text: err instanceof Error ? err.message : String(err) }],
+					content: [
+						{
+							type: 'text' as const,
+							text: err instanceof Error ? err.message : String(err),
+						},
+					],
 					isError: true,
 				}
 			}
@@ -50,7 +62,12 @@ export function registerMainviewTools(
 				return { content: [{ type: 'text' as const, text: url }] }
 			} catch (err) {
 				return {
-					content: [{ type: 'text' as const, text: err instanceof Error ? err.message : String(err) }],
+					content: [
+						{
+							type: 'text' as const,
+							text: err instanceof Error ? err.message : String(err),
+						},
+					],
 					isError: true,
 				}
 			}

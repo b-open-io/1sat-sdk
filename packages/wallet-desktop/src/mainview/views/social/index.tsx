@@ -75,10 +75,7 @@ export function SocialView({ onNavigate }: SocialViewProps) {
 				>
 					Social
 				</h1>
-				<PostButton
-					onPost={handlePost}
-					onPosted={() => {}}
-				/>
+				<PostButton onPost={handlePost} onPosted={() => {}} />
 			</div>
 
 			{/* Feed */}

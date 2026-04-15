@@ -13,7 +13,6 @@ import {
 	type BSocialVideo,
 	WalletSigner,
 } from '@1sat/templates'
-import { Utils } from '@bsv/sdk'
 import { BAP_KEY_ID, BAP_PROTOCOL_ID, BSOCIAL_BASKET } from '../constants'
 import type { Action, ActionOptions } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'

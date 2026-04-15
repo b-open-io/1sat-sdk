@@ -1,52 +1,50 @@
-import { type VariantProps } from "class-variance-authority"
-import { CreateListingUI, createListingTriggerVariants } from "./ui"
+import type { VariantProps } from 'class-variance-authority'
+import { CreateListingUI, type createListingTriggerVariants } from './ui'
 import {
-  useCreateListing,
-  type OrdinalItem,
-  type ListOrdinalParams,
-  type ListOrdinalResult,
-  type UseCreateListingReturn,
-  type UseCreateListingOptions,
-} from "./use-create-listing"
+	type ListOrdinalParams,
+	type ListOrdinalResult,
+	type OrdinalItem,
+	useCreateListing,
+} from './use-create-listing'
 
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 
 export {
-  CreateListingUI,
-  createListingTriggerVariants,
-  type CreateListingUIProps,
-} from "./ui"
+	CreateListingUI,
+	createListingTriggerVariants,
+	type CreateListingUIProps,
+} from './ui'
 export {
-  useCreateListing,
-  type OrdinalItem,
-  type ListOrdinalParams,
-  type ListOrdinalResult,
-  type UseCreateListingReturn,
-  type UseCreateListingOptions,
-} from "./use-create-listing"
+	useCreateListing,
+	type OrdinalItem,
+	type ListOrdinalParams,
+	type ListOrdinalResult,
+	type UseCreateListingReturn,
+	type UseCreateListingOptions,
+} from './use-create-listing'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface CreateListingProps
-  extends VariantProps<typeof createListingTriggerVariants> {
-  /** The ordinal to list for sale */
-  ordinal: OrdinalItem
-  /** Callback to execute the listing action */
-  onList: (params: ListOrdinalParams) => Promise<ListOrdinalResult>
-  /** Callback on successful listing */
-  onListed?: (result: ListOrdinalResult) => void
-  /** Callback on error */
-  onError?: (error: Error) => void
-  /** Default payout address */
-  defaultPayAddress?: string
-  /** Text for the trigger button */
-  triggerLabel?: string
-  /** Optional CSS class name */
-  className?: string
+	extends VariantProps<typeof createListingTriggerVariants> {
+	/** The ordinal to list for sale */
+	ordinal: OrdinalItem
+	/** Callback to execute the listing action */
+	onList: (params: ListOrdinalParams) => Promise<ListOrdinalResult>
+	/** Callback on successful listing */
+	onListed?: (result: ListOrdinalResult) => void
+	/** Callback on error */
+	onError?: (error: Error) => void
+	/** Default payout address */
+	defaultPayAddress?: string
+	/** Text for the trigger button */
+	triggerLabel?: string
+	/** Optional CSS class name */
+	className?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -76,42 +74,42 @@ export interface CreateListingProps
  * ```
  */
 export function CreateListing({
-  ordinal,
-  onList,
-  onListed,
-  onError,
-  defaultPayAddress = "",
-  triggerLabel = "List for Sale",
-  variant = "default",
-  className,
+	ordinal,
+	onList,
+	onListed,
+	onError,
+	defaultPayAddress = '',
+	triggerLabel = 'List for Sale',
+	variant = 'default',
+	className,
 }: CreateListingProps) {
-  const hook = useCreateListing({
-    ordinal,
-    onList,
-    onListed,
-    onError,
-    defaultPayAddress,
-  })
+	const hook = useCreateListing({
+		ordinal,
+		onList,
+		onListed,
+		onError,
+		defaultPayAddress,
+	})
 
-  return (
-    <CreateListingUI
-      ordinal={ordinal}
-      triggerLabel={triggerLabel}
-      variant={variant}
-      className={className}
-      open={hook.open}
-      onOpenChange={hook.handleOpenChange}
-      priceInput={hook.priceInput}
-      onPriceInputChange={hook.setPriceInput}
-      payAddress={hook.payAddress}
-      onPayAddressChange={hook.setPayAddress}
-      isListing={hook.isListing}
-      result={hook.result}
-      error={hook.error}
-      priceSats={hook.priceSats}
-      validationError={hook.validationError}
-      canSubmit={hook.canSubmit}
-      onList={hook.handleList}
-    />
-  )
+	return (
+		<CreateListingUI
+			ordinal={ordinal}
+			triggerLabel={triggerLabel}
+			variant={variant}
+			className={className}
+			open={hook.open}
+			onOpenChange={hook.handleOpenChange}
+			priceInput={hook.priceInput}
+			onPriceInputChange={hook.setPriceInput}
+			payAddress={hook.payAddress}
+			onPayAddressChange={hook.setPayAddress}
+			isListing={hook.isListing}
+			result={hook.result}
+			error={hook.error}
+			priceSats={hook.priceSats}
+			validationError={hook.validationError}
+			canSubmit={hook.canSubmit}
+			onList={hook.handleList}
+		/>
+	)
 }

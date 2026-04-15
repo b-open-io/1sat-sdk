@@ -1,4 +1,10 @@
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Button } from '@/components/ui/button'
+import { Kbd } from '@/components/ui/kbd'
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import {
@@ -12,8 +18,6 @@ import {
 	Shield,
 } from 'lucide-react'
 import { useCallback, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Kbd } from '@/components/ui/kbd'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -52,15 +56,10 @@ function MenuItemRow({ item }: { item: MenuItem }) {
 			<span className="shrink-0 text-muted-foreground size-3.5 flex items-center justify-center">
 				{item.icon}
 			</span>
-			<span
-				className="flex-1"
-				style={{ fontFamily: 'var(--font-sans)' }}
-			>
+			<span className="flex-1" style={{ fontFamily: 'var(--font-sans)' }}>
 				{item.label}
 			</span>
-			{item.shortcut && (
-				<Kbd className="shrink-0">{item.shortcut}</Kbd>
-			)}
+			{item.shortcut && <Kbd className="shrink-0">{item.shortcut}</Kbd>}
 		</button>
 	)
 }
@@ -77,9 +76,21 @@ interface MenuPopoverProps {
 	onOpenChange?: (open: boolean) => void
 }
 
-export function MenuPopover({ onNavigate, onToggleAgent, onOpenBookmarks, onToggleTabMode, onOpenChange }: MenuPopoverProps) {
+export function MenuPopover({
+	onNavigate,
+	onToggleAgent,
+	onOpenBookmarks,
+	onToggleTabMode,
+	onOpenChange,
+}: MenuPopoverProps) {
 	const [openInternal, setOpenInternal] = useState(false)
-	const setOpen = useCallback((v: boolean) => { setOpenInternal(v); onOpenChange?.(v) }, [onOpenChange])
+	const setOpen = useCallback(
+		(v: boolean) => {
+			setOpenInternal(v)
+			onOpenChange?.(v)
+		},
+		[onOpenChange],
+	)
 	const open = openInternal
 
 	const navigate = (url: string) => {

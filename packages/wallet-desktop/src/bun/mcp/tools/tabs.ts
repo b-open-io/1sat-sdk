@@ -120,7 +120,10 @@ export function registerTabTools(
 	server.tool(
 		'tab_navigate',
 		'Navigate an existing browser tab to a new URL.',
-		{ tabId: z.string().describe('Tab ID from tab_list or tab_create'), url: z.string() },
+		{
+			tabId: z.string().describe('Tab ID from tab_list or tab_create'),
+			url: z.string(),
+		},
 		async ({ tabId, url }) => {
 			try {
 				const req = getRpc(getMainWindow)

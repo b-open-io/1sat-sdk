@@ -80,7 +80,9 @@ export function LauncherOverlay({
 
 	const showGrid = classification.type === 'app-match' || !query.trim()
 	const hasResults = showGrid
-		? (classification.type === 'app-match' ? classification.apps.length > 0 : bookmarks.length > 0)
+		? classification.type === 'app-match'
+			? classification.apps.length > 0
+			: bookmarks.length > 0
 		: classification.type !== 'ai-query'
 
 	return (

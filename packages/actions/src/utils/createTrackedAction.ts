@@ -6,8 +6,8 @@ import {
 } from '@bsv/sdk'
 import type { FundingProvider } from '../funding'
 import {
-	type SigningCallback,
 	type CompleteSignedActionResult,
+	type SigningCallback,
 	completeSignedAction,
 } from './completeSignedAction'
 
@@ -90,9 +90,7 @@ export async function executeTrackedAction(
 	fundingProvider?: FundingProvider,
 	inputBEEF?: number[],
 	sign?: SigningCallback,
-): Promise<
-	CompleteSignedActionResult & { actionId: string }
-> {
+): Promise<CompleteSignedActionResult & { actionId: string }> {
 	if (fundingProvider) {
 		const actionId = randomActionId()
 		applyTrackingTags(args, actionId)

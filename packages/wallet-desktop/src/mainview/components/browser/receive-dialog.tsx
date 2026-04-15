@@ -1,17 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from "react"
-import { Check, Copy } from "lucide-react"
-import QRCode from "qrcode"
+import { Button } from '@/components/ui/button'
 import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
-import { cn } from "@/lib/utils"
-import { useWallet } from "@/hooks/use-wallet"
+} from '@/components/ui/dialog'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useWallet } from '@/hooks/use-wallet'
+import { cn } from '@/lib/utils'
+import { Check, Copy } from 'lucide-react'
+import QRCode from 'qrcode'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 // ---------------------------------------------------------------------------
 // QR canvas renderer
@@ -29,10 +29,10 @@ function QrCanvas({ address }: { address: string }) {
 			margin: 2,
 			color: {
 				// White modules on black — good contrast in dark UI
-				dark: "#ffffff",
-				light: "#000000",
+				dark: '#ffffff',
+				light: '#000000',
 			},
-			errorCorrectionLevel: "M",
+			errorCorrectionLevel: 'M',
 		}).catch(() => {
 			// Non-fatal: canvas stays blank
 		})
@@ -87,7 +87,7 @@ export function ReceiveDialog({ open, onOpenChange }: ReceiveDialogProps) {
 				setLoading(false)
 			},
 			(err) => {
-				setError(err instanceof Error ? err.message : "Failed to get address")
+				setError(err instanceof Error ? err.message : 'Failed to get address')
 				setLoading(false)
 			},
 		)
@@ -131,9 +131,7 @@ export function ReceiveDialog({ open, onOpenChange }: ReceiveDialogProps) {
 
 				<div className="flex flex-col items-center gap-5 py-2">
 					{/* QR code area */}
-					{loading && (
-						<Skeleton className="size-[228px]" />
-					)}
+					{loading && <Skeleton className="size-[228px]" />}
 
 					{!loading && error && (
 						<div className="flex h-[228px] w-full items-center justify-center border border-destructive/30 bg-destructive/5">
@@ -141,14 +139,10 @@ export function ReceiveDialog({ open, onOpenChange }: ReceiveDialogProps) {
 						</div>
 					)}
 
-					{!loading && !error && address && (
-						<QrCanvas address={address} />
-					)}
+					{!loading && !error && address && <QrCanvas address={address} />}
 
 					{/* Address display */}
-					{loading && (
-						<Skeleton className="h-8 w-full" />
-					)}
+					{loading && <Skeleton className="h-8 w-full" />}
 
 					{!loading && address && (
 						<div className="w-full">
@@ -160,12 +154,12 @@ export function ReceiveDialog({ open, onOpenChange }: ReceiveDialogProps) {
 									type="button"
 									onClick={handleCopy}
 									className={cn(
-										"shrink-0 p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+										'shrink-0 p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
 										copied
-											? "text-primary"
-											: "text-muted-foreground hover:text-foreground",
+											? 'text-primary'
+											: 'text-muted-foreground hover:text-foreground',
 									)}
-									aria-label={copied ? "Address copied" : "Copy address"}
+									aria-label={copied ? 'Address copied' : 'Copy address'}
 								>
 									{copied ? (
 										<Check className="size-3.5" aria-hidden="true" />
@@ -179,11 +173,7 @@ export function ReceiveDialog({ open, onOpenChange }: ReceiveDialogProps) {
 
 					{/* Copy button */}
 					{!loading && address && (
-						<Button
-							className="w-full"
-							onClick={handleCopy}
-							aria-live="polite"
-						>
+						<Button className="w-full" onClick={handleCopy} aria-live="polite">
 							{copied ? (
 								<>
 									<Check className="size-4" aria-hidden="true" />

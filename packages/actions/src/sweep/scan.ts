@@ -121,9 +121,7 @@ async function categorizeOutputs(
 		}
 
 		if (
-			events.some(
-				(e) => e === 'type:application/bsv-20' || e === 'type:Token',
-			)
+			events.some((e) => e === 'type:application/bsv-20' || e === 'type:Token')
 		) {
 			bsv20Tokens.push(out)
 			continue
@@ -270,9 +268,7 @@ async function detectRunTransactions(
 	services: OneSatServices,
 	funding: IndexedOutput[],
 ): Promise<Set<string>> {
-	const txids = [
-		...new Set(funding.map((f) => parseOutpoint(f.outpoint).txid)),
-	]
+	const txids = [...new Set(funding.map((f) => parseOutpoint(f.outpoint).txid))]
 	const runTxids = new Set<string>()
 
 	for (const txid of txids) {

@@ -1,4 +1,4 @@
-import { OP, Utils, type Script } from '@bsv/sdk'
+import { OP, type Script, Utils } from '@bsv/sdk'
 
 /**
  * Cosign decoded data structure

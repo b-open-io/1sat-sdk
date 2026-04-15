@@ -78,6 +78,8 @@ git push origin <branch>
 
 Publish upstream packages first, wait for registry propagation, then publish downstream.
 
+**IMPORTANT: Use `bun publish --access public`, NOT `npm publish`.** Bun resolves `workspace:*` to actual versions; npm publishes the literal string `workspace:*` which breaks consumers.
+
 ```bash
 cd packages/<pkg> && bun publish --access public
 ```
@@ -103,11 +105,30 @@ bun install
 bun run build
 ```
 
+## npm Login & Publish Auth
+
+### First-time login
+```bash
+npm login
+```
+It outputs a browser URL — click it to authenticate. Verify with `npm whoami`.
+
+### Publish auth
+`bun publish` and `npm publish` each require a separate browser auth step (OTP/passkey). Run the publish command, then click the URL it outputs. The auth token from `npm login` covers CLI operations, but publishing requires a fresh browser auth each time.
+
 ## Common Mistakes
 
 ### Publishing without regenerating lockfile
 **Symptom**: Published package has old dependency versions.
 **Fix**: Always `rm bun.lock && bun install` before publishing.
+
+### Using npm publish instead of bun publish
+**Symptom**: Published package has `workspace:*` as literal string in dependencies instead of resolved version.
+**Fix**: Always use `bun publish --access public`, NOT `npm publish`. Bun resolves `workspace:*` to actual versions from the lockfile at publish time; npm does not.
+
+### Publishing over a broken version
+**Symptom**: Accidentally published with `workspace:*` deps (used `npm publish`). Can't republish same version.
+**Fix**: Bump patch version (e.g. 0.0.21 → 0.0.22), regenerate lockfile, clean build, and republish with `bun publish`. Leave the broken version as-is — npm doesn't allow overwriting.
 
 ### Forgetting to bump a transitive dependent
 **Symptom**: Consumer installs old version of a transitive dep because an intermediate package still pins the old version.
@@ -120,3 +141,18 @@ bun run build
 ### Publishing downstream before upstream propagates
 **Symptom**: Downstream package resolves to old upstream because npm registry hasn't propagated yet.
 **Fix**: After publishing upstream, run `npm view @1sat/<pkg>@<version> dependencies` and wait until it returns the correct version before publishing downstream.
+
+### Assuming committed fixes are in published packages
+**Symptom**: Bug fix committed to git but transaction still fails with old behavior. The fix exists in the codebase but not in the published npm package.
+**Fix**: Always verify the commit date vs publish date:
+```bash
+# Check when fix was committed
+git log -1 --format="%ai %s" <commit-hash>
+
+# Check when package was published
+npm view @1sat/<pkg>@<version> time.created
+
+# If commit date > publish date, the fix is NOT in the published version
+# You MUST bump and republish the package
+```
+This commonly happens when debugging overlay validation failures — the fix is committed but consumers are using an old published version without the fix.

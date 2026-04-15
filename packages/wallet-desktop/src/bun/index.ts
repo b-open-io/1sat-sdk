@@ -5,8 +5,6 @@
  * application menu, and boots the wallet lifecycle.
  */
 import './log' // Side-effect: initializes evlog FIRST — file drain + ring buffer
-import { createLogger } from 'evlog'
-import { flushLogs, setSyncDrainCallback } from './log'
 import Electrobun, {
 	ApplicationMenu,
 	BrowserView,
@@ -14,19 +12,28 @@ import Electrobun, {
 	Utils,
 	Updater,
 } from 'electrobun/bun'
+import { createLogger } from 'evlog'
 import type { WalletDesktopRPC } from '../shared/types'
+import {
+	addAccount,
+	getShowPickerOnStartup,
+	listAccounts,
+	setLastActiveAccountId,
+	setShowPickerOnStartup as setPickerPref,
+} from './account-registry'
 import { setChatMessageCallback, shutdownChatManager } from './chat-manager'
+import { closeConfigStore } from './config-store'
 import {
 	resolvePermission,
 	setPermissionPusher,
 	startWalletServer,
 	stopWalletServer,
 } from './http-server'
-import { closeConfigStore } from './config-store'
+import { flushLogs, setSyncDrainCallback } from './log'
 import { closeMcpClient } from './mcp/client'
 import { startMcpServer, stopMcpServer } from './mcp/server'
-import { startStack, stopStack } from './sidecar-manager'
 import { createRpcHandlers } from './rpc-handlers'
+import { startStack, stopStack } from './sidecar-manager'
 import {
 	checkForUpdatesManual,
 	checkForUpdatesOnLaunch,
@@ -35,23 +42,14 @@ import {
 	stopBackgroundUpdateCheck,
 } from './updater'
 import { initVaultChannel, legacyVaultLabel } from './vault-manager'
-import { setMainWindow } from './window-manager'
 import {
-	listAccounts,
-	getShowPickerOnStartup,
-	getLastActiveAccountId,
-	addAccount,
-	setLastActiveAccountId,
-	setShowPickerOnStartup as setPickerPref,
-} from './account-registry'
-import {
-	checkVault,
 	migrateLegacyWallet,
 	setBalanceUpdatedCallback,
 	setInitialStatus,
 	setStatusChangedCallback,
 	setSyncEventCallback,
 } from './wallet-manager'
+import { setMainWindow } from './window-manager'
 
 // ============================================================================
 // Build channel — drives vault label + HMR detection
@@ -62,7 +60,10 @@ try {
 	buildChannel = await Updater.localInfo.channel()
 } catch (err) {
 	const log = createLogger({ context: 'startup' })
-	log.set({ event: 'channel_detection_failed', error: err instanceof Error ? err.message : String(err) })
+	log.set({
+		event: 'channel_detection_failed',
+		error: err instanceof Error ? err.message : String(err),
+	})
 	log.emit()
 }
 
@@ -78,8 +79,9 @@ if (listAccounts().length === 0) {
 
 	// Phase 1: Try legacy single-account migration (v0.0.8 and earlier)
 	try {
-		const migrationResult = await migrateLegacyWallet(legacyVaultLabel())
-			?? await migrateLegacyWallet('1sat-wallet-root-key')
+		const migrationResult =
+			(await migrateLegacyWallet(legacyVaultLabel())) ??
+			(await migrateLegacyWallet('1sat-wallet-root-key'))
 		if (migrationResult) {
 			addAccount({
 				id: migrationResult.accountId,
@@ -91,11 +93,17 @@ if (listAccounts().length === 0) {
 			})
 			setLastActiveAccountId(migrationResult.accountId)
 			setPickerPref(true)
-			log.set({ event: 'legacy_migrated', accountId: migrationResult.accountId })
+			log.set({
+				event: 'legacy_migrated',
+				accountId: migrationResult.accountId,
+			})
 			log.emit()
 		}
 	} catch (err) {
-		log.set({ event: 'migration_failed', error: err instanceof Error ? err.message : String(err) })
+		log.set({
+			event: 'migration_failed',
+			error: err instanceof Error ? err.message : String(err),
+		})
 		log.emit()
 	}
 
@@ -112,7 +120,10 @@ if (listAccounts().length === 0) {
 			}
 		} catch (err) {
 			const rlog = createLogger({ context: 'migration' })
-			rlog.set({ event: 'orphan_recovery_failed', error: err instanceof Error ? err.message : String(err) })
+			rlog.set({
+				event: 'orphan_recovery_failed',
+				error: err instanceof Error ? err.message : String(err),
+			})
 			rlog.emit()
 		}
 	}
@@ -135,7 +146,10 @@ async function getMainViewUrl(): Promise<string> {
 			return DEV_SERVER_URL
 		} catch {
 			const log = createLogger({ context: 'startup' })
-			log.set({ event: 'hmr_unavailable', hint: "Run 'bun run dev:hmr' for HMR support" })
+			log.set({
+				event: 'hmr_unavailable',
+				hint: "Run 'bun run dev:hmr' for HMR support",
+			})
 			log.emit()
 		}
 	}
@@ -182,10 +196,7 @@ const rpc = BrowserView.defineRPC<WalletDesktopRPC>({
 				})
 				return { success: true }
 			},
-			openBrowserWindow: ({
-				url,
-				title,
-			}: { url: string; title?: string }) => {
+			openBrowserWindow: ({ url, title }: { url: string; title?: string }) => {
 				if (!browserWindow || browserWindow.isMinimized?.()) {
 					browserWindow = new BrowserWindow({
 						title: title ?? url.substring(0, 40),
@@ -222,7 +233,10 @@ try {
 	log.emit()
 } catch (err) {
 	const log = createLogger({ context: 'startup' })
-	log.set({ event: 'url_resolve_failed', error: err instanceof Error ? err.message : String(err) })
+	log.set({
+		event: 'url_resolve_failed',
+		error: err instanceof Error ? err.message : String(err),
+	})
 	log.emit()
 	throw err
 }
@@ -242,7 +256,11 @@ try {
 	log.emit()
 } catch (err) {
 	const log = createLogger({ context: 'startup' })
-	log.set({ event: 'window_create_failed', url, error: err instanceof Error ? err.message : String(err) })
+	log.set({
+		event: 'window_create_failed',
+		url,
+		error: err instanceof Error ? err.message : String(err),
+	})
 	log.emit()
 	throw err
 }
@@ -304,7 +322,11 @@ ApplicationMenu.setApplicationMenu([
 			{ label: 'Close Tab', action: 'close-tab', accelerator: 'meta+w' },
 			{ type: 'separator' },
 			{ label: 'Next Tab', action: 'next-tab', accelerator: 'shift+meta+]' },
-			{ label: 'Previous Tab', action: 'prev-tab', accelerator: 'shift+meta+[' },
+			{
+				label: 'Previous Tab',
+				action: 'prev-tab',
+				accelerator: 'shift+meta+[',
+			},
 		],
 	},
 	{
@@ -398,7 +420,9 @@ setSyncEventCallback((event) => {
 
 // Pipe evlog events to the sync terminal too
 setSyncDrainCallback((event) => {
-	try { mainWindow.webview.rpc.send.syncEvent(event) } catch {}
+	try {
+		mainWindow.webview.rpc.send.syncEvent(event)
+	} catch {}
 })
 
 // Push incoming chat messages to the WebView
@@ -431,7 +455,9 @@ mainWindow.webview.on('dom-ready', () => {
 		// Show profile picker
 		setInitialStatus('account-selection')
 		mainWindow.webview.rpc.send.accountsLoaded({ accounts: currentAccounts })
-		mainWindow.webview.rpc.send.walletStateChanged({ status: 'account-selection' })
+		mainWindow.webview.rpc.send.walletStateChanged({
+			status: 'account-selection',
+		})
 	}
 
 	// Auto-update: check on launch (non-blocking), then hourly in the background
@@ -460,7 +486,10 @@ startMcpServer(mainWindow)
 
 // Start the 1sat-stack sidecar (non-blocking — wallet does not depend on it)
 startStack().catch((err) => {
-	console.error('1sat-stack sidecar failed to start:', err instanceof Error ? err.message : err)
+	console.error(
+		'1sat-stack sidecar failed to start:',
+		err instanceof Error ? err.message : err,
+	)
 })
 
 // ============================================================================

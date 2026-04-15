@@ -4,9 +4,15 @@
 // to move this to a Zig native module backed by RocksDB (C API via @cImport),
 // which eliminates the inode concern and handles the full blob size range well.
 
-import { BeefClient } from '@1sat/client'
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import {
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	unlinkSync,
+	writeFileSync,
+} from 'node:fs'
 import { resolve } from 'node:path'
+import { BeefClient } from '@1sat/client'
 
 export class BeefStore {
 	private readonly dir: string

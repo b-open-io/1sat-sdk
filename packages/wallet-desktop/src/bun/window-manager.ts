@@ -4,15 +4,17 @@
  * The picker window is reused for the first account. Subsequent accounts
  * get new windows. Selecting an already-open account focuses its window.
  */
-import {
-	BrowserView,
-	BrowserWindow,
-} from 'electrobun/bun'
+import { BrowserView, BrowserWindow } from 'electrobun/bun'
 import { createLogger } from 'evlog'
 import type { WalletDesktopRPC } from '../shared/types'
-import { touchAccount, setLastActiveAccountId } from './account-registry'
+import { setLastActiveAccountId, touchAccount } from './account-registry'
 import { createRpcHandlers } from './rpc-handlers'
-import { unlock, lockAccount, getLegacyCallbacks, type WalletCallbacks } from './wallet-manager'
+import {
+	type WalletCallbacks,
+	getLegacyCallbacks,
+	lockAccount,
+	unlock,
+} from './wallet-manager'
 
 // ============================================================================
 // State
@@ -44,13 +46,21 @@ export async function openAccountWindow(accountId: string): Promise<boolean> {
 	// 1. Already open? Focus it.
 	const existing = accountWindows.get(accountId)
 	if (existing) {
-		log.set({ event: 'focus_existing', accountId, windowCount: accountWindows.size })
+		log.set({
+			event: 'focus_existing',
+			accountId,
+			windowCount: accountWindows.size,
+		})
 		log.emit()
 		try {
 			existing.focus()
 		} catch (err) {
 			const errLog = createLogger({ context: 'window-manager' })
-			errLog.set({ event: 'focus_failed', accountId, error: err instanceof Error ? err.message : String(err) })
+			errLog.set({
+				event: 'focus_failed',
+				accountId,
+				error: err instanceof Error ? err.message : String(err),
+			})
 			errLog.emit()
 		}
 		return false
@@ -72,7 +82,9 @@ export async function openAccountWindow(accountId: string): Promise<boolean> {
 		setLastActiveAccountId(accountId)
 
 		// Push unlocked status immediately (DOM is already ready)
-		try { mainWindow.webview.rpc.send.walletStateChanged({ status: 'unlocked' }) } catch {}
+		try {
+			mainWindow.webview.rpc.send.walletStateChanged({ status: 'unlocked' })
+		} catch {}
 
 		// Verify sync event chain is working
 		callbacks.onSyncEvent?.({
@@ -96,7 +108,9 @@ export async function openAccountWindow(accountId: string): Promise<boolean> {
 			requests: {
 				...handlers,
 				toggleDevTools: () => {
-					try { accountWindows.get(accountId)?.webview.toggleDevTools() } catch {}
+					try {
+						accountWindows.get(accountId)?.webview.toggleDevTools()
+					} catch {}
 					return { success: true }
 				},
 				toggleMaximize: () => {
@@ -129,13 +143,19 @@ export async function openAccountWindow(accountId: string): Promise<boolean> {
 
 	const callbacks: WalletCallbacks = {
 		onStatusChanged: (status) => {
-			try { win.webview.rpc.send.walletStateChanged({ status }) } catch {}
+			try {
+				win.webview.rpc.send.walletStateChanged({ status })
+			} catch {}
 		},
 		onBalanceUpdated: (balance) => {
-			try { win.webview.rpc.send.balanceUpdated(balance) } catch {}
+			try {
+				win.webview.rpc.send.balanceUpdated(balance)
+			} catch {}
 		},
 		onSyncEvent: (event) => {
-			try { win.webview.rpc.send.syncEvent(event) } catch {}
+			try {
+				win.webview.rpc.send.syncEvent(event)
+			} catch {}
 		},
 	}
 
@@ -161,10 +181,16 @@ export async function openAccountWindow(accountId: string): Promise<boolean> {
 		setLastActiveAccountId(accountId)
 
 		win.webview.on('dom-ready', () => {
-			try { win.webview.rpc.send.walletStateChanged({ status: 'unlocked' }) } catch {}
+			try {
+				win.webview.rpc.send.walletStateChanged({ status: 'unlocked' })
+			} catch {}
 		})
 	} catch (err) {
-		log.set({ event: 'unlock_failed', accountId, error: err instanceof Error ? err.message : String(err) })
+		log.set({
+			event: 'unlock_failed',
+			accountId,
+			error: err instanceof Error ? err.message : String(err),
+		})
 		log.emit()
 		accountWindows.delete(accountId)
 	}

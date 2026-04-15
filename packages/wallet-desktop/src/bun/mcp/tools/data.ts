@@ -13,7 +13,12 @@ export function registerDataTools(server: McpServer): void {
 	server.tool(
 		'inscription_metadata',
 		'Get on-chain metadata for an inscription by outpoint (txid_vout).',
-		{ outpoint: z.string().regex(/^[0-9a-fA-F]{64}_\d+$/).describe('Outpoint in txid_vout format') },
+		{
+			outpoint: z
+				.string()
+				.regex(/^[0-9a-fA-F]{64}_\d+$/)
+				.describe('Outpoint in txid_vout format'),
+		},
 		async ({ outpoint }) => {
 			try {
 				const data = await stackFetch(`/1sat/ordfs/metadata/${outpoint}`)
@@ -97,7 +102,10 @@ export function registerDataTools(server: McpServer): void {
 		'listing_lookup',
 		'Look up an OrdLock marketplace listing by outpoint.',
 		{
-			outpoint: z.string().regex(/^[0-9a-fA-F]{64}_\d+$/).describe('Outpoint in txid_vout format'),
+			outpoint: z
+				.string()
+				.regex(/^[0-9a-fA-F]{64}_\d+$/)
+				.describe('Outpoint in txid_vout format'),
 		},
 		async ({ outpoint }) => {
 			try {

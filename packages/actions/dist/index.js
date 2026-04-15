@@ -42,6 +42,7 @@ import { collectionsActions } from './collections';
 import { identityActions } from './identity';
 import { inscriptionsActions } from './inscriptions';
 import { locksActions } from './locks';
+import { mneeActions } from './mnee';
 import { opnsActions } from './opns';
 import { ordinalsActions } from './ordinals';
 import { paymentsActions } from './payments';
@@ -50,7 +51,6 @@ import { socialActions } from './social';
 import { sweepActions } from './sweep';
 import { syncActions } from './sync';
 import { tokensActions } from './tokens';
-import { mneeActions } from './mnee';
 actionRegistry.registerAll([
     ...addressesActions,
     ...collectionsActions,

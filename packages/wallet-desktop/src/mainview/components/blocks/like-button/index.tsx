@@ -1,50 +1,45 @@
-import { type VariantProps } from "class-variance-authority"
-import { LikeButtonUI, likeButtonVariants } from "./ui"
-import {
-  useLike,
-  type LikeResult,
-  type UseLikeReturn,
-  type UseLikeOptions,
-} from "./use-like"
+import type { VariantProps } from 'class-variance-authority'
+import { LikeButtonUI, type likeButtonVariants } from './ui'
+import { type LikeResult, useLike } from './use-like'
 
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 
-export { LikeButtonUI, likeButtonVariants, type LikeButtonUIProps } from "./ui"
+export { LikeButtonUI, likeButtonVariants, type LikeButtonUIProps } from './ui'
 export {
-  useLike,
-  type LikeResult,
-  type UseLikeReturn,
-  type UseLikeOptions,
-} from "./use-like"
+	useLike,
+	type LikeResult,
+	type UseLikeReturn,
+	type UseLikeOptions,
+} from './use-like'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface LikeButtonProps
-  extends VariantProps<typeof likeButtonVariants> {
-  /** Additional CSS classes */
-  className?: string
-  /** Transaction ID of the content to like */
-  txid: string
-  /** Current like count to display */
-  count?: number
-  /** Whether the current user has already liked this content */
-  liked?: boolean
-  /** Called to broadcast a like action */
-  onLike: (txid: string) => Promise<LikeResult>
-  /** Called to broadcast an unlike action */
-  onUnlike?: (txid: string) => Promise<LikeResult>
-  /** Called after a successful like/unlike */
-  onToggled?: (liked: boolean, result: LikeResult) => void
-  /** Called on error */
-  onError?: (error: Error) => void
-  /** Disable the button */
-  disabled?: boolean
-  /** Use thumbs-up icon instead of heart */
-  useThumbsUp?: boolean
+	extends VariantProps<typeof likeButtonVariants> {
+	/** Additional CSS classes */
+	className?: string
+	/** Transaction ID of the content to like */
+	txid: string
+	/** Current like count to display */
+	count?: number
+	/** Whether the current user has already liked this content */
+	liked?: boolean
+	/** Called to broadcast a like action */
+	onLike: (txid: string) => Promise<LikeResult>
+	/** Called to broadcast an unlike action */
+	onUnlike?: (txid: string) => Promise<LikeResult>
+	/** Called after a successful like/unlike */
+	onToggled?: (liked: boolean, result: LikeResult) => void
+	/** Called on error */
+	onError?: (error: Error) => void
+	/** Disable the button */
+	disabled?: boolean
+	/** Use thumbs-up icon instead of heart */
+	useThumbsUp?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -73,38 +68,38 @@ export interface LikeButtonProps
  * ```
  */
 export function LikeButton({
-  variant = "default",
-  className,
-  txid,
-  count = 0,
-  liked = false,
-  onLike,
-  onUnlike,
-  onToggled,
-  onError,
-  disabled = false,
-  useThumbsUp = false,
+	variant = 'default',
+	className,
+	txid,
+	count = 0,
+	liked = false,
+	onLike,
+	onUnlike,
+	onToggled,
+	onError,
+	disabled = false,
+	useThumbsUp = false,
 }: LikeButtonProps) {
-  const hook = useLike({
-    txid,
-    count,
-    liked,
-    onLike,
-    onUnlike,
-    onToggled,
-    onError,
-  })
+	const hook = useLike({
+		txid,
+		count,
+		liked,
+		onLike,
+		onUnlike,
+		onToggled,
+		onError,
+	})
 
-  return (
-    <LikeButtonUI
-      variant={variant}
-      className={className}
-      isLiked={hook.isLiked}
-      displayCount={hook.displayCount}
-      isLoading={hook.isLoading}
-      onToggle={hook.handleToggle}
-      disabled={disabled}
-      useThumbsUp={useThumbsUp}
-    />
-  )
+	return (
+		<LikeButtonUI
+			variant={variant}
+			className={className}
+			isLiked={hook.isLiked}
+			displayCount={hook.displayCount}
+			isLoading={hook.isLoading}
+			onToggle={hook.handleToggle}
+			disabled={disabled}
+			useThumbsUp={useThumbsUp}
+		/>
+	)
 }

@@ -10,6 +10,7 @@
  * All keys derived at protocolID=[1,"sigma"], keyID="identity-{N}".
  */
 
+import { BAP, BitCom } from '@1sat/templates'
 import { Hash, OP, PublicKey, Script, Utils } from '@bsv/sdk'
 import {
 	BAP_BASKET,
@@ -514,18 +515,20 @@ export const getProfile: Action<Record<string, never>, ProfileResponse> = {
 			}
 
 			const primary = result.outputs[0]
-			const script = Script.fromHex(primary.lockingScript ?? '')
-			const bapIdChunk = script.chunks[4]?.data
-			const profileChunk = script.chunks[5]?.data
+			const lockingScript = Script.fromHex(primary.lockingScript ?? '')
 
-			if (!bapIdChunk || !profileChunk) {
-				return { error: 'malformed-alias: could not parse locking script' }
+			const bitcom = BitCom.decode(lockingScript)
+			if (!bitcom) {
+				return { error: 'malformed-alias: no bitcom structure found' }
 			}
 
-			const bapId = Utils.toUTF8(Array.from(bapIdChunk))
-			const profile = JSON.parse(
-				Utils.toUTF8(Array.from(profileChunk)),
-			) as Record<string, unknown>
+			const bap = BAP.decode(bitcom)
+			if (!bap) {
+				return { error: 'malformed-alias: no BAP protocol found in bitcom' }
+			}
+
+			const bapId = bap.idKey ?? ''
+			const profile = bap.profile as Record<string, unknown>
 
 			for (const dup of result.outputs.slice(1)) {
 				await ctx.wallet.relinquishOutput({

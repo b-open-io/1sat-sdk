@@ -36,7 +36,9 @@ export function registerBrowserTools(
 				const req = getRpc(getMainWindow)
 				const result = await req.tabCreate({ url })
 				return {
-					content: [{ type: 'text', text: JSON.stringify({ tabId: result.tabId }) }],
+					content: [
+						{ type: 'text', text: JSON.stringify({ tabId: result.tabId }) },
+					],
 				}
 			} catch (err) {
 				return {
@@ -82,7 +84,10 @@ export function registerBrowserTools(
 	server.tool(
 		'browser_navigate',
 		'Navigate an existing browser window to a new URL.',
-		{ windowId: z.string().describe('Window ID from browser_list_windows'), url: z.string() },
+		{
+			windowId: z.string().describe('Window ID from browser_list_windows'),
+			url: z.string(),
+		},
 		async ({ windowId, url }) => {
 			const ok = navigate(windowId, url)
 			if (!ok)
@@ -136,7 +141,10 @@ export function registerBrowserTools(
 				.describe(
 					'JavaScript code to execute. Use `return` to send a value back.',
 				),
-			timeoutMs: z.number().optional().describe('Timeout in ms (default 10000)'),
+			timeoutMs: z
+				.number()
+				.optional()
+				.describe('Timeout in ms (default 10000)'),
 		},
 		async ({ windowId, code, timeoutMs }) => {
 			try {

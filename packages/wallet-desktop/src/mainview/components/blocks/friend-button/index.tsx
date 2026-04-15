@@ -1,56 +1,54 @@
-import { type VariantProps } from "class-variance-authority"
-import { FriendButtonUI, friendButtonVariants } from "./ui"
+import type { VariantProps } from 'class-variance-authority'
+import { FriendButtonUI, type friendButtonVariants } from './ui'
 import {
-  useFriend,
-  type FriendResult,
-  type FriendshipStatus,
-  type UseFriendReturn,
-  type UseFriendOptions,
-} from "./use-friend"
+	type FriendResult,
+	type FriendshipStatus,
+	useFriend,
+} from './use-friend'
 
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 
 export {
-  FriendButtonUI,
-  friendButtonVariants,
-  type FriendButtonUIProps,
-} from "./ui"
+	FriendButtonUI,
+	friendButtonVariants,
+	type FriendButtonUIProps,
+} from './ui'
 export {
-  useFriend,
-  type FriendResult,
-  type FriendshipStatus,
-  type UseFriendReturn,
-  type UseFriendOptions,
-} from "./use-friend"
+	useFriend,
+	type FriendResult,
+	type FriendshipStatus,
+	type UseFriendReturn,
+	type UseFriendOptions,
+} from './use-friend'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface FriendButtonProps
-  extends VariantProps<typeof friendButtonVariants> {
-  /** Additional CSS classes */
-  className?: string
-  /** Identity key of the other user */
-  identityKey: string
-  /** Current friendship status */
-  status: FriendshipStatus
-  /** Called to send a friend request (creates a BSocial follow) */
-  onAddFriend: (identityKey: string) => Promise<FriendResult>
-  /** Called to accept an incoming request (creates a mutual follow + derives shared key) */
-  onAccept?: (identityKey: string) => Promise<FriendResult>
-  /** Called to decline an incoming request */
-  onDecline?: (identityKey: string) => Promise<FriendResult>
-  /** Called to remove an existing friend */
-  onRemove?: (identityKey: string) => Promise<FriendResult>
-  /** Called after any successful action with the new status */
-  onStatusChange?: (newStatus: FriendshipStatus, result: FriendResult) => void
-  /** Called on error */
-  onError?: (error: Error) => void
-  /** Disable the button */
-  disabled?: boolean
+	extends VariantProps<typeof friendButtonVariants> {
+	/** Additional CSS classes */
+	className?: string
+	/** Identity key of the other user */
+	identityKey: string
+	/** Current friendship status */
+	status: FriendshipStatus
+	/** Called to send a friend request (creates a BSocial follow) */
+	onAddFriend: (identityKey: string) => Promise<FriendResult>
+	/** Called to accept an incoming request (creates a mutual follow + derives shared key) */
+	onAccept?: (identityKey: string) => Promise<FriendResult>
+	/** Called to decline an incoming request */
+	onDecline?: (identityKey: string) => Promise<FriendResult>
+	/** Called to remove an existing friend */
+	onRemove?: (identityKey: string) => Promise<FriendResult>
+	/** Called after any successful action with the new status */
+	onStatusChange?: (newStatus: FriendshipStatus, result: FriendResult) => void
+	/** Called on error */
+	onError?: (error: Error) => void
+	/** Disable the button */
+	disabled?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -84,48 +82,48 @@ export interface FriendButtonProps
  * ```
  */
 export function FriendButton({
-  variant = "default",
-  className,
-  identityKey,
-  status,
-  onAddFriend,
-  onAccept,
-  onDecline,
-  onRemove,
-  onStatusChange,
-  onError,
-  disabled = false,
+	variant = 'default',
+	className,
+	identityKey,
+	status,
+	onAddFriend,
+	onAccept,
+	onDecline,
+	onRemove,
+	onStatusChange,
+	onError,
+	disabled = false,
 }: FriendButtonProps) {
-  const hook = useFriend({
-    identityKey,
-    status,
-    onAddFriend,
-    onAccept,
-    onDecline,
-    onRemove,
-    onStatusChange,
-    onError,
-  })
+	const hook = useFriend({
+		identityKey,
+		status,
+		onAddFriend,
+		onAccept,
+		onDecline,
+		onRemove,
+		onStatusChange,
+		onError,
+	})
 
-  return (
-    <FriendButtonUI
-      variant={variant}
-      className={className}
-      identityKey={identityKey}
-      currentStatus={hook.currentStatus}
-      isLoading={hook.isLoading}
-      loadingAction={hook.loadingAction}
-      isHovering={hook.isHovering}
-      onMouseEnter={() => hook.setIsHovering(true)}
-      onMouseLeave={() => hook.setIsHovering(false)}
-      onAdd={hook.handleAdd}
-      onAccept={hook.handleAccept}
-      onDecline={hook.handleDecline}
-      onRemove={hook.handleRemove}
-      hasAccept={hook.hasAccept}
-      hasDecline={hook.hasDecline}
-      hasRemove={hook.hasRemove}
-      disabled={disabled}
-    />
-  )
+	return (
+		<FriendButtonUI
+			variant={variant}
+			className={className}
+			identityKey={identityKey}
+			currentStatus={hook.currentStatus}
+			isLoading={hook.isLoading}
+			loadingAction={hook.loadingAction}
+			isHovering={hook.isHovering}
+			onMouseEnter={() => hook.setIsHovering(true)}
+			onMouseLeave={() => hook.setIsHovering(false)}
+			onAdd={hook.handleAdd}
+			onAccept={hook.handleAccept}
+			onDecline={hook.handleDecline}
+			onRemove={hook.handleRemove}
+			hasAccept={hook.hasAccept}
+			hasDecline={hook.hasDecline}
+			hasRemove={hook.hasRemove}
+			disabled={disabled}
+		/>
+	)
 }

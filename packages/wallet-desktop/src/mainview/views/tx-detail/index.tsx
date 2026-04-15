@@ -112,7 +112,8 @@ function normaliseTxData(raw: unknown): TxData | null {
 							? Number(txo.satoshis)
 							: undefined,
 				vout: typeof txo.vout === 'number' ? txo.vout : undefined,
-				spent: txo.spend !== undefined && txo.spend !== null && txo.spend !== '',
+				spent:
+					txo.spend !== undefined && txo.spend !== null && txo.spend !== '',
 			}),
 		)
 
@@ -178,9 +179,7 @@ function normaliseTxData(raw: unknown): TxData | null {
 								: undefined,
 					vout: typeof out.vout === 'number' ? out.vout : i,
 					spent:
-						out.spend !== undefined &&
-						out.spend !== null &&
-						out.spend !== '',
+						out.spend !== undefined && out.spend !== null && out.spend !== '',
 				}))
 			: undefined,
 		rawhex: typeof r.rawhex === 'string' ? r.rawhex : undefined,
@@ -267,7 +266,14 @@ interface IoRowProps {
 	isOutput?: boolean
 }
 
-function IoRow({ index, address, label, satoshis, spent, isOutput }: IoRowProps) {
+function IoRow({
+	index,
+	address,
+	label,
+	satoshis,
+	spent,
+	isOutput,
+}: IoRowProps) {
 	const display = address ? truncateAddress(address) : (label ?? `#${index}`)
 	return (
 		<div className="flex items-center justify-between gap-2 py-2 border-b border-border/50 last:border-0">
@@ -368,7 +374,8 @@ export function TxDetailView({ onNavigate, params }: TxDetailViewProps) {
 			.then((raw) => {
 				if (cancelled) return
 				const normalised = normaliseTxData(raw)
-				if (!normalised) throw new Error('Unexpected response format from Stack API')
+				if (!normalised)
+					throw new Error('Unexpected response format from Stack API')
 				setTxData(normalised)
 			})
 
@@ -388,7 +395,9 @@ export function TxDetailView({ onNavigate, params }: TxDetailViewProps) {
 		Promise.all([fetchTx, fetchProof])
 			.catch((err) => {
 				if (!cancelled)
-					setError(err instanceof Error ? err.message : 'Failed to load transaction')
+					setError(
+						err instanceof Error ? err.message : 'Failed to load transaction',
+					)
 			})
 			.finally(() => {
 				if (!cancelled) setLoading(false)
@@ -444,7 +453,6 @@ export function TxDetailView({ onNavigate, params }: TxDetailViewProps) {
 	return (
 		<div className="w-full h-full overflow-y-auto">
 			<div className="max-w-2xl mx-auto px-6 py-6 flex flex-col gap-5">
-
 				{/* ── Back navigation ───────────────────────────────────────── */}
 				<button
 					type="button"
@@ -623,7 +631,9 @@ export function TxDetailView({ onNavigate, params }: TxDetailViewProps) {
 											key={`inp-${inp.outpoint ?? i}`}
 											index={i}
 											address={inp.address}
-											label={inp.outpoint ? truncateTxid(inp.outpoint) : undefined}
+											label={
+												inp.outpoint ? truncateTxid(inp.outpoint) : undefined
+											}
 											satoshis={inp.satoshis}
 										/>
 									))
@@ -675,7 +685,11 @@ export function TxDetailView({ onNavigate, params }: TxDetailViewProps) {
 						{/* Flow arrow — spans full width between the two panels */}
 						<div className="flex items-center justify-center -mt-2 -mb-1 gap-3">
 							<div className="h-px flex-1 bg-border" />
-							<ArrowRight size={14} className="text-muted-foreground/40 shrink-0" strokeWidth={1.5} />
+							<ArrowRight
+								size={14}
+								className="text-muted-foreground/40 shrink-0"
+								strokeWidth={1.5}
+							/>
 							<div className="h-px flex-1 bg-border" />
 						</div>
 

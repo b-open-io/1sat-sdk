@@ -1,58 +1,52 @@
-import { type VariantProps } from "class-variance-authority"
-import { FollowButtonUI, followButtonVariants } from "./ui"
-import {
-  useFollow,
-  type FollowResult,
-  type FollowState,
-  type UseFollowReturn,
-  type UseFollowOptions,
-} from "./use-follow"
+import type { VariantProps } from 'class-variance-authority'
+import { FollowButtonUI, type followButtonVariants } from './ui'
+import { type FollowResult, useFollow } from './use-follow'
 
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 
 export {
-  FollowButtonUI,
-  followButtonVariants,
-  type FollowButtonUIProps,
-} from "./ui"
+	FollowButtonUI,
+	followButtonVariants,
+	type FollowButtonUIProps,
+} from './ui'
 export {
-  useFollow,
-  type FollowResult,
-  type FollowState,
-  type UseFollowReturn,
-  type UseFollowOptions,
-} from "./use-follow"
+	useFollow,
+	type FollowResult,
+	type FollowState,
+	type UseFollowReturn,
+	type UseFollowOptions,
+} from './use-follow'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface FollowButtonProps
-  extends VariantProps<typeof followButtonVariants> {
-  /** Additional CSS classes */
-  className?: string
-  /** BAP identity key of the user to follow */
-  bapId: string
-  /** Whether the current user is already following this user */
-  isFollowing?: boolean
-  /** Called to broadcast a follow action */
-  onFollow: (bapId: string) => Promise<FollowResult>
-  /** Called to broadcast an unfollow action */
-  onUnfollow?: (bapId: string) => Promise<FollowResult>
-  /** Called after a successful follow/unfollow */
-  onToggled?: (following: boolean, result: FollowResult) => void
-  /** Called on error */
-  onError?: (error: Error) => void
-  /** Disable the button */
-  disabled?: boolean
-  /** Labels for the three visual states */
-  labels?: {
-    follow?: string
-    following?: string
-    unfollow?: string
-  }
+	extends VariantProps<typeof followButtonVariants> {
+	/** Additional CSS classes */
+	className?: string
+	/** BAP identity key of the user to follow */
+	bapId: string
+	/** Whether the current user is already following this user */
+	isFollowing?: boolean
+	/** Called to broadcast a follow action */
+	onFollow: (bapId: string) => Promise<FollowResult>
+	/** Called to broadcast an unfollow action */
+	onUnfollow?: (bapId: string) => Promise<FollowResult>
+	/** Called after a successful follow/unfollow */
+	onToggled?: (following: boolean, result: FollowResult) => void
+	/** Called on error */
+	onError?: (error: Error) => void
+	/** Disable the button */
+	disabled?: boolean
+	/** Labels for the three visual states */
+	labels?: {
+		follow?: string
+		following?: string
+		unfollow?: string
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -84,40 +78,40 @@ export interface FollowButtonProps
  * ```
  */
 export function FollowButton({
-  variant = "default",
-  className,
-  bapId,
-  isFollowing = false,
-  onFollow,
-  onUnfollow,
-  onToggled,
-  onError,
-  disabled = false,
-  labels = {},
+	variant = 'default',
+	className,
+	bapId,
+	isFollowing = false,
+	onFollow,
+	onUnfollow,
+	onToggled,
+	onError,
+	disabled = false,
+	labels = {},
 }: FollowButtonProps) {
-  const hook = useFollow({
-    bapId,
-    isFollowing,
-    onFollow,
-    onUnfollow,
-    onToggled,
-    onError,
-    labels,
-  })
+	const hook = useFollow({
+		bapId,
+		isFollowing,
+		onFollow,
+		onUnfollow,
+		onToggled,
+		onError,
+		labels,
+	})
 
-  return (
-    <FollowButtonUI
-      variant={variant}
-      className={className}
-      bapId={bapId}
-      following={hook.following}
-      showUnfollow={hook.showUnfollow}
-      isLoading={hook.isLoading}
-      currentLabel={hook.currentLabel}
-      onClick={hook.handleClick}
-      onMouseEnter={() => hook.setIsHovering(true)}
-      onMouseLeave={() => hook.setIsHovering(false)}
-      disabled={disabled}
-    />
-  )
+	return (
+		<FollowButtonUI
+			variant={variant}
+			className={className}
+			bapId={bapId}
+			following={hook.following}
+			showUnfollow={hook.showUnfollow}
+			isLoading={hook.isLoading}
+			currentLabel={hook.currentLabel}
+			onClick={hook.handleClick}
+			onMouseEnter={() => hook.setIsHovering(true)}
+			onMouseLeave={() => hook.setIsHovering(false)}
+			disabled={disabled}
+		/>
+	)
 }

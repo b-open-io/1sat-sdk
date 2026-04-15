@@ -1,16 +1,15 @@
-import Avatar from 'sigma-avatars'
+import { BitcoinAvatar } from '@/components/blocks/bitcoin-avatar'
+import { FollowButton } from '@/components/blocks/follow-button'
+import type { FollowResult } from '@/components/blocks/follow-button'
+import { ImageSelectionModal } from '@/components/blocks/image-selection-modal'
+import type { BapProfile } from '@/components/blocks/profile-card/use-profile-card'
+import { ProfileEditor } from '@/components/blocks/profile-editor'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Empty } from '@/components/ui/empty'
-import { ImageSelectionModal } from '@/components/blocks/image-selection-modal'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
-import { BitcoinAvatar } from '@/components/blocks/bitcoin-avatar'
-import { ProfileEditor } from '@/components/blocks/profile-editor'
-import { FollowButton } from '@/components/blocks/follow-button'
-import type { FollowResult } from '@/components/blocks/follow-button'
-import type { BapProfile } from '@/components/blocks/profile-card/use-profile-card'
 import { cn } from '@/lib/utils'
 import {
 	Camera,
@@ -24,8 +23,9 @@ import {
 	UserCircle2,
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import type { DraftProfile } from '../../../shared/types'
+import Avatar from 'sigma-avatars'
 import { STACK_URL } from '../../../shared/constants'
+import type { DraftProfile } from '../../../shared/types'
 import { rpc } from '../../rpc'
 
 // --- Helpers ----------------------------------------------------------------
@@ -49,8 +49,7 @@ function parseProfile(raw: Record<string, unknown>): BapProfile {
 		alternateName:
 			typeof raw.alternateName === 'string' ? raw.alternateName : undefined,
 		givenName: typeof raw.givenName === 'string' ? raw.givenName : undefined,
-		familyName:
-			typeof raw.familyName === 'string' ? raw.familyName : undefined,
+		familyName: typeof raw.familyName === 'string' ? raw.familyName : undefined,
 		description:
 			typeof raw.description === 'string' ? raw.description : undefined,
 		image: typeof raw.image === 'string' ? raw.image : undefined,
@@ -456,8 +455,7 @@ function OwnProfileView({
 		(url: string) => {
 			// Save banner as part of a draft profile update
 			const current: DraftProfile = draft ?? {
-				'@type':
-					(profile?.['@type'] as 'Person' | 'Organization') ?? 'Person',
+				'@type': (profile?.['@type'] as 'Person' | 'Organization') ?? 'Person',
 				alternateName: parsed?.alternateName,
 				description: parsed?.description,
 				image: parsed?.image,
@@ -482,8 +480,7 @@ function OwnProfileView({
 	const handleAvatarSave = useCallback(
 		(url: string) => {
 			const current: DraftProfile = draft ?? {
-				'@type':
-					(profile?.['@type'] as 'Person' | 'Organization') ?? 'Person',
+				'@type': (profile?.['@type'] as 'Person' | 'Organization') ?? 'Person',
 				alternateName: parsed?.alternateName,
 				description: parsed?.description,
 				image: parsed?.image,
@@ -503,8 +500,7 @@ function OwnProfileView({
 
 	// Build the current profile for the editor (merge published + draft)
 	const editorProfile: DraftProfile | null = draft ?? {
-		'@type':
-			(profile?.['@type'] as 'Person' | 'Organization') ?? 'Person',
+		'@type': (profile?.['@type'] as 'Person' | 'Organization') ?? 'Person',
 		alternateName: parsed?.alternateName,
 		description: parsed?.description,
 		image: parsed?.image,
@@ -565,13 +561,9 @@ function OwnProfileView({
 							{displayName}
 						</h2>
 						{parsed?.description && (
-							<p className="text-muted-foreground">
-								{parsed.description}
-							</p>
+							<p className="text-muted-foreground">{parsed.description}</p>
 						)}
-						<p className="font-mono text-sm text-muted-foreground">
-							{bapId}
-						</p>
+						<p className="font-mono text-sm text-muted-foreground">{bapId}</p>
 					</div>
 				</div>
 
@@ -637,11 +629,7 @@ function OwnProfileView({
 						Edit Profile
 					</Button>
 					{!isPublished && (
-						<Button
-							size="sm"
-							onClick={onPublish}
-							disabled={publishing}
-						>
+						<Button size="sm" onClick={onPublish} disabled={publishing}>
 							{publishing ? 'Publishing...' : 'Publish Identity'}
 						</Button>
 					)}
@@ -668,16 +656,9 @@ function OwnProfileView({
 								<Separator />
 							</>
 						)}
-						<DetailRow
-							label="Type"
-							value={profileTypeLabel(profile)}
-						/>
+						<DetailRow label="Type" value={profileTypeLabel(profile)} />
 						<Separator />
-						<DetailRow
-							label="BAP ID"
-							value={truncate(bapId, 10, 8)}
-							mono
-						/>
+						<DetailRow label="BAP ID" value={truncate(bapId, 10, 8)} mono />
 					</CardContent>
 				</Card>
 			</div>
@@ -732,11 +713,7 @@ export function IdentityView({ params, onNavigate }: IdentityViewProps = {}) {
 				rpc.request.getActiveAccount(),
 			])
 			// Use on-chain BAP ID if available, otherwise fall back to registry bapId
-			setOwnBapId(
-				identityResult.bapId ??
-				accountResult.account?.bapId ??
-				null,
-			)
+			setOwnBapId(identityResult.bapId ?? accountResult.account?.bapId ?? null)
 			setProfile(identityResult.profile)
 			setIdentityKey(accountResult.account?.identityKey ?? null)
 			setError(null)

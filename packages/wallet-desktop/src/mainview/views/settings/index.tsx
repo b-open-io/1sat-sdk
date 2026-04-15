@@ -9,7 +9,6 @@ import {
 } from '@/components/blocks/theme-token-provider'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Empty } from '@/components/ui/empty'
 import {
 	Dialog,
 	DialogContent,
@@ -19,6 +18,7 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog'
+import { Empty } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import {
 	Select,
@@ -48,21 +48,18 @@ import {
 import { Switch } from 'radix-ui'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-	type AppearanceMode,
-	useAppearance,
-} from '../../hooks/use-appearance'
-import {
 	type BrowserSettings,
-	type SearchMode,
 	STACK_URL as STACK_BASE_URL,
+	type SearchMode,
+	WALLET_HTTPS_PORT,
 	WALLET_HTTP_PORT,
 	WALLET_HTTP_URL,
-	WALLET_HTTPS_PORT,
 	WALLET_MCP_PORT,
 	loadBrowserSettings,
 	saveBrowserSettings,
 } from '../../../shared/constants'
 import type { AppVersionInfo, UpdateStatusPayload } from '../../../shared/types'
+import { type AppearanceMode, useAppearance } from '../../hooks/use-appearance'
 import { useWallet } from '../../hooks/use-wallet'
 import { onUpdateStatus, rpc } from '../../rpc'
 
@@ -133,7 +130,9 @@ async function stackFetch(path: string, options?: RequestInit) {
 	if (!res.ok) {
 		const body = await res.text().catch(() => '')
 		if (body.includes('authentication')) {
-			throw new Error('authentication required — open the admin panel to authenticate')
+			throw new Error(
+				'authentication required — open the admin panel to authenticate',
+			)
 		}
 		throw new Error(`Stack API error: ${res.status}`)
 	}
@@ -163,8 +162,8 @@ const OVERLAY_KEYS = [
 // ---------------------------------------------------------------------------
 
 import {
-	type AiProvider,
 	AI_SETTINGS_KEY,
+	type AiProvider,
 	PROVIDER_DEFAULTS,
 } from '../../../shared/ai-providers'
 
@@ -193,7 +192,6 @@ function loadAiSettings(): AiSettings {
 function saveAiSettings(settings: AiSettings) {
 	localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(settings))
 }
-
 
 // ---------------------------------------------------------------------------
 // Connected Apps storage
@@ -266,9 +264,8 @@ function formatLastAccess(ms: number): string {
 function SecurityTab() {
 	const { deleteAccount, activeAccount } = useWallet()
 	const [autoLock, setAutoLock] = useState(loadAutoLock)
-	const [connectedApps, setConnectedApps] = useState<ConnectedApp[]>(
-		loadConnectedApps,
-	)
+	const [connectedApps, setConnectedApps] =
+		useState<ConnectedApp[]>(loadConnectedApps)
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 	const [deleting, setDeleting] = useState(false)
 	const [deleteError, setDeleteError] = useState('')
@@ -373,8 +370,7 @@ function SecurityTab() {
 								</div>
 								<div className="flex-1 min-w-0">
 									<p className="text-[13px] font-medium leading-tight truncate">
-										{app.label ??
-											app.origin.replace(/^https?:\/\//, '')}
+										{app.label ?? app.origin.replace(/^https?:\/\//, '')}
 									</p>
 									<p className="text-[11px] text-muted-foreground mt-0.5">
 										{app.permissions.length} permission
@@ -416,8 +412,8 @@ function SecurityTab() {
 							</p>
 							<p className="text-xs text-muted-foreground leading-relaxed">
 								If you wrote down your 12 recovery words at creation time, keep
-								them stored safely offline. They are the only way to recover your
-								wallet on a new device.
+								them stored safely offline. They are the only way to recover
+								your wallet on a new device.
 							</p>
 						</div>
 					</div>
@@ -640,8 +636,12 @@ function NetworkTab({ onNavigate }: { onNavigate?: (url: string) => void }) {
 					<div className="bg-card rounded-lg p-4">
 						<p className="text-xs text-muted-foreground mb-1">Status</p>
 						<div className="flex items-center gap-2 mt-1">
-							<span className={`size-2.5 rounded-full shrink-0 ${health.running ? 'bg-primary' : 'bg-destructive'}`} />
-							<p className={`text-base font-bold ${health.running ? 'text-primary' : 'text-destructive'}`}>
+							<span
+								className={`size-2.5 rounded-full shrink-0 ${health.running ? 'bg-primary' : 'bg-destructive'}`}
+							/>
+							<p
+								className={`text-base font-bold ${health.running ? 'text-primary' : 'text-destructive'}`}
+							>
 								{health.running ? 'Running' : 'Offline'}
 							</p>
 						</div>
@@ -649,12 +649,16 @@ function NetworkTab({ onNavigate }: { onNavigate?: (url: string) => void }) {
 					<div className="bg-card rounded-lg p-4">
 						<p className="text-xs text-muted-foreground mb-1">Block Height</p>
 						<p className="text-xl font-bold font-[family-name:var(--font-mono)]">
-							{health.blockHeight !== null ? health.blockHeight.toLocaleString() : '—'}
+							{health.blockHeight !== null
+								? health.blockHeight.toLocaleString()
+								: '—'}
 						</p>
 					</div>
 					<div className="bg-card rounded-lg p-4">
 						<p className="text-xs text-muted-foreground mb-1">Uptime</p>
-						<p className="text-xl font-bold font-[family-name:var(--font-mono)]">{uptimeDisplay}</p>
+						<p className="text-xl font-bold font-[family-name:var(--font-mono)]">
+							{uptimeDisplay}
+						</p>
 					</div>
 				</div>
 			</div>
@@ -668,12 +672,17 @@ function NetworkTab({ onNavigate }: { onNavigate?: (url: string) => void }) {
 						</p>
 					</div>
 					<div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
-						<div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${Math.min(health.syncPercent, 100)}%` }} />
+						<div
+							className="h-full rounded-full bg-primary transition-all duration-500"
+							style={{ width: `${Math.min(health.syncPercent, 100)}%` }}
+						/>
 					</div>
 					{health.blockHeight !== null && (
 						<p className="text-xs text-muted-foreground">
 							{health.syncPercent.toFixed(1)}% synced — Block{' '}
-							<span className="font-[family-name:var(--font-mono)]">{health.blockHeight.toLocaleString()}</span>
+							<span className="font-[family-name:var(--font-mono)]">
+								{health.blockHeight.toLocaleString()}
+							</span>
 						</p>
 					)}
 				</div>
@@ -708,7 +717,10 @@ function NetworkTab({ onNavigate }: { onNavigate?: (url: string) => void }) {
 						Overlay Services
 					</p>
 					{restartRequired && (
-						<Badge variant="outline" className="text-[10px] text-primary border-primary/40 bg-primary/10 py-0">
+						<Badge
+							variant="outline"
+							className="text-[10px] text-primary border-primary/40 bg-primary/10 py-0"
+						>
 							Restart required
 						</Badge>
 					)}
@@ -720,7 +732,9 @@ function NetworkTab({ onNavigate }: { onNavigate?: (url: string) => void }) {
 						return (
 							<div key={key} className="flex items-center gap-3 px-4 py-3">
 								<span className="flex-1 text-sm font-medium">{label}</span>
-								<span className="text-xs text-muted-foreground font-[family-name:var(--font-mono)] mr-3">{key}</span>
+								<span className="text-xs text-muted-foreground font-[family-name:var(--font-mono)] mr-3">
+									{key}
+								</span>
 								<Switch.Root
 									checked={enabled}
 									disabled={!health.running || isToggling}
@@ -732,10 +746,12 @@ function NetworkTab({ onNavigate }: { onNavigate?: (url: string) => void }) {
 										enabled ? 'bg-primary' : 'bg-input',
 									].join(' ')}
 								>
-									<Switch.Thumb className={[
-										'pointer-events-none block size-4 rounded-full bg-white shadow-sm ring-0 transition-transform',
-										enabled ? 'translate-x-4' : 'translate-x-0',
-									].join(' ')} />
+									<Switch.Thumb
+										className={[
+											'pointer-events-none block size-4 rounded-full bg-white shadow-sm ring-0 transition-transform',
+											enabled ? 'translate-x-4' : 'translate-x-0',
+										].join(' ')}
+									/>
 								</Switch.Root>
 							</div>
 						)
@@ -757,24 +773,39 @@ function NetworkTab({ onNavigate }: { onNavigate?: (url: string) => void }) {
 				) : (
 					<div className="bg-card rounded-lg overflow-hidden">
 						<div className="grid grid-cols-3 px-4 py-2 border-b border-border">
-							<p className="text-[10px] uppercase tracking-widest text-muted-foreground">Indexer</p>
-							<p className="text-[10px] uppercase tracking-widest text-muted-foreground text-right">Current Block</p>
-							<p className="text-[10px] uppercase tracking-widest text-muted-foreground text-right">Status</p>
+							<p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+								Indexer
+							</p>
+							<p className="text-[10px] uppercase tracking-widest text-muted-foreground text-right">
+								Current Block
+							</p>
+							<p className="text-[10px] uppercase tracking-widest text-muted-foreground text-right">
+								Status
+							</p>
 						</div>
 						<div className="divide-y divide-border">
 							{progress.map((entry) => (
-								<div key={entry.id} className="grid grid-cols-3 px-4 py-3 items-center">
-									<span className="text-sm font-[family-name:var(--font-mono)] truncate">{entry.id}</span>
-									<span className="text-sm font-[family-name:var(--font-mono)] text-right text-muted-foreground">
-										{entry.currentBlock !== null ? entry.currentBlock.toLocaleString() : '—'}
+								<div
+									key={entry.id}
+									className="grid grid-cols-3 px-4 py-3 items-center"
+								>
+									<span className="text-sm font-[family-name:var(--font-mono)] truncate">
+										{entry.id}
 									</span>
-									<span className={`text-xs text-right font-medium ${
-										entry.status === 'synced' || entry.status === 'running'
-											? 'text-primary'
-											: entry.status === 'error'
-												? 'text-destructive'
-												: 'text-muted-foreground'
-									}`}>
+									<span className="text-sm font-[family-name:var(--font-mono)] text-right text-muted-foreground">
+										{entry.currentBlock !== null
+											? entry.currentBlock.toLocaleString()
+											: '—'}
+									</span>
+									<span
+										className={`text-xs text-right font-medium ${
+											entry.status === 'synced' || entry.status === 'running'
+												? 'text-primary'
+												: entry.status === 'error'
+													? 'text-destructive'
+													: 'text-muted-foreground'
+										}`}
+									>
 										{entry.status}
 									</span>
 								</div>
@@ -797,7 +828,9 @@ function NetworkTab({ onNavigate }: { onNavigate?: (url: string) => void }) {
 						{ label: 'Stack Data Path', value: '~/.1sat-wallet/stack/' },
 					].map(({ label, value }) => (
 						<div key={label} className="flex items-center gap-3 px-4 py-3">
-							<span className="flex-1 text-sm text-muted-foreground shrink-0 w-36">{label}</span>
+							<span className="flex-1 text-sm text-muted-foreground shrink-0 w-36">
+								{label}
+							</span>
 							<span className="text-sm font-[family-name:var(--font-mono)] text-right truncate max-w-[240px]">
 								{value ?? '—'}
 							</span>
@@ -811,7 +844,11 @@ function NetworkTab({ onNavigate }: { onNavigate?: (url: string) => void }) {
 
 			{/* Actions Section */}
 			<div className="flex items-center justify-between py-1 gap-4">
-				<Button variant="outline" size="sm" onClick={() => onNavigate?.(`${STACK_BASE_URL}/1sat/admin/`)}>
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() => onNavigate?.(`${STACK_BASE_URL}/1sat/admin/`)}
+				>
 					<ExternalLink className="size-3.5 mr-1.5" />
 					Open Admin Panel
 				</Button>
@@ -826,7 +863,8 @@ function NetworkTab({ onNavigate }: { onNavigate?: (url: string) => void }) {
 						<DialogHeader>
 							<DialogTitle>Restart Stack</DialogTitle>
 							<DialogDescription>
-								This will restart the 1sat-stack process. Active connections will be interrupted briefly.
+								This will restart the 1sat-stack process. Active connections
+								will be interrupted briefly.
 							</DialogDescription>
 						</DialogHeader>
 						{restartError && (
@@ -835,10 +873,18 @@ function NetworkTab({ onNavigate }: { onNavigate?: (url: string) => void }) {
 							</div>
 						)}
 						<DialogFooter>
-							<Button variant="ghost" onClick={() => setRestartDialogOpen(false)} disabled={restarting}>
+							<Button
+								variant="ghost"
+								onClick={() => setRestartDialogOpen(false)}
+								disabled={restarting}
+							>
 								Cancel
 							</Button>
-							<Button variant="destructive" onClick={handleRestart} disabled={restarting}>
+							<Button
+								variant="destructive"
+								onClick={handleRestart}
+								disabled={restarting}
+							>
 								{restarting ? (
 									<>
 										<RefreshCw className="size-3.5 mr-1.5 animate-spin" />
@@ -918,12 +964,20 @@ function AiTab() {
 			}
 		} catch (err) {
 			setFetchError(
-				err instanceof Error ? err.message : `Could not connect to ${settings.provider}`,
+				err instanceof Error
+					? err.message
+					: `Could not connect to ${settings.provider}`,
 			)
 		} finally {
 			setFetchingModels(false)
 		}
-	}, [settings.provider, settings.baseUrl, settings.apiKey, settings.model, updateSettings])
+	}, [
+		settings.provider,
+		settings.baseUrl,
+		settings.apiKey,
+		settings.model,
+		updateSettings,
+	])
 
 	return (
 		<div className="space-y-8 py-4">
@@ -1068,7 +1122,9 @@ function AiTab() {
 											: 'text-muted-foreground'
 									}`}
 								>
-									<span className="font-[family-name:var(--font-mono)]">{m.name}</span>
+									<span className="font-[family-name:var(--font-mono)]">
+										{m.name}
+									</span>
 									<span className="text-muted-foreground/60">{m.size}</span>
 								</button>
 							))}
@@ -1166,7 +1222,10 @@ function BrowserTab() {
 							<div className="shrink-0">
 								<p className="text-sm font-medium">Search URL</p>
 								<p className="text-xs text-muted-foreground">
-									Use <code className="font-[family-name:var(--font-mono)] text-[10px]">{'{query}'}</code>{' '}
+									Use{' '}
+									<code className="font-[family-name:var(--font-mono)] text-[10px]">
+										{'{query}'}
+									</code>{' '}
 									as the placeholder
 								</p>
 							</div>
@@ -1325,7 +1384,10 @@ function AboutTab() {
 				<Separator />
 				<div className="flex items-center justify-between py-3">
 					<p className="text-sm font-medium">Channel</p>
-					<Badge variant="secondary" className="font-[family-name:var(--font-mono)]">
+					<Badge
+						variant="secondary"
+						className="font-[family-name:var(--font-mono)]"
+					>
 						{versionInfo?.channel ?? '...'}
 					</Badge>
 				</div>
@@ -1369,7 +1431,9 @@ function AboutTab() {
 								<Download className="size-5 text-primary animate-pulse" />
 								<div>
 									<p className="text-sm font-medium">
-										Downloading update{updateStatus?.version ? ` v${updateStatus.version}` : ''}...
+										Downloading update
+										{updateStatus?.version ? ` v${updateStatus.version}` : ''}
+										...
 									</p>
 								</div>
 							</>
@@ -1379,7 +1443,8 @@ function AboutTab() {
 								<CheckCircle2 className="size-5 text-primary" />
 								<div>
 									<p className="text-sm font-medium">
-										Update ready{updateStatus?.version ? ` — v${updateStatus.version}` : ''}
+										Update ready
+										{updateStatus?.version ? ` — v${updateStatus.version}` : ''}
 									</p>
 									<p className="text-xs text-muted-foreground mt-0.5">
 										Restart the app to apply the update.
@@ -1476,7 +1541,10 @@ function AboutTab() {
 export function SettingsView({
 	params,
 	onNavigate,
-}: { params?: Record<string, string>; onNavigate?: (url: string) => void } = {}) {
+}: {
+	params?: Record<string, string>
+	onNavigate?: (url: string) => void
+} = {}) {
 	const { lockWallet } = useWallet()
 
 	const handleLock = useCallback(async () => {

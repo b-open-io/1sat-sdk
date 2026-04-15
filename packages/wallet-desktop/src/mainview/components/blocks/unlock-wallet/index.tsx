@@ -1,22 +1,22 @@
-"use client"
+'use client'
 
-import { useUnlockWallet } from "./use-unlock-wallet"
-import { UnlockWalletUi } from "./unlock-wallet-ui"
-import type { UnlockPlatform, UnlockWalletResult } from "./use-unlock-wallet"
+import { UnlockWalletUi } from './unlock-wallet-ui'
+import { useUnlockWallet } from './use-unlock-wallet'
+import type { UnlockPlatform, UnlockWalletResult } from './use-unlock-wallet'
 
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 
-export { useUnlockWallet } from "./use-unlock-wallet"
-export { UnlockWalletUi } from "./unlock-wallet-ui"
+export { useUnlockWallet } from './use-unlock-wallet'
+export { UnlockWalletUi } from './unlock-wallet-ui'
 export type {
-  UnlockPlatform,
-  UnlockWalletResult,
-  UseUnlockWalletOptions,
-  UseUnlockWalletReturn,
-} from "./use-unlock-wallet"
-export type { UnlockWalletUiProps } from "./unlock-wallet-ui"
+	UnlockPlatform,
+	UnlockWalletResult,
+	UseUnlockWalletOptions,
+	UseUnlockWalletReturn,
+} from './use-unlock-wallet'
+export type { UnlockWalletUiProps } from './unlock-wallet-ui'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -24,18 +24,18 @@ export type { UnlockWalletUiProps } from "./unlock-wallet-ui"
 
 /** Props for the composed UnlockWallet block */
 export interface UnlockWalletProps {
-  /** Platform determines which unlock methods are available (default: "other") */
-  platform?: UnlockPlatform
-  /** Application name displayed in the unlock UI (default: "Wallet") */
-  appName?: string
-  /** Callback to execute the unlock attempt */
-  onUnlock?: (passphrase?: string) => Promise<UnlockWalletResult>
-  /** Called on successful unlock */
-  onSuccess?: () => void
-  /** Called on error */
-  onError?: (error: Error) => void
-  /** Optional CSS class */
-  className?: string
+	/** Platform determines which unlock methods are available (default: "other") */
+	platform?: UnlockPlatform
+	/** Application name displayed in the unlock UI (default: "Wallet") */
+	appName?: string
+	/** Callback to execute the unlock attempt */
+	onUnlock?: (passphrase?: string) => Promise<UnlockWalletResult>
+	/** Called on successful unlock */
+	onSuccess?: () => void
+	/** Called on error */
+	onError?: (error: Error) => void
+	/** Optional CSS class */
+	className?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -68,33 +68,33 @@ export interface UnlockWalletProps {
  * ```
  */
 export function UnlockWallet({
-  platform = "other",
-  appName = "Wallet",
-  onUnlock,
-  onSuccess,
-  onError,
-  className,
+	platform = 'other',
+	appName = 'Wallet',
+	onUnlock,
+	onSuccess,
+	onError,
+	className,
 }: UnlockWalletProps) {
-  const { isLoading, error, isUnlocked, failedAttempts, execute, reset } =
-    useUnlockWallet({
-      platform,
-      appName,
-      onUnlock,
-      onSuccess,
-      onError,
-    })
+	const { isLoading, error, isUnlocked, failedAttempts, execute, reset } =
+		useUnlockWallet({
+			platform,
+			appName,
+			onUnlock,
+			onSuccess,
+			onError,
+		})
 
-  return (
-    <UnlockWalletUi
-      platform={platform}
-      appName={appName}
-      isLoading={isLoading}
-      error={error}
-      isUnlocked={isUnlocked}
-      failedAttempts={failedAttempts}
-      onSubmit={execute}
-      onReset={reset}
-      className={className}
-    />
-  )
+	return (
+		<UnlockWalletUi
+			platform={platform}
+			appName={appName}
+			isLoading={isLoading}
+			error={error}
+			isUnlocked={isUnlocked}
+			failedAttempts={failedAttempts}
+			onSubmit={execute}
+			onReset={reset}
+			className={className}
+		/>
+	)
 }

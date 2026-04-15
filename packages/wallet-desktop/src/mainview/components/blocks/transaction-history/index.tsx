@@ -1,27 +1,27 @@
-"use client"
+'use client'
 
-import { TransactionHistoryUI } from "./transaction-history-ui"
+import { TransactionHistoryUI } from './transaction-history-ui'
 import {
-  useTransactionHistory,
-  type HistoryEntry,
-  type UseTransactionHistoryOptions,
-} from "./use-transaction-history"
+	type HistoryEntry,
+	type UseTransactionHistoryOptions,
+	useTransactionHistory,
+} from './use-transaction-history'
 
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 
 export {
-  TransactionHistoryUI,
-  type TransactionHistoryUIProps,
-} from "./transaction-history-ui"
+	TransactionHistoryUI,
+	type TransactionHistoryUIProps,
+} from './transaction-history-ui'
 export {
-  useTransactionHistory,
-  type UseTransactionHistoryOptions,
-  type UseTransactionHistoryReturn,
-  type HistoryEntry,
-  type TransactionStatus,
-} from "./use-transaction-history"
+	useTransactionHistory,
+	type UseTransactionHistoryOptions,
+	type UseTransactionHistoryReturn,
+	type HistoryEntry,
+	type TransactionStatus,
+} from './use-transaction-history'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -29,30 +29,30 @@ export {
 
 /** Props for the composed TransactionHistory block */
 export interface TransactionHistoryProps {
-  /** BSV payment address to fetch transaction history for */
-  address?: string | null
-  /** Pre-loaded transaction entries (bypasses API fetch) */
-  entries?: HistoryEntry[]
-  /** Custom API base URL (default: https://api.1sat.app) */
-  apiUrl?: string
-  /** Number of entries per page (default: 20) */
-  pageSize?: number
-  /** Whether to auto-fetch on mount (default: true) */
-  autoFetch?: boolean
-  /** Callback when a row is clicked */
-  onRowClick?: (txid: string) => void
-  /** Callback for external link button */
-  onExternalLink?: (url: string) => void
-  /** Callback fired on successful fetch */
-  onSuccess?: (entries: HistoryEntry[]) => void
-  /** Callback fired on fetch error */
-  onError?: (error: Error) => void
-  /** Visual variant: "default" shows full details, "compact" shows description + amount only */
-  variant?: "default" | "compact"
-  /** Number of skeleton rows to show while loading (default: 5) */
-  skeletonCount?: number
-  /** Optional CSS class name */
-  className?: string
+	/** BSV payment address to fetch transaction history for */
+	address?: string | null
+	/** Pre-loaded transaction entries (bypasses API fetch) */
+	entries?: HistoryEntry[]
+	/** Custom API base URL (default: https://api.1sat.app) */
+	apiUrl?: string
+	/** Number of entries per page (default: 20) */
+	pageSize?: number
+	/** Whether to auto-fetch on mount (default: true) */
+	autoFetch?: boolean
+	/** Callback when a row is clicked */
+	onRowClick?: (txid: string) => void
+	/** Callback for external link button */
+	onExternalLink?: (url: string) => void
+	/** Callback fired on successful fetch */
+	onSuccess?: (entries: HistoryEntry[]) => void
+	/** Callback fired on fetch error */
+	onError?: (error: Error) => void
+	/** Visual variant: "default" shows full details, "compact" shows description + amount only */
+	variant?: 'default' | 'compact'
+	/** Number of skeleton rows to show while loading (default: 5) */
+	skeletonCount?: number
+	/** Optional CSS class name */
+	className?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -82,44 +82,44 @@ export interface TransactionHistoryProps {
  * ```
  */
 export function TransactionHistory({
-  address,
-  entries: externalEntries,
-  apiUrl,
-  pageSize,
-  autoFetch,
-  onRowClick,
-  onExternalLink,
-  onSuccess,
-  onError,
-  variant,
-  skeletonCount,
-  className,
+	address,
+	entries: externalEntries,
+	apiUrl,
+	pageSize,
+	autoFetch,
+	onRowClick,
+	onExternalLink,
+	onSuccess,
+	onError,
+	variant,
+	skeletonCount,
+	className,
 }: TransactionHistoryProps) {
-  const hookOptions: UseTransactionHistoryOptions = {
-    address,
-    entries: externalEntries,
-    apiUrl,
-    pageSize,
-    autoFetch,
-    onSuccess,
-    onError,
-  }
+	const hookOptions: UseTransactionHistoryOptions = {
+		address,
+		entries: externalEntries,
+		apiUrl,
+		pageSize,
+		autoFetch,
+		onSuccess,
+		onError,
+	}
 
-  const { entries, isLoading, error, hasMore, loadMore } =
-    useTransactionHistory(hookOptions)
+	const { entries, isLoading, error, hasMore, loadMore } =
+		useTransactionHistory(hookOptions)
 
-  return (
-    <TransactionHistoryUI
-      entries={entries}
-      isLoading={isLoading}
-      error={error}
-      hasMore={hasMore}
-      onLoadMore={loadMore}
-      onRowClick={onRowClick}
-      onExternalLink={onExternalLink}
-      variant={variant}
-      skeletonCount={skeletonCount}
-      className={className}
-    />
-  )
+	return (
+		<TransactionHistoryUI
+			entries={entries}
+			isLoading={isLoading}
+			error={error}
+			hasMore={hasMore}
+			onLoadMore={loadMore}
+			onRowClick={onRowClick}
+			onExternalLink={onExternalLink}
+			variant={variant}
+			skeletonCount={skeletonCount}
+			className={className}
+		/>
+	)
 }

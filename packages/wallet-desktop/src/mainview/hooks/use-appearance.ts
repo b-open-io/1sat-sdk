@@ -82,7 +82,9 @@ function readStoredMode(accountId?: string): AppearanceMode {
  * - Exposes resolvedTheme for consumers that need the actual applied value
  */
 export function useAppearance(accountId?: string): UseAppearanceReturn {
-	const [mode, setModeState] = useState<AppearanceMode>(() => readStoredMode(accountId))
+	const [mode, setModeState] = useState<AppearanceMode>(() =>
+		readStoredMode(accountId),
+	)
 	const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
 		resolve(readStoredMode(accountId)),
 	)
@@ -115,12 +117,15 @@ export function useAppearance(accountId?: string): UseAppearanceReturn {
 		return () => mq.removeEventListener('change', handler)
 	}, [mode])
 
-	const setMode = useCallback((next: AppearanceMode) => {
-		setModeState(next)
-		const resolved = resolve(next)
-		setResolvedTheme(resolved)
-		localStorage.setItem(storageKey(accountId), next)
-	}, [accountId])
+	const setMode = useCallback(
+		(next: AppearanceMode) => {
+			setModeState(next)
+			const resolved = resolve(next)
+			setResolvedTheme(resolved)
+			localStorage.setItem(storageKey(accountId), next)
+		},
+		[accountId],
+	)
 
 	return { mode, setMode, resolvedTheme }
 }

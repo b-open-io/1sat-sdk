@@ -1,29 +1,24 @@
-import {
-	useCallback,
-	useEffect,
-	useMemo,
-	useState,
-} from "react"
-import { Utils } from "@bsv/sdk"
-import {
-	AlertCircle,
-	ArrowLeft,
-	CheckCircle2,
-	Loader2,
-	SendHorizonal,
-} from "lucide-react"
+import { Button } from '@/components/ui/button'
 import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { cn } from "@/lib/utils"
-import { useWallet } from "@/hooks/use-wallet"
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { useWallet } from '@/hooks/use-wallet'
+import { cn } from '@/lib/utils'
+import { Utils } from '@bsv/sdk'
+import {
+	AlertCircle,
+	ArrowLeft,
+	CheckCircle2,
+	Loader2,
+	SendHorizonal,
+} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -33,9 +28,9 @@ const SATS_PER_BSV = 100_000_000
 
 // Fee tiers in sat/byte — amounts are approximate for a standard P2PKH tx
 const FEE_TIERS = {
-	economy: { label: "Economy", sats: 15 },
-	standard: { label: "Standard", sats: 50 },
-	priority: { label: "Priority", sats: 120 },
+	economy: { label: 'Economy', sats: 15 },
+	standard: { label: 'Standard', sats: 50 },
+	priority: { label: 'Priority', sats: 120 },
 } as const
 
 type FeeTier = keyof typeof FEE_TIERS
@@ -57,7 +52,9 @@ function isValidBsvAddress(address: string): boolean {
 	try {
 		const { prefix } = Utils.fromBase58Check(address)
 		// Mainnet P2PKH = 0x00, P2SH = 0x05
-		const byte = Array.isArray(prefix) ? prefix[0] : (prefix as unknown as number)
+		const byte = Array.isArray(prefix)
+			? prefix[0]
+			: (prefix as unknown as number)
 		return byte === 0x00 || byte === 0x05
 	} catch {
 		return false
@@ -75,12 +72,7 @@ function isValidRecipient(value: string): boolean {
 // Step types
 // ---------------------------------------------------------------------------
 
-type SendStep =
-	| "input"
-	| "review"
-	| "broadcasting"
-	| "success"
-	| "error"
+type SendStep = 'input' | 'review' | 'broadcasting' | 'success' | 'error'
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -104,12 +96,12 @@ function FeeTierButton({
 			onClick={onClick}
 			disabled={disabled}
 			className={cn(
-				"flex-1 border px-2 py-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+				'flex-1 border px-2 py-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
 				// Sharp corners matching the zero-radius theme
-				"first:rounded-l-none last:rounded-r-none",
+				'first:rounded-l-none last:rounded-r-none',
 				active
-					? "border-primary bg-primary/10 text-primary"
-					: "border-border bg-transparent text-muted-foreground hover:border-border/80 hover:text-foreground",
+					? 'border-primary bg-primary/10 text-primary'
+					: 'border-border bg-transparent text-muted-foreground hover:border-border/80 hover:text-foreground',
 			)}
 			aria-pressed={active}
 		>
@@ -132,20 +124,20 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 	const { sendBsv } = useWallet()
 
 	// Form state
-	const [recipient, setRecipient] = useState("")
-	const [amountInput, setAmountInput] = useState("")
-	const [feeTier, setFeeTier] = useState<FeeTier>("standard")
-	const [step, setStep] = useState<SendStep>("input")
+	const [recipient, setRecipient] = useState('')
+	const [amountInput, setAmountInput] = useState('')
+	const [feeTier, setFeeTier] = useState<FeeTier>('standard')
+	const [step, setStep] = useState<SendStep>('input')
 	const [txid, setTxid] = useState<string | null>(null)
 	const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
 	// Reset on open
 	useEffect(() => {
 		if (open) {
-			setRecipient("")
-			setAmountInput("")
-			setFeeTier("standard")
-			setStep("input")
+			setRecipient('')
+			setAmountInput('')
+			setFeeTier('standard')
+			setStep('input')
 			setTxid(null)
 			setErrorMsg(null)
 		}
@@ -169,35 +161,35 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 
 	// Input step handlers
 	const handleAmountChange = useCallback((value: string) => {
-		setAmountInput(value.replace(/\D/g, ""))
+		setAmountInput(value.replace(/\D/g, ''))
 	}, [])
 
 	const handleReview = useCallback(() => {
 		if (!canReview) return
-		setStep("review")
+		setStep('review')
 	}, [canReview])
 
 	const handleBack = useCallback(() => {
-		setStep("input")
+		setStep('input')
 	}, [])
 
 	const handleSend = useCallback(async () => {
-		setStep("broadcasting")
+		setStep('broadcasting')
 		setErrorMsg(null)
 		try {
 			const result = await sendBsv(recipient.trim(), satoshis)
 			setTxid(result.txid)
-			setStep("success")
+			setStep('success')
 		} catch (err) {
-			const msg = err instanceof Error ? err.message : "Failed to send BSV"
+			const msg = err instanceof Error ? err.message : 'Failed to send BSV'
 			setErrorMsg(msg)
-			setStep("error")
+			setStep('error')
 		}
 	}, [sendBsv, recipient, satoshis])
 
 	const handleClose = useCallback(
 		(nextOpen: boolean) => {
-			if (step === "broadcasting") return
+			if (step === 'broadcasting') return
 			onOpenChange(nextOpen)
 		},
 		[step, onOpenChange],
@@ -213,7 +205,10 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 				<div className="flex flex-col gap-4">
 					{/* Recipient */}
 					<div className="flex flex-col gap-1.5">
-						<Label htmlFor="send-recipient" className="text-xs uppercase tracking-wider text-muted-foreground">
+						<Label
+							htmlFor="send-recipient"
+							className="text-xs uppercase tracking-wider text-muted-foreground"
+						>
 							Recipient
 						</Label>
 						<Input
@@ -236,7 +231,10 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 
 					{/* Amount */}
 					<div className="flex flex-col gap-1.5">
-						<Label htmlFor="send-amount" className="text-xs uppercase tracking-wider text-muted-foreground">
+						<Label
+							htmlFor="send-amount"
+							className="text-xs uppercase tracking-wider text-muted-foreground"
+						>
 							Amount
 						</Label>
 						<div className="relative">
@@ -280,7 +278,9 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 					{/* Total line */}
 					{satoshis > 0 && (
 						<div className="flex items-center justify-between border-t border-border pt-3">
-							<span className="text-xs text-muted-foreground">Total (incl. fee)</span>
+							<span className="text-xs text-muted-foreground">
+								Total (incl. fee)
+							</span>
 							<span className="font-mono text-sm font-medium">
 								{formatSats(totalSats)} sats
 							</span>
@@ -302,25 +302,45 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 	}
 
 	function renderReview() {
-		const rows: Array<{ label: string; value: string; mono?: boolean; bold?: boolean }> = [
-			{ label: "To", value: recipient.trim(), mono: true },
-			{ label: "Amount", value: `${formatSats(satoshis)} sats (BSV)`, mono: true, bold: true },
-			{ label: "Fee", value: `${feeSats} sats`, mono: true },
-			{ label: "Total", value: `${formatSats(totalSats)} sats`, mono: true, bold: true },
+		const rows: Array<{
+			label: string
+			value: string
+			mono?: boolean
+			bold?: boolean
+		}> = [
+			{ label: 'To', value: recipient.trim(), mono: true },
+			{
+				label: 'Amount',
+				value: `${formatSats(satoshis)} sats (BSV)`,
+				mono: true,
+				bold: true,
+			},
+			{ label: 'Fee', value: `${feeSats} sats`, mono: true },
+			{
+				label: 'Total',
+				value: `${formatSats(totalSats)} sats`,
+				mono: true,
+				bold: true,
+			},
 		]
 
 		return (
 			<>
 				<div className="flex flex-col divide-y divide-border border border-border">
 					{rows.map(({ label, value, mono, bold }) => (
-						<div key={label} className="flex items-start justify-between gap-4 px-4 py-3">
-							<span className="shrink-0 text-xs text-muted-foreground">{label}</span>
+						<div
+							key={label}
+							className="flex items-start justify-between gap-4 px-4 py-3"
+						>
+							<span className="shrink-0 text-xs text-muted-foreground">
+								{label}
+							</span>
 							<span
 								className={cn(
-									"min-w-0 break-all text-right text-sm",
-									mono && "font-mono",
-									bold && "font-semibold text-foreground",
-									!bold && "text-muted-foreground",
+									'min-w-0 break-all text-right text-sm',
+									mono && 'font-mono',
+									bold && 'font-semibold text-foreground',
+									!bold && 'text-muted-foreground',
 								)}
 							>
 								{value}
@@ -330,11 +350,7 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 				</div>
 
 				<div className="mt-4 flex gap-2">
-					<Button
-						variant="outline"
-						className="flex-1"
-						onClick={handleBack}
-					>
+					<Button variant="outline" className="flex-1" onClick={handleBack}>
 						<ArrowLeft className="size-4" />
 						Back
 					</Button>
@@ -379,7 +395,9 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 				{txid && (
 					<div className="w-full border border-border p-3">
 						<p className="mb-1 text-xs text-muted-foreground">Transaction ID</p>
-						<p className="break-all font-mono text-xs text-foreground">{txid}</p>
+						<p className="break-all font-mono text-xs text-foreground">
+							{txid}
+						</p>
 					</div>
 				)}
 				<Button
@@ -423,22 +441,22 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 	// ---------------------------------------------------------------------------
 
 	const titleMap: Record<SendStep, string> = {
-		input: "Send BSV",
-		review: "Confirm Transaction",
-		broadcasting: "Sending...",
-		success: "Sent",
-		error: "Send Failed",
+		input: 'Send BSV',
+		review: 'Confirm Transaction',
+		broadcasting: 'Sending...',
+		success: 'Sent',
+		error: 'Send Failed',
 	}
 
 	return (
 		<Dialog open={open} onOpenChange={handleClose}>
 			<DialogContent
 				className="sm:max-w-sm"
-				showCloseButton={step !== "broadcasting"}
+				showCloseButton={step !== 'broadcasting'}
 			>
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2 text-base">
-						{step === "review" && (
+						{step === 'review' && (
 							<button
 								type="button"
 								onClick={handleBack}
@@ -455,11 +473,11 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 					</DialogDescription>
 				</DialogHeader>
 
-				{step === "input" && renderInput()}
-				{step === "review" && renderReview()}
-				{step === "broadcasting" && renderBroadcasting()}
-				{step === "success" && renderSuccess()}
-				{step === "error" && renderError()}
+				{step === 'input' && renderInput()}
+				{step === 'review' && renderReview()}
+				{step === 'broadcasting' && renderBroadcasting()}
+				{step === 'success' && renderSuccess()}
+				{step === 'error' && renderError()}
 			</DialogContent>
 		</Dialog>
 	)

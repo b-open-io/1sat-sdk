@@ -1,54 +1,46 @@
-"use client"
+'use client'
 
-import {
-  OrdinalsGridUI,
-  type OrdinalsGridUIProps,
-} from "./ordinals-grid-ui"
-import {
-  useOrdinalsGrid,
-  type OrdinalOutput,
-  type UseOrdinalsGridOptions,
-  type UseOrdinalsGridReturn,
-} from "./use-ordinals-grid"
+import { OrdinalsGridUI } from './ordinals-grid-ui'
+import { type OrdinalOutput, useOrdinalsGrid } from './use-ordinals-grid'
 
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 
 export {
-  OrdinalsGridUI,
-  type OrdinalsGridUIProps,
-} from "./ordinals-grid-ui"
+	OrdinalsGridUI,
+	type OrdinalsGridUIProps,
+} from './ordinals-grid-ui'
 export {
-  useOrdinalsGrid,
-  type OrdinalOutput,
-  type UseOrdinalsGridOptions,
-  type UseOrdinalsGridReturn,
-} from "./use-ordinals-grid"
+	useOrdinalsGrid,
+	type OrdinalOutput,
+	type UseOrdinalsGridOptions,
+	type UseOrdinalsGridReturn,
+} from './use-ordinals-grid'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface OrdinalsGridProps {
-  /** Ordinal address to fetch from the 1sat API */
-  address?: string
-  /** Pre-fetched ordinals to display (bypasses API fetch) */
-  ordinals?: OrdinalOutput[]
-  /** Base URL for the 1sat owner API */
-  apiUrl?: string
-  /** Max number of items to display */
-  limit?: number
-  /** Called when an ordinal card is clicked */
-  onSelect?: (ordinal: OrdinalOutput) => void
-  /** Whether to show the item count header (default: true) */
-  showCount?: boolean
-  /** Whether to wrap the grid in a ScrollArea (default: false) */
-  scrollable?: boolean
-  /** Max height for the scroll area when scrollable is true */
-  maxHeight?: string
-  /** Additional CSS classes */
-  className?: string
+	/** Ordinal address to fetch from the 1sat API */
+	address?: string
+	/** Pre-fetched ordinals to display (bypasses API fetch) */
+	ordinals?: OrdinalOutput[]
+	/** Base URL for the 1sat owner API */
+	apiUrl?: string
+	/** Max number of items to display */
+	limit?: number
+	/** Called when an ordinal card is clicked */
+	onSelect?: (ordinal: OrdinalOutput) => void
+	/** Whether to show the item count header (default: true) */
+	showCount?: boolean
+	/** Whether to wrap the grid in a ScrollArea (default: false) */
+	scrollable?: boolean
+	/** Max height for the scroll area when scrollable is true */
+	maxHeight?: string
+	/** Additional CSS classes */
+	className?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -80,29 +72,29 @@ export interface OrdinalsGridProps {
  * ```
  */
 export function OrdinalsGrid({
-  address,
-  ordinals,
-  apiUrl,
-  limit,
-  onSelect,
-  showCount,
-  scrollable,
-  maxHeight,
-  className,
+	address,
+	ordinals,
+	apiUrl,
+	limit,
+	onSelect,
+	showCount,
+	scrollable,
+	maxHeight,
+	className,
 }: OrdinalsGridProps) {
-  const grid = useOrdinalsGrid({ address, ordinals, apiUrl, limit })
+	const grid = useOrdinalsGrid({ address, ordinals, apiUrl, limit })
 
-  return (
-    <OrdinalsGridUI
-      items={grid.items}
-      isLoading={grid.isLoading}
-      error={grid.error}
-      count={grid.count}
-      onSelect={onSelect}
-      showCount={showCount}
-      scrollable={scrollable}
-      maxHeight={maxHeight}
-      className={className}
-    />
-  )
+	return (
+		<OrdinalsGridUI
+			items={grid.items}
+			isLoading={grid.isLoading}
+			error={grid.error}
+			count={grid.count}
+			onSelect={onSelect}
+			showCount={showCount}
+			scrollable={scrollable}
+			maxHeight={maxHeight}
+			className={className}
+		/>
+	)
 }

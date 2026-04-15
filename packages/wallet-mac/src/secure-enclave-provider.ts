@@ -80,8 +80,8 @@ export class SecureEnclaveProvider implements VaultProvider {
 		}
 
 		throw new Error(
-			`Secure Enclave binary not found. Checked:\n${candidates.map(p => `  ${p}`).join('\n')}\n` +
-			'Compile with: cd packages/wallet-mac/swift && sh build.sh'
+			`Secure Enclave binary not found. Checked:\n${candidates.map((p) => `  ${p}`).join('\n')}\n` +
+				'Compile with: cd packages/wallet-mac/swift && sh build.sh',
 		)
 	}
 

@@ -61,33 +61,54 @@ async function handshake(key: PrivateKey): Promise<Session> {
 	if (!res.ok) throw new Error(`Handshake failed: HTTP ${res.status}`)
 
 	const data = await res.json()
-	if (data.messageType !== 'initialResponse') throw new Error(`Unexpected: ${data.messageType}`)
+	if (data.messageType !== 'initialResponse')
+		throw new Error(`Unexpected: ${data.messageType}`)
 
 	const serverNonce = data.nonce as string
 	const deriver = new KeyDeriver(key)
 	const serverPub = deriver.derivePublicKey(
-		AUTH_PROTOCOL_ID, `${serverNonce} ${clientNonce}`, data.identityKey as string, false,
+		AUTH_PROTOCOL_ID,
+		`${serverNonce} ${clientNonce}`,
+		data.identityKey as string,
+		false,
 	)
 
 	const clientNonceBytes = toArray(clientNonce, 'base64')
 	const serverNonceBytes = toArray(serverNonce, 'base64')
-	const msgHash = Hash.sha256(Array.from(new Uint8Array([...clientNonceBytes, ...serverNonceBytes])))
+	const msgHash = Hash.sha256(
+		Array.from(new Uint8Array([...clientNonceBytes, ...serverNonceBytes])),
+	)
 
 	const sig = Signature.fromDER(data.signature as string, 'hex')
-	if (!serverPub.verify(Array.from(msgHash), sig)) throw new Error('Server signature verification failed')
+	if (!serverPub.verify(Array.from(msgHash), sig))
+		throw new Error('Server signature verification failed')
 
 	const log = createLogger({ context: 'auth' })
-	log.set({ event: 'handshake_complete', serverIdentityKey: (data.identityKey as string).slice(0, 16) })
+	log.set({
+		event: 'handshake_complete',
+		serverIdentityKey: (data.identityKey as string).slice(0, 16),
+	})
 	log.emit()
 
-	return { serverIdentityKey: data.identityKey as string, serverNonce, clientKey: key }
+	return {
+		serverIdentityKey: data.identityKey as string,
+		serverNonce,
+		clientKey: key,
+	}
 }
 
-function signHeaders(session: Session, pathname: string): Record<string, string> {
+function signHeaders(
+	session: Session,
+	pathname: string,
+): Record<string, string> {
 	const { serverIdentityKey, serverNonce, clientKey: key } = session
 	const nonce = generateNonce()
 	const deriver = new KeyDeriver(key)
-	const derivedKey = deriver.derivePrivateKey(AUTH_PROTOCOL_ID, `${nonce} ${serverNonce}`, serverIdentityKey)
+	const derivedKey = deriver.derivePrivateKey(
+		AUTH_PROTOCOL_ID,
+		`${nonce} ${serverNonce}`,
+		serverIdentityKey,
+	)
 	const payload = new TextEncoder().encode(pathname)
 	const msgHash = Hash.sha256(Array.from(payload))
 	const sig = derivedKey.sign(Array.from(msgHash))
@@ -109,7 +130,9 @@ export async function handleMcpProxyCommand(): Promise<void> {
 	} catch {
 		startLog.set({ event: 'server_unreachable', url: MCP_URL })
 		startLog.emit()
-		process.stderr.write(`[1sat mcp-proxy] Server not reachable at ${MCP_URL} — is 1Sat wallet running?\n`)
+		process.stderr.write(
+			`[1sat mcp-proxy] Server not reachable at ${MCP_URL} — is 1Sat wallet running?\n`,
+		)
 		process.exit(1)
 	}
 
@@ -156,7 +179,11 @@ export async function handleMcpProxyCommand(): Promise<void> {
 					method = JSON.parse(line).method
 				} catch {}
 
-				const res = await fetch(`${MCP_URL}/mcp`, { method: 'POST', headers, body: line })
+				const res = await fetch(`${MCP_URL}/mcp`, {
+					method: 'POST',
+					headers,
+					body: line,
+				})
 
 				const sessionHeader = res.headers.get('mcp-session-id')
 				if (sessionHeader) mcpSessionId = sessionHeader
@@ -202,13 +229,19 @@ export async function handleMcpProxyCommand(): Promise<void> {
 				}
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err)
-				reqLog.set({ event: 'request_failed', requestNum: requestCount, error: msg })
+				reqLog.set({
+					event: 'request_failed',
+					requestNum: requestCount,
+					error: msg,
+				})
 				reqLog.emit()
-				process.stdout.write(`${JSON.stringify({
-					jsonrpc: '2.0',
-					error: { code: -32000, message: `MCP proxy error: ${msg}` },
-					id: null,
-				})}\n`)
+				process.stdout.write(
+					`${JSON.stringify({
+						jsonrpc: '2.0',
+						error: { code: -32000, message: `MCP proxy error: ${msg}` },
+						id: null,
+					})}\n`,
+				)
 			}
 		}
 	}

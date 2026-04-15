@@ -1,58 +1,58 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 /** Severity level for a sync event */
-export type SyncEventLevel = "log" | "warn" | "error" | "success"
+export type SyncEventLevel = 'log' | 'warn' | 'error' | 'success'
 
 /** A single event entry in the sync terminal */
 export interface SyncEvent {
-  /** Unix timestamp in milliseconds */
-  timestamp: number
-  /** Origin of the event (e.g. "sync", "wallet", "http") */
-  source: string
-  /** Severity level */
-  level: SyncEventLevel
-  /** Human-readable message */
-  message: string
+	/** Unix timestamp in milliseconds */
+	timestamp: number
+	/** Origin of the event (e.g. "sync", "wallet", "http") */
+	source: string
+	/** Severity level */
+	level: SyncEventLevel
+	/** Human-readable message */
+	message: string
 }
 
 /** Current sync status indicator */
 export interface SyncStatus {
-  /** Latest block height */
-  blockHeight: number
-  /** Whether the node/service is connected */
-  connected: boolean
+	/** Latest block height */
+	blockHeight: number
+	/** Whether the node/service is connected */
+	connected: boolean
 }
 
 /** Options for the useSyncTerminal hook */
 export interface UseSyncTerminalOptions {
-  /** External events to sync into the buffer */
-  events?: SyncEvent[]
-  /** Maximum number of events to retain in the buffer (default: 200) */
-  maxEvents?: number
-  /** Whether to auto-scroll to the latest event (default: true) */
-  autoScroll?: boolean
+	/** External events to sync into the buffer */
+	events?: SyncEvent[]
+	/** Maximum number of events to retain in the buffer (default: 200) */
+	maxEvents?: number
+	/** Whether to auto-scroll to the latest event (default: true) */
+	autoScroll?: boolean
 }
 
 /** Return value of the useSyncTerminal hook */
 export interface UseSyncTerminalReturn {
-  /** Current buffered events (sliced to maxEvents) */
-  events: SyncEvent[]
-  /** Ref to attach to the scroll-bottom sentinel element */
-  bottomRef: React.RefObject<HTMLDivElement | null>
-  /** Append a single event to the buffer */
-  push: (event: SyncEvent) => void
-  /** Append multiple events to the buffer */
-  pushMany: (events: SyncEvent[]) => void
-  /** Clear all events */
-  clear: () => void
-  /** Whether auto-scroll is currently active */
-  isAutoScroll: boolean
-  /** Toggle auto-scroll on or off */
-  setAutoScroll: (value: boolean) => void
+	/** Current buffered events (sliced to maxEvents) */
+	events: SyncEvent[]
+	/** Ref to attach to the scroll-bottom sentinel element */
+	bottomRef: React.RefObject<HTMLDivElement | null>
+	/** Append a single event to the buffer */
+	push: (event: SyncEvent) => void
+	/** Append multiple events to the buffer */
+	pushMany: (events: SyncEvent[]) => void
+	/** Clear all events */
+	clear: () => void
+	/** Whether auto-scroll is currently active */
+	isAutoScroll: boolean
+	/** Toggle auto-scroll on or off */
+	setAutoScroll: (value: boolean) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -70,65 +70,65 @@ export interface UseSyncTerminalReturn {
  * own scroll effect to avoid double-scrolling.
  */
 export function useSyncTerminal(
-  options: UseSyncTerminalOptions = {}
+	options: UseSyncTerminalOptions = {},
 ): UseSyncTerminalReturn {
-  const {
-    events: initialEvents,
-    maxEvents = 200,
-    autoScroll: initialAutoScroll = true,
-  } = options
+	const {
+		events: initialEvents,
+		maxEvents = 200,
+		autoScroll: initialAutoScroll = true,
+	} = options
 
-  const [buffer, setBuffer] = useState<SyncEvent[]>(
-    () => initialEvents?.slice(-maxEvents) ?? []
-  )
-  const [isAutoScroll, setAutoScroll] = useState(initialAutoScroll)
-  const bottomRef = useRef<HTMLDivElement | null>(null)
+	const [buffer, setBuffer] = useState<SyncEvent[]>(
+		() => initialEvents?.slice(-maxEvents) ?? [],
+	)
+	const [isAutoScroll, setAutoScroll] = useState(initialAutoScroll)
+	const bottomRef = useRef<HTMLDivElement | null>(null)
 
-  // Scroll to bottom when buffer changes and auto-scroll is on
-  useEffect(() => {
-    if (isAutoScroll && bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: "smooth" })
-    }
-  }, [buffer, isAutoScroll])
+	// Scroll to bottom when buffer changes and auto-scroll is on
+	useEffect(() => {
+		if (isAutoScroll && bottomRef.current) {
+			bottomRef.current.scrollIntoView({ behavior: 'smooth' })
+		}
+	}, [buffer, isAutoScroll])
 
-  // Sync external events prop into buffer when it changes
-  useEffect(() => {
-    if (initialEvents) {
-      setBuffer(initialEvents.slice(-maxEvents))
-    }
-  }, [initialEvents, maxEvents])
+	// Sync external events prop into buffer when it changes
+	useEffect(() => {
+		if (initialEvents) {
+			setBuffer(initialEvents.slice(-maxEvents))
+		}
+	}, [initialEvents, maxEvents])
 
-  const push = useCallback(
-    (event: SyncEvent) => {
-      setBuffer((prev) => {
-        const next = [...prev, event]
-        return next.length > maxEvents ? next.slice(-maxEvents) : next
-      })
-    },
-    [maxEvents]
-  )
+	const push = useCallback(
+		(event: SyncEvent) => {
+			setBuffer((prev) => {
+				const next = [...prev, event]
+				return next.length > maxEvents ? next.slice(-maxEvents) : next
+			})
+		},
+		[maxEvents],
+	)
 
-  const pushMany = useCallback(
-    (events: SyncEvent[]) => {
-      setBuffer((prev) => {
-        const next = [...prev, ...events]
-        return next.length > maxEvents ? next.slice(-maxEvents) : next
-      })
-    },
-    [maxEvents]
-  )
+	const pushMany = useCallback(
+		(events: SyncEvent[]) => {
+			setBuffer((prev) => {
+				const next = [...prev, ...events]
+				return next.length > maxEvents ? next.slice(-maxEvents) : next
+			})
+		},
+		[maxEvents],
+	)
 
-  const clear = useCallback(() => {
-    setBuffer([])
-  }, [])
+	const clear = useCallback(() => {
+		setBuffer([])
+	}, [])
 
-  return {
-    events: buffer,
-    bottomRef,
-    push,
-    pushMany,
-    clear,
-    isAutoScroll,
-    setAutoScroll,
-  }
+	return {
+		events: buffer,
+		bottomRef,
+		push,
+		pushMany,
+		clear,
+		isAutoScroll,
+		setAutoScroll,
+	}
 }

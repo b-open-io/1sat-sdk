@@ -1,21 +1,20 @@
-"use client"
+'use client'
 
+import { PermissionApprovalUi } from './permission-approval-ui'
 import {
-	usePermissionApproval,
 	type PermissionRequest,
-	type UsePermissionApprovalOptions,
-} from "./use-permission-approval"
-import { PermissionApprovalUi } from "./permission-approval-ui"
+	usePermissionApproval,
+} from './use-permission-approval'
 
 // Re-exports
-export { usePermissionApproval } from "./use-permission-approval"
-export { PermissionApprovalUi } from "./permission-approval-ui"
+export { usePermissionApproval } from './use-permission-approval'
+export { PermissionApprovalUi } from './permission-approval-ui'
 export type {
 	PermissionRequest,
 	UsePermissionApprovalOptions,
 	UsePermissionApprovalReturn,
-} from "./use-permission-approval"
-export type { PermissionApprovalUiProps } from "./permission-approval-ui"
+} from './use-permission-approval'
+export type { PermissionApprovalUiProps } from './permission-approval-ui'
 
 // ---------------------------------------------------------------------------
 // Types

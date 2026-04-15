@@ -1,5 +1,12 @@
 import { cn } from '@/lib/utils'
-import { AlertCircle, ArrowLeft, Check, Copy, ExternalLink, Send } from 'lucide-react'
+import {
+	AlertCircle,
+	ArrowLeft,
+	Check,
+	Copy,
+	ExternalLink,
+	Send,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { BalanceInfo } from '../../../shared/types'
 import { onBalanceUpdated, rpc } from '../../rpc'
@@ -48,12 +55,16 @@ interface ReviewRowProps {
 	valueClass?: string
 	breakAll?: boolean
 }
-function ReviewRow({ label, value, valueMono, valueClass, breakAll }: ReviewRowProps) {
+function ReviewRow({
+	label,
+	value,
+	valueMono,
+	valueClass,
+	breakAll,
+}: ReviewRowProps) {
 	return (
 		<div className="flex items-start justify-between gap-4">
-			<span
-				className="text-[11px] uppercase tracking-wider text-muted-foreground shrink-0 pt-0.5"
-			>
+			<span className="text-[11px] uppercase tracking-wider text-muted-foreground shrink-0 pt-0.5">
 				{label}
 			</span>
 			<span
@@ -197,13 +208,13 @@ export function SendView({ params, onNavigate }: SendViewProps) {
 						className="flex items-center justify-center size-8 hover:bg-muted transition-colors"
 						style={{ borderRadius: 0 }}
 						onClick={handleBack}
-						aria-label={phase === 'review' ? 'Back to form' : 'Back to overview'}
+						aria-label={
+							phase === 'review' ? 'Back to form' : 'Back to overview'
+						}
 					>
 						<ArrowLeft size={16} />
 					</button>
-					<h1
-						className="text-[15px] font-semibold uppercase tracking-wider"
-					>
+					<h1 className="text-[15px] font-semibold uppercase tracking-wider">
 						{headerTitle()}
 					</h1>
 				</div>
@@ -225,7 +236,10 @@ export function SendView({ params, onNavigate }: SendViewProps) {
 							value={address}
 							onChange={(e) => setAddress(e.target.value)}
 							placeholder="Enter BSV address or paymail..."
-							className={cn('w-full bg-muted border border-border px-3 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors', MONO)}
+							className={cn(
+								'w-full bg-muted border border-border px-3 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors',
+								MONO,
+							)}
 							style={{ borderRadius: 0 }}
 							autoComplete="off"
 							spellCheck={false}
@@ -251,21 +265,14 @@ export function SendView({ params, onNavigate }: SendViewProps) {
 								className="flex-1 bg-transparent px-3 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none"
 								style={{ borderRadius: 0 }}
 							/>
-							<span
-								className="px-3 text-[11px] uppercase tracking-wider text-muted-foreground select-none"
-							>
+							<span className="px-3 text-[11px] uppercase tracking-wider text-muted-foreground select-none">
 								sats
 							</span>
 						</div>
 						{/* Available balance hint */}
-						<p
-							className="text-[11px] text-muted-foreground"
-						>
-							Available:{' '}
-							<span >
-								{satsToBsv(balance.confirmed)} BSV
-							</span>{' '}
-							({balance.confirmed.toLocaleString()} sats)
+						<p className="text-[11px] text-muted-foreground">
+							Available: <span>{satsToBsv(balance.confirmed)} BSV</span> (
+							{balance.confirmed.toLocaleString()} sats)
 						</p>
 					</div>
 					{/* Review button */}
@@ -288,14 +295,10 @@ export function SendView({ params, onNavigate }: SendViewProps) {
 					<div className="border border-border divide-y divide-border">
 						{/* Recipient */}
 						<div className="px-4 py-3 space-y-1">
-							<span
-								className="text-[10px] uppercase tracking-wider text-muted-foreground"
-							>
+							<span className="text-[10px] uppercase tracking-wider text-muted-foreground">
 								Recipient
 							</span>
-							<p
-								className="text-[12px] text-foreground break-all leading-relaxed"
-							>
+							<p className="text-[12px] text-foreground break-all leading-relaxed">
 								{address.trim()}
 							</p>
 						</div>
@@ -330,20 +333,14 @@ export function SendView({ params, onNavigate }: SendViewProps) {
 						{/* Total row */}
 						<div className="px-4 py-3 bg-muted/40">
 							<div className="flex items-center justify-between">
-								<span
-									className="text-[11px] uppercase tracking-wider font-semibold"
-								>
+								<span className="text-[11px] uppercase tracking-wider font-semibold">
 									Total
 								</span>
 								<div className="text-right">
-									<p
-										className="text-[15px] font-bold leading-none"
-									>
+									<p className="text-[15px] font-bold leading-none">
 										{totalSats.toLocaleString()} sats
 									</p>
-									<p
-										className="text-[11px] text-muted-foreground mt-0.5"
-									>
+									<p className="text-[11px] text-muted-foreground mt-0.5">
 										{satsToBsv(totalSats)} BSV &middot; {formatUsd(totalSats)}
 									</p>
 								</div>
@@ -351,9 +348,7 @@ export function SendView({ params, onNavigate }: SendViewProps) {
 						</div>
 					</div>
 					{/* Warning */}
-					<p
-						className="text-[11px] text-muted-foreground text-center"
-					>
+					<p className="text-[11px] text-muted-foreground text-center">
 						This transaction cannot be reversed once broadcast.
 					</p>
 					{/* Actions */}
@@ -385,9 +380,7 @@ export function SendView({ params, onNavigate }: SendViewProps) {
 						className="size-8 border-2 border-primary border-t-transparent animate-spin"
 						style={{ borderRadius: 0 }}
 					/>
-					<p
-						className="text-[13px] text-muted-foreground"
-					>
+					<p className="text-[13px] text-muted-foreground">
 						Broadcasting transaction...
 					</p>
 				</div>
@@ -399,32 +392,28 @@ export function SendView({ params, onNavigate }: SendViewProps) {
 					<div className="flex flex-col items-center space-y-4 pt-4">
 						<div
 							className="size-14 flex items-center justify-center border"
-							style={{ borderRadius: 0, borderColor: '#22c55e33', backgroundColor: '#22c55e10' }}
+							style={{
+								borderRadius: 0,
+								borderColor: '#22c55e33',
+								backgroundColor: '#22c55e10',
+							}}
 						>
 							<Check size={24} style={{ color: '#22c55e' }} />
 						</div>
-						<h1
-							className="text-[20px] font-bold tracking-tight"
-						>
+						<h1 className="text-[20px] font-bold tracking-tight">
 							Transaction Sent
 						</h1>
-						<p
-							className="text-[13px] text-muted-foreground text-center"
-						>
+						<p className="text-[13px] text-muted-foreground text-center">
 							{satsToBsv(satoshis)} BSV &middot; {formatUsd(satoshis)}
 						</p>
 					</div>
 					{/* TxID card */}
 					<div className="border border-border p-4 space-y-2">
-						<p
-							className="text-[10px] uppercase tracking-wider text-muted-foreground"
-						>
+						<p className="text-[10px] uppercase tracking-wider text-muted-foreground">
 							Transaction ID
 						</p>
 						<div className="flex items-center gap-2">
-							<span
-								className="flex-1 text-[12px] text-foreground truncate"
-							>
+							<span className="flex-1 text-[12px] text-foreground truncate">
 								{truncateTxid(txid)}
 							</span>
 							<button
@@ -483,18 +472,10 @@ export function SendView({ params, onNavigate }: SendViewProps) {
 						>
 							<AlertCircle size={22} className="text-destructive" />
 						</div>
-						<p
-							className="text-[15px] font-semibold"
-						>
-							Transaction failed
-						</p>
+						<p className="text-[15px] font-semibold">Transaction failed</p>
 					</div>
 					<div className="border border-destructive/30 bg-destructive/5 px-4 py-3">
-						<p
-							className="text-[13px] text-destructive"
-						>
-							{errorMsg}
-						</p>
+						<p className="text-[13px] text-destructive">{errorMsg}</p>
 					</div>
 					<button
 						type="button"

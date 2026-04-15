@@ -1,5 +1,4 @@
 import { SendBsv21Ui, useSendBsv21 } from '@/components/blocks/send-bsv21'
-import { STACK_URL } from '../../../shared/constants'
 import type {
 	SendBsv21Params,
 	SendBsv21Result,
@@ -22,6 +21,7 @@ import {
 	Send,
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { STACK_URL } from '../../../shared/constants'
 import { rpc } from '../../rpc'
 
 // ---------------------------------------------------------------------------
