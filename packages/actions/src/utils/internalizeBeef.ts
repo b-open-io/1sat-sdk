@@ -151,10 +151,13 @@ export async function internalizeBeef(
 		return { txid: mainTxid, internalized: 0 }
 	}
 
+	const labels = buildLabels(ownedTxos)
+
 	const args: InternalizeActionArgs = {
 		tx: Array.from(beef),
 		outputs: internalizeOutputs,
 		description: buildDescription(ownedTxos),
+		...(labels.length > 0 && { labels }),
 	}
 
 	await wallet.internalizeAction(args)
@@ -318,6 +321,17 @@ function collectTags(txo: Txo): string[] {
 		tags.push(...indexData.tags)
 	}
 	return tags
+}
+
+function buildLabels(ownedTxos: Txo[]): string[] {
+	const labels = new Set<string>()
+	for (const txo of ownedTxos) {
+		const bsv21 = txo.data.bsv21?.data as { id?: string } | undefined
+		if (bsv21?.id) {
+			labels.add(`bsv21:${bsv21.id}`)
+		}
+	}
+	return [...labels]
 }
 
 function buildDescription(ownedTxos: Txo[]): string {

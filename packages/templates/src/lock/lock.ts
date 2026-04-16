@@ -357,8 +357,10 @@ export default class Lock {
 					forSelf: true,
 				})
 
+				const sigWithHashtype = [...signature, signatureScope]
+
 				return new Script()
-					.writeBin(signature)
+					.writeBin(sigWithHashtype)
 					.writeBin(Utils.toArray(publicKey, 'hex'))
 					.writeBin(Array.from(preimage))
 			},

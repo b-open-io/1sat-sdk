@@ -796,6 +796,7 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 				ctx.wallet,
 				{
 					description: `Sweep ${inputs.length} token UTXO${inputs.length !== 1 ? 's' : ''}`,
+					labels: [`bsv21:${tokenId}`],
 					inputBEEF: beefData,
 					inputs: inputDescriptors,
 					outputs,

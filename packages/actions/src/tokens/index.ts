@@ -510,6 +510,7 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 				ctx.wallet,
 				{
 					description: `Send ${amount} ${symbol}`,
+					labels: [`bsv21:${tokenId}`],
 					inputBEEF,
 					inputs: selected.map((o) => ({
 						outpoint: o.outpoint,
@@ -773,6 +774,7 @@ export const purchaseBsv21: Action<
 				ctx.wallet,
 				{
 					description: `Purchase ${tokenAmount} tokens for ${payoutSatoshis} sats`,
+					labels: [`bsv21:${tokenId}`],
 					inputBEEF: beefBinary,
 					inputs: [
 						{
