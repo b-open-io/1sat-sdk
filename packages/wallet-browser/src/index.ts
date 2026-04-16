@@ -9,9 +9,9 @@ export {
 	Monitor,
 	Services,
 	StorageClient,
-	StorageIdb,
 	StorageProvider,
 	Wallet,
 	WalletStorageManager,
 	type sdk as walletSdk,
-} from '@bsv/wallet-toolbox/out/src/index.client.js'
+} from '@bsv/wallet-toolbox-mobile'
+export { StorageIdb } from '@bsv/wallet-toolbox/out/src/index.client.js'

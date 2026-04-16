@@ -25,11 +25,13 @@
 	"peerDependencies": {
 		"@1sat/client": "workspace:*",
 		"@bsv/sdk": "^2.0.6",
-		"@bsv/wallet-toolbox": "^2.1.8"
+		"@bsv/wallet-toolbox": "^2.1.8",
+		"@bsv/wallet-toolbox-mobile": "^2.1.4"
 	},
 	"devDependencies": {
 		"@bsv/sdk": "^2.0.6",
 		"@bsv/wallet-toolbox": "^2.1.8",
+		"@bsv/wallet-toolbox-mobile": "^2.1.4",
 		"typescript": "^5.9.3"
 	}
 }

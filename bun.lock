@@ -251,12 +251,14 @@
       "devDependencies": {
         "@bsv/sdk": "^2.0.6",
         "@bsv/wallet-toolbox": "^2.1.8",
+        "@bsv/wallet-toolbox-mobile": "^2.1.4",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
         "@1sat/client": "workspace:*",
         "@bsv/sdk": "^2.0.6",
         "@bsv/wallet-toolbox": "^2.1.8",
+        "@bsv/wallet-toolbox-mobile": "^2.1.4",
       },
     },
     "packages/wallet-desktop": {
@@ -388,6 +390,10 @@
         "@bsv/wallet-toolbox": "^2.1.8",
       },
     },
+  },
+  "overrides": {
+    "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.8-spending-fix.1",
+    "@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@2.1.8-spending-fix.1",
   },
   "packages": {
     "@1sat/actions": ["@1sat/actions@workspace:packages/actions"],
@@ -528,7 +534,9 @@
 
     "@bsv/sdk": ["@bsv/sdk@2.0.13", "", {}, "sha512-VV25sV6oB1Piu7tTEMta+B29IRcq7Xpj1ohuk8RZRT656onop1YbA3oTnYf6stleWnbvsZeOciwH7Xppvs1QWw=="],
 
-    "@bsv/wallet-toolbox": ["@bsv/wallet-toolbox@2.1.20", "", { "dependencies": { "@bsv/auth-express-middleware": "^2.0.4", "@bsv/payment-express-middleware": "^2.0.1", "@bsv/sdk": "^2.0.13", "better-sqlite3": "^12.6.2", "express": "^4.21.2", "hash-wasm": "^4.12.0", "idb": "^8.0.2", "knex": "^3.1.0", "mysql2": "^3.12.0", "ws": "^8.18.3" } }, "sha512-oX2i2qOQBb5n88SI56yqcKWx5stBCbfPjs7R2AHtXjdPTjHYpGGNPfo9QLEpZyCJaxgtBysR/RvCHEuTtKXrsQ=="],
+    "@bsv/wallet-toolbox": ["@bopen-io/wallet-toolbox@2.1.8-spending-fix.1", "", { "dependencies": { "@bsv/auth-express-middleware": "^2.0.4", "@bsv/payment-express-middleware": "^2.0.1", "@bsv/sdk": "^2.0.6", "better-sqlite3": "^12.6.2", "express": "^4.21.2", "idb": "^8.0.2", "knex": "^3.1.0", "mysql2": "^3.12.0", "ws": "^8.18.3" } }, "sha512-DW3oGUKm4Xd4QgGMDgfjgcfj6KGIYbXDRV+b0fjUfauwUtvHyYEXfYycD5FyRrdjKCER28+edRgGFrj+pPK7RA=="],
+
+    "@bsv/wallet-toolbox-mobile": ["@bopen-io/wallet-toolbox-mobile@2.1.8-spending-fix.1", "", { "dependencies": { "@bsv/sdk": "^2.0.5" } }, "sha512-ngzj4CY73gxCNhE6BiSTu87d3LaBHDVnBAm0uiQJKRxH3R7glXd4o88BtHVQtp7EvWZcybSiDH4TYdVUq1l9XQ=="],
 
     "@chevrotain/cst-dts-gen": ["@chevrotain/cst-dts-gen@12.0.0", "", { "dependencies": { "@chevrotain/gast": "12.0.0", "@chevrotain/types": "12.0.0" } }, "sha512-fSL4KXjTl7cDgf0B5Rip9Q05BOrYvkJV/RrBTE/bKDN096E4hN/ySpcBK5B24T76dlQ2i32Zc3PAE27jFnFrKg=="],
 
@@ -1541,8 +1549,6 @@
     "has-flag": ["has-flag@4.0.0", "", {}, "sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ=="],
 
     "has-symbols": ["has-symbols@1.1.0", "", {}, "sha512-1cDNdwJ2Jaohmb3sg4OmKaMBwuC48sYni5HUw2DvsC8LjGTLK9h+eb1X6RyuOHe4hT0ULCW68iomhjUoKUqlPQ=="],
-
-    "hash-wasm": ["hash-wasm@4.12.0", "", {}, "sha512-+/2B2rYLb48I/evdOIhP+K/DD2ca2fgBjp6O+GBEnCDk2e4rpeXIK8GvIyRPjTezgmWn9gmKwkQjjx6BtqDHVQ=="],
 
     "hasown": ["hasown@2.0.2", "", { "dependencies": { "function-bind": "^1.1.2" } }, "sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ=="],
 

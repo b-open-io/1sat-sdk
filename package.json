@@ -19,5 +19,9 @@
 	},
 	"dependencies": {
 		"@ai-sdk/mcp": "^1.0.30"
+	},
+	"overrides": {
+		"@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.8-spending-fix.1",
+		"@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@2.1.8-spending-fix.1"
 	}
 }

@@ -5,11 +5,11 @@ import {
 	Monitor,
 	Services,
 	StorageClient,
-	StorageIdb,
 	StorageProvider,
 	Wallet,
 	WalletStorageManager,
-} from '@bsv/wallet-toolbox/out/src/index.client.js'
+} from '@bsv/wallet-toolbox-mobile'
+import { StorageIdb } from '@bsv/wallet-toolbox/out/src/index.client.js'
 import type { MonitorEvent } from './types'
 
 const DEFAULT_DATABASE_NAME = 'wallet'
