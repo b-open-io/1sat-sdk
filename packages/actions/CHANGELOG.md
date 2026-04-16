@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.89
+
+### Changed
+- `sendBsv21` now accepts a `recipients` array for multi-recipient token transfers in a single transaction. Replaces the previous single-recipient interface (`amount`/`address`/`counterparty`/`paymail` as top-level fields). All callers (CLI, wallet-desktop, bsv-mcp) updated.
+
 ## 0.0.82
 
 ### Fixed

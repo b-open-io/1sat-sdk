@@ -256,8 +256,7 @@ export function TokensView({ onNavigate }: TokensViewProps = {}) {
 		async (params: SendBsv21Params): Promise<SendBsv21Result> => {
 			return rpc.request.sendBsv21({
 				tokenId: params.tokenId,
-				amount: params.amount,
-				address: params.address,
+				recipients: [{ amount: params.amount, address: params.address }],
 			})
 		},
 		[],

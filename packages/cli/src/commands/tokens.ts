@@ -162,8 +162,7 @@ async function tokenSend(args: string[], opts: GlobalFlags): Promise<void> {
 	try {
 		const result = await sendBsv21.execute(ctx, {
 			tokenId,
-			amount: amountStr,
-			address: to,
+			recipients: [{ amount: amountStr, address: to }],
 		})
 
 		if (result.error) {

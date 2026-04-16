@@ -65,18 +65,21 @@ import { sendBsv21, createContext } from '@1sat/actions'
 
 const ctx = createContext(wallet, { services })
 
-// Send by counterparty public key (preferred - wallet can derive keys)
-const result = await sendBsv21.execute(ctx, {
-  tokenId: 'abc123...def456_0',  // Token ID (deploy txid_vout)
-  amount: '1000000',              // Raw amount as string (respects decimals)
-  counterparty: '02abc...',       // Recipient's identity public key
-})
-
-// Send by address (external - not tracked in recipient's wallet)
+// Send to one recipient by counterparty public key
 const result = await sendBsv21.execute(ctx, {
   tokenId: 'abc123...def456_0',
-  amount: '500000',
-  address: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa',
+  recipients: [
+    { amount: '1000000', counterparty: '02abc...' },
+  ],
+})
+
+// Send to multiple recipients by address
+const result = await sendBsv21.execute(ctx, {
+  tokenId: 'abc123...def456_0',
+  recipients: [
+    { amount: '500000', address: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' },
+    { amount: '250000', address: '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2' },
+  ],
 })
 
 if (result.txid) {

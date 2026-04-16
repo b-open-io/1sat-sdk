@@ -60,9 +60,7 @@ export interface Bsv21Balance {
 	}
 }
 
-export interface SendBsv21Request extends ActionOptions {
-	/** Token ID (txid_vout format) */
-	tokenId: string
+export interface SendBsv21Recipient {
 	/** Amount to send (as bigint or string) */
 	amount: bigint | string
 	/** Recipient's identity public key (preferred) */
@@ -71,6 +69,13 @@ export interface SendBsv21Request extends ActionOptions {
 	address?: string
 	/** Paymail address */
 	paymail?: string
+}
+
+export interface SendBsv21Input extends ActionOptions {
+	/** Token ID (txid_vout format) */
+	tokenId: string
+	/** Recipients to send tokens to */
+	recipients: SendBsv21Recipient[]
 }
 
 export interface PurchaseBsv21Request extends ActionOptions {
@@ -284,50 +289,81 @@ export const getBsv21Balances: Action<GetBsv21BalancesInput, Bsv21Balance[]> = {
 }
 
 /**
- * Send BSV21 tokens to an address.
+ * Send BSV21 tokens to one or more recipients.
  */
-export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
+export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 	meta: {
 		name: 'sendBsv21',
-		description: 'Send BSV21 tokens to a counterparty, address, or paymail',
+		description:
+			'Send BSV21 tokens to one or more recipients (counterparty, address, or paymail)',
 		category: 'tokens',
 		inputSchema: {
 			type: 'object',
 			properties: {
 				tokenId: { type: 'string', description: 'Token ID (txid_vout format)' },
-				amount: {
-					type: 'string',
-					description: 'Amount to send (as string for bigint)',
+				recipients: {
+					type: 'array',
+					description: 'Recipients to send tokens to',
+					items: {
+						type: 'object',
+						properties: {
+							amount: {
+								type: 'string',
+								description: 'Amount to send (as string for bigint)',
+							},
+							counterparty: {
+								type: 'string',
+								description: 'Recipient identity public key (hex)',
+							},
+							address: {
+								type: 'string',
+								description: 'Recipient P2PKH address',
+							},
+							paymail: {
+								type: 'string',
+								description: 'Recipient paymail address',
+							},
+						},
+						required: ['amount'],
+					},
 				},
-				counterparty: {
-					type: 'string',
-					description: 'Recipient identity public key (hex)',
-				},
-				address: { type: 'string', description: 'Recipient P2PKH address' },
-				paymail: { type: 'string', description: 'Recipient paymail address' },
 			},
-			required: ['tokenId', 'amount'],
+			required: ['tokenId', 'recipients'],
 		},
 	},
 	async execute(ctx, input) {
 		try {
-			const {
-				tokenId,
-				counterparty,
-				address,
-				paymail,
-				amount: rawAmount,
-			} = input
-			const amount =
-				typeof rawAmount === 'string' ? BigInt(rawAmount) : rawAmount
+			const { tokenId, recipients } = input
 
-			if (!counterparty && !address && !paymail) {
-				return { error: 'must-provide-counterparty-address-or-paymail' }
+			if (!recipients.length) {
+				return { error: 'no-recipients' }
 			}
 
-			if (amount <= 0n) {
-				return { error: 'amount-must-be-positive' }
+			const resolved: Array<{
+				amount: bigint
+				counterparty?: string
+				address?: string
+				paymail?: string
+			}> = []
+
+			for (const r of recipients) {
+				const amount =
+					typeof r.amount === 'string' ? BigInt(r.amount) : r.amount
+				if (amount <= 0n) {
+					return { error: 'amount-must-be-positive' }
+				}
+				if (!r.counterparty && !r.address && !r.paymail) {
+					return { error: 'must-provide-counterparty-address-or-paymail' }
+				}
+				resolved.push({
+					amount,
+					counterparty: r.counterparty,
+					address: r.address,
+					paymail: r.paymail,
+				})
 			}
+
+			const totalAmount = resolved.reduce((sum, r) => sum + r.amount, 0n)
 
 			if (!ctx.services) {
 				return { error: 'services-required' }
@@ -379,13 +415,12 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 			let totalIn = 0n
 
 			for (const utxo of tokenUtxos) {
-				if (totalIn >= amount) break
+				if (totalIn >= totalAmount) break
 
 				const amtTag = utxo.tags?.find((t) => t.startsWith('amt:'))
 				if (!amtTag) continue
 				const utxoAmount = BigInt(amtTag.slice(4))
 
-				// Skip UTXOs not confirmed in the overlay
 				if (overlayValidated && !validOutpoints.has(utxo.outpoint)) {
 					continue
 				}
@@ -394,27 +429,8 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 				totalIn += utxoAmount
 			}
 
-			if (totalIn < amount) {
+			if (totalIn < totalAmount) {
 				return { error: 'insufficient-tokens' }
-			}
-
-			let recipientAddress: string
-			let recipientKeyID: string | undefined
-			if (counterparty) {
-				recipientKeyID = `${tokenId}-${Date.now()}`
-				const { publicKey } = await ctx.wallet.getPublicKey({
-					protocolID: BSV21_PROTOCOL,
-					keyID: recipientKeyID,
-					counterparty,
-					forSelf: false,
-				})
-				recipientAddress = PublicKey.fromString(publicKey).toAddress()
-			} else if (paymail) {
-				return { error: 'paymail-not-yet-implemented' }
-			} else if (address) {
-				recipientAddress = address
-			} else {
-				return { error: 'must-provide-counterparty-or-address' }
 			}
 
 			const outputs: Array<{
@@ -427,21 +443,49 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 			}> = []
 
 			const p2pkh = new P2PKH()
-			const destinationLockingScript = p2pkh.lock(recipientAddress)
-			const transferScript = BSV21.transfer(tokenId, amount).lock(
-				destinationLockingScript,
-			)
-			outputs.push({
-				lockingScript: transferScript.toHex(),
-				satoshis: 1,
-				outputDescription: `Send ${amount} tokens`,
-			})
+			const recipientKeyIDs: Array<string | undefined> = []
 
-			const change = totalIn - amount
-			let tokenOutputCount = 1
+			// Build recipient outputs
+			for (const r of resolved) {
+				let recipientAddress: string
+				let recipientKeyID: string | undefined
+
+				if (r.counterparty) {
+					recipientKeyID = `${tokenId}-${Date.now()}`
+					const { publicKey } = await ctx.wallet.getPublicKey({
+						protocolID: BSV21_PROTOCOL,
+						keyID: recipientKeyID,
+						counterparty: r.counterparty,
+						forSelf: false,
+					})
+					recipientAddress = PublicKey.fromString(publicKey).toAddress()
+				} else if (r.paymail) {
+					return { error: 'paymail-not-yet-implemented' }
+				} else if (r.address) {
+					recipientAddress = r.address
+				} else {
+					return { error: 'must-provide-counterparty-or-address' }
+				}
+
+				recipientKeyIDs.push(recipientKeyID)
+
+				const destinationLockingScript = p2pkh.lock(recipientAddress)
+				const transferScript = BSV21.transfer(tokenId, r.amount).lock(
+					destinationLockingScript,
+				)
+				outputs.push({
+					lockingScript: transferScript.toHex(),
+					satoshis: 1,
+					outputDescription: `Send ${r.amount} tokens`,
+				})
+			}
+
+			// Change output
+			const change = totalIn - totalAmount
+			let tokenOutputCount = resolved.length
 			let changeKeyID: string | undefined
 			if (change > 0n) {
-				tokenOutputCount = 2
+				tokenOutputCount += 1
 				changeKeyID = `${tokenId}-${Date.now()}`
 				const { publicKey } = await ctx.wallet.getPublicKey({
 					protocolID: BSV21_PROTOCOL,
@@ -509,7 +553,7 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				{
-					description: `Send ${amount} ${symbol}`,
+					description: `Send ${symbol} to ${resolved.length} recipient${resolved.length > 1 ? 's' : ''}`,
 					labels: [`bsv21:${tokenId}`],
 					inputBEEF,
 					inputs: selected.map((o) => ({
@@ -556,18 +600,16 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 			}
 
 			if (ctx.debug && ctx.log) {
-				const logOutputs: ActionLogEntry['outputs'] = [
-					{
-						index: 0,
-						protocolID: BSV21_PROTOCOL,
-						keyID: recipientKeyID,
-						basket: BSV21_BASKET,
-						satoshis: 1,
-					},
-				]
+				const logOutputs: ActionLogEntry['outputs'] = resolved.map((_r, i) => ({
+					index: i,
+					protocolID: BSV21_PROTOCOL,
+					keyID: recipientKeyIDs[i],
+					basket: BSV21_BASKET,
+					satoshis: 1,
+				}))
 				if (change > 0n) {
 					logOutputs.push({
-						index: 1,
+						index: resolved.length,
 						protocolID: BSV21_PROTOCOL,
 						keyID: changeKeyID,
 						basket: BSV21_BASKET,
@@ -579,10 +621,12 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 					action: 'sendBsv21',
 					input: {
 						tokenId,
-						amount: amount.toString(),
-						counterparty,
-						address,
-						paymail,
+						recipients: resolved.map((r) => ({
+							amount: r.amount.toString(),
+							counterparty: r.counterparty,
+							address: r.address,
+							paymail: r.paymail,
+						})),
 					},
 					txid: result.txid,
 					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
@@ -597,7 +641,7 @@ export const sendBsv21: Action<SendBsv21Request, TokenOperationResponse> = {
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'sendBsv21',
-					input: { tokenId: input.tokenId, amount: input.amount?.toString() },
+					input: { tokenId: input.tokenId },
 					error: error instanceof Error ? error.message : 'unknown-error',
 				})
 			}

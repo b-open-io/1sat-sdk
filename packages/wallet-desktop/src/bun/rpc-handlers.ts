@@ -601,7 +601,7 @@ export function createRpcHandlers(scopedAccountId?: string) {
 			return { txid: result.txid, error: result.error }
 		},
 
-		sendBsv21: async ({ tokenId, amount, address }: SendBsv21Params) => {
+		sendBsv21: async ({ tokenId, recipients }: SendBsv21Params) => {
 			const w = requireWallet()
 			const ctx = createContext(w.wallet, {
 				services: w.services,
@@ -609,8 +609,7 @@ export function createRpcHandlers(scopedAccountId?: string) {
 			})
 			const result = await sendBsv21.execute(ctx, {
 				tokenId,
-				amount,
-				address,
+				recipients,
 			})
 			return { txid: result.txid, error: result.error }
 		},

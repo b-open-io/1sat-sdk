@@ -49,7 +49,7 @@ export interface SendBsv21Props {
  *
  * The `onSend` callback receives `{ tokenId, amount, address }` where
  * `amount` is a raw integer string (accounting for decimals) and should
- * call `@1sat/actions` `sendBsv21.execute(ctx, { tokenId, amount, address })`.
+ * call `@1sat/actions` `sendBsv21.execute(ctx, { tokenId, recipients: [{ amount, address }] })`.
  *
  * @example
  * ```tsx
@@ -58,7 +58,10 @@ export interface SendBsv21Props {
  * <SendBsv21
  *   balances={tokenBalances}
  *   onSend={async ({ tokenId, amount, address }) => {
- *     const result = await sendBsv21.execute(ctx, { tokenId, amount, address })
+ *     const result = await sendBsv21.execute(ctx, {
+ *       tokenId,
+ *       recipients: [{ amount, address }],
+ *     })
  *     return result
  *   }}
  * />

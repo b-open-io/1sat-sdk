@@ -110,10 +110,16 @@ export interface LockResult {
 }
 
 // Send BSV21 params
+export interface SendBsv21Recipient {
+	amount: string
+	counterparty?: string
+	address?: string
+	paymail?: string
+}
+
 export interface SendBsv21Params {
 	tokenId: string
-	amount: string
-	address: string
+	recipients: SendBsv21Recipient[]
 }
 
 // Send BSV21 result

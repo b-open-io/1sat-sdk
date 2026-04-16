@@ -505,8 +505,9 @@ export function TokenDetailView({ params, onNavigate }: TokenDetailViewProps) {
 		async (sendParams: SendBsv21Params): Promise<SendBsv21Result> => {
 			return rpc.request.sendBsv21({
 				tokenId: sendParams.tokenId,
-				amount: sendParams.amount,
-				address: sendParams.address,
+				recipients: [
+					{ amount: sendParams.amount, address: sendParams.address },
+				],
 			})
 		},
 		[],
