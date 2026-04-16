@@ -8,17 +8,16 @@ import {
 } from '@1sat/wallet'
 import type { PrivateKey, WalletInterface } from '@bsv/sdk'
 import {
-	type PermissionsManagerConfig,
-	WalletPermissionsManager,
-} from '@bsv/wallet-toolbox'
-import {
 	Monitor,
+	type PermissionsManagerConfig,
 	Services,
 	StorageClient,
 	StorageProvider,
 	Wallet,
+	WalletPermissionsManager as MobileWalletPermissionsManager,
 	WalletStorageManager,
 } from '@bsv/wallet-toolbox-mobile'
+import type { WalletPermissionsManager } from '@bsv/wallet-toolbox'
 import { StorageIdb } from '@bsv/wallet-toolbox/out/src/index.client.js'
 import { IndexedDbPermissionStore } from './permissions/indexed-db-store'
 import type { MonitorEvent } from './types'
@@ -178,11 +177,15 @@ export async function createWebWallet(
 			...DEFAULT_PERMISSIONS_CONFIG,
 			...(config.permissions.permissionsConfig ?? {}),
 		}
-		const manager = new WalletPermissionsManager(
+		// `@bsv/wallet-toolbox-mobile` and `@bsv/wallet-toolbox` each ship their
+		// own compiled copy of `WalletPermissionsManager`. Classes with private
+		// fields are nominally distinct between packages, so we cast through
+		// `unknown` — the runtime class bytes are identical.
+		const manager = new MobileWalletPermissionsManager(
 			baseWallet,
 			config.permissions.adminOriginator,
 			permissionsConfig,
-		)
+		) as unknown as WalletPermissionsManager
 		const store =
 			config.permissions.permissionStore ??
 			new IndexedDbPermissionStore({ scope: config.storageIdentityKey })
