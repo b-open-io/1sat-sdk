@@ -110,28 +110,22 @@ export {
 	type WalletCoreResult,
 } from './factory'
 
-// Permissions (BRC-100 permission ledger + adapter)
+// Permissions — local-storage-backed WalletPermissionsManager
 export {
 	filterGroupedByMissing,
 	InMemoryPermissionStore,
 	isExpired,
+	LocalWalletPermissionsManager,
 	normalizeOriginator,
-	PermissionLedgerAdapter,
 	permissionKeyFromRequest,
 	permissionKeysFromGroup,
 	permissionKeyToString,
 } from './permissions'
 export type {
-	CounterpartyPermissionPromptDecision,
-	GroupedPermissionPromptDecision,
 	IPermissionStore,
 	ListGrantsFilter,
+	LocalWalletPermissionsManagerOptions,
 	PermissionKey,
-	PermissionLedgerAdapterOptions,
-	PermissionPromptDecision,
-	PermissionPromptHandler,
-	PermissionRecord,
-	PermissionRecordSource,
 	PermissionType,
 	StoredGrant,
 } from './permissions'

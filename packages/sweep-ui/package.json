@@ -1,6 +1,6 @@
 {
   "name": "@1sat/sweep-ui",
-	"version": "0.0.28",
+	"version": "0.0.29",
   "description": "Sweep UI components for migrating legacy BSV assets",
   "type": "module",
   "main": "./src/index.ts",

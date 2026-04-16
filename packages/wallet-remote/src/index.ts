@@ -1,12 +1,8 @@
 export * from '@1sat/wallet'
 
-export {
-	DEFAULT_PERMISSIONS_CONFIG,
-	createRemoteWallet,
-} from './createRemoteWallet'
+export { createRemoteWallet } from './createRemoteWallet'
 export type {
 	RemoteWalletConfig,
-	RemoteWalletPermissionsOptions,
 	RemoteWalletResult,
 } from './createRemoteWallet'
 
