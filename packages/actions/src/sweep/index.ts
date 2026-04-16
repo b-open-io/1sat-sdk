@@ -26,7 +26,6 @@ import {
 	createTrackedAction,
 	executeTrackedAction,
 } from '../utils/createTrackedAction'
-import { fetchSourceTx } from './transfer'
 import type {
 	SweepBsv21Request,
 	SweepBsv21Response,
@@ -203,6 +202,15 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 			})
 			const depositAddress = PublicKey.fromString(depositPubKey).toAddress()
 
+			// Fetch BEEF for all input transactions (carries full proof chain)
+			const txids = [
+				...new Set(inputs.map((i) => parseOutpoint(i.outpoint).txid)),
+			]
+			const mergedBeef = await ctx.services.getBeefForTxid(txids[0])
+			for (let i = 1; i < txids.length; i++) {
+				mergedBeef.mergeBeef(await ctx.services.getBeefForTxid(txids[i]))
+			}
+
 			// Build a raw transaction — source wallet funds everything
 			const tx = new Transaction()
 			const p2pkh = new P2PKH()
@@ -213,10 +221,14 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 				const key = keyMap.get(formatOutpoint(txid, vout))
 				if (!key) throw new Error(`No key for input ${input.outpoint}`)
 
+				const beefTx = mergedBeef.findTxid(txid)
+				if (!beefTx?.tx)
+					throw new Error(`Transaction ${txid} not found in BEEF`)
+
 				tx.addInput({
 					sourceTXID: txid,
 					sourceOutputIndex: vout,
-					sourceTransaction: await fetchSourceTx(ctx, txid),
+					sourceTransaction: beefTx.tx,
 					unlockingScriptTemplate: p2pkh.unlock(key),
 					sequence: 0xffffffff,
 				})
@@ -243,10 +255,11 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 			const rawTx = tx.toBinary()
 			const arcResult = await ctx.services.arcade.submitTransaction(rawTx)
 
-			// Internalize the deposit output into the receiving wallet
-			const beef = tx.toAtomicBEEF()
+			// Build AtomicBEEF: merge signed tx into the proof chain
+			mergedBeef.mergeRawTx(rawTx)
+			const atomicBeef = mergedBeef.toBinaryAtomic(tx.id('hex'))
 			await ctx.wallet.internalizeAction({
-				tx: beef,
+				tx: atomicBeef,
 				outputs: [
 					{
 						outputIndex: depositOutputIndex,
@@ -273,7 +286,7 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 
 			return {
 				txid: arcResult.txid,
-				beef: Array.from(beef),
+				beef: Array.from(atomicBeef),
 			}
 		} catch (error) {
 			console.error('[sweepBsv]', error)
