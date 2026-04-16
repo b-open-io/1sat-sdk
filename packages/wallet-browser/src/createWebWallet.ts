@@ -8,10 +8,6 @@ import {
 } from '@1sat/wallet'
 import type { PrivateKey, WalletInterface } from '@bsv/sdk'
 import {
-	type PermissionsManagerConfig,
-	WalletPermissionsManager,
-} from '@bsv/wallet-toolbox'
-import {
 	Monitor,
 	Services,
 	StorageClient,
@@ -19,7 +15,15 @@ import {
 	Wallet,
 	WalletStorageManager,
 } from '@bsv/wallet-toolbox-mobile'
-import { StorageIdb } from '@bsv/wallet-toolbox/out/src/index.client.js'
+// Imported from the browser-safe `index.client.js` entry (same as StorageIdb).
+// The default `@bsv/wallet-toolbox` entry re-exports from `index.all.js` which
+// includes StorageServer + Express + knex — fine for Node, but it drags server
+// code into any page-context consumer of `@1sat/wallet-browser`.
+import {
+	type PermissionsManagerConfig,
+	StorageIdb,
+	WalletPermissionsManager,
+} from '@bsv/wallet-toolbox/out/src/index.client.js'
 import { IndexedDbPermissionStore } from './permissions/indexed-db-store'
 import type { MonitorEvent } from './types'
 
