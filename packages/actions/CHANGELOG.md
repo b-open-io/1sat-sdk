@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.90
+
+### Changed
+- `sweepBsv` now builds a raw transaction and internalizes it instead of using `createAction`. The source wallet funds the entire transaction including fees. The receiving wallet records the sweep as incoming (`isOutgoing: false`) via `internalizeAction`. Fixes sweep transactions showing as "Sent" in transaction history.
+
 ## 0.0.89
 
 ### Changed

@@ -260,7 +260,7 @@ export async function legacySendOrdinals(
 }
 
 /** Fetch a source transaction from BEEF for use as sourceTransaction on inputs */
-async function fetchSourceTx(
+export async function fetchSourceTx(
 	ctx: OneSatContext,
 	txid: string,
 ): Promise<Transaction> {
