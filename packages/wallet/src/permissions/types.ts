@@ -3,7 +3,8 @@ import type {
 	GroupedPermissionRequest,
 	GroupedPermissions,
 	PermissionRequest,
-} from '@bsv/wallet-toolbox-mobile'
+	PermissionToken,
+} from '@bsv/wallet-toolbox'
 
 /** The four BRC-100 permission categories. */
 export type PermissionType = 'protocol' | 'basket' | 'certificate' | 'spending'
@@ -115,8 +116,8 @@ export type CounterpartyPermissionPromptDecision =
  *
  * The adapter calls these when a grant is needed after the store lookup
  * comes back empty. Counterparty prompts are optional — if omitted, the
- * adapter falls back to native `@bsv/wallet-toolbox-mobile` on-chain
- * handling for counterparty flows.
+ * adapter auto-denies counterparty requests so the dApp call fails cleanly
+ * instead of hanging forever.
  */
 export interface PermissionPromptHandler {
 	onPermissionRequested(
@@ -145,7 +146,5 @@ export type PermissionRecord =
 	| {
 			source: 'onchain'
 			type: PermissionType
-			/** The raw WPM token — shape is `PermissionToken` from `@bsv/wallet-toolbox-mobile`. */
-			// biome-ignore lint/suspicious/noExplicitAny: PermissionToken shapes vary by type; consumers already accept this
-			token: any
+			token: PermissionToken
 	  }

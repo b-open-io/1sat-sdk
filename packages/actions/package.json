@@ -1,6 +1,6 @@
 {
   "name": "@1sat/actions",
-	"version": "0.0.92",
+	"version": "0.0.93",
   "description": "Action definitions for the 1Sat SDK",
   "type": "module",
   "main": "./dist/index.js",
@@ -36,10 +36,10 @@
     "@1sat/templates": "workspace:*"
   },
   "peerDependencies": {
-    "@bsv/sdk": "^2.0.6"
+    "@bsv/sdk": "^2.0.13"
   },
   "devDependencies": {
-    "@bsv/sdk": "^2.0.6",
+    "@bsv/sdk": "^2.0.13",
     "typescript": "^5.9.3"
   }
 }

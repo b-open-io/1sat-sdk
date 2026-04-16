@@ -73,11 +73,11 @@
     "zod": "^4.3.6"
   },
   "peerDependencies": {
-    "@bsv/sdk": "^2.0.6"
+    "@bsv/sdk": "^2.0.13"
   },
   "devDependencies": {
-    "@bsv/sdk": "^2.0.6",
-    "@bsv/wallet-toolbox": "^2.1.9",
+    "@bsv/sdk": "^2.0.13",
+    "@bsv/wallet-toolbox": "^2.1.21",
     "@tailwindcss/vite": "^4.1.4",
     "@types/bun": "latest",
     "@types/qrcode": "^1.5.5",

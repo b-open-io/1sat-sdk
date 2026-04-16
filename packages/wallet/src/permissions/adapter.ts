@@ -1,11 +1,14 @@
 import type {
+	CounterpartyPermissionEventHandler,
 	CounterpartyPermissionRequest,
+	GroupedPermissionEventHandler,
 	GroupedPermissionRequest,
+	PermissionEventHandler,
 	PermissionRequest,
 	PermissionToken,
 	WalletPermissionsManager,
 	WalletPermissionsManagerCallbacks,
-} from '@bsv/wallet-toolbox-mobile'
+} from '@bsv/wallet-toolbox'
 import {
 	filterGroupedByMissing,
 	isExpired,
@@ -32,6 +35,10 @@ export interface PermissionLedgerAdapterOptions {
 }
 
 type CallbackName = keyof WalletPermissionsManagerCallbacks
+type AnyPermissionEventHandler =
+	| PermissionEventHandler
+	| GroupedPermissionEventHandler
+	| CounterpartyPermissionEventHandler
 
 /**
  * Bridges an {@link IPermissionStore} to a {@link WalletPermissionsManager}.
@@ -79,21 +86,23 @@ export class PermissionLedgerAdapter {
 	}
 
 	private bindCallbacks(): void {
-		const bind = (
-			name: CallbackName,
-			// biome-ignore lint/suspicious/noExplicitAny: WPM callback signature union is broader than each handler needs
-			handler: (request: any) => Promise<void>,
-		) => {
+		const bind = (name: CallbackName, handler: AnyPermissionEventHandler) => {
 			const id = this.wallet.bindCallback(name, handler)
 			this.boundCallbacks.push([name, id])
 		}
 
-		bind('onProtocolPermissionRequested', (r) => this.handleSingle(r))
-		bind('onBasketAccessRequested', (r) => this.handleSingle(r))
-		bind('onCertificateAccessRequested', (r) => this.handleSingle(r))
-		bind('onSpendingAuthorizationRequested', (r) => this.handleSpending(r))
-		bind('onGroupedPermissionRequested', (r) => this.handleGrouped(r))
-		bind('onCounterpartyPermissionRequested', (r) => this.handleCounterparty(r))
+		const single: PermissionEventHandler = (r) => this.handleSingle(r)
+		const spending: PermissionEventHandler = (r) => this.handleSpending(r)
+		const grouped: GroupedPermissionEventHandler = (r) => this.handleGrouped(r)
+		const counterparty: CounterpartyPermissionEventHandler = (r) =>
+			this.handleCounterparty(r)
+
+		bind('onProtocolPermissionRequested', single)
+		bind('onBasketAccessRequested', single)
+		bind('onCertificateAccessRequested', single)
+		bind('onSpendingAuthorizationRequested', spending)
+		bind('onGroupedPermissionRequested', grouped)
+		bind('onCounterpartyPermissionRequested', counterparty)
 	}
 
 	/** Unbinds every callback this adapter registered on the wallet. */

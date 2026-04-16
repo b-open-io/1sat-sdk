@@ -1,8 +1,5 @@
 import type { WalletProtocol } from '@bsv/sdk'
-import type {
-	GroupedPermissions,
-	PermissionRequest,
-} from '@bsv/wallet-toolbox-mobile'
+import type { GroupedPermissions, PermissionRequest } from '@bsv/wallet-toolbox'
 import type { PermissionKey } from './types'
 
 /** Default ports stripped from normalized originators (mirrors WPM). */
@@ -19,7 +16,8 @@ const DEFAULT_PORTS: Record<string, string> = {
  *  - Preserve non-default ports
  *  - Fall back to lowercase trim on URL-parse failure
  *
- * Kept in sync with `WalletPermissionsManager#normalizeOriginator`.
+ * Kept in sync with `WalletPermissionsManager#normalizeOriginator`. See
+ * `WPM-COUPLINGS.md` in this package for the fragility contract.
  */
 export function normalizeOriginator(
 	originator: string | undefined | null,

@@ -9,8 +9,9 @@ import type {
 /**
  * Reference `IPermissionStore` that keeps grants in a JS `Map`.
  *
- * Useful for tests, for apps that don't need persistence, and as a
- * template for custom backends (IndexedDB, chrome.storage, etc.).
+ * Useful for tests, Node/server environments, and as a template for custom
+ * backends. Browser apps should prefer `IndexedDbPermissionStore` from
+ * `@1sat/wallet-browser` — it's the default for `createWebWallet`.
  */
 export class InMemoryPermissionStore implements IPermissionStore {
 	private grants = new Map<string, StoredGrant>()

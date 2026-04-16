@@ -1,18 +1,16 @@
 export * from '@1sat/wallet'
 
-export { createWebWallet } from './createWebWallet'
-export type { WebWalletConfig, WebWalletResult } from './createWebWallet'
-
 export {
 	DEFAULT_PERMISSIONS_CONFIG,
-	createPermissionedWebWallet,
-} from './createPermissionedWebWallet'
+	createWebWallet,
+} from './createWebWallet'
 export type {
-	PermissionedWebWalletConfig,
-	PermissionedWebWalletResult,
-} from './createPermissionedWebWallet'
+	WebWalletConfig,
+	WebWalletPermissionsOptions,
+	WebWalletResult,
+} from './createWebWallet'
 
-export * from './permissions'
+export { IndexedDbPermissionStore } from './permissions/indexed-db-store'
 
 export type { MonitorEvent } from './types'
 
