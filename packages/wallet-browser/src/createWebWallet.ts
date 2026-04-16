@@ -9,10 +9,12 @@ import {
 import type { PrivateKey, WalletInterface } from '@bsv/sdk'
 import {
 	Monitor,
+	type PermissionsManagerConfig,
 	Services,
 	StorageClient,
 	StorageProvider,
 	Wallet,
+	WalletPermissionsManager as MobileWalletPermissionsManager,
 	WalletStorageManager,
 } from '@bsv/wallet-toolbox-mobile'
 // Imported from the browser-safe `index.client.js` entry (same as StorageIdb).
@@ -182,11 +184,15 @@ export async function createWebWallet(
 			...DEFAULT_PERMISSIONS_CONFIG,
 			...(config.permissions.permissionsConfig ?? {}),
 		}
-		const manager = new WalletPermissionsManager(
+		// `@bsv/wallet-toolbox-mobile` and `@bsv/wallet-toolbox` each ship their
+		// own compiled copy of `WalletPermissionsManager`. Classes with private
+		// fields are nominally distinct between packages, so we cast through
+		// `unknown` — the runtime class bytes are identical.
+		const manager = new MobileWalletPermissionsManager(
 			baseWallet,
 			config.permissions.adminOriginator,
 			permissionsConfig,
-		)
+		) as unknown as WalletPermissionsManager
 		const store =
 			config.permissions.permissionStore ??
 			new IndexedDbPermissionStore({ scope: config.storageIdentityKey })
