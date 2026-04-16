@@ -1,5 +1,6 @@
 import type {
 	CounterpartyPermissionRequest,
+	CounterpartyPermissions,
 	GroupedPermissionRequest,
 	GroupedPermissions,
 	PermissionRequest,
@@ -102,11 +103,17 @@ export type GroupedPermissionPromptDecision =
 	  }
 	| { approved: false }
 
-/** User decision returned from a level-2 counterparty pact prompt. */
+/**
+ * User decision returned from a level-2 counterparty pact prompt.
+ *
+ * `granted` is a `Partial<CounterpartyPermissions>` because users typically
+ * approve a subset of the requested protocols, matching WPM's
+ * `grantCounterpartyPermission` signature.
+ */
 export type CounterpartyPermissionPromptDecision =
 	| {
 			approved: true
-			granted: CounterpartyPermissionRequest['permissions']
+			granted: Partial<CounterpartyPermissions>
 			expiry?: number
 	  }
 	| { approved: false }
