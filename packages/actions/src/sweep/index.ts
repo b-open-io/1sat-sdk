@@ -244,7 +244,7 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 			const arcResult = await ctx.services.arcade.submitTransaction(rawTx)
 
 			// Internalize the deposit output into the receiving wallet
-			const beef = tx.toBEEF()
+			const beef = tx.toAtomicBEEF()
 			await ctx.wallet.internalizeAction({
 				tx: beef,
 				outputs: [
