@@ -3,9 +3,15 @@
  *
  * BAP identity actions using the wallet's identity-{N} key derivation scheme.
  *
- * Key hierarchy:
- *   identity-0 = root key (BAP ID source, signs initial publish)
- *   identity-{N} = current signing key (N tracked via seq tags on outputs)
+ * Key hierarchy (per BAP spec):
+ *   identity-0 = root key (BAP ID source, signs initial ID and can destroy identity)
+ *   identity-1 = first signing key (declared in seq:1 ID record)
+ *   identity-{N} = signing key declared in seq:N ID record
+ *
+ * Rotation chain:
+ *   Seq 1: identity-0 signs, declares identity-1 as current signing key
+ *   Seq 2: identity-1 signs, declares identity-2 as current signing key
+ *   Seq N: identity-(N-1) signs, declares identity-N as current signing key
  *
  * All keys derived at protocolID=[1,"sigma"], keyID="identity-{N}".
  */
@@ -102,6 +108,47 @@ async function getCurrentSequence(ctx: OneSatContext): Promise<number | null> {
 }
 
 // ============================================================================
+// ID Output Builder Helper
+// ============================================================================
+
+interface IdOutputParams {
+	seq: number
+	signerKeyId: string
+	declareKeyId: string
+}
+
+async function buildIdOutput(
+	ctx: OneSatContext,
+	bapId: string,
+	params: IdOutputParams,
+): Promise<{
+	lockingScript: string
+	tags: string[]
+	customInstructions: string
+}> {
+	const declareAddress = await deriveAddress(ctx, params.declareKeyId)
+
+	const script = new Script()
+	script.writeOpCode(OP.OP_FALSE)
+	script.writeOpCode(OP.OP_RETURN)
+	script.writeBin(toArray(BAP_BITCOM_ADDRESS))
+	script.writeBin(toArray('ID'))
+	script.writeBin(toArray(bapId))
+	script.writeBin(toArray(declareAddress))
+
+	const signedScript = await applyBapAip(ctx, script, params.signerKeyId)
+
+	return {
+		lockingScript: signedScript.toHex(),
+		tags: ['type:id', `bapId:${bapId}`, `seq:${params.seq}`],
+		customInstructions: JSON.stringify({
+			protocolID: BAP_PROTOCOL_ID,
+			keyID: params.declareKeyId,
+		}),
+	}
+}
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -138,8 +185,9 @@ export interface ProfileResponse {
  * Publish the initial BAP ID record.
  *
  * Derives identity-0 (root key), computes the BAP ID, and publishes
- * the ID record signed by identity-0 via AIP. The output lands in
- * the `bap` basket tagged with seq:1.
+ * the ID record signed by identity-0 via AIP. The ID record declares
+ * identity-1 as the current signing key. The output lands in the `bap`
+ * basket tagged with seq:1.
  *
  * Returns an error if an identity has already been published.
  */
@@ -164,19 +212,15 @@ export const publishIdentity: Action<ActionOptions, IdentityResponse> = {
 				return { error: 'identity-exists: already published' }
 			}
 
-			const rootKeyId = signingKeyId(0)
 			const bapId = await computeBapId(ctx)
-			const currentAddress = await deriveAddress(ctx, rootKeyId)
+			const rootKeyId = signingKeyId(0)
+			const firstSigningKeyId = signingKeyId(1)
 
-			const script = new Script()
-			script.writeOpCode(OP.OP_FALSE)
-			script.writeOpCode(OP.OP_RETURN)
-			script.writeBin(toArray(BAP_BITCOM_ADDRESS))
-			script.writeBin(toArray('ID'))
-			script.writeBin(toArray(bapId))
-			script.writeBin(toArray(currentAddress))
-
-			const signedScript = await applyBapAip(ctx, script, rootKeyId)
+			const idOutput = await buildIdOutput(ctx, bapId, {
+				seq: 1,
+				signerKeyId: rootKeyId,
+				declareKeyId: firstSigningKeyId,
+			})
 
 			const result = await executeTrackedAction(
 				ctx.wallet,
@@ -184,15 +228,12 @@ export const publishIdentity: Action<ActionOptions, IdentityResponse> = {
 					description: 'BAP identity publication',
 					outputs: [
 						{
-							lockingScript: signedScript.toHex(),
+							lockingScript: idOutput.lockingScript,
 							satoshis: 0,
 							outputDescription: 'BAP ID',
 							basket: BAP_BASKET,
-							tags: ['type:id', `bapId:${bapId}`, 'seq:1'],
-							customInstructions: JSON.stringify({
-								protocolID: BAP_PROTOCOL_ID,
-								keyID: rootKeyId,
-							}),
+							tags: idOutput.tags,
+							customInstructions: idOutput.customInstructions,
 						},
 					],
 					options: {
@@ -247,18 +288,13 @@ export const rotateIdentity: Action<ActionOptions, IdentityResponse> = {
 			const currentKeyId = await resolveCurrentKeyId(ctx)
 			const bapId = await computeBapId(ctx)
 			const nextSeq = currentSeq + 1
-			const nextKeyId = signingKeyId(nextSeq - 1)
-			const nextAddress = await deriveAddress(ctx, nextKeyId)
+			const nextKeyId = signingKeyId(nextSeq)
 
-			const script = new Script()
-			script.writeOpCode(OP.OP_FALSE)
-			script.writeOpCode(OP.OP_RETURN)
-			script.writeBin(toArray(BAP_BITCOM_ADDRESS))
-			script.writeBin(toArray('ID'))
-			script.writeBin(toArray(bapId))
-			script.writeBin(toArray(nextAddress))
-
-			const signedScript = await applyBapAip(ctx, script, currentKeyId)
+			const idOutput = await buildIdOutput(ctx, bapId, {
+				seq: nextSeq,
+				signerKeyId: currentKeyId,
+				declareKeyId: nextKeyId,
+			})
 
 			// Find existing ID outputs to relinquish after rotation
 			const existingIds = await ctx.wallet.listOutputs({
@@ -273,15 +309,12 @@ export const rotateIdentity: Action<ActionOptions, IdentityResponse> = {
 					description: 'BAP key rotation',
 					outputs: [
 						{
-							lockingScript: signedScript.toHex(),
+							lockingScript: idOutput.lockingScript,
 							satoshis: 0,
 							outputDescription: 'BAP ID',
 							basket: BAP_BASKET,
-							tags: ['type:id', `bapId:${bapId}`, `seq:${nextSeq}`],
-							customInstructions: JSON.stringify({
-								protocolID: BAP_PROTOCOL_ID,
-								keyID: nextKeyId,
-							}),
+							tags: idOutput.tags,
+							customInstructions: idOutput.customInstructions,
 						},
 					],
 					options: {
@@ -398,6 +431,11 @@ export const attest: Action<AttestRequest, IdentityResponse> = {
 /**
  * Publish a BAP ALIAS transaction to update the identity's profile.
  *
+ * If the identity has not been published yet, this will create both the ID
+ * record and the ALIAS in a single transaction (signed by identity-0 and
+ * identity-1 respectively). If the identity exists, only the ALIAS is
+ * updated (signed by the current signing key).
+ *
  * OP_RETURN: BAP_PREFIX | "ALIAS" | bap_id | profile_json
  * Signed with AIP via the current signing key.
  */
@@ -420,40 +458,85 @@ export const updateProfile: Action<UpdateProfileRequest, IdentityResponse> = {
 	},
 	async execute(ctx, input) {
 		try {
-			const bapId = await resolveBapId(ctx)
-			if (!bapId) {
-				return { error: 'no-identity: publish identity first' }
-			}
+			const existingId = await resolveBapId(ctx)
+			const bapId = existingId ?? (await computeBapId(ctx))
 
-			const existing = await ctx.wallet.listOutputs({
+			const existingAliases = await ctx.wallet.listOutputs({
 				basket: BAP_BASKET,
 				tags: ['type:alias'],
 				limit: 100,
 			})
 
-			const script = new Script()
-			script.writeOpCode(OP.OP_FALSE)
-			script.writeOpCode(OP.OP_RETURN)
-			script.writeBin(toArray(BAP_BITCOM_ADDRESS))
-			script.writeBin(toArray('ALIAS'))
-			script.writeBin(toArray(bapId))
-			script.writeBin(toArray(JSON.stringify(input.profile)))
+			// Build ALIAS output
+			const aliasScript = new Script()
+			aliasScript.writeOpCode(OP.OP_FALSE)
+			aliasScript.writeOpCode(OP.OP_RETURN)
+			aliasScript.writeBin(toArray(BAP_BITCOM_ADDRESS))
+			aliasScript.writeBin(toArray('ALIAS'))
+			aliasScript.writeBin(toArray(bapId))
+			aliasScript.writeBin(toArray(JSON.stringify(input.profile)))
 
-			const signedScript = await applyBapAip(ctx, script)
+			const outputs: Array<{
+				lockingScript: string
+				satoshis: number
+				outputDescription: string
+				basket: string
+				tags: string[]
+				customInstructions?: string
+			}> = []
+
+			if (!existingId) {
+				// First time: create ID + ALIAS in one transaction
+				const rootKeyId = signingKeyId(0)
+				const firstSigningKeyId = signingKeyId(1)
+
+				const idOutput = await buildIdOutput(ctx, bapId, {
+					seq: 1,
+					signerKeyId: rootKeyId,
+					declareKeyId: firstSigningKeyId,
+				})
+
+				outputs.push({
+					lockingScript: idOutput.lockingScript,
+					satoshis: 0,
+					outputDescription: 'BAP ID',
+					basket: BAP_BASKET,
+					tags: idOutput.tags,
+					customInstructions: idOutput.customInstructions,
+				})
+
+				// ALIAS signed by the newly declared signing key (identity-1)
+				const signedAliasScript = await applyBapAip(
+					ctx,
+					aliasScript,
+					firstSigningKeyId,
+				)
+				outputs.push({
+					lockingScript: signedAliasScript.toHex(),
+					satoshis: 0,
+					outputDescription: 'BAP ALIAS',
+					basket: BAP_BASKET,
+					tags: ['type:alias', `bapId:${bapId}`],
+				})
+			} else {
+				// Existing identity: just update ALIAS signed by current key
+				const signedAliasScript = await applyBapAip(ctx, aliasScript)
+				outputs.push({
+					lockingScript: signedAliasScript.toHex(),
+					satoshis: 0,
+					outputDescription: 'BAP ALIAS',
+					basket: BAP_BASKET,
+					tags: ['type:alias', `bapId:${bapId}`],
+				})
+			}
 
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				{
-					description: 'BAP alias update',
-					outputs: [
-						{
-							lockingScript: signedScript.toHex(),
-							satoshis: 0,
-							outputDescription: 'BAP ALIAS',
-							basket: BAP_BASKET,
-							tags: ['type:alias', `bapId:${bapId}`],
-						},
-					],
+					description: existingId
+						? 'BAP alias update'
+						: 'BAP identity creation with profile',
+					outputs,
 					options: {
 						acceptDelayedBroadcast: false,
 						randomizeOutputs: false,
@@ -464,7 +547,7 @@ export const updateProfile: Action<UpdateProfileRequest, IdentityResponse> = {
 
 			if (!result.txid) return { error: 'no-txid-returned' }
 
-			for (const old of existing.outputs) {
+			for (const old of existingAliases.outputs) {
 				await ctx.wallet.relinquishOutput({
 					basket: BAP_BASKET,
 					output: old.outpoint,
@@ -474,6 +557,7 @@ export const updateProfile: Action<UpdateProfileRequest, IdentityResponse> = {
 			return {
 				txid: result.txid,
 				tx: result.tx,
+				bapId,
 			}
 		} catch (error) {
 			console.error('[updateProfile]', error)

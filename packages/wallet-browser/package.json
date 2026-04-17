@@ -11,21 +11,13 @@
 			"import": "./dist/index.js"
 		}
 	},
-	"files": [
-		"dist"
-	],
+	"files": ["dist"],
 	"scripts": {
 		"build": "tsc",
 		"dev": "tsc --watch",
 		"clean": "rm -rf dist"
 	},
-	"keywords": [
-		"1sat",
-		"bsv",
-		"ordinals",
-		"wallet",
-		"browser"
-	],
+	"keywords": ["1sat", "bsv", "ordinals", "wallet", "browser"],
 	"license": "MIT",
 	"dependencies": {
 		"@1sat/wallet": "workspace:*"

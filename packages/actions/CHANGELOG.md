@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.96
+
+### Fixed
+- BAP identity key rotation now matches the BAP protocol spec. `publishIdentity` now declares `identity-1` as the signing key (was incorrectly declaring `identity-0`). `rotateIdentity` now correctly declares `identity-N` at sequence N (was off-by-one, declaring `identity-(N-1)`).
+
+### Changed
+- `updateProfile` now handles first-time identity creation by publishing both ID and ALIAS outputs in a single transaction when no BAP ID exists. The ID is signed by `identity-0`, and the ALIAS is signed by the newly declared `identity-1`.
+- Extracted shared `buildIdOutput` helper for creating BAP ID outputs, used by `publishIdentity`, `rotateIdentity`, and `updateProfile`.
+
 ## 0.0.90
 
 ### Changed

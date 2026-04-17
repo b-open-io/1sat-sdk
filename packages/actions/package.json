@@ -1,45 +1,37 @@
 {
-  "name": "@1sat/actions",
-  "version": "0.0.95",
-  "description": "Action definitions for the 1Sat SDK",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "clean": "rm -rf dist",
-    "test": "bun test"
-  },
-  "keywords": [
-    "1sat",
-    "bsv",
-    "actions",
-    "wallet",
-    "ordinals"
-  ],
-  "license": "MIT",
-  "dependencies": {
-    "@1sat/client": "workspace:*",
-    "@1sat/types": "workspace:*",
-    "@1sat/utils": "workspace:*",
-    "@1sat/wallet": "workspace:*",
-    "@1sat/templates": "workspace:*"
-  },
-  "peerDependencies": {
-    "@bsv/sdk": "^2.0.13"
-  },
-  "devDependencies": {
-    "@bsv/sdk": "^2.0.13",
-    "typescript": "^5.9.3"
-  }
+	"name": "@1sat/actions",
+	"version": "0.0.96",
+	"description": "Action definitions for the 1Sat SDK",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": ["dist"],
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"clean": "rm -rf dist",
+		"test": "bun test"
+	},
+	"keywords": ["1sat", "bsv", "actions", "wallet", "ordinals"],
+	"license": "MIT",
+	"dependencies": {
+		"@1sat/client": "workspace:*",
+		"@1sat/types": "workspace:*",
+		"@1sat/utils": "workspace:*",
+		"@1sat/wallet": "workspace:*",
+		"@1sat/templates": "workspace:*"
+	},
+	"peerDependencies": {
+		"@bsv/sdk": "^2.0.13"
+	},
+	"devDependencies": {
+		"@bsv/sdk": "^2.0.13",
+		"typescript": "^5.9.3"
+	}
 }
