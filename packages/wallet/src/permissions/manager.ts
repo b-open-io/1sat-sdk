@@ -1,10 +1,11 @@
-import type { WalletInterface } from '@bsv/sdk'
+import type { WalletInterface, WalletProtocol } from '@bsv/sdk'
 import {
 	type CounterpartyPermissionEventHandler,
 	type GroupedPermissionEventHandler,
 	type GroupedPermissionRequest,
 	type PermissionEventHandler,
 	type PermissionRequest,
+	type PermissionToken,
 	type PermissionsManagerConfig,
 	WalletPermissionsManager,
 	type WalletPermissionsManagerCallbacks,
@@ -13,9 +14,16 @@ import {
 	isExpired,
 	normalizeOriginator,
 	permissionKeyFromRequest,
-	permissionKeysFromGroup,
+	permissionKeyToString,
 } from './key'
-import type { IPermissionStore, StoredGrant } from './types'
+import type {
+	IPermissionStore,
+	ListGrantsFilter,
+	PermissionKey,
+	StoredGrant,
+} from './types'
+
+const IDB_TXID_PREFIX = 'idb:'
 
 export interface LocalWalletPermissionsManagerOptions {
 	/** Store grants are persisted into and read from. */
@@ -35,16 +43,25 @@ type AnyPermissionEventHandler =
  * and keep every other call the same (`bindCallback`, `grantPermission`,
  * `denyPermission`, etc.).
  *
- * Behavior:
- *  - Store-hit short-circuits the prompt callback: `grantPermission` is
- *    invoked silently with `ephemeral: true` and the user's handler never
- *    runs.
- *  - Store-miss falls through to the user's handler as normal. When the
- *    handler calls `grantPermission(...)` on approve, the grant is written
- *    to the store and forwarded to the base class with `ephemeral: true`
- *    so nothing is minted on chain.
- *  - Counterparty pact grants pass through unchanged — those still go
- *    on-chain by design.
+ * Reads:
+ *  - `ensure*Access` checks the local store first; on miss it delegates to
+ *    super (which then consults its own cache, on-chain tokens, and falls
+ *    through to firing a prompt). Existing on-chain grants are honored.
+ *  - Because super's grouped-permission filter calls back through
+ *    `this.has*Access` → `this.ensure*Access`, our overrides are picked up
+ *    polymorphically and the connect-time grouped prompt only requests
+ *    permissions still missing from the store.
+ *
+ * Writes:
+ *  - `grantPermission` writes to the store and resolves super's pending
+ *    request via `super.grantPermission({ ephemeral: true })` (no on-chain
+ *    mint, no cache write).
+ *  - `grantGroupedPermission` writes each granted sub-permission to the
+ *    store and resolves super's pending request via
+ *    `super.dismissGroupedPermission` (no on-chain mint).
+ *
+ * Counterparty pact grants pass through to super unchanged — those still go
+ * on-chain by design.
  */
 export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 	private readonly permissionStore: IPermissionStore
@@ -57,6 +74,7 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 	constructor(
 		underlyingWallet: WalletInterface,
 		adminOriginator: string,
+		// biome-ignore lint/style/useDefaultParameterLast: keeps signature aligned with WalletPermissionsManager
 		config: PermissionsManagerConfig = {},
 		options: LocalWalletPermissionsManagerOptions,
 	) {
@@ -65,7 +83,8 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 	}
 
 	// -----------------------------------------------------------------
-	// Callback binding — wrap user handlers with a store-first check
+	// Callback binding — capture the request so grant overrides can
+	// look it up by requestID later.
 	// -----------------------------------------------------------------
 
 	public override bindCallback(
@@ -79,23 +98,6 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 			const userHandler = handler as GroupedPermissionEventHandler
 			const wrapped: GroupedPermissionEventHandler = async (request) => {
 				this.pendingGrouped.set(request.requestID, request)
-				const keys = permissionKeysFromGroup(
-					request.originator,
-					request.permissions,
-				)
-				if (keys.length > 0) {
-					const grants = await Promise.all(
-						keys.map((k) => this.permissionStore.findGrant(k)),
-					)
-					const allHit =
-						grants.length === keys.length &&
-						grants.every((g) => g != null && !isExpired(g.expiry))
-					if (allHit) {
-						await super.dismissGroupedPermission(request.requestID)
-						this.pendingGrouped.delete(request.requestID)
-						return
-					}
-				}
 				return userHandler(request)
 			}
 			return super.bindCallback(eventName, wrapped)
@@ -104,29 +106,124 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 		const userHandler = handler as PermissionEventHandler
 		const wrapped: PermissionEventHandler = async (request) => {
 			this.pendingSingle.set(request.requestID, request)
-			const key = permissionKeyFromRequest(request)
-			const existing = await this.permissionStore.findGrant(key)
-			if (existing && !isExpired(existing.expiry)) {
-				await super.grantPermission({
-					requestID: request.requestID,
-					ephemeral: true,
-				})
-				this.pendingSingle.delete(request.requestID)
-				return
-			}
 			return userHandler(request)
 		}
 		return super.bindCallback(eventName, wrapped)
 	}
 
 	// -----------------------------------------------------------------
-	// Grant / deny overrides — write store + force ephemeral
+	// Read overrides — store-first, then delegate to super.
+	// -----------------------------------------------------------------
+
+	public override async ensureProtocolPermission(args: {
+		originator: string
+		privileged: boolean
+		protocolID: WalletProtocol
+		counterparty: string
+		reason?: string
+		seekPermission?: boolean
+		usageType:
+			| 'signing'
+			| 'encrypting'
+			| 'hmac'
+			| 'publicKey'
+			| 'identityKey'
+			| 'linkageRevelation'
+			| 'generic'
+	}): Promise<boolean> {
+		const counterparty =
+			args.protocolID[0] === 1 ? '' : (args.counterparty ?? 'self')
+		const key: PermissionKey = {
+			type: 'protocol',
+			originator: normalizeOriginator(args.originator),
+			privileged: !!args.privileged,
+			protocolLevel: args.protocolID[0] as 0 | 1 | 2,
+			protocolName: args.protocolID[1],
+			counterparty,
+		}
+		if (await this.storeHit(key)) return true
+		return super.ensureProtocolPermission(args)
+	}
+
+	public override async ensureBasketAccess(args: {
+		originator: string
+		basket: string
+		reason?: string
+		seekPermission?: boolean
+		usageType: 'insertion' | 'removal' | 'listing'
+	}): Promise<boolean> {
+		const key: PermissionKey = {
+			type: 'basket',
+			originator: normalizeOriginator(args.originator),
+			basket: args.basket,
+		}
+		if (await this.storeHit(key)) return true
+		return super.ensureBasketAccess(args)
+	}
+
+	public override async ensureCertificateAccess(args: {
+		originator: string
+		privileged: boolean
+		verifier: string
+		certType: string
+		fields: string[]
+		reason?: string
+		seekPermission?: boolean
+		usageType: 'disclosure'
+	}): Promise<boolean> {
+		const key: PermissionKey = {
+			type: 'certificate',
+			originator: normalizeOriginator(args.originator),
+			privileged: !!args.privileged,
+			verifier: args.verifier,
+			certType: args.certType,
+			fields: [...args.fields].sort(),
+		}
+		if (await this.storeHit(key)) return true
+		return super.ensureCertificateAccess(args)
+	}
+
+	public override async ensureSpendingAuthorization(args: {
+		originator: string
+		satoshis: number
+		lineItems?: Array<{
+			type: 'input' | 'output' | 'fee'
+			description: string
+			satoshis: number
+		}>
+		reason?: string
+		seekPermission?: boolean
+	}): Promise<boolean> {
+		const key: PermissionKey = {
+			type: 'spending',
+			originator: normalizeOriginator(args.originator),
+		}
+		const grant = await this.permissionStore.findGrant(key)
+		if (
+			grant &&
+			!isExpired(grant.expiry) &&
+			(grant.authorizedAmount ?? 0) >= args.satoshis
+		) {
+			return true
+		}
+		return super.ensureSpendingAuthorization(args)
+	}
+
+	private async storeHit(key: PermissionKey): Promise<boolean> {
+		const grant = await this.permissionStore.findGrant(key)
+		return !!grant && !isExpired(grant.expiry)
+	}
+
+	// -----------------------------------------------------------------
+	// Grant / deny overrides — write store, resolve super's pending
+	// without minting on chain.
 	// -----------------------------------------------------------------
 
 	public override async grantPermission(params: {
 		requestID: string
 		expiry?: number
 		ephemeral?: boolean
+		amount?: number
 	}): Promise<void> {
 		const request = this.pendingSingle.get(params.requestID)
 		if (request) {
@@ -137,7 +234,9 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 				grantedAt: Date.now(),
 				reason: request.reason,
 			}
-			if (
+			if (key.type === 'spending' && params.amount != null) {
+				grant.authorizedAmount = params.amount
+			} else if (
 				request.type === 'spending' &&
 				request.spending?.satoshis != null
 			) {
@@ -156,29 +255,74 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 
 	public override async grantGroupedPermission(params: {
 		requestID: string
-		granted: Partial<import('@bsv/wallet-toolbox/out/src/index.client.js').GroupedPermissions>
+		granted: Partial<
+			import('@bsv/wallet-toolbox/out/src/index.client.js').GroupedPermissions
+		>
 		expiry?: number
 	}): Promise<void> {
 		const request = this.pendingGrouped.get(params.requestID)
 		if (request) {
-			const normalized = normalizeOriginator(request.originator)
-			const grantedKeys = permissionKeysFromGroup(normalized, params.granted)
+			const originator = normalizeOriginator(request.originator)
 			const now = Date.now()
 			const expiry = params.expiry ?? 0
-			for (const key of grantedKeys) {
-				const grant: StoredGrant = { key, expiry, grantedAt: now }
-				if (
-					key.type === 'spending' &&
-					params.granted.spendingAuthorization
-				) {
-					grant.authorizedAmount = params.granted.spendingAuthorization.amount
-					grant.reason = params.granted.spendingAuthorization.description
-				}
-				await this.permissionStore.putGrant(grant)
+
+			if (params.granted.spendingAuthorization) {
+				await this.permissionStore.putGrant({
+					key: { type: 'spending', originator },
+					expiry,
+					grantedAt: now,
+					authorizedAmount: params.granted.spendingAuthorization.amount,
+					reason: params.granted.spendingAuthorization.description,
+				})
 			}
+
+			for (const p of params.granted.protocolPermissions ?? []) {
+				if (p.counterparty === '') continue
+				const level = p.protocolID[0] as 0 | 1 | 2
+				const counterparty = level === 1 ? '' : (p.counterparty ?? 'self')
+				await this.permissionStore.putGrant({
+					key: {
+						type: 'protocol',
+						originator,
+						privileged: false,
+						protocolLevel: level,
+						protocolName: p.protocolID[1],
+						counterparty,
+					},
+					expiry,
+					grantedAt: now,
+					reason: p.description,
+				})
+			}
+
+			for (const b of params.granted.basketAccess ?? []) {
+				await this.permissionStore.putGrant({
+					key: { type: 'basket', originator, basket: b.basket },
+					expiry,
+					grantedAt: now,
+					reason: b.description,
+				})
+			}
+
+			for (const c of params.granted.certificateAccess ?? []) {
+				await this.permissionStore.putGrant({
+					key: {
+						type: 'certificate',
+						originator,
+						privileged: false,
+						verifier: c.verifierPublicKey,
+						certType: c.type,
+						fields: [...c.fields].sort(),
+					},
+					expiry,
+					grantedAt: now,
+					reason: c.description,
+				})
+			}
+
 			this.pendingGrouped.delete(params.requestID)
 		}
-		return super.grantGroupedPermission(params)
+		return super.dismissGroupedPermission(params.requestID)
 	}
 
 	public override async denyGroupedPermission(
@@ -196,14 +340,303 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 	}
 
 	// -----------------------------------------------------------------
-	// Revocation — remove from store in addition to on-chain
+	// Listing — merge IDB grants with super's on-chain tokens.
+	// -----------------------------------------------------------------
+
+	public override async listProtocolPermissions(
+		filter: {
+			originator?: string
+			privileged?: boolean
+			protocolName?: string
+			protocolSecurityLevel?: number
+			counterparty?: string
+		} = {},
+	): Promise<PermissionToken[]> {
+		const onchain = await super.listProtocolPermissions(filter)
+		const idb = await this.idbTokensFor('protocol', filter.originator, (g) => {
+			if (g.key.type !== 'protocol') return false
+			if (
+				filter.privileged !== undefined &&
+				g.key.privileged !== filter.privileged
+			) {
+				return false
+			}
+			if (
+				filter.protocolName !== undefined &&
+				g.key.protocolName !== filter.protocolName
+			) {
+				return false
+			}
+			if (
+				filter.protocolSecurityLevel !== undefined &&
+				g.key.protocolLevel !== filter.protocolSecurityLevel
+			) {
+				return false
+			}
+			if (
+				filter.counterparty !== undefined &&
+				g.key.counterparty !== filter.counterparty
+			) {
+				return false
+			}
+			return true
+		})
+		return mergeTokens(onchain, idb)
+	}
+
+	public override async listBasketAccess(
+		params: { originator?: string; basket?: string } = {},
+	): Promise<PermissionToken[]> {
+		const onchain = await super.listBasketAccess(params)
+		const idb = await this.idbTokensFor('basket', params.originator, (g) => {
+			if (g.key.type !== 'basket') return false
+			if (params.basket !== undefined && g.key.basket !== params.basket) {
+				return false
+			}
+			return true
+		})
+		return mergeTokens(onchain, idb)
+	}
+
+	public override async listSpendingAuthorizations(params: {
+		originator?: string
+	}): Promise<PermissionToken[]> {
+		const onchain = await super.listSpendingAuthorizations(params)
+		const idb = await this.idbTokensFor(
+			'spending',
+			params.originator,
+			(g) => g.key.type === 'spending',
+		)
+		return mergeTokens(onchain, idb)
+	}
+
+	public override async listCertificateAccess(
+		params: {
+			originator?: string
+			privileged?: boolean
+			certType?: string
+			verifier?: string
+		} = {},
+	): Promise<PermissionToken[]> {
+		const onchain = await super.listCertificateAccess(params)
+		const idb = await this.idbTokensFor(
+			'certificate',
+			params.originator,
+			(g) => {
+				if (g.key.type !== 'certificate') return false
+				if (
+					params.privileged !== undefined &&
+					g.key.privileged !== params.privileged
+				) {
+					return false
+				}
+				if (
+					params.certType !== undefined &&
+					g.key.certType !== params.certType
+				) {
+					return false
+				}
+				if (
+					params.verifier !== undefined &&
+					g.key.verifier !== params.verifier
+				) {
+					return false
+				}
+				return true
+			},
+		)
+		return mergeTokens(onchain, idb)
+	}
+
+	private async idbTokensFor(
+		type: ListGrantsFilter['type'],
+		originator: string | undefined,
+		predicate: (g: StoredGrant) => boolean,
+	): Promise<PermissionToken[]> {
+		const filter: ListGrantsFilter = { type }
+		if (originator) filter.originator = normalizeOriginator(originator)
+		const grants = await this.permissionStore.listGrants(filter)
+		return grants.filter(predicate).map(grantToToken)
+	}
+
+	// -----------------------------------------------------------------
+	// Revocation — clear store, then delegate on-chain spend to super.
 	// -----------------------------------------------------------------
 
 	public override async revokeAllForOriginator(
 		originator: string,
-	): Promise<import('@bsv/wallet-toolbox/out/src/index.client.js').PermissionToken[]> {
+	): Promise<PermissionToken[]> {
 		const normalized = normalizeOriginator(originator)
 		await this.permissionStore.deleteAllForOriginator(normalized)
 		return super.revokeAllForOriginator(normalized)
 	}
+
+	public override async revokePermission(
+		oldToken: PermissionToken,
+	): Promise<void> {
+		const idbKey = idbKeyFromToken(oldToken)
+		if (idbKey) {
+			await this.permissionStore.deleteGrant(idbKey)
+		}
+		if (oldToken.txid.startsWith(IDB_TXID_PREFIX)) {
+			return
+		}
+		return super.revokePermission(oldToken)
+	}
+}
+
+function grantToToken(grant: StoredGrant): PermissionToken {
+	const base: PermissionToken = {
+		txid: `${IDB_TXID_PREFIX}${permissionKeyToString(grant.key)}`,
+		tx: [],
+		outputIndex: 0,
+		outputScript: '',
+		satoshis: 0,
+		originator: grant.key.originator,
+		expiry: grant.expiry,
+	}
+	switch (grant.key.type) {
+		case 'protocol':
+			base.privileged = grant.key.privileged
+			base.protocol = grant.key.protocolName
+			base.securityLevel = grant.key.protocolLevel
+			base.counterparty = grant.key.counterparty
+			break
+		case 'basket':
+			base.basketName = grant.key.basket
+			break
+		case 'certificate':
+			base.privileged = grant.key.privileged
+			base.certType = grant.key.certType
+			base.certFields = grant.key.fields
+			base.verifier = grant.key.verifier
+			break
+		case 'spending':
+			if (grant.authorizedAmount != null) {
+				base.authorizedAmount = grant.authorizedAmount
+			}
+			break
+	}
+	return base
+}
+
+function idbKeyFromToken(token: PermissionToken): PermissionKey | null {
+	if (token.txid.startsWith(IDB_TXID_PREFIX)) {
+		return parseIdbKey(token.txid.slice(IDB_TXID_PREFIX.length))
+	}
+	const originator = normalizeOriginator(token.originator)
+	if (token.basketName) {
+		return { type: 'basket', originator, basket: token.basketName }
+	}
+	if (token.protocol && token.securityLevel !== undefined) {
+		return {
+			type: 'protocol',
+			originator,
+			privileged: !!token.privileged,
+			protocolLevel: token.securityLevel,
+			protocolName: token.protocol,
+			counterparty: token.counterparty ?? 'self',
+		}
+	}
+	if (token.certType && token.verifier && token.certFields) {
+		return {
+			type: 'certificate',
+			originator,
+			privileged: !!token.privileged,
+			verifier: token.verifier,
+			certType: token.certType,
+			fields: [...token.certFields].sort(),
+		}
+	}
+	if (token.authorizedAmount !== undefined) {
+		return { type: 'spending', originator }
+	}
+	return null
+}
+
+function parseIdbKey(serialized: string): PermissionKey | null {
+	const idx = serialized.indexOf(':')
+	if (idx < 0) return null
+	const tag = serialized.slice(0, idx)
+	const rest = serialized.slice(idx + 1)
+	if (tag === 'basket') {
+		const sep = rest.indexOf(':')
+		if (sep < 0) return null
+		return {
+			type: 'basket',
+			originator: rest.slice(0, sep),
+			basket: rest.slice(sep + 1),
+		}
+	}
+	if (tag === 'spend') {
+		return { type: 'spending', originator: rest }
+	}
+	if (tag === 'proto') {
+		const parts = rest.split(':')
+		if (parts.length < 4) return null
+		const [originator, privileged, levelAndName, counterparty] = parts
+		const commaIdx = levelAndName.indexOf(',')
+		if (commaIdx < 0) return null
+		const level = Number(levelAndName.slice(0, commaIdx)) as 0 | 1 | 2
+		const protocolName = levelAndName.slice(commaIdx + 1)
+		return {
+			type: 'protocol',
+			originator,
+			privileged: privileged === 'true',
+			protocolLevel: level,
+			protocolName,
+			counterparty,
+		}
+	}
+	if (tag === 'cert') {
+		const parts = rest.split(':')
+		if (parts.length < 5) return null
+		const [originator, privileged, verifier, certType, fieldsJoined] = parts
+		return {
+			type: 'certificate',
+			originator,
+			privileged: privileged === 'true',
+			verifier,
+			certType,
+			fields: fieldsJoined ? fieldsJoined.split('|') : [],
+		}
+	}
+	return null
+}
+
+function mergeTokens(
+	onchain: PermissionToken[],
+	idb: PermissionToken[],
+): PermissionToken[] {
+	const seen = new Set<string>()
+	const out: PermissionToken[] = []
+	for (const t of onchain) {
+		const k = onchainSignature(t)
+		if (k) seen.add(k)
+		out.push(t)
+	}
+	for (const t of idb) {
+		const k = idbSignature(t)
+		if (k && seen.has(k)) continue
+		out.push(t)
+	}
+	return out
+}
+
+function onchainSignature(t: PermissionToken): string | null {
+	const originator = normalizeOriginator(t.originator)
+	if (t.basketName) return `basket:${originator}:${t.basketName}`
+	if (t.protocol && t.securityLevel !== undefined) {
+		return `proto:${originator}:${!!t.privileged}:${t.securityLevel},${t.protocol}:${t.counterparty ?? 'self'}`
+	}
+	if (t.certType && t.verifier && t.certFields) {
+		return `cert:${originator}:${!!t.privileged}:${t.verifier}:${t.certType}:${[...t.certFields].sort().join('|')}`
+	}
+	if (t.authorizedAmount !== undefined) return `spend:${originator}`
+	return null
+}
+
+function idbSignature(t: PermissionToken): string | null {
+	if (!t.txid.startsWith(IDB_TXID_PREFIX)) return null
+	return t.txid.slice(IDB_TXID_PREFIX.length)
 }

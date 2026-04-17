@@ -1,6 +1,6 @@
 {
   "name": "@1sat/wallet-remote",
-	"version": "0.0.19",
+  "version": "0.0.20",
   "description": "Remote-only wallet factory for 1Sat Ordinals SDK",
   "type": "module",
   "main": "./dist/index.js",
