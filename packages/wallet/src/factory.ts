@@ -28,7 +28,19 @@ export interface WalletCoreResult {
 	storage: InstanceType<any>
 	destroy: () => Promise<void>
 	remoteClients: InstanceType<any>[]
-	migrateRemote: (url: string) => Promise<void>
+	/**
+	 * Switch the active storage. Pass 'local' to promote the local storage
+	 * provider to active (throws if no local storage was configured), or a
+	 * URL to promote an already-configured remote (or connect it first if
+	 * not yet known). Data is migrated from the current active into every
+	 * other store by WalletStorageManager.setActive before the pointer flips.
+	 */
+	setActiveStorage: (target: 'local' | string) => Promise<void>
+	/**
+	 * Connect a remote URL as a non-active backup. Does not change the
+	 * active store. No-op if the URL is already registered.
+	 */
+	addRemote: (url: string) => Promise<void>
 	feeModel: { model: 'sat/kb'; value: number }
 }
 
@@ -162,9 +174,23 @@ export async function createWalletCore(
 		}
 	}
 
-	// 6. migrateRemote implementation
-	const migrateRemote = async (url: string): Promise<void> => {
-		const existing = remoteClients.find((c) => c.endpointUrl === url)
+	// 6. Remote management operations
+	const setActiveStorage = async (
+		target: 'local' | string,
+	): Promise<void> => {
+		if (target === 'local') {
+			if (!localStorage) {
+				throw new Error(
+					'setActiveStorage("local") called on a wallet with no local storage',
+				)
+			}
+			const localKey = (await localStorage.makeAvailable())
+				.storageIdentityKey
+			await storage.setActive(localKey)
+			return
+		}
+
+		const existing = remoteClients.find((c) => c.endpointUrl === target)
 		if (existing) {
 			const settings = existing.getSettings()
 			if (settings?.storageIdentityKey) {
@@ -173,12 +199,19 @@ export async function createWalletCore(
 			return
 		}
 
-		const client = await connectRemote(url)
+		const client = await connectRemote(target)
 		const settings = client.getSettings()
 		if (settings?.storageIdentityKey) {
 			await storage.setActive(settings.storageIdentityKey)
 		}
 
+		wireBackupInterception()
+	}
+
+	const addRemote = async (url: string): Promise<void> => {
+		const existing = remoteClients.find((c) => c.endpointUrl === url)
+		if (existing) return
+		await connectRemote(url)
 		wireBackupInterception()
 	}
 
@@ -193,7 +226,8 @@ export async function createWalletCore(
 		storage,
 		destroy,
 		remoteClients,
-		migrateRemote,
+		setActiveStorage,
+		addRemote,
 		feeModel,
 	}
 }

@@ -34,7 +34,8 @@ export interface WebWalletResult {
 	destroy: () => Promise<void>
 	storage: WalletStorageManager
 	remoteStorage?: StorageClient
-	migrateRemote: (url: string) => Promise<void>
+	setActiveStorage: (target: 'local' | string) => Promise<void>
+	addRemote: (url: string) => Promise<void>
 }
 
 export async function createWebWallet(
@@ -98,6 +99,7 @@ export async function createWebWallet(
 		destroy,
 		storage: core.storage,
 		remoteStorage: core.remoteClients[0],
-		migrateRemote: core.migrateRemote,
+		setActiveStorage: core.setActiveStorage,
+		addRemote: core.addRemote,
 	}
 }

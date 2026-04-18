@@ -29,7 +29,7 @@
     },
     "packages/actions": {
       "name": "@1sat/actions",
-      "version": "0.0.97",
+      "version": "0.0.98",
       "dependencies": {
         "@1sat/client": "workspace:*",
         "@1sat/templates": "workspace:*",
@@ -47,7 +47,7 @@
     },
     "packages/cli": {
       "name": "@1sat/cli",
-      "version": "0.0.29",
+      "version": "0.0.30",
       "bin": {
         "1sat": "./src/cli.ts",
       },
@@ -85,7 +85,7 @@
     },
     "packages/connect": {
       "name": "@1sat/connect",
-      "version": "0.0.33",
+      "version": "0.0.34",
       "dependencies": {
         "@1sat/wallet": "workspace:*",
         "@sigma-auth/better-auth-plugin": "^0.0.84",
@@ -132,7 +132,7 @@
     },
     "packages/react": {
       "name": "@1sat/react",
-      "version": "0.0.42",
+      "version": "0.0.43",
       "dependencies": {
         "@1sat/connect": "workspace:*",
       },
@@ -149,7 +149,7 @@
     },
     "packages/sweep-ui": {
       "name": "@1sat/sweep-ui",
-      "version": "0.0.32",
+      "version": "0.0.33",
       "dependencies": {
         "@1sat/actions": "workspace:*",
         "@1sat/client": "workspace:*",
@@ -223,7 +223,7 @@
     },
     "packages/wallet": {
       "name": "@1sat/wallet",
-      "version": "0.0.45",
+      "version": "0.0.46",
       "dependencies": {
         "@1sat/client": "workspace:*",
         "@1sat/templates": "workspace:*",
@@ -244,7 +244,7 @@
     },
     "packages/wallet-browser": {
       "name": "@1sat/wallet-browser",
-      "version": "0.0.35",
+      "version": "0.0.36",
       "dependencies": {
         "@1sat/wallet": "workspace:*",
       },
@@ -263,7 +263,7 @@
     },
     "packages/wallet-desktop": {
       "name": "@1sat/wallet-desktop",
-      "version": "0.0.13",
+      "version": "0.0.14",
       "dependencies": {
         "@1sat/actions": "^0.0.96",
         "@1sat/client": "workspace:*",
@@ -358,7 +358,7 @@
     },
     "packages/wallet-node": {
       "name": "@1sat/wallet-node",
-      "version": "0.0.27",
+      "version": "0.0.28",
       "dependencies": {
         "@1sat/wallet": "workspace:*",
       },
@@ -375,7 +375,7 @@
     },
     "packages/wallet-remote": {
       "name": "@1sat/wallet-remote",
-      "version": "0.0.21",
+      "version": "0.0.22",
       "dependencies": {
         "@1sat/wallet": "workspace:*",
       },
@@ -2425,8 +2425,6 @@
     "cacache/glob": ["glob@13.0.6", "", { "dependencies": { "minimatch": "^10.2.2", "minipass": "^7.1.3", "path-scurry": "^2.0.2" } }, "sha512-Wjlyrolmm8uDpm/ogGyXZXb1Z+Ca2B8NbJwqBVg0axK9GbBeoS7yGV6vjXnYdGm6X53iehEuxxbyiKp8QmN4Vw=="],
 
     "cacache/lru-cache": ["lru-cache@11.3.5", "", {}, "sha512-NxVFwLAnrd9i7KUBxC4DrUhmgjzOs+1Qm50D3oF1/oL+r1NpZ4gA7xvG0/zJ8evR7zIKn4vLf7qTNduWFtCrRw=="],
-
-    "cmdk/@radix-ui/react-primitive": ["@radix-ui/react-primitive@2.1.4", "", { "dependencies": { "@radix-ui/react-slot": "1.2.4" }, "peerDependencies": { "@types/react": "*", "@types/react-dom": "*", "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc", "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc" }, "optionalPeers": ["@types/react", "@types/react-dom"] }, "sha512-9hQc4+GNVtJAIEPEqlYqW5RiYdrr8ea5XQ0ZOnD6fgru+83kqT15mq2OCcbe8KnjRZl5vF3ks69AKz3kh1jrhg=="],
 
     "concurrently/chalk": ["chalk@4.1.2", "", { "dependencies": { "ansi-styles": "^4.1.0", "supports-color": "^7.1.0" } }, "sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA=="],
 

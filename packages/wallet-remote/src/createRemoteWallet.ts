@@ -24,7 +24,8 @@ export interface RemoteWalletResult {
 	destroy: () => Promise<void>
 	storage: WalletStorageManager
 	feeModel: { model: 'sat/kb'; value: number }
-	migrateRemote: (url: string) => Promise<void>
+	setActiveStorage: (target: 'local' | string) => Promise<void>
+	addRemote: (url: string) => Promise<void>
 }
 
 export async function createRemoteWallet(
@@ -44,6 +45,7 @@ export async function createRemoteWallet(
 		destroy: core.destroy,
 		storage: core.storage,
 		feeModel: core.feeModel,
-		migrateRemote: core.migrateRemote,
+		setActiveStorage: core.setActiveStorage,
+		addRemote: core.addRemote,
 	}
 }

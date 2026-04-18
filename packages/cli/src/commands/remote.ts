@@ -305,7 +305,7 @@ async function remoteSetActive(
 				console.log(`  Switching active storage to ${target}...`)
 			}
 
-			await walletResult.migrateRemote(target)
+			await walletResult.setActiveStorage(target)
 
 			// Persist to config
 			saveConfig({ ...config, activeRemote: target })
