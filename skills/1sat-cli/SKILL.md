@@ -42,19 +42,9 @@ Config directory: `~/.1sat/`
 
 ### Monitor (Background Sync)
 
-The CLI runs a background monitor that automatically syncs wallet state on wallet commands. Configured via `monitorIntervalMinutes` in `~/.1sat/config.json` (default: 5 minutes).
+The CLI runs the wallet's transaction-lifecycle Monitor once on every invocation when local storage is active. The Monitor services pending broadcasts, merkle proofs, and related tasks. Individual tasks self-throttle on their own intervals, so running many CLI commands in rapid succession does not trigger repeated work — it's a cheap no-op once each task's interval is satisfied.
 
-- Monitor runs automatically when you run wallet-related commands
-- No manual `wallet sync` needed — just run your command
-- Set to `0` to disable auto-monitor
-
-```bash
-# Check current config
-bunx @1sat/cli config show
-
-# Disable auto-monitor (set to 0)
-bunx @1sat/cli config set monitorIntervalMinutes 0
-```
+There is no user-facing monitor configuration. No interval knob, no disable flag — nothing to tune. If a remote is the active storage, the server runs its own monitor and the CLI skips firing one client-side.
 
 ### Database Locations
 

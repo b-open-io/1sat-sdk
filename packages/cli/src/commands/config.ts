@@ -30,7 +30,6 @@ const SETTABLE_KEYS: Array<keyof OneSatCliConfig> = [
 	'chain',
 	'dataDir',
 	'storageIdentityKey',
-	'monitorIntervalMinutes',
 ]
 
 export async function handleConfigCommand(
@@ -74,7 +73,6 @@ function configShow(opts: GlobalFlags): void {
 		chain: config.chain,
 		dataDir: config.dataDir,
 		storageIdentityKey: config.storageIdentityKey ?? '(not set)',
-		monitorIntervalMinutes: config.monitorIntervalMinutes,
 	})
 	console.log()
 	console.log(
@@ -101,14 +99,6 @@ function configSet(args: string[], opts: GlobalFlags): void {
 	// Validate specific keys
 	if (key === 'chain' && value !== 'main' && value !== 'test') {
 		fatal("chain must be 'main' or 'test'")
-	}
-	if (key === 'monitorIntervalMinutes') {
-		const n = Number(value)
-		if (!Number.isFinite(n) || n < 0) {
-			fatal(
-				'monitorIntervalMinutes must be a non-negative number (0 to disable)',
-			)
-		}
 	}
 
 	const updated = updateConfig({ [key]: value })

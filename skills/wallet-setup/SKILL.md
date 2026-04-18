@@ -1,119 +1,193 @@
 ---
 name: wallet-setup
-description: "This skill should be used when setting up a 1Sat wallet, creating a new wallet instance, syncing addresses, configuring storage, or restoring from backup. Triggers on 'create wallet', 'setup wallet', 'initialize wallet', 'sync wallet', 'restore wallet', 'wallet backup', 'address sync', 'wallet storage', 'IndexedDB wallet', 'SQLite wallet', 'BRC-100 wallet', 'wallet factory', 'remote wallet', or 'full sync'. Uses @1sat/wallet, @1sat/wallet-node, and @1sat/wallet-remote packages. Note: @1sat/wallet-browser is deprecated in favor of @1sat/wallet-remote."
+description: "This skill should be used when setting up a 1Sat wallet programmatically, creating a new wallet instance, configuring local + remote storage, managing the active storage, syncing addresses, or restoring from a backup file. Triggers on 'create wallet', 'setup wallet', 'initialize wallet', 'wallet storage', 'active storage', 'IndexedDB wallet', 'SQLite wallet', 'BRC-100 wallet', 'wallet factory', 'remote storage', 'set active storage', 'add remote', 'address sync', 'full sync', 'wallet backup', or 'restore backup'. Uses @1sat/wallet, @1sat/wallet-node, @1sat/wallet-browser, and @1sat/wallet-remote packages."
 ---
 
 # Wallet Setup
 
-Create, configure, and sync 1Sat wallets for Node.js, browser, or remote environments.
+Create, configure, and manage 1Sat wallets programmatically across Node.js, browser (extension / web app), or thin-client environments.
 
-## Packages
+## Package choice
 
-| Package | Environment | Storage |
-|---------|-------------|---------|
-| `@1sat/wallet-node` | Node.js / Bun | SQLite (Knex) or MySQL |
-| `@1sat/wallet-remote` | Any (thin client) | Remote server only |
-| `@1sat/wallet` | Core library | Indexers, backup, address sync |
-| `@1sat/wallet-browser` | **Deprecated** | Use `@1sat/wallet-remote` instead |
+Each package is a thin shim over a shared factory in `@1sat/wallet`. They differ only in what local storage they create.
 
-## Node.js Wallet
+| Package | Environment | Local storage |
+|---|---|---|
+| `@1sat/wallet-node` | Node.js / Bun (server, CLI) | SQLite via `StorageBunSqlite` or `StorageKnex` |
+| `@1sat/wallet-browser` | Browser (extensions, web apps) | IndexedDB via `StorageIdb` |
+| `@1sat/wallet-remote` | Any (thin client) | **None** — remote is the only store |
+| `@1sat/wallet` | Core factory consumed by the above | n/a |
+
+Pick `wallet-remote` only when you explicitly do not want a local store. For everything else (including extensions), pick the environment-specific package — `wallet-node` or `wallet-browser`.
+
+## Core config
+
+All three factories take the same shape (minus the local-storage fields that don't apply to `wallet-remote`).
+
+```typescript
+{
+  privateKey: PrivateKey | string,       // PrivateKey, WIF, or 64-char hex
+  chain: 'main' | 'test',
+  feeModel?: { model: 'sat/kb', value: number },   // default { model: 'sat/kb', value: 100 }
+
+  // Storage topology
+  activeRemote?: string,                 // URL of the active remote, or undefined for local-active
+  backups?: string[],                    // Additional remote URLs registered as backups
+  storageIdentityKey: string,            // Unique identifier for the local store on this install
+
+  // Transaction lifecycle callbacks (only fire while Monitor runs)
+  onTransactionBroadcasted?: (txid: string) => void,
+  onTransactionProven?: (txid: string, blockHeight: number) => void,
+
+  connectionTimeout?: number,            // Remote connection timeout in ms, default 5000
+}
+```
+
+### `storageIdentityKey`
+
+This identifies the **local store** to the `WalletStorageManager`. It must be **unique per install** — two installs of the same account that both claim the same `storageIdentityKey` will be indistinguishable to the remote's `user.activeStorage` tracking, leading to data divergence.
+
+Pick something like a UUID or `<app>-<random-hex>` at install time and persist it. Don't hardcode a constant across installs.
+
+### `activeRemote` and `backups`
+
+- `activeRemote` unset ⇒ local is the active store; optional `backups[]` are remotes that receive `updateBackups()` pushes.
+- `activeRemote` set ⇒ that remote is active; local (if created by the factory) is added as a backup automatically; additional URLs in `backups[]` are added alongside.
+- A URL passed as `activeRemote` should not also appear in `backups[]` — the factory does not dedup.
+
+## Node.js wallet
 
 ```typescript
 import { createNodeWallet } from '@1sat/wallet-node'
 
-const { wallet, services, monitor, destroy, fullSync } = await createNodeWallet({
-  privateKey: 'L1...', // PrivateKey instance, WIF string, or hex string
-  chain: 'main',       // 'main' | 'test'
-  storageIdentityKey: 'my-cli-agent', // unique per device, persist across sessions
-  // Optional:
-  storage: {           // Knex.Config — default: SQLite at ./wallet.db
-    client: 'mysql2',
-    connection: { host: '127.0.0.1', user: 'root', password: '...', database: 'wallet' },
-    useNullAsDefault: true,
-  },
-  remoteStorageUrl: 'https://storage.example.com', // enables cloud backup
-  feeModel: { model: 'sat/kb', value: 100 },       // default shown
+const result = await createNodeWallet({
+  privateKey: 'L1...',
+  chain: 'main',
+  storageIdentityKey: 'my-agent-abc123',
+  filename: '~/.myapp/wallet.db',        // default: './wallet.db'
+
+  activeRemote: 'https://storage.example.com',   // optional
+  backups: ['https://backup.example.com'],        // optional
+
   onTransactionBroadcasted: (txid) => console.log('Broadcast:', txid),
   onTransactionProven: (txid, blockHeight) => console.log('Proven:', txid, blockHeight),
 })
 
-// Monitor handles tx lifecycle (broadcasting, proof checking)
-// It is created but NOT started — call startTasks() when ready
-monitor.startTasks()
+// ...use result.wallet for BRC-100 operations
 
-// When done: stops monitor, destroys wallet, closes database
-await destroy()
+await result.destroy()  // stops monitor, destroys wallet, closes DB
 ```
 
-### NodeWalletResult
+### `NodeWalletResult`
 
-| Property | Type | Description |
-|----------|------|-------------|
+| Field | Type | Notes |
+|---|---|---|
 | `wallet` | `Wallet` | BRC-100 wallet instance |
 | `services` | `OneSatServices` | 1Sat API access |
-| `monitor` | `Monitor` | Transaction lifecycle monitor (call `startTasks()`) |
+| `monitor` | `Monitor` | Always present. See "Monitor" below. |
+| `storage` | `WalletStorageManager` | Multi-store manager (active + backups) |
+| `remoteStorage` | `StorageClient?` | Convenience handle to the first configured remote, if any |
+| `setActiveStorage` | `(target: 'local' \| string) => Promise<void>` | Switch the active store |
+| `addRemote` | `(url: string) => Promise<void>` | Register a remote as a non-active backup |
 | `destroy` | `() => Promise<void>` | Cleanup: stops monitor, destroys wallet, closes DB |
-| `fullSync` | `((onProgress?) => Promise<FullSyncResult>) \| undefined` | Only available if `remoteStorageUrl` was provided and connected |
-| `storage` | `WalletStorageManager` | For diagnostics |
-| `remoteStorage` | `StorageClient \| undefined` | For diagnostics |
 
-## Checking Balance
+## Browser wallet
 
 ```typescript
-const balance = await wallet.balance()
-// Returns satoshis as a number (0 if empty wallet, never throws)
+import { createWebWallet } from '@1sat/wallet-browser'
+
+const result = await createWebWallet({
+  privateKey: keys.identityWif,
+  chain: 'main',
+  storageIdentityKey: 'yours-abc123',
+
+  activeRemote: undefined,               // undefined = local-active
+  backups: ['https://api.1sat.app/1sat/wallet'],
+})
 ```
 
-If `createAction` is called with insufficient funds, it throws `WERR_INSUFFICIENT_FUNDS` with `totalSatoshisNeeded` and `moreSatoshisNeeded` properties.
+Shape of the result matches `NodeWalletResult` minus Node-specific fields. Local storage is an IndexedDB (`StorageIdb`).
 
-## Remote Wallet
+## Remote wallet (thin client)
 
-No local storage. The server handles transaction lifecycle.
+No local storage; `activeRemote` is required.
 
 ```typescript
 import { createRemoteWallet } from '@1sat/wallet-remote'
 
-const { wallet, services, destroy, feeModel } = await createRemoteWallet({
+const result = await createRemoteWallet({
   privateKey: 'L1...',
   chain: 'main',
-  remoteStorageUrl: 'https://my-wallet-server.example.com',
-  // Optional:
-  feeModel: { model: 'sat/kb', value: 100 },
-  connectionTimeout: 5000, // default: 5000ms
+  activeRemote: 'https://storage.example.com',
+  backups: ['https://mirror.example.com'],   // optional
 })
 ```
 
-`RemoteWalletResult` has no `monitor` or `fullSync` — the server manages those. It includes `feeModel` indicating the effective fee model used.
+`RemoteWalletResult` has no `monitor` (the server runs its own) and no `remoteStorage` convenience handle. `setActiveStorage('local')` throws because there is no local store.
 
-## Full Sync (Multi-Device Handoff)
+## Storage topology operations
 
-`fullSync` reconciles local and remote storage. It pushes local changes, resets sync state, then pulls everything from the server. This runs automatically during wallet creation when another device is active, or can be called manually via the `fullSync` property on the wallet result.
+After creation, the wallet result exposes three active-storage operations:
 
 ```typescript
-// Only available if remoteStorageUrl was provided and connected
-if (fullSync) {
-  const result = await fullSync((stage, message) => {
-    console.log(`${stage}: ${message}`)
-  })
-  console.log('Pushed:', result.pushed) // { inserts, updates }
-  console.log('Pulled:', result.pulled) // { inserts, updates }
-}
+await result.setActiveStorage('local')              // promote local to active
+await result.setActiveStorage('https://other.com')  // connect if needed, promote to active
+await result.addRemote('https://mirror.example.com') // connect as backup, don't change active
 ```
 
-### FullSyncOptions (internal)
+- `setActiveStorage(target)` drives `WalletStorageManager.setActive(storageIdentityKey)`, which syncs data **from** the current active **to** every other store **before** flipping the pointer. Migration is automatic on every flip.
+- `addRemote(url)` connects a remote as a non-active backup. No active change. Post-action `updateBackups()` begins pushing to it on the next transaction.
+- There is no `removeRemote`. To "remove" a backup, simply don't include it in `config.backups` on the next wallet creation. The previously-connected remote stays live for the remainder of the session.
 
-The standalone `fullSync()` function takes `{ storage, remoteStorage, identityKey, onProgress?, maxRoughSize?, maxItems? }`. The factory functions wrap this for you.
+## Backup behavior
 
-### FullSync Stages
+The factory installs two backup sync paths:
 
-| Stage | Description |
-|-------|-------------|
-| `pushing` | Pushing local data to remote server |
-| `resetting` | Resetting sync state for clean pull |
-| `pulling` | Pulling all data from remote |
-| `complete` | Sync finished |
+1. **Initial sync on creation.** After wiring the stores, the factory calls `storage.updateBackups()` once. Every backup is brought up to date with the current active before the wallet is handed back. Errors are logged via `console.error`; wallet creation does not fail.
+2. **Post-action sync.** `createAction` and `signAction` are wrapped so that `storage.updateBackups()` fires fire-and-forget after every successful broadcast. Errors are logged via `console.error`.
 
-## Derivation Paths
+Both push **from** the active **to** every registered backup. `updateBackups()` is incremental (via `EntitySyncState`), so repeat calls are cheap when there's nothing new to copy.
+
+## Monitor
+
+The `Monitor` is always created and its default tasks registered via `addDefaultTasks()`. Individual tasks self-throttle through their own `trigger(now)` methods using `lastRunMsecsSinceEpoch` and per-task intervals, so calling `runOnce()` repeatedly during rapid activity is cheap timestamp comparisons.
+
+**On creation**, the factory fires `monitor.runOnce()` fire-and-forget *only when local is the active store*. When a remote is active, the server runs its own monitor; firing one client-side would duplicate and race that work.
+
+Consumer responsibility:
+
+- **Short-lived processes (CLI, scripts):** every invocation creates a new wallet, which fires a `runOnce()` via the factory. No extra work.
+- **Long-running processes:** the initial `runOnce()` is fired on creation. Call `result.monitor.runOnce()` again on meaningful wake events (service worker wake, foreground focus) to service any pending tasks. Do **not** call `result.monitor.startTasks()` in a browser/extension — that's a `while` loop that never returns.
+
+**Do not configure "monitor interval" at the application layer** — the tasks already self-throttle. There is no `monitorIntervalMinutes` knob; it was removed.
+
+## Address sync
+
+Address sync uses a fetcher/processor split for Chrome extension compatibility (SSE doesn't work in service workers). Use `AddressSyncManager` in unified environments.
+
+```typescript
+import { AddressSyncManager, AddressSyncQueueIdb } from '@1sat/wallet'
+
+const syncManager = new AddressSyncManager({
+  wallet: result.wallet,
+  services: result.services,
+  syncQueue: new AddressSyncQueueIdb(),        // or AddressSyncQueueSqlite
+  addressManager,                               // AddressManager instance
+  network: 'mainnet',
+  batchSize: 20,
+})
+
+syncManager.on('sync:progress', ({ pending, done, failed }) => {
+  console.log(`Pending: ${pending}, Done: ${done}, Failed: ${failed}`)
+})
+
+await syncManager.sync()   // opens SSE stream + processes queue
+syncManager.stop()
+```
+
+For Chrome extensions, use `AddressSyncFetcher` (popup context) and `AddressSyncProcessor` (service worker) separately.
+
+## Derivation paths
 
 ```typescript
 import {
@@ -123,10 +197,10 @@ import {
 ```
 
 | Constant | Path | Purpose |
-|----------|------|---------|
-| `YOURS_WALLET_PATH` | `m/44'/236'/0'/1/0` | Yours Wallet payment |
-| `YOURS_ORD_PATH` | `m/44'/236'/1'/0/0` | Yours Wallet ordinals |
-| `YOURS_ID_PATH` | `m/0'/236'/0'/0/0` | Yours Wallet identity |
+|---|---|---|
+| `YOURS_WALLET_PATH` | `m/44'/236'/0'/1/0` | Yours payment |
+| `YOURS_ORD_PATH` | `m/44'/236'/1'/0/0` | Yours ordinals |
+| `YOURS_ID_PATH` | `m/0'/236'/0'/0/0` | Yours identity |
 | `RELAYX_ORD_PATH` | `m/44'/236'/0'/2/0` | RelayX ordinals |
 | `RELAYX_SWEEP_PATH` | `m/44'/236'/0'/0/0` | RelayX sweep |
 | `TWETCH_WALLET_PATH` | `m/0/0` | Twetch payment |
@@ -146,38 +220,21 @@ const keys = getKeysFromMnemonicAndPaths(mnemonic, {
 const identityKey = deriveIdentityKey(keys.payPk, keys.ordPk)
 ```
 
-## Address Sync
-
-Address sync uses a fetcher/processor split for Chrome extension compatibility (SSE does not work in service workers). Use `AddressSyncManager` in unified environments.
+## Balance
 
 ```typescript
-import { AddressSyncManager, AddressSyncQueueIdb } from '@1sat/wallet'
-
-const syncManager = new AddressSyncManager({
-  wallet,
-  services,
-  syncQueue: new AddressSyncQueueIdb(), // or AddressSyncQueueSqlite
-  addressManager,                        // AddressManager instance
-  network: 'mainnet',                    // 'mainnet' | 'testnet'
-  batchSize: 20,                         // optional, default 20
-})
-
-syncManager.on('sync:progress', ({ pending, done, failed }) => {
-  console.log(`Pending: ${pending}, Done: ${done}, Failed: ${failed}`)
-})
-
-await syncManager.sync() // opens SSE stream + processes queue
-syncManager.stop()
+const balance = await result.wallet.balance()
+// Returns satoshis as a number. 0 for empty wallet. Never throws.
 ```
 
-For Chrome extensions, use `AddressSyncFetcher` (popup context) and `AddressSyncProcessor` (service worker) separately.
+If `createAction` is called with insufficient funds, it throws `WERR_INSUFFICIENT_FUNDS` with `totalSatoshisNeeded` and `moreSatoshisNeeded` properties.
 
-## Backup & Restore
+## File backup / restore
 
-Backup uses a streaming Zip-based API via `fflate`. `FileBackupProvider` implements `WalletStorageProvider` to receive sync chunks during export.
+Streaming ZIP-based backup via `fflate`. `FileBackupProvider` implements `WalletStorageProvider` and receives sync chunks during export.
 
 ```typescript
-import { FileBackupProvider, FileRestoreReader, Zip, ZipDeflate, unzip } from '@1sat/wallet'
+import { FileBackupProvider, FileRestoreReader, Zip, unzip } from '@1sat/wallet'
 
 // === BACKUP ===
 const chunks: Uint8Array[] = []
@@ -190,8 +247,8 @@ const zip = new Zip((err, data, final) => {
   }
 })
 
-const provider = new FileBackupProvider(zip, storage.getSettings(), identityKey)
-await storage.syncToWriter(auth, provider)
+const provider = new FileBackupProvider(zip, result.storage.getSettings(), identityKey)
+await result.storage.syncToWriter(auth, provider)
 // Write manifest.json to zip, then zip.end()
 
 // === RESTORE ===
@@ -201,15 +258,15 @@ const unzipped = await new Promise<Unzipped>((resolve, reject) => {
 })
 const manifest = JSON.parse(new TextDecoder().decode(unzipped['manifest.json']))
 const reader = new FileRestoreReader(unzipped, manifest)
-await storage.syncFromReader(manifest.identityKey, reader)
+await result.storage.syncFromReader(manifest.identityKey, reader)
 ```
 
-## Wallet Indexers
+## Wallet indexers
 
 These run automatically during address sync. No configuration needed.
 
 | Indexer | What it tracks |
-|---------|---------------|
+|---|---|
 | `InscriptionIndexer` | Ordinal inscriptions |
 | `Bsv21Indexer` | BSV-21 fungible tokens |
 | `OrdLockIndexer` | Marketplace listings |
@@ -224,94 +281,42 @@ These run automatically during address sync. No configuration needed.
 ## Installation
 
 ```bash
-bun add @1sat/wallet-node    # Node.js / Bun
-bun add @1sat/wallet-remote  # Remote (thin client)
-# @1sat/wallet-browser is deprecated — use @1sat/wallet-remote instead
+bun add @1sat/wallet-node       # Node / Bun
+bun add @1sat/wallet-browser    # Browser (extensions, web apps)
+bun add @1sat/wallet-remote     # Thin client, no local storage
 ```
 
-All environment packages depend on `@1sat/wallet` (core) which provides indexers, backup, and address sync.
+All three depend on `@1sat/wallet` transitively.
 
-## Hardware Key Protection: @1sat/vault
+## Hardware key protection: @1sat/vault
 
 On macOS arm64, private keys can be protected by the Secure Enclave via `@1sat/vault`. Keys are encrypted with a hardware-bound P-256 key (CryptoKit ECIES: ECDH + HKDF-SHA256 + AES-256-GCM) and never leave the chip. All decryption requires Touch ID via LAContext.
 
 ```typescript
 import { protectSecret, unlockSecret, listSecrets, isSupported } from '@1sat/vault'
 
-// Check availability
 if (await isSupported()) {
-  // Encrypt and store a WIF key
   await protectSecret('my-wallet-key', wifString)
-
-  // Retrieve (triggers Touch ID)
-  const wif = await unlockSecret('my-wallet-key')
-
-  // List stored secrets
+  const wif = await unlockSecret('my-wallet-key')   // triggers Touch ID
   const secrets = await listSecrets()
-
-  // Remove
   await removeSecret('my-wallet-key')
 }
 ```
 
-- **Package**: `@1sat/vault@0.0.1` (npm)
-- **Vault directory**: `~/.secure-enclave-vault/`
-- **Platform**: macOS arm64 only (fails informatively elsewhere)
+- **Package:** `@1sat/vault` (npm)
+- **Vault directory:** `~/.secure-enclave-vault/`
+- **Platform:** macOS arm64 only (fails informatively elsewhere)
 - **No entitlements, no code signing, no .app bundle needed**
-- Used by BAP CLI (`bap touchid enable`) and ClawNet CLI (`clawnet setup-key`)
 
-### Vault Configuration
+Used by BAP CLI (`bap touchid enable`) and ClawNet CLI (`clawnet setup-key`).
 
-Configure the display name for Touch ID prompts:
-
-```typescript
-import { configureVault } from '@1sat/vault'
-configureVault({ name: 'MyApp' })
-// Touch ID now shows "MyApp wants to access your wallet"
-```
-
-### Checking Availability
-
-```typescript
-import { checkAvailability } from '@1sat/vault'
-
-const info = await checkAvailability()
-// info.secureEnclave: boolean
-// info.biometryType: 'TouchID' | 'FaceID' | 'None'
-// info.biometryAvailable: boolean
-```
-
-### Native Deposit Window
-
-Show a native macOS window with QR code for wallet funding:
-
-```typescript
-import { showDepositWindow, signalDepositReceived } from '@1sat/vault'
-
-const handle = showDepositWindow(address, estimatedSats)
-// Native window with QR code, copyable address, Copy/Cancel buttons
-
-// Poll for funds, then dismiss
-const interval = setInterval(async () => {
-  if (await wallet.balance() >= estimatedSats) {
-    signalDepositReceived(handle.pid)
-    clearInterval(interval)
-  }
-}, 5000)
-```
-
-
-## Alternative: CLI Setup
+## Alternative: CLI
 
 For quick wallet setup without writing code, use `@1sat/cli`:
 
 ```bash
-# Run directly — no install needed
-bunx @1sat/cli init
-
-# Optional: install globally for frequent use
-bun add -g @1sat/cli
-# Then use the short form: 1sat init
+bunx @1sat/cli init          # run without install
+bun add -g @1sat/cli         # install globally for frequent use
 ```
 
-The CLI stores configuration in `~/.1sat/` and supports key management via `PRIVATE_KEY_WIF` env var or encrypted keystore at `~/.1sat/keys.bep`. See the `1sat-cli` skill for full CLI documentation.
+See the `1sat-cli` skill for full CLI documentation.

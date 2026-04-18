@@ -30,7 +30,7 @@ export interface NodeWalletConfig {
 export interface NodeWalletResult {
 	wallet: Wallet
 	services: OneSatServices
-	monitor?: Monitor
+	monitor: Monitor
 	destroy: () => Promise<void>
 	storage: WalletStorageManager
 	remoteStorage?: StorageClient
@@ -62,42 +62,51 @@ export async function createNodeWallet(
 		Monitor,
 	})
 
-	let monitor: Monitor | undefined
-	if (!config.activeRemote) {
-		monitor = new Monitor({
-			chain: config.chain,
-			services: core.services as any,
-			storage: core.storage,
-			chaintracks: core.services.chaintracks,
-			msecsWaitPerMerkleProofServiceReq: 500,
-			taskRunWaitMsecs: 5000,
-			abandonedMsecs: 300000,
-			unprovenAttemptsLimitTest: 10,
-			unprovenAttemptsLimitMain: 144,
-		})
-		monitor.addDefaultTasks()
+	// Always construct the Monitor — it's cheap (just task registration) and
+	// the active store can be flipped at runtime via setActiveStorage, so we
+	// need a Monitor available regardless of the initial config.
+	const monitor = new Monitor({
+		chain: config.chain,
+		services: core.services as any,
+		storage: core.storage,
+		chaintracks: core.services.chaintracks,
+		msecsWaitPerMerkleProofServiceReq: 500,
+		taskRunWaitMsecs: 5000,
+		abandonedMsecs: 300000,
+		unprovenAttemptsLimitTest: 10,
+		unprovenAttemptsLimitMain: 144,
+	})
+	monitor.addDefaultTasks()
 
-		if (config.onTransactionBroadcasted) {
-			monitor.onTransactionBroadcasted = async (result) => {
-				if (result.txid) config.onTransactionBroadcasted!(result.txid)
-			}
+	if (config.onTransactionBroadcasted) {
+		monitor.onTransactionBroadcasted = async (result) => {
+			if (result.txid) config.onTransactionBroadcasted!(result.txid)
 		}
-		if (config.onTransactionProven) {
-			monitor.onTransactionProven = async (status) => {
-				config.onTransactionProven!(status.txid, status.blockHeight)
-			}
+	}
+	if (config.onTransactionProven) {
+		monitor.onTransactionProven = async (status) => {
+			config.onTransactionProven!(status.txid, status.blockHeight)
 		}
+	}
+
+	// Fire monitor.runOnce() on wake when local is active. The server runs
+	// its own monitor when remote is active, so firing ours would duplicate
+	// (and race with) its work. Tasks self-throttle internally via their
+	// per-task intervals, so repeated runOnce calls during rapid activity
+	// are cheap timestamp comparisons.
+	if (!config.activeRemote) {
+		monitor.runOnce().catch((err: unknown) => {
+			console.error('[wallet-core] initial monitor run failed:', err)
+		})
 	}
 
 	const destroy = async (): Promise<void> => {
 		try {
-			if (monitor) {
-				monitor.stopTasks()
-				if (monitor._tasksRunningPromise) {
-					await monitor._tasksRunningPromise
-				}
-				await monitor.destroy()
+			monitor.stopTasks()
+			if (monitor._tasksRunningPromise) {
+				await monitor._tasksRunningPromise
 			}
+			await monitor.destroy()
 		} catch {}
 		try {
 			await core.destroy()

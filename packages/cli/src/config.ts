@@ -22,38 +22,11 @@ export interface OneSatCliConfig {
 	backups?: string[]
 	/** Storage identity key for wallet persistence */
 	storageIdentityKey?: string
-	/** How often to run the monitor refresh (minutes). 0 disables auto-refresh. */
-	monitorIntervalMinutes: number
 }
 
 const DEFAULT_CONFIG: OneSatCliConfig = {
 	chain: 'main',
 	dataDir: join(CONFIG_DIR, 'data'),
-	monitorIntervalMinutes: 5,
-}
-
-// Monitor state — stored separately so we don't rewrite config.json on every command
-const MONITOR_STATE_FILE = join(CONFIG_DIR, 'monitor-state.json')
-
-export interface MonitorState {
-	lastMonitorRun: number // unix ms timestamp
-}
-
-export function loadMonitorState(): MonitorState {
-	if (!existsSync(MONITOR_STATE_FILE)) return { lastMonitorRun: 0 }
-	try {
-		const raw = readFileSync(MONITOR_STATE_FILE, 'utf8')
-		return JSON.parse(raw)
-	} catch {
-		return { lastMonitorRun: 0 }
-	}
-}
-
-export function saveMonitorState(state: MonitorState): void {
-	ensureConfigDir()
-	writeFileSync(MONITOR_STATE_FILE, JSON.stringify(state, null, 2), {
-		mode: 0o600,
-	})
 }
 
 /**
