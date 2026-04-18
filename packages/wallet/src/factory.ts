@@ -129,7 +129,9 @@ export async function createWalletCore(
 		wallet.createAction = async (args: any) => {
 			const result = await originalCreateAction(args)
 			if (result.txid) {
-				storage.updateBackups().catch(() => {})
+				storage.updateBackups().catch((err: unknown) => {
+					console.error('[wallet-core] post-action backup failed:', err)
+				})
 			}
 			return result
 		}
@@ -138,13 +140,27 @@ export async function createWalletCore(
 		wallet.signAction = async (args: any) => {
 			const result = await originalSignAction(args)
 			if (result.txid) {
-				storage.updateBackups().catch(() => {})
+				storage.updateBackups().catch((err: unknown) => {
+					console.error('[wallet-core] post-action backup failed:', err)
+				})
 			}
 			return result
 		}
 	}
 
 	wireBackupInterception()
+
+	// Initial backup sync: push current active state into every backup store
+	// so fresh or wiped backups are populated before the wallet is used.
+	// Never fail wallet creation on backup failure — the active store is
+	// already usable; the caller can retry sync via updateBackups() later.
+	if (storage.getBackupStores().length > 0) {
+		try {
+			await storage.updateBackups()
+		} catch (err) {
+			console.error('[wallet-core] initial backup sync failed:', err)
+		}
+	}
 
 	// 6. migrateRemote implementation
 	const migrateRemote = async (url: string): Promise<void> => {
