@@ -1,0 +1,119 @@
+import { dispatch } from './dispatch'
+import type {
+	JsonRpcRequest,
+	JsonRpcResponse,
+	WalletRpcHandlerConfig,
+} from './types'
+
+export type WalletRpcHandler = (req: Request) => Promise<Response>
+
+export function createWalletRpcHandler(
+	config: WalletRpcHandlerConfig,
+): WalletRpcHandler {
+	return async (req: Request): Promise<Response> => {
+		if (req.method !== 'POST') {
+			return methodNotAllowed()
+		}
+
+		const body = await parseBody(req)
+		if (!body.ok) {
+			return invalidRequest(body.id)
+		}
+
+		let identity: Awaited<ReturnType<typeof config.resolveIdentity>>
+		try {
+			identity = await config.resolveIdentity(req)
+		} catch (err) {
+			return unauthorized(body.request.id ?? null, err)
+		}
+
+		if (config.preDispatch) {
+			const gate = await config.preDispatch({
+				method: body.request.method,
+				identity,
+				request: req,
+				id: body.request.id ?? null,
+			})
+			if (gate.type === 'blocked') {
+				return gate.response
+			}
+		}
+
+		const response = await dispatch(
+			{
+				storage: config.storage,
+				adminIdentityKeys: config.adminIdentityKeys,
+				makeLogger: config.makeLogger,
+			},
+			{
+				method: body.request.method,
+				params: body.request.params ?? [],
+				id: body.request.id ?? null,
+				identity,
+			},
+		)
+
+		return jsonResponse(response)
+	}
+}
+
+type ParsedBody =
+	| { ok: true; request: JsonRpcRequest; id: string | number | null }
+	| { ok: false; id: string | number | null }
+
+async function parseBody(req: Request): Promise<ParsedBody> {
+	let raw: unknown
+	try {
+		raw = await req.json()
+	} catch {
+		return { ok: false, id: null }
+	}
+	if (!isJsonRpcRequest(raw)) {
+		const maybeId = (raw as { id?: string | number | null })?.id ?? null
+		return { ok: false, id: maybeId }
+	}
+	return { ok: true, request: raw, id: raw.id ?? null }
+}
+
+function isJsonRpcRequest(value: unknown): value is JsonRpcRequest {
+	if (typeof value !== 'object' || value === null) return false
+	const v = value as Record<string, unknown>
+	if (v.jsonrpc !== '2.0') return false
+	if (typeof v.method !== 'string') return false
+	if (v.params !== undefined && !Array.isArray(v.params)) return false
+	return true
+}
+
+function jsonResponse(body: JsonRpcResponse): Response {
+	return new Response(JSON.stringify(body), {
+		status: 200,
+		headers: { 'content-type': 'application/json' },
+	})
+}
+
+function methodNotAllowed(): Response {
+	return new Response('Method Not Allowed', { status: 405 })
+}
+
+function invalidRequest(id: string | number | null): Response {
+	return new Response(
+		JSON.stringify({
+			jsonrpc: '2.0',
+			error: { code: -32600, message: 'Invalid Request' },
+			id,
+		}),
+		{ status: 400, headers: { 'content-type': 'application/json' } },
+	)
+}
+
+function unauthorized(id: string | number | null, err: unknown): Response {
+	const message = err instanceof Error ? err.message : 'Unauthorized'
+	return new Response(
+		JSON.stringify({
+			jsonrpc: '2.0',
+			error: { code: -32000, message },
+			id,
+		}),
+		{ status: 401, headers: { 'content-type': 'application/json' } },
+	)
+}

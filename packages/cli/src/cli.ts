@@ -16,6 +16,7 @@ import { handleMcpProxyCommand } from './commands/mcp-proxy'
 import { handleOpnsCommand } from './commands/opns'
 import { handleOrdinalsCommand } from './commands/ordinals'
 import { handleRemoteCommand } from './commands/remote'
+import { handleServeCommand } from './commands/serve'
 import { handleSocialCommand } from './commands/social'
 import { handleSweepCommand } from './commands/sweep'
 import { handleTokensCommand } from './commands/tokens'
@@ -96,6 +97,10 @@ async function main(): Promise<void> {
 
 		case 'mcp-proxy':
 			await handleMcpProxyCommand()
+			break
+
+		case 'serve':
+			await handleServeCommand(rest, flags)
 			break
 
 		case 'help':

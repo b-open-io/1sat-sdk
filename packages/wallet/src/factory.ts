@@ -175,17 +175,14 @@ export async function createWalletCore(
 	}
 
 	// 6. Remote management operations
-	const setActiveStorage = async (
-		target: 'local' | string,
-	): Promise<void> => {
+	const setActiveStorage = async (target: 'local' | string): Promise<void> => {
 		if (target === 'local') {
 			if (!localStorage) {
 				throw new Error(
 					'setActiveStorage("local") called on a wallet with no local storage',
 				)
 			}
-			const localKey = (await localStorage.makeAvailable())
-				.storageIdentityKey
+			const localKey = (await localStorage.makeAvailable()).storageIdentityKey
 			await storage.setActive(localKey)
 			return
 		}
