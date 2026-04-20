@@ -41,6 +41,13 @@ export interface WalletCoreResult {
 	 * active store. No-op if the URL is already registered.
 	 */
 	addRemote: (url: string) => Promise<void>
+	/**
+	 * Returns the currently active storage provider. Live getter: reflects
+	 * the result of any prior setActiveStorage call. Intended for callers
+	 * (e.g. an RPC server) that need to expose the raw provider directly
+	 * rather than go through the single-tenant WalletStorageManager.
+	 */
+	getActiveStorage: () => WalletStorageProvider
 	feeModel: { model: 'sat/kb'; value: number }
 }
 
@@ -225,6 +232,7 @@ export async function createWalletCore(
 		remoteClients,
 		setActiveStorage,
 		addRemote,
+		getActiveStorage: () => storage.getActive(),
 		feeModel,
 	}
 }

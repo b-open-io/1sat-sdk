@@ -116,5 +116,6 @@ async function main(): Promise<void> {
 
 main().catch((err) => {
 	console.error(formatError(`Error: ${err.message}`))
+	if (process.env.DEBUG) console.error(err.stack)
 	process.exit(1)
 })

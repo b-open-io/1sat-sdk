@@ -8,6 +8,7 @@ import {
 	StorageProvider,
 	Wallet,
 	WalletStorageManager,
+	type sdk,
 } from '@bsv/wallet-toolbox'
 import { StorageBunSqlite } from './storage-bun-sqlite'
 
@@ -36,6 +37,12 @@ export interface NodeWalletResult {
 	remoteStorage?: StorageClient
 	setActiveStorage: (target: 'local' | string) => Promise<void>
 	addRemote: (url: string) => Promise<void>
+	/**
+	 * Live getter for the currently active raw storage provider. Use this
+	 * (not `storage`) when wiring the wallet-server RPC — the manager is
+	 * single-tenant, the provider is multi-tenant.
+	 */
+	getActiveStorage: () => sdk.WalletStorageProvider
 }
 
 export async function createNodeWallet(
@@ -122,5 +129,6 @@ export async function createNodeWallet(
 		remoteStorage: core.remoteClients[0],
 		setActiveStorage: core.setActiveStorage,
 		addRemote: core.addRemote,
+		getActiveStorage: core.getActiveStorage,
 	}
 }

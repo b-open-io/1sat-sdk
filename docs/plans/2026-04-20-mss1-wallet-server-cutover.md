@@ -47,9 +47,9 @@ go build -o server ./cmd/server
 ### 3. Write server config
 
 ```bash
-# Bind to localhost only (stack reaches it over loopback)
+# Bind to 0.0.0.0 so the Cloudflare tunnel can reach the port
 1sat config set server.port 8100
-1sat config set server.host 127.0.0.1
+1sat config set server.host 0.0.0.0
 # Keep accounts off on mss1 (metering disabled for dev)
 ```
 

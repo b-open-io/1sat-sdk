@@ -232,7 +232,7 @@ async function startWalletServer(
 	accounts: AccountsRuntime | undefined,
 ): Promise<{ stop(): Promise<void> }> {
 	const handle = createWalletServer({
-		storage: walletResult.storage,
+		storage: walletResult.getActiveStorage(),
 		serverPrivateKey: resolved.privateKey.toHex(),
 		listen: { port: resolved.port, host: resolved.host },
 		publicPath: '/',
