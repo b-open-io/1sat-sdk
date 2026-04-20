@@ -8,15 +8,26 @@
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
+			"bun": "./src/index.ts",
 			"import": "./dist/index.js"
 		}
 	},
-	"files": ["dist"],
+	"files": [
+		"dist"
+	],
 	"scripts": {
 		"build": "bun run build.ts && tsc --emitDeclarationOnly",
 		"dev": "tsc --watch"
 	},
-	"keywords": ["1sat", "bsv", "ordinals", "wallet", "sdk", "react", "hooks"],
+	"keywords": [
+		"1sat",
+		"bsv",
+		"ordinals",
+		"wallet",
+		"sdk",
+		"react",
+		"hooks"
+	],
 	"license": "MIT",
 	"dependencies": {
 		"@1sat/connect": "workspace:*"

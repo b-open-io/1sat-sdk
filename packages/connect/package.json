@@ -8,15 +8,25 @@
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
+			"bun": "./src/index.ts",
 			"import": "./dist/index.js"
 		}
 	},
-	"files": ["dist"],
+	"files": [
+		"dist"
+	],
 	"scripts": {
 		"build": "bun build ./src/index.ts --outdir ./dist --target browser && tsc --emitDeclarationOnly",
 		"dev": "tsc --watch"
 	},
-	"keywords": ["1sat", "bsv", "ordinals", "wallet", "sdk", "connect"],
+	"keywords": [
+		"1sat",
+		"bsv",
+		"ordinals",
+		"wallet",
+		"sdk",
+		"connect"
+	],
 	"license": "MIT",
 	"dependencies": {
 		"@1sat/wallet": "workspace:*",

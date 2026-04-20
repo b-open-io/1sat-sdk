@@ -8,20 +8,30 @@
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
+			"bun": "./src/index.ts",
 			"import": "./dist/index.js"
 		},
 		"./sigma": {
 			"types": "./dist/bitcom/sigma.d.ts",
+			"bun": "./src/bitcom/sigma.ts",
 			"import": "./dist/bitcom/sigma.js"
 		}
 	},
-	"files": ["dist"],
+	"files": [
+		"dist"
+	],
 	"scripts": {
 		"build": "tsc",
 		"dev": "tsc --watch",
 		"clean": "rm -rf dist"
 	},
-	"keywords": ["1sat", "bsv", "ordinals", "templates", "typescript"],
+	"keywords": [
+		"1sat",
+		"bsv",
+		"ordinals",
+		"templates",
+		"typescript"
+	],
 	"license": "MIT",
 	"dependencies": {
 		"@1sat/types": "workspace:*"

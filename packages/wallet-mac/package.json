@@ -8,10 +8,15 @@
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
+			"bun": "./src/index.ts",
 			"import": "./dist/index.js"
 		}
 	},
-	"files": ["dist", "swift/Sources/main.swift", "swift/build.sh"],
+	"files": [
+		"dist",
+		"swift/Sources/main.swift",
+		"swift/build.sh"
+	],
 	"scripts": {
 		"build": "tsc",
 		"build:swift": "./swift/build.sh",
