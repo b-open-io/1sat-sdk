@@ -383,7 +383,7 @@ async function remoteStatus(args: string[], opts: GlobalFlags): Promise<void> {
 				)
 			}
 			console.log(
-				`  ${bold('Pricing:')} ${status.pricing.satsPerGb} sats/GB over ${status.pricing.durationBlocks} blocks`,
+				`  ${bold('Pricing:')} ${status.pricing.satsPerUnit} sats per ${formatBytes(status.pricing.purchaseUnitBytes)} over ${status.pricing.durationBlocks} blocks`,
 			)
 		}
 		console.log()

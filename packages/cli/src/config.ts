@@ -35,8 +35,10 @@ export interface ServerAccountsConfig {
 	enabled?: boolean
 	/** Free baseline per identity key, in bytes. */
 	baselineBytes?: number
-	/** Sats charged per GB of paid capacity per `durationBlocks`. */
-	satsPerGb?: number
+	/** Purchase chunk size in bytes. Deficits round up to whole chunks. Defaults to 1 GB. */
+	purchaseUnitBytes?: number
+	/** Sats charged per purchase unit. */
+	satsPerUnit?: number
 	/** Block window a payment remains valid for. */
 	durationBlocks?: number
 	/** Identity keys that bypass metering (server's own key is auto-added). */

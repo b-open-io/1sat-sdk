@@ -240,7 +240,8 @@ function mountStatusRoute(
 				deficitBytes,
 				paidThroughBlock: currentPayment?.paidThroughBlock ?? null,
 				pricing: {
-					satsPerGb: accounts.config.satsPerGb,
+					purchaseUnitBytes: accounts.config.purchaseUnitBytes,
+					satsPerUnit: accounts.config.satsPerUnit,
 					durationBlocks: accounts.config.durationBlocks,
 				},
 			})

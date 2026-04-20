@@ -32,8 +32,15 @@ export interface AccountsConfig {
 	enabled: boolean
 	/** Free baseline in bytes allocated to every account. */
 	baselineBytes: number
-	/** Sats charged per GB of paid capacity per `durationBlocks`. */
-	satsPerGb: number
+	/**
+	 * Capacity is purchased in chunks of this size. A deficit of any size
+	 * rounds up to the next whole chunk; a single chunk's worth of capacity
+	 * is added to the account. Defaults to 1 GB for production-style pricing;
+	 * lower values (e.g. 1 KB) make dev-time testing cheap.
+	 */
+	purchaseUnitBytes: number
+	/** Sats charged per purchase unit. */
+	satsPerUnit: number
 	/** How many blocks a payment remains valid for (~1 month at 10-min blocks = 4383). */
 	durationBlocks: number
 	/** Identity keys (hex pubkey) whose requests bypass metering. Server's own identity is auto-added. */
@@ -71,7 +78,8 @@ export type AccountStatusResponse =
 			deficitBytes: number
 			paidThroughBlock: number | null
 			pricing: {
-				satsPerGb: number
+				purchaseUnitBytes: number
+				satsPerUnit: number
 				durationBlocks: number
 			}
 	  }

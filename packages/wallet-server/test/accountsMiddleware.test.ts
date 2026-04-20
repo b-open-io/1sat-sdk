@@ -92,7 +92,8 @@ describe('AccountsGate', () => {
 			config: {
 				enabled: false,
 				baselineBytes: 0,
-				satsPerGb: 1_000_000,
+				purchaseUnitBytes: 1_073_741_824,
+				satsPerUnit: 1_000_000,
 				durationBlocks: 4383,
 			},
 			walletStorage: makeStorage({}),
@@ -115,7 +116,8 @@ describe('AccountsGate', () => {
 			config: {
 				enabled: true,
 				baselineBytes: 0,
-				satsPerGb: 1_000_000,
+				purchaseUnitBytes: 1_073_741_824,
+				satsPerUnit: 1_000_000,
 				durationBlocks: 4383,
 			},
 			walletStorage: makeStorage({}),
@@ -138,7 +140,8 @@ describe('AccountsGate', () => {
 			config: {
 				enabled: true,
 				baselineBytes: 0,
-				satsPerGb: 1_000_000,
+				purchaseUnitBytes: 1_073_741_824,
+				satsPerUnit: 1_000_000,
 				durationBlocks: 4383,
 			},
 			walletStorage: makeStorage({ [SERVER_IDENTITY]: 10 }),
@@ -162,7 +165,8 @@ describe('AccountsGate', () => {
 			config: {
 				enabled: true,
 				baselineBytes: 0,
-				satsPerGb: 1_000_000,
+				purchaseUnitBytes: 1_073_741_824,
+				satsPerUnit: 1_000_000,
 				durationBlocks: 4383,
 				freeIdentityKeys: [FREE],
 			},
@@ -186,7 +190,8 @@ describe('AccountsGate', () => {
 			config: {
 				enabled: true,
 				baselineBytes: 0,
-				satsPerGb: 1_000_000,
+				purchaseUnitBytes: 1_073_741_824,
+				satsPerUnit: 1_000_000,
 				durationBlocks: 4383,
 			},
 			walletStorage: makeStorage({}),
@@ -212,7 +217,8 @@ describe('AccountsGate', () => {
 			config: {
 				enabled: true,
 				baselineBytes: 1_000_000,
-				satsPerGb: 1_000_000,
+				purchaseUnitBytes: 1_073_741_824,
+				satsPerUnit: 1_000_000,
 				durationBlocks: 4383,
 			},
 			walletStorage: makeStorage({ [IDENTITY]: 5 }),
@@ -238,7 +244,8 @@ describe('AccountsGate', () => {
 			config: {
 				enabled: true,
 				baselineBytes: 0,
-				satsPerGb: 1_000_000,
+				purchaseUnitBytes: 1_073_741_824,
+				satsPerUnit: 1_000_000,
 				durationBlocks: 4383,
 			},
 			walletStorage: makeStorage({ [IDENTITY]: 5 }),

@@ -39,7 +39,8 @@ const DEFAULT_HOST = '127.0.0.1'
 const DEFAULT_PORT = 8100
 const DEFAULT_ONESAT_URL = 'https://api.1sat.app/1sat'
 const DEFAULT_BASELINE_BYTES = 1024 * 1024 * 1024 // 1 GB
-const DEFAULT_SATS_PER_GB = 1_000_000
+const DEFAULT_PURCHASE_UNIT_BYTES = 1_073_741_824 // 1 GB chunks for production
+const DEFAULT_SATS_PER_UNIT = 1_000_000
 const DEFAULT_DURATION_BLOCKS = 4383
 const DEFAULT_STORAGE_IDENTITY_KEY = '1sat-cli-default'
 
@@ -63,7 +64,8 @@ interface ResolvedServe {
 interface ResolvedAccounts {
 	enabled: boolean
 	baselineBytes: number
-	satsPerGb: number
+	purchaseUnitBytes: number
+	satsPerUnit: number
 	durationBlocks: number
 	freeIdentityKeys: string[]
 }
@@ -173,7 +175,9 @@ function resolveAccounts(accounts?: ServerAccountsConfig): ResolvedAccounts {
 	return {
 		enabled: accounts?.enabled ?? false,
 		baselineBytes: accounts?.baselineBytes ?? DEFAULT_BASELINE_BYTES,
-		satsPerGb: accounts?.satsPerGb ?? DEFAULT_SATS_PER_GB,
+		purchaseUnitBytes:
+			accounts?.purchaseUnitBytes ?? DEFAULT_PURCHASE_UNIT_BYTES,
+		satsPerUnit: accounts?.satsPerUnit ?? DEFAULT_SATS_PER_UNIT,
 		durationBlocks: accounts?.durationBlocks ?? DEFAULT_DURATION_BLOCKS,
 		freeIdentityKeys: accounts?.freeIdentityKeys ?? [],
 	}
@@ -280,7 +284,8 @@ async function buildAccountsForServer(
 			config: {
 				enabled: resolved.accounts.enabled,
 				baselineBytes: resolved.accounts.baselineBytes,
-				satsPerGb: resolved.accounts.satsPerGb,
+				purchaseUnitBytes: resolved.accounts.purchaseUnitBytes,
+				satsPerUnit: resolved.accounts.satsPerUnit,
 				durationBlocks: resolved.accounts.durationBlocks,
 				freeIdentityKeys: resolved.accounts.freeIdentityKeys,
 			},

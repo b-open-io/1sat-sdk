@@ -144,7 +144,7 @@ export class AccountsGate {
 					fullSats: quote.fullSats,
 					refundSats: quote.refundSats,
 					bytesRequested: quote.bytesCovered,
-					gigabytesCharged: quote.gigabytesCharged,
+					unitsCharged: quote.unitsCharged,
 					paidThroughBlock: quote.paidThroughBlock,
 					derivationPrefix,
 					orderID,

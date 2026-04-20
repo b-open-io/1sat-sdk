@@ -9,7 +9,8 @@ import type { Payment } from '../src/accounts/types'
 
 const CONFIG = {
 	baselineBytes: 1 * BYTES_PER_GB,
-	satsPerGb: 1_000_000,
+	purchaseUnitBytes: 1_073_741_824,
+	satsPerUnit: 1_000_000,
 	durationBlocks: 4383,
 }
 
@@ -77,7 +78,7 @@ describe('pricing.quoteRefundedCharge', () => {
 			currentBlock: 0,
 			config: CONFIG,
 		})
-		expect(q?.gigabytesCharged).toBe(1)
+		expect(q?.unitsCharged).toBe(1)
 		expect(q?.fullSats).toBe(1_000_000)
 		expect(q?.refundSats).toBe(0)
 		expect(q?.chargeSats).toBe(1_000_000)
@@ -96,7 +97,7 @@ describe('pricing.quoteRefundedCharge', () => {
 			currentBlock: 1008,
 			config: CONFIG,
 		})
-		expect(q?.gigabytesCharged).toBe(2)
+		expect(q?.unitsCharged).toBe(2)
 		expect(q?.fullSats).toBe(2_000_000)
 		// Refund = 1GB × 1M sats × (4383-1008)/4383 = floor(769_906)
 		expect(q?.refundSats).toBe(Math.floor((1_000_000 * 3375) / 4383))
@@ -120,7 +121,9 @@ describe('pricing.quoteRefundedCharge', () => {
 
 describe('pricing.refundCreditSats', () => {
 	test('0 when no payment', () => {
-		expect(refundCreditSats(undefined, 1000, 4383, 1_000_000)).toBe(0)
+		expect(
+			refundCreditSats(undefined, 1000, 4383, BYTES_PER_GB, 1_000_000),
+		).toBe(0)
 	})
 
 	test('0 when payment expired', () => {
@@ -129,6 +132,7 @@ describe('pricing.refundCreditSats', () => {
 				payment({ bytesCovered: BYTES_PER_GB, paidThroughBlock: 500 }),
 				1000,
 				4383,
+				BYTES_PER_GB,
 				1_000_000,
 			),
 		).toBe(0)
@@ -139,6 +143,7 @@ describe('pricing.refundCreditSats', () => {
 			payment({ bytesCovered: BYTES_PER_GB, paidThroughBlock: 4383 }),
 			1008,
 			4383,
+			BYTES_PER_GB,
 			1_000_000,
 		)
 		expect(credit).toBe(Math.floor((1_000_000 * 3375) / 4383))

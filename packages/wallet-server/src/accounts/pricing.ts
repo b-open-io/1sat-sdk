@@ -32,14 +32,17 @@ export interface RefundedQuoteInput {
 	usedBytes: number
 	currentPayment: Payment | undefined
 	currentBlock: number
-	config: Pick<AccountsConfig, 'baselineBytes' | 'satsPerGb' | 'durationBlocks'>
+	config: Pick<
+		AccountsConfig,
+		'baselineBytes' | 'purchaseUnitBytes' | 'satsPerUnit' | 'durationBlocks'
+	>
 }
 
 export interface RefundedQuote {
-	/** Total paid capacity (in bytes, rounded up to GB) to be purchased. */
+	/** Total paid capacity (in bytes, rounded up to a whole purchase unit) to be purchased. */
 	bytesCovered: number
-	gigabytesCharged: number
-	/** Price at full rate for `gigabytesCharged` over `durationBlocks`. */
+	unitsCharged: number
+	/** Price at full rate for `unitsCharged` over `durationBlocks`. */
 	fullSats: number
 	/** Credit for unused time remaining on the caller's current payment. */
 	refundSats: number
@@ -76,18 +79,19 @@ export function quoteRefundedCharge(
 		return undefined
 	}
 
-	const gigabytesCharged = Math.max(
+	const unitsCharged = Math.max(
 		1,
-		Math.ceil(neededPaidBytes / BYTES_PER_GB),
+		Math.ceil(neededPaidBytes / input.config.purchaseUnitBytes),
 	)
-	const bytesCovered = gigabytesCharged * BYTES_PER_GB
-	const fullSats = gigabytesCharged * input.config.satsPerGb
+	const bytesCovered = unitsCharged * input.config.purchaseUnitBytes
+	const fullSats = unitsCharged * input.config.satsPerUnit
 
 	const refundSats = refundCreditSats(
-		input.currentPayment,
+		activePayment,
 		input.currentBlock,
 		input.config.durationBlocks,
-		input.config.satsPerGb,
+		input.config.purchaseUnitBytes,
+		input.config.satsPerUnit,
 	)
 
 	const chargeSats = Math.max(0, fullSats - refundSats)
@@ -95,7 +99,7 @@ export function quoteRefundedCharge(
 
 	return {
 		bytesCovered,
-		gigabytesCharged,
+		unitsCharged,
 		fullSats,
 		refundSats,
 		chargeSats,
@@ -111,13 +115,14 @@ export function refundCreditSats(
 	payment: Payment | undefined,
 	currentBlock: number,
 	durationBlocks: number,
-	satsPerGb: number,
+	purchaseUnitBytes: number,
+	satsPerUnit: number,
 ): number {
 	if (!payment) return 0
 	const remaining = payment.paidThroughBlock - currentBlock
 	if (remaining <= 0) return 0
-	const gb = Math.max(1, Math.ceil(payment.bytesCovered / BYTES_PER_GB))
-	return Math.floor((gb * satsPerGb * remaining) / durationBlocks)
+	const units = Math.max(1, Math.ceil(payment.bytesCovered / purchaseUnitBytes))
+	return Math.floor((units * satsPerUnit * remaining) / durationBlocks)
 }
 
 export { BYTES_PER_GB }
