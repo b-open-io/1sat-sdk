@@ -151,11 +151,14 @@ export class BunSqliteAccountsRepo implements AccountsRepo {
 				 WHERE t.userId = ?`,
 			)
 			.get(userId) as { total: number | bigint } | undefined
+		// Join on txid — proven_tx_reqs.provenTxId is null until mining, so
+		// a provenTxId join would miss pending requests where the raw bytes
+		// (inputBEEF especially) actually live.
 		const reqs = this.db
 			.query(
 				`SELECT COALESCE(SUM(COALESCE(LENGTH(ptr.rawTx), 0) + COALESCE(LENGTH(ptr.inputBEEF), 0)), 0) AS total
 				 FROM proven_tx_reqs ptr
-				 INNER JOIN transactions t ON t.provenTxId = ptr.provenTxId
+				 INNER JOIN transactions t ON t.txid = ptr.txid
 				 WHERE t.userId = ?`,
 			)
 			.get(userId) as { total: number | bigint } | undefined

@@ -8,6 +8,7 @@ function makeDb(): Database {
 		transactionId INTEGER PRIMARY KEY AUTOINCREMENT,
 		userId INTEGER NOT NULL,
 		provenTxId INTEGER,
+		txid TEXT,
 		rawTx BLOB,
 		inputBEEF BLOB
 	)`)

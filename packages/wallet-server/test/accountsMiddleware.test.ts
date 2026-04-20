@@ -15,6 +15,7 @@ function makeDb(): { db: Database; repo: BunSqliteAccountsRepo } {
 		transactionId INTEGER PRIMARY KEY AUTOINCREMENT,
 		userId INTEGER NOT NULL,
 		provenTxId INTEGER,
+		txid TEXT,
 		rawTx BLOB,
 		inputBEEF BLOB
 	)`)
