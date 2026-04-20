@@ -1,6 +1,27 @@
 # @1sat/wallet-server Package
 
-**Goal:** Introduce a TypeScript wallet storage RPC server as a sibling to `@1sat/wallet-remote`. Provides a postgres-backed `StorageKnex` wallet server that accepts BRC-100 mutual auth on a public endpoint and API-key-gated trusted-identity calls on an internal endpoint. Replaces the Go `cmd/wallet-server` on the 1sat-stack [wallet-server branch](../../../1sat-stack) for the internal consumer path and adds a public proxy gateway on 1sat-stack.
+> **Status (2026-04-20): Phase 1–3 shipped. Scope reframed — see update below.**
+>
+> What's in `master` (sdk commit `0dc0c6f`):
+> - `@1sat/wallet-server` package with `createWalletRpcHandler` (Web-standard dispatcher + preDispatch hook), `createWalletServer` (Express + BRC-100 + optional bearer), `createBearerServer` (Bun.serve bearer-only), `createWalletMonitor` (monitor factory), and the accounts layer (metering, BRC-0121 402 pricing, BRC-29 payment validation, migrations, repo). 49 unit tests green.
+> - `@1sat/cli` `serve` command (`serve`, `serve wallet`, `serve monitor`) driven entirely by `~/.1sat/cli/config.json`. Built on `createNodeWallet` so the server and CLI operate on the **same wallet instance** (same storage, same `activeRemote`, same `backups`, same `storageIdentityKey`). Server identity via existing `loadKey()`.
+> - Config commands extended with dotted-path setter (`1sat config set server.port 8100`) and JSON-literal coercion.
+>
+> What's in `1sat-stack` branch `wallet-server` (commit `7a98f67` = `a9119f7` + merged master):
+> - Wallet-mode config (`embedded` | `remote`) with `remote_url` for pointing at a TS wallet server. `initRemote` uses go-wallet-toolbox `storage.NewClient` with BRC-100 auth. Go `cmd/wallet-server` binary still present as fallback. Messagebox extracted via `MessageBoxClient`.
+>
+> **Reframe (see `~/.claude/plans/it-was-but-i-calm-ripple.md` for the decision log):**
+> - Bearer `/internal` route exists in code but **dropped from the primary architecture**. Only `/` (BRC-100) is deployed. `1sat serve wallet` now passes `internalPath: null`.
+> - Accounts layer is **opt-in per-deployment** (`enabled: false` default). Only enabled where the operator wants metering.
+> - Messagebox port → **not happening**. `go-messagebox-server` stays as a separate Go service.
+> - Go `pkg/account/` + `pkg/payment/` + `pkg/wallet/billing*.go` on `dave/OPL-1883-account-billing-layer` left untouched — not merged, not deleted.
+> - Secrets management for production: deferred, tracked in [OPL-1905](https://linear.app/openprotocollabs/issue/OPL-1905/secrets-management-for-wallet-server-production-deployment).
+>
+> **Next: mss1 cutover.** See [mss1-cutover.md](./2026-04-20-mss1-wallet-server-cutover.md) for the step-by-step.
+>
+> ---
+
+**Original goal:** Introduce a TypeScript wallet storage RPC server as a sibling to `@1sat/wallet-remote`. Provides a postgres-backed `StorageKnex` wallet server that accepts BRC-100 mutual auth on a public endpoint and API-key-gated trusted-identity calls on an internal endpoint. Replaces the Go `cmd/wallet-server` on the 1sat-stack [wallet-server branch](../../../1sat-stack) for the internal consumer path and adds a public proxy gateway on 1sat-stack.
 
 **Architecture:** One TS process per deployment owns the wallet storage (`StorageKnex` + postgres), exposes a JSON-RPC dispatcher over two routes, and optionally runs the wallet `Monitor` daemon. `OneSatServices` from `@1sat/client` provides chain services by calling 1sat-stack's public API. 1sat-stack itself is both a consumer (via its existing `storage.NewClient` path) and an exposer (new public proxy handler that terminates external BRC-100 auth, runs account/payment gates, then forwards JSON-RPC to the wallet server's internal route).
 

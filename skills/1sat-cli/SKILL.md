@@ -1,6 +1,6 @@
 ---
 name: 1sat-cli
-description: "This skill should be used when working with the 1Sat CLI tool for BSV operations from the terminal -- running wallet commands, minting ordinals, managing tokens, creating listings, locking BSV, sweeping assets, or managing identity from the command line. Triggers on '1sat CLI', 'command line wallet', '1sat init', '1sat wallet', '1sat ordinals', '1sat tokens', '1sat lock', '1sat sweep', '1sat action', 'bunx @1sat/cli', or 'terminal BSV operations'. Uses @1sat/cli package."
+description: "This skill should be used when working with the 1Sat CLI tool for BSV operations from the terminal -- running wallet commands, minting ordinals, managing tokens, creating listings, locking BSV, sweeping assets, managing identity, OR running the wallet-storage RPC server (`1sat serve`) from the same binary. Triggers on '1sat CLI', 'command line wallet', '1sat init', '1sat wallet', '1sat ordinals', '1sat tokens', '1sat lock', '1sat sweep', '1sat action', '1sat serve', '1sat serve wallet', '1sat serve monitor', 'wallet server', 'BRC-100 storage server', 'bunx @1sat/cli', or 'terminal BSV operations'. Uses @1sat/cli and @1sat/wallet-server packages."
 ---
 
 # 1Sat CLI
@@ -38,7 +38,27 @@ bunx @1sat/cli wallet send --to 1Address... --amount 50000
 
 ## Configuration
 
-Config directory: `~/.1sat/`
+Config directory: `~/.1sat/cli/` (file: `config.json`).
+
+### Config command
+
+```bash
+1sat config show                                # Render full nested tree
+1sat config set <dotted.path> <value>           # Set value; tries JSON.parse, falls back to string
+1sat config unset <dotted.path>                 # Remove value at path
+1sat config path                                # Print config directory
+```
+
+Values are stored in their native JSON type when the raw argument is valid JSON (numbers, booleans, arrays, objects, quoted strings); bare words fall back to string. Examples:
+
+```bash
+1sat config set chain main                      # "main" (string)
+1sat config set server.port 8100                # 8100 (number)
+1sat config set server.accounts.enabled true    # true (boolean)
+1sat config set server.accounts.freeIdentityKeys '["02aa...","02bb..."]'
+```
+
+Nested subtrees (like `server` / `server.storage` / `server.accounts`) are created automatically on set and persist as JSON objects in the file.
 
 ### Monitor (Background Sync)
 
@@ -155,6 +175,39 @@ bunx @1sat/cli sweep ordinals              # Sweep ordinals from external WIF
 bunx @1sat/cli sweep tokens                # Sweep BSV21 tokens from external WIF
 ```
 
+### Serve (Wallet Storage RPC Server)
+
+The same binary can run a BRC-100 wallet storage RPC server backed by the **same wallet instance** the CLI commands use.
+
+```bash
+1sat serve              # Wallet server + monitor daemon (single process)
+1sat serve wallet       # Wallet server only (no monitor loop)
+1sat serve monitor      # Monitor daemon only (no HTTP)
+```
+
+Key properties:
+
+- **Same wallet instance** — `serve` wraps the wallet created by `createNodeWallet` using the exact same config inputs (`chain`, `dataDir`, `storageIdentityKey`, `activeRemote`, `backups`) as `1sat wallet <command>`. There's one wallet on disk at `~/.1sat/data/wallet-${chain}.db`; HTTP and CLI access the same one.
+- **Server identity = CLI identity** — loaded via `loadKey()` (`PRIVATE_KEY_WIF` env or `keys.bep` + `ONESAT_PASSWORD`). No separate server key.
+- **Storage provider** — defaults to `bun-sqlite` (same as CLI). Future support: `knex-sqlite`, `knex-pg` for postgres deployments.
+- **Accounts layer (opt-in)** — BRC-0121 (HTTP 402) metering on billable writes only. Reads always free. Toggle via `1sat config set server.accounts.enabled true`.
+
+Server-specific settings live under `server.*` in the config — edit via `1sat config set`:
+
+```bash
+1sat config set server.port 8100
+1sat config set server.host 0.0.0.0
+1sat config set server.accounts.enabled true
+1sat config set server.accounts.baselineBytes 1073741824
+1sat config set server.accounts.satsPerGb 1000000
+```
+
+Defaults when keys are unset:
+- `server.host` → `127.0.0.1`
+- `server.port` → `8100`
+- `server.storage.provider` → `bun-sqlite`
+- `server.accounts.enabled` → `false`
+
 ### Action Escape Hatch
 
 Any registered action can be invoked directly by name with a JSON input:
@@ -249,4 +302,4 @@ bunx @1sat/cli
 bun add -g @1sat/cli
 ```
 
-The CLI wraps `@1sat/actions`, `@1sat/wallet-node`, and `@1sat/client` into a single command-line interface.
+The CLI wraps `@1sat/actions`, `@1sat/wallet-node`, `@1sat/client`, and `@1sat/wallet-server` (for the `serve` subcommand) into a single command-line interface.
