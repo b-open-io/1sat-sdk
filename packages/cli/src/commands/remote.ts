@@ -8,6 +8,7 @@
  *   set-active - Switch active storage to a remote or back to local
  */
 
+import { StorageClient } from '@1sat/wallet-node'
 import { confirm, isCancel, text } from '@clack/prompts'
 import type { GlobalFlags } from '../args'
 import { loadConfig, saveConfig } from '../config'
@@ -85,11 +86,7 @@ async function remoteAdd(args: string[], opts: GlobalFlags): Promise<void> {
 	const config = loadConfig()
 
 	try {
-		// For backup-only, we use StorageClient via wallet-node
-		// biome-ignore lint/suspicious/noExplicitAny: StorageClient constructor not typed in wallet-toolbox
-		const { StorageClient } = await import('@1sat/wallet-node')
-		const wallet = walletResult.wallet as any
-		const client = new (StorageClient as any)(wallet, url)
+		const client = new StorageClient(walletResult.wallet, url)
 		await walletResult.storage.addWalletStorageProvider(client)
 
 		// When adding a backup, the remote may report itself as "active" which
@@ -128,7 +125,7 @@ async function remoteAdd(args: string[], opts: GlobalFlags): Promise<void> {
 
 async function remoteList(_args: string[], opts: GlobalFlags): Promise<void> {
 	const privateKey = await loadKey(resolvePassword())
-	const { walletResult, destroy } = await loadContext(privateKey, {
+	const { destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
 

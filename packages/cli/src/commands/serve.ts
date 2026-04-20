@@ -33,6 +33,7 @@ import {
 import { ensureDataDir } from '../config'
 import { printCommandHelp } from '../help'
 import { loadKey, resolvePassword } from '../keys'
+import { clearMonitorPid, writeMonitorPid } from '../monitor-lock'
 import { fatal } from '../output'
 
 const DEFAULT_HOST = '127.0.0.1'
@@ -200,6 +201,9 @@ async function runBunSqlite(
 		filename: resolved.sqliteFilename,
 		activeRemote: resolved.activeRemote,
 		backups: resolved.backups,
+		// Server owns the monitor loop; suppress the factory's initial
+		// runOnce so CLI invocations in the same data dir don't race with it.
+		skipInitialMonitor: mode !== 'wallet',
 	})
 
 	const accounts = await buildAccountsForServer(resolved)
@@ -210,7 +214,13 @@ async function runBunSqlite(
 			: await startWalletServer(resolved, walletResult, accounts)
 
 	if (mode !== 'wallet') {
-		await walletResult.monitor.startTasks()
+		// startTasks loops until stopTasks flips its flag. Fire without
+		// awaiting so the caller can install shutdown handlers and write
+		// the monitor pid file.
+		walletResult.monitor.startTasks().catch((err: unknown) => {
+			console.error('[monitor] task loop exited:', err)
+		})
+		writeMonitorPid(resolved.dataDir)
 		console.log('[monitor] started')
 	}
 
@@ -218,6 +228,7 @@ async function runBunSqlite(
 		async stop() {
 			if (mode !== 'wallet') {
 				walletResult.monitor.stopTasks()
+				clearMonitorPid(resolved.dataDir)
 			}
 			if (serverHandle) await serverHandle.stop()
 			if (accounts) await accounts.knex.destroy()

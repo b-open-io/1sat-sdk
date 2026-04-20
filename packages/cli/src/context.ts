@@ -8,6 +8,7 @@ import { type OneSatContext, createContext } from '@1sat/actions'
 import { type NodeWalletResult, createNodeWallet } from '@1sat/wallet-node'
 import type { PrivateKey } from '@bsv/sdk'
 import { ensureDataDir, loadConfig } from './config'
+import { readLiveMonitorPid } from './monitor-lock'
 
 /** Extended context that includes cleanup */
 export interface CliContext {
@@ -36,6 +37,8 @@ export async function loadContext(
 
 	const storageIdentityKey = config.storageIdentityKey ?? '1sat-cli-default'
 
+	const skipInitialMonitor = readLiveMonitorPid(dataDir) !== undefined
+
 	const walletResult = await createNodeWallet({
 		privateKey,
 		chain: opts.chain,
@@ -43,6 +46,7 @@ export async function loadContext(
 		filename: `${dataDir}/wallet-${opts.chain}.db`,
 		activeRemote: config.activeRemote,
 		backups: config.backups,
+		skipInitialMonitor,
 	})
 
 	const ctx = createContext(walletResult.wallet, {
