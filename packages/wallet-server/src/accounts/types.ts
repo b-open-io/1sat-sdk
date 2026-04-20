@@ -47,3 +47,31 @@ export interface PaymentQuote {
 	orderID: string
 	expiresAt: number
 }
+
+/**
+ * Response shape of `GET /account/status`. When accounts metering is
+ * disabled the capacity / pricing fields are omitted; callers should branch
+ * on `accountsEnabled` to know which fields are present.
+ */
+export type AccountStatusResponse =
+	| {
+			identityKey: IdentityKey
+			accountsEnabled: false
+			currentBlock?: number
+			usedBytes?: number
+	  }
+	| {
+			identityKey: IdentityKey
+			accountsEnabled: true
+			currentBlock: number
+			usedBytes: number
+			baselineBytes: number
+			paidBytes: number
+			capacityBytes: number
+			deficitBytes: number
+			paidThroughBlock: number | null
+			pricing: {
+				satsPerGb: number
+				durationBlocks: number
+			}
+	  }

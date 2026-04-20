@@ -9,6 +9,7 @@
  */
 
 import { StorageClient } from '@1sat/wallet-node'
+import { WalletServerClient } from '@1sat/wallet-server'
 import { confirm, isCancel, text } from '@clack/prompts'
 import type { GlobalFlags } from '../args'
 import { loadConfig, saveConfig } from '../config'
@@ -32,6 +33,8 @@ export async function handleRemoteCommand(
 			return remoteDelete(rest, opts)
 		case 'set-active':
 			return remoteSetActive(rest, opts)
+		case 'status':
+			return remoteStatus(rest, opts)
 		default:
 			printCommandHelp('remote', {
 				add: 'Add a remote storage as backup (1sat remote add <url>)',
@@ -40,6 +43,8 @@ export async function handleRemoteCommand(
 					'Remove a remote from the backup list (1sat remote delete <url>)',
 				'set-active':
 					'Switch active storage (1sat remote set-active <url | local>)',
+				status:
+					'Fetch GET /account/status from a remote (1sat remote status [url])',
 			})
 			if (subcommand && subcommand !== 'help') {
 				process.exit(1)
@@ -316,6 +321,82 @@ async function remoteSetActive(
 			await destroy()
 		}
 	}
+}
+
+// ============================================================================
+// remote status
+// ============================================================================
+
+async function remoteStatus(args: string[], opts: GlobalFlags): Promise<void> {
+	const config = loadConfig()
+	const url = args[0] ?? config.activeRemote ?? config.backups?.[0]
+	if (!url) {
+		fatal(
+			'No remote URL supplied. Pass one as an argument or configure activeRemote/backups first.',
+		)
+	}
+	try {
+		new URL(url)
+	} catch {
+		fatal(`Invalid URL: ${url}`)
+	}
+
+	const privateKey = await loadKey(resolvePassword())
+	const { walletResult, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const client = new WalletServerClient(url, walletResult.wallet)
+		const status = await client.accountStatus()
+
+		if (opts.json) {
+			output(status, opts)
+			return
+		}
+
+		console.log()
+		console.log(`  ${bold('Remote:')} ${url}`)
+		console.log(`  ${bold('Identity:')} ${status.identityKey}`)
+		console.log(
+			`  ${bold('Accounts:')} ${status.accountsEnabled ? 'on' : 'off'}`,
+		)
+		if (status.currentBlock != null) {
+			console.log(`  ${bold('Chain tip:')} block ${status.currentBlock}`)
+		}
+		if (status.usedBytes != null) {
+			console.log(`  ${bold('Used:')} ${formatBytes(status.usedBytes)}`)
+		}
+		if (status.accountsEnabled) {
+			console.log(`  ${bold('Baseline:')} ${formatBytes(status.baselineBytes)}`)
+			console.log(`  ${bold('Paid:')} ${formatBytes(status.paidBytes)}`)
+			console.log(`  ${bold('Capacity:')} ${formatBytes(status.capacityBytes)}`)
+			if (status.deficitBytes > 0) {
+				console.log(
+					`  ${bold('Deficit:')} ${formatBytes(status.deficitBytes)} (next write will trigger 402)`,
+				)
+			}
+			if (status.paidThroughBlock != null) {
+				const remaining = status.paidThroughBlock - status.currentBlock
+				console.log(
+					`  ${bold('Paid through:')} block ${status.paidThroughBlock} (${remaining} blocks left)`,
+				)
+			}
+			console.log(
+				`  ${bold('Pricing:')} ${status.pricing.satsPerGb} sats/GB over ${status.pricing.durationBlocks} blocks`,
+			)
+		}
+		console.log()
+	} finally {
+		await destroy()
+	}
+}
+
+function formatBytes(n: number): string {
+	if (n < 1024) return `${n} B`
+	if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+	if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`
+	return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
 
 // ============================================================================

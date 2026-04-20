@@ -12,8 +12,8 @@ import express, {
 	type Request as ExpressRequest,
 	type Response as ExpressResponse,
 } from 'express'
-import type { Knex } from 'knex'
 import { AccountsGate, type AccountsMiddlewareDeps } from './accounts'
+import type { AccountsRepo } from './accounts/repo'
 import type { AccountsConfig } from './accounts/types'
 import { createWalletRpcHandler } from './createWalletRpcHandler'
 import { dispatch } from './dispatch'
@@ -26,7 +26,8 @@ import type {
 
 export interface WalletServerAccounts {
 	config: AccountsConfig
-	knex: Knex
+	/** Accounts repo running against the wallet's own connection. */
+	repo: AccountsRepo
 	currentBlock: () => Promise<number>
 }
 
@@ -78,7 +79,7 @@ export function createWalletServer(
 		const deps: AccountsMiddlewareDeps = {
 			config: config.accounts.config,
 			walletStorage: config.storage,
-			knex: config.accounts.knex,
+			repo: config.accounts.repo,
 			wallet,
 			serverIdentityKey,
 			currentBlock: config.accounts.currentBlock,
@@ -88,6 +89,7 @@ export function createWalletServer(
 
 	if (publicPath) {
 		mountPublicRoute(app, publicPath, config, wallet, gate)
+		mountStatusRoute(app, publicPath, config)
 	}
 	if (internalPath) {
 		mountInternalRoute(app, internalPath, config, gate)
@@ -183,6 +185,73 @@ function mountPublicRoute(
 
 		res.status(200).json(response)
 	})
+}
+
+function mountStatusRoute(
+	app: Express,
+	basePath: string,
+	config: WalletServerConfig,
+): void {
+	const statusPath = joinPath(basePath, 'account/status')
+	app.get(
+		statusPath,
+		async (req: AuthenticatedRequest, res: ExpressResponse) => {
+			const identityKey = req.auth?.identityKey
+			if (!identityKey || identityKey === 'unknown') {
+				return res.status(401).json({ error: 'Unauthenticated' })
+			}
+
+			const accounts = config.accounts
+			if (!accounts) {
+				return res.status(200).json({ identityKey, accountsEnabled: false })
+			}
+
+			const currentBlock = await accounts.currentBlock()
+			const userResult = await config.storage.findOrInsertUser(identityKey)
+			const userId = userResult?.user?.userId
+			const usedBytes =
+				userId == null ? 0 : await accounts.repo.measureUsedBytes(userId)
+
+			if (!accounts.config.enabled) {
+				return res.status(200).json({
+					identityKey,
+					accountsEnabled: false,
+					currentBlock,
+					usedBytes,
+				})
+			}
+
+			const currentPayment = await accounts.repo.getCurrentPayment(
+				identityKey,
+				currentBlock,
+			)
+			const paidBytes = currentPayment?.bytesCovered ?? 0
+			const capacityBytes = accounts.config.baselineBytes + paidBytes
+			const deficitBytes = Math.max(0, usedBytes - capacityBytes)
+
+			return res.status(200).json({
+				identityKey,
+				accountsEnabled: true,
+				currentBlock,
+				usedBytes,
+				baselineBytes: accounts.config.baselineBytes,
+				paidBytes,
+				capacityBytes,
+				deficitBytes,
+				paidThroughBlock: currentPayment?.paidThroughBlock ?? null,
+				pricing: {
+					satsPerGb: accounts.config.satsPerGb,
+					durationBlocks: accounts.config.durationBlocks,
+				},
+			})
+		},
+	)
+}
+
+function joinPath(basePath: string, sub: string): string {
+	const trimmedBase = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath
+	const trimmedSub = sub.startsWith('/') ? sub.slice(1) : sub
+	return trimmedBase === '' ? `/${trimmedSub}` : `${trimmedBase}/${trimmedSub}`
 }
 
 async function relayFetchResponse(

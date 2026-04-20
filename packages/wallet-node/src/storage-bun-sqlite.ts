@@ -620,6 +620,61 @@ export class StorageBunSqlite extends StorageProvider {
 			},
 		}
 
+		migrations['2026-04-20-001 add transactions userId index'] = {
+			up: (db: Database) => {
+				db.run(
+					'CREATE INDEX IF NOT EXISTS transactions_userId ON transactions(userId)',
+				)
+			},
+			down: (db: Database) => {
+				db.run('DROP INDEX IF EXISTS transactions_userId')
+			},
+		}
+
+		migrations['2026-04-20-002 add outputs userId index'] = {
+			up: (db: Database) => {
+				db.run(
+					'CREATE INDEX IF NOT EXISTS outputs_userId ON outputs(userId)',
+				)
+			},
+			down: (db: Database) => {
+				db.run('DROP INDEX IF EXISTS outputs_userId')
+			},
+		}
+
+		migrations['2026-04-20-003 add wallet-server accounts tables'] = {
+			up: (db: Database) => {
+				db.run(`
+					CREATE TABLE IF NOT EXISTS accounts (
+						identity_key TEXT PRIMARY KEY,
+						created_at TEXT NOT NULL DEFAULT (datetime('now')),
+						updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+					)
+				`)
+				db.run(`
+					CREATE TABLE IF NOT EXISTS payments (
+						id INTEGER PRIMARY KEY AUTOINCREMENT,
+						identity_key TEXT NOT NULL REFERENCES accounts(identity_key),
+						txid TEXT NOT NULL UNIQUE,
+						bytes_covered INTEGER NOT NULL,
+						sats_paid INTEGER NOT NULL,
+						paid_through_block INTEGER NOT NULL,
+						applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+					)
+				`)
+				db.run(
+					'CREATE INDEX IF NOT EXISTS payments_identity ON payments(identity_key)',
+				)
+				db.run(
+					'CREATE INDEX IF NOT EXISTS payments_block ON payments(paid_through_block)',
+				)
+			},
+			down: (db: Database) => {
+				db.run('DROP TABLE IF EXISTS payments')
+				db.run('DROP TABLE IF EXISTS accounts')
+			},
+		}
+
 		return migrations
 	}
 

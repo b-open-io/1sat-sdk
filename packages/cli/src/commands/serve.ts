@@ -16,14 +16,13 @@
  */
 
 import { join } from 'node:path'
-import { OneSatServices } from '@1sat/client'
 import { type NodeWalletResult, createNodeWallet } from '@1sat/wallet-node'
 import {
+	type AccountsRepo,
+	BunSqliteAccountsRepo,
 	createWalletServer,
-	runMigrations as runAccountsMigrations,
 } from '@1sat/wallet-server'
 import type { PrivateKey } from '@bsv/sdk'
-import { type Knex, knex } from 'knex'
 import type { GlobalFlags } from '../args'
 import {
 	type ServerAccountsConfig,
@@ -206,7 +205,10 @@ async function runBunSqlite(
 		skipInitialMonitor: mode !== 'wallet',
 	})
 
-	const accounts = await buildAccountsForServer(resolved)
+	const accounts =
+		mode === 'monitor'
+			? undefined
+			: await buildAccountsForServer(resolved, walletResult)
 
 	const serverHandle =
 		mode === 'monitor'
@@ -231,7 +233,8 @@ async function runBunSqlite(
 				clearMonitorPid(resolved.dataDir)
 			}
 			if (serverHandle) await serverHandle.stop()
-			if (accounts) await accounts.knex.destroy()
+			// Accounts shares the wallet's connection — walletResult.destroy
+			// below closes it. No separate teardown needed.
 			await walletResult.destroy()
 		},
 	}
@@ -260,40 +263,49 @@ interface AccountsRuntime {
 	walletServerAccounts: NonNullable<
 		Parameters<typeof createWalletServer>[0]['accounts']
 	>
-	knex: Knex
 }
 
 async function buildAccountsForServer(
 	resolved: ResolvedServe,
+	walletResult: NodeWalletResult,
 ): Promise<AccountsRuntime | undefined> {
-	if (!resolved.accounts.enabled) return undefined
+	// When the wallet is remote-primary the server is fronting someone else's
+	// storage; accounts semantics don't apply.
+	if (resolved.activeRemote) return undefined
 
-	// Accounts uses its own knex pool. For bun-sqlite wallets that means
-	// opening the same file via better-sqlite3; for future pg wallets it
-	// shares the pg connection. Always a file path for now.
-	const accountsKnex = knex({
-		client: 'better-sqlite3',
-		connection: { filename: resolved.sqliteFilename },
-		useNullAsDefault: true,
-	})
-	await runAccountsMigrations(accountsKnex)
-
-	const services = new OneSatServices(resolved.chain, resolved.onesatURL)
+	const repo = buildAccountsRepo(resolved, walletResult)
 
 	return {
-		knex: accountsKnex,
 		walletServerAccounts: {
 			config: {
-				enabled: true,
+				enabled: resolved.accounts.enabled,
 				baselineBytes: resolved.accounts.baselineBytes,
 				satsPerGb: resolved.accounts.satsPerGb,
 				durationBlocks: resolved.accounts.durationBlocks,
 				freeIdentityKeys: resolved.accounts.freeIdentityKeys,
 			},
-			knex: accountsKnex,
-			currentBlock: () => services.chaintracks.currentHeight(),
+			repo,
+			currentBlock: () => walletResult.services.chaintracks.currentHeight(),
 		},
 	}
+}
+
+function buildAccountsRepo(
+	resolved: ResolvedServe,
+	walletResult: NodeWalletResult,
+): AccountsRepo {
+	if (resolved.storage.provider === 'bun-sqlite') {
+		// biome-ignore lint/suspicious/noExplicitAny: StorageBunSqlite exposes a bun:sqlite Database via `.db` but the WalletStorageProvider interface doesn't.
+		const active = walletResult.getActiveStorage() as any
+		const db = active?.db
+		if (!db) {
+			fatal('accounts: active storage is not a bun:sqlite provider')
+		}
+		return new BunSqliteAccountsRepo(db)
+	}
+	fatal(
+		`accounts: storage provider '${resolved.storage.provider}' is not supported yet`,
+	)
 }
 
 function waitForShutdown(): Promise<void> {

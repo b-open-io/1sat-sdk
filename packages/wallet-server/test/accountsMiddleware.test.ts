@@ -1,35 +1,60 @@
+import { Database } from 'bun:sqlite'
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import type { WalletInterface } from '@bsv/sdk'
-import { type Knex, knex as makeKnex } from 'knex'
 import { AccountsGate } from '../src/accounts/middleware'
-import { runMigrations } from '../src/accounts/migrations'
+import { BunSqliteAccountsRepo } from '../src/accounts/repo'
 import type { WalletStorageProvider } from '../src/types'
 
 const IDENTITY = '02'.padEnd(66, 'a')
 const SERVER_IDENTITY = '03'.padEnd(66, 'b')
 
-async function makeDb(): Promise<Knex> {
-	const db = makeKnex({
-		client: 'sqlite3',
-		connection: { filename: ':memory:' },
-		useNullAsDefault: true,
-	})
-	await runMigrations(db)
-	await db.schema.createTable('transactions', (t) => {
-		t.increments('transactionId')
-		t.integer('userId').notNullable()
-		t.binary('rawTx')
-		t.binary('inputBEEF')
-	})
-	await db.schema.createTable('outputs', (t) => {
-		t.increments('outputId')
-		t.integer('userId').notNullable()
-		t.integer('transactionId').notNullable()
-		t.integer('vout').notNullable()
-		t.bigInteger('scriptLength')
-		t.binary('lockingScript')
-	})
-	return db
+function makeDb(): { db: Database; repo: BunSqliteAccountsRepo } {
+	const db = new Database(':memory:')
+	// Minimal wallet-toolbox-shaped tables the accounts layer reads from.
+	db.run(`CREATE TABLE transactions (
+		transactionId INTEGER PRIMARY KEY AUTOINCREMENT,
+		userId INTEGER NOT NULL,
+		provenTxId INTEGER,
+		rawTx BLOB,
+		inputBEEF BLOB
+	)`)
+	db.run(`CREATE TABLE outputs (
+		outputId INTEGER PRIMARY KEY AUTOINCREMENT,
+		userId INTEGER NOT NULL,
+		transactionId INTEGER NOT NULL,
+		vout INTEGER NOT NULL,
+		scriptLength INTEGER,
+		lockingScript BLOB
+	)`)
+	db.run(`CREATE TABLE proven_txs (
+		provenTxId INTEGER PRIMARY KEY AUTOINCREMENT,
+		rawTx BLOB,
+		merklePath BLOB
+	)`)
+	db.run(`CREATE TABLE proven_tx_reqs (
+		provenTxReqId INTEGER PRIMARY KEY AUTOINCREMENT,
+		provenTxId INTEGER,
+		txid TEXT,
+		rawTx BLOB,
+		inputBEEF BLOB
+	)`)
+	// Accounts tables (live in the same db as part of the wallet schema).
+	db.run(`CREATE TABLE accounts (
+		identity_key TEXT PRIMARY KEY,
+		created_at TEXT NOT NULL DEFAULT (datetime('now')),
+		updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+	)`)
+	db.run(`CREATE TABLE payments (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		identity_key TEXT NOT NULL,
+		txid TEXT NOT NULL UNIQUE,
+		bytes_covered INTEGER NOT NULL,
+		sats_paid INTEGER NOT NULL,
+		paid_through_block INTEGER NOT NULL,
+		applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+	)`)
+	const repo = new BunSqliteAccountsRepo(db)
+	return { db, repo }
 }
 
 function makeStorage(userIdBy: Record<string, number>): WalletStorageProvider {
@@ -53,12 +78,13 @@ function makeStorage(userIdBy: Record<string, number>): WalletStorageProvider {
 const stubWallet = {} as WalletInterface
 
 describe('AccountsGate', () => {
-	let db: Knex
-	beforeEach(async () => {
-		db = await makeDb()
+	let db: Database
+	let repo: BunSqliteAccountsRepo
+	beforeEach(() => {
+		;({ db, repo } = makeDb())
 	})
-	afterEach(async () => {
-		await db.destroy()
+	afterEach(() => {
+		db.close()
 	})
 
 	test('allows when accounts disabled', async () => {
@@ -70,7 +96,7 @@ describe('AccountsGate', () => {
 				durationBlocks: 4383,
 			},
 			walletStorage: makeStorage({}),
-			knex: db,
+			repo,
 			wallet: stubWallet,
 			serverIdentityKey: SERVER_IDENTITY,
 			currentBlock: async () => 800000,
@@ -93,7 +119,7 @@ describe('AccountsGate', () => {
 				durationBlocks: 4383,
 			},
 			walletStorage: makeStorage({}),
-			knex: db,
+			repo,
 			wallet: stubWallet,
 			serverIdentityKey: SERVER_IDENTITY,
 			currentBlock: async () => 800000,
@@ -116,7 +142,7 @@ describe('AccountsGate', () => {
 				durationBlocks: 4383,
 			},
 			walletStorage: makeStorage({ [SERVER_IDENTITY]: 10 }),
-			knex: db,
+			repo,
 			wallet: stubWallet,
 			serverIdentityKey: SERVER_IDENTITY,
 			currentBlock: async () => 800000,
@@ -141,7 +167,7 @@ describe('AccountsGate', () => {
 				freeIdentityKeys: [FREE],
 			},
 			walletStorage: makeStorage({ [FREE]: 11 }),
-			knex: db,
+			repo,
 			wallet: stubWallet,
 			serverIdentityKey: SERVER_IDENTITY,
 			currentBlock: async () => 800000,
@@ -164,7 +190,7 @@ describe('AccountsGate', () => {
 				durationBlocks: 4383,
 			},
 			walletStorage: makeStorage({}),
-			knex: db,
+			repo,
 			wallet: stubWallet,
 			serverIdentityKey: SERVER_IDENTITY,
 			currentBlock: async () => 800000,
@@ -179,11 +205,9 @@ describe('AccountsGate', () => {
 	})
 
 	test('allows when usage is within baseline', async () => {
-		await db('transactions').insert({
-			userId: 5,
-			rawTx: Buffer.alloc(100),
-			inputBEEF: null,
-		})
+		db.prepare(
+			'INSERT INTO transactions (userId, rawTx, inputBEEF) VALUES (?, ?, ?)',
+		).run(5, new Uint8Array(100), null)
 		const gate = new AccountsGate({
 			config: {
 				enabled: true,
@@ -192,7 +216,7 @@ describe('AccountsGate', () => {
 				durationBlocks: 4383,
 			},
 			walletStorage: makeStorage({ [IDENTITY]: 5 }),
-			knex: db,
+			repo,
 			wallet: stubWallet,
 			serverIdentityKey: SERVER_IDENTITY,
 			currentBlock: async () => 800000,
@@ -207,12 +231,9 @@ describe('AccountsGate', () => {
 	})
 
 	test('returns 402 challenge when over capacity and no payment attached', async () => {
-		// Insert a lot of bytes for user 5
-		await db('transactions').insert({
-			userId: 5,
-			rawTx: Buffer.alloc(10_000),
-			inputBEEF: Buffer.alloc(10_000),
-		})
+		db.prepare(
+			'INSERT INTO transactions (userId, rawTx, inputBEEF) VALUES (?, ?, ?)',
+		).run(5, new Uint8Array(10_000), new Uint8Array(10_000))
 		const gate = new AccountsGate({
 			config: {
 				enabled: true,
@@ -221,7 +242,7 @@ describe('AccountsGate', () => {
 				durationBlocks: 4383,
 			},
 			walletStorage: makeStorage({ [IDENTITY]: 5 }),
-			knex: db,
+			repo,
 			wallet: stubWallet,
 			serverIdentityKey: SERVER_IDENTITY,
 			currentBlock: async () => 800000,

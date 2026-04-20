@@ -1,89 +1,80 @@
+import { Database } from 'bun:sqlite'
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { type Knex, knex as makeKnex } from 'knex'
-import { measureUsedBytes } from '../src/accounts/metering'
+import { BunSqliteAccountsRepo } from '../src/accounts/repo'
 
-async function makeDb(): Promise<Knex> {
-	const db = makeKnex({
-		client: 'sqlite3',
-		connection: { filename: ':memory:' },
-		useNullAsDefault: true,
-	})
-	await db.schema.createTable('transactions', (t) => {
-		t.increments('transactionId')
-		t.integer('userId').notNullable()
-		t.binary('rawTx')
-		t.binary('inputBEEF')
-	})
-	await db.schema.createTable('outputs', (t) => {
-		t.increments('outputId')
-		t.integer('userId').notNullable()
-		t.integer('transactionId').notNullable()
-		t.integer('vout').notNullable()
-		t.bigInteger('scriptLength')
-		t.binary('lockingScript')
-	})
+function makeDb(): Database {
+	const db = new Database(':memory:')
+	db.run(`CREATE TABLE transactions (
+		transactionId INTEGER PRIMARY KEY AUTOINCREMENT,
+		userId INTEGER NOT NULL,
+		provenTxId INTEGER,
+		rawTx BLOB,
+		inputBEEF BLOB
+	)`)
+	db.run(`CREATE TABLE outputs (
+		outputId INTEGER PRIMARY KEY AUTOINCREMENT,
+		userId INTEGER NOT NULL,
+		transactionId INTEGER NOT NULL,
+		vout INTEGER NOT NULL,
+		scriptLength INTEGER,
+		lockingScript BLOB
+	)`)
+	db.run(`CREATE TABLE proven_txs (
+		provenTxId INTEGER PRIMARY KEY AUTOINCREMENT,
+		rawTx BLOB,
+		merklePath BLOB
+	)`)
+	db.run(`CREATE TABLE proven_tx_reqs (
+		provenTxReqId INTEGER PRIMARY KEY AUTOINCREMENT,
+		provenTxId INTEGER,
+		txid TEXT,
+		rawTx BLOB,
+		inputBEEF BLOB
+	)`)
 	return db
 }
 
-describe('measureUsedBytes', () => {
-	let db: Knex
-	beforeEach(async () => {
-		db = await makeDb()
+describe('BunSqliteAccountsRepo.measureUsedBytes', () => {
+	let db: Database
+	let repo: BunSqliteAccountsRepo
+	beforeEach(() => {
+		db = makeDb()
+		repo = new BunSqliteAccountsRepo(db)
 	})
-	afterEach(async () => {
-		await db.destroy()
+	afterEach(() => {
+		db.close()
 	})
 
 	test('returns 0 for a user with no data', async () => {
-		const bytes = await measureUsedBytes(db, 1)
-		expect(bytes).toBe(0)
+		expect(await repo.measureUsedBytes(1)).toBe(0)
 	})
 
 	test('sums rawTx + inputBEEF bytes for matching userId', async () => {
-		await db('transactions').insert([
-			{ userId: 1, rawTx: Buffer.alloc(100), inputBEEF: Buffer.alloc(50) },
-			{ userId: 1, rawTx: Buffer.alloc(200), inputBEEF: null },
-			{ userId: 2, rawTx: Buffer.alloc(999), inputBEEF: Buffer.alloc(999) },
-		])
-		const bytes = await measureUsedBytes(db, 1)
-		expect(bytes).toBe(100 + 50 + 200)
+		const insertTx = db.prepare(
+			'INSERT INTO transactions (userId, rawTx, inputBEEF) VALUES (?, ?, ?)',
+		)
+		insertTx.run(1, new Uint8Array(100), new Uint8Array(50))
+		insertTx.run(1, new Uint8Array(200), null)
+		insertTx.run(2, new Uint8Array(999), new Uint8Array(999))
+		expect(await repo.measureUsedBytes(1)).toBe(100 + 50 + 200)
 	})
 
 	test('prefers scriptLength over LENGTH(lockingScript)', async () => {
-		await db('outputs').insert([
-			{
-				userId: 1,
-				transactionId: 1,
-				vout: 0,
-				scriptLength: 1024,
-				lockingScript: null,
-			},
-			{
-				userId: 1,
-				transactionId: 2,
-				vout: 0,
-				scriptLength: null,
-				lockingScript: Buffer.alloc(256),
-			},
-		])
-		const bytes = await measureUsedBytes(db, 1)
-		expect(bytes).toBe(1024 + 256)
+		const insertOut = db.prepare(
+			'INSERT INTO outputs (userId, transactionId, vout, scriptLength, lockingScript) VALUES (?, ?, ?, ?, ?)',
+		)
+		insertOut.run(1, 1, 0, 1024, null)
+		insertOut.run(1, 2, 0, null, new Uint8Array(256))
+		expect(await repo.measureUsedBytes(1)).toBe(1024 + 256)
 	})
 
 	test('combines tx + output bytes', async () => {
-		await db('transactions').insert({
-			userId: 7,
-			rawTx: Buffer.alloc(500),
-			inputBEEF: Buffer.alloc(100),
-		})
-		await db('outputs').insert({
-			userId: 7,
-			transactionId: 1,
-			vout: 0,
-			scriptLength: 300,
-			lockingScript: null,
-		})
-		const bytes = await measureUsedBytes(db, 7)
-		expect(bytes).toBe(500 + 100 + 300)
+		db.prepare(
+			'INSERT INTO transactions (userId, rawTx, inputBEEF) VALUES (?, ?, ?)',
+		).run(7, new Uint8Array(500), new Uint8Array(100))
+		db.prepare(
+			'INSERT INTO outputs (userId, transactionId, vout, scriptLength, lockingScript) VALUES (?, ?, ?, ?, ?)',
+		).run(7, 1, 0, 300, null)
+		expect(await repo.measureUsedBytes(7)).toBe(500 + 100 + 300)
 	})
 })

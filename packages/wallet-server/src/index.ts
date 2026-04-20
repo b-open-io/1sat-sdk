@@ -13,6 +13,8 @@ export type {
 	WalletServerHandle,
 } from './createWalletServer'
 
+export { WalletServerClient } from './client'
+
 export { createWalletMonitor } from './createWalletMonitor'
 export type {
 	WalletMonitorConfig,

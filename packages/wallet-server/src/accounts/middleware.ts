@@ -1,27 +1,25 @@
 import type { WalletInterface } from '@bsv/sdk'
 import { Random, Utils } from '@bsv/sdk'
-import type { Knex } from 'knex'
 import { isBillableMethod } from '../dispatch'
 import type {
 	JsonRpcResponse,
 	ResolvedIdentity,
 	WalletStorageProvider,
 } from '../types'
-import { measureUsedBytes } from './metering'
 import {
 	Brc0121PaymentError,
 	internalizePayment,
 	parseBrc0121Payment,
 	readBrc0121Headers,
 } from './paymentValidation'
-import { BYTES_PER_GB, computeCapacity, priceForDeficit } from './pricing'
-import { AccountsRepo } from './repo'
+import { type RefundedQuote, quoteRefundedCharge } from './pricing'
+import type { AccountsRepo } from './repo'
 import type { AccountsConfig, IdentityKey } from './types'
 
 export interface AccountsMiddlewareDeps {
 	config: AccountsConfig
 	walletStorage: WalletStorageProvider
-	knex: Knex
+	repo: AccountsRepo
 	wallet: WalletInterface
 	serverIdentityKey: IdentityKey
 	/** Returns the current chain tip block height. */
@@ -49,7 +47,7 @@ export class AccountsGate {
 	private readonly freeKeys: Set<IdentityKey>
 
 	constructor(private readonly deps: AccountsMiddlewareDeps) {
-		this.repo = new AccountsRepo(deps.knex)
+		this.repo = deps.repo
 		this.freeKeys = new Set([
 			deps.serverIdentityKey,
 			...(deps.config.freeIdentityKeys ?? []),
@@ -70,34 +68,27 @@ export class AccountsGate {
 		}
 
 		const currentBlock = await this.deps.currentBlock()
-		const used = await measureUsedBytes(this.deps.knex, userId)
-		const paidBytes = await this.repo.sumUnexpiredBytes(
+		const used = await this.repo.measureUsedBytes(userId)
+		const currentPayment = await this.repo.getCurrentPayment(
 			input.identity.identityKey,
 			currentBlock,
 		)
-		const capacity = computeCapacity({
-			baselineBytes: this.deps.config.baselineBytes,
-			paidBytes,
+		const quote = quoteRefundedCharge({
 			usedBytes: used,
+			currentPayment,
+			currentBlock,
+			config: this.deps.config,
 		})
 
-		if (capacity.deficitBytes <= 0) return { type: 'allow' }
+		if (!quote) return { type: 'allow' }
 
 		const paymentHeaders = readBrc0121Headers(input.request)
 		if (!paymentHeaders) {
-			return {
-				type: 'blocked',
-				response: this.buildChallenge(input.id, capacity.deficitBytes),
-			}
+			return { type: 'blocked', response: this.buildChallenge(input.id, quote) }
 		}
 
-		// A payment is attached. Validate and credit before allowing the retry.
-		const quote = priceForDeficit(
-			capacity.deficitBytes,
-			this.deps.config.satsPerGb,
-		)
 		try {
-			const parsed = parseBrc0121Payment(paymentHeaders, quote.satoshisRequired)
+			const parsed = parseBrc0121Payment(paymentHeaders, quote.chargeSats)
 			if (await this.repo.paymentExists(parsed.txid)) {
 				return {
 					type: 'blocked',
@@ -115,7 +106,7 @@ export class AccountsGate {
 				txid: validation.txid,
 				bytesCovered: quote.bytesCovered,
 				satsPaid: validation.satoshisReceived,
-				paidThroughBlock: currentBlock + this.deps.config.durationBlocks,
+				paidThroughBlock: quote.paidThroughBlock,
 			})
 			return { type: 'allow' }
 		} catch (err) {
@@ -138,9 +129,8 @@ export class AccountsGate {
 
 	private buildChallenge(
 		id: string | number | null,
-		deficitBytes: number,
+		quote: RefundedQuote,
 	): Response {
-		const quote = priceForDeficit(deficitBytes, this.deps.config.satsPerGb)
 		const orderID = Utils.toBase64(Random(16))
 		const derivationPrefix = Utils.toBase64(Random(16))
 		const body = {
@@ -150,10 +140,12 @@ export class AccountsGate {
 				message: 'payment required',
 				data: {
 					status: 'payment-required',
-					satoshisRequired: quote.satoshisRequired,
+					satoshisRequired: quote.chargeSats,
+					fullSats: quote.fullSats,
+					refundSats: quote.refundSats,
 					bytesRequested: quote.bytesCovered,
 					gigabytesCharged: quote.gigabytesCharged,
-					bytesPerGb: BYTES_PER_GB,
+					paidThroughBlock: quote.paidThroughBlock,
 					derivationPrefix,
 					orderID,
 				},
@@ -167,7 +159,7 @@ export class AccountsGate {
 				'content-type': 'application/json',
 				'x-bsv-payment-order-id': orderID,
 				'x-bsv-payment-derivation-prefix': derivationPrefix,
-				'x-bsv-payment-satoshis-required': String(quote.satoshisRequired),
+				'x-bsv-payment-satoshis-required': String(quote.chargeSats),
 			},
 		})
 	}
