@@ -121,6 +121,14 @@ function toBlob(
 export class StorageBunSqlite extends StorageProvider {
 	db: Database
 	_verifiedReadyForDatabaseAccess = false
+	/**
+	 * Valid column names per table, populated after migrations via
+	 * `PRAGMA table_info`. Used to drop unknown keys before building
+	 * INSERT/UPDATE SQL so wire-format drift (e.g. a foreign client
+	 * shipping a record with a typo'd field) can't produce SQL errors
+	 * against the bound parameters.
+	 */
+	private tableColumns: Map<string, Set<string>> = new Map()
 
 	constructor(options: StorageBunSqliteOptions) {
 		super(options)
@@ -205,11 +213,56 @@ export class StorageBunSqlite extends StorageProvider {
 
 		this.db.run('PRAGMA foreign_keys = ON')
 
+		this.refreshTableColumns()
+
 		// Return the current version (latest migration name)
 		const latest = this.db
 			.query('SELECT name FROM knex_migrations ORDER BY id DESC LIMIT 1')
 			.get() as { name: string } | null
 		return latest?.name ?? 'none'
+	}
+
+	/**
+	 * Introspect the live schema and cache the column set for every user
+	 * table. Called at the end of `migrate()`; also safe to call again if
+	 * a table is added at runtime.
+	 */
+	private refreshTableColumns(): void {
+		this.tableColumns.clear()
+		const tables = this.db
+			.query(
+				`SELECT name FROM sqlite_master
+				 WHERE type='table'
+				   AND name NOT LIKE 'sqlite_%'
+				   AND name NOT LIKE 'knex_migrations%'`,
+			)
+			.all() as { name: string }[]
+		for (const { name } of tables) {
+			const cols = this.db
+				.query(`PRAGMA table_info(${this.quoteCol(name)})`)
+				.all() as { name: string }[]
+			this.tableColumns.set(name, new Set(cols.map((c) => c.name)))
+		}
+	}
+
+	/**
+	 * Return a copy of `entity` containing only keys that correspond to
+	 * real columns in `table`. Unknown keys are dropped silently so that
+	 * a rogue field in an incoming RPC payload can't become a SQL
+	 * identifier. If we have no schema record for `table` (e.g. the
+	 * migration step was bypassed), pass through unchanged.
+	 */
+	private filterToSchema(
+		table: string,
+		entity: Record<string, unknown>,
+	): Record<string, unknown> {
+		const allowed = this.tableColumns.get(table)
+		if (!allowed) return entity
+		const out: Record<string, unknown> = {}
+		for (const k of Object.keys(entity)) {
+			if (allowed.has(k)) out[k] = entity[k]
+		}
+		return out
 	}
 
 	private getMigrationDefinitions(
@@ -919,14 +972,15 @@ export class StorageBunSqlite extends StorageProvider {
 	 * INSERT a row and return the last inserted rowid.
 	 */
 	private insertRow(table: string, entity: Record<string, unknown>): number {
-		const filteredKeys = Object.keys(entity).filter((k) => entity[k] != null)
+		const scoped = this.filterToSchema(table, entity)
+		const filteredKeys = Object.keys(scoped).filter((k) => scoped[k] != null)
 		if (filteredKeys.length === 0)
 			throw new WERR_INTERNAL(`Cannot insert empty entity into ${table}`)
 
 		const cols = filteredKeys.map((k) => this.quoteCol(k)).join(', ')
 		const placeholders = filteredKeys.map(() => '?').join(', ')
 		const values = filteredKeys.map((k) => {
-			const v = entity[k]
+			const v = scoped[k]
 			if (v === null) return null
 			if (Buffer.isBuffer(v)) return v
 			if (v instanceof Uint8Array) return Buffer.from(v)
@@ -953,9 +1007,10 @@ export class StorageBunSqlite extends StorageProvider {
 		where: Record<string, unknown>,
 		update: Record<string, unknown>,
 	): number {
+		const scoped = this.filterToSchema(table, update)
 		const setClauses: string[] = []
 		const setParams: unknown[] = []
-		for (const [k, v] of Object.entries(update)) {
+		for (const [k, v] of Object.entries(scoped)) {
 			if (v === undefined) continue
 			setClauses.push(`${this.quoteCol(k)} = ?`)
 			if (v === null) {
@@ -1798,9 +1853,12 @@ export class StorageBunSqlite extends StorageProvider {
 		trx?: TrxToken,
 	): Promise<number> {
 		await this.verifyReadyForDatabaseAccess(trx)
-		const validated = this.validatePartialForUpdate(
-			update as Partial<EntityTimeStamp>,
-		) as Record<string, unknown>
+		const validated = this.filterToSchema(
+			'proven_tx_reqs',
+			this.validatePartialForUpdate(
+				update as Partial<EntityTimeStamp>,
+			) as Record<string, unknown>,
+		)
 		if (Array.isArray(id)) {
 			if (id.length === 0) return 0
 			const setClauses: string[] = []
@@ -1868,9 +1926,12 @@ export class StorageBunSqlite extends StorageProvider {
 		trx?: TrxToken,
 	): Promise<number> {
 		await this.verifyReadyForDatabaseAccess(trx)
-		const validated = this.validatePartialForUpdate(
-			update as Partial<EntityTimeStamp>,
-		) as Record<string, unknown>
+		const validated = this.filterToSchema(
+			'transactions',
+			this.validatePartialForUpdate(
+				update as Partial<EntityTimeStamp>,
+			) as Record<string, unknown>,
+		)
 		if (Array.isArray(id)) {
 			if (id.length === 0) return 0
 			const setClauses: string[] = []
