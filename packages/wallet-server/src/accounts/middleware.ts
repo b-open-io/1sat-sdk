@@ -11,7 +11,7 @@
  * client call is enough.
  */
 
-import { P2PKH, PublicKey, type WalletInterface, Utils } from '@bsv/sdk'
+import { Beef, P2PKH, PublicKey, type WalletInterface, Utils } from '@bsv/sdk'
 import type { NextFunction, Request, Response } from 'express'
 import { isBillableMethod } from '../dispatch'
 import type { WalletStorageProvider } from '../types'
@@ -59,9 +59,18 @@ function toBase64Suffix(index: number): string {
  */
 interface StorageWithFinders {
 	findTransactions(args: {
-		partial: { reference?: string; userId?: number }
+		partial: { txid?: string; reference?: string; userId?: number }
 		noRawTx?: boolean
-	}): Promise<Array<{ transactionId: number; reference: string; userId: number }>>
+	}): Promise<
+		Array<{
+			transactionId: number
+			reference: string
+			userId: number
+			txid?: string
+			rawTx?: number[]
+			inputBEEF?: number[]
+		}>
+	>
 	findOutputs(args: {
 		partial: { transactionId?: number; userId?: number }
 	}): Promise<
@@ -72,10 +81,6 @@ interface StorageWithFinders {
 			lockingScript?: number[]
 		}>
 	>
-	getBeefForTransaction(
-		txid: string,
-		options: { trustSelf?: 'known' },
-	): Promise<{ toBinaryAtomic(txid: string): number[] }>
 }
 
 /**
@@ -276,9 +281,20 @@ async function autoInternalizeSelfPayment(
 	},
 ): Promise<void> {
 	const storage = deps.walletStorage as unknown as StorageWithFinders
-	const beef = await storage.getBeefForTransaction(ctx.txid, {
-		trustSelf: 'known',
+	// Reconstruct AtomicBEEF the same way signAction does: start from the
+	// action's stored inputBEEF (full proof chain for the tx's ancestors),
+	// merge the signed rawTx itself, then binary-encode atomic to the txid.
+	const txs = await storage.findTransactions({
+		partial: { txid: ctx.txid },
 	})
+	const txRecord = txs[0]
+	if (!txRecord?.rawTx || !txRecord.inputBEEF) {
+		throw new Error(
+			`storage missing rawTx or inputBEEF for txid ${ctx.txid}`,
+		)
+	}
+	const beef = Beef.fromBinary(txRecord.inputBEEF)
+	beef.mergeRawTx(txRecord.rawTx)
 	const atomicBeef = beef.toBinaryAtomic(ctx.txid)
 
 	await deps.wallet.internalizeAction({
