@@ -74,12 +74,14 @@ export interface NextPaymentDerivation {
 export type AccountStatusResponse =
 	| {
 			identityKey: IdentityKey
+			serverIdentityKey: IdentityKey
 			accountsEnabled: false
 			currentBlock?: number
 			usedBytes?: number
 	  }
 	| {
 			identityKey: IdentityKey
+			serverIdentityKey: IdentityKey
 			accountsEnabled: true
 			currentBlock: number
 			usedBytes: number

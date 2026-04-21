@@ -92,7 +92,7 @@ export function createWalletServer(
 
 	if (publicPath) {
 		mountPublicRoute(app, publicPath, config, wallet, accountsDeps)
-		mountStatusRoute(app, publicPath, config)
+		mountStatusRoute(app, publicPath, config, serverIdentityKey)
 		if (accountsDeps) {
 			mountPaymentRoute(app, publicPath, accountsDeps)
 		}
@@ -207,6 +207,7 @@ function mountStatusRoute(
 	app: Express,
 	basePath: string,
 	config: WalletServerConfig,
+	serverIdentityKey: string,
 ): void {
 	const statusPath = joinPath(basePath, 'account/status')
 	app.get(
@@ -219,7 +220,11 @@ function mountStatusRoute(
 
 			const accounts = config.accounts
 			if (!accounts) {
-				return res.status(200).json({ identityKey, accountsEnabled: false })
+				return res.status(200).json({
+					identityKey,
+					serverIdentityKey,
+					accountsEnabled: false,
+				})
 			}
 
 			const currentBlock = await accounts.currentBlock()
@@ -231,6 +236,7 @@ function mountStatusRoute(
 			if (!accounts.config.enabled) {
 				return res.status(200).json({
 					identityKey,
+					serverIdentityKey,
 					accountsEnabled: false,
 					currentBlock,
 					usedBytes,
@@ -252,6 +258,7 @@ function mountStatusRoute(
 
 			return res.status(200).json({
 				identityKey,
+				serverIdentityKey,
 				accountsEnabled: true,
 				currentBlock,
 				usedBytes,

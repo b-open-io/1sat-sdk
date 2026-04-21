@@ -69,7 +69,7 @@ export async function topUpStorage(
 	const { publicKey } = await wallet.getPublicKey({
 		protocolID: BRC29_PROTOCOL_ID,
 		keyID,
-		counterparty: status.identityKey,
+		counterparty: status.serverIdentityKey,
 		forSelf: false,
 	})
 	const address = PublicKey.fromString(publicKey).toAddress()
@@ -77,7 +77,7 @@ export async function topUpStorage(
 
 	const createResult = await wallet.createAction({
 		description: `wallet-server storage payment (${units} unit${units === 1 ? '' : 's'})`,
-		labels: [`account-payment:${status.identityKey}`],
+		labels: [`account-payment:${status.serverIdentityKey}`],
 		outputs: [
 			{
 				lockingScript,
