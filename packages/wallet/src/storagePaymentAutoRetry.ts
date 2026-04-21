@@ -86,6 +86,39 @@ export type StoragePaymentHook = (
 	info: StoragePaymentRequiredInfo,
 ) => Promise<boolean>
 
+/**
+ * Thrown by the factory's 507 auto-retry wrapper when a storage payment
+ * attempt cannot complete. Distinguishes storage-payment failures from
+ * ordinary wallet errors so callers can present a targeted message
+ * ("couldn't cover the storage fee") rather than a generic wallet error.
+ *
+ * The most common concrete case is **insufficient funds to cover the
+ * required storage payment** — in which the underlying wallet-toolbox
+ * error is preserved in `cause`. Other cases: the user's
+ * `onStoragePaymentRequired` hook returned false, the server rejected
+ * the self-payment tx, or the original op still failed after the payment
+ * was recorded.
+ */
+export class StoragePaymentError extends Error {
+	readonly name = 'StoragePaymentError'
+	/**
+	 * Stable string code for framework-agnostic detection:
+	 * `err?.code === 'storage-payment-failed'`. Use this if you don't
+	 * want to import the class.
+	 */
+	readonly code = 'storage-payment-failed'
+	/** Pricing + deficit snapshot at the time of the failure, if available. */
+	readonly info?: StoragePaymentRequiredInfo
+
+	constructor(
+		message: string,
+		options: { info?: StoragePaymentRequiredInfo; cause?: unknown } = {},
+	) {
+		super(message, { cause: options.cause })
+		this.info = options.info
+	}
+}
+
 export interface AutoRetryConfig {
 	/** The wallet whose billable methods should be wrapped. */
 	wallet: WalletInterface
@@ -132,12 +165,39 @@ export function installStoragePaymentAutoRetry(
 			const url = config.getActiveRemoteUrl()
 			if (!url) throw err
 			const info = await fetchPaymentInfo(wallet, url)
-			if (!info) throw err
+			if (!info) {
+				// 507 but /account/status says no deficit / accounts disabled
+				// — weird mismatch, not a payment-affordability problem. Pass
+				// the raw 507 through.
+				throw err
+			}
 			const hook = config.onStoragePaymentRequired
 			const ok = hook ? await hook(info) : true
-			if (!ok) throw err
-			await buildAndBroadcastPayment(originalCreateAction, wallet, info)
-			return await op()
+			if (!ok) {
+				throw new StoragePaymentError(
+					'storage payment declined by consent hook',
+					{ info, cause: err },
+				)
+			}
+			try {
+				await buildAndBroadcastPayment(originalCreateAction, wallet, info)
+			} catch (paymentErr) {
+				throw new StoragePaymentError(
+					buildPaymentErrorMessage(paymentErr, info),
+					{ info, cause: paymentErr },
+				)
+			}
+			try {
+				return await op()
+			} catch (retryErr) {
+				if (isInsufficientStorageError(retryErr)) {
+					throw new StoragePaymentError(
+						'storage payment recorded but the operation still failed with 507',
+						{ info, cause: retryErr },
+					)
+				}
+				throw retryErr
+			}
 		}
 	}
 
@@ -237,4 +297,16 @@ function joinUrl(base: string, path: string): string {
 	const b = base.endsWith('/') ? base.slice(0, -1) : base
 	const p = path.startsWith('/') ? path.slice(1) : path
 	return `${b}/${p}`
+}
+
+function buildPaymentErrorMessage(
+	cause: unknown,
+	info: StoragePaymentRequiredInfo,
+): string {
+	const detail =
+		cause && typeof cause === 'object' && 'message' in cause
+			? String((cause as { message: unknown }).message)
+			: ''
+	const base = `failed to build storage payment (${info.satsRequired} sats)`
+	return detail ? `${base}: ${detail}` : base
 }

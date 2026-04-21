@@ -113,6 +113,7 @@ export {
 // 507 auto-retry
 export {
 	installStoragePaymentAutoRetry,
+	StoragePaymentError,
 	type AutoRetryConfig,
 	type StoragePaymentHook,
 	type StoragePaymentRequiredInfo,
