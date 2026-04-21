@@ -289,6 +289,18 @@ async function autoInternalizeSelfPayment(
 		partial: { txid: ctx.txid },
 	})
 	const txRecord = txs[0]
+	console.error(
+		'[accounts] findTransactions debug',
+		ctx.txid,
+		'found=',
+		!!txRecord,
+		'rawTx.len=',
+		txRecord?.rawTx?.length,
+		'inputBEEF.len=',
+		txRecord?.inputBEEF?.length,
+		'keys=',
+		txRecord ? Object.keys(txRecord) : [],
+	)
 	if (!txRecord?.rawTx || !txRecord.inputBEEF) {
 		throw new Error(
 			`storage missing rawTx or inputBEEF for txid ${ctx.txid}`,
