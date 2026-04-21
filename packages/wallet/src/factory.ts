@@ -171,9 +171,17 @@ export async function createWalletCore(
 
 	// Initial backup sync: push current active state into every backup store
 	// so fresh or wiped backups are populated before the wallet is used.
-	// Never fail wallet creation on backup failure — the active store is
-	// already usable; the caller can retry sync via updateBackups() later.
-	if (storage.getBackupStores().length > 0) {
+	//
+	// When activeRemote is set, the remote IS the canonical store; backups
+	// are mirrors. Awaiting a sync here would deadlock if the remote enforces
+	// a BRC-0121 402 on processSyncChunk (the payment-context createAction
+	// needs the manager's lock, which the outer updateBackups is holding).
+	// The interception hooks on createAction/signAction will push to backups
+	// after the first real write anyway.
+	//
+	// Local-primary is safe to await: no remote-side billing, no lock
+	// recursion.
+	if (storage.getBackupStores().length > 0 && !config.activeRemote) {
 		try {
 			await storage.updateBackups()
 		} catch (err) {
