@@ -21,20 +21,7 @@ export {
 	type RefundedQuoteInput,
 } from './pricing'
 export {
-	BRC0121_HEADERS,
-	Brc0121PaymentError,
-	internalizePayment,
-	parseBrc0121Payment,
-	readBrc0121Headers,
-	validateBrc0121Payment,
-	type Brc0121PaymentHeaders,
-	type ParsedPayment,
-	type ValidatePaymentInput,
-	type ValidatePaymentResult,
-} from './paymentValidation'
-export {
-	AccountsGate,
 	type AccountsMiddlewareDeps,
-	type BillabilityCheckInput,
-	type BillabilityDecision,
+	accountsPaymentRecorder,
+	accountsPriceCalculator,
 } from './middleware'

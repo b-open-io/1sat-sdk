@@ -1,17 +1,20 @@
-import type { WalletInterface } from '@bsv/sdk'
-import { Random, Utils } from '@bsv/sdk'
+/**
+ * Accounts integration with @bsv/payment-express-middleware.
+ *
+ * - `accountsPriceCalculator` — `calculateRequestPrice` callback for the
+ *   payment middleware. Returns 0 for unmetered requests (non-billable
+ *   methods, free identities, accounts disabled). Otherwise returns the
+ *   sats owed under our refund-credit pricing model.
+ *
+ * - `accountsPaymentRecorder` — post-payment Express middleware that runs
+ *   AFTER the payment middleware has accepted a payment. It writes a row
+ *   into the `payments` table so future quotes see the new paid capacity.
+ */
+
+import { Transaction, Utils, type WalletInterface } from '@bsv/sdk'
+import type { NextFunction, Request, Response } from 'express'
 import { isBillableMethod } from '../dispatch'
-import type {
-	JsonRpcResponse,
-	ResolvedIdentity,
-	WalletStorageProvider,
-} from '../types'
-import {
-	Brc0121PaymentError,
-	internalizePayment,
-	parseBrc0121Payment,
-	readBrc0121Headers,
-} from './paymentValidation'
+import type { WalletStorageProvider } from '../types'
 import { type RefundedQuote, quoteRefundedCharge } from './pricing'
 import type { AccountsRepo } from './repo'
 import type { AccountsConfig, IdentityKey } from './types'
@@ -26,157 +29,112 @@ export interface AccountsMiddlewareDeps {
 	currentBlock: () => Promise<number>
 }
 
-export interface BillabilityCheckInput {
-	method: string
-	identity: ResolvedIdentity
-	request: Request
-	id: string | number | null
+/** Extra fields the accounts layer stashes on the request for the post-payment recorder. */
+interface AccountsRequestState {
+	quote?: RefundedQuote
+	identityKey?: IdentityKey
 }
 
-export type BillabilityDecision =
-	| { type: 'allow' }
-	| { type: 'blocked'; response: Response }
+type AccountsRequest = Request & {
+	_accounts?: AccountsRequestState
+	auth?: { identityKey?: string }
+	payment?: { tx?: string; satoshisPaid?: number }
+}
 
 /**
- * Gate that runs before dispatch for each JSON-RPC call. Decides whether to
- * allow the call, to return a 402 challenge, or to accept a payment and then
- * allow.
+ * Returns a `calculateRequestPrice` function wired to our refund-credit
+ * pricing. Used as the middleware option of `createPaymentMiddleware`.
  */
-export class AccountsGate {
-	readonly repo: AccountsRepo
-	private readonly freeKeys: Set<IdentityKey>
+export function accountsPriceCalculator(
+	deps: AccountsMiddlewareDeps,
+): (req: Request) => Promise<number> {
+	const freeKeys = new Set<IdentityKey>([
+		deps.serverIdentityKey,
+		...(deps.config.freeIdentityKeys ?? []),
+	])
 
-	constructor(private readonly deps: AccountsMiddlewareDeps) {
-		this.repo = deps.repo
-		this.freeKeys = new Set([
-			deps.serverIdentityKey,
-			...(deps.config.freeIdentityKeys ?? []),
+	return async (req: Request) => {
+		if (!deps.config.enabled) return 0
+
+		const reqx = req as AccountsRequest
+		const method = extractJsonRpcMethod(reqx)
+		if (method == null || !isBillableMethod(method)) return 0
+
+		const identityKey = reqx.auth?.identityKey
+		if (!identityKey) return 0
+		if (freeKeys.has(identityKey)) return 0
+
+		const userId = await resolveUserId(deps.walletStorage, identityKey)
+		if (userId == null) return 0 // first billable call; metering starts next
+
+		const currentBlock = await deps.currentBlock()
+		const [usedBytes, currentPayment] = await Promise.all([
+			deps.repo.measureUsedBytes(userId),
+			deps.repo.getCurrentPayment(identityKey, currentBlock),
 		])
-	}
-
-	async check(input: BillabilityCheckInput): Promise<BillabilityDecision> {
-		if (!this.deps.config.enabled) return { type: 'allow' }
-		if (!isBillableMethod(input.method)) return { type: 'allow' }
-		if (this.freeKeys.has(input.identity.identityKey)) return { type: 'allow' }
-
-		const userId = await this.resolveUserId(input.identity.identityKey)
-		if (userId == null) {
-			// No wallet-toolbox user yet means zero bytes stored. Allow the first
-			// billable request so the user row can be created; metering starts
-			// from the next request.
-			return { type: 'allow' }
-		}
-
-		const currentBlock = await this.deps.currentBlock()
-		const used = await this.repo.measureUsedBytes(userId)
-		const currentPayment = await this.repo.getCurrentPayment(
-			input.identity.identityKey,
-			currentBlock,
-		)
 		const quote = quoteRefundedCharge({
-			usedBytes: used,
+			usedBytes,
 			currentPayment,
 			currentBlock,
-			config: this.deps.config,
+			config: deps.config,
 		})
+		if (!quote) return 0
 
-		if (!quote) return { type: 'allow' }
-
-		const paymentHeaders = readBrc0121Headers(input.request)
-		if (!paymentHeaders) {
-			return { type: 'blocked', response: this.buildChallenge(input.id, quote) }
+		reqx._accounts = {
+			quote,
+			identityKey,
 		}
-
-		try {
-			const parsed = parseBrc0121Payment(paymentHeaders, quote.chargeSats)
-			if (await this.repo.paymentExists(parsed.txid)) {
-				return {
-					type: 'blocked',
-					response: errorResponse(input.id, -32001, 'payment already applied'),
-				}
-			}
-			const validation = await internalizePayment({
-				wallet: this.deps.wallet,
-				senderIdentityKey: input.identity.identityKey,
-				parsed,
-			})
-			await this.repo.upsertAccount(input.identity.identityKey)
-			await this.repo.recordPayment({
-				identityKey: input.identity.identityKey,
-				txid: validation.txid,
-				bytesCovered: quote.bytesCovered,
-				satsPaid: validation.satoshisReceived,
-				paidThroughBlock: quote.paidThroughBlock,
-			})
-			return { type: 'allow' }
-		} catch (err) {
-			if (err instanceof Brc0121PaymentError) {
-				return {
-					type: 'blocked',
-					response: errorResponse(input.id, -32002, err.message),
-				}
-			}
-			throw err
-		}
-	}
-
-	private async resolveUserId(
-		identityKey: IdentityKey,
-	): Promise<number | undefined> {
-		const result = await this.deps.walletStorage.findOrInsertUser(identityKey)
-		return result?.user?.userId
-	}
-
-	private buildChallenge(
-		id: string | number | null,
-		quote: RefundedQuote,
-	): Response {
-		const orderID = Utils.toBase64(Random(16))
-		const derivationPrefix = Utils.toBase64(Random(16))
-		const body = {
-			jsonrpc: '2.0',
-			error: {
-				code: -32000,
-				message: 'payment required',
-				data: {
-					status: 'payment-required',
-					satoshisRequired: quote.chargeSats,
-					fullSats: quote.fullSats,
-					refundSats: quote.refundSats,
-					bytesRequested: quote.bytesCovered,
-					unitsCharged: quote.unitsCharged,
-					paidThroughBlock: quote.paidThroughBlock,
-					derivationPrefix,
-					orderID,
-				},
-			},
-			id,
-		} satisfies JsonRpcResponse
-
-		return new Response(JSON.stringify(body), {
-			status: 402,
-			headers: {
-				'content-type': 'application/json',
-				'x-bsv-payment-order-id': orderID,
-				'x-bsv-payment-derivation-prefix': derivationPrefix,
-				'x-bsv-payment-satoshis-required': String(quote.chargeSats),
-			},
-		})
+		return quote.chargeSats
 	}
 }
 
-function errorResponse(
-	id: string | number | null,
-	code: number,
-	message: string,
-): Response {
-	const body: JsonRpcResponse = {
-		jsonrpc: '2.0',
-		error: { code, message },
-		id,
+/**
+ * Post-payment middleware. Reads the payment-middleware's `req.payment`
+ * (set after `wallet.internalizeAction` succeeded) and records the new
+ * payment row so future calls see the expanded capacity.
+ */
+export function accountsPaymentRecorder(deps: AccountsMiddlewareDeps) {
+	return async (
+		req: AccountsRequest,
+		_res: Response,
+		next: NextFunction,
+	): Promise<void> => {
+		const payment = req.payment
+		const state = req._accounts
+		if (!payment?.tx || !state?.quote || !state.identityKey) return next()
+
+		try {
+			const beef = Utils.toArray(payment.tx, 'base64')
+			const tx = Transaction.fromAtomicBEEF(beef)
+			const txid = tx.id('hex') as string
+			if (!(await deps.repo.paymentExists(txid))) {
+				await deps.repo.upsertAccount(state.identityKey)
+				await deps.repo.recordPayment({
+					identityKey: state.identityKey,
+					txid,
+					bytesCovered: state.quote.bytesCovered,
+					satsPaid: state.quote.chargeSats,
+					paidThroughBlock: state.quote.paidThroughBlock,
+				})
+			}
+		} catch (err) {
+			console.error('[accounts] failed to record payment:', err)
+		}
+		next()
 	}
-	return new Response(JSON.stringify(body), {
-		status: 402,
-		headers: { 'content-type': 'application/json' },
-	})
+}
+
+async function resolveUserId(
+	storage: WalletStorageProvider,
+	identityKey: IdentityKey,
+): Promise<number | undefined> {
+	const result = await storage.findOrInsertUser(identityKey)
+	return result?.user?.userId
+}
+
+function extractJsonRpcMethod(req: Request): string | undefined {
+	const body = req.body
+	if (typeof body !== 'object' || body === null) return undefined
+	const method = (body as { method?: unknown }).method
+	return typeof method === 'string' ? method : undefined
 }

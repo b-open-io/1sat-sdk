@@ -121,10 +121,7 @@ export class BunSqliteAccountsRepo implements AccountsRepo {
 		return !!row
 	}
 
-	async listPayments(
-		identityKey: IdentityKey,
-		limit = 50,
-	): Promise<Payment[]> {
+	async listPayments(identityKey: IdentityKey, limit = 50): Promise<Payment[]> {
 		const rows = this.db
 			.query(
 				`SELECT * FROM ${PAYMENTS_TABLE}

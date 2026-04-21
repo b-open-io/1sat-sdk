@@ -1,5 +1,6 @@
 import type { Server } from 'node:http'
 import { createAuthMiddleware } from '@bsv/auth-express-middleware'
+import { createPaymentMiddleware } from '@bsv/payment-express-middleware'
 import {
 	PrivateKey,
 	ProtoWallet,
@@ -12,7 +13,11 @@ import express, {
 	type Request as ExpressRequest,
 	type Response as ExpressResponse,
 } from 'express'
-import { AccountsGate, type AccountsMiddlewareDeps } from './accounts'
+import {
+	type AccountsMiddlewareDeps,
+	accountsPaymentRecorder,
+	accountsPriceCalculator,
+} from './accounts'
 import type { AccountsRepo } from './accounts/repo'
 import type { AccountsConfig } from './accounts/types'
 import { createWalletRpcHandler } from './createWalletRpcHandler'
@@ -74,25 +79,23 @@ export function createWalletServer(
 	const wallet = buildServerWallet(config.serverPrivateKey)
 	const serverIdentityKey = identityKeyFromPrivateKey(config.serverPrivateKey)
 
-	let gate: AccountsGate | undefined
-	if (config.accounts?.config.enabled) {
-		const deps: AccountsMiddlewareDeps = {
-			config: config.accounts.config,
-			walletStorage: config.storage,
-			repo: config.accounts.repo,
-			wallet,
-			serverIdentityKey,
-			currentBlock: config.accounts.currentBlock,
-		}
-		gate = new AccountsGate(deps)
-	}
+	const accountsDeps: AccountsMiddlewareDeps | undefined = config.accounts
+		? {
+				config: config.accounts.config,
+				walletStorage: config.storage,
+				repo: config.accounts.repo,
+				wallet,
+				serverIdentityKey,
+				currentBlock: config.accounts.currentBlock,
+			}
+		: undefined
 
 	if (publicPath) {
-		mountPublicRoute(app, publicPath, config, wallet, gate)
+		mountPublicRoute(app, publicPath, config, wallet, accountsDeps)
 		mountStatusRoute(app, publicPath, config)
 	}
 	if (internalPath) {
-		mountInternalRoute(app, internalPath, config, gate)
+		mountInternalRoute(app, internalPath, config)
 	}
 
 	let server: Server | undefined
@@ -130,13 +133,36 @@ function mountPublicRoute(
 	path: string,
 	config: WalletServerConfig,
 	wallet: WalletInterface,
-	gate: AccountsGate | undefined,
+	accountsDeps: AccountsMiddlewareDeps | undefined,
 ): void {
 	const authMiddleware = createAuthMiddleware({ wallet })
-
 	app.use(path, authMiddleware)
 
-	app.post(path, async (req: AuthenticatedRequest, res: ExpressResponse) => {
+	// JSON-RPC endpoint. Payment middleware sits between auth and dispatch
+	// so billable methods can drive 402 auto-payment via BRC-0121.
+	const postHandlers: Array<
+		(req: ExpressRequest, res: ExpressResponse, next: NextFunction) => unknown
+	> = []
+	if (accountsDeps) {
+		// The payment middleware is typed against Express 5 while this server
+		// runs on Express 4. Runtime shapes are identical, but the Request types
+		// differ, so we bridge with `any` at the boundary.
+		// biome-ignore lint/suspicious/noExplicitAny: express 4/5 type mismatch
+		const priceCalc = accountsPriceCalculator(accountsDeps) as any
+		const paymentMw = createPaymentMiddleware({
+			wallet,
+			calculateRequestPrice: priceCalc,
+			// biome-ignore lint/suspicious/noExplicitAny: express 4/5 type mismatch
+		}) as any
+		postHandlers.push(paymentMw, accountsPaymentRecorder(accountsDeps))
+	}
+	postHandlers.push(dispatchHandler(config))
+
+	app.post(path, ...postHandlers)
+}
+
+function dispatchHandler(config: WalletServerConfig) {
+	return async (req: AuthenticatedRequest, res: ExpressResponse) => {
 		const identityKey = req.auth?.identityKey
 		if (!identityKey || identityKey === 'unknown') {
 			return res.status(401).json({
@@ -155,20 +181,6 @@ function mountPublicRoute(
 			})
 		}
 
-		const id = normalizeJsonRpcId(body.id)
-
-		if (gate) {
-			const decision = await gate.check({
-				method: body.method,
-				identity: { identityKey },
-				request: expressToFetchRequest(req),
-				id,
-			})
-			if (decision.type === 'blocked') {
-				return relayFetchResponse(res, decision.response)
-			}
-		}
-
 		const response = await dispatch(
 			{
 				storage: config.storage,
@@ -178,13 +190,13 @@ function mountPublicRoute(
 			{
 				method: body.method,
 				params: Array.isArray(body.params) ? body.params : [],
-				id,
+				id: normalizeJsonRpcId(body.id),
 				identity: { identityKey },
 			},
 		)
 
 		res.status(200).json(response)
-	})
+	}
 }
 
 function mountStatusRoute(
@@ -255,25 +267,12 @@ function joinPath(basePath: string, sub: string): string {
 	return trimmedBase === '' ? `/${trimmedSub}` : `${trimmedBase}/${trimmedSub}`
 }
 
-async function relayFetchResponse(
-	res: ExpressResponse,
-	fetchRes: Response,
-): Promise<void> {
-	res.status(fetchRes.status)
-	fetchRes.headers.forEach((v, k) => res.set(k, v))
-	const buf = Buffer.from(await fetchRes.arrayBuffer())
-	res.send(buf)
-}
-
 function mountInternalRoute(
 	app: Express,
 	path: string,
 	config: WalletServerConfig,
-	gate: AccountsGate | undefined,
 ): void {
-	const preDispatch: PreDispatchHook | undefined = gate
-		? (ctx) => gate.check(ctx)
-		: undefined
+	const preDispatch: PreDispatchHook | undefined = undefined
 	const handler = createWalletRpcHandler({
 		storage: config.storage,
 		resolveIdentity: bearerResolver({
