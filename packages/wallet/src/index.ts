@@ -110,6 +110,14 @@ export {
 	type WalletCoreResult,
 } from './factory'
 
+// 507 auto-retry
+export {
+	installStoragePaymentAutoRetry,
+	type AutoRetryConfig,
+	type StoragePaymentHook,
+	type StoragePaymentRequiredInfo,
+} from './storagePaymentAutoRetry'
+
 // Permissions — local-storage-backed WalletPermissionsManager
 export {
 	filterGroupedByMissing,

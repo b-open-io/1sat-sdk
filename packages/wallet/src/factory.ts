@@ -2,6 +2,10 @@ import { OneSatServices } from '@1sat/client'
 import { KeyDeriver, type PrivateKey, type WalletInterface } from '@bsv/sdk'
 import type { sdk as toolboxSdk } from '@bsv/wallet-toolbox'
 import { parsePrivateKey } from './parsePrivateKey'
+import {
+	installStoragePaymentAutoRetry,
+	type StoragePaymentHook,
+} from './storagePaymentAutoRetry'
 
 type WalletServices = toolboxSdk.WalletServices
 type WalletStorageProvider = toolboxSdk.WalletStorageProvider
@@ -28,6 +32,17 @@ export interface WalletCoreConfig {
 	 * and don't push local-to-remote on a schedule.
 	 */
 	backupSyncIntervalMs?: number
+	/**
+	 * Optional consent hook for 507 Insufficient Storage auto-retry. Fires
+	 * when an active-remote billable op returns 507; receives the remote's
+	 * current pricing + next-payment derivation. Return true to fund and
+	 * retry, false to propagate the error. Default when omitted is true
+	 * (auto-fund). Full consent UX layers on top in a later pass.
+	 *
+	 * Only engages when an `activeRemote` is set — local-active wallets
+	 * can't hit a 507.
+	 */
+	onStoragePaymentRequired?: StoragePaymentHook
 }
 
 export interface WalletCoreResult {
@@ -144,6 +159,27 @@ export async function createWalletCore(
 			await connectRemote(url)
 		}
 	}
+
+	// Install 507 auto-retry on billable methods. Only meaningful when an
+	// active remote is (or may later become) in play; the hook bails early
+	// when local is active.
+	const getActiveRemoteUrl = (): string | undefined => {
+		try {
+			const active = storage.getActive() as {
+				endpointUrl?: string
+				isStorageProvider?: () => boolean
+			}
+			if (active?.isStorageProvider?.()) return undefined
+			return active?.endpointUrl
+		} catch {
+			return undefined
+		}
+	}
+	installStoragePaymentAutoRetry({
+		wallet: wallet as unknown as WalletInterface,
+		getActiveRemoteUrl,
+		onStoragePaymentRequired: config.onStoragePaymentRequired,
+	})
 
 	// Monitor is always constructed. Whether its task loop actually runs is
 	// the caller's choice (via startTasks / runOnce). With a remote active,
