@@ -30,11 +30,24 @@ import type { AccountsConfig, IdentityKey, NextPaymentDerivation } from './types
 
 /** BRC-29 protocol ID for wallet payments (matches @1sat/types constant). */
 const BRC29_PROTOCOL_ID: [2, string] = [2, '3241645161d8']
-/** Static derivation prefix for every wallet-server account payment. */
-const PAYMENT_DERIVATION_PREFIX = 'wallet-storage'
+/** Static derivation prefix tag (before base64 encoding). */
+const PAYMENT_DERIVATION_PREFIX_TAG = 'wallet-storage'
 /** Cap on non-change outputs allowed in a bypassed createAction, to stop
  * clients from smuggling unrelated work into the payment tx. */
 const MAX_OUTPUTS_IN_BYPASSED_CREATE_ACTION = 2
+
+function toBase64Prefix(prefix: string): string {
+	return Utils.toBase64(Array.from(new TextEncoder().encode(prefix)))
+}
+
+function toBase64Suffix(index: number): string {
+	return Utils.toBase64([
+		(index >>> 24) & 0xff,
+		(index >>> 16) & 0xff,
+		(index >>> 8) & 0xff,
+		index & 0xff,
+	])
+}
 
 /**
  * Runtime storage surface the gate uses for processAction bypass lookups.
@@ -72,8 +85,8 @@ export async function nextPaymentDerivation(
 ): Promise<NextPaymentDerivation> {
 	const count = await repo.countPayments(identityKey)
 	return {
-		derivationPrefix: PAYMENT_DERIVATION_PREFIX,
-		derivationSuffix: String(count),
+		derivationPrefix: toBase64Prefix(PAYMENT_DERIVATION_PREFIX_TAG),
+		derivationSuffix: toBase64Suffix(count),
 	}
 }
 
