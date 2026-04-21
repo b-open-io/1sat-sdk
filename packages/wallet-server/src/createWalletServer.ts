@@ -138,8 +138,9 @@ function mountPublicRoute(
 	const authMiddleware = createAuthMiddleware({ wallet })
 	app.use(path, authMiddleware)
 
-	// JSON-RPC endpoint. Payment middleware sits between auth and dispatch
-	// so billable methods can drive 402 auto-payment via BRC-0121.
+	// JSON-RPC endpoint. The capacity gate sits between auth and dispatch:
+	// over-capacity billable calls return 507 unless they carry a valid
+	// inline self-payment (label + BRC-29 output) that the gate recognises.
 	const postHandlers: Array<
 		(req: ExpressRequest, res: ExpressResponse, next: NextFunction) => unknown
 	> = []

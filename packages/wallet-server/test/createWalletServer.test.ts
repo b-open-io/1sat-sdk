@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { PrivateKey } from '@bsv/sdk'
+import { PrivateKey, ProtoWallet, type WalletInterface } from '@bsv/sdk'
 import {
 	type WalletServerHandle,
 	createWalletServer,
@@ -8,7 +8,11 @@ import type { WalletStorageProvider } from '../src/types'
 
 const TOKEN = 'test-internal-key'
 const PUBKEY = '02'.padEnd(66, 'a')
-const SERVER_KEY = PrivateKey.fromRandom().toHex()
+const SERVER_PRIV = PrivateKey.fromRandom()
+const SERVER_IDENTITY = SERVER_PRIV.toPublicKey().toString()
+const SERVER_WALLET = new ProtoWallet(
+	SERVER_PRIV,
+) as unknown as WalletInterface
 
 function makeStorage(): WalletStorageProvider {
 	return {
@@ -30,7 +34,8 @@ describe('createWalletServer — config validation', () => {
 		expect(() =>
 			createWalletServer({
 				storage: makeStorage(),
-				serverPrivateKey: SERVER_KEY,
+				wallet: SERVER_WALLET,
+				serverIdentityKey: SERVER_IDENTITY,
 				listen: { port: 0 },
 				publicPath: null,
 				internalPath: null,
@@ -42,7 +47,8 @@ describe('createWalletServer — config validation', () => {
 		expect(() =>
 			createWalletServer({
 				storage: makeStorage(),
-				serverPrivateKey: SERVER_KEY,
+				wallet: SERVER_WALLET,
+				serverIdentityKey: SERVER_IDENTITY,
 				listen: { port: 0 },
 				publicPath: null,
 			}),
@@ -57,7 +63,8 @@ describe('createWalletServer — internal route', () => {
 	beforeAll(async () => {
 		handle = createWalletServer({
 			storage: makeStorage(),
-			serverPrivateKey: SERVER_KEY,
+			wallet: SERVER_WALLET,
+			serverIdentityKey: SERVER_IDENTITY,
 			listen: { port: 0 },
 			publicPath: null,
 			internalAPIKey: TOKEN,
@@ -111,7 +118,8 @@ describe('createWalletServer — public route requires BRC-100 auth', () => {
 	beforeAll(async () => {
 		handle = createWalletServer({
 			storage: makeStorage(),
-			serverPrivateKey: SERVER_KEY,
+			wallet: SERVER_WALLET,
+			serverIdentityKey: SERVER_IDENTITY,
 			listen: { port: 0 },
 			internalPath: null,
 		})

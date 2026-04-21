@@ -200,8 +200,9 @@ export async function createWalletCore(
 
 	// Periodic backup sync task. Fires only when local is the active store;
 	// with a remote active, pushing local-to-remote on a schedule would be
-	// unnecessary (remote is canonical) and the client-side 402 flow can
-	// deadlock against the manager's locks. Interval defaults to 5 min.
+	// unnecessary (remote is canonical) and the auto-retry payment path can
+	// deadlock against the manager's locks if it fires inside a scheduled
+	// backup task. Interval defaults to 5 min.
 	const backupSyncIntervalMs = config.backupSyncIntervalMs ?? 5 * 60 * 1000
 	if (backupSyncIntervalMs > 0) {
 		monitor.addTask(buildBackupSyncTask(monitor, backupSyncIntervalMs, storage))
@@ -287,8 +288,8 @@ export async function createWalletCore(
  *
  * Only fires when local is the active store — with a remote active,
  * pushing local-to-remote on a schedule is unnecessary (remote is
- * canonical) and in a metered-remote setup it can trigger a client-side
- * 402 deadlock against the manager's locks.
+ * canonical) and in a metered-remote setup it can trigger the auto-retry
+ * payment path to deadlock against the manager's locks.
  */
 function buildBackupSyncTask(
 	monitor: any,
