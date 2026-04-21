@@ -1,32 +1,7 @@
 /**
  * Identity key (secp256k1 public key, hex) of an account owner.
- * Acts as the primary key for accounts — 1:1 identity → account.
  */
 export type IdentityKey = string
-
-export interface Account {
-	identityKey: IdentityKey
-	createdAt: Date
-	updatedAt: Date
-}
-
-export interface Payment {
-	id: number
-	identityKey: IdentityKey
-	txid: string
-	bytesCovered: number
-	satsPaid: number
-	paidThroughBlock: number
-	appliedAt: Date
-}
-
-export interface NewPayment {
-	identityKey: IdentityKey
-	txid: string
-	bytesCovered: number
-	satsPaid: number
-	paidThroughBlock: number
-}
 
 export interface AccountsConfig {
 	enabled: boolean
@@ -47,19 +22,6 @@ export interface AccountsConfig {
 	freeIdentityKeys?: IdentityKey[]
 }
 
-export interface PaymentQuote {
-	satoshisRequired: number
-	bytesRequested: number
-	derivationPrefix: string
-	orderID: string
-	expiresAt: number
-}
-
-/**
- * Response shape of `GET /account/status`. When accounts metering is
- * disabled the capacity / pricing fields are omitted; callers should branch
- * on `accountsEnabled` to know which fields are present.
- */
 /**
  * BRC-29 derivation the server expects on the next incoming payment. The
  * prefix is a constant; the suffix is the monotonic payment count for this
@@ -71,6 +33,11 @@ export interface NextPaymentDerivation {
 	derivationSuffix: string
 }
 
+/**
+ * Response shape of `GET /account/status`. When accounts metering is
+ * disabled the capacity / pricing fields are omitted; callers should branch
+ * on `accountsEnabled` to know which fields are present.
+ */
 export type AccountStatusResponse =
 	| {
 			identityKey: IdentityKey

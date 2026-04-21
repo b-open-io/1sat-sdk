@@ -17,11 +17,7 @@
 
 import { join } from 'node:path'
 import { type NodeWalletResult, createNodeWallet } from '@1sat/wallet-node'
-import {
-	type AccountsRepo,
-	BunSqliteAccountsRepo,
-	createWalletServer,
-} from '@1sat/wallet-server'
+import { createWalletServer } from '@1sat/wallet-server'
 import type { PrivateKey } from '@bsv/sdk'
 import type { GlobalFlags } from '../args'
 import {
@@ -278,8 +274,6 @@ async function buildAccountsForServer(
 	// storage; accounts semantics don't apply.
 	if (resolved.activeRemote) return undefined
 
-	const repo = buildAccountsRepo(resolved, walletResult)
-
 	return {
 		walletServerAccounts: {
 			config: {
@@ -290,28 +284,9 @@ async function buildAccountsForServer(
 				durationBlocks: resolved.accounts.durationBlocks,
 				freeIdentityKeys: resolved.accounts.freeIdentityKeys,
 			},
-			repo,
 			currentBlock: () => walletResult.services.chaintracks.currentHeight(),
 		},
 	}
-}
-
-function buildAccountsRepo(
-	resolved: ResolvedServe,
-	walletResult: NodeWalletResult,
-): AccountsRepo {
-	if (resolved.storage.provider === 'bun-sqlite') {
-		// biome-ignore lint/suspicious/noExplicitAny: StorageBunSqlite exposes a bun:sqlite Database via `.db` but the WalletStorageProvider interface doesn't.
-		const active = walletResult.getActiveStorage() as any
-		const db = active?.db
-		if (!db) {
-			fatal('accounts: active storage is not a bun:sqlite provider')
-		}
-		return new BunSqliteAccountsRepo(db)
-	}
-	fatal(
-		`accounts: storage provider '${resolved.storage.provider}' is not supported yet`,
-	)
 }
 
 function waitForShutdown(): Promise<void> {

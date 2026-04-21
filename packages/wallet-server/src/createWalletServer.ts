@@ -13,7 +13,6 @@ import {
 	latestActivePaymentForPayer,
 	nextPaymentDerivation,
 } from './accounts'
-import type { AccountsRepo } from './accounts/repo'
 import type { AccountsConfig } from './accounts/types'
 import { createWalletRpcHandler } from './createWalletRpcHandler'
 import { dispatch } from './dispatch'
@@ -26,8 +25,6 @@ import type {
 
 export interface WalletServerAccounts {
 	config: AccountsConfig
-	/** Accounts repo running against the wallet's own connection. */
-	repo: AccountsRepo
 	currentBlock: () => Promise<number>
 }
 
@@ -87,7 +84,6 @@ export function createWalletServer(
 		? {
 				config: config.accounts.config,
 				walletStorage: config.storage,
-				repo: config.accounts.repo,
 				wallet,
 				serverIdentityKey,
 				currentBlock: config.accounts.currentBlock,
@@ -222,7 +218,13 @@ function mountStatusRoute(
 			const userResult = await config.storage.findOrInsertUser(identityKey)
 			const userId = userResult?.user?.userId
 			const usedBytes =
-				userId == null ? 0 : await accounts.repo.measureUsedBytes(userId)
+				userId == null
+					? 0
+					: await (
+							config.storage as unknown as {
+								measureUsedBytes(userId: number): Promise<number>
+							}
+						).measureUsedBytes(userId)
 
 			if (!accounts.config.enabled) {
 				return res.status(200).json({

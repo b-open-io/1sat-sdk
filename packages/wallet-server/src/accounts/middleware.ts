@@ -24,7 +24,6 @@ import {
 	latestActivePaymentForPayer,
 	payerLabel,
 } from './queries'
-import type { AccountsRepo } from './repo'
 import type {
 	AccountsConfig,
 	IdentityKey,
@@ -91,6 +90,12 @@ interface StorageWithFinders {
 		mergeToBeef?: Beef,
 		trustSelf?: 'known',
 	): Promise<Beef | undefined>
+	/**
+	 * Driver-implemented: sum of stored bytes for a single user. Today
+	 * provided by `StorageBunSqlite`; the forthcoming `StoragePg` supplies
+	 * the equivalent over OCTET_LENGTH(bytea).
+	 */
+	measureUsedBytes(userId: number): Promise<number>
 }
 
 /**
@@ -112,7 +117,6 @@ export async function nextPaymentDerivation(
 export interface AccountsMiddlewareDeps {
 	config: AccountsConfig
 	walletStorage: WalletStorageProvider
-	repo: AccountsRepo
 	wallet: WalletInterface
 	serverIdentityKey: IdentityKey
 	/** Returns the current chain tip block height. */
@@ -353,9 +357,10 @@ export function accountsCapacityGate(deps: AccountsMiddlewareDeps) {
 			// First billable call creates the user row — gets a free pass.
 			if (userId == null) return next()
 
+			const storage = deps.walletStorage as unknown as StorageWithFinders
 			const currentBlock = await deps.currentBlock()
 			const [usedBytes, currentPayment] = await Promise.all([
-				deps.repo.measureUsedBytes(userId),
+				storage.measureUsedBytes(userId),
 				latestActivePaymentForPayer(deps.wallet, identityKey, currentBlock),
 			])
 			const quote = quoteRefundedCharge({

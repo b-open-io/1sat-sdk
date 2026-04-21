@@ -642,38 +642,10 @@ export class StorageBunSqlite extends StorageProvider {
 			},
 		}
 
-		migrations['2026-04-20-003 add wallet-server accounts tables'] = {
-			up: (db: Database) => {
-				db.run(`
-					CREATE TABLE IF NOT EXISTS accounts (
-						identity_key TEXT PRIMARY KEY,
-						created_at TEXT NOT NULL DEFAULT (datetime('now')),
-						updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-					)
-				`)
-				db.run(`
-					CREATE TABLE IF NOT EXISTS payments (
-						id INTEGER PRIMARY KEY AUTOINCREMENT,
-						identity_key TEXT NOT NULL REFERENCES accounts(identity_key),
-						txid TEXT NOT NULL UNIQUE,
-						bytes_covered INTEGER NOT NULL,
-						sats_paid INTEGER NOT NULL,
-						paid_through_block INTEGER NOT NULL,
-						applied_at TEXT NOT NULL DEFAULT (datetime('now'))
-					)
-				`)
-				db.run(
-					'CREATE INDEX IF NOT EXISTS payments_identity ON payments(identity_key)',
-				)
-				db.run(
-					'CREATE INDEX IF NOT EXISTS payments_block ON payments(paid_through_block)',
-				)
-			},
-			down: (db: Database) => {
-				db.run('DROP TABLE IF EXISTS payments')
-				db.run('DROP TABLE IF EXISTS accounts')
-			},
-		}
+		// Storage-payment ledger state lives on the server wallet's own
+		// transactions + tx_labels (see @1sat/wallet-server accounts/queries).
+		// No separate `accounts` / `payments` tables required; the old
+		// 2026-04-20-003 migration that created them has been dropped.
 
 		return migrations
 	}
@@ -1235,6 +1207,64 @@ export class StorageBunSqlite extends StorageProvider {
 	// -----------------------------------------------------------------------
 	// getProvenOrRawTx / getRawTxOfKnownValidTransaction
 	// -----------------------------------------------------------------------
+
+	/**
+	 * Sum of stored bytes attributable to a single wallet-toolbox user.
+	 * Used by `@1sat/wallet-server` accounts metering to determine per-user
+	 * capacity usage without requiring a separate ledger table.
+	 *
+	 * Per-user tables (transactions, outputs) are summed directly. Shared
+	 * rows (proven_txs, proven_tx_reqs) are attributed to every user that
+	 * references them via `transactions.provenTxId` or `transactions.txid`.
+	 * In multi-tenant deployments this over-counts aggregate disk usage
+	 * but reflects each user's standalone storage cost fairly.
+	 *
+	 * The equivalent Postgres impl (forthcoming `StoragePg`) uses
+	 * OCTET_LENGTH(bytea) with the same shape.
+	 */
+	async measureUsedBytes(userId: number): Promise<number> {
+		const tx = this.db
+			.query(
+				`SELECT COALESCE(SUM(COALESCE(LENGTH(rawTx), 0) + COALESCE(LENGTH(inputBEEF), 0)), 0) AS total
+				 FROM transactions WHERE userId = ?`,
+			)
+			.get(userId) as { total: number | bigint } | undefined
+		const proven = this.db
+			.query(
+				`SELECT COALESCE(SUM(COALESCE(LENGTH(pt.rawTx), 0) + COALESCE(LENGTH(pt.merklePath), 0)), 0) AS total
+				 FROM proven_txs pt
+				 INNER JOIN transactions t ON t.provenTxId = pt.provenTxId
+				 WHERE t.userId = ?`,
+			)
+			.get(userId) as { total: number | bigint } | undefined
+		const reqs = this.db
+			.query(
+				`SELECT COALESCE(SUM(COALESCE(LENGTH(ptr.rawTx), 0) + COALESCE(LENGTH(ptr.inputBEEF), 0)), 0) AS total
+				 FROM proven_tx_reqs ptr
+				 INNER JOIN transactions t ON t.txid = ptr.txid
+				 WHERE t.userId = ?`,
+			)
+			.get(userId) as { total: number | bigint } | undefined
+		const out = this.db
+			.query(
+				`SELECT COALESCE(SUM(COALESCE(scriptLength, LENGTH(lockingScript), 0)), 0) AS total
+				 FROM outputs WHERE userId = ?`,
+			)
+			.get(userId) as { total: number | bigint } | undefined
+		const toNum = (v: unknown): number => {
+			if (v == null) return 0
+			if (typeof v === 'number') return v
+			if (typeof v === 'bigint') return Number(v)
+			const n = Number(v)
+			return Number.isFinite(n) ? n : 0
+		}
+		return (
+			toNum(tx?.total) +
+			toNum(proven?.total) +
+			toNum(reqs?.total) +
+			toNum(out?.total)
+		)
+	}
 
 	async getProvenOrRawTx(
 		txid: string,
