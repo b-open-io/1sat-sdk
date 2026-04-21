@@ -158,9 +158,11 @@ function isSelfPaymentBuild(
 	req: Request,
 	serverIdentityKey: IdentityKey,
 ): boolean {
+	// wallet-toolbox RPCs are shaped `method(auth, args)`. args (with outputs)
+	// lives at params[1]; params[0] carries identity/auth fields.
 	const body = req.body as { params?: unknown }
 	const params = Array.isArray(body?.params) ? body.params : []
-	const args = params[0] as { outputs?: unknown } | undefined
+	const args = params[1] as { outputs?: unknown } | undefined
 	const outputs = Array.isArray(args?.outputs) ? args.outputs : []
 	for (const out of outputs) {
 		if (typeof out !== 'object' || out === null) continue
