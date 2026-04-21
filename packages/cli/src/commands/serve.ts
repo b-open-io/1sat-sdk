@@ -16,7 +16,11 @@
  */
 
 import { join } from 'node:path'
-import { type NodeWalletResult, createNodeWallet } from '@1sat/wallet-node'
+import {
+	type NodeWalletResult,
+	type NodeWalletStorageConfig,
+	createNodeWallet,
+} from '@1sat/wallet-node'
 import { createWalletServer } from '@1sat/wallet-server'
 import type { PrivateKey } from '@bsv/sdk'
 import type { GlobalFlags } from '../args'
@@ -87,14 +91,7 @@ export async function handleServeCommand(
 	const handles: Stoppable[] = []
 
 	try {
-		if (resolved.storage.provider === 'bun-sqlite') {
-			handles.push(await runBunSqlite(resolved, mode))
-		} else {
-			fatal(
-				`server.storage.provider '${resolved.storage.provider}' is not yet wired through the shared wallet factory. Only bun-sqlite is supported at the moment.`,
-			)
-		}
-
+		handles.push(await runWithStorage(resolved, mode))
 		await waitForShutdown()
 	} finally {
 		for (const h of handles.reverse()) {
@@ -167,6 +164,21 @@ function deriveSqliteFilename(dataDir: string, chain: string): string {
 	return join(dataDir, `wallet-${chain}.db`)
 }
 
+function resolveWalletStorageConfig(
+	resolved: ResolvedServe,
+): NodeWalletStorageConfig {
+	const storage = resolved.storage
+	if (storage.provider === 'bun-sqlite') {
+		return { provider: 'bun-sqlite', filename: resolved.sqliteFilename }
+	}
+	if (storage.provider === 'knex-pg') {
+		return { provider: 'knex-pg', dbUrl: storage.dbUrl }
+	}
+	fatal(
+		`server.storage.provider '${storage.provider}' is not supported. Use 'bun-sqlite' or 'knex-pg'.`,
+	)
+}
+
 function resolveAccounts(accounts?: ServerAccountsConfig): ResolvedAccounts {
 	return {
 		enabled: accounts?.enabled ?? false,
@@ -184,20 +196,22 @@ interface Stoppable {
 }
 
 /**
- * bun-sqlite path: construct the wallet via the same `createNodeWallet`
- * factory the CLI uses. Server + monitor operate on that single wallet
- * instance, so `activeRemote`, `backups`, and `storageIdentityKey` behave
- * identically to `1sat wallet <command>`.
+ * Construct the wallet via the same `createNodeWallet` factory the CLI
+ * uses, with storage provider (bun-sqlite / knex-pg) chosen from config.
+ * Server + monitor operate on that single wallet instance, so
+ * `activeRemote`, `backups`, and `storageIdentityKey` behave identically
+ * to `1sat wallet <command>`.
  */
-async function runBunSqlite(
+async function runWithStorage(
 	resolved: ResolvedServe,
 	mode: ServeMode,
 ): Promise<Stoppable> {
+	const storage = resolveWalletStorageConfig(resolved)
 	const walletResult = await createNodeWallet({
 		privateKey: resolved.privateKey,
 		chain: resolved.chain,
 		storageIdentityKey: resolved.storageIdentityKey,
-		filename: resolved.sqliteFilename,
+		storage,
 		activeRemote: resolved.activeRemote,
 		backups: resolved.backups,
 		// Server owns the monitor loop; suppress the factory's initial

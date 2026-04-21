@@ -13,7 +13,24 @@ import {
 import { StorageBunSqlite } from './storage-bun-sqlite'
 
 const DEFAULT_STORAGE_NAME = 'wallet'
-const DEFAULT_FILENAME = './wallet.db'
+const DEFAULT_SQLITE_FILENAME = './wallet.db'
+
+export interface BunSqliteStorageConfig {
+	provider: 'bun-sqlite'
+	filename?: string
+}
+
+export interface KnexPgStorageConfig {
+	provider: 'knex-pg'
+	/** Postgres connection URL — e.g. `postgres://user:pass@host/db`. */
+	dbUrl: string
+	/** Optional knex pool override. */
+	pool?: { min?: number; max?: number }
+}
+
+export type NodeWalletStorageConfig =
+	| BunSqliteStorageConfig
+	| KnexPgStorageConfig
 
 export interface NodeWalletConfig {
 	privateKey: PrivateKey | string
@@ -23,7 +40,10 @@ export interface NodeWalletConfig {
 	backups?: string[]
 	storageIdentityKey: string
 	connectionTimeout?: number
-	filename?: string
+	/**
+	 * Local storage backend. Defaults to bun-sqlite with `./wallet.db`.
+	 */
+	storage?: NodeWalletStorageConfig
 	onTransactionBroadcasted?: (txid: string) => void
 	onTransactionProven?: (txid: string, blockHeight: number) => void
 	/**
@@ -59,10 +79,10 @@ export async function createNodeWallet(
 	const storageOptions = StorageProvider.createStorageBaseOptions(config.chain)
 	storageOptions.feeModel = feeModel
 
-	const localStorage = new StorageBunSqlite({
-		...storageOptions,
-		filename: config.filename ?? DEFAULT_FILENAME,
-	})
+	const storageConfig: NodeWalletStorageConfig = config.storage ?? {
+		provider: 'bun-sqlite',
+	}
+	const localStorage = await buildLocalStorage(storageConfig, storageOptions)
 
 	await localStorage.migrate(DEFAULT_STORAGE_NAME, config.storageIdentityKey)
 
@@ -107,4 +127,34 @@ export async function createNodeWallet(
 		addRemote: core.addRemote,
 		getActiveStorage: core.getActiveStorage,
 	}
+}
+
+async function buildLocalStorage(
+	config: NodeWalletStorageConfig,
+	baseOptions: ReturnType<typeof StorageProvider.createStorageBaseOptions>,
+): Promise<StorageProvider> {
+	if (config.provider === 'bun-sqlite') {
+		return new StorageBunSqlite({
+			...baseOptions,
+			filename: config.filename ?? DEFAULT_SQLITE_FILENAME,
+		})
+	}
+	if (config.provider === 'knex-pg') {
+		// Dynamic import — knex + pg are optional peer deps so bun-sqlite-only
+		// consumers don't pay for them.
+		const { default: knex } = await import('knex')
+		const { StoragePg } = await import('./storage-pg')
+		const k = knex({
+			client: 'pg',
+			connection: config.dbUrl,
+			pool: config.pool,
+		})
+		return new StoragePg({
+			...baseOptions,
+			knex: k,
+		})
+	}
+	// Exhaustiveness check
+	const _exhaustive: never = config
+	throw new Error(`unsupported storage provider: ${JSON.stringify(_exhaustive)}`)
 }

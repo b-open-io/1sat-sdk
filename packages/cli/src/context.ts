@@ -43,7 +43,10 @@ export async function loadContext(
 		privateKey,
 		chain: opts.chain,
 		storageIdentityKey,
-		filename: `${dataDir}/wallet-${opts.chain}.db`,
+		storage: {
+			provider: 'bun-sqlite',
+			filename: `${dataDir}/wallet-${opts.chain}.db`,
+		},
 		activeRemote: config.activeRemote,
 		backups: config.backups,
 		skipInitialMonitor,

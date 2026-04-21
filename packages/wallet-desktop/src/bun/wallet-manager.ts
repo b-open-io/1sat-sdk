@@ -240,7 +240,7 @@ export async function create(
 		privateKey: rootKey.toWif(),
 		chain: 'main',
 		storageIdentityKey: `1sat-wallet:${identityKey}`,
-		filename: dbPath(accountId),
+		storage: { provider: 'bun-sqlite', filename: dbPath(accountId) },
 	})
 
 	const instance: WalletInstance = {
@@ -293,7 +293,7 @@ export async function unlock(
 		privateKey: rootKey.toWif(),
 		chain: 'main',
 		storageIdentityKey: `1sat-wallet:${identityKey}`,
-		filename: dbPath(accountId),
+		storage: { provider: 'bun-sqlite', filename: dbPath(accountId) },
 	})
 
 	const instance: WalletInstance = {

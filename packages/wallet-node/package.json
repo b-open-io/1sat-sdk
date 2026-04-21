@@ -35,10 +35,18 @@
 	},
 	"peerDependencies": {
 		"@bsv/sdk": "^2.0.13",
-		"@bsv/wallet-toolbox": "^2.1.21"
+		"@bsv/wallet-toolbox": "^2.1.21",
+		"knex": "^3.1.0",
+		"pg": "^8.11.0"
 	},
 	"peerDependenciesMeta": {
 		"better-sqlite3": {
+			"optional": true
+		},
+		"knex": {
+			"optional": true
+		},
+		"pg": {
 			"optional": true
 		}
 	},
@@ -46,6 +54,9 @@
 		"@1sat/client": "workspace:*",
 		"@bsv/sdk": "^2.0.13",
 		"@bsv/wallet-toolbox": "^2.1.21",
+		"@types/pg": "^8.11.0",
+		"knex": "^3.1.0",
+		"pg": "^8.11.0",
 		"typescript": "^5.9.3"
 	}
 }

@@ -1,10 +1,19 @@
 export * from '@1sat/wallet'
 
 export { createNodeWallet } from './createNodeWallet'
-export type { NodeWalletConfig, NodeWalletResult } from './createNodeWallet'
+export type {
+	BunSqliteStorageConfig,
+	KnexPgStorageConfig,
+	NodeWalletConfig,
+	NodeWalletResult,
+	NodeWalletStorageConfig,
+} from './createNodeWallet'
 
 export { StorageBunSqlite } from './storage-bun-sqlite'
 export type { StorageBunSqliteOptions } from './storage-bun-sqlite'
+
+export { StoragePg } from './storage-pg'
+export type { StoragePgOptions } from './storage-pg'
 
 export {
 	Monitor,
