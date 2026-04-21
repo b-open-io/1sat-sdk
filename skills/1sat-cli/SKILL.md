@@ -111,6 +111,8 @@ bunx @1sat/cli remote list                         # Show all remotes and status
 bunx @1sat/cli remote delete <url>                 # Remove a remote from backup list
 bunx @1sat/cli remote set-active <url>             # Migrate TO this remote as primary
 bunx @1sat/cli remote set-active local             # Switch back to local-primary
+bunx @1sat/cli remote status [url]                 # Per-identity capacity + pricing snapshot
+# bunx @1sat/cli remote topup [url]                # (planned) manual BRC-29 top-up to `/account/payment`
 ```
 
 ### Ordinals
@@ -190,7 +192,7 @@ Key properties:
 - **Same wallet instance** — `serve` wraps the wallet created by `createNodeWallet` using the exact same config inputs (`chain`, `dataDir`, `storageIdentityKey`, `activeRemote`, `backups`) as `1sat wallet <command>`. There's one wallet on disk at `~/.1sat/data/wallet-${chain}.db`; HTTP and CLI access the same one.
 - **Server identity = CLI identity** — loaded via `loadKey()` (`PRIVATE_KEY_WIF` env or `keys.bep` + `ONESAT_PASSWORD`). No separate server key.
 - **Storage provider** — defaults to `bun-sqlite` (same as CLI). Future support: `knex-sqlite`, `knex-pg` for postgres deployments.
-- **Accounts layer (opt-in)** — BRC-0121 (HTTP 402) metering on billable writes only. Reads always free. Toggle via `1sat config set server.accounts.enabled true`.
+- **Accounts layer (opt-in)** — per-identity capacity metering on billable writes. Reads always free. Over-capacity writes get an HTTP `507 Insufficient Storage` with a JSON body describing deficit + pricing. Top-up via `POST /account/payment` (BRC-29 payment body). Toggle via `1sat config set server.accounts.enabled true`.
 
 Server-specific settings live under `server.*` in the config — edit via `1sat config set`:
 
@@ -198,15 +200,23 @@ Server-specific settings live under `server.*` in the config — edit via `1sat 
 1sat config set server.port 8100
 1sat config set server.host 0.0.0.0
 1sat config set server.accounts.enabled true
-1sat config set server.accounts.baselineBytes 1073741824
-1sat config set server.accounts.satsPerGb 1000000
+1sat config set server.accounts.baselineBytes 1073741824      # free baseline per identity
+1sat config set server.accounts.purchaseUnitBytes 1073741824  # chunk size (default 1 GB)
+1sat config set server.accounts.satsPerUnit 1000000           # price per chunk
+1sat config set server.accounts.durationBlocks 4383           # validity window (~1 month)
 ```
+
+Pricing model: new payments charge `unitsCharged × satsPerUnit` (rounded up to a whole chunk) for `durationBlocks` from now, minus a prorated refund credit for unused time on the prior payment. One active payment row per account at a time.
 
 Defaults when keys are unset:
 - `server.host` → `127.0.0.1`
 - `server.port` → `8100`
 - `server.storage.provider` → `bun-sqlite`
 - `server.accounts.enabled` → `false`
+- `server.accounts.baselineBytes` → `1073741824` (1 GB)
+- `server.accounts.purchaseUnitBytes` → `1073741824` (1 GB)
+- `server.accounts.satsPerUnit` → `1000000`
+- `server.accounts.durationBlocks` → `4383`
 
 ### Action Escape Hatch
 

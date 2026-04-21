@@ -153,10 +153,29 @@ The SQLite wallet file is untouched during cutover — CLI commands still work a
 - **Messagebox** — wallet-server branch paymail uses `MessageBoxClient` pointed at a remote messagebox URL. mss1 doesn't need one (dev). Production needs `go-messagebox-server` standing up separately; paymail config gets the URL.
 - **Data migration on prod** — mss1 reuses the existing SQLite file because the server and CLI share one wallet there. Production servers will use postgres; migration is `WalletStorageManager.setActive(remoteIdentityKey)` from the CLI after adding the new server as a provider. Scripting this is a separate deliverable.
 
+## Accounts / capacity test preset (applied 2026-04-20)
+
+mss1 is running with metering enabled for dev testing:
+
+```bash
+ssh mss1 '1sat config set server.accounts.enabled true && \
+         1sat config set server.accounts.baselineBytes 10240 && \
+         1sat config set server.accounts.purchaseUnitBytes 5120 && \
+         1sat config set server.accounts.satsPerUnit 5 && \
+         1sat config set server.accounts.durationBlocks 10 && \
+         systemctl --user restart 1sat-wallet-server.service'
+```
+
+With this preset a 5 KB deficit costs 5 sats and covers 5 KB for 10
+blocks. Full-size baseline was later tightened to 5120 during testing.
+
+See [`2026-04-20-accounts-capacity-gate.md`](./2026-04-20-accounts-capacity-gate.md) for the full accounts design + open work.
+
 ## References
 
 - sdk commit `0dc0c6f`: `feat(wallet-server): TS wallet storage RPC server + CLI serve command`
 - stack branch `wallet-server` (commit `7a98f67`)
 - Plan reframe / decision log: `~/.claude/plans/it-was-but-i-calm-ripple.md`
 - Original plan: [`2026-04-19-wallet-server.md`](./2026-04-19-wallet-server.md)
+- Accounts plan: [`2026-04-20-accounts-capacity-gate.md`](./2026-04-20-accounts-capacity-gate.md)
 - Secrets ticket: [OPL-1905](https://linear.app/openprotocollabs/issue/OPL-1905/secrets-management-for-wallet-server-production-deployment)
