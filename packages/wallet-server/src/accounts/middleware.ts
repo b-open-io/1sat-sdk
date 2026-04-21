@@ -67,8 +67,6 @@ interface StorageWithFinders {
 			reference: string
 			userId: number
 			txid?: string
-			rawTx?: number[]
-			inputBEEF?: number[]
 		}>
 	>
 	findOutputs(args: {
@@ -81,6 +79,18 @@ interface StorageWithFinders {
 			lockingScript?: number[]
 		}>
 	>
+	/**
+	 * Returns a fully-resolved `Beef` for the given txid. With `trustSelf`
+	 * unset, walks each input's source recursively and expands txidOnly
+	 * entries into full rawTx + merkle proof chains, producing a BEEF that
+	 * can be binary-encoded as AtomicBEEF and passed to
+	 * `wallet.internalizeAction`.
+	 */
+	getValidBeefForTxid(
+		txid: string,
+		mergeToBeef?: Beef,
+		trustSelf?: 'known',
+	): Promise<Beef | undefined>
 }
 
 /**
@@ -281,33 +291,16 @@ async function autoInternalizeSelfPayment(
 	},
 ): Promise<void> {
 	const storage = deps.walletStorage as unknown as StorageWithFinders
-	// Reconstruct AtomicBEEF the way signAction does: start from the
-	// action's stored inputBEEF (the full storageBeef persisted during
-	// createAction, which contains ancestor proofs), merge the signed
-	// rawTx, then binary-encode atomic to the txid.
-	const txs = await storage.findTransactions({
-		partial: { txid: ctx.txid },
-	})
-	const txRecord = txs[0]
-	console.error(
-		'[accounts] findTransactions debug',
-		ctx.txid,
-		'found=',
-		!!txRecord,
-		'rawTx.len=',
-		txRecord?.rawTx?.length,
-		'inputBEEF.len=',
-		txRecord?.inputBEEF?.length,
-		'keys=',
-		txRecord ? Object.keys(txRecord) : [],
-	)
-	if (!txRecord?.rawTx || !txRecord.inputBEEF) {
-		throw new Error(
-			`storage missing rawTx or inputBEEF for txid ${ctx.txid}`,
-		)
+	// Build a fully-expanded AtomicBEEF for the broadcast tx. The persisted
+	// per-tx inputBEEF uses txidOnly references (ancestors are "known to
+	// storage"), which validateAtomicBeef rejects. getValidBeefForTxid
+	// without trustSelf recurses through each input's source to produce a
+	// BEEF with full rawTx + merkle proofs for all ancestors — the same
+	// expansion signAction performs client-side.
+	const beef = await storage.getValidBeefForTxid(ctx.txid)
+	if (!beef) {
+		throw new Error(`could not build BEEF for txid ${ctx.txid}`)
 	}
-	const beef = Beef.fromBinary(txRecord.inputBEEF)
-	beef.mergeRawTx(txRecord.rawTx)
 	const atomicBeef = beef.toBinaryAtomic(ctx.txid)
 
 	await deps.wallet.internalizeAction({
