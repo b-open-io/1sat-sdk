@@ -20,12 +20,21 @@ export interface WalletCoreConfig {
 	connectionTimeout?: number
 	onTransactionBroadcasted?: (txid: string) => void
 	onTransactionProven?: (txid: string, blockHeight: number) => void
+	/**
+	 * Interval in ms between periodic `updateBackups()` runs when local
+	 * storage is the active store. Defaults to 5 minutes. Set to 0 to
+	 * disable (caller drives sync manually). Ignored when `activeRemote`
+	 * is set — remote-active deployments treat the remote as canonical
+	 * and don't push local-to-remote on a schedule.
+	 */
+	backupSyncIntervalMs?: number
 }
 
 export interface WalletCoreResult {
 	wallet: InstanceType<any>
 	services: OneSatServices
 	storage: InstanceType<any>
+	monitor: InstanceType<any>
 	destroy: () => Promise<void>
 	remoteClients: InstanceType<any>[]
 	/**
@@ -60,7 +69,7 @@ export async function createWalletCore(
 		StorageProvider: any
 		Wallet: any
 		WalletStorageManager: any
-		Monitor?: any
+		Monitor: any
 	},
 ): Promise<WalletCoreResult> {
 	const { chain } = config
@@ -136,56 +145,40 @@ export async function createWalletCore(
 		}
 	}
 
-	// 5. Wire updateBackups interception (with guard to prevent double-wrapping)
-	let backupInterceptionWired = false
+	// Monitor is always constructed. Whether its task loop actually runs is
+	// the caller's choice (via startTasks / runOnce). With a remote active,
+	// callers should skip starting — the server owns its own monitor. With
+	// local active, start as needed.
+	const monitor = new toolbox.Monitor({
+		chain: config.chain,
+		services: oneSatServices as any,
+		storage,
+		chaintracks: oneSatServices.chaintracks,
+		msecsWaitPerMerkleProofServiceReq: 500,
+		taskRunWaitMsecs: 5000,
+		abandonedMsecs: 300000,
+		unprovenAttemptsLimitTest: 10,
+		unprovenAttemptsLimitMain: 144,
+	})
+	monitor.addDefaultTasks()
 
-	const wireBackupInterception = () => {
-		if (backupInterceptionWired) return
-		if (storage.getBackupStores().length === 0) return
-		backupInterceptionWired = true
-
-		const originalCreateAction = wallet.createAction.bind(wallet)
-		wallet.createAction = async (args: any) => {
-			const result = await originalCreateAction(args)
-			if (result.txid) {
-				storage.updateBackups().catch((err: unknown) => {
-					console.error('[wallet-core] post-action backup failed:', err)
-				})
-			}
-			return result
-		}
-
-		const originalSignAction = wallet.signAction.bind(wallet)
-		wallet.signAction = async (args: any) => {
-			const result = await originalSignAction(args)
-			if (result.txid) {
-				storage.updateBackups().catch((err: unknown) => {
-					console.error('[wallet-core] post-action backup failed:', err)
-				})
-			}
-			return result
-		}
+	// Periodic backup sync task. Fires only when local is the active store;
+	// with a remote active, pushing local-to-remote on a schedule would be
+	// unnecessary (remote is canonical) and the client-side 402 flow can
+	// deadlock against the manager's locks. Interval defaults to 5 min.
+	const backupSyncIntervalMs = config.backupSyncIntervalMs ?? 5 * 60 * 1000
+	if (backupSyncIntervalMs > 0) {
+		monitor.addTask(buildBackupSyncTask(monitor, backupSyncIntervalMs, storage))
 	}
 
-	wireBackupInterception()
-
-	// Initial backup sync: push current active state into every backup store
-	// so fresh or wiped backups are populated before the wallet is used.
-	//
-	// When activeRemote is set, the remote IS the canonical store; backups
-	// are mirrors. Awaiting a sync here would deadlock if the remote enforces
-	// a BRC-0121 402 on processSyncChunk (the payment-context createAction
-	// needs the manager's lock, which the outer updateBackups is holding).
-	// The interception hooks on createAction/signAction will push to backups
-	// after the first real write anyway.
-	//
-	// Local-primary is safe to await: no remote-side billing, no lock
-	// recursion.
-	if (storage.getBackupStores().length > 0 && !config.activeRemote) {
-		try {
-			await storage.updateBackups()
-		} catch (err) {
-			console.error('[wallet-core] initial backup sync failed:', err)
+	if (config.onTransactionBroadcasted) {
+		monitor.onTransactionBroadcasted = async (result: any) => {
+			if (result.txid) config.onTransactionBroadcasted!(result.txid)
+		}
+	}
+	if (config.onTransactionProven) {
+		monitor.onTransactionProven = async (status: any) => {
+			config.onTransactionProven!(status.txid, status.blockHeight)
 		}
 	}
 
@@ -216,19 +209,23 @@ export async function createWalletCore(
 		if (settings?.storageIdentityKey) {
 			await storage.setActive(settings.storageIdentityKey)
 		}
-
-		wireBackupInterception()
 	}
 
 	const addRemote = async (url: string): Promise<void> => {
 		const existing = remoteClients.find((c) => c.endpointUrl === url)
 		if (existing) return
 		await connectRemote(url)
-		wireBackupInterception()
 	}
 
 	// 7. Destroy
 	const destroy = async (): Promise<void> => {
+		try {
+			monitor.stopTasks()
+			if (monitor._tasksRunningPromise) {
+				await monitor._tasksRunningPromise
+			}
+			await monitor.destroy()
+		} catch {}
 		await wallet.destroy()
 	}
 
@@ -236,11 +233,58 @@ export async function createWalletCore(
 		wallet,
 		services: oneSatServices,
 		storage,
+		monitor,
 		destroy,
 		remoteClients,
 		setActiveStorage,
 		addRemote,
 		getActiveStorage: () => storage.getActive(),
 		feeModel,
+	}
+}
+
+/**
+ * Builds a plain-object Monitor task that calls `storage.updateBackups()`
+ * periodically. Shape-compatible with `WalletMonitorTask` — no class
+ * extension needed, so the factory doesn't need to import the abstract
+ * class from whichever wallet-toolbox variant the caller uses.
+ *
+ * Only fires when local is the active store — with a remote active,
+ * pushing local-to-remote on a schedule is unnecessary (remote is
+ * canonical) and in a metered-remote setup it can trigger a client-side
+ * 402 deadlock against the manager's locks.
+ */
+function buildBackupSyncTask(
+	monitor: any,
+	triggerMsecs: number,
+	storage: any,
+): any {
+	return {
+		monitor,
+		storage: monitor.storage,
+		name: 'BackupSync',
+		lastRunMsecsSinceEpoch: 0,
+		async asyncSetup() {},
+		trigger(nowMsecsSinceEpoch: number): { run: boolean } {
+			if (nowMsecsSinceEpoch - this.lastRunMsecsSinceEpoch < triggerMsecs) {
+				return { run: false }
+			}
+			if (storage.getBackupStores().length === 0) return { run: false }
+			try {
+				const active = storage.getActive() as any
+				if (!active?.isStorageProvider?.()) return { run: false }
+			} catch {
+				return { run: false }
+			}
+			return { run: true }
+		},
+		async runTask(): Promise<string> {
+			try {
+				await storage.updateBackups()
+				return 'backup sync complete'
+			} catch (err) {
+				return `backup sync failed: ${(err as Error).message}`
+			}
+		},
 	}
 }

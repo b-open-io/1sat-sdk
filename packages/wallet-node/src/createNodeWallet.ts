@@ -75,33 +75,6 @@ export async function createNodeWallet(
 		Monitor,
 	})
 
-	// Always construct the Monitor — it's cheap (just task registration) and
-	// the active store can be flipped at runtime via setActiveStorage, so we
-	// need a Monitor available regardless of the initial config.
-	const monitor = new Monitor({
-		chain: config.chain,
-		services: core.services as any,
-		storage: core.storage,
-		chaintracks: core.services.chaintracks,
-		msecsWaitPerMerkleProofServiceReq: 500,
-		taskRunWaitMsecs: 5000,
-		abandonedMsecs: 300000,
-		unprovenAttemptsLimitTest: 10,
-		unprovenAttemptsLimitMain: 144,
-	})
-	monitor.addDefaultTasks()
-
-	if (config.onTransactionBroadcasted) {
-		monitor.onTransactionBroadcasted = async (result) => {
-			if (result.txid) config.onTransactionBroadcasted!(result.txid)
-		}
-	}
-	if (config.onTransactionProven) {
-		monitor.onTransactionProven = async (status) => {
-			config.onTransactionProven!(status.txid, status.blockHeight)
-		}
-	}
-
 	// Fire monitor.runOnce() on wake when local is active. The server runs
 	// its own monitor when remote is active, so firing ours would duplicate
 	// (and race with) its work. Tasks self-throttle internally via their
@@ -109,31 +82,24 @@ export async function createNodeWallet(
 	// are cheap timestamp comparisons.
 	let initialRunOnce: Promise<unknown> | undefined
 	if (!config.activeRemote && !config.skipInitialMonitor) {
-		initialRunOnce = monitor.runOnce().catch((err: unknown) => {
+		initialRunOnce = core.monitor.runOnce().catch((err: unknown) => {
 			console.error('[wallet-core] initial monitor run failed:', err)
 		})
 	}
 
 	const destroy = async (): Promise<void> => {
-		try {
-			monitor.stopTasks()
-			if (initialRunOnce) {
+		if (initialRunOnce) {
+			try {
 				await initialRunOnce
-			}
-			if (monitor._tasksRunningPromise) {
-				await monitor._tasksRunningPromise
-			}
-			await monitor.destroy()
-		} catch {}
-		try {
-			await core.destroy()
-		} catch {}
+			} catch {}
+		}
+		await core.destroy()
 	}
 
 	return {
 		wallet: core.wallet,
 		services: core.services,
-		monitor,
+		monitor: core.monitor,
 		destroy,
 		storage: core.storage,
 		remoteStorage: core.remoteClients[0],
