@@ -66,8 +66,20 @@ export function accountsPriceCalculator(
 		// would cause infinite recursion, so we let it through free. The
 		// resulting payment tx still lands in the user's storage and counts
 		// toward their usage like any other tx.
-		if (method === 'createAction' && isSelfPaymentBuild(reqx, deps.serverIdentityKey)) {
-			return 0
+		if (method === 'createAction') {
+			const isSelf = isSelfPaymentBuild(reqx, deps.serverIdentityKey)
+			console.error(
+				'[accounts] createAction; selfPayment=%s identity=%s',
+				isSelf,
+				reqx.auth?.identityKey?.slice(0, 12),
+			)
+			if (isSelf) return 0
+		} else {
+			console.error(
+				'[accounts] billable method=%s identity=%s',
+				method,
+				reqx.auth?.identityKey?.slice(0, 12),
+			)
 		}
 
 		const identityKey = reqx.auth?.identityKey
