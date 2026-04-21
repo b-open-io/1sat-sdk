@@ -60,6 +60,16 @@ export function accountsPriceCalculator(
 		const method = extractJsonRpcMethod(reqx)
 		if (method == null || !isBillableMethod(method)) return 0
 
+		// Break the 402-building-402 loop: a createAction whose outputs pay
+		// this server's identity is either AuthFetch building a BRC-0121
+		// payment to us, or some equivalent self-directed flow. Billing it
+		// would cause infinite recursion, so we let it through free. The
+		// resulting payment tx still lands in the user's storage and counts
+		// toward their usage like any other tx.
+		if (method === 'createAction' && isSelfPaymentBuild(reqx, deps.serverIdentityKey)) {
+			return 0
+		}
+
 		const identityKey = reqx.auth?.identityKey
 		if (!identityKey) return 0
 		if (freeKeys.has(identityKey)) return 0
@@ -137,4 +147,29 @@ function extractJsonRpcMethod(req: Request): string | undefined {
 	if (typeof body !== 'object' || body === null) return undefined
 	const method = (body as { method?: unknown }).method
 	return typeof method === 'string' ? method : undefined
+}
+
+/**
+ * Returns true when the JSON-RPC body is a createAction whose outputs
+ * include at least one entry earmarked as a payment to this server (via
+ * `customInstructions = { payee: serverIdentityKey, ... }`).
+ */
+function isSelfPaymentBuild(
+	req: Request,
+	serverIdentityKey: IdentityKey,
+): boolean {
+	const body = req.body as { params?: unknown }
+	const params = Array.isArray(body?.params) ? body.params : []
+	const args = params[0] as { outputs?: unknown } | undefined
+	const outputs = Array.isArray(args?.outputs) ? args.outputs : []
+	for (const out of outputs) {
+		if (typeof out !== 'object' || out === null) continue
+		const ci = (out as { customInstructions?: unknown }).customInstructions
+		if (typeof ci !== 'string') continue
+		try {
+			const parsed = JSON.parse(ci) as { payee?: unknown }
+			if (parsed?.payee === serverIdentityKey) return true
+		} catch {}
+	}
+	return false
 }
