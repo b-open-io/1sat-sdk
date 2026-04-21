@@ -1,6 +1,5 @@
 import type { Server } from 'node:http'
 import { createAuthMiddleware } from '@bsv/auth-express-middleware'
-import { createPaymentMiddleware } from '@bsv/payment-express-middleware'
 import {
 	PrivateKey,
 	ProtoWallet,
@@ -15,8 +14,8 @@ import express, {
 } from 'express'
 import {
 	type AccountsMiddlewareDeps,
-	accountsPaymentRecorder,
-	accountsPriceCalculator,
+	accountsCapacityGate,
+	accountsPaymentHandler,
 } from './accounts'
 import type { AccountsRepo } from './accounts/repo'
 import type { AccountsConfig } from './accounts/types'
@@ -93,6 +92,9 @@ export function createWalletServer(
 	if (publicPath) {
 		mountPublicRoute(app, publicPath, config, wallet, accountsDeps)
 		mountStatusRoute(app, publicPath, config)
+		if (accountsDeps) {
+			mountPaymentRoute(app, publicPath, accountsDeps)
+		}
 	}
 	if (internalPath) {
 		mountInternalRoute(app, internalPath, config)
@@ -144,17 +146,7 @@ function mountPublicRoute(
 		(req: ExpressRequest, res: ExpressResponse, next: NextFunction) => unknown
 	> = []
 	if (accountsDeps) {
-		// The payment middleware is typed against Express 5 while this server
-		// runs on Express 4. Runtime shapes are identical, but the Request types
-		// differ, so we bridge with `any` at the boundary.
-		// biome-ignore lint/suspicious/noExplicitAny: express 4/5 type mismatch
-		const priceCalc = accountsPriceCalculator(accountsDeps) as any
-		const paymentMw = createPaymentMiddleware({
-			wallet,
-			calculateRequestPrice: priceCalc,
-			// biome-ignore lint/suspicious/noExplicitAny: express 4/5 type mismatch
-		}) as any
-		postHandlers.push(paymentMw, accountsPaymentRecorder(accountsDeps))
+		postHandlers.push(accountsCapacityGate(accountsDeps))
 	}
 	postHandlers.push(dispatchHandler(config))
 
@@ -197,6 +189,17 @@ function dispatchHandler(config: WalletServerConfig) {
 
 		res.status(200).json(response)
 	}
+}
+
+function mountPaymentRoute(
+	app: Express,
+	basePath: string,
+	accountsDeps: AccountsMiddlewareDeps,
+): void {
+	const path = joinPath(basePath, 'account/payment')
+	app.post(path, async (req, res) => {
+		await accountsPaymentHandler(accountsDeps)(req, res)
+	})
 }
 
 function mountStatusRoute(

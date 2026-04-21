@@ -1,21 +1,24 @@
 /**
- * Accounts integration with @bsv/payment-express-middleware.
+ * Express middleware + route handlers for the accounts layer.
  *
- * - `accountsPriceCalculator` — `calculateRequestPrice` callback for the
- *   payment middleware. Returns 0 for unmetered requests (non-billable
- *   methods, free identities, accounts disabled). Otherwise returns the
- *   sats owed under our refund-credit pricing model.
+ * - `accountsCapacityGate(deps)` — runs between auth and dispatch. On a
+ *   billable method whose caller is over capacity, returns `507 Insufficient
+ *   Storage` with a JSON body describing the deficit + pricing. We don't use
+ *   HTTP 402 here: that would trigger AuthFetch's auto-pay retry, and the
+ *   retry's `wallet.createAction` deadlocks against the manager's lock when
+ *   the caller's active storage is the same server we're billing them for.
  *
- * - `accountsPaymentRecorder` — post-payment Express middleware that runs
- *   AFTER the payment middleware has accepted a payment. It writes a row
- *   into the `payments` table so future quotes see the new paid capacity.
+ * - `accountsPaymentHandler(deps)` — handler for `POST /account/payment`.
+ *   Accepts a BRC-29 payment body, calls `wallet.internalizeAction` to
+ *   validate + record the incoming tx, writes a row into the accounts
+ *   ledger so subsequent billable requests see the new paid capacity.
  */
 
-import { Transaction, Utils, type WalletInterface } from '@bsv/sdk'
+import { type WalletInterface, Transaction, Utils } from '@bsv/sdk'
 import type { NextFunction, Request, Response } from 'express'
 import { isBillableMethod } from '../dispatch'
 import type { WalletStorageProvider } from '../types'
-import { type RefundedQuote, quoteRefundedCharge } from './pricing'
+import { quoteRefundedCharge } from './pricing'
 import type { AccountsRepo } from './repo'
 import type { AccountsConfig, IdentityKey } from './types'
 
@@ -29,111 +32,211 @@ export interface AccountsMiddlewareDeps {
 	currentBlock: () => Promise<number>
 }
 
-/** Extra fields the accounts layer stashes on the request for the post-payment recorder. */
-interface AccountsRequestState {
-	quote?: RefundedQuote
-	identityKey?: IdentityKey
-}
+type AuthedRequest = Request & { auth?: { identityKey?: string } }
 
-type AccountsRequest = Request & {
-	_accounts?: AccountsRequestState
-	auth?: { identityKey?: string }
-	payment?: { tx?: string; satoshisPaid?: number }
-}
+/** JSON-RPC error code for "insufficient storage capacity". */
+export const ERR_INSUFFICIENT_CAPACITY = -32005
 
 /**
- * Returns a `calculateRequestPrice` function wired to our refund-credit
- * pricing. Used as the middleware option of `createPaymentMiddleware`.
+ * Express middleware. Runs between auth and dispatch. For billable methods
+ * when the caller is over capacity, short-circuits with 507 + quota info.
+ * Otherwise calls next() and dispatch runs normally.
  */
-export function accountsPriceCalculator(
-	deps: AccountsMiddlewareDeps,
-): (req: Request) => Promise<number> {
+export function accountsCapacityGate(deps: AccountsMiddlewareDeps) {
 	const freeKeys = new Set<IdentityKey>([
 		deps.serverIdentityKey,
 		...(deps.config.freeIdentityKeys ?? []),
 	])
 
-	return async (req: Request) => {
-		if (!deps.config.enabled) return 0
+	return async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!deps.config.enabled) return next()
 
-		const reqx = req as AccountsRequest
-		const method = extractJsonRpcMethod(reqx)
-		if (method == null || !isBillableMethod(method)) return 0
+			const method = extractJsonRpcMethod(req)
+			if (method == null || !isBillableMethod(method)) return next()
 
-		// Break the 402-building-402 loop: a createAction whose outputs pay
-		// this server's identity is either AuthFetch building a BRC-0121
-		// payment to us, or some equivalent self-directed flow. Billing it
-		// would cause infinite recursion, so we let it through free. The
-		// resulting payment tx still lands in the user's storage and counts
-		// toward their usage like any other tx.
-		if (
-			method === 'createAction' &&
-			isSelfPaymentBuild(reqx, deps.serverIdentityKey)
-		) {
-			return 0
+			const identityKey = (req as AuthedRequest).auth?.identityKey
+			if (!identityKey) return next()
+			if (freeKeys.has(identityKey)) return next()
+
+			const userId = await resolveUserId(deps.walletStorage, identityKey)
+			// First billable call creates the user row — gets a free pass.
+			if (userId == null) return next()
+
+			const currentBlock = await deps.currentBlock()
+			const [usedBytes, currentPayment] = await Promise.all([
+				deps.repo.measureUsedBytes(userId),
+				deps.repo.getCurrentPayment(identityKey, currentBlock),
+			])
+			const quote = quoteRefundedCharge({
+				usedBytes,
+				currentPayment,
+				currentBlock,
+				config: deps.config,
+			})
+			if (!quote) return next()
+
+			const id = normalizeJsonRpcId((req.body as { id?: unknown })?.id)
+			return res.status(507).json({
+				jsonrpc: '2.0',
+				error: {
+					code: ERR_INSUFFICIENT_CAPACITY,
+					message: 'insufficient storage capacity',
+					data: {
+						usedBytes,
+						baselineBytes: deps.config.baselineBytes,
+						paidBytes: currentPayment?.bytesCovered ?? 0,
+						capacityBytes:
+							deps.config.baselineBytes + (currentPayment?.bytesCovered ?? 0),
+						deficitBytes: quote.bytesCovered,
+						satsRequired: quote.chargeSats,
+						fullSats: quote.fullSats,
+						refundSats: quote.refundSats,
+						paidThroughBlock: quote.paidThroughBlock,
+						currentBlock,
+						pricing: {
+							purchaseUnitBytes: deps.config.purchaseUnitBytes,
+							satsPerUnit: deps.config.satsPerUnit,
+							durationBlocks: deps.config.durationBlocks,
+						},
+						paymentEndpoint: '/account/payment',
+						serverIdentityKey: deps.serverIdentityKey,
+					},
+				},
+				id,
+			})
+		} catch (err) {
+			console.error('[accounts] capacity gate error:', err)
+			return next()
+		}
+	}
+}
+
+interface PostPaymentBody {
+	transaction?: string // base64 AtomicBEEF
+	derivationPrefix?: string
+	derivationSuffix?: string
+	outputIndex?: number
+}
+
+/**
+ * Handler for `POST /account/payment`. BRC-29 payment body; the server
+ * internalizes the tx against its own wallet and records the capacity
+ * credit in the accounts ledger.
+ */
+export function accountsPaymentHandler(deps: AccountsMiddlewareDeps) {
+	return async (req: Request, res: Response) => {
+		const identityKey = (req as AuthedRequest).auth?.identityKey
+		if (!identityKey || identityKey === 'unknown') {
+			return res.status(401).json({ error: 'Unauthenticated' })
+		}
+		if (!deps.config.enabled) {
+			return res.status(400).json({ error: 'accounts not enabled' })
 		}
 
-		const identityKey = reqx.auth?.identityKey
-		if (!identityKey) return 0
-		if (freeKeys.has(identityKey)) return 0
+		const body = req.body as PostPaymentBody
+		if (
+			typeof body?.transaction !== 'string' ||
+			typeof body?.derivationPrefix !== 'string' ||
+			typeof body?.derivationSuffix !== 'string'
+		) {
+			return res.status(400).json({
+				error:
+					'missing fields — expected { transaction: base64, derivationPrefix, derivationSuffix, outputIndex? }',
+			})
+		}
 
-		const userId = await resolveUserId(deps.walletStorage, identityKey)
-		if (userId == null) return 0 // first billable call; metering starts next
+		let beef: number[]
+		let txid: string
+		let satoshisAtOutput: number
+		const outputIndex =
+			typeof body.outputIndex === 'number' ? body.outputIndex : 0
+		try {
+			beef = Utils.toArray(body.transaction, 'base64')
+			const tx = Transaction.fromAtomicBEEF(beef)
+			txid = tx.id('hex') as string
+			const out = tx.outputs[outputIndex]
+			if (!out) throw new Error(`no output at index ${outputIndex}`)
+			satoshisAtOutput = out.satoshis ?? 0
+		} catch (err) {
+			return res
+				.status(400)
+				.json({ error: `invalid payment tx: ${(err as Error).message}` })
+		}
+
+		if (await deps.repo.paymentExists(txid)) {
+			return res.status(409).json({ error: 'payment already applied', txid })
+		}
 
 		const currentBlock = await deps.currentBlock()
-		const [usedBytes, currentPayment] = await Promise.all([
-			deps.repo.measureUsedBytes(userId),
-			deps.repo.getCurrentPayment(identityKey, currentBlock),
-		])
+		const userId = await resolveUserId(deps.walletStorage, identityKey)
+		const usedBytes =
+			userId == null ? 0 : await deps.repo.measureUsedBytes(userId)
+		const currentPayment = await deps.repo.getCurrentPayment(
+			identityKey,
+			currentBlock,
+		)
 		const quote = quoteRefundedCharge({
 			usedBytes,
 			currentPayment,
 			currentBlock,
 			config: deps.config,
 		})
-		if (!quote) return 0
 
-		reqx._accounts = {
-			quote,
-			identityKey,
-		}
-		return quote.chargeSats
-	}
-}
-
-/**
- * Post-payment middleware. Reads the payment-middleware's `req.payment`
- * (set after `wallet.internalizeAction` succeeded) and records the new
- * payment row so future calls see the expanded capacity.
- */
-export function accountsPaymentRecorder(deps: AccountsMiddlewareDeps) {
-	return async (
-		req: AccountsRequest,
-		_res: Response,
-		next: NextFunction,
-	): Promise<void> => {
-		const payment = req.payment
-		const state = req._accounts
-		if (!payment?.tx || !state?.quote || !state.identityKey) return next()
+		// If no quote needed (under capacity), the user is overpaying; accept
+		// the payment anyway. We still internalize and record so they get
+		// whatever capacity the sats cover.
+		const bytesCovered =
+			quote?.bytesCovered ??
+			Math.max(
+				deps.config.purchaseUnitBytes,
+				Math.ceil(satoshisAtOutput / deps.config.satsPerUnit) *
+					deps.config.purchaseUnitBytes,
+			)
+		const paidThroughBlock =
+			quote?.paidThroughBlock ?? currentBlock + deps.config.durationBlocks
 
 		try {
-			const beef = Utils.toArray(payment.tx, 'base64')
-			const tx = Transaction.fromAtomicBEEF(beef)
-			const txid = tx.id('hex') as string
-			if (!(await deps.repo.paymentExists(txid))) {
-				await deps.repo.upsertAccount(state.identityKey)
-				await deps.repo.recordPayment({
-					identityKey: state.identityKey,
-					txid,
-					bytesCovered: state.quote.bytesCovered,
-					satsPaid: state.quote.chargeSats,
-					paidThroughBlock: state.quote.paidThroughBlock,
-				})
-			}
+			await deps.wallet.internalizeAction({
+				tx: beef,
+				outputs: [
+					{
+						paymentRemittance: {
+							derivationPrefix: body.derivationPrefix,
+							derivationSuffix: body.derivationSuffix,
+							senderIdentityKey: identityKey,
+						},
+						outputIndex,
+						protocol: 'wallet payment',
+					},
+				],
+				labels: ['wallet-server', 'account-payment'],
+				description: 'wallet-server storage capacity payment',
+			})
 		} catch (err) {
-			console.error('[accounts] failed to record payment:', err)
+			return res.status(400).json({
+				error: `wallet.internalizeAction rejected payment: ${(err as Error).message}`,
+			})
 		}
-		next()
+
+		await deps.repo.upsertAccount(identityKey)
+		const payment = await deps.repo.recordPayment({
+			identityKey,
+			txid,
+			bytesCovered,
+			satsPaid: satoshisAtOutput,
+			paidThroughBlock,
+		})
+
+		return res.status(200).json({
+			status: 'ok',
+			payment: {
+				txid: payment.txid,
+				satsPaid: payment.satsPaid,
+				bytesCovered: payment.bytesCovered,
+				paidThroughBlock: payment.paidThroughBlock,
+			},
+		})
 	}
 }
 
@@ -152,29 +255,7 @@ function extractJsonRpcMethod(req: Request): string | undefined {
 	return typeof method === 'string' ? method : undefined
 }
 
-/**
- * Returns true when the JSON-RPC body is a createAction whose outputs
- * include at least one entry earmarked as a payment to this server (via
- * `customInstructions = { payee: serverIdentityKey, ... }`).
- */
-function isSelfPaymentBuild(
-	req: Request,
-	serverIdentityKey: IdentityKey,
-): boolean {
-	// wallet-toolbox RPCs are shaped `method(auth, args)`. args (with outputs)
-	// lives at params[1]; params[0] carries identity/auth fields.
-	const body = req.body as { params?: unknown }
-	const params = Array.isArray(body?.params) ? body.params : []
-	const args = params[1] as { outputs?: unknown } | undefined
-	const outputs = Array.isArray(args?.outputs) ? args.outputs : []
-	for (const out of outputs) {
-		if (typeof out !== 'object' || out === null) continue
-		const ci = (out as { customInstructions?: unknown }).customInstructions
-		if (typeof ci !== 'string') continue
-		try {
-			const parsed = JSON.parse(ci) as { payee?: unknown }
-			if (parsed?.payee === serverIdentityKey) return true
-		} catch {}
-	}
-	return false
+function normalizeJsonRpcId(id: unknown): string | number | null {
+	if (typeof id === 'string' || typeof id === 'number') return id
+	return null
 }

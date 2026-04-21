@@ -22,6 +22,7 @@ export {
 } from './pricing'
 export {
 	type AccountsMiddlewareDeps,
-	accountsPaymentRecorder,
-	accountsPriceCalculator,
+	accountsCapacityGate,
+	accountsPaymentHandler,
+	ERR_INSUFFICIENT_CAPACITY,
 } from './middleware'
