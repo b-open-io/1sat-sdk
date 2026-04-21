@@ -1,66 +1,66 @@
 {
-	"name": "@1sat/extension",
-	"version": "0.0.6",
-	"description": "Build browser wallet extensions that implement window.onesat",
-	"type": "module",
-	"main": "./dist/index.js",
-	"module": "./dist/index.js",
-	"types": "./dist/index.d.ts",
-	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"bun": "./src/index.ts",
-			"import": "./dist/index.js"
-		},
-		"./popup": {
-			"types": "./dist/popup.d.ts",
-			"bun": "./src/popup.ts",
-			"import": "./dist/popup.js"
-		},
-		"./storage": {
-			"types": "./dist/storage.d.ts",
-			"bun": "./src/storage.ts",
-			"import": "./dist/storage.js"
-		},
-		"./keys": {
-			"types": "./dist/keys.d.ts",
-			"bun": "./src/keys.ts",
-			"import": "./dist/keys.js"
-		}
-	},
-	"files": [
-		"dist",
-		"README.md"
-	],
-	"scripts": {
-		"build": "tsc",
-		"dev": "tsc --watch",
-		"clean": "rm -rf dist"
-	},
-	"dependencies": {
-		"bitcoin-backup": "^0.0.5",
-		"webextension-polyfill": "^0.12.0"
-	},
-	"peerDependencies": {
-		"@bsv/sdk": "^2.0.13"
-	},
-	"devDependencies": {
-		"@bsv/sdk": "^2.0.13",
-		"@types/chrome": "^0.0.287",
-		"@types/webextension-polyfill": "^0.12.4",
-		"typescript": "^5.9.3"
-	},
-	"publishConfig": {
-		"access": "public"
-	},
-	"keywords": [
-		"1sat",
-		"ordinals",
-		"bsv",
-		"bitcoin",
-		"wallet",
-		"extension",
-		"chrome"
-	],
-	"license": "MIT"
+  "name": "@1sat/extension",
+  "version": "0.0.7",
+  "description": "Build browser wallet extensions that implement window.onesat",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./popup": {
+      "types": "./dist/popup.d.ts",
+      "bun": "./src/popup.ts",
+      "import": "./dist/popup.js"
+    },
+    "./storage": {
+      "types": "./dist/storage.d.ts",
+      "bun": "./src/storage.ts",
+      "import": "./dist/storage.js"
+    },
+    "./keys": {
+      "types": "./dist/keys.d.ts",
+      "bun": "./src/keys.ts",
+      "import": "./dist/keys.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "bitcoin-backup": "^0.0.11",
+    "webextension-polyfill": "^0.12.0"
+  },
+  "peerDependencies": {
+    "@bsv/sdk": "^2.0.13"
+  },
+  "devDependencies": {
+    "@bsv/sdk": "^2.0.13",
+    "@types/chrome": "^0.0.287",
+    "@types/webextension-polyfill": "^0.12.4",
+    "typescript": "^5.9.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "1sat",
+    "ordinals",
+    "bsv",
+    "bitcoin",
+    "wallet",
+    "extension",
+    "chrome"
+  ],
+  "license": "MIT"
 }

@@ -31,6 +31,9 @@ export interface RemoteWalletResult {
 export async function createRemoteWallet(
 	config: RemoteWalletConfig,
 ): Promise<RemoteWalletResult> {
+	// Monitor intentionally omitted — the remote server runs its own
+	// monitor loop. The factory skips monitor construction when Monitor
+	// isn't supplied; `core.monitor` comes back as undefined.
 	const core = await createWalletCore(config, undefined, {
 		Services,
 		StorageClient,

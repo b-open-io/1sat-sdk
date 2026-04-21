@@ -49,7 +49,13 @@ export interface WalletCoreResult {
 	wallet: InstanceType<any>
 	services: OneSatServices
 	storage: InstanceType<any>
-	monitor: InstanceType<any>
+	/**
+	 * Present only when the caller supplies a `Monitor` class in the toolbox
+	 * (wallet-node, wallet-browser). Remote-active wrappers (wallet-remote)
+	 * omit the class; the server owns the monitor loop and the client's
+	 * result has `monitor: undefined`.
+	 */
+	monitor: InstanceType<any> | undefined
 	destroy: () => Promise<void>
 	remoteClients: InstanceType<any>[]
 	/**
@@ -84,7 +90,13 @@ export async function createWalletCore(
 		StorageProvider: any
 		Wallet: any
 		WalletStorageManager: any
-		Monitor: any
+		/**
+		 * Optional. When the caller supplies a Monitor class, the factory
+		 * constructs an idle instance and wires the periodic BackupSync task.
+		 * Wrappers that don't own a monitor loop (e.g. `wallet-remote` —
+		 * the server runs its own monitor) should omit this.
+		 */
+		Monitor?: any
 	},
 ): Promise<WalletCoreResult> {
 	const { chain } = config
@@ -181,41 +193,47 @@ export async function createWalletCore(
 		onStoragePaymentRequired: config.onStoragePaymentRequired,
 	})
 
-	// Monitor is always constructed. Whether its task loop actually runs is
-	// the caller's choice (via startTasks / runOnce). With a remote active,
-	// callers should skip starting — the server owns its own monitor. With
-	// local active, start as needed.
-	const monitor = new toolbox.Monitor({
-		chain: config.chain,
-		services: oneSatServices as any,
-		storage,
-		chaintracks: oneSatServices.chaintracks,
-		msecsWaitPerMerkleProofServiceReq: 500,
-		taskRunWaitMsecs: 5000,
-		abandonedMsecs: 300000,
-		unprovenAttemptsLimitTest: 10,
-		unprovenAttemptsLimitMain: 144,
-	})
-	monitor.addDefaultTasks()
+	// Monitor only exists when the caller supplied a Monitor class in the
+	// toolbox. wallet-node and wallet-browser do; wallet-remote doesn't
+	// (server owns the monitor loop). When present, the task loop is still
+	// caller-driven via startTasks / runOnce — factory just constructs and
+	// wires defaults.
+	let monitor: InstanceType<any> | undefined
+	if (toolbox.Monitor) {
+		monitor = new toolbox.Monitor({
+			chain: config.chain,
+			services: oneSatServices as any,
+			storage,
+			chaintracks: oneSatServices.chaintracks,
+			msecsWaitPerMerkleProofServiceReq: 500,
+			taskRunWaitMsecs: 5000,
+			abandonedMsecs: 300000,
+			unprovenAttemptsLimitTest: 10,
+			unprovenAttemptsLimitMain: 144,
+		})
+		monitor.addDefaultTasks()
 
-	// Periodic backup sync task. Fires only when local is the active store;
-	// with a remote active, pushing local-to-remote on a schedule would be
-	// unnecessary (remote is canonical) and the auto-retry payment path can
-	// deadlock against the manager's locks if it fires inside a scheduled
-	// backup task. Interval defaults to 5 min.
-	const backupSyncIntervalMs = config.backupSyncIntervalMs ?? 5 * 60 * 1000
-	if (backupSyncIntervalMs > 0) {
-		monitor.addTask(buildBackupSyncTask(monitor, backupSyncIntervalMs, storage))
-	}
-
-	if (config.onTransactionBroadcasted) {
-		monitor.onTransactionBroadcasted = async (result: any) => {
-			if (result.txid) config.onTransactionBroadcasted!(result.txid)
+		// Periodic backup sync task. Fires only when local is the active store;
+		// with a remote active, pushing local-to-remote on a schedule would be
+		// unnecessary (remote is canonical) and the auto-retry payment path can
+		// deadlock against the manager's locks if it fires inside a scheduled
+		// backup task. Interval defaults to 5 min.
+		const backupSyncIntervalMs = config.backupSyncIntervalMs ?? 5 * 60 * 1000
+		if (backupSyncIntervalMs > 0) {
+			monitor.addTask(
+				buildBackupSyncTask(monitor, backupSyncIntervalMs, storage),
+			)
 		}
-	}
-	if (config.onTransactionProven) {
-		monitor.onTransactionProven = async (status: any) => {
-			config.onTransactionProven!(status.txid, status.blockHeight)
+
+		if (config.onTransactionBroadcasted) {
+			monitor.onTransactionBroadcasted = async (result: any) => {
+				if (result.txid) config.onTransactionBroadcasted!(result.txid)
+			}
+		}
+		if (config.onTransactionProven) {
+			monitor.onTransactionProven = async (status: any) => {
+				config.onTransactionProven!(status.txid, status.blockHeight)
+			}
 		}
 	}
 
@@ -256,13 +274,15 @@ export async function createWalletCore(
 
 	// 7. Destroy
 	const destroy = async (): Promise<void> => {
-		try {
-			monitor.stopTasks()
-			if (monitor._tasksRunningPromise) {
-				await monitor._tasksRunningPromise
-			}
-			await monitor.destroy()
-		} catch {}
+		if (monitor) {
+			try {
+				monitor.stopTasks()
+				if (monitor._tasksRunningPromise) {
+					await monitor._tasksRunningPromise
+				}
+				await monitor.destroy()
+			} catch {}
+		}
 		await wallet.destroy()
 	}
 
