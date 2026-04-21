@@ -48,7 +48,6 @@ Primary domain: 1Sat + BSV protocols (ordinals, BSV21 tokens, MAP, Sigma, OrdLoc
 - Use Bun for all scripts and package operations.
 - Use Biome for linting/formatting.
 - Do not use `Buffer` or browser polyfills for conversions; use `@bsv/sdk` utils.
-- Do not use dynamic imports inside methods.
 - Do not use star imports (`import * as ...`).
 - Keep runtime-specific entrypoints separate (`browser` vs `node`) where applicable.
 - Prefer explicit named exports from package entrypoints.
