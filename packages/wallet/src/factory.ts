@@ -144,12 +144,20 @@ export async function createWalletCore(
 		return client
 	}
 
+	// `intendedActiveKey` is the store the factory considers canonical for
+	// this wallet. Set after the initial active store lands, updated by
+	// `setActiveStorage` later. Used by `reconcileActive` to resolve the
+	// conflict-active state that arises when a newly-added backup's user
+	// row defaults `activeStorage` to its own key.
+	let intendedActiveKey: string | undefined
+
 	if (config.activeRemote) {
 		// Remote-primary: connect remote first, set active, then add local as backup
 		const activeClient = await connectRemote(config.activeRemote)
 		const settings = activeClient.getSettings()
 		if (settings?.storageIdentityKey) {
-			await storage.setActive(settings.storageIdentityKey)
+			intendedActiveKey = settings.storageIdentityKey
+			await storage.setActive(intendedActiveKey)
 		}
 		if (localStorage) {
 			await localStorage.makeAvailable()
@@ -163,12 +171,29 @@ export async function createWalletCore(
 	} else if (localStorage) {
 		// Local-primary: no remote, local is the active store
 		await storage.addWalletStorageProvider(localStorage)
+		intendedActiveKey = (await localStorage.makeAvailable()).storageIdentityKey
+	}
+
+	/**
+	 * Re-assert the intended active store when adding a provider has put the
+	 * manager into a conflict-active state. A fresh user row on a newly-
+	 * connected backup defaults `activeStorage` to that backup's own key,
+	 * which `WalletStorageManager` treats as a conflict against our chosen
+	 * active. `storage.setActive` resolves via wallet-toolbox's merge-and-
+	 * flip dance — record-level data is additive (no loss), only pointers
+	 * and reconcilable status fields change.
+	 */
+	const reconcileActive = async (): Promise<void> => {
+		if (!intendedActiveKey) return
+		if (storage.isActiveEnabled) return
+		await storage.setActive(intendedActiveKey)
 	}
 
 	// Connect backup remotes
 	if (config.backups) {
 		for (const url of config.backups) {
 			await connectRemote(url)
+			await reconcileActive()
 		}
 	}
 
@@ -247,6 +272,7 @@ export async function createWalletCore(
 			}
 			const localKey = (await localStorage.makeAvailable()).storageIdentityKey
 			await storage.setActive(localKey)
+			intendedActiveKey = localKey
 			return
 		}
 
@@ -255,6 +281,7 @@ export async function createWalletCore(
 			const settings = existing.getSettings()
 			if (settings?.storageIdentityKey) {
 				await storage.setActive(settings.storageIdentityKey)
+				intendedActiveKey = settings.storageIdentityKey
 			}
 			return
 		}
@@ -263,6 +290,7 @@ export async function createWalletCore(
 		const settings = client.getSettings()
 		if (settings?.storageIdentityKey) {
 			await storage.setActive(settings.storageIdentityKey)
+			intendedActiveKey = settings.storageIdentityKey
 		}
 	}
 
@@ -270,6 +298,7 @@ export async function createWalletCore(
 		const existing = remoteClients.find((c) => c.endpointUrl === url)
 		if (existing) return
 		await connectRemote(url)
+		await reconcileActive()
 	}
 
 	// 7. Destroy
