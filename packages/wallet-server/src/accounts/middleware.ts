@@ -133,6 +133,7 @@ async function isCreateActionBypass(
 
 	const labels = Array.isArray(args.labels) ? (args.labels as string[]) : []
 	const expectedLabel = `account-payment:${serverIdentityKey}`
+	console.error('[gate:createAction] labels=', labels, 'expectedLabel=', expectedLabel)
 	if (!labels.includes(expectedLabel)) return false
 
 	const outputs = Array.isArray(args.outputs)
@@ -141,6 +142,7 @@ async function isCreateActionBypass(
 				satoshis?: unknown
 			}>)
 		: []
+	console.error('[gate:createAction] outputs.length=', outputs.length)
 	if (
 		outputs.length === 0 ||
 		outputs.length > MAX_OUTPUTS_IN_BYPASSED_CREATE_ACTION
@@ -155,11 +157,19 @@ async function isCreateActionBypass(
 			senderIdentityKey,
 			expected,
 		)
-	} catch {
+	} catch (err) {
+		console.error('[gate:createAction] derive err:', err)
 		return false
 	}
+	console.error('[gate:createAction] expectedScript=', expectedScript, 'minSats=', minSats)
 
 	for (const output of outputs) {
+		console.error('[gate:createAction] output:', {
+			scriptType: typeof output.lockingScript,
+			scriptLen: typeof output.lockingScript === 'string' ? output.lockingScript.length : 0,
+			script: typeof output.lockingScript === 'string' ? output.lockingScript : null,
+			satoshis: output.satoshis,
+		})
 		if (
 			typeof output.lockingScript === 'string' &&
 			typeof output.satoshis === 'number' &&
