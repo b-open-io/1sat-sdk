@@ -28,3 +28,13 @@ export {
 	ERR_INSUFFICIENT_CAPACITY,
 	nextPaymentDerivation,
 } from './middleware'
+export {
+	type PaymentRecord,
+	PAYMENT_LABEL,
+	blockLabel,
+	bytesLabel,
+	countPaymentsForPayer,
+	latestActivePaymentForPayer,
+	listPaymentsForPayer,
+	payerLabel,
+} from './queries'

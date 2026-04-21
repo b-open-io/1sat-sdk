@@ -1,4 +1,10 @@
-import type { AccountsConfig, Payment } from './types'
+import type { AccountsConfig } from './types'
+
+/** Minimal payment view needed for pricing math. */
+export interface PaymentForPricing {
+	bytesCovered: number
+	paidThroughBlock: number
+}
 
 const BYTES_PER_GB = 1_073_741_824 // 1024^3
 
@@ -30,7 +36,7 @@ export function computeCapacity(input: CapacityInput): CapacityResult {
 
 export interface RefundedQuoteInput {
 	usedBytes: number
-	currentPayment: Payment | undefined
+	currentPayment: PaymentForPricing | undefined
 	currentBlock: number
 	config: Pick<
 		AccountsConfig,
@@ -112,7 +118,7 @@ export function quoteRefundedCharge(
  * Returns 0 when no prior payment or when it has already expired.
  */
 export function refundCreditSats(
-	payment: Payment | undefined,
+	payment: PaymentForPricing | undefined,
 	currentBlock: number,
 	durationBlocks: number,
 	purchaseUnitBytes: number,

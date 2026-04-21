@@ -25,6 +25,14 @@ import type { NextFunction, Request, Response } from 'express'
 import { isBillableMethod } from '../dispatch'
 import type { WalletStorageProvider } from '../types'
 import { quoteRefundedCharge } from './pricing'
+import {
+	PAYMENT_LABEL,
+	blockLabel,
+	bytesLabel,
+	countPaymentsForPayer,
+	latestActivePaymentForPayer,
+	payerLabel,
+} from './queries'
 import type { AccountsRepo } from './repo'
 import type { AccountsConfig, IdentityKey, NextPaymentDerivation } from './types'
 
@@ -81,9 +89,9 @@ interface StorageWithFinders {
  */
 export async function nextPaymentDerivation(
 	identityKey: IdentityKey,
-	repo: AccountsRepo,
+	wallet: WalletInterface,
 ): Promise<NextPaymentDerivation> {
-	const count = await repo.countPayments(identityKey)
+	const count = await countPaymentsForPayer(wallet, identityKey)
 	return {
 		derivationPrefix: toBase64Prefix(PAYMENT_DERIVATION_PREFIX_TAG),
 		derivationSuffix: toBase64Suffix(count),
@@ -275,7 +283,7 @@ export function accountsCapacityGate(deps: AccountsMiddlewareDeps) {
 			const currentBlock = await deps.currentBlock()
 			const [usedBytes, currentPayment] = await Promise.all([
 				deps.repo.measureUsedBytes(userId),
-				deps.repo.getCurrentPayment(identityKey, currentBlock),
+				latestActivePaymentForPayer(deps.wallet, identityKey, currentBlock),
 			])
 			const quote = quoteRefundedCharge({
 				usedBytes,
@@ -285,7 +293,7 @@ export function accountsCapacityGate(deps: AccountsMiddlewareDeps) {
 			})
 			if (!quote) return next()
 
-			const nextPayment = await nextPaymentDerivation(identityKey, deps.repo)
+			const nextPayment = await nextPaymentDerivation(identityKey, deps.wallet)
 			const params = (req.body as { params?: unknown[] })?.params ?? []
 
 			if (method === 'createAction') {
@@ -406,15 +414,12 @@ export function accountsPaymentHandler(deps: AccountsMiddlewareDeps) {
 				.json({ error: `invalid payment tx: ${(err as Error).message}` })
 		}
 
-		if (await deps.repo.paymentExists(txid)) {
-			return res.status(409).json({ error: 'payment already applied', txid })
-		}
-
 		const currentBlock = await deps.currentBlock()
 		const userId = await resolveUserId(deps.walletStorage, identityKey)
 		const usedBytes =
 			userId == null ? 0 : await deps.repo.measureUsedBytes(userId)
-		const currentPayment = await deps.repo.getCurrentPayment(
+		const currentPayment = await latestActivePaymentForPayer(
+			deps.wallet,
 			identityKey,
 			currentBlock,
 		)
@@ -452,8 +457,13 @@ export function accountsPaymentHandler(deps: AccountsMiddlewareDeps) {
 						protocol: 'wallet payment',
 					},
 				],
-				labels: ['wallet-server', 'account-payment'],
-				description: 'wallet-server storage capacity payment',
+				labels: [
+					PAYMENT_LABEL,
+					payerLabel(identityKey),
+					bytesLabel(bytesCovered),
+					blockLabel(paidThroughBlock),
+				],
+				description: 'wallet-server storage payment',
 			})
 		} catch (err) {
 			return res.status(400).json({
@@ -461,22 +471,13 @@ export function accountsPaymentHandler(deps: AccountsMiddlewareDeps) {
 			})
 		}
 
-		await deps.repo.upsertAccount(identityKey)
-		const payment = await deps.repo.recordPayment({
-			identityKey,
-			txid,
-			bytesCovered,
-			satsPaid: satoshisAtOutput,
-			paidThroughBlock,
-		})
-
 		return res.status(200).json({
 			status: 'ok',
 			payment: {
-				txid: payment.txid,
-				satsPaid: payment.satsPaid,
-				bytesCovered: payment.bytesCovered,
-				paidThroughBlock: payment.paidThroughBlock,
+				txid,
+				satsPaid: satoshisAtOutput,
+				bytesCovered,
+				paidThroughBlock,
 			},
 		})
 	}

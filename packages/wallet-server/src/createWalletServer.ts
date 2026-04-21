@@ -11,6 +11,7 @@ import {
 	type AccountsMiddlewareDeps,
 	accountsCapacityGate,
 	accountsPaymentHandler,
+	latestActivePaymentForPayer,
 	nextPaymentDerivation,
 } from './accounts'
 import type { AccountsRepo } from './accounts/repo'
@@ -96,7 +97,7 @@ export function createWalletServer(
 
 	if (publicPath) {
 		mountPublicRoute(app, publicPath, config, wallet, accountsDeps)
-		mountStatusRoute(app, publicPath, config, serverIdentityKey)
+		mountStatusRoute(app, publicPath, config, serverIdentityKey, wallet)
 		if (accountsDeps) {
 			mountPaymentRoute(app, publicPath, accountsDeps)
 		}
@@ -212,6 +213,7 @@ function mountStatusRoute(
 	basePath: string,
 	config: WalletServerConfig,
 	serverIdentityKey: string,
+	serverWallet: WalletInterface,
 ): void {
 	const statusPath = joinPath(basePath, 'account/status')
 	app.get(
@@ -247,7 +249,8 @@ function mountStatusRoute(
 				})
 			}
 
-			const currentPayment = await accounts.repo.getCurrentPayment(
+			const currentPayment = await latestActivePaymentForPayer(
+				serverWallet,
 				identityKey,
 				currentBlock,
 			)
@@ -257,7 +260,7 @@ function mountStatusRoute(
 
 			const nextPayment = await nextPaymentDerivation(
 				identityKey,
-				accounts.repo,
+				serverWallet,
 			)
 
 			return res.status(200).json({
