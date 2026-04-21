@@ -296,8 +296,28 @@ async function autoInternalizeSelfPayment(
 			`storage missing rawTx or inputBEEF for txid ${ctx.txid}`,
 		)
 	}
+	console.error(
+		'[accounts] BEEF debug',
+		ctx.txid,
+		'inputBEEF.length=',
+		por.inputBEEF.length,
+		'rawTx.length=',
+		rawTx.length,
+	)
 	const beef = Beef.fromBinary(por.inputBEEF)
+	console.error(
+		'[accounts] parsed inputBEEF: txs=',
+		beef.txs.length,
+		'bumps=',
+		beef.bumps.length,
+	)
 	beef.mergeRawTx(rawTx)
+	console.error(
+		'[accounts] after mergeRawTx: txs=',
+		beef.txs.length,
+		'bumps=',
+		beef.bumps.length,
+	)
 	const atomicBeef = beef.toBinaryAtomic(ctx.txid)
 
 	await deps.wallet.internalizeAction({
