@@ -33,33 +33,6 @@ export class WalletServerClient extends BaseClient {
 	accountStatus(): Promise<AccountStatusResponse> {
 		return this.request<AccountStatusResponse>('/account/status')
 	}
-
-	/**
-	 * POST /account/payment — submit a BRC-29 payment to top up capacity.
-	 * Returns the recorded payment (txid, sats paid, bytes covered, expiry).
-	 */
-	postPayment(input: {
-		/** AtomicBEEF of the payment transaction, base64-encoded. */
-		transaction: string
-		derivationPrefix: string
-		derivationSuffix: string
-		/** Output in the tx carrying the payment. Defaults to 0. */
-		outputIndex?: number
-	}): Promise<{
-		status: 'ok'
-		payment: {
-			txid: string
-			satsPaid: number
-			bytesCovered: number
-			paidThroughBlock: number
-		}
-	}> {
-		return this.request('/account/payment', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify(input),
-		})
-	}
 }
 
 function buildAuthFetchShim(authFetch: AuthFetch): typeof fetch {

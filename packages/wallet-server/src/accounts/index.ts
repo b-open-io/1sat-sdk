@@ -24,7 +24,6 @@ export {
 export {
 	type AccountsMiddlewareDeps,
 	accountsCapacityGate,
-	accountsPaymentHandler,
 	ERR_INSUFFICIENT_CAPACITY,
 	nextPaymentDerivation,
 } from './middleware'

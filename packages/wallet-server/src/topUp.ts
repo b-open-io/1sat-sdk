@@ -1,14 +1,17 @@
 /**
  * Top-up helper: buys capacity on a remote wallet-server by building a
- * BRC-29 payment against the server's next-payment derivation, then POSTing
- * it to `/account/payment`. Shared by the CLI `1sat remote topup` command
- * and the eventual factory-level auto-retry.
+ * BRC-29 self-payment createAction. The server's accounts gate recognises
+ * the self-payment, bypasses the 507, and auto-internalizes the payment
+ * into its own wallet as part of processAction post-dispatch — so the
+ * client never needs a second HTTP round-trip.
+ *
+ * Shared by the CLI `1sat remote topup` command and the eventual
+ * factory-level auto-retry.
  */
 
 import {
 	P2PKH,
 	PublicKey,
-	Utils,
 	type WalletInterface,
 } from '@bsv/sdk'
 import type { AccountStatusResponse } from './accounts/types'
@@ -24,16 +27,10 @@ export interface TopUpOptions {
 	client?: WalletServerClient
 }
 
-export interface TopUpPaymentResult {
-	txid: string
-	satsPaid: number
-	bytesCovered: number
-	paidThroughBlock: number
-}
-
 export interface TopUpResult {
 	unitsBought: number
-	payment: TopUpPaymentResult
+	satsPaid: number
+	txid: string
 	/** Account status after the payment is recorded. */
 	status: AccountStatusResponse
 }
@@ -95,22 +92,16 @@ export async function topUpStorage(
 		},
 	})
 
-	if (!createResult.tx || !createResult.txid) {
-		throw new Error('createAction did not return a broadcast transaction')
+	if (!createResult.txid) {
+		throw new Error('createAction did not return a broadcast txid')
 	}
-
-	const paymentResult = await client.postPayment({
-		transaction: Utils.toBase64(Array.from(createResult.tx)),
-		derivationPrefix,
-		derivationSuffix,
-		outputIndex: 0,
-	})
 
 	const newStatus = await client.accountStatus()
 
 	return {
 		unitsBought: units,
-		payment: paymentResult.payment,
+		satsPaid: sats,
+		txid: createResult.txid,
 		status: newStatus,
 	}
 }

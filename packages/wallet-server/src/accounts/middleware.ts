@@ -1,26 +1,17 @@
 /**
- * Express middleware + route handlers for the accounts layer.
+ * Express middleware for the accounts layer.
  *
- * - `accountsCapacityGate(deps)` — runs between auth and dispatch. On a
- *   billable method whose caller is over capacity, returns `507 Insufficient
- *   Storage` with a JSON body describing the deficit + pricing. Two bypass
- *   paths let an account-payment flow through even when the user is over
- *   capacity: one for `createAction` (validated against request args), one
- *   for `processAction` (validated against the stored action's outputs).
- *
- * - `accountsPaymentHandler(deps)` — handler for `POST /account/payment`.
- *   Accepts a BRC-29 payment body, calls `wallet.internalizeAction` to
- *   record the incoming tx against the server's own wallet, credits the
- *   accounts ledger, returns the updated quota.
+ * `accountsCapacityGate(deps)` — runs between auth and dispatch. For
+ * billable methods (createAction / processAction), inspects the call for a
+ * valid self-payment output. If over-capacity, lets the call through only
+ * if a valid self-payment is present. If a valid self-payment is present on
+ * a `processAction`, schedules an auto-internalize after the response so
+ * the received payment gets recorded into the server's own wallet with the
+ * accounts-ledger labels. No separate `/account/payment` endpoint — one
+ * client call is enough.
  */
 
-import {
-	P2PKH,
-	PublicKey,
-	type WalletInterface,
-	Transaction,
-	Utils,
-} from '@bsv/sdk'
+import { P2PKH, PublicKey, type WalletInterface, Utils } from '@bsv/sdk'
 import type { NextFunction, Request, Response } from 'express'
 import { isBillableMethod } from '../dispatch'
 import type { WalletStorageProvider } from '../types'
@@ -34,7 +25,11 @@ import {
 	payerLabel,
 } from './queries'
 import type { AccountsRepo } from './repo'
-import type { AccountsConfig, IdentityKey, NextPaymentDerivation } from './types'
+import type {
+	AccountsConfig,
+	IdentityKey,
+	NextPaymentDerivation,
+} from './types'
 
 /** BRC-29 protocol ID for wallet payments (matches @1sat/types constant). */
 const BRC29_PROTOCOL_ID: [2, string] = [2, '3241645161d8']
@@ -58,20 +53,17 @@ function toBase64Suffix(index: number): string {
 }
 
 /**
- * Runtime storage surface the gate uses for processAction bypass lookups.
- * `findTransactions` and `findOutputs` are exposed by every concrete
- * `StorageProvider` we ship with (bun-sqlite, knex) even though they don't
- * appear on the `WalletStorageProvider` interface.
+ * Runtime storage surface used beyond the WalletStorageProvider interface.
+ * Every concrete StorageProvider we ship with (bun-sqlite, knex) exposes
+ * these; we just type them explicitly so call sites stay type-safe.
  */
 interface StorageWithFinders {
 	findTransactions(args: {
 		partial: { reference?: string; userId?: number }
 		noRawTx?: boolean
-		status?: string[]
 	}): Promise<Array<{ transactionId: number; reference: string; userId: number }>>
 	findOutputs(args: {
 		partial: { transactionId?: number; userId?: number }
-		noScript?: boolean
 	}): Promise<
 		Array<{
 			transactionId: number
@@ -80,6 +72,10 @@ interface StorageWithFinders {
 			lockingScript?: number[]
 		}>
 	>
+	getBeefForTransaction(
+		txid: string,
+		options: { trustSelf?: 'known' },
+	): Promise<{ toBinaryAtomic(txid: string): number[] }>
 }
 
 /**
@@ -113,6 +109,11 @@ type AuthedRequest = Request & { auth?: { identityKey?: string } }
 /** JSON-RPC error code for "insufficient storage capacity". */
 export const ERR_INSUFFICIENT_CAPACITY = -32005
 
+interface BypassMatch {
+	outputIndex: number
+	satoshis: number
+}
+
 /**
  * Derive the P2PKH locking script that the sender is expected to pay to for
  * the given derivation suffix. Uses the server wallet's BRC-29 key
@@ -134,27 +135,27 @@ async function deriveExpectedPaymentScript(
 }
 
 /**
- * True iff this createAction describes a valid self-payment: has the
- * `account-payment:<serverIdentityKey>` label, has a bounded number of
- * outputs, and includes one output whose `lockingScript` matches the
- * server's expected BRC-29 script and carries sats ≥ minSats.
+ * Returns match info (output index + satoshis) iff this createAction
+ * describes a valid self-payment: has the `account-payment:<serverIdentity>`
+ * label, bounded outputs, one output matching the server's expected BRC-29
+ * script with satoshis ≥ minSats.
  *
- * We never trust client-supplied `customInstructions` here — the expected
- * script is derived from server state (identity keys + next suffix).
+ * Client-supplied customInstructions are never trusted — the expected script
+ * is derived purely from server state (identity keys + next suffix).
  */
-async function isCreateActionBypass(
+async function matchCreateActionPayment(
 	params: unknown[],
 	senderIdentityKey: IdentityKey,
 	serverIdentityKey: IdentityKey,
 	serverWallet: WalletInterface,
 	expected: NextPaymentDerivation,
 	minSats: number,
-): Promise<boolean> {
+): Promise<BypassMatch | undefined> {
 	const args = (params?.[1] ?? {}) as { labels?: unknown; outputs?: unknown }
 
 	const labels = Array.isArray(args.labels) ? (args.labels as string[]) : []
 	const expectedLabel = `account-payment:${serverIdentityKey}`
-	if (!labels.includes(expectedLabel)) return false
+	if (!labels.includes(expectedLabel)) return undefined
 
 	const outputs = Array.isArray(args.outputs)
 		? (args.outputs as Array<{
@@ -166,7 +167,7 @@ async function isCreateActionBypass(
 		outputs.length === 0 ||
 		outputs.length > MAX_OUTPUTS_IN_BYPASSED_CREATE_ACTION
 	) {
-		return false
+		return undefined
 	}
 
 	let expectedScript: string
@@ -177,29 +178,29 @@ async function isCreateActionBypass(
 			expected,
 		)
 	} catch {
-		return false
+		return undefined
 	}
 
-	for (const output of outputs) {
+	for (let i = 0; i < outputs.length; i++) {
+		const output = outputs[i]
 		if (
 			typeof output.lockingScript === 'string' &&
 			typeof output.satoshis === 'number' &&
 			output.lockingScript === expectedScript &&
 			output.satoshis >= minSats
 		) {
-			return true
+			return { outputIndex: i, satoshis: output.satoshis }
 		}
 	}
-	return false
+	return undefined
 }
 
 /**
- * True iff this processAction refers to an action whose stored outputs
- * contain a valid self-payment to the server. The action must belong to the
- * authenticated user; we re-derive the expected script from server state
- * and match against the persisted lockingScript bytes.
+ * Returns match info iff this processAction refers to an action whose
+ * stored outputs contain a valid self-payment to the server. The action
+ * must belong to the authenticated user.
  */
-async function isProcessActionBypass(
+async function matchProcessActionPayment(
 	params: unknown[],
 	senderIdentityKey: IdentityKey,
 	userId: number,
@@ -207,10 +208,10 @@ async function isProcessActionBypass(
 	walletStorage: WalletStorageProvider,
 	expected: NextPaymentDerivation,
 	minSats: number,
-): Promise<boolean> {
+): Promise<BypassMatch | undefined> {
 	const args = (params?.[1] ?? {}) as { reference?: unknown }
 	if (typeof args.reference !== 'string' || args.reference.length === 0) {
-		return false
+		return undefined
 	}
 
 	const storage = walletStorage as unknown as StorageWithFinders
@@ -222,17 +223,17 @@ async function isProcessActionBypass(
 		})
 		transactionId = txs[0]?.transactionId
 	} catch {
-		return false
+		return undefined
 	}
-	if (transactionId == null) return false
+	if (transactionId == null) return undefined
 
-	let outputs: Array<{ satoshis: number; lockingScript?: number[] }>
+	let outputs: Array<{ vout: number; satoshis: number; lockingScript?: number[] }>
 	try {
 		outputs = await storage.findOutputs({
 			partial: { transactionId, userId },
 		})
 	} catch {
-		return false
+		return undefined
 	}
 
 	let expectedScriptHex: string
@@ -243,21 +244,71 @@ async function isProcessActionBypass(
 			expected,
 		)
 	} catch {
-		return false
+		return undefined
 	}
 
 	for (const output of outputs) {
 		if (!output.lockingScript || output.satoshis < minSats) continue
 		const storedHex = Utils.toHex(output.lockingScript)
-		if (storedHex === expectedScriptHex) return true
+		if (storedHex === expectedScriptHex) {
+			return { outputIndex: output.vout, satoshis: output.satoshis }
+		}
 	}
-	return false
+	return undefined
+}
+
+/**
+ * After the client's processAction has broadcast the self-payment tx, this
+ * records it in the SERVER's own wallet (internalize) with the structured
+ * labels that the accounts ledger reads. Fired from `res.on('finish')` —
+ * any failure here cannot be reported to the client, so it's logged.
+ */
+async function autoInternalizeSelfPayment(
+	deps: AccountsMiddlewareDeps,
+	ctx: {
+		txid: string
+		outputIndex: number
+		payerIdentity: IdentityKey
+		derivationPrefix: string
+		derivationSuffix: string
+		bytesCovered: number
+		paidThroughBlock: number
+	},
+): Promise<void> {
+	const storage = deps.walletStorage as unknown as StorageWithFinders
+	const beef = await storage.getBeefForTransaction(ctx.txid, {
+		trustSelf: 'known',
+	})
+	const atomicBeef = beef.toBinaryAtomic(ctx.txid)
+
+	await deps.wallet.internalizeAction({
+		tx: atomicBeef,
+		outputs: [
+			{
+				paymentRemittance: {
+					derivationPrefix: ctx.derivationPrefix,
+					derivationSuffix: ctx.derivationSuffix,
+					senderIdentityKey: ctx.payerIdentity,
+				},
+				outputIndex: ctx.outputIndex,
+				protocol: 'wallet payment',
+			},
+		],
+		labels: [
+			PAYMENT_LABEL,
+			payerLabel(ctx.payerIdentity),
+			bytesLabel(ctx.bytesCovered),
+			blockLabel(ctx.paidThroughBlock),
+		],
+		description: 'wallet-server storage payment',
+	})
 }
 
 /**
  * Express middleware. Runs between auth and dispatch. For billable methods
  * when the caller is over capacity, short-circuits with 507 + quota info.
- * Otherwise calls next() and dispatch runs normally.
+ * On processAction for a valid self-payment, schedules a post-response
+ * auto-internalize so the payment is recorded in the server's wallet.
  */
 export function accountsCapacityGate(deps: AccountsMiddlewareDeps) {
 	const freeKeys = new Set<IdentityKey>([
@@ -297,30 +348,51 @@ export function accountsCapacityGate(deps: AccountsMiddlewareDeps) {
 			const params = (req.body as { params?: unknown[] })?.params ?? []
 
 			if (method === 'createAction') {
-				if (
-					await isCreateActionBypass(
-						params,
-						identityKey,
-						deps.serverIdentityKey,
-						deps.wallet,
-						nextPayment,
-						quote.chargeSats,
-					)
-				) {
-					return next()
-				}
+				const match = await matchCreateActionPayment(
+					params,
+					identityKey,
+					deps.serverIdentityKey,
+					deps.wallet,
+					nextPayment,
+					quote.chargeSats,
+				)
+				if (match) return next()
 			} else if (method === 'processAction') {
-				if (
-					await isProcessActionBypass(
-						params,
-						identityKey,
-						userId,
-						deps.wallet,
-						deps.walletStorage,
-						nextPayment,
-						quote.chargeSats,
-					)
-				) {
+				const match = await matchProcessActionPayment(
+					params,
+					identityKey,
+					userId,
+					deps.wallet,
+					deps.walletStorage,
+					nextPayment,
+					quote.chargeSats,
+				)
+				if (match) {
+					const processArgs = params[1] as {
+						txid?: string
+						reference?: string
+					}
+					if (typeof processArgs?.txid === 'string') {
+						const ctx = {
+							txid: processArgs.txid,
+							outputIndex: match.outputIndex,
+							payerIdentity: identityKey,
+							derivationPrefix: nextPayment.derivationPrefix,
+							derivationSuffix: nextPayment.derivationSuffix,
+							bytesCovered: quote.bytesCovered,
+							paidThroughBlock: quote.paidThroughBlock,
+						}
+						res.on('finish', () => {
+							if (res.statusCode !== 200) return
+							autoInternalizeSelfPayment(deps, ctx).catch((err) => {
+								console.error(
+									'[accounts] auto-internalize failed for',
+									ctx.txid,
+									err,
+								)
+							})
+						})
+					}
 					return next()
 				}
 			}
@@ -348,7 +420,6 @@ export function accountsCapacityGate(deps: AccountsMiddlewareDeps) {
 							satsPerUnit: deps.config.satsPerUnit,
 							durationBlocks: deps.config.durationBlocks,
 						},
-						paymentEndpoint: '/account/payment',
 						serverIdentityKey: deps.serverIdentityKey,
 						nextPayment,
 					},
@@ -359,127 +430,6 @@ export function accountsCapacityGate(deps: AccountsMiddlewareDeps) {
 			console.error('[accounts] capacity gate error:', err)
 			return next()
 		}
-	}
-}
-
-interface PostPaymentBody {
-	transaction?: string // base64 AtomicBEEF
-	derivationPrefix?: string
-	derivationSuffix?: string
-	outputIndex?: number
-}
-
-/**
- * Handler for `POST /account/payment`. BRC-29 payment body; the server
- * internalizes the tx against its own wallet and records the capacity
- * credit in the accounts ledger.
- */
-export function accountsPaymentHandler(deps: AccountsMiddlewareDeps) {
-	return async (req: Request, res: Response) => {
-		const identityKey = (req as AuthedRequest).auth?.identityKey
-		if (!identityKey || identityKey === 'unknown') {
-			return res.status(401).json({ error: 'Unauthenticated' })
-		}
-		if (!deps.config.enabled) {
-			return res.status(400).json({ error: 'accounts not enabled' })
-		}
-
-		const body = req.body as PostPaymentBody
-		if (
-			typeof body?.transaction !== 'string' ||
-			typeof body?.derivationPrefix !== 'string' ||
-			typeof body?.derivationSuffix !== 'string'
-		) {
-			return res.status(400).json({
-				error:
-					'missing fields — expected { transaction: base64, derivationPrefix, derivationSuffix, outputIndex? }',
-			})
-		}
-
-		let beef: number[]
-		let txid: string
-		let satoshisAtOutput: number
-		const outputIndex =
-			typeof body.outputIndex === 'number' ? body.outputIndex : 0
-		try {
-			beef = Utils.toArray(body.transaction, 'base64')
-			const tx = Transaction.fromAtomicBEEF(beef)
-			txid = tx.id('hex') as string
-			const out = tx.outputs[outputIndex]
-			if (!out) throw new Error(`no output at index ${outputIndex}`)
-			satoshisAtOutput = out.satoshis ?? 0
-		} catch (err) {
-			return res
-				.status(400)
-				.json({ error: `invalid payment tx: ${(err as Error).message}` })
-		}
-
-		const currentBlock = await deps.currentBlock()
-		const userId = await resolveUserId(deps.walletStorage, identityKey)
-		const usedBytes =
-			userId == null ? 0 : await deps.repo.measureUsedBytes(userId)
-		const currentPayment = await latestActivePaymentForPayer(
-			deps.wallet,
-			identityKey,
-			currentBlock,
-		)
-		const quote = quoteRefundedCharge({
-			usedBytes,
-			currentPayment,
-			currentBlock,
-			config: deps.config,
-		})
-
-		// If no quote needed (under capacity), the user is overpaying; accept
-		// the payment anyway. We still internalize and record so they get
-		// whatever capacity the sats cover.
-		const bytesCovered =
-			quote?.bytesCovered ??
-			Math.max(
-				deps.config.purchaseUnitBytes,
-				Math.ceil(satoshisAtOutput / deps.config.satsPerUnit) *
-					deps.config.purchaseUnitBytes,
-			)
-		const paidThroughBlock =
-			quote?.paidThroughBlock ?? currentBlock + deps.config.durationBlocks
-
-		try {
-			await deps.wallet.internalizeAction({
-				tx: beef,
-				outputs: [
-					{
-						paymentRemittance: {
-							derivationPrefix: body.derivationPrefix,
-							derivationSuffix: body.derivationSuffix,
-							senderIdentityKey: identityKey,
-						},
-						outputIndex,
-						protocol: 'wallet payment',
-					},
-				],
-				labels: [
-					PAYMENT_LABEL,
-					payerLabel(identityKey),
-					bytesLabel(bytesCovered),
-					blockLabel(paidThroughBlock),
-				],
-				description: 'wallet-server storage payment',
-			})
-		} catch (err) {
-			return res.status(400).json({
-				error: `wallet.internalizeAction rejected payment: ${(err as Error).message}`,
-			})
-		}
-
-		return res.status(200).json({
-			status: 'ok',
-			payment: {
-				txid,
-				satsPaid: satoshisAtOutput,
-				bytesCovered,
-				paidThroughBlock,
-			},
-		})
 	}
 }
 

@@ -10,7 +10,6 @@ import express, {
 import {
 	type AccountsMiddlewareDeps,
 	accountsCapacityGate,
-	accountsPaymentHandler,
 	latestActivePaymentForPayer,
 	nextPaymentDerivation,
 } from './accounts'
@@ -98,9 +97,6 @@ export function createWalletServer(
 	if (publicPath) {
 		mountPublicRoute(app, publicPath, config, wallet, accountsDeps)
 		mountStatusRoute(app, publicPath, config, serverIdentityKey, wallet)
-		if (accountsDeps) {
-			mountPaymentRoute(app, publicPath, accountsDeps)
-		}
 	}
 	if (internalPath) {
 		mountInternalRoute(app, internalPath, config)
@@ -195,17 +191,6 @@ function dispatchHandler(config: WalletServerConfig) {
 
 		res.status(200).json(response)
 	}
-}
-
-function mountPaymentRoute(
-	app: Express,
-	basePath: string,
-	accountsDeps: AccountsMiddlewareDeps,
-): void {
-	const path = joinPath(basePath, 'account/payment')
-	app.post(path, async (req, res) => {
-		await accountsPaymentHandler(accountsDeps)(req, res)
-	})
 }
 
 function mountStatusRoute(

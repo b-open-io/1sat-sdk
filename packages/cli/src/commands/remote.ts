@@ -446,19 +446,19 @@ async function remoteTopup(args: string[], opts: GlobalFlags): Promise<void> {
 		console.log()
 		console.log(`  ${bold('Remote:')} ${url}`)
 		console.log(`  ${bold('Units bought:')} ${result.unitsBought}`)
-		console.log(`  ${bold('Sats paid:')} ${result.payment.satsPaid}`)
-		console.log(
-			`  ${bold('Bytes covered:')} ${formatBytes(result.payment.bytesCovered)}`,
-		)
-		console.log(
-			`  ${bold('Paid through:')} block ${result.payment.paidThroughBlock}`,
-		)
-		console.log(`  ${bold('Payment txid:')} ${result.payment.txid}`)
+		console.log(`  ${bold('Sats paid:')} ${result.satsPaid}`)
+		console.log(`  ${bold('Payment txid:')} ${result.txid}`)
 		if (result.status.accountsEnabled) {
 			console.log()
 			console.log(
 				`  ${bold('New capacity:')} ${formatBytes(result.status.capacityBytes)} (${formatBytes(result.status.usedBytes)} used, ${formatBytes(result.status.deficitBytes)} deficit)`,
 			)
+			if (result.status.paidThroughBlock != null) {
+				const remaining = result.status.paidThroughBlock - result.status.currentBlock
+				console.log(
+					`  ${bold('Paid through:')} block ${result.status.paidThroughBlock} (${remaining} blocks left)`,
+				)
+			}
 		}
 		console.log()
 	} finally {
