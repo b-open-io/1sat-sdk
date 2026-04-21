@@ -67,8 +67,6 @@ interface StorageWithFinders {
 			reference: string
 			userId: number
 			txid?: string
-			rawTx?: number[]
-			inputBEEF?: number[]
 		}>
 	>
 	findOutputs(args: {
@@ -81,6 +79,11 @@ interface StorageWithFinders {
 			lockingScript?: number[]
 		}>
 	>
+	getProvenOrRawTx(txid: string): Promise<{
+		proven?: { rawTx: number[] }
+		rawTx?: number[]
+		inputBEEF?: number[]
+	}>
 }
 
 /**
@@ -284,17 +287,17 @@ async function autoInternalizeSelfPayment(
 	// Reconstruct AtomicBEEF the same way signAction does: start from the
 	// action's stored inputBEEF (full proof chain for the tx's ancestors),
 	// merge the signed rawTx itself, then binary-encode atomic to the txid.
-	const txs = await storage.findTransactions({
-		partial: { txid: ctx.txid },
-	})
-	const txRecord = txs[0]
-	if (!txRecord?.rawTx || !txRecord.inputBEEF) {
+	// For unmined txs, rawTx + inputBEEF live in proven_tx_reqs, fetched via
+	// getProvenOrRawTx (not findTransactions).
+	const por = await storage.getProvenOrRawTx(ctx.txid)
+	const rawTx = por.rawTx ?? por.proven?.rawTx
+	if (!rawTx || !por.inputBEEF) {
 		throw new Error(
 			`storage missing rawTx or inputBEEF for txid ${ctx.txid}`,
 		)
 	}
-	const beef = Beef.fromBinary(txRecord.inputBEEF)
-	beef.mergeRawTx(txRecord.rawTx)
+	const beef = Beef.fromBinary(por.inputBEEF)
+	beef.mergeRawTx(rawTx)
 	const atomicBeef = beef.toBinaryAtomic(ctx.txid)
 
 	await deps.wallet.internalizeAction({
