@@ -16,6 +16,7 @@ import {
 	type AccountsMiddlewareDeps,
 	accountsCapacityGate,
 	accountsPaymentHandler,
+	nextPaymentDerivation,
 } from './accounts'
 import type { AccountsRepo } from './accounts/repo'
 import type { AccountsConfig } from './accounts/types'
@@ -244,6 +245,11 @@ function mountStatusRoute(
 			const capacityBytes = accounts.config.baselineBytes + paidBytes
 			const deficitBytes = Math.max(0, usedBytes - capacityBytes)
 
+			const nextPayment = await nextPaymentDerivation(
+				identityKey,
+				accounts.repo,
+			)
+
 			return res.status(200).json({
 				identityKey,
 				accountsEnabled: true,
@@ -259,6 +265,7 @@ function mountStatusRoute(
 					satsPerUnit: accounts.config.satsPerUnit,
 					durationBlocks: accounts.config.durationBlocks,
 				},
+				nextPayment,
 			})
 		},
 	)

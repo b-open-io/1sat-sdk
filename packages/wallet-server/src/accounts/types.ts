@@ -60,6 +60,17 @@ export interface PaymentQuote {
  * disabled the capacity / pricing fields are omitted; callers should branch
  * on `accountsEnabled` to know which fields are present.
  */
+/**
+ * BRC-29 derivation the server expects on the next incoming payment. The
+ * prefix is a constant; the suffix is the monotonic payment count for this
+ * identity. Clients use these verbatim so the server can re-derive any
+ * historical payment address later for audit.
+ */
+export interface NextPaymentDerivation {
+	derivationPrefix: string
+	derivationSuffix: string
+}
+
 export type AccountStatusResponse =
 	| {
 			identityKey: IdentityKey
@@ -82,4 +93,5 @@ export type AccountStatusResponse =
 				satsPerUnit: number
 				durationBlocks: number
 			}
+			nextPayment: NextPaymentDerivation
 	  }

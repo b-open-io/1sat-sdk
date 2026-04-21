@@ -24,6 +24,12 @@ export interface AccountsRepo {
 	paymentExists(txid: string): Promise<boolean>
 	listPayments(identityKey: IdentityKey, limit?: number): Promise<Payment[]>
 	/**
+	 * Total number of payments ever recorded for an identity. Used to derive
+	 * the monotonic BRC-29 payment suffix — each new payment uses the current
+	 * count as its suffix and lands as count+1 afterward.
+	 */
+	countPayments(identityKey: IdentityKey): Promise<number>
+	/**
 	 * Sum of stored bytes attributable to a single wallet-toolbox user. Runs
 	 * against the same connection the wallet uses.
 	 *
@@ -119,6 +125,15 @@ export class BunSqliteAccountsRepo implements AccountsRepo {
 			.query(`SELECT 1 FROM ${PAYMENTS_TABLE} WHERE txid = ? LIMIT 1`)
 			.get(txid)
 		return !!row
+	}
+
+	async countPayments(identityKey: IdentityKey): Promise<number> {
+		const row = this.db
+			.query(
+				`SELECT COUNT(*) AS c FROM ${PAYMENTS_TABLE} WHERE identity_key = ?`,
+			)
+			.get(identityKey) as { c: number | bigint } | undefined
+		return asNumber(row?.c)
 	}
 
 	async listPayments(identityKey: IdentityKey, limit = 50): Promise<Payment[]> {

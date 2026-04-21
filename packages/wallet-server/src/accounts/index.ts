@@ -4,6 +4,7 @@ export type {
 	AccountsConfig,
 	IdentityKey,
 	NewPayment,
+	NextPaymentDerivation,
 	Payment,
 	PaymentQuote,
 } from './types'
@@ -25,4 +26,5 @@ export {
 	accountsCapacityGate,
 	accountsPaymentHandler,
 	ERR_INSUFFICIENT_CAPACITY,
+	nextPaymentDerivation,
 } from './middleware'

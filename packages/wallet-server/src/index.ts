@@ -14,6 +14,8 @@ export type {
 } from './createWalletServer'
 
 export { WalletServerClient } from './client'
+export { topUpStorage } from './topUp'
+export type { TopUpOptions, TopUpResult, TopUpPaymentResult } from './topUp'
 
 export { createWalletMonitor } from './createWalletMonitor'
 export type {

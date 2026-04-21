@@ -9,7 +9,7 @@
  */
 
 import { StorageClient } from '@1sat/wallet-node'
-import { WalletServerClient } from '@1sat/wallet-server'
+import { WalletServerClient, topUpStorage } from '@1sat/wallet-server'
 import { confirm, isCancel, text } from '@clack/prompts'
 import type { GlobalFlags } from '../args'
 import { loadConfig, saveConfig } from '../config'
@@ -35,6 +35,8 @@ export async function handleRemoteCommand(
 			return remoteSetActive(rest, opts)
 		case 'status':
 			return remoteStatus(rest, opts)
+		case 'topup':
+			return remoteTopup(rest, opts)
 		default:
 			printCommandHelp('remote', {
 				add: 'Add a remote storage as backup (1sat remote add <url>)',
@@ -45,6 +47,8 @@ export async function handleRemoteCommand(
 					'Switch active storage (1sat remote set-active <url | local>)',
 				status:
 					'Fetch GET /account/status from a remote (1sat remote status [url])',
+				topup:
+					'Buy capacity on a remote (1sat remote topup [url] [--units N])',
 			})
 			if (subcommand && subcommand !== 'help') {
 				process.exit(1)
@@ -384,6 +388,76 @@ async function remoteStatus(args: string[], opts: GlobalFlags): Promise<void> {
 			}
 			console.log(
 				`  ${bold('Pricing:')} ${status.pricing.satsPerUnit} sats per ${formatBytes(status.pricing.purchaseUnitBytes)} over ${status.pricing.durationBlocks} blocks`,
+			)
+		}
+		console.log()
+	} finally {
+		await destroy()
+	}
+}
+
+// ============================================================================
+// remote topup
+// ============================================================================
+
+async function remoteTopup(args: string[], opts: GlobalFlags): Promise<void> {
+	let url: string | undefined
+	let units: number | undefined
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i]
+		if (arg === '--units') {
+			const val = args[++i]
+			const parsed = Number(val)
+			if (!Number.isInteger(parsed) || parsed <= 0) {
+				fatal(`--units requires a positive integer, got "${val}"`)
+			}
+			units = parsed
+		} else if (!url) {
+			url = arg
+		}
+	}
+
+	const config = loadConfig()
+	url = url ?? config.activeRemote ?? config.backups?.[0]
+	if (!url) {
+		fatal(
+			'No remote URL supplied. Pass one as an argument or configure activeRemote/backups first.',
+		)
+	}
+	try {
+		new URL(url)
+	} catch {
+		fatal(`Invalid URL: ${url}`)
+	}
+
+	const privateKey = await loadKey(resolvePassword())
+	const { walletResult, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const result = await topUpStorage(walletResult.wallet, url, { units })
+
+		if (opts.json) {
+			output(result, opts)
+			return
+		}
+
+		console.log()
+		console.log(`  ${bold('Remote:')} ${url}`)
+		console.log(`  ${bold('Units bought:')} ${result.unitsBought}`)
+		console.log(`  ${bold('Sats paid:')} ${result.payment.satsPaid}`)
+		console.log(
+			`  ${bold('Bytes covered:')} ${formatBytes(result.payment.bytesCovered)}`,
+		)
+		console.log(
+			`  ${bold('Paid through:')} block ${result.payment.paidThroughBlock}`,
+		)
+		console.log(`  ${bold('Payment txid:')} ${result.payment.txid}`)
+		if (result.status.accountsEnabled) {
+			console.log()
+			console.log(
+				`  ${bold('New capacity:')} ${formatBytes(result.status.capacityBytes)} (${formatBytes(result.status.usedBytes)} used, ${formatBytes(result.status.deficitBytes)} deficit)`,
 			)
 		}
 		console.log()
