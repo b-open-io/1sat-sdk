@@ -403,13 +403,21 @@ export function accountsCapacityGate(deps: AccountsMiddlewareDeps) {
 						}
 						res.on('finish', () => {
 							if (res.statusCode !== 200) return
-							autoInternalizeSelfPayment(deps, ctx).catch((err) => {
-								console.error(
-									'[accounts] auto-internalize failed for',
-									ctx.txid,
-									err,
+							console.error('[accounts] auto-internalize starting for', ctx.txid)
+							autoInternalizeSelfPayment(deps, ctx)
+								.then(() =>
+									console.error(
+										'[accounts] auto-internalize success for',
+										ctx.txid,
+									),
 								)
-							})
+								.catch((err) => {
+									console.error(
+										'[accounts] auto-internalize failed for',
+										ctx.txid,
+										err,
+									)
+								})
 						})
 					}
 					return next()
