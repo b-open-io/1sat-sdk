@@ -1,11 +1,6 @@
 import type { Server } from 'node:http'
 import { createAuthMiddleware } from '@bsv/auth-express-middleware'
-import {
-	PrivateKey,
-	ProtoWallet,
-	PublicKey,
-	type WalletInterface,
-} from '@bsv/sdk'
+import type { WalletInterface } from '@bsv/sdk'
 import express, {
 	type Express,
 	type NextFunction,
@@ -37,8 +32,18 @@ export interface WalletServerAccounts {
 }
 
 export interface WalletServerConfig {
+	/**
+	 * The wallet-toolbox `WalletInterface` this server fronts. The server
+	 * exposes this wallet's storage to remote BRC-100 callers, uses the
+	 * wallet for mutual-auth signing, and calls `internalizeAction` on it to
+	 * record received payments. The server's identity key is this wallet's
+	 * identity key.
+	 */
+	wallet: WalletInterface
 	storage: WalletStorageProvider
-	serverPrivateKey: string
+	/** Identity public key (hex) of the wallet. Used for mutual-auth and the
+	 * accounts gate validator. */
+	serverIdentityKey: string
 	listen: { port: number; host?: string }
 	publicPath?: string | null
 	internalPath?: string | null
@@ -76,8 +81,7 @@ export function createWalletServer(
 	app.use(express.json({ limit: config.bodyLimit ?? '30mb' }))
 	app.use(corsMiddleware)
 
-	const wallet = buildServerWallet(config.serverPrivateKey)
-	const serverIdentityKey = identityKeyFromPrivateKey(config.serverPrivateKey)
+	const { wallet, serverIdentityKey } = config
 
 	const accountsDeps: AccountsMiddlewareDeps | undefined = config.accounts
 		? {
@@ -311,16 +315,6 @@ function mountInternalRoute(
 	})
 }
 
-function buildServerWallet(privateKeyHex: string): WalletInterface {
-	const key = PrivateKey.fromHex(privateKeyHex)
-	return new ProtoWallet(key) as unknown as WalletInterface
-}
-
-function identityKeyFromPrivateKey(privateKeyHex: string): string {
-	const key = PrivateKey.fromHex(privateKeyHex)
-	const pub = PublicKey.fromPrivateKey(key)
-	return pub.toString()
-}
 
 interface AuthenticatedRequest extends ExpressRequest {
 	auth?: { identityKey: string }

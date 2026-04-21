@@ -250,8 +250,9 @@ async function startWalletServer(
 	accounts: AccountsRuntime | undefined,
 ): Promise<{ stop(): Promise<void> }> {
 	const handle = createWalletServer({
+		wallet: walletResult.wallet,
 		storage: walletResult.getActiveStorage(),
-		serverPrivateKey: resolved.privateKey.toHex(),
+		serverIdentityKey: walletResult.wallet.identityKey,
 		listen: { port: resolved.port, host: resolved.host },
 		publicPath: '/',
 		internalPath: null,
