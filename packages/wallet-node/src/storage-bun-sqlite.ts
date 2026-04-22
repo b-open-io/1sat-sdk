@@ -2727,7 +2727,12 @@ export class StorageBunSqlite extends StorageProvider {
 				{ spendable: false, spentBy: transactionId } as Partial<TableOutput>,
 				trx,
 			)
-			return verifyTruthy(await this.findOutputById(outputId, trx))
+			const output = verifyTruthy(await this.findOutputById(outputId, trx))
+			// Hydrate locking script if it was offloaded into rawTx storage due to
+			// exceeding maxOutputScript. Matches Knex canon at StorageKnex.ts:1285;
+			// a no-op when the script is already present on the row.
+			await this.validateOutputScript(output, trx)
+			return output
 		})
 
 		return r
