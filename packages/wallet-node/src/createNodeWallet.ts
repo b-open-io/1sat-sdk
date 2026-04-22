@@ -20,17 +20,17 @@ export interface BunSqliteStorageConfig {
 	filename?: string
 }
 
-export interface KnexPgStorageConfig {
-	provider: 'knex-pg'
+export interface PgStorageConfig {
+	provider: 'pg'
 	/** Postgres connection URL — e.g. `postgres://user:pass@host/db`. */
 	dbUrl: string
-	/** Optional knex pool override. */
+	/** Optional pool size override. */
 	pool?: { min?: number; max?: number }
 }
 
 export type NodeWalletStorageConfig =
 	| BunSqliteStorageConfig
-	| KnexPgStorageConfig
+	| PgStorageConfig
 
 export interface NodeWalletConfig {
 	privateKey: PrivateKey | string
@@ -139,7 +139,7 @@ async function buildLocalStorage(
 			filename: config.filename ?? DEFAULT_SQLITE_FILENAME,
 		})
 	}
-	if (config.provider === 'knex-pg') {
+	if (config.provider === 'pg') {
 		// Dynamic import — pg is an optional peer dep so bun-sqlite-only
 		// consumers don't pay for it.
 		const { StoragePg } = await import('./storage-pg')

@@ -15,15 +15,15 @@ export interface ServerStorageBunSqliteConfig {
 	provider: 'bun-sqlite'
 }
 
-export interface ServerStorageKnexPgConfig {
-	provider: 'knex-pg'
-	/** Postgres connection URL (required for knex-pg). */
+export interface ServerStoragePgConfig {
+	provider: 'pg'
+	/** Postgres connection URL (required for pg). */
 	dbUrl: string
 }
 
 export type ServerStorageConfig =
 	| ServerStorageBunSqliteConfig
-	| ServerStorageKnexPgConfig
+	| ServerStoragePgConfig
 
 export interface ServerAccountsConfig {
 	/** Master toggle. Defaults to false when omitted. */

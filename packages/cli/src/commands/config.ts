@@ -133,8 +133,8 @@ function validateKnownPath(key: string, value: unknown): void {
 			}
 			break
 		case 'server.storage.provider':
-			if (value !== 'bun-sqlite' && value !== 'knex-pg') {
-				fatal("server.storage.provider must be 'bun-sqlite' | 'knex-pg'")
+			if (value !== 'bun-sqlite' && value !== 'pg') {
+				fatal("server.storage.provider must be 'bun-sqlite' | 'pg'")
 			}
 			break
 		case 'server.port':

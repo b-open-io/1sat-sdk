@@ -126,9 +126,9 @@ async function resolveServe(opts: GlobalFlags): Promise<ResolvedServe> {
 	const storage: ServerStorageConfig = server.storage ?? {
 		provider: 'bun-sqlite',
 	}
-	if (storage.provider === 'knex-pg' && !storage.dbUrl) {
+	if (storage.provider === 'pg' && !storage.dbUrl) {
 		fatal(
-			'server.storage.provider is knex-pg but server.storage.dbUrl is not set. ' +
+			'server.storage.provider is pg but server.storage.dbUrl is not set. ' +
 				'Set it with: 1sat config set server.storage.dbUrl postgres://…',
 		)
 	}
@@ -171,11 +171,11 @@ function resolveWalletStorageConfig(
 	if (storage.provider === 'bun-sqlite') {
 		return { provider: 'bun-sqlite', filename: resolved.sqliteFilename }
 	}
-	if (storage.provider === 'knex-pg') {
-		return { provider: 'knex-pg', dbUrl: storage.dbUrl }
+	if (storage.provider === 'pg') {
+		return { provider: 'pg', dbUrl: storage.dbUrl }
 	}
 	fatal(
-		`server.storage.provider '${storage.provider}' is not supported. Use 'bun-sqlite' or 'knex-pg'.`,
+		`server.storage.provider '${storage.provider}' is not supported. Use 'bun-sqlite' or 'pg'.`,
 	)
 }
 
@@ -197,7 +197,7 @@ interface Stoppable {
 
 /**
  * Construct the wallet via the same `createNodeWallet` factory the CLI
- * uses, with storage provider (bun-sqlite / knex-pg) chosen from config.
+ * uses, with storage provider (bun-sqlite / pg) chosen from config.
  * Server + monitor operate on that single wallet instance, so
  * `activeRemote`, `backups`, and `storageIdentityKey` behave identically
  * to `1sat wallet <command>`.
