@@ -29,7 +29,7 @@
     "@1sat/wallet-node": "workspace:*",
     "@1sat/wallet-server": "workspace:*",
     "@bsv/sdk": "^2.0.13",
-    "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@^2.1.21-parity-fix.0",
+    "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.21-parity-fix.1",
     "chalk": "^5.0.0",
     "@clack/prompts": "^0.8.0",
     "bitcoin-backup": "^0.0.11",

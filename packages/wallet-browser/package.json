@@ -33,13 +33,13 @@
   "peerDependencies": {
     "@1sat/client": "workspace:*",
     "@bsv/sdk": "^2.0.13",
-    "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@^2.1.21-parity-fix.0",
-    "@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@^2.1.21-parity-fix.0"
+    "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.21-parity-fix.1",
+    "@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@2.1.21-parity-fix.1"
   },
   "devDependencies": {
     "@bsv/sdk": "^2.0.13",
-    "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@^2.1.21-parity-fix.0",
-    "@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@^2.1.21-parity-fix.0",
+    "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.21-parity-fix.1",
+    "@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@2.1.21-parity-fix.1",
     "typescript": "^5.9.3"
   }
 }

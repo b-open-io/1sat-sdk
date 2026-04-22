@@ -29,7 +29,7 @@
 	"license": "MIT",
 	"dependencies": {
 		"@1sat/types": "workspace:*",
-		"@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@^2.1.21-parity-fix.0"
+		"@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.21-parity-fix.1"
 	},
 	"peerDependencies": {
 		"@bsv/sdk": "^2.0.13"
