@@ -140,18 +140,13 @@ async function buildLocalStorage(
 		})
 	}
 	if (config.provider === 'knex-pg') {
-		// Dynamic import — knex + pg are optional peer deps so bun-sqlite-only
-		// consumers don't pay for them.
-		const { default: knex } = await import('knex')
+		// Dynamic import — pg is an optional peer dep so bun-sqlite-only
+		// consumers don't pay for it.
 		const { StoragePg } = await import('./storage-pg')
-		const k = knex({
-			client: 'pg',
-			connection: config.dbUrl,
-			pool: config.pool,
-		})
 		return new StoragePg({
 			...baseOptions,
-			knex: k,
+			dbUrl: config.dbUrl,
+			poolConfig: config.pool,
 		})
 	}
 	// Exhaustiveness check

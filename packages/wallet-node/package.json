@@ -35,14 +35,10 @@
   "peerDependencies": {
     "@bsv/sdk": "^2.0.13",
     "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.21-parity-fix.1",
-    "knex": "^3.1.0",
     "pg": "^8.11.0"
   },
   "peerDependenciesMeta": {
     "better-sqlite3": {
-      "optional": true
-    },
-    "knex": {
       "optional": true
     },
     "pg": {
@@ -54,7 +50,6 @@
     "@bsv/sdk": "^2.0.13",
     "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.21-parity-fix.1",
     "@types/pg": "^8.11.0",
-    "knex": "^3.1.0",
     "pg": "^8.11.0",
     "typescript": "^5.9.3"
   }
