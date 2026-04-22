@@ -23,7 +23,7 @@ function OrdinalCard({
 
 	return (
 		<div
-			className={`relative p-2 rounded-lg border cursor-pointer transition-all ${isSelected ? 'border-blue-500 bg-blue-500/10 ring-1 ring-blue-500/30' : 'border-border/50 hover:border-border bg-black/20'}`}
+			className={`relative p-2 rounded-lg border cursor-pointer transition-all overflow-hidden ${isSelected ? 'border-blue-500 bg-blue-500/10 ring-1 ring-blue-500/30' : 'border-border/50 hover:border-border bg-muted/30'}`}
 			onClick={onToggle}
 		>
 			<div className="absolute top-1.5 right-1.5 z-10">
@@ -33,7 +33,7 @@ function OrdinalCard({
 					{isSelected && '\u2713'}
 				</div>
 			</div>
-			<div className="w-full aspect-square mb-1.5 rounded overflow-hidden bg-black/30 flex items-center justify-center">
+			<div className="w-full aspect-square mb-1.5 rounded overflow-hidden bg-muted/40 flex items-center justify-center">
 				{!ordinal.contentUrl ? (
 					<span className="text-muted-foreground text-lg">{'\u25C6'}</span>
 				) : isImage ? (
@@ -53,33 +53,37 @@ function OrdinalCard({
 					/>
 				)}
 			</div>
-			{subtype && (
-				<div className="mb-1">
-					<span className="px-1 py-0.5 text-[9px] rounded bg-blue-500/20 text-blue-400 truncate">
-						{subtype}
-					</span>
-				</div>
-			)}
-			{ordinal.name ? (
-				<a
-					href={ordinal.contentUrl}
-					target="_blank"
-					rel="noopener noreferrer"
-					className="text-[10px] text-foreground truncate font-medium hover:text-blue-400"
-					title={ordinal.name}
-				>
-					{ordinal.name}
-				</a>
-			) : (
-				<a
-					href={ordinal.contentUrl}
-					target="_blank"
-					rel="noopener noreferrer"
-					className="text-[9px] text-muted-foreground truncate font-mono hover:text-blue-400"
-				>
-					{ordinal.outpoint.substring(0, 8)}...
-				</a>
-			)}
+			<div className="min-h-[2rem] flex flex-col justify-end">
+				{subtype && (
+					<div className="mb-1">
+						<span className="inline-block max-w-full px-1 py-0.5 text-[9px] rounded bg-blue-500/20 text-blue-400 truncate">
+							{subtype}
+						</span>
+					</div>
+				)}
+				{ordinal.name ? (
+					<a
+						href={ordinal.contentUrl}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="block text-[10px] text-foreground truncate font-medium hover:text-blue-400"
+						title={ordinal.name}
+						onClick={(e) => e.stopPropagation()}
+					>
+						{ordinal.name}
+					</a>
+				) : (
+					<a
+						href={ordinal.contentUrl}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="block text-[9px] text-muted-foreground truncate font-mono hover:text-blue-400"
+						onClick={(e) => e.stopPropagation()}
+					>
+						{ordinal.outpoint.substring(0, 8)}...
+					</a>
+				)}
+			</div>
 		</div>
 	)
 }
@@ -259,7 +263,7 @@ export function OrdinalsSection({
 					</Button>
 				</div>
 			</div>
-			<div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 mb-3">
+			<div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-3">
 				{pageItems.map((ord) => (
 					<OrdinalCard
 						key={ord.outpoint}
@@ -363,7 +367,7 @@ function TokenRow({
 }) {
 	return (
 		<div
-			className={`flex items-center justify-between p-3 rounded-lg border ${tb.isActive ? 'bg-black/20 border-purple-500/10' : 'bg-black/10 border-muted/20 opacity-60'}`}
+			className={`flex items-center justify-between p-3 rounded-lg border ${tb.isActive ? 'bg-muted/30 border-purple-500/10' : 'bg-muted/20 border-muted/20 opacity-60'}`}
 		>
 			<div className="flex items-center gap-3">
 				<img

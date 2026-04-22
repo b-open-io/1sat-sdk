@@ -136,7 +136,7 @@ export function OpnsSection({
 					return (
 						<div
 							key={item.outpoint}
-							className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all ${isSelected ? 'border border-orange-500 bg-orange-500/10 ring-1 ring-orange-500/30' : 'border border-border/50 hover:border-border bg-black/20'}`}
+							className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all ${isSelected ? 'border border-orange-500 bg-orange-500/10 ring-1 ring-orange-500/30' : 'border border-border/50 hover:border-border bg-muted/30'}`}
 							onClick={() => onToggle(item.outpoint)}
 						>
 							<div
