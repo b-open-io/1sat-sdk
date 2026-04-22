@@ -112,7 +112,7 @@ bunx @1sat/cli remote delete <url>                 # Remove a remote from backup
 bunx @1sat/cli remote set-active <url>             # Migrate TO this remote as primary
 bunx @1sat/cli remote set-active local             # Switch back to local-primary
 bunx @1sat/cli remote status [url]                 # Per-identity capacity + pricing snapshot
-# bunx @1sat/cli remote topup [url]                # (planned) manual BRC-29 top-up to `/account/payment`
+bunx @1sat/cli remote topup [url]                  # Manual BRC-29 top-up to `/account/payment`
 ```
 
 ### Ordinals
@@ -191,7 +191,7 @@ Key properties:
 
 - **Same wallet instance** — `serve` wraps the wallet created by `createNodeWallet` using the exact same config inputs (`chain`, `dataDir`, `storageIdentityKey`, `activeRemote`, `backups`) as `1sat wallet <command>`. There's one wallet on disk at `~/.1sat/data/wallet-${chain}.db`; HTTP and CLI access the same one.
 - **Server identity = CLI identity** — loaded via `loadKey()` (`PRIVATE_KEY_WIF` env or `keys.bep` + `ONESAT_PASSWORD`). No separate server key.
-- **Storage provider** — defaults to `bun-sqlite` (same as CLI). Future support: `knex-sqlite`, `knex-pg` for postgres deployments.
+- **Storage provider** — defaults to `bun-sqlite`. Set `server.storage.provider` to `pg` for Postgres deployments.
 - **Accounts layer (opt-in)** — per-identity capacity metering on billable writes. Reads always free. Over-capacity writes get an HTTP `507 Insufficient Storage` with a JSON body describing deficit + pricing. Top-up via `POST /account/payment` (BRC-29 payment body). Toggle via `1sat config set server.accounts.enabled true`.
 
 Server-specific settings live under `server.*` in the config — edit via `1sat config set`:
@@ -293,9 +293,10 @@ bunx @1sat/cli init
 The init command:
 1. Prompts for network selection (mainnet/testnet)
 2. Generates or imports a private key (WIF)
-3. Encrypts and stores the key at `~/.1sat/keys.bep`
-4. Writes config to `~/.1sat/config.json`
-5. Tests connectivity to `api.1sat.app`
+3. Sets a password and encrypts the key to `~/.1sat/keys.bep`
+4. On macOS arm64, optionally enables Touch ID to cache the password via `@1sat/vault`
+5. Optionally configures a primary remote storage URL (local becomes backup)
+6. Writes config to `~/.1sat/config.json` (chain, generated `storageIdentityKey`, `activeRemote`)
 
 ## Requirements
 
