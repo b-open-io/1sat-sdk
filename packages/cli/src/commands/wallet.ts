@@ -3,7 +3,12 @@
  * BRC-100 interface commands - list-outputs, relinquish-output, list-actions, etc.
  */
 
-import { deriveDepositAddresses, sendAllBsv, sendBsv } from '@1sat/actions'
+import {
+	deriveDepositAddresses,
+	sendAllBsv,
+	sendBsv,
+	syncAddresses,
+} from '@1sat/actions'
 import { confirm, isCancel } from '@clack/prompts'
 import type { GlobalFlags } from '../args'
 import { extractFlag, extractFlags } from '../args'
@@ -27,6 +32,8 @@ export async function handleWalletCommand(
 			return walletSend(rest, opts)
 		case 'send-all':
 			return walletSendAll(rest, opts)
+		case 'sync':
+			return walletSync(rest, opts)
 		case 'info':
 			return walletInfo(rest, opts)
 		case 'list-outputs':
@@ -51,6 +58,7 @@ export async function handleWalletCommand(
 				address: 'Show deposit address',
 				send: 'Send BSV to an address (--to <addr> --sats <amount>)',
 				'send-all': 'Send all BSV to an address (--to <addr>)',
+				sync: 'Sync inbound payments at BRC-29 deposit addresses [--prefix <p>] [--start-index <n>] [--count <n>]',
 				info: 'Show wallet info (address, balance, network)',
 				'list-outputs':
 					'List wallet outputs (--basket <name> [--tags <t1,t2>] [--limit N] [--include-tags] [--include <val>])',
@@ -193,6 +201,52 @@ async function walletSendAll(args: string[], opts: GlobalFlags): Promise<void> {
 		}
 
 		output(opts.json ? result : { txid: result.txid }, opts)
+	} finally {
+		await destroy()
+	}
+}
+
+async function walletSync(args: string[], opts: GlobalFlags): Promise<void> {
+	const prefix = extractFlag(args, '--prefix')
+	const startIndexRaw = extractFlag(args, '--start-index')
+	const countRaw = extractFlag(args, '--count')
+
+	const startIndex =
+		startIndexRaw !== undefined ? Number.parseInt(startIndexRaw, 10) : undefined
+	const count = countRaw !== undefined ? Number.parseInt(countRaw, 10) : undefined
+
+	if (startIndex !== undefined && (!Number.isFinite(startIndex) || startIndex < 0)) {
+		fatal('--start-index must be a non-negative integer')
+	}
+	if (count !== undefined && (!Number.isFinite(count) || count < 1)) {
+		fatal('--count must be a positive integer')
+	}
+
+	const privateKey = await loadKey(resolvePassword())
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const result = await syncAddresses.execute(ctx, {
+			...(prefix ? { prefix } : {}),
+			...(startIndex !== undefined ? { startIndex } : {}),
+			...(count !== undefined ? { count } : {}),
+		})
+
+		if (opts.json) {
+			output(result, opts)
+			return
+		}
+
+		console.log(
+			`\nprocessed: ${result.processed}  failed: ${result.failed}  lastScore: ${result.lastScore}`,
+		)
+		if (result.addresses.length > 0) {
+			console.log('addresses:')
+			for (const addr of result.addresses) console.log(`  ${addr}`)
+		}
+		console.log()
 	} finally {
 		await destroy()
 	}
