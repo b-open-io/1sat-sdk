@@ -353,7 +353,7 @@ async function walletListActions(
 
 	try {
 		const listArgs: Parameters<typeof ctx.wallet.listActions>[0] = {
-			labels: labels.length > 0 ? labels : ['*'], // Default to all labels if none specified
+			labels: labels.length > 0 ? labels : [],
 			limit,
 		}
 

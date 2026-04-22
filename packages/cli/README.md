@@ -4,6 +4,14 @@
 
 Command-line interface for 1Sat Ordinals on BSV.
 
+Requires the [Bun](https://bun.sh) runtime. Install Bun first:
+
+```
+curl -fsSL https://bun.sh/install | bash
+```
+
+Then:
+
 ```
 bun add -g @1sat/cli
 ```
