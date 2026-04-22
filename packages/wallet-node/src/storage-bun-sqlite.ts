@@ -2391,6 +2391,30 @@ export class StorageBunSqlite extends StorageProvider {
 		return this.validateEntities(this.selectQuery('users', args) as TableUser[])
 	}
 
+	/**
+	 * SQL-backed implementation of the shared StorageProvider helper. Replaces
+	 * the base class fallback (which loads every output into memory and scans
+	 * in JS) with a single JOIN + GROUP BY that returns the top-N users by
+	 * most-recent output creation time. Matches Knex canon at
+	 * StorageKnex.ts:796.
+	 */
+	async recentlyActiveUsers(limit = 50, trx?: TrxToken): Promise<TableUser[]> {
+		void trx // BunSqlite SAVEPOINT shares one connection; trx not required on the raw query
+		const rows = this.allSql<TableUser>(
+			`SELECT u.*
+			FROM users u
+			JOIN (
+				SELECT userId, MAX(created_at) AS lastOutputCreatedAt
+				FROM outputs
+				GROUP BY userId
+			) latest ON u.userId = latest.userId
+			ORDER BY latest.lastOutputCreatedAt DESC
+			LIMIT ?`,
+			[limit],
+		)
+		return this.validateEntities(rows)
+	}
+
 	async findMonitorEvents(
 		args: FindMonitorEventsArgs,
 	): Promise<TableMonitorEvent[]> {
