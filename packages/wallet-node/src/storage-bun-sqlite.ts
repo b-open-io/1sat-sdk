@@ -3212,12 +3212,6 @@ export class StorageBunSqlite extends StorageProvider {
 			whereParts.push(txStatusOk)
 			const whereStr = whereParts.join(' AND ')
 
-			const countRow = this.getSql<{ total: number }>(
-				`SELECT COUNT(outputId) as total FROM outputs WHERE ${whereStr}`,
-				params,
-			)
-			totalCount = countRow?.total ?? 0
-
 			if (!specOp || !specOp.ignoreLimit) {
 				outputs = this.allSql(
 					`SELECT ${columns.join(',')} FROM outputs WHERE ${whereStr} ORDER BY outputId ${orderBy} LIMIT ? OFFSET ?`,
@@ -3228,6 +3222,18 @@ export class StorageBunSqlite extends StorageProvider {
 					`SELECT ${columns.join(',')} FROM outputs WHERE ${whereStr} ORDER BY outputId ${orderBy}`,
 					params,
 				)
+			}
+
+			// Gate the COUNT query: only run it when the result may have been truncated
+			// by LIMIT. Mirrors Knex canon's gating in listOutputsKnex.ts.
+			if (limit && outputs.length >= limit) {
+				const countRow = this.getSql<{ total: number }>(
+					`SELECT COUNT(outputId) as total FROM outputs WHERE ${whereStr}`,
+					params,
+				)
+				totalCount = countRow?.total ?? 0
+			} else {
+				totalCount = outputs.length
 			}
 		} else {
 			const tagIdList = tagIds.join(',')
@@ -3248,12 +3254,6 @@ export class StorageBunSqlite extends StorageProvider {
 			`
 			const filterStr = isQueryModeAll ? `tc = ${tagIds.length}` : 'tc > 0'
 
-			const countRow = this.getSql<{ total: number }>(
-				`WITH otc AS (${cteSql}) SELECT COUNT(outputId) as total FROM otc WHERE ${filterStr}`,
-				params,
-			)
-			totalCount = countRow?.total ?? 0
-
 			if (!specOp || !specOp.ignoreLimit) {
 				outputs = this.allSql(
 					`WITH otc AS (${cteSql}) SELECT ${columns.join(',')} FROM otc WHERE ${filterStr} ORDER BY outputId ${orderBy} LIMIT ? OFFSET ?`,
@@ -3264,6 +3264,17 @@ export class StorageBunSqlite extends StorageProvider {
 					`WITH otc AS (${cteSql}) SELECT ${columns.join(',')} FROM otc WHERE ${filterStr} ORDER BY outputId ${orderBy}`,
 					params,
 				)
+			}
+
+			// Gate the COUNT query: only needed when the SELECT may have been truncated.
+			if (limit && outputs.length >= limit) {
+				const countRow = this.getSql<{ total: number }>(
+					`WITH otc AS (${cteSql}) SELECT COUNT(outputId) as total FROM otc WHERE ${filterStr}`,
+					params,
+				)
+				totalCount = countRow?.total ?? 0
+			} else {
+				totalCount = outputs.length
 			}
 		}
 
