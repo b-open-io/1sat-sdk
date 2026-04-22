@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/wallet-mac",
-	"version": "0.0.3",
+	"version": "0.0.4",
 	"description": "macOS wallet runtime with Secure Enclave and native UI",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -8,7 +8,6 @@
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
-			"bun": "./src/index.ts",
 			"import": "./dist/index.js"
 		}
 	},

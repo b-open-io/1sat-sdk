@@ -1,6 +1,6 @@
 {
   "name": "@1sat/extension",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "Build browser wallet extensions that implement window.onesat",
   "type": "module",
   "main": "./dist/index.js",
@@ -9,22 +9,18 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "bun": "./src/index.ts",
       "import": "./dist/index.js"
     },
     "./popup": {
       "types": "./dist/popup.d.ts",
-      "bun": "./src/popup.ts",
       "import": "./dist/popup.js"
     },
     "./storage": {
       "types": "./dist/storage.d.ts",
-      "bun": "./src/storage.ts",
       "import": "./dist/storage.js"
     },
     "./keys": {
       "types": "./dist/keys.d.ts",
-      "bun": "./src/keys.ts",
       "import": "./dist/keys.js"
     }
   },

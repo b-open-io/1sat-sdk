@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/templates",
-	"version": "0.0.8",
+	"version": "0.0.9",
 	"description": "Bitcoin script templates for 1Sat Ordinals SDK",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -8,12 +8,10 @@
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
-			"bun": "./src/index.ts",
 			"import": "./dist/index.js"
 		},
 		"./sigma": {
 			"types": "./dist/bitcom/sigma.d.ts",
-			"bun": "./src/bitcom/sigma.ts",
 			"import": "./dist/bitcom/sigma.js"
 		}
 	},

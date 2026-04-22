@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/engine",
-	"version": "0.0.3",
+	"version": "0.0.4",
 	"description": "WASM parser engine for 1Sat transactions",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -8,7 +8,6 @@
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
-			"bun": "./src/index.ts",
 			"import": "./dist/index.js"
 		}
 	},

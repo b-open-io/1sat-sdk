@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/vault",
-	"version": "0.0.7",
+	"version": "0.0.8",
 	"description": "Platform-agnostic vault interface for protecting secrets with hardware-backed encryption",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -8,7 +8,6 @@
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
-			"bun": "./src/index.ts",
 			"import": "./dist/index.js"
 		}
 	},
