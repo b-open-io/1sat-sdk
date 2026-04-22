@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.55
+
+### Added
+- `installStorageClientPaymentAutoRetry` — wraps `processSyncChunk` on a StorageClient with the same 507 auto-retry pattern as the wallet-level installer, so backup-sync writes can trigger the storage payment flow when the remote is over capacity.
+
+### Changed
+- `factory.ts` captures the unwrapped `wallet.createAction` and installs the storage-client retry wrapper on every connected remote (active and backup).
+
 ## 0.0.27
 
 ### Fixed

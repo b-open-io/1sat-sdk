@@ -11,6 +11,10 @@
  *      `createAction` (so we don't re-enter our own retry logic).
  *   4. Retry the original operation.
  *
+ * `installStorageClientPaymentAutoRetry` applies the same pattern to
+ * `processSyncChunk` on a specific `StorageClient`, for sync writes to
+ * backups (or from a peer active to this client).
+ *
  * The consent hook shape is deliberately minimal for now — the full
  * consent/approval UX is designed in a later pass. Today the hook exists
  * only as a seam: callers who don't supply one get the default auto-pay
@@ -209,6 +213,98 @@ export function installStoragePaymentAutoRetry(
 		runWithRetry(() => originalInternalizeAction(args))
 
 	return wallet
+}
+
+/**
+ * Minimal view of a StorageClient this installer needs. Kept structural so
+ * the installer doesn't force a wallet-toolbox import into `@1sat/wallet`.
+ */
+export interface StorageClientLike {
+	readonly endpointUrl: string
+	processSyncChunk: (
+		args: unknown,
+		chunk: unknown,
+	) => Promise<unknown>
+}
+
+export interface StorageClientAutoRetryConfig {
+	/** Storage client whose `processSyncChunk` should be wrapped. */
+	client: StorageClientLike
+	/**
+	 * Wallet used to fetch `/account/status` and to build the BRC-29
+	 * self-payment. Its `createAction` must not already be wrapped by a
+	 * retry loop, or payment builds would re-enter. Capture the unwrapped
+	 * reference before installing the wallet-level wrapper.
+	 */
+	wallet: WalletInterface
+	/**
+	 * Unwrapped `wallet.createAction`. Same rationale as the wallet-level
+	 * installer — payment builds must bypass any retry wrapping so they
+	 * can't loop.
+	 */
+	createAction: (args: CreateActionArgs) => Promise<CreateActionResult>
+	onStoragePaymentRequired?: StoragePaymentHook
+}
+
+/**
+ * Wrap `processSyncChunk` on a single `StorageClient` so backup-sync writes
+ * get the same 507 auto-retry treatment as wallet-level billable methods.
+ * Install once per `StorageClient` (both active and backup clients).
+ */
+export function installStorageClientPaymentAutoRetry(
+	config: StorageClientAutoRetryConfig,
+): StorageClientLike {
+	const { client, wallet, createAction, onStoragePaymentRequired } = config
+	const originalProcessSyncChunk = client.processSyncChunk.bind(client)
+
+	const runWithRetry = async <T>(op: () => Promise<T>): Promise<T> => {
+		try {
+			return await op()
+		} catch (err) {
+			if (!isInsufficientStorageError(err)) throw err
+			const url = client.endpointUrl
+			if (!url) throw err
+			const info = await fetchPaymentInfo(wallet, url)
+			if (!info) {
+				// 507 but /account/status says no deficit / accounts disabled
+				// — weird mismatch, not a payment-affordability problem. Pass
+				// the raw 507 through.
+				throw err
+			}
+			const hook = onStoragePaymentRequired
+			const ok = hook ? await hook(info) : true
+			if (!ok) {
+				throw new StoragePaymentError(
+					'storage payment declined by consent hook',
+					{ info, cause: err },
+				)
+			}
+			try {
+				await buildAndBroadcastPayment(createAction, wallet, info)
+			} catch (paymentErr) {
+				throw new StoragePaymentError(
+					buildPaymentErrorMessage(paymentErr, info),
+					{ info, cause: paymentErr },
+				)
+			}
+			try {
+				return await op()
+			} catch (retryErr) {
+				if (isInsufficientStorageError(retryErr)) {
+					throw new StoragePaymentError(
+						'storage payment recorded but the operation still failed with 507',
+						{ info, cause: retryErr },
+					)
+				}
+				throw retryErr
+			}
+		}
+	}
+
+	client.processSyncChunk = (args: unknown, chunk: unknown) =>
+		runWithRetry(() => originalProcessSyncChunk(args, chunk))
+
+	return client
 }
 
 function isInsufficientStorageError(err: unknown): boolean {

@@ -3,6 +3,7 @@ import { KeyDeriver, type PrivateKey, type WalletInterface } from '@bsv/sdk'
 import type { sdk as toolboxSdk } from '@bsv/wallet-toolbox'
 import { parsePrivateKey } from './parsePrivateKey'
 import {
+	installStorageClientPaymentAutoRetry,
 	installStoragePaymentAutoRetry,
 	type StoragePaymentHook,
 } from './storagePaymentAutoRetry'
@@ -125,11 +126,22 @@ export async function createWalletCore(
 	// 4. Connect remotes
 	const remoteClients: InstanceType<typeof toolbox.StorageClient>[] = []
 
+	// Captured once here so the storage-client wrapper's payment builds
+	// always call the unwrapped createAction even after the wallet-level
+	// wrapper installs below.
+	const unwrappedCreateAction = wallet.createAction.bind(wallet)
+
 	const connectRemote = async (url: string) => {
 		const client = new toolbox.StorageClient(
 			wallet as unknown as WalletInterface,
 			url,
 		)
+		installStorageClientPaymentAutoRetry({
+			client,
+			wallet: wallet as unknown as WalletInterface,
+			createAction: unwrappedCreateAction,
+			onStoragePaymentRequired: config.onStoragePaymentRequired,
+		})
 		const timeoutPromise = new Promise<never>((_, reject) =>
 			setTimeout(
 				() => reject(new Error(`Remote storage connection timeout: ${url}`)),
@@ -223,8 +235,13 @@ export async function createWalletCore(
 	// (server owns the monitor loop). When present, the task loop is still
 	// caller-driven via startTasks / runOnce — factory just constructs and
 	// wires defaults.
+	//
+	// Suppressed when a remote is active: the remote server owns the monitor
+	// for its own storage. Running a local monitor against a StorageClient
+	// would attempt StorageProvider operations on a non-StorageProvider and
+	// fail with WERR_INVALID_OPERATION on every tick.
 	let monitor: InstanceType<any> | undefined
-	if (toolbox.Monitor) {
+	if (toolbox.Monitor && !config.activeRemote) {
 		monitor = new toolbox.Monitor({
 			chain: config.chain,
 			services: oneSatServices as any,

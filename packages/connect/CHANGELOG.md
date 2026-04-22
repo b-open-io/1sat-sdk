@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.42] - 2026-04-22
+
+### Changed
+- Bump `@1sat/wallet` to 0.0.55 (storage-client 507 auto-retry for backup sync).
+
 ## [0.0.18] - 2026-03-19
 
 ### Fixed
