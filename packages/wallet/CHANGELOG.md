@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.58
+
+### Added
+- `StorageClientAutoRetryConfig.storage` (optional `WalletStorageManager`). When supplied, after a successful storage payment the wrapper immediately calls `storage.syncToWriter(auth, client)` to re-sync this one backup, instead of waiting for the next `BackupSync` monitor tick. Factory wires this automatically.
+
 ## 0.0.57
 
 ### Changed

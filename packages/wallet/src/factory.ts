@@ -134,6 +134,9 @@ export async function createWalletCore(
 		installStorageClientPaymentAutoRetry({
 			client,
 			wallet: wallet as unknown as WalletInterface,
+			storage: storage as unknown as Parameters<
+				typeof installStorageClientPaymentAutoRetry
+			>[0]['storage'],
 		})
 		const timeoutPromise = new Promise<never>((_, reject) =>
 			setTimeout(

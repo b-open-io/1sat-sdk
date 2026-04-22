@@ -29,7 +29,7 @@
     },
     "packages/actions": {
       "name": "@1sat/actions",
-      "version": "0.0.108",
+      "version": "0.0.109",
       "dependencies": {
         "@1sat/client": "workspace:*",
         "@1sat/templates": "workspace:*",
@@ -89,7 +89,7 @@
     },
     "packages/connect": {
       "name": "@1sat/connect",
-      "version": "0.0.44",
+      "version": "0.0.45",
       "dependencies": {
         "@1sat/wallet": "workspace:*",
         "@sigma-auth/better-auth-plugin": "^0.0.84",
@@ -227,7 +227,7 @@
     },
     "packages/wallet": {
       "name": "@1sat/wallet",
-      "version": "0.0.57",
+      "version": "0.0.58",
       "dependencies": {
         "@1sat/client": "workspace:*",
         "@1sat/templates": "workspace:*",
@@ -248,7 +248,7 @@
     },
     "packages/wallet-browser": {
       "name": "@1sat/wallet-browser",
-      "version": "0.0.46",
+      "version": "0.0.47",
       "dependencies": {
         "@1sat/wallet": "workspace:*",
       },

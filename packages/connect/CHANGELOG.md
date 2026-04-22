@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.45] - 2026-04-22
+
+### Changed
+- Bump `@1sat/wallet` to 0.0.58 (immediate targeted re-sync after storage payment).
+
 ## [0.0.44] - 2026-04-22
 
 ### Changed

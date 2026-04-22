@@ -227,6 +227,20 @@ export interface StorageClientLike {
 	) => Promise<unknown>
 }
 
+/**
+ * Minimal structural view of `WalletStorageManager` — just the two
+ * methods the auto-resync needs. Kept structural so `@1sat/wallet`
+ * doesn't take a hard dep on wallet-toolbox types here.
+ */
+export interface StorageManagerLike {
+	getAuth(): Promise<{
+		identityKey: string
+		userId?: number
+		isActive?: boolean
+	}>
+	syncToWriter(auth: unknown, writer: unknown): Promise<unknown>
+}
+
 export interface StorageClientAutoRetryConfig {
 	/** Storage client whose `processSyncChunk` should be wrapped. */
 	client: StorageClientLike
@@ -236,6 +250,14 @@ export interface StorageClientAutoRetryConfig {
 	 * in response to the 402 issued by `/account/payment`.
 	 */
 	wallet: WalletInterface
+	/**
+	 * Optional. When supplied, after a successful payment the wrapper
+	 * immediately re-syncs to this one backup via
+	 * `storage.syncToWriter(auth, client)`, skipping the wait for the
+	 * next `BackupSync` monitor tick. Without it, recovery waits for the
+	 * monitor cadence.
+	 */
+	storage?: StorageManagerLike
 }
 
 /**
@@ -243,8 +265,9 @@ export interface StorageClientAutoRetryConfig {
  * backup, fire a payment to `POST {endpointUrl}/account/payment` out of
  * band (fire-and-forget, deferred so it runs outside any sync lock the
  * caller may hold) and re-throw the 507 so the current sync attempt
- * aborts cleanly. The next sync cycle finds capacity credited and
- * succeeds.
+ * aborts cleanly. If `storage` is supplied, after payment succeeds we
+ * also trigger a targeted `syncToWriter(auth, client)` so the next
+ * update happens immediately instead of waiting for the monitor tick.
  *
  * We do NOT retry the sync op inline. Doing so would require calling
  * `wallet.createAction` (for the payment build) from inside the sync
@@ -253,9 +276,15 @@ export interface StorageClientAutoRetryConfig {
 export function installStorageClientPaymentAutoRetry(
 	config: StorageClientAutoRetryConfig,
 ): StorageClientLike {
-	const { client, wallet } = config
+	const { client, wallet, storage } = config
 	const originalProcessSyncChunk = client.processSyncChunk.bind(client)
 	const paymentUrl = joinUrl(client.endpointUrl, 'account/payment')
+
+	// Re-entry guard: when our post-payment syncToWriter calls
+	// `client.processSyncChunk`, don't re-wrap. If that sync somehow
+	// 507s again, let it throw normally instead of firing another
+	// payment + sync cycle.
+	let suppressWrap = false
 
 	const wrapped = async <T>(op: () => Promise<T>): Promise<T> => {
 		try {
@@ -269,6 +298,24 @@ export function installStorageClientPaymentAutoRetry(
 							headers: { 'content-type': 'application/json' },
 							body: JSON.stringify({}),
 						})
+						.then(async (response) => {
+							if (!response.ok) return
+							if (!storage) return
+							try {
+								const auth = await storage.getAuth()
+								suppressWrap = true
+								try {
+									await storage.syncToWriter(auth, client)
+								} finally {
+									suppressWrap = false
+								}
+							} catch (resyncErr) {
+								console.error(
+									`[storagePayment] post-payment sync to ${client.endpointUrl} failed:`,
+									resyncErr,
+								)
+							}
+						})
 						.catch((paymentErr) => {
 							console.error(
 								`[storagePayment] payment to ${client.endpointUrl} failed:`,
@@ -281,8 +328,10 @@ export function installStorageClientPaymentAutoRetry(
 		}
 	}
 
-	client.processSyncChunk = (args: unknown, chunk: unknown) =>
-		wrapped(() => originalProcessSyncChunk(args, chunk))
+	client.processSyncChunk = (args: unknown, chunk: unknown) => {
+		if (suppressWrap) return originalProcessSyncChunk(args, chunk)
+		return wrapped(() => originalProcessSyncChunk(args, chunk))
+	}
 
 	return client
 }
