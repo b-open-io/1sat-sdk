@@ -965,16 +965,9 @@ export class StorageBunSqlite extends StorageProvider {
 		let sql = `SELECT ${colStr} FROM ${table}`
 		if (whereParts.length > 0) sql += ` WHERE ${whereParts.join(' AND ')}`
 
-		// Stable ordering is required whenever pagination is in play — SQLite does not
-		// guarantee row order without an explicit ORDER BY, and callers such as
-		// getSyncChunk issue successive LIMIT/OFFSET calls expecting the same sequence.
-		// For non-paged, non-DESC queries we leave order engine-defined (matches Knex).
 		if (args.orderDescending) {
 			const col = this.orderByColumn(table)
 			if (col) sql += ` ORDER BY ${col} DESC`
-		} else if (args.paged) {
-			const col = this.orderByColumn(table)
-			if (col) sql += ` ORDER BY ${col} ASC`
 		}
 
 		if (args.paged) {
