@@ -114,6 +114,52 @@ function toBlob(
 	return null
 }
 
+/**
+ * Build the SQL fragment that restricts `outputs` rows to those carrying the
+ * supplied output tag ids. `isQueryModeAll` requires every tag (HAVING COUNT
+ * match); default "any" requires at least one (EXISTS). Returns undefined when
+ * no tag filter is requested so callers can skip the AND.
+ */
+function buildOutputTagFilterSql(
+	tagIds?: number[],
+	isQueryModeAll?: boolean,
+): { sql: string; params: unknown[] } | undefined {
+	if (!tagIds || tagIds.length === 0) return undefined
+	const placeholders = tagIds.map(() => '?').join(',')
+	if (isQueryModeAll) {
+		return {
+			sql: `(SELECT COUNT(*) FROM output_tags_map m WHERE m.outputId = outputs.outputId AND m.outputTagId IN (${placeholders})) = ${tagIds.length}`,
+			params: [...tagIds],
+		}
+	}
+	return {
+		sql: `EXISTS (SELECT 1 FROM output_tags_map m WHERE m.outputId = outputs.outputId AND m.outputTagId IN (${placeholders}))`,
+		params: [...tagIds],
+	}
+}
+
+/**
+ * Build the SQL fragment that restricts `transactions` rows to those carrying
+ * the supplied tx label ids. Same mode semantics as `buildOutputTagFilterSql`.
+ */
+function buildTxLabelFilterSql(
+	labelIds?: number[],
+	isQueryModeAll?: boolean,
+): { sql: string; params: unknown[] } | undefined {
+	if (!labelIds || labelIds.length === 0) return undefined
+	const placeholders = labelIds.map(() => '?').join(',')
+	if (isQueryModeAll) {
+		return {
+			sql: `(SELECT COUNT(*) FROM tx_labels_map m WHERE m.transactionId = transactions.transactionId AND m.txLabelId IN (${placeholders})) = ${labelIds.length}`,
+			params: [...labelIds],
+		}
+	}
+	return {
+		sql: `EXISTS (SELECT 1 FROM tx_labels_map m WHERE m.transactionId = transactions.transactionId AND m.txLabelId IN (${placeholders}))`,
+		params: [...labelIds],
+	}
+}
+
 // ---------------------------------------------------------------------------
 // StorageBunSqlite
 // ---------------------------------------------------------------------------
@@ -2112,7 +2158,11 @@ export class StorageBunSqlite extends StorageProvider {
 		)
 	}
 
-	async findOutputs(args: FindOutputsArgs): Promise<TableOutput[]> {
+	async findOutputs(
+		args: FindOutputsArgs,
+		tagIds?: number[],
+		isQueryModeAll?: boolean,
+	): Promise<TableOutput[]> {
 		if ((args.partial as Record<string, unknown>).lockingScript)
 			throw new WERR_INVALID_PARAMETER(
 				'args.partial.lockingScript',
@@ -2124,6 +2174,11 @@ export class StorageBunSqlite extends StorageProvider {
 		if (args.txStatus && args.txStatus.length > 0) {
 			const statusList = args.txStatus.map((s) => `'${s}'`).join(',')
 			extraWhere = `(SELECT status FROM transactions WHERE transactions.transactionId = outputs.transactionId) IN (${statusList})`
+		}
+		const tagClause = buildOutputTagFilterSql(tagIds, isQueryModeAll)
+		if (tagClause) {
+			extraWhere = extraWhere ? `${extraWhere} AND ${tagClause.sql}` : tagClause.sql
+			extraParams.push(...tagClause.params)
 		}
 
 		const columns = args.noScript
@@ -2242,6 +2297,8 @@ export class StorageBunSqlite extends StorageProvider {
 
 	async findTransactions(
 		args: FindTransactionsArgs,
+		labelIds?: number[],
+		isQueryModeAll?: boolean,
 	): Promise<TableTransaction[]> {
 		if ((args.partial as Record<string, unknown>).rawTx)
 			throw new WERR_INVALID_PARAMETER(
@@ -2269,6 +2326,11 @@ export class StorageBunSqlite extends StorageProvider {
 			const toClause = 'created_at < ?'
 			extraWhere = extraWhere ? `${extraWhere} AND ${toClause}` : toClause
 			extraParams.push(this.validateDateForWhere(args.to))
+		}
+		const labelClause = buildTxLabelFilterSql(labelIds, isQueryModeAll)
+		if (labelClause) {
+			extraWhere = extraWhere ? `${extraWhere} AND ${labelClause.sql}` : labelClause.sql
+			extraParams.push(...labelClause.params)
 		}
 
 		const columns = args.noRawTx
@@ -2366,13 +2428,28 @@ export class StorageBunSqlite extends StorageProvider {
 	async countOutputBaskets(args: FindOutputBasketsArgs): Promise<number> {
 		return this.countQuery('output_baskets', args)
 	}
-	async countOutputs(args: FindOutputsArgs): Promise<number> {
+	async countOutputs(
+		args: FindOutputsArgs,
+		tagIds?: number[],
+		isQueryModeAll?: boolean,
+	): Promise<number> {
 		let extraWhere = ''
+		const extraParams: unknown[] = []
 		if (args.txStatus && args.txStatus.length > 0) {
 			const statusList = args.txStatus.map((s) => `'${s}'`).join(',')
 			extraWhere = `(SELECT status FROM transactions WHERE transactions.transactionId = outputs.transactionId) IN (${statusList})`
 		}
-		return this.countQuery('outputs', args, extraWhere || undefined)
+		const tagClause = buildOutputTagFilterSql(tagIds, isQueryModeAll)
+		if (tagClause) {
+			extraWhere = extraWhere ? `${extraWhere} AND ${tagClause.sql}` : tagClause.sql
+			extraParams.push(...tagClause.params)
+		}
+		return this.countQuery(
+			'outputs',
+			args,
+			extraWhere || undefined,
+			extraParams.length > 0 ? extraParams : undefined,
+		)
 	}
 	async countOutputTagMaps(args: FindOutputTagMapsArgs): Promise<number> {
 		let extraWhere = ''
@@ -2411,7 +2488,11 @@ export class StorageBunSqlite extends StorageProvider {
 	async countSyncStates(args: FindSyncStatesArgs): Promise<number> {
 		return this.countQuery('sync_states', args)
 	}
-	async countTransactions(args: FindTransactionsArgs): Promise<number> {
+	async countTransactions(
+		args: FindTransactionsArgs,
+		labelIds?: number[],
+		isQueryModeAll?: boolean,
+	): Promise<number> {
 		let extraWhere = ''
 		const extraParams: unknown[] = []
 		if (args.status && args.status.length > 0) {
@@ -2427,6 +2508,11 @@ export class StorageBunSqlite extends StorageProvider {
 			const c = 'created_at < ?'
 			extraWhere = extraWhere ? `${extraWhere} AND ${c}` : c
 			extraParams.push(this.validateDateForWhere(args.to))
+		}
+		const labelClause = buildTxLabelFilterSql(labelIds, isQueryModeAll)
+		if (labelClause) {
+			extraWhere = extraWhere ? `${extraWhere} AND ${labelClause.sql}` : labelClause.sql
+			extraParams.push(...labelClause.params)
 		}
 		return this.countQuery(
 			'transactions',
