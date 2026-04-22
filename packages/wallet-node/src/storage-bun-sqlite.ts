@@ -1102,9 +1102,8 @@ export class StorageBunSqlite extends StorageProvider {
 		const params = [...setParams, ...w.params]
 
 		this.db.run(sql, params as (string | number | null | Buffer)[])
-		return this.db.query('SELECT changes() as cnt').get()
-			? (this.db.query('SELECT changes() as cnt').get() as { cnt: number }).cnt
-			: 0
+		const row = this.db.query('SELECT changes() as cnt').get() as { cnt: number } | null
+		return row?.cnt ?? 0
 	}
 
 	// -----------------------------------------------------------------------
