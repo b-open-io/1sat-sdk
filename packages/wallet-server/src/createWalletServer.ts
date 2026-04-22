@@ -78,15 +78,6 @@ export function createWalletServer(
 	const app = express()
 	app.use(express.json({ limit: config.bodyLimit ?? '30mb' }))
 	app.use(corsMiddleware)
-	app.use((req, _res, next) => {
-		if (req.path.startsWith('/account/')) {
-			console.log('[request]', req.method, req.path, {
-				hasAuthHeaders: req.headers['x-bsv-auth-identity-key'] !== undefined,
-				hasPaymentHeader: req.headers['x-bsv-payment'] !== undefined,
-			})
-		}
-		next()
-	})
 
 	const { wallet, serverIdentityKey } = config
 
@@ -159,11 +150,7 @@ function mountPublicRoute(
 	wallet: WalletInterface,
 	accountsDeps: AccountsMiddlewareDeps | undefined,
 ): void {
-	const authMiddleware = createAuthMiddleware({
-		wallet,
-		logger: console,
-		logLevel: 'debug',
-	})
+	const authMiddleware = createAuthMiddleware({ wallet })
 	app.use(path, authMiddleware)
 
 	// JSON-RPC endpoint. The capacity gate sits between auth and dispatch:
