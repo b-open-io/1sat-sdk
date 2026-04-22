@@ -113,6 +113,10 @@ export function mountPaymentRoute(
 		paymentPath,
 		async (req: AuthedRequest, res: Response, next: NextFunction) => {
 			try {
+				console.log('[payment] received POST', {
+					identityKey: req.auth?.identityKey,
+					hasPaymentHeader: req.headers['x-bsv-payment'] !== undefined,
+				})
 				const identityKey = req.auth?.identityKey
 				if (!identityKey || identityKey === 'unknown') {
 					return res.status(401).json({
@@ -123,6 +127,7 @@ export function mountPaymentRoute(
 				}
 
 				const quote = await computeQuote(deps, identityKey)
+				console.log('[payment] quote', quote)
 				if (!quote || quote.chargeSats === 0) {
 					return res.status(200).json({
 						status: 'ok',
@@ -134,6 +139,10 @@ export function mountPaymentRoute(
 				const bsvPaymentHeader = req.headers['x-bsv-payment']
 				if (bsvPaymentHeader === undefined) {
 					const derivationPrefix = await createNonce(deps.wallet)
+					console.log('[payment] issuing 402', {
+						derivationPrefix,
+						satsRequired: quote.chargeSats,
+					})
 					return res
 						.status(402)
 						.set({
