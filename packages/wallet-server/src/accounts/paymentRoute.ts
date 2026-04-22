@@ -33,6 +33,7 @@ import type {
 	Request,
 	Response,
 } from 'express'
+import { nextPaymentDerivation } from './middleware'
 import { quoteRefundedCharge } from './pricing'
 import {
 	PAYMENT_LABEL,
@@ -41,7 +42,11 @@ import {
 	latestActivePaymentForPayer,
 	payerLabel,
 } from './queries'
-import type { AccountsConfig, IdentityKey } from './types'
+import type {
+	AccountStatusResponse,
+	AccountsConfig,
+	IdentityKey,
+} from './types'
 
 const PAYMENT_VERSION = '1.0'
 
@@ -60,42 +65,86 @@ export interface PaymentRouteDeps {
 
 type AuthedRequest = Request & { auth?: { identityKey?: string } }
 
+/**
+ * Builds the same `/account/status` payload for a given identity. Used by
+ * the payment route so the success response is the post-payment status in
+ * one round trip.
+ */
+async function buildAccountStatus(
+	deps: PaymentRouteDeps,
+	identityKey: IdentityKey,
+): Promise<AccountStatusResponse> {
+	const currentBlock = await deps.currentBlock()
+	const userResult = await deps.walletStorage.findOrInsertUser(identityKey)
+	const userId = userResult?.user?.userId
+	const usedBytes =
+		userId == null ? 0 : await deps.walletStorage.measureUsedBytes(userId)
+
+	if (!deps.config.enabled) {
+		return {
+			identityKey,
+			serverIdentityKey: deps.serverIdentityKey,
+			accountsEnabled: false,
+			currentBlock,
+			usedBytes,
+		}
+	}
+
+	const currentPayment = await latestActivePaymentForPayer(
+		deps.wallet,
+		identityKey,
+		currentBlock,
+	)
+	const paidBytes = currentPayment?.bytesCovered ?? 0
+	const capacityBytes = deps.config.baselineBytes + paidBytes
+	const deficitBytes = Math.max(0, usedBytes - capacityBytes)
+	const nextPayment = await nextPaymentDerivation(identityKey, deps.wallet)
+
+	return {
+		identityKey,
+		serverIdentityKey: deps.serverIdentityKey,
+		accountsEnabled: true,
+		currentBlock,
+		usedBytes,
+		baselineBytes: deps.config.baselineBytes,
+		paidBytes,
+		capacityBytes,
+		deficitBytes,
+		paidThroughBlock: currentPayment?.paidThroughBlock ?? null,
+		pricing: {
+			purchaseUnitBytes: deps.config.purchaseUnitBytes,
+			satsPerUnit: deps.config.satsPerUnit,
+			durationBlocks: deps.config.durationBlocks,
+		},
+		nextPayment,
+	}
+}
+
 interface QuoteInfo {
 	chargeSats: number
 	bytesCovered: number
 	paidThroughBlock: number
 }
 
-async function computeQuote(
-	deps: PaymentRouteDeps,
-	identityKey: IdentityKey,
-): Promise<QuoteInfo | undefined> {
-	if (!deps.config.enabled) return undefined
-	if (deps.serverIdentityKey === identityKey) return undefined
-	if (deps.config.freeIdentityKeys?.includes(identityKey)) return undefined
-
-	const userResult = await deps.walletStorage.findOrInsertUser(identityKey)
-	const userId = userResult?.user?.userId
-	if (userId == null) return undefined
-
-	const [usedBytes, currentPayment, currentBlock] = await Promise.all([
-		deps.walletStorage.measureUsedBytes(userId),
-		latestActivePaymentForPayer(
-			deps.wallet,
-			identityKey,
-			await deps.currentBlock(),
-		),
-		deps.currentBlock(),
-	])
-
+function quoteFromStatus(
+	status: AccountStatusResponse,
+	config: AccountsConfig,
+): QuoteInfo | undefined {
+	if (!status.accountsEnabled) return undefined
+	if (status.deficitBytes <= 0) return undefined
 	const quote = quoteRefundedCharge({
-		usedBytes,
-		currentPayment,
-		currentBlock,
-		config: deps.config,
+		usedBytes: status.usedBytes,
+		currentPayment:
+			status.paidBytes > 0 && status.paidThroughBlock != null
+				? {
+						bytesCovered: status.paidBytes,
+						paidThroughBlock: status.paidThroughBlock,
+					}
+				: undefined,
+		currentBlock: status.currentBlock,
+		config,
 	})
 	if (!quote) return undefined
-
 	return {
 		chargeSats: quote.chargeSats,
 		bytesCovered: quote.bytesCovered,
@@ -126,14 +175,18 @@ export function mountPaymentRoute(
 					})
 				}
 
-				const quote = await computeQuote(deps, identityKey)
+				if (
+					deps.serverIdentityKey === identityKey ||
+					deps.config.freeIdentityKeys?.includes(identityKey)
+				) {
+					return res.status(200).json(await buildAccountStatus(deps, identityKey))
+				}
+
+				const statusBefore = await buildAccountStatus(deps, identityKey)
+				const quote = quoteFromStatus(statusBefore, deps.config)
 				console.log('[payment] quote', quote)
-				if (!quote || quote.chargeSats === 0) {
-					return res.status(200).json({
-						status: 'ok',
-						accountsEnabled: deps.config.enabled,
-						chargeSats: 0,
-					})
+				if (!quote) {
+					return res.status(200).json(statusBefore)
 				}
 
 				const bsvPaymentHeader = req.headers['x-bsv-payment']
@@ -223,16 +276,13 @@ export function mountPaymentRoute(
 					})
 				}
 
+				const statusAfter = await buildAccountStatus(deps, identityKey)
 				return res
 					.status(200)
 					.set({
 						'x-bsv-payment-satoshis-paid': String(quote.chargeSats),
 					})
-					.json({
-						status: 'ok',
-						bytesCovered: quote.bytesCovered,
-						paidThroughBlock: quote.paidThroughBlock,
-					})
+					.json(statusAfter)
 			} catch (err) {
 				next(err)
 			}

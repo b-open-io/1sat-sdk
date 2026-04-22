@@ -159,7 +159,11 @@ function mountPublicRoute(
 	wallet: WalletInterface,
 	accountsDeps: AccountsMiddlewareDeps | undefined,
 ): void {
-	const authMiddleware = createAuthMiddleware({ wallet })
+	const authMiddleware = createAuthMiddleware({
+		wallet,
+		logger: console,
+		logLevel: 'debug',
+	})
 	app.use(path, authMiddleware)
 
 	// JSON-RPC endpoint. The capacity gate sits between auth and dispatch:

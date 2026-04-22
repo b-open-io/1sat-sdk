@@ -1,107 +1,68 @@
 /**
- * Top-up helper: buys capacity on a remote wallet-server by building a
- * BRC-29 self-payment createAction. The server's accounts gate recognises
- * the self-payment, bypasses the 507, and auto-internalizes the payment
- * into its own wallet as part of processAction post-dispatch — so the
- * client never needs a second HTTP round-trip.
+ * Top-up helper: buys capacity on a remote wallet-server by POSTing to
+ * `{remoteUrl}/account/payment`. The endpoint issues a BRC-41 402 with
+ * price + derivation prefix; `AuthFetch` on the client side sees the 402
+ * and automatically attaches a BRC-29 payment (built from the caller's
+ * wallet) and retries. The server verifies, internalizes with the
+ * accounts-ledger labels, and returns 200 with the post-payment account
+ * status.
  *
- * Shared by the CLI `1sat remote topup` command and the eventual
- * factory-level auto-retry.
+ * Shared by the CLI `1sat remote topup` command. Also useful as a direct
+ * test harness for the payment endpoint independently of the sync path.
  */
 
-import {
-	P2PKH,
-	PublicKey,
-	type WalletInterface,
-} from '@bsv/sdk'
+import { type WalletInterface } from '@bsv/sdk'
+import { AuthFetch } from '@bsv/sdk/auth'
 import type { AccountStatusResponse } from './accounts/types'
-import { WalletServerClient } from './client'
-
-/** BRC-29 protocol ID for wallet payments (mirrors `@1sat/types`). */
-const BRC29_PROTOCOL_ID: [2, string] = [2, '3241645161d8']
-
-export interface TopUpOptions {
-	/** Buy this many purchase units. Defaults to `ceil(deficit / unitBytes)`. */
-	units?: number
-	/** Reuse an existing client. Defaults to a fresh instance from `remoteUrl`. */
-	client?: WalletServerClient
-}
 
 export interface TopUpResult {
-	unitsBought: number
+	/** Sats paid — reported by the server's `x-bsv-payment-satoshis-paid` header. */
 	satsPaid: number
-	txid: string
-	/** Account status after the payment is recorded. */
+	/** Post-payment account status. */
 	status: AccountStatusResponse
 }
 
 export async function topUpStorage(
 	wallet: WalletInterface,
 	remoteUrl: string,
-	options: TopUpOptions = {},
 ): Promise<TopUpResult> {
-	const client =
-		options.client ?? new WalletServerClient(remoteUrl, wallet)
+	const authFetch = new AuthFetch(wallet)
+	const paymentUrl = joinUrl(remoteUrl, 'account/payment')
 
-	const status = await client.accountStatus()
-	if (!status.accountsEnabled) {
+	const response = await authFetch.fetch(paymentUrl, {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify({}),
+	})
+
+	const bodyText = await response.text()
+	let body: AccountStatusResponse | { code?: string; description?: string }
+	try {
+		body = JSON.parse(bodyText)
+	} catch {
 		throw new Error(
-			'remote has accounts metering disabled — no topup possible',
+			`payment endpoint returned ${response.status} with non-JSON body: ${bodyText.slice(0, 200)}`,
 		)
 	}
 
-	const units =
-		options.units ??
-		Math.ceil(status.deficitBytes / status.pricing.purchaseUnitBytes)
-	if (units <= 0) {
+	if (!response.ok) {
+		const errBody = body as { code?: string; description?: string }
 		throw new Error(
-			`no topup needed — deficit is ${status.deficitBytes} bytes`,
+			`payment endpoint returned ${response.status}: ${errBody.code ?? errBody.description ?? bodyText.slice(0, 200)}`,
 		)
 	}
 
-	const sats = units * status.pricing.satsPerUnit
-	const { derivationPrefix, derivationSuffix } = status.nextPayment
-	const keyID = `${derivationPrefix} ${derivationSuffix}`
-
-	const { publicKey } = await wallet.getPublicKey({
-		protocolID: BRC29_PROTOCOL_ID,
-		keyID,
-		counterparty: status.serverIdentityKey,
-		forSelf: false,
-	})
-	const address = PublicKey.fromString(publicKey).toAddress()
-	const lockingScript = new P2PKH().lock(address).toHex()
-
-	const createResult = await wallet.createAction({
-		description: `wallet-server storage payment (${units} unit${units === 1 ? '' : 's'})`,
-		labels: [`account-payment:${status.serverIdentityKey}`],
-		outputs: [
-			{
-				lockingScript,
-				satoshis: sats,
-				outputDescription: 'storage capacity payment',
-				customInstructions: JSON.stringify({
-					derivationPrefix,
-					derivationSuffix,
-				}),
-			},
-		],
-		options: {
-			randomizeOutputs: false,
-			acceptDelayedBroadcast: false,
-		},
-	})
-
-	if (!createResult.txid) {
-		throw new Error('createAction did not return a broadcast txid')
-	}
-
-	const newStatus = await client.accountStatus()
+	const satsPaidHeader = response.headers.get('x-bsv-payment-satoshis-paid')
+	const satsPaid = satsPaidHeader ? Number(satsPaidHeader) : 0
 
 	return {
-		unitsBought: units,
-		satsPaid: sats,
-		txid: createResult.txid,
-		status: newStatus,
+		satsPaid,
+		status: body as AccountStatusResponse,
 	}
+}
+
+function joinUrl(base: string, path: string): string {
+	const b = base.endsWith('/') ? base.slice(0, -1) : base
+	const p = path.startsWith('/') ? path.slice(1) : path
+	return `${b}/${p}`
 }

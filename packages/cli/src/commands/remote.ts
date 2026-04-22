@@ -436,7 +436,7 @@ async function remoteTopup(args: string[], opts: GlobalFlags): Promise<void> {
 	})
 
 	try {
-		const result = await topUpStorage(walletResult.wallet, url, { units })
+		const result = await topUpStorage(walletResult.wallet, url)
 
 		if (opts.json) {
 			output(result, opts)
@@ -445,9 +445,9 @@ async function remoteTopup(args: string[], opts: GlobalFlags): Promise<void> {
 
 		console.log()
 		console.log(`  ${bold('Remote:')} ${url}`)
-		console.log(`  ${bold('Units bought:')} ${result.unitsBought}`)
 		console.log(`  ${bold('Sats paid:')} ${result.satsPaid}`)
-		console.log(`  ${bold('Payment txid:')} ${result.txid}`)
+		console.log(`  ${bold('Bytes covered:')} ${formatBytes(result.bytesCovered)}`)
+		console.log(`  ${bold('Paid through block:')} ${result.paidThroughBlock}`)
 		if (result.status.accountsEnabled) {
 			console.log()
 			console.log(
