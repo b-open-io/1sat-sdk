@@ -126,11 +126,6 @@ export async function createWalletCore(
 	// 4. Connect remotes
 	const remoteClients: InstanceType<typeof toolbox.StorageClient>[] = []
 
-	// Captured once here so the storage-client wrapper's payment builds
-	// always call the unwrapped createAction even after the wallet-level
-	// wrapper installs below.
-	const unwrappedCreateAction = wallet.createAction.bind(wallet)
-
 	const connectRemote = async (url: string) => {
 		const client = new toolbox.StorageClient(
 			wallet as unknown as WalletInterface,
@@ -139,8 +134,6 @@ export async function createWalletCore(
 		installStorageClientPaymentAutoRetry({
 			client,
 			wallet: wallet as unknown as WalletInterface,
-			createAction: unwrappedCreateAction,
-			onStoragePaymentRequired: config.onStoragePaymentRequired,
 		})
 		const timeoutPromise = new Promise<never>((_, reject) =>
 			setTimeout(

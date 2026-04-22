@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.43] - 2026-04-22
+
+### Changed
+- Bump `@1sat/wallet` to 0.0.56 (storage payment via `/account/payment` 402 flow).
+
 ## [0.0.42] - 2026-04-22
 
 ### Changed

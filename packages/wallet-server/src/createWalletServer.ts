@@ -11,6 +11,7 @@ import {
 	type AccountsMiddlewareDeps,
 	accountsCapacityGate,
 	latestActivePaymentForPayer,
+	mountPaymentRoute,
 	nextPaymentDerivation,
 } from './accounts'
 import type { AccountsConfig } from './accounts/types'
@@ -93,6 +94,20 @@ export function createWalletServer(
 	if (publicPath) {
 		mountPublicRoute(app, publicPath, config, wallet, accountsDeps)
 		mountStatusRoute(app, publicPath, config, serverIdentityKey, wallet)
+		if (accountsDeps) {
+			mountPaymentRoute(app, publicPath, {
+				config: accountsDeps.config,
+				wallet: accountsDeps.wallet,
+				walletStorage: accountsDeps.walletStorage as unknown as {
+					findOrInsertUser(identityKey: string): Promise<{
+						user: { userId: number }
+					}>
+					measureUsedBytes(userId: number): Promise<number>
+				},
+				serverIdentityKey: accountsDeps.serverIdentityKey,
+				currentBlock: accountsDeps.currentBlock,
+			})
+		}
 	}
 	if (internalPath) {
 		mountInternalRoute(app, internalPath, config)

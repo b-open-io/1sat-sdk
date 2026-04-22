@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.56
+
+### Changed
+- `installStorageClientPaymentAutoRetry` now delivers the storage payment via `POST {endpointUrl}/account/payment`. The server's 402 response drives `AuthFetch`'s built-in payment handling, removing the in-band `/account/status` + `buildAndBroadcastPayment` step. Config simplified to `{ client, wallet }`.
+
 ## 0.0.55
 
 ### Added

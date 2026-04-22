@@ -31,3 +31,4 @@ export {
 	listPaymentsForPayer,
 	payerLabel,
 } from './queries'
+export { mountPaymentRoute, type PaymentRouteDeps } from './paymentRoute'
