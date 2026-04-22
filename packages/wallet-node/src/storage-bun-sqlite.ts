@@ -800,7 +800,15 @@ export class StorageBunSqlite extends StorageProvider {
 		partial: Record<string, unknown>,
 		prefix = '',
 	): { clause: string; params: unknown[] } {
-		const keys = Object.keys(partial).filter((k) => partial[k] !== undefined)
+		for (const k of Object.keys(partial)) {
+			if (partial[k] === undefined) {
+				throw new WERR_INVALID_PARAMETER(
+					`partial.${k}`,
+					`not undefined. Passing undefined as a filter value is not supported — omit the key to skip filtering, or pass null for IS NULL. Matches Knex behavior.`,
+				)
+			}
+		}
+		const keys = Object.keys(partial)
 		if (keys.length === 0) return { clause: '', params: [] }
 		const parts: string[] = []
 		const params: unknown[] = []
@@ -973,7 +981,11 @@ export class StorageBunSqlite extends StorageProvider {
 	 */
 	private insertRow(table: string, entity: Record<string, unknown>): number {
 		const scoped = this.filterToSchema(table, entity)
-		const filteredKeys = Object.keys(scoped).filter((k) => scoped[k] != null)
+		// Drop only undefined (caller didn't provide the field). Explicit
+		// null is preserved and bound as SQL NULL — matches Knex binding
+		// behavior, so schema NOT NULL violations surface instead of being
+		// silently rewritten to DEFAULT.
+		const filteredKeys = Object.keys(scoped).filter((k) => scoped[k] !== undefined)
 		if (filteredKeys.length === 0)
 			throw new WERR_INTERNAL(`Cannot insert empty entity into ${table}`)
 
