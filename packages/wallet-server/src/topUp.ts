@@ -26,14 +26,16 @@ export async function topUpStorage(
 	wallet: WalletInterface,
 	remoteUrl: string,
 ): Promise<TopUpResult> {
+	console.log('[topUp] constructing AuthFetch')
 	const authFetch = new AuthFetch(wallet)
 	const paymentUrl = joinUrl(remoteUrl, 'account/payment')
-
+	console.log('[topUp] calling POST', paymentUrl)
 	const response = await authFetch.fetch(paymentUrl, {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify({}),
 	})
+	console.log('[topUp] response status', response.status)
 
 	const bodyText = await response.text()
 	let body: AccountStatusResponse | { code?: string; description?: string }
