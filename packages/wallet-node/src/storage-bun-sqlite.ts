@@ -2482,6 +2482,14 @@ export class StorageBunSqlite extends StorageProvider {
 			extraWhere = `status IN (${args.status.map(() => '?').join(',')})`
 			extraParams.push(...args.status)
 		}
+		if (args.txids) {
+			const txids = args.txids.filter((t) => t !== undefined)
+			if (txids.length > 0) {
+				const txidClause = `txid IN (${txids.map(() => '?').join(',')})`
+				extraWhere = extraWhere ? `${extraWhere} AND ${txidClause}` : txidClause
+				extraParams.push(...txids)
+			}
+		}
 		return this.countQuery(
 			'proven_tx_reqs',
 			args,
