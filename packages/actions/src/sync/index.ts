@@ -43,8 +43,8 @@ function toBase64Suffix(index: number): string {
 // ============================================================================
 
 export interface SyncAddressesInput {
-	/** BRC-29 derivation prefix (e.g., "yours", "mcp", "1sat") */
-	prefix: string
+	/** BRC-29 derivation prefix (default: "1sat", matching `wallet address`). */
+	prefix?: string
 	/** First address index to derive (default: 0) */
 	startIndex?: number
 	/** Number of addresses to derive (default: 1) */
@@ -52,6 +52,8 @@ export interface SyncAddressesInput {
 	/** Optional progress callback for UI consumers showing indexing status */
 	onProgress?: (progress: SyncProgress) => void
 }
+
+const DEFAULT_SYNC_PREFIX = '1sat'
 
 export interface SyncAddressesResult {
 	/** Number of transactions successfully internalized */
@@ -100,7 +102,7 @@ export const syncAddresses: Action<SyncAddressesInput, SyncAddressesResult> = {
 				prefix: {
 					type: 'string',
 					description:
-						'BRC-29 derivation prefix (e.g., "yours", "mcp", "1sat")',
+						'BRC-29 derivation prefix (default: "1sat", matching `wallet address`)',
 				},
 				startIndex: {
 					type: 'integer',
@@ -111,13 +113,17 @@ export const syncAddresses: Action<SyncAddressesInput, SyncAddressesResult> = {
 					description: 'Number of addresses to derive (default: 1)',
 				},
 			},
-			required: ['prefix'],
 		},
 		requiresServices: true,
 	},
 
 	async execute(ctx, input) {
-		const { prefix, startIndex = 0, count = 1, onProgress } = input
+		const {
+			prefix = DEFAULT_SYNC_PREFIX,
+			startIndex = 0,
+			count = 1,
+			onProgress,
+		} = input
 		const services = ctx.services
 		if (!services) {
 			throw new Error('syncAddresses requires services in context')
