@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.57
+
+### Changed
+- `installStorageClientPaymentAutoRetry`: on 507, fire the payment fire-and-forget via `setTimeout(0)` and re-throw the original error. No more inline retry of the sync op. Eliminates the deadlock that occurred when `wallet.createAction` (invoked by AuthFetch's 402 handler) tried to acquire the writer lock already held by `WalletStorageManager.runAsSync`. Next sync cycle succeeds after the deferred payment completes.
+
 ## 0.0.56
 
 ### Changed

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.44] - 2026-04-22
+
+### Changed
+- Bump `@1sat/wallet` to 0.0.57 (fire-and-forget storage payment on sync 507 to avoid sync-lock deadlock).
+
 ## [0.0.43] - 2026-04-22
 
 ### Changed

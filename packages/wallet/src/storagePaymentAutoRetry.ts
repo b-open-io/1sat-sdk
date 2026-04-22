@@ -239,20 +239,16 @@ export interface StorageClientAutoRetryConfig {
 }
 
 /**
- * Wrap `processSyncChunk` on a single `StorageClient` so backup-sync writes
- * get the same 507 auto-retry treatment as wallet-level billable methods.
- * Install once per `StorageClient` (active and backup clients alike — for
- * active, `processSyncChunk` is never the target anyway).
+ * Wrap `processSyncChunk` on a single `StorageClient`. On a 507 from the
+ * backup, fire a payment to `POST {endpointUrl}/account/payment` out of
+ * band (fire-and-forget, deferred so it runs outside any sync lock the
+ * caller may hold) and re-throw the 507 so the current sync attempt
+ * aborts cleanly. The next sync cycle finds capacity credited and
+ * succeeds.
  *
- * Payment delivery for this path goes out-of-band to `POST
- * {endpointUrl}/account/payment`, which issues a BRC-41 402 that
- * `AuthFetch` automatically pays. No need to fetch `/account/status` or
- * construct the payment ourselves — the server's 402 carries the price +
- * derivation prefix, and `AuthFetch` handles the rest.
- *
- * The `createAction` config field is retained for signature compatibility
- * but is unused here; `AuthFetch` sources the payment from
- * `wallet.createAction` internally.
+ * We do NOT retry the sync op inline. Doing so would require calling
+ * `wallet.createAction` (for the payment build) from inside the sync
+ * lock, which deadlocks against the lock held by `updateBackups`.
  */
 export function installStorageClientPaymentAutoRetry(
 	config: StorageClientAutoRetryConfig,
@@ -261,49 +257,32 @@ export function installStorageClientPaymentAutoRetry(
 	const originalProcessSyncChunk = client.processSyncChunk.bind(client)
 	const paymentUrl = joinUrl(client.endpointUrl, 'account/payment')
 
-	const runWithRetry = async <T>(op: () => Promise<T>): Promise<T> => {
+	const wrapped = async <T>(op: () => Promise<T>): Promise<T> => {
 		try {
 			return await op()
 		} catch (err) {
-			if (!isInsufficientStorageError(err)) throw err
-
-			const authFetch = new AuthFetch(wallet)
-			let response: Response
-			try {
-				response = await authFetch.fetch(paymentUrl, {
-					method: 'POST',
-					headers: { 'content-type': 'application/json' },
-					body: JSON.stringify({}),
-				})
-			} catch (paymentErr) {
-				throw new StoragePaymentError(
-					`failed to deliver storage payment to ${client.endpointUrl}`,
-					{ cause: paymentErr },
-				)
+			if (isInsufficientStorageError(err)) {
+				setTimeout(() => {
+					new AuthFetch(wallet)
+						.fetch(paymentUrl, {
+							method: 'POST',
+							headers: { 'content-type': 'application/json' },
+							body: JSON.stringify({}),
+						})
+						.catch((paymentErr) => {
+							console.error(
+								`[storagePayment] payment to ${client.endpointUrl} failed:`,
+								paymentErr,
+							)
+						})
+				}, 0)
 			}
-			if (!response.ok) {
-				throw new StoragePaymentError(
-					`storage payment endpoint returned ${response.status}`,
-					{ cause: err },
-				)
-			}
-
-			try {
-				return await op()
-			} catch (retryErr) {
-				if (isInsufficientStorageError(retryErr)) {
-					throw new StoragePaymentError(
-						'storage payment recorded but the operation still failed with 507',
-						{ cause: retryErr },
-					)
-				}
-				throw retryErr
-			}
+			throw err
 		}
 	}
 
 	client.processSyncChunk = (args: unknown, chunk: unknown) =>
-		runWithRetry(() => originalProcessSyncChunk(args, chunk))
+		wrapped(() => originalProcessSyncChunk(args, chunk))
 
 	return client
 }

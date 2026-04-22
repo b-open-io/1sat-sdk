@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.108
+
+### Changed
+- Bump `@1sat/wallet` to 0.0.57 (fire-and-forget storage payment on sync 507).
+
 ## 0.0.107
 
 ### Changed
