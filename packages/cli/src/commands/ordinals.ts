@@ -17,7 +17,7 @@ import {
 import { Utils } from '@bsv/sdk'
 import { confirm, isCancel } from '@clack/prompts'
 import type { GlobalFlags } from '../args'
-import { extractFlag } from '../args'
+import { extractFlag, hasFlag } from '../args'
 import { loadContext } from '../context'
 import { printCommandHelp } from '../help'
 import { loadKey, resolvePassword } from '../keys'
@@ -45,7 +45,7 @@ export async function handleOrdinalsCommand(
 		default:
 			printCommandHelp('ordinals', {
 				list: 'List owned ordinals/inscriptions',
-				mint: 'Mint a new ordinal inscription (--file <path> --type <mime>)',
+				mint: 'Mint a new ordinal inscription (--file <path> [--type <mime>] [--map <json>] [--sign-with-bap])',
 				transfer: 'Transfer an ordinal (--outpoint <op> --to <addr>)',
 				sell: 'List an ordinal for sale (--outpoint <op> --price <sats>)',
 				cancel: 'Cancel an ordinal listing (--outpoint <op>)',
@@ -121,6 +121,8 @@ const MIME_TYPES: Record<string, string> = {
 async function ordinalsMint(args: string[], opts: GlobalFlags): Promise<void> {
 	const file = extractFlag(args, '--file')
 	const type = extractFlag(args, '--type')
+	const mapStr = extractFlag(args, '--map')
+	const signWithBAP = hasFlag(args, '--sign-with-bap')
 
 	if (!file) fatal('Missing --file <path>')
 
@@ -129,6 +131,29 @@ async function ordinalsMint(args: string[], opts: GlobalFlags): Promise<void> {
 		fatal(
 			`Cannot detect content type for ${basename(file)}. Use --type <mime-type>`,
 		)
+	}
+
+	let map: Record<string, string> | undefined
+	if (mapStr !== undefined) {
+		let parsed: unknown
+		try {
+			parsed = JSON.parse(mapStr)
+		} catch (err) {
+			fatal(`--map must be valid JSON: ${(err as Error).message}`)
+		}
+		if (
+			typeof parsed !== 'object' ||
+			parsed === null ||
+			Array.isArray(parsed)
+		) {
+			fatal('--map must be a JSON object')
+		}
+		for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+			if (typeof v !== 'string') {
+				fatal(`--map values must be strings (key "${k}" is ${typeof v})`)
+			}
+		}
+		map = parsed as Record<string, string>
 	}
 
 	let fileBytes: Uint8Array
@@ -158,6 +183,8 @@ async function ordinalsMint(args: string[], opts: GlobalFlags): Promise<void> {
 		const result = await inscribe.execute(ctx, {
 			base64Content,
 			contentType,
+			...(map ? { map } : {}),
+			...(signWithBAP ? { signWithBAP: true } : {}),
 		})
 
 		if (result.error) {
