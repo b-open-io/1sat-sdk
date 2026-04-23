@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.113
+
+### Added
+- `pickNewestAlias` helper under `src/identity/` for deterministic selection of the most recent BAP profile when multiple ALIAS outputs exist at the same address.
+
+### Changed
+- BAP profile selection in `updateProfile` / `getProfile` is now deterministic via a `publishedAt` MAP tag ordering rule, replacing the prior first-match behaviour that could return different profiles across runs.
+- `completeSignedAction` inspects `sendWithResults` / `notDelayedResults` returned by `signAction` and surfaces broadcast failures instead of returning a txid when the server reports an unsuccessful outcome. The try/catch around the pre-signAction work remains (so script-verification / BEEF-build errors still abort), but the post-signAction catch was dropped — the server already transitions rejected txs to `failed`, so an extra abort just generated noise.
+
 ## 0.0.111
 
 ### Removed

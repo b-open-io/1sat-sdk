@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.47
+
+### Changed
+- `1sat init` no longer offers remote storage configuration inline. Init is now local-only, with a footer pointing at `1sat remote add <url>` and `1sat remote set-active <url>` for post-setup configuration. The prior prompt conflated active vs backup remotes and accepted only one URL.
+- Picks up `@1sat/actions@0.0.113` (broadcast failure surfacing + deterministic BAP profile selection) and `@1sat/client@0.0.26` (arcade status whitelist).
+
 ## 0.0.45
 
 ### Added

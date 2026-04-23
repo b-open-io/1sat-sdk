@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.26] - 2026-04-23
+
+### Fixed
+- `OneSatServices.postBeef` no longer silently treats unknown arcade transaction statuses as success. Success (`MINED`, `SEEN_ON_NETWORK`, `ACCEPTED_BY_NETWORK`) and in-flight (`QUEUED`, `RECEIVED`, `STORED`, `ANNOUNCED_TO_NETWORK`, `REQUESTED_BY_NETWORK`, `SENT_TO_NETWORK`) are whitelisted; everything else (`REJECTED`, `DOUBLE_SPEND_ATTEMPTED`, `SERVICE_ERROR`, `SEEN_IN_ORPHAN_MEMPOOL`, typos) returns an error with the arcade status and extraInfo attached.
+
 ## [0.0.4] - 2026-02-05
 
 ### Changed
