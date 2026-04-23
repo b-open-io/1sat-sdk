@@ -18,7 +18,6 @@ import {
 	outro,
 	password,
 	select,
-	text,
 } from '@clack/prompts'
 import type { GlobalFlags } from '../args'
 import { ensureConfigDir, loadConfig, saveConfig } from '../config'
@@ -147,33 +146,7 @@ export async function handleInitCommand(
 	// 4. Generate random storage identity key
 	const storageId = `1sat-cli-${randomBytes(8).toString('hex')}`
 
-	// 5. Optional: remote storage configuration
-	const useRemote = await confirm({
-		message: 'Configure remote storage? (remote is active, local is backup)',
-		defaultValue: false,
-	})
-	let activeRemote: string | undefined
-
-	if (useRemote) {
-		const url = await text({
-			message: 'Primary remote storage URL:',
-			validate(value) {
-				if (!value) return 'Required'
-				try {
-					new URL(value)
-				} catch {
-					return 'Invalid URL'
-				}
-			},
-		})
-		if (isCancel(url)) {
-			cancel('Setup cancelled.')
-			process.exit(0)
-		}
-		activeRemote = url as string
-	}
-
-	// 6. Save everything
+	// 5. Save everything
 	ensureConfigDir()
 
 	await saveKey(wif, pw as string)
@@ -182,11 +155,18 @@ export async function handleInitCommand(
 		...loadConfig(),
 		chain: chain as 'main' | 'test',
 		storageIdentityKey: storageId,
-		activeRemote,
 	})
 
 	const pk = PrivateKey.fromWif(wif)
 	const address = pk.toPublicKey().toAddress()
 
 	outro(formatSuccess(`Wallet configured! Address: ${address}`))
+
+	console.log()
+	console.log(
+		`  Want hosted storage? Run ${formatValue('1sat remote add <url>')} to attach a backup remote,`,
+	)
+	console.log(
+		`  then ${formatValue('1sat remote set-active <url>')} to make it primary.`,
+	)
 }
