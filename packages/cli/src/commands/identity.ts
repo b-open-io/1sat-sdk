@@ -34,7 +34,7 @@ export async function handleIdentityCommand(
 				create: 'Create/publish a BAP identity',
 				'update-profile': 'Update BAP identity profile (--profile <json>)',
 				info: 'Show BAP identity information',
-				sign: 'Sign a message with identity key (--message <text>)',
+				sign: 'Sign a message with identity key (--message <text> [--encoding <utf8|hex|base64>])',
 				verify:
 					'Verify a signed message (--message <text> --sig <sig> --address <addr>)',
 			})
@@ -92,8 +92,17 @@ async function identityInfo(_args: string[], opts: GlobalFlags): Promise<void> {
 
 async function identitySign(args: string[], opts: GlobalFlags): Promise<void> {
 	const message = extractFlag(args, '--message')
+	const encoding = extractFlag(args, '--encoding')
 
 	if (!message) fatal('Missing --message <text>')
+	if (
+		encoding !== undefined &&
+		encoding !== 'utf8' &&
+		encoding !== 'hex' &&
+		encoding !== 'base64'
+	) {
+		fatal('--encoding must be one of: utf8, hex, base64')
+	}
 
 	const privateKey = await loadKey(resolvePassword())
 	const { ctx, destroy } = await loadContext(privateKey, {
@@ -101,7 +110,10 @@ async function identitySign(args: string[], opts: GlobalFlags): Promise<void> {
 	})
 
 	try {
-		const result = await signBsm.execute(ctx, { message })
+		const result = await signBsm.execute(ctx, {
+			message,
+			...(encoding ? { encoding: encoding as 'utf8' | 'hex' | 'base64' } : {}),
+		})
 
 		if (result.error) {
 			fatal(result.error)
