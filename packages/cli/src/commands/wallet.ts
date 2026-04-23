@@ -57,7 +57,7 @@ export async function handleWalletCommand(
 				balance: 'Show wallet balance in satoshis',
 				address:
 					'Show deposit address [--prefix <p>] [--start-index <n>] [--count <n>]',
-				send: 'Send BSV to an address (--to <addr> --sats <amount>)',
+				send: 'Send BSV (--to <addr> --sats <n> | --script <hex> --sats <n> | --data-asm "<asm>")',
 				'send-all': 'Send all BSV to an address (--to <addr>)',
 				sync: 'Sync inbound payments at BRC-29 deposit addresses [--prefix <p>] [--start-index <n>] [--count <n>]',
 				info: 'Show wallet info (address, balance, network)',
@@ -153,20 +153,56 @@ async function walletAddress(args: string[], opts: GlobalFlags): Promise<void> {
 
 async function walletSend(args: string[], opts: GlobalFlags): Promise<void> {
 	const to = extractFlag(args, '--to')
+	const script = extractFlag(args, '--script')
+	const dataAsm = extractFlag(args, '--data-asm')
 	const satsStr = extractFlag(args, '--sats')
 
-	if (!to) fatal('Missing --to <address>')
-	if (!satsStr) fatal('Missing --sats <amount>')
+	const modes = [to, script, dataAsm].filter((v) => v !== undefined).length
+	if (modes === 0) {
+		fatal(
+			'Specify one of --to <address>, --script <hex>, or --data-asm "<asm>"',
+		)
+	}
+	if (modes > 1) {
+		fatal('--to, --script, and --data-asm are mutually exclusive')
+	}
 
-	const satoshis = Number(satsStr)
-	if (!Number.isFinite(satoshis) || satoshis <= 0) {
-		fatal('--sats must be a positive number')
+	let request: {
+		address?: string
+		script?: string
+		data?: string[]
+		satoshis: number
+	}
+	let confirmMessage: string
+
+	if (dataAsm !== undefined) {
+		if (satsStr !== undefined) {
+			fatal(
+				'--sats is not allowed with --data-asm (OP_RETURN outputs are 0 sats)',
+			)
+		}
+		request = { data: [dataAsm], satoshis: 0 }
+		confirmMessage = `Publish OP_RETURN data "${dataAsm}"?`
+	} else {
+		if (!satsStr) fatal('Missing --sats <amount>')
+		const satoshis = Number(satsStr)
+		if (!Number.isFinite(satoshis) || satoshis <= 0) {
+			fatal('--sats must be a positive number')
+		}
+		if (script !== undefined) {
+			if (!/^[0-9a-fA-F]*$/.test(script) || script.length % 2 !== 0) {
+				fatal('--script must be a hex string')
+			}
+			request = { script, satoshis }
+			confirmMessage = `Send ${satoshis} satoshis to custom script?`
+		} else {
+			request = { address: to, satoshis }
+			confirmMessage = `Send ${satoshis} satoshis to ${to}?`
+		}
 	}
 
 	if (!opts.yes) {
-		const ok = await confirm({
-			message: `Send ${satoshis} satoshis to ${to}?`,
-		})
+		const ok = await confirm({ message: confirmMessage })
 		if (isCancel(ok) || !ok) {
 			fatal('Send cancelled.')
 		}
@@ -178,9 +214,7 @@ async function walletSend(args: string[], opts: GlobalFlags): Promise<void> {
 	})
 
 	try {
-		const result = await sendBsv.execute(ctx, {
-			requests: [{ address: to, satoshis }],
-		})
+		const result = await sendBsv.execute(ctx, { requests: [request] })
 
 		if (result.error) {
 			fatal(result.error)
