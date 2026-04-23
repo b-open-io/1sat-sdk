@@ -6,7 +6,7 @@
 
 import { createSocialPost } from '@1sat/actions'
 import type { GlobalFlags } from '../args'
-import { extractFlag } from '../args'
+import { extractFlag, extractFlags } from '../args'
 import { loadContext } from '../context'
 import { printCommandHelp } from '../help'
 import { loadKey, resolvePassword } from '../keys'
@@ -23,7 +23,7 @@ export async function handleSocialCommand(
 			return socialPost(rest, opts)
 		default:
 			printCommandHelp('social', {
-				post: 'Create an on-chain social post (--content <text> --app <name>)',
+				post: 'Create an on-chain social post (--content <text> [--app <name>] [--content-type <text/plain|text/markdown>] [--tags <t1,t2>])',
 			})
 			if (subcommand && subcommand !== 'help') {
 				process.exit(1)
@@ -34,8 +34,17 @@ export async function handleSocialCommand(
 async function socialPost(args: string[], opts: GlobalFlags): Promise<void> {
 	const content = extractFlag(args, '--content')
 	const app = extractFlag(args, '--app') ?? '1sat-cli'
+	const contentType = extractFlag(args, '--content-type')
+	const tags = extractFlags(args, '--tags')
 
 	if (!content) fatal('Missing --content <text>')
+	if (
+		contentType !== undefined &&
+		contentType !== 'text/plain' &&
+		contentType !== 'text/markdown'
+	) {
+		fatal('--content-type must be one of: text/plain, text/markdown')
+	}
 
 	const privateKey = await loadKey(resolvePassword())
 	const { ctx, destroy } = await loadContext(privateKey, {
@@ -43,7 +52,14 @@ async function socialPost(args: string[], opts: GlobalFlags): Promise<void> {
 	})
 
 	try {
-		const result = await createSocialPost.execute(ctx, { app, content })
+		const result = await createSocialPost.execute(ctx, {
+			app,
+			content,
+			...(contentType
+				? { contentType: contentType as 'text/plain' | 'text/markdown' }
+				: {}),
+			...(tags.length ? { tags } : {}),
+		})
 
 		if (result.error) {
 			fatal(result.error)
