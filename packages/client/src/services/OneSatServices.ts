@@ -247,35 +247,41 @@ export class OneSatServices implements WalletServices {
 				})
 				console.log('[OneSatServices] Arcade response:', status)
 
+				const SUCCESS_STATUSES = new Set([
+					'MINED',
+					'SEEN_ON_NETWORK',
+					'ACCEPTED_BY_NETWORK',
+				])
+				const PROCESSING_STATUSES = new Set([
+					'QUEUED',
+					'RECEIVED',
+					'STORED',
+					'ANNOUNCED_TO_NETWORK',
+					'REQUESTED_BY_NETWORK',
+					'SENT_TO_NETWORK',
+				])
+
 				if (
-					status.txStatus === 'MINED' ||
-					status.txStatus === 'SEEN_ON_NETWORK' ||
-					status.txStatus === 'ACCEPTED_BY_NETWORK'
+					SUCCESS_STATUSES.has(status.txStatus) ||
+					PROCESSING_STATUSES.has(status.txStatus)
 				) {
 					results.push({
 						name: '1sat-api',
 						status: 'success',
 						txidResults: [{ txid: status.txid || txid, status: 'success' }],
 					})
-				} else if (
-					status.txStatus === 'REJECTED' ||
-					status.txStatus === 'DOUBLE_SPEND_ATTEMPTED'
-				) {
+				} else {
+					// Anything else (REJECTED, DOUBLE_SPEND_ATTEMPTED, SERVICE_ERROR,
+					// SEEN_IN_ORPHAN_MEMPOOL, UNKNOWN, typo'd statuses) is a failure —
+					// do not silently claim success.
 					results.push({
 						name: '1sat-api',
 						status: 'error',
 						error: new WalletError(
-							status.txStatus,
-							status.extraInfo || 'Transaction rejected',
+							status.txStatus || 'UNKNOWN',
+							status.extraInfo || `Broadcast failed: ${status.txStatus}`,
 						),
 						txidResults: [{ txid, status: 'error', data: status }],
-					})
-				} else {
-					// Still processing - report as success since tx was accepted
-					results.push({
-						name: '1sat-api',
-						status: 'success',
-						txidResults: [{ txid: status.txid || txid, status: 'success' }],
 					})
 				}
 			} catch (error) {

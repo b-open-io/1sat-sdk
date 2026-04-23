@@ -3,6 +3,7 @@ import {
 	type CreateActionResult,
 	Script,
 	type SignActionOptions,
+	type SignActionResult,
 	Spend,
 	Transaction,
 	type WalletInterface,
@@ -24,8 +25,42 @@ export type SigningCallback = (
 ) => Promise<Record<number, { unlockingScript: string }>>
 
 /**
+ * Inspect the broadcast results returned by signAction. When
+ * `acceptDelayedBroadcast: false` is in effect, a correctly behaving
+ * wallet-toolbox server already throws `WERR_REVIEW_ACTIONS` on any
+ * non-'unproven' outcome. This second pass catches the case where
+ * signAction returns results without throwing (e.g. a remote deploy
+ * whose postBeef optimistically reports success).
+ */
+function findBroadcastError(r: SignActionResult): string | undefined {
+	const swrs = (r as { sendWithResults?: Array<{ status: string }> })
+		.sendWithResults
+	const ndrs = (r as { notDelayedResults?: Array<{ status: string }> })
+		.notDelayedResults
+
+	if (swrs && swrs.length > 0) {
+		for (const swr of swrs) {
+			if (swr.status !== 'unproven') {
+				return `broadcast-${swr.status}`
+			}
+		}
+	}
+	if (ndrs && ndrs.length > 0) {
+		for (const ndr of ndrs) {
+			if (ndr.status !== 'success') {
+				return `broadcast-${ndr.status}`
+			}
+		}
+	}
+	return undefined
+}
+
+/**
  * Complete a two-phase action: build verified BEEF, sign inputs, verify
- * scripts, then call signAction. Aborts on any failure.
+ * scripts, then call signAction. Aborts on any failure before signAction
+ * so the wallet-toolbox pending sign action entry and storage-side
+ * `unsigned` transaction record are cleaned up (neither is swept
+ * automatically, so a missed abort leaks allocated change outputs).
  *
  * @param wallet - BRC-100 wallet
  * @param createResult - Result from createAction with signAndProcess: false
@@ -46,6 +81,12 @@ export async function completeSignedAction(
 
 	const reference = createResult.signableTransaction.reference
 
+	// Local validation + signing: any unplanned throw here leaves the server
+	// holding an 'unsigned' row with allocated change outputs, so abort on
+	// exception. Broadcast rejection from signAction is NOT wrapped — the
+	// server already transitions the tx to 'failed' and re-aborting would
+	// just generate noise on an already-resolved record.
+	let spends: Record<number, { unlockingScript: string }>
 	try {
 		const signableBeef = Beef.fromBinary(createResult.signableTransaction.tx)
 		const signingTx = Transaction.fromBEEF(createResult.signableTransaction.tx)
@@ -64,7 +105,7 @@ export async function completeSignedAction(
 		}
 
 		// Let the caller build unlocking scripts using the fully-wired tx
-		const spends = await sign(tx)
+		spends = await sign(tx)
 
 		// Apply unlocking scripts and verify only the inputs we signed.
 		// Funding inputs are unsigned at this point — the wallet signs them during signAction.
@@ -101,24 +142,29 @@ export async function completeSignedAction(
 				return { error: `script-verification-failed-for-input-${i}` }
 			}
 		}
-
-		const signResult = await wallet.signAction({
-			reference,
-			spends,
-			options: { acceptDelayedBroadcast: false, ...options },
-		})
-
-		if ('error' in signResult) {
-			return { error: String(signResult.error) }
-		}
-
-		return {
-			txid: signResult.txid,
-			tx: signResult.tx ? Array.from(signResult.tx) : undefined,
-			noSendChange: createResult.noSendChange,
-		}
 	} catch (error) {
 		await wallet.abortAction({ reference }).catch(() => {})
 		throw error
+	}
+
+	const signResult = await wallet.signAction({
+		reference,
+		spends,
+		options: { acceptDelayedBroadcast: false, ...options },
+	})
+
+	if ('error' in signResult) {
+		return { error: String(signResult.error) }
+	}
+
+	const broadcastError = findBroadcastError(signResult)
+	if (broadcastError) {
+		return { error: broadcastError }
+	}
+
+	return {
+		txid: signResult.txid,
+		tx: signResult.tx ? Array.from(signResult.tx) : undefined,
+		noSendChange: createResult.noSendChange,
 	}
 }
