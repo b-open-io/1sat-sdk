@@ -47,8 +47,7 @@ export async function handleRemoteCommand(
 					'Switch active storage (1sat remote set-active <url | local>)',
 				status:
 					'Fetch GET /account/status from a remote (1sat remote status [url])',
-				topup:
-					'Buy capacity on a remote (1sat remote topup [url] [--units N])',
+				topup: 'Buy capacity on a remote (1sat remote topup [url] [--units N])',
 			})
 			if (subcommand && subcommand !== 'help') {
 				process.exit(1)
@@ -452,7 +451,8 @@ async function remoteTopup(args: string[], opts: GlobalFlags): Promise<void> {
 				`  ${bold('New capacity:')} ${formatBytes(result.status.capacityBytes)} (${formatBytes(result.status.usedBytes)} used, ${formatBytes(result.status.deficitBytes)} deficit)`,
 			)
 			if (result.status.paidThroughBlock != null) {
-				const remaining = result.status.paidThroughBlock - result.status.currentBlock
+				const remaining =
+					result.status.paidThroughBlock - result.status.currentBlock
 				console.log(
 					`  ${bold('Paid through:')} block ${result.status.paidThroughBlock} (${remaining} blocks left)`,
 				)
