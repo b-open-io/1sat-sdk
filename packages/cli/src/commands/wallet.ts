@@ -55,7 +55,8 @@ export async function handleWalletCommand(
 		default:
 			printCommandHelp('wallet', {
 				balance: 'Show wallet balance in satoshis',
-				address: 'Show deposit address',
+				address:
+					'Show deposit address [--prefix <p>] [--start-index <n>] [--count <n>]',
 				send: 'Send BSV to an address (--to <addr> --sats <amount>)',
 				'send-all': 'Send all BSV to an address (--to <addr>)',
 				sync: 'Sync inbound payments at BRC-29 deposit addresses [--prefix <p>] [--start-index <n>] [--count <n>]',
@@ -107,10 +108,21 @@ async function walletBalance(
 	}
 }
 
-async function walletAddress(
-	_args: string[],
-	opts: GlobalFlags,
-): Promise<void> {
+async function walletAddress(args: string[], opts: GlobalFlags): Promise<void> {
+	const prefix = extractFlag(args, '--prefix') ?? '1sat'
+	const startIndexStr = extractFlag(args, '--start-index')
+	const countStr = extractFlag(args, '--count')
+
+	const startIndex = startIndexStr === undefined ? 0 : Number(startIndexStr)
+	const count = countStr === undefined ? 1 : Number(countStr)
+
+	if (!Number.isInteger(startIndex) || startIndex < 0) {
+		fatal('--start-index must be a non-negative integer')
+	}
+	if (!Number.isInteger(count) || count < 1) {
+		fatal('--count must be a positive integer')
+	}
+
 	const privateKey = await loadKey(resolvePassword())
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
@@ -118,16 +130,22 @@ async function walletAddress(
 
 	try {
 		const result = await deriveDepositAddresses.execute(ctx, {
-			prefix: '1sat',
-			count: 1,
+			prefix,
+			startIndex,
+			count,
 		})
 
-		const primary = result.derivations[0]
-		if (!primary) {
+		if (!result.derivations.length) {
 			fatal('Failed to derive deposit address')
 		}
 
-		output(opts.json ? primary : primary.address, opts)
+		if (opts.json) {
+			output(count === 1 ? result.derivations[0] : result.derivations, opts)
+		} else if (!opts.quiet) {
+			for (const d of result.derivations) {
+				console.log(d.address)
+			}
+		}
 	} finally {
 		await destroy()
 	}
@@ -213,9 +231,13 @@ async function walletSync(args: string[], opts: GlobalFlags): Promise<void> {
 
 	const startIndex =
 		startIndexRaw !== undefined ? Number.parseInt(startIndexRaw, 10) : undefined
-	const count = countRaw !== undefined ? Number.parseInt(countRaw, 10) : undefined
+	const count =
+		countRaw !== undefined ? Number.parseInt(countRaw, 10) : undefined
 
-	if (startIndex !== undefined && (!Number.isFinite(startIndex) || startIndex < 0)) {
+	if (
+		startIndex !== undefined &&
+		(!Number.isFinite(startIndex) || startIndex < 0)
+	) {
 		fatal('--start-index must be a non-negative integer')
 	}
 	if (count !== undefined && (!Number.isFinite(count) || count < 1)) {
