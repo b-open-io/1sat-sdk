@@ -8,7 +8,7 @@ import type { GlobalFlags } from '../args'
 import { extractFlag } from '../args'
 import { loadContext } from '../context'
 import { printCommandHelp } from '../help'
-import { loadKey, resolvePassword } from '../keys'
+import { loadKey } from '../keys'
 import { fatal, output, printKeyValue } from '../output'
 
 export async function handleLocksCommand(
@@ -37,7 +37,7 @@ export async function handleLocksCommand(
 }
 
 async function locksInfo(_args: string[], opts: GlobalFlags): Promise<void> {
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -86,7 +86,7 @@ async function locksLock(args: string[], opts: GlobalFlags): Promise<void> {
 		}
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -107,7 +107,7 @@ async function locksLock(args: string[], opts: GlobalFlags): Promise<void> {
 }
 
 async function locksUnlock(_args: string[], opts: GlobalFlags): Promise<void> {
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})

@@ -1,17 +1,21 @@
 /**
  * Encrypted key management for the 1sat CLI.
  *
- * Key resolution priority:
+ * Key resolution priority inside loadKey():
  * 1. PRIVATE_KEY_WIF env var (headless/CI)
- * 2. Touch ID cached password → decrypt keys.bep (macOS arm64)
- * 3. Explicit password → decrypt keys.bep
+ * 2. ONESAT_PASSWORD env var → decrypt keys.bep
+ * 3. Interactive TTY prompt → decrypt keys.bep
  * 4. Fail with guidance
+ *
+ * A biometric vault tier will be added once @1sat/wallet-mac is
+ * CLI-ready (resolves its own enclave binary relative to its module
+ * directory instead of wallet-desktop's layout).
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { arch, platform } from 'node:os'
 import { join } from 'node:path'
 import { PrivateKey } from '@bsv/sdk'
+import { isCancel, password as promptPassword } from '@clack/prompts'
 import { type WifBackup, decryptBackup, encryptBackup } from 'bitcoin-backup'
 import { ensureConfigDir, getConfigDir } from './config'
 
@@ -30,28 +34,14 @@ export function hasKey(): boolean {
 }
 
 /**
- * Check if Touch ID is available for password caching.
+ * Load the private key from env, env password, or TTY prompt.
  */
-export function isTouchIDAvailable(): boolean {
-	return platform() === 'darwin' && arch() === 'arm64'
-}
-
-/**
- * Load the private key from env, Touch ID cache, or password.
- *
- * Resolution order:
- * 1. PRIVATE_KEY_WIF env var
- * 2. Touch ID cached password (if available)
- * 3. Explicit password parameter
- */
-export async function loadKey(password?: string): Promise<PrivateKey> {
-	// Priority 1: Environment variable
+export async function loadKey(): Promise<PrivateKey> {
 	const envWif = process.env.PRIVATE_KEY_WIF
 	if (envWif) {
 		return PrivateKey.fromWif(envWif)
 	}
 
-	// Priority 2: Encrypted file
 	const keysPath = getKeysPath()
 	if (!existsSync(keysPath)) {
 		throw new Error(
@@ -61,24 +51,21 @@ export async function loadKey(password?: string): Promise<PrivateKey> {
 
 	const encrypted = readFileSync(keysPath, 'utf8')
 
-	// Priority 2a: Try Touch ID cached password
-	let resolvedPassword = password
-	if (!resolvedPassword) {
-		try {
-			const { getCachedPassword } = await import('bitcoin-backup')
-			const cached = await getCachedPassword(keysPath)
-			if (cached) {
-				resolvedPassword = cached
-			}
-		} catch {
-			// Touch ID not available or no cached password — fall through
-		}
-	}
+	let resolvedPassword = process.env.ONESAT_PASSWORD
 
 	if (!resolvedPassword) {
-		throw new Error(
-			'Password required to decrypt key file. Pass --password, set ONESAT_PASSWORD, or run "1sat init --touchid" to enable Touch ID.',
-		)
+		if (!process.stdin.isTTY) {
+			throw new Error(
+				'Password required to decrypt key file. Set ONESAT_PASSWORD or run in an interactive terminal.',
+			)
+		}
+		const input = await promptPassword({
+			message: 'Password:',
+		})
+		if (isCancel(input) || typeof input !== 'string' || input.length === 0) {
+			throw new Error('Password required to decrypt key file.')
+		}
+		resolvedPassword = input
 	}
 
 	const backup = await decryptBackup(encrypted, resolvedPassword)
@@ -93,8 +80,6 @@ export async function loadKey(password?: string): Promise<PrivateKey> {
  */
 export async function saveKey(wif: string, password: string): Promise<void> {
 	ensureConfigDir()
-
-	// Validate the WIF before saving
 	PrivateKey.fromWif(wif)
 
 	const payload: WifBackup = {
@@ -103,29 +88,5 @@ export async function saveKey(wif: string, password: string): Promise<void> {
 		createdAt: new Date().toISOString(),
 	}
 	const encrypted = await encryptBackup(payload, password)
-	const keysPath = getKeysPath()
-	writeFileSync(keysPath, encrypted, { mode: 0o600 })
-}
-
-/**
- * Cache the password for keys.bep using Touch ID.
- */
-export async function cacheKeyPassword(password: string): Promise<void> {
-	const { cachePassword } = await import('bitcoin-backup')
-	await cachePassword(getKeysPath(), password)
-}
-
-/**
- * Remove the cached password for keys.bep.
- */
-export async function forgetKeyPassword(): Promise<void> {
-	const { forgetPassword } = await import('bitcoin-backup')
-	await forgetPassword(getKeysPath())
-}
-
-/**
- * Resolve a password from flag or environment variable.
- */
-export function resolvePassword(flagValue?: string): string | undefined {
-	return flagValue ?? process.env.ONESAT_PASSWORD
+	writeFileSync(getKeysPath(), encrypted, { mode: 0o600 })
 }

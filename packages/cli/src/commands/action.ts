@@ -8,7 +8,7 @@
 import { actionRegistry } from '@1sat/actions'
 import type { GlobalFlags } from '../args'
 import { loadContext } from '../context'
-import { loadKey, resolvePassword } from '../keys'
+import { loadKey } from '../keys'
 import { fatal, output } from '../output'
 
 export async function handleActionCommand(
@@ -65,7 +65,7 @@ export async function handleActionCommand(
 		}
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})

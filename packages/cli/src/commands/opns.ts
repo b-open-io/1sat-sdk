@@ -15,7 +15,7 @@ import type { GlobalFlags } from '../args'
 import { extractFlag } from '../args'
 import { loadContext } from '../context'
 import { printCommandHelp } from '../help'
-import { loadKey, resolvePassword } from '../keys'
+import { loadKey } from '../keys'
 import { fatal, formatLabel, formatValue, output } from '../output'
 
 export async function handleOpnsCommand(
@@ -57,7 +57,7 @@ async function opnsRegister(args: string[], opts: GlobalFlags): Promise<void> {
 		}
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -102,7 +102,7 @@ async function opnsDeregister(
 		}
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -131,7 +131,7 @@ async function opnsDeregister(
 }
 
 async function opnsLookup(_args: string[], opts: GlobalFlags): Promise<void> {
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})

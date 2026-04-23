@@ -15,7 +15,7 @@ import type { GlobalFlags } from '../args'
 import { loadConfig, saveConfig } from '../config'
 import { loadContext } from '../context'
 import { printCommandHelp } from '../help'
-import { loadKey, resolvePassword } from '../keys'
+import { loadKey } from '../keys'
 import { fatal, formatSuccess, formatWarning, output } from '../output'
 
 export async function handleRemoteCommand(
@@ -85,7 +85,7 @@ async function remoteAdd(args: string[], opts: GlobalFlags): Promise<void> {
 		}
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { walletResult, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -132,7 +132,7 @@ async function remoteAdd(args: string[], opts: GlobalFlags): Promise<void> {
 // ============================================================================
 
 async function remoteList(_args: string[], opts: GlobalFlags): Promise<void> {
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -258,7 +258,7 @@ async function remoteSetActive(
 			fatal('No remote storages configured')
 		}
 
-		const privateKey = await loadKey(resolvePassword())
+		const privateKey = await loadKey()
 		const { walletResult, destroy } = await loadContext(privateKey, {
 			chain: opts.chain,
 		})
@@ -298,7 +298,7 @@ async function remoteSetActive(
 			fatal(`Invalid URL: ${target}`)
 		}
 
-		const privateKey = await loadKey(resolvePassword())
+		const privateKey = await loadKey()
 		const { walletResult, destroy } = await loadContext(privateKey, {
 			chain: opts.chain,
 		})
@@ -344,7 +344,7 @@ async function remoteStatus(args: string[], opts: GlobalFlags): Promise<void> {
 		fatal(`Invalid URL: ${url}`)
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { walletResult, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -429,7 +429,7 @@ async function remoteTopup(args: string[], opts: GlobalFlags): Promise<void> {
 		fatal(`Invalid URL: ${url}`)
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { walletResult, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})

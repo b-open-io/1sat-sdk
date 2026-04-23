@@ -14,7 +14,7 @@ import type { GlobalFlags } from '../args'
 import { extractFlag, extractFlags } from '../args'
 import { loadContext } from '../context'
 import { printCommandHelp } from '../help'
-import { loadKey, resolvePassword } from '../keys'
+import { loadKey } from '../keys'
 import { fatal, formatValue, output, printKeyValue } from '../output'
 
 export async function handleWalletCommand(
@@ -83,7 +83,7 @@ async function walletBalance(
 	_args: string[],
 	opts: GlobalFlags,
 ): Promise<void> {
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -123,7 +123,7 @@ async function walletAddress(args: string[], opts: GlobalFlags): Promise<void> {
 		fatal('--count must be a positive integer')
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -208,7 +208,7 @@ async function walletSend(args: string[], opts: GlobalFlags): Promise<void> {
 		}
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -240,7 +240,7 @@ async function walletSendAll(args: string[], opts: GlobalFlags): Promise<void> {
 		}
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -278,7 +278,7 @@ async function walletSync(args: string[], opts: GlobalFlags): Promise<void> {
 		fatal('--count must be a positive integer')
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -309,7 +309,7 @@ async function walletSync(args: string[], opts: GlobalFlags): Promise<void> {
 }
 
 async function walletInfo(_args: string[], opts: GlobalFlags): Promise<void> {
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -374,7 +374,7 @@ async function walletListOutputs(
 	const includeTags = args.includes('--include-tags')
 	const include = extractFlag(args, '--include')
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -424,7 +424,7 @@ async function walletRelinquishOutput(
 		fatal('Invalid --output format. Expected: txid.vout (e.g., abc123...0)')
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -456,7 +456,7 @@ async function walletListActions(
 		fatal('--limit must be between 1 and 10000')
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -499,7 +499,7 @@ async function walletCreateAction(
 		fatal(`Invalid JSON: ${jsonInput}`)
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -528,7 +528,7 @@ async function walletSignAction(
 		fatal(`Invalid JSON: ${jsonInput}`)
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -549,7 +549,7 @@ async function walletAbortAction(
 
 	if (!reference) fatal('Missing required --reference <ref>')
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -575,7 +575,7 @@ async function walletListCertificates(
 		fatal('--limit must be between 1 and 10000')
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -615,7 +615,7 @@ async function walletRelinquishCertificate(
 	if (!serialNumber) fatal('Missing required --serialNumber <serial>')
 	if (!certifier) fatal('Missing required --certifier <certifier>')
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})

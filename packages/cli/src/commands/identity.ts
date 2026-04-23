@@ -9,7 +9,7 @@ import type { GlobalFlags } from '../args'
 import { extractFlag } from '../args'
 import { loadContext } from '../context'
 import { printCommandHelp } from '../help'
-import { loadKey, resolvePassword } from '../keys'
+import { loadKey } from '../keys'
 import { fatal, output, printKeyValue } from '../output'
 
 export async function handleIdentityCommand(
@@ -48,7 +48,7 @@ async function identityCreate(
 	_args: string[],
 	opts: GlobalFlags,
 ): Promise<void> {
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -67,7 +67,7 @@ async function identityCreate(
 }
 
 async function identityInfo(_args: string[], opts: GlobalFlags): Promise<void> {
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -104,7 +104,7 @@ async function identitySign(args: string[], opts: GlobalFlags): Promise<void> {
 		fatal('--encoding must be one of: utf8, hex, base64')
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -159,7 +159,7 @@ async function identityUpdateProfile(
 		fatal(`Invalid JSON in --profile: ${profileStr}`)
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})

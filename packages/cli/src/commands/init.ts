@@ -22,7 +22,7 @@ import {
 } from '@clack/prompts'
 import type { GlobalFlags } from '../args'
 import { ensureConfigDir, loadConfig, saveConfig } from '../config'
-import { cacheKeyPassword, hasKey, saveKey } from '../keys'
+import { hasKey, saveKey } from '../keys'
 import { fatal, formatSuccess, formatValue, formatWarning } from '../output'
 
 export async function handleInitCommand(
@@ -144,25 +144,6 @@ export async function handleInitCommand(
 		fatal('Passwords do not match.')
 	}
 
-	// 3.5. Touch ID protection (macOS arm64)
-	let useTouchID = false
-	try {
-		const { isTouchIDAvailable } = await import('bitcoin-backup')
-		if (isTouchIDAvailable()) {
-			const enableTouchID = await confirm({
-				message:
-					'Enable Touch ID? (unlock your wallet without typing a password)',
-			})
-			if (isCancel(enableTouchID)) {
-				cancel('Setup cancelled.')
-				process.exit(0)
-			}
-			useTouchID = enableTouchID as boolean
-		}
-	} catch {
-		// bitcoin-backup Touch ID not available — skip silently
-	}
-
 	// 4. Generate random storage identity key
 	const storageId = `1sat-cli-${randomBytes(8).toString('hex')}`
 
@@ -197,19 +178,6 @@ export async function handleInitCommand(
 
 	await saveKey(wif, pw as string)
 
-	// Cache password with Touch ID if user opted in
-	if (useTouchID) {
-		try {
-			await cacheKeyPassword(pw as string)
-		} catch {
-			console.log(
-				formatWarning(
-					'  Touch ID caching failed. You can enable it later with "1sat touchid enable".',
-				),
-			)
-		}
-	}
-
 	saveConfig({
 		...loadConfig(),
 		chain: chain as 'main' | 'test',
@@ -220,6 +188,5 @@ export async function handleInitCommand(
 	const pk = PrivateKey.fromWif(wif)
 	const address = pk.toPublicKey().toAddress()
 
-	const touchIdNote = useTouchID ? ' (Touch ID enabled)' : ''
-	outro(formatSuccess(`Wallet configured${touchIdNote}! Address: ${address}`))
+	outro(formatSuccess(`Wallet configured! Address: ${address}`))
 }

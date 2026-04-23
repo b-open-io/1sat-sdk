@@ -17,7 +17,7 @@ import type { GlobalFlags } from '../args'
 import { extractFlag } from '../args'
 import { loadContext } from '../context'
 import { printCommandHelp } from '../help'
-import { loadKey, resolvePassword } from '../keys'
+import { loadKey } from '../keys'
 import { fatal, formatLabel, formatValue, output } from '../output'
 
 export async function handleSweepCommand(
@@ -55,7 +55,7 @@ async function sweepScan(args: string[], opts: GlobalFlags): Promise<void> {
 		fatal('Invalid WIF private key')
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -145,7 +145,7 @@ async function sweepImport(args: string[], opts: GlobalFlags): Promise<void> {
 		fatal('Invalid WIF private key')
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})

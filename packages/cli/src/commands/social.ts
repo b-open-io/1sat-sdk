@@ -9,7 +9,7 @@ import type { GlobalFlags } from '../args'
 import { extractFlag, extractFlags } from '../args'
 import { loadContext } from '../context'
 import { printCommandHelp } from '../help'
-import { loadKey, resolvePassword } from '../keys'
+import { loadKey } from '../keys'
 import { fatal, output } from '../output'
 
 export async function handleSocialCommand(
@@ -46,7 +46,7 @@ async function socialPost(args: string[], opts: GlobalFlags): Promise<void> {
 		fatal('--content-type must be one of: text/plain, text/markdown')
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})

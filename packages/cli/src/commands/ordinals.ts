@@ -20,7 +20,7 @@ import type { GlobalFlags } from '../args'
 import { extractFlag, hasFlag } from '../args'
 import { loadContext } from '../context'
 import { printCommandHelp } from '../help'
-import { loadKey, resolvePassword } from '../keys'
+import { loadKey } from '../keys'
 import { fatal, formatLabel, formatValue, output } from '../output'
 
 export async function handleOrdinalsCommand(
@@ -58,7 +58,7 @@ export async function handleOrdinalsCommand(
 }
 
 async function ordinalsList(_args: string[], opts: GlobalFlags): Promise<void> {
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -174,7 +174,7 @@ async function ordinalsMint(args: string[], opts: GlobalFlags): Promise<void> {
 		}
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -216,7 +216,7 @@ async function ordinalsTransfer(
 		}
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -265,7 +265,7 @@ async function ordinalsSell(args: string[], opts: GlobalFlags): Promise<void> {
 		}
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -322,7 +322,7 @@ async function ordinalsCancel(
 		}
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})
@@ -364,7 +364,7 @@ async function ordinalsBuy(args: string[], opts: GlobalFlags): Promise<void> {
 		}
 	}
 
-	const privateKey = await loadKey(resolvePassword())
+	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
 		chain: opts.chain,
 	})

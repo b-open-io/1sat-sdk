@@ -31,7 +31,7 @@ import {
 } from '../config'
 import { ensureDataDir } from '../config'
 import { printCommandHelp } from '../help'
-import { loadKey, resolvePassword } from '../keys'
+import { loadKey } from '../keys'
 import { clearMonitorPid, writeMonitorPid } from '../monitor-lock'
 import { fatal } from '../output'
 
@@ -138,7 +138,7 @@ async function resolveServe(opts: GlobalFlags): Promise<ResolvedServe> {
 
 	let privateKey: PrivateKey
 	try {
-		privateKey = await loadKey(resolvePassword())
+		privateKey = await loadKey()
 	} catch (err) {
 		fatal((err as Error).message)
 	}
