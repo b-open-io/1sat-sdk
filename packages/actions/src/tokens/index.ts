@@ -67,8 +67,6 @@ export interface SendBsv21Recipient {
 	counterparty?: PubKeyHex
 	/** Legacy: raw P2PKH address */
 	address?: string
-	/** Paymail address */
-	paymail?: string
 }
 
 export interface SendBsv21Input extends ActionOptions {
@@ -295,7 +293,7 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 	meta: {
 		name: 'sendBsv21',
 		description:
-			'Send BSV21 tokens to one or more recipients (counterparty, address, or paymail)',
+			'Send BSV21 tokens to one or more recipients (counterparty or address)',
 		category: 'tokens',
 		inputSchema: {
 			type: 'object',
@@ -319,10 +317,6 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 								type: 'string',
 								description: 'Recipient P2PKH address',
 							},
-							paymail: {
-								type: 'string',
-								description: 'Recipient paymail address',
-							},
 						},
 						required: ['amount'],
 					},
@@ -343,7 +337,6 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				amount: bigint
 				counterparty?: string
 				address?: string
-				paymail?: string
 			}> = []
 
 			for (const r of recipients) {
@@ -352,14 +345,13 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				if (amount <= 0n) {
 					return { error: 'amount-must-be-positive' }
 				}
-				if (!r.counterparty && !r.address && !r.paymail) {
-					return { error: 'must-provide-counterparty-address-or-paymail' }
+				if (!r.counterparty && !r.address) {
+					return { error: 'must-provide-counterparty-or-address' }
 				}
 				resolved.push({
 					amount,
 					counterparty: r.counterparty,
 					address: r.address,
-					paymail: r.paymail,
 				})
 			}
 
@@ -459,8 +451,6 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 						forSelf: false,
 					})
 					recipientAddress = PublicKey.fromString(publicKey).toAddress()
-				} else if (r.paymail) {
-					return { error: 'paymail-not-yet-implemented' }
 				} else if (r.address) {
 					recipientAddress = r.address
 				} else {
@@ -625,7 +615,6 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 							amount: r.amount.toString(),
 							counterparty: r.counterparty,
 							address: r.address,
-							paymail: r.paymail,
 						})),
 					},
 					txid: result.txid,

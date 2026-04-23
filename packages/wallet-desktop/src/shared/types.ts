@@ -114,7 +114,6 @@ export interface SendBsv21Recipient {
 	amount: string
 	counterparty?: string
 	address?: string
-	paymail?: string
 }
 
 export interface SendBsv21Params {
