@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.45
+
+### Added
+- `wallet address` now accepts `--prefix`, `--start-index`, and `--count`. Non-JSON output prints one address per line when `--count > 1`; `--json` returns a single derivation for `--count 1` or the full array otherwise.
+- `wallet send` supports `--script <hex>` (custom locking script) and `--data-asm "<asm>"` (OP_RETURN, 0 sats). The three destination modes (`--to`, `--script`, `--data-asm`) are mutually exclusive; `--data-asm` rejects `--sats`.
+- `ordinals mint` accepts `--map <json>` (Record<string, string>) and `--sign-with-bap`.
+- `identity sign` accepts `--encoding <utf8|hex|base64>` for how the `--message` string is decoded to bytes before BSM hashing.
+- `social post` accepts `--content-type <text/plain|text/markdown>` and `--tags tag1,tag2` (comma-separated or repeatable). Tags land on both the on-chain MAP payload and the wallet output (`tag:<value>`).
+
+### Changed
+- Picks up `@1sat/actions@0.0.111` — `sendBsv21` paymail recipient branch removed (path was permanently stubbed; no paymail-BSV21 spec exists).
+
 ## 0.0.20
 
 ### Fixed

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.111
+
+### Removed
+- `sendBsv21` paymail recipient branch. The path always returned `paymail-not-yet-implemented`, and the standard paymail P2P destination flow returns P2PKH scripts for BSV sats — there is no ecosystem spec for paymail-delivered BSV21 token outputs. `SendBsv21Recipient.paymail` dropped from the input schema and interface.
+
 ## 0.0.109
 
 ### Changed
