@@ -27,6 +27,7 @@ import {
 import { applyBapAip, resolveCurrentKeyId } from '../signing/aip'
 import type { Action, ActionOptions, OneSatContext } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
+import { pickNewestAlias } from './pickNewestAlias'
 
 const { toArray, toBase58, toHex } = Utils
 
@@ -458,6 +459,8 @@ export const updateProfile: Action<UpdateProfileRequest, IdentityResponse> = {
 	},
 	async execute(ctx, input) {
 		try {
+			const publishedAtTag = `publishedAt:${Date.now()}`
+
 			const existingId = await resolveBapId(ctx)
 			const bapId = existingId ?? (await computeBapId(ctx))
 
@@ -516,7 +519,7 @@ export const updateProfile: Action<UpdateProfileRequest, IdentityResponse> = {
 					satoshis: 0,
 					outputDescription: 'BAP ALIAS',
 					basket: BAP_BASKET,
-					tags: ['type:alias', `bapId:${bapId}`],
+					tags: ['type:alias', `bapId:${bapId}`, publishedAtTag],
 				})
 			} else {
 				// Existing identity: just update ALIAS signed by current key
@@ -526,7 +529,7 @@ export const updateProfile: Action<UpdateProfileRequest, IdentityResponse> = {
 					satoshis: 0,
 					outputDescription: 'BAP ALIAS',
 					basket: BAP_BASKET,
-					tags: ['type:alias', `bapId:${bapId}`],
+					tags: ['type:alias', `bapId:${bapId}`, publishedAtTag],
 				})
 			}
 
@@ -586,20 +589,49 @@ export const getProfile: Action<Record<string, never>, ProfileResponse> = {
 	},
 	async execute(ctx) {
 		try {
-			const result = await ctx.wallet.listOutputs({
+			// Pass 1 — cheap tags-only scan to rank candidates
+			const scan = await ctx.wallet.listOutputs({
 				basket: BAP_BASKET,
 				tags: ['type:alias'],
-				include: 'locking scripts',
 				includeTags: true,
-				limit: 100,
+				limit: 10000,
 			})
 
-			if (!result.outputs.length) {
+			const picked = pickNewestAlias(scan.outputs)
+			if (!picked) {
 				return { error: 'no-profile: no alias output in wallet' }
 			}
 
-			const primary = result.outputs[0]
-			const lockingScript = Script.fromHex(primary.lockingScript ?? '')
+			// Pass 2 — fetch just the winner's locking script.
+			// Prefer id:<hex> exact match; fall back to a wider scan for legacy
+			// aliases that predate the id tag convention.
+			let winnerOutput: { lockingScript?: string } | undefined
+			if (picked.winner.id) {
+				const byId = await ctx.wallet.listOutputs({
+					basket: BAP_BASKET,
+					tags: ['type:alias', `id:${picked.winner.id}`],
+					tagQueryMode: 'all',
+					include: 'locking scripts',
+					limit: 1,
+				})
+				winnerOutput = byId.outputs[0]
+			} else {
+				const fallback = await ctx.wallet.listOutputs({
+					basket: BAP_BASKET,
+					tags: ['type:alias'],
+					include: 'locking scripts',
+					limit: 10000,
+				})
+				winnerOutput = fallback.outputs.find(
+					(o) => o.outpoint === picked.winner.outpoint,
+				)
+			}
+
+			if (!winnerOutput?.lockingScript) {
+				return { error: 'malformed-alias: winner has no locking script' }
+			}
+
+			const lockingScript = Script.fromHex(winnerOutput.lockingScript)
 
 			const bitcom = BitCom.decode(lockingScript)
 			if (!bitcom) {
@@ -614,10 +646,10 @@ export const getProfile: Action<Record<string, never>, ProfileResponse> = {
 			const bapId = bap.idKey ?? ''
 			const profile = bap.profile as Record<string, unknown>
 
-			for (const dup of result.outputs.slice(1)) {
+			for (const loser of picked.losers) {
 				await ctx.wallet.relinquishOutput({
 					basket: BAP_BASKET,
-					output: dup.outpoint,
+					output: loser.outpoint,
 				})
 			}
 
