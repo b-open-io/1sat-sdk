@@ -31,7 +31,7 @@ bunx @1sat/cli wallet balance
 bunx @1sat/cli ordinals list
 
 # Send BSV
-bunx @1sat/cli wallet send --to 1Address... --amount 50000
+bunx @1sat/cli wallet send --to 1Address... --sats 50000
 ```
 
 > If installed globally (`bun add -g @1sat/cli`), replace `bunx @1sat/cli` with just `1sat`.
@@ -97,11 +97,17 @@ bunx @1sat/cli wallet balance
 ### Wallet
 
 ```bash
-bunx @1sat/cli wallet balance              # Show BSV balance
-bunx @1sat/cli wallet send                 # Send BSV to address
-bunx @1sat/cli wallet send-all             # Send entire balance
-bunx @1sat/cli wallet utxos                # List payment UTXOs
+bunx @1sat/cli wallet balance                                     # Show BSV balance
+bunx @1sat/cli wallet address                                     # Show primary deposit address
+bunx @1sat/cli wallet address --count 5 --start-index 0           # Derive multiple addresses
+bunx @1sat/cli wallet address --prefix mcp --count 3               # Custom BRC-29 prefix
+bunx @1sat/cli wallet send --to 1A... --sats 5000                 # Send BSV to address
+bunx @1sat/cli wallet send --script <hex> --sats 5000              # Send to custom locking script
+bunx @1sat/cli wallet send --data-asm "deadbeef cafe"              # Publish OP_RETURN (0 sats)
+bunx @1sat/cli wallet send-all --to 1A...                          # Send entire balance
 ```
+
+`wallet send` modes are mutually exclusive: `--to` (P2PKH), `--script` (custom hex), or `--data-asm` (OP_RETURN, 0 sats — rejects `--sats`). The ASM string is passed straight to `Script.fromASM('OP_0 OP_RETURN ' + asm)`, so multiple space-separated hex pushes are supported in one output.
 
 ### Remote Storage
 
@@ -118,9 +124,12 @@ bunx @1sat/cli remote topup [url]                  # Manual BRC-29 top-up to `/a
 ### Ordinals
 
 ```bash
-bunx @1sat/cli ordinals list               # List ordinals in wallet
-bunx @1sat/cli ordinals inscribe           # Inscribe a file as ordinal
-bunx @1sat/cli ordinals transfer           # Transfer ordinal to recipient
+bunx @1sat/cli ordinals list                                                # List ordinals in wallet
+bunx @1sat/cli ordinals mint --file image.png                               # Inscribe a file
+bunx @1sat/cli ordinals mint --file note.txt --type text/plain              # Override detected MIME
+bunx @1sat/cli ordinals mint --file image.png --map '{"name":"NFT 1"}'      # Attach MAP metadata
+bunx @1sat/cli ordinals mint --file image.png --sign-with-bap               # Sign inscription with BAP identity
+bunx @1sat/cli ordinals transfer --outpoint <op> --to <addr>                # Transfer ordinal
 ```
 
 ### Marketplace (OrdLock)
@@ -136,8 +145,10 @@ bunx @1sat/cli ordinals purchase           # Purchase a listed ordinal
 ```bash
 bunx @1sat/cli tokens balances             # Show all token balances
 bunx @1sat/cli tokens list                 # List token UTXOs
-bunx @1sat/cli tokens send                 # Send tokens to recipient
+bunx @1sat/cli tokens send                 # Send tokens to address or counterparty
 ```
+
+Paymail recipients are not supported for BSV21 transfers — there is no ecosystem spec for paymail-delivered token outputs. Use `--to <address>` instead.
 
 ### Locks (Timelock)
 
@@ -150,17 +161,25 @@ bunx @1sat/cli locks unlock                # Unlock all matured locks
 ### Identity (BAP)
 
 ```bash
-bunx @1sat/cli identity publish            # Publish BAP identity
-bunx @1sat/cli identity profile            # View/update profile
-bunx @1sat/cli identity attest             # Publish attestation
+bunx @1sat/cli identity create                                           # Create/publish BAP identity
+bunx @1sat/cli identity info                                             # Show identity key
+bunx @1sat/cli identity update-profile --profile '{"name":"..."}'        # Update profile (JSON blob)
+bunx @1sat/cli identity sign --message "hello"                           # BSM sign with identity key
+bunx @1sat/cli identity sign --message 68656c6c6f --encoding hex         # Sign hex-encoded bytes
 ```
+
+`identity sign` uses BSM (Bitcoin Signed Message) compact format. `--encoding` accepts `utf8` (default), `hex`, or `base64` — it only controls how `--message` is decoded to bytes; the same bytes always produce the same signature.
 
 ### Social (BSocial)
 
 ```bash
-bunx @1sat/cli social post                 # Create a social post
-bunx @1sat/cli social search               # Search posts
+bunx @1sat/cli social post --content "hello world"
+bunx @1sat/cli social post --content "# heading" --content-type text/markdown
+bunx @1sat/cli social post --content "ordinals drop" --tags bsv,ordinals,nft
+bunx @1sat/cli social post --content "..." --app my-app                    # MAP attribution
 ```
+
+Tags (`--tags a,b,c`) land on the on-chain post's MAP payload and on the wallet output as `tag:<value>`, so `wallet list-outputs --tags tag:bsv` finds your own posts by tag. `--content-type` accepts `text/plain` (default) or `text/markdown`.
 
 ### OpNS Names
 

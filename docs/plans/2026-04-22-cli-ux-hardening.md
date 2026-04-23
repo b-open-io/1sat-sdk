@@ -17,7 +17,27 @@ architecture-level (eliminate the generic action runner).
 
 ### 1. Eliminate the generic action escape hatch
 
-**Status:** Scoped.
+**Status:** Phase 1A in progress (flag-coverage pass).
+
+**Phased rollout:**
+- **Phase 1A — flag coverage on existing commands.** Done 2026-04-23.
+  - `wallet address` — `--prefix`, `--start-index`, `--count`
+  - `wallet send` — `--script <hex>`, `--data-asm "<asm>"` (mutually exclusive with `--to`; `--data-asm` rejects `--sats`)
+  - `ordinals mint` — `--map <json>`, `--sign-with-bap`
+  - `identity sign` — `--encoding`
+  - `social post` — `--content-type`, `--tags`
+  - `sendBsv21` — removed paymail stub (no ecosystem spec for token paymail)
+- **Phase 1B — new commands for registered actions.** Not started.
+  - `1sat ordinals burn` → `burnOrdinals`
+  - `1sat ordinals cancel-address` → `deriveCancelAddress`
+- **Phase 1C — bigger command trees.** Not started.
+  - `1sat collections ...` — `mint`, `mint-item`
+  - `1sat mnee ...` — `balance`, `utxos`, `config`, `history`, `tx-status`, `send`
+- **Phase 1D — deferred.** Signing helpers (`getAuthToken`, `getFriendPublicKey`, `encryptForCounterparty`, `decryptFromCounterparty`), `rotateIdentity`, `attest`. Low demand for CLI surface; keep as generic-action-only.
+
+**Scope-drops from the original audit:**
+- `ordinals transfer --map`/`--tags` — the underlying `transferOrdinals` action has no such fields. Reopen if/when we want to add them at the action level.
+- `sendBsv21` paymail — removed from both plan and action. Paymail P2P destinations return P2PKH scripts for BSV sats; there's no standard for BSV21 token delivery via paymail.
 
 **Motivation.** `1sat action <name> '{"key":"value",...}'` forces users
 to hand-build JSON payloads to invoke actions that don't yet have
@@ -190,3 +210,16 @@ Open slot for additional items the user wants to capture.
 - 2026-04-22: Eliminating the generic action runner adopted as a goal.
   Phased rollout starting with field-flag enhancements to existing
   commands. Audit recorded in agent transcript.
+- 2026-04-23: Validation pass corrected three plan claims:
+  `collections` and `mnee` actions ARE already registered (CLI is the
+  gap). `resolvePassword()` hypothesis for item #4 was incomplete —
+  `loadKey()` does attempt Touch ID, but `bitcoin-backup@0.0.11`
+  doesn't export the Touch ID API, so every path silently fails.
+- 2026-04-23: Item #2 — decided to remove `--password` flag entirely.
+  `ONESAT_PASSWORD=... 1sat <cmd>` is the headless path; shell-history
+  leakage is not worth the convenience.
+- 2026-04-23: Item #3 — decided (a): defer all remote config
+  post-init. Init becomes local-only; user runs `1sat remote add`
+  when/if they want a hosted backend.
+- 2026-04-23: Phase 1A shipped — flag-coverage pass across six
+  commands plus paymail stub removal on `sendBsv21`.
