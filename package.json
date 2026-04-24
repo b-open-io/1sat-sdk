@@ -19,5 +19,8 @@
 	},
 	"dependencies": {
 		"@ai-sdk/mcp": "^1.0.30"
+	},
+	"overrides": {
+		"@bsv/sdk": "2.0.13"
 	}
 }
