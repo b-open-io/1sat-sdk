@@ -5,6 +5,7 @@
 import { readFileSync } from 'node:fs'
 import { basename, extname } from 'node:path'
 import {
+	burnOrdinals,
 	cancelListing,
 	deriveDepositAddresses,
 	getDisplayValue,
@@ -17,7 +18,7 @@ import {
 import { Utils } from '@bsv/sdk'
 import { confirm, isCancel } from '@clack/prompts'
 import type { GlobalFlags } from '../args'
-import { extractFlag, hasFlag } from '../args'
+import { extractFlag, extractFlags, hasFlag } from '../args'
 import { loadContext } from '../context'
 import { printCommandHelp } from '../help'
 import { loadKey } from '../keys'
@@ -42,6 +43,8 @@ export async function handleOrdinalsCommand(
 			return ordinalsCancel(rest, opts)
 		case 'buy':
 			return ordinalsBuy(rest, opts)
+		case 'burn':
+			return ordinalsBurn(rest, opts)
 		default:
 			printCommandHelp('ordinals', {
 				list: 'List owned ordinals/inscriptions',
@@ -50,6 +53,7 @@ export async function handleOrdinalsCommand(
 				sell: 'List an ordinal for sale (--outpoint <op> --price <sats>)',
 				cancel: 'Cancel an ordinal listing (--outpoint <op>)',
 				buy: 'Purchase a listed ordinal (--outpoint <op>)',
+				burn: 'Burn ordinals permanently (--outpoints <op1,op2,...>)',
 			})
 			if (subcommand && subcommand !== 'help') {
 				process.exit(1)
@@ -371,6 +375,49 @@ async function ordinalsBuy(args: string[], opts: GlobalFlags): Promise<void> {
 
 	try {
 		const result = await purchaseOrdinal.execute(ctx, { outpoint })
+
+		if (result.error) {
+			fatal(result.error)
+		}
+
+		output(opts.json ? result : { txid: result.txid }, opts)
+	} finally {
+		await destroy()
+	}
+}
+
+async function ordinalsBurn(args: string[], opts: GlobalFlags): Promise<void> {
+	const outpoints = extractFlags(args, '--outpoints')
+	if (!outpoints.length) {
+		fatal('Missing --outpoints <txid.vout[,txid.vout...]>')
+	}
+
+	if (!opts.yes) {
+		const ok = await confirm({
+			message: `Burn ${outpoints.length} ordinal(s) permanently? This cannot be undone.`,
+		})
+		if (isCancel(ok) || !ok) {
+			fatal('Burn cancelled.')
+		}
+	}
+
+	const privateKey = await loadKey()
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const ordinalsResult = await getOrdinals.execute(ctx, { limit: 10000 })
+		const selected = outpoints.map((op) => {
+			const match = ordinalsResult.outputs.find((o) => o.outpoint === op)
+			if (!match) fatal(`Ordinal not found in wallet: ${op}`)
+			return match
+		})
+
+		const result = await burnOrdinals.execute(ctx, {
+			ordinals: selected,
+			inputBEEF: ordinalsResult.BEEF as number[] | undefined,
+		})
 
 		if (result.error) {
 			fatal(result.error)
