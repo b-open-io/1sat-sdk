@@ -1,6 +1,7 @@
 import { OneSatServices } from '@1sat/client'
 import { KeyDeriver, type PrivateKey, type WalletInterface } from '@bsv/sdk'
 import type { sdk as toolboxSdk } from '@bsv/wallet-toolbox'
+import { BackupRegistration } from './backupRegistration'
 import { parsePrivateKey } from './parsePrivateKey'
 import {
 	installStorageClientPaymentAutoRetry,
@@ -197,13 +198,30 @@ export async function createWalletCore(
 		await storage.setActive(intendedActiveKey)
 	}
 
-	// Connect backup remotes
-	if (config.backups) {
-		for (const url of config.backups) {
-			await connectRemote(url)
-			await reconcileActive()
-		}
-	}
+	// Backup remotes register asynchronously so boot doesn't block on a
+	// down or slow backup. Each URL gets one attempt on start; failures
+	// retry at `backupSyncIntervalMs`. Caller-visible sync lives on the
+	// existing BackupSync monitor task — once a backup registers here,
+	// that task picks it up on its next tick.
+	const backupRetryMsecs = config.backupSyncIntervalMs ?? 5 * 60 * 1000
+	const backupRegistration =
+		config.backups && config.backups.length > 0
+			? new BackupRegistration({
+					urls: config.backups,
+					register: async (url) => {
+						await connectRemote(url)
+						await reconcileActive()
+					},
+					retryMsecs: backupRetryMsecs,
+					onError: (url, err, attempts) => {
+						console.warn(
+							`[wallet-core] backup registration failed for ${url} (attempt ${attempts}):`,
+							err,
+						)
+					},
+				})
+			: undefined
+	backupRegistration?.start()
 
 	// Install 507 auto-retry on billable methods. Only meaningful when an
 	// active remote is (or may later become) in play; the hook bails early
@@ -316,6 +334,7 @@ export async function createWalletCore(
 
 	// 7. Destroy
 	const destroy = async (): Promise<void> => {
+		backupRegistration?.stop()
 		if (monitor) {
 			try {
 				monitor.stopTasks()
