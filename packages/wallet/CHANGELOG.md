@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.63
+
+### Removed
+- `handleCWIRequest` core dispatcher — no consumer topology matched its fixed allowlist + `wallet[action]` dispatch model.
+- `createChromeCWIReceiver`, `createWebCWIReceiver`, `createSigmaCWIReceiver` — built for an assumed "iframe hosts wallet" / "content script binds wallet" topology that doesn't exist in any real consumer.
+
+### Retained from 0.0.61
+- `CWI_EVENT_NAMES` frozen Set and `isCWIEventName` type guard — runtime allowlist useful at any channel boundary.
+- `CWIRequest`, `CWIResponse`, `CWIRequestMessage`, `CWIResponseMessage` — shared envelope types. Already consumed by `@1sat/connect@0.0.48`.
+
 ## 0.0.62
 
 ### Fixed

@@ -1,9 +1,5 @@
 /**
- * CWI (Compute With Integrity) — BRC-100 WalletInterface implementations
- *
- * Sender-side helpers produce a WalletInterface bound to a transport channel.
- * Receiver-side helpers bind a WalletInterface to a channel so other processes
- * can invoke it.
+ * CWI (Compute With Integrity) — BRC-100 WalletInterface senders + shared types
  */
 
 export {
@@ -28,21 +24,3 @@ export {
 	type SigmaCWIConfig,
 	type SigmaCWIResult,
 } from './sigma'
-
-// Receivers
-export { handleCWIRequest } from './receiver'
-export {
-	createChromeCWIReceiver,
-	type ChromeCWIReceiver,
-} from './chrome-receiver'
-export {
-	createWebCWIReceiver,
-	type WebCWIReceiver,
-	type WebCWIReceiverConfig,
-} from './web-receiver'
-export {
-	createSigmaCWIReceiver,
-	type SigmaCWIReceiver,
-	type SigmaCWIReceiverConfig,
-	type SigmaCustomMessage,
-} from './sigma-receiver'
