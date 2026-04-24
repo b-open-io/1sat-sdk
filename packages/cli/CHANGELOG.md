@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.49
+
+### Added
+- `ONESAT_PORT` env var overrides `server.port` from config. Enables PM2 cluster deploys where each worker gets a distinct port via `increment_var`, with a shared nginx upstream doing sticky routing on `x-bsv-auth-identity-key`. Precedence: `ONESAT_PORT` > `server.port` > default `8100`. Invalid values fail fast.
+- `ordinals burn` subcommand — destroys owned ordinals permanently. Accepts `--outpoints <op1,op2,...>`, gated by a confirmation prompt unless `--yes` is passed.
+
 ## 0.0.47
 
 ### Changed
