@@ -57,3 +57,48 @@ export const CWI_EVENT_NAMES: ReadonlySet<string> = new Set(
 /** Type guard: true iff `s` is a valid CWIEventName. */
 export const isCWIEventName = (s: unknown): s is CWIEventName =>
 	typeof s === 'string' && CWI_EVENT_NAMES.has(s)
+
+/**
+ * Channel-agnostic CWI request passed into handleCWIRequest.
+ * Each channel adapter converts its on-wire envelope to this shape.
+ */
+export interface CWIRequest {
+	action: CWIEventName
+	params: unknown
+	/**
+	 * BRC-100 originator string. Must be infrastructure-supplied by the channel
+	 * adapter (e.g. Chrome message field or MessageEvent.origin), never from the
+	 * caller-facing payload.
+	 */
+	originator?: string
+	/** Correlation id for logging / tracing. Optional. */
+	id?: string
+}
+
+/** Channel-agnostic CWI response produced by handleCWIRequest. */
+export type CWIResponse<T = unknown> =
+	| { ok: true; data: T; id?: string }
+	| { ok: false; error: { message: string; code?: string }; id?: string }
+
+/**
+ * BRC-100 postMessage request envelope used by iframe/popup channels
+ * (web, sigma, @1sat/connect). Previously duplicated per channel.
+ */
+export interface CWIRequestMessage {
+	type: 'CWI'
+	isInvocation: true
+	id: string
+	call: string
+	args?: unknown
+}
+
+/** BRC-100 postMessage response envelope used by iframe/popup channels. */
+export interface CWIResponseMessage {
+	type: 'CWI'
+	isInvocation: false
+	id: string
+	result?: unknown
+	status?: 'error'
+	description?: string
+	code?: number
+}
