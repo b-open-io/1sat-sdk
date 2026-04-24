@@ -146,7 +146,7 @@ async function resolveServe(opts: GlobalFlags): Promise<ResolvedServe> {
 	return {
 		chain,
 		host: server.host ?? DEFAULT_HOST,
-		port: server.port ?? DEFAULT_PORT,
+		port: resolvePort(server.port),
 		onesatURL: DEFAULT_ONESAT_URL,
 		storage,
 		dataDir,
@@ -162,6 +162,18 @@ async function resolveServe(opts: GlobalFlags): Promise<ResolvedServe> {
 
 function deriveSqliteFilename(dataDir: string, chain: string): string {
 	return join(dataDir, `wallet-${chain}.db`)
+}
+
+function resolvePort(configured: number | undefined): number {
+	const fromEnv = process.env.ONESAT_PORT
+	if (fromEnv && fromEnv.trim() !== '') {
+		const parsed = Number(fromEnv)
+		if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 65535) {
+			fatal(`ONESAT_PORT must be a valid port number, got: ${fromEnv}`)
+		}
+		return parsed
+	}
+	return configured ?? DEFAULT_PORT
 }
 
 function resolveWalletStorageConfig(
