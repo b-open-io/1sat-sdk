@@ -48,3 +48,12 @@ export interface CWIResponseDetail<T = unknown> {
 	data?: T
 	error?: string
 }
+
+/** Frozen set of every valid CWIEventName value. Use for runtime validation. */
+export const CWI_EVENT_NAMES: ReadonlySet<string> = new Set(
+	Object.values(CWIEventName),
+)
+
+/** Type guard: true iff `s` is a valid CWIEventName. */
+export const isCWIEventName = (s: unknown): s is CWIEventName =>
+	typeof s === 'string' && CWI_EVENT_NAMES.has(s)
