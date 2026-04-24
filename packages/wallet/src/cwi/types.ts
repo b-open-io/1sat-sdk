@@ -59,8 +59,8 @@ export const isCWIEventName = (s: unknown): s is CWIEventName =>
 	typeof s === 'string' && CWI_EVENT_NAMES.has(s)
 
 /**
- * Channel-agnostic CWI request passed into handleCWIRequest.
- * Each channel adapter converts its on-wire envelope to this shape.
+ * Channel-agnostic CWI request shape. Receivers translate their on-wire
+ * envelope into this shape when dispatching to a WalletInterface.
  */
 export interface CWIRequest {
 	action: CWIEventName
@@ -75,7 +75,7 @@ export interface CWIRequest {
 	id?: string
 }
 
-/** Channel-agnostic CWI response produced by handleCWIRequest. */
+/** Channel-agnostic CWI response shape. */
 export type CWIResponse<T = unknown> =
 	| { ok: true; data: T; id?: string }
 	| { ok: false; error: { message: string; code?: string }; id?: string }
