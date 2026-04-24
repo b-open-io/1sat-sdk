@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.50
+
+### Fixed
+- `1sat serve wallet` no longer fires the factory's initial monitor `runOnce` on startup. The mode is explicit: wallet workers should do no monitor work. Previously each wallet worker duplicated a startup sync pass, which was wasteful on single-instance deployments and actively compounded under cluster mode (4 workers × runOnce against the same DB).
+
 ## 0.0.49
 
 ### Added

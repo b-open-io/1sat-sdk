@@ -226,9 +226,10 @@ async function runWithStorage(
 		storage,
 		activeRemote: resolved.activeRemote,
 		backups: resolved.backups,
-		// Server owns the monitor loop; suppress the factory's initial
-		// runOnce so CLI invocations in the same data dir don't race with it.
-		skipInitialMonitor: mode !== 'wallet',
+		// Every serve mode manages monitor work explicitly: wallet mode
+		// does none, monitor/all modes run startTasks. The factory's
+		// initial runOnce is redundant in all three cases.
+		skipInitialMonitor: true,
 	})
 
 	const accounts =
