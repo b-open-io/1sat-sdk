@@ -975,15 +975,23 @@ git commit -m "feat(wallet): export CWI receiver helpers"
 
 ## Phase 2: Consumer migrations
 
-Each consumer gets its own plan and its own PR once Phase 1 is published. Migration order below is the suggested sequence — earlier ones are lowest risk and exercise the receiver layer; later ones have more wallet-specific policy to thread through.
+Migration order below reflects the suggested sequence — earlier ones are lowest risk and exercise the receiver layer; later ones have more wallet-specific policy or design decisions to thread through.
 
-Migration targets:
+### Completed
 
-1. **`@1sat/connect`** — import `CWIRequestMessage` / `CWIResponseMessage` from `@1sat/wallet` and delete its duplicates. No receiver work — connect is sender-side only. Smallest change; validates that the shared envelope types work cross-package.
-2. **`@1sat/extension`** — `createChromeCWIReceiver` in [background.ts](/Users/davidcase/Source/1sat/1sat-sdk/packages/extension/src/background.ts) for BRC-100 methods; keep its RpcMethod handler for 1Sat-specific methods on the same channel (or decide to split — see Open Question).
-3. **yours-wallet** — `createChromeCWIReceiver` in [background.ts:841-898](/Users/davidcase/Source/1sat/yours-wallet/src/background.ts#L841-L898) replacing the `CWIEventName` switch. Content-script allowlist becomes `isCWIEventName(request.method)` imported from `@1sat/wallet`. Delete yours-wallet's duplicate `CustomListenerName` / `RequestEventDetail`. Keep permission system, noAuthRequired handling, and popup lifecycle as upstream middleware.
-4. **sigma-auth** — wire `createSigmaCWIReceiver` into the existing CWI iframe host (`/signer` page); route the custom call registry through the `onCustomMessage` hook or a wrapped `WalletInterface`.
-5. **1sat-website** — wire `createWebCWIReceiver` into the `/wallet/cwi` iframe host page.
+- **`@1sat/connect`** ✓ shipped `0.0.48`. Imports `CWIRequestMessage` / `CWIResponseMessage` from `@1sat/wallet`; local duplicates deleted.
 
-Each migration plan captures the wallet-specific policy that must survive the change. Written when we're ready to pick the first one up.
+### Active
+
+- **1sat-website** — wire `createWebCWIReceiver` into the `/wallet/cwi` iframe host page.
+
+### Deferred (must be addressed, not skipped)
+
+- **yours-wallet** — `createChromeCWIReceiver` in background replacing the `CWIEventName` switch; content-script allowlist becomes `isCWIEventName(request.method)`. Keep permission system, noAuthRequired handling, and popup lifecycle as upstream middleware. **Deferred**: active development in progress on another branch; revisit once pulled in.
+- **sigma-auth** — wire `createSigmaCWIReceiver` into the `/signer` iframe host. **Deferred — design question open**: sigma-auth currently uses the BRC-100 `type: 'CWI'` envelope for wallet-specific extensions (`signAuthToken`, `signAIP` via `registerCustomCall`) that aren't in `CWIEventName` and aren't `WalletInterface` methods. Decide before migrating:
+   - Clean: move sigma's custom calls to a separate envelope `type` (e.g. `'SIGMA'`); CWI envelope stays BRC-100-only. Requires coordinated update of every caller.
+   - Compatibility: keep the current envelope, rely on disjoint allowlists — CWI receiver drops non-`CWIEventName` calls silently, sigma's existing handler picks them up.
+- **`@1sat/extension`** — the package uses its own `RpcMethod` enum (1Sat-specific: connect, signTransaction, inscribe), not `CWIEventName`, and has no `@1sat/wallet` dependency. **Deferred — needs its own audit**: likely based on an older interface that has drifted from the current design. Revisit to decide whether it should adopt BRC-100 or whether it's serving a different purpose that should stay separate.
+
+Each migration gets its own plan and PR when picked up.
 
