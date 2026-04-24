@@ -121,25 +121,7 @@ export interface CWIState {
 	reason?: CWIHandshakeReason
 }
 
-/** CWI invocation request sent from dApp to iframe */
-export interface CWIRequestMessage {
-	type: 'CWI'
-	isInvocation: true
-	id: string
-	call: string
-	args?: unknown
-}
-
-/** CWI invocation response sent from iframe to dApp */
-export interface CWIResponseMessage {
-	type: 'CWI'
-	isInvocation: false
-	id: string
-	result?: unknown
-	status?: 'error'
-	description?: string
-	code?: number
-}
+export type { CWIRequestMessage, CWIResponseMessage } from '@1sat/wallet'
 
 /** CWI state updates posted by wallet iframe */
 export interface CWIStateMessage {
