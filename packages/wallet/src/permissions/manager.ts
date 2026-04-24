@@ -113,6 +113,13 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 
 	// -----------------------------------------------------------------
 	// Read overrides — store-first, then delegate to super.
+	//
+	// Admin-restricted resources (admin originator, admin basket, admin
+	// protocol) MUST go through super. Short-circuiting on a stored
+	// grant would bypass super's admin-basket / admin-protocol throw
+	// and let any dApp with a stored grant reach the default basket or
+	// admin-prefixed protocols. See `isAdminBasketUpstream` /
+	// `isAdminProtocolUpstream` below.
 	// -----------------------------------------------------------------
 
 	public override async ensureProtocolPermission(args: {
@@ -131,6 +138,9 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 			| 'linkageRevelation'
 			| 'generic'
 	}): Promise<boolean> {
+		if (this.isAdminProtocolUpstream(args.protocolID)) {
+			return super.ensureProtocolPermission(args)
+		}
 		const counterparty =
 			args.protocolID[0] === 1 ? '' : (args.counterparty ?? 'self')
 		const key: PermissionKey = {
@@ -152,6 +162,9 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 		seekPermission?: boolean
 		usageType: 'insertion' | 'removal' | 'listing'
 	}): Promise<boolean> {
+		if (this.isAdminBasketUpstream(args.basket)) {
+			return super.ensureBasketAccess(args)
+		}
 		const key: PermissionKey = {
 			type: 'basket',
 			originator: normalizeOriginator(args.originator),
@@ -212,6 +225,37 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 	private async storeHit(key: PermissionKey): Promise<boolean> {
 		const grant = await this.permissionStore.findGrant(key)
 		return !!grant && !isExpired(grant.expiry)
+	}
+
+	// Reach into super for the BRC-100 admin-reservation rules. They're
+	// declared `private` upstream (TypeScript-private, not `#`-private),
+	// so they exist on the prototype. Duplicating the rules here would
+	// silently drift if upstream ever extends them; the loud-throw guard
+	// below trips fast on rename so we don't quietly regress to bypass.
+	private isAdminBasketUpstream(basket: string): boolean {
+		const fn = (
+			this as unknown as { isAdminBasket?: (b: string) => boolean }
+		).isAdminBasket
+		if (typeof fn !== 'function') {
+			throw new Error(
+				'LocalWalletPermissionsManager: super.isAdminBasket is unavailable; admin-basket checks would silently bypass',
+			)
+		}
+		return fn.call(this, basket)
+	}
+
+	private isAdminProtocolUpstream(proto: WalletProtocol): boolean {
+		const fn = (
+			this as unknown as {
+				isAdminProtocol?: (p: WalletProtocol) => boolean
+			}
+		).isAdminProtocol
+		if (typeof fn !== 'function') {
+			throw new Error(
+				'LocalWalletPermissionsManager: super.isAdminProtocol is unavailable; admin-protocol checks would silently bypass',
+			)
+		}
+		return fn.call(this, proto)
 	}
 
 	// -----------------------------------------------------------------
@@ -278,6 +322,10 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 
 			for (const p of params.granted.protocolPermissions ?? []) {
 				if (p.counterparty === '') continue
+				// Never persist grants for admin-reserved protocols. A dApp
+				// manifest could otherwise smuggle in admin-prefixed protocols
+				// and survive the read-side admin guard via stored grants.
+				if (this.isAdminProtocolUpstream(p.protocolID)) continue
 				const level = p.protocolID[0] as 0 | 1 | 2
 				const counterparty = level === 1 ? '' : (p.counterparty ?? 'self')
 				await this.permissionStore.putGrant({
@@ -296,6 +344,11 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 			}
 
 			for (const b of params.granted.basketAccess ?? []) {
+				// Never persist grants for admin-reserved baskets (default,
+				// admin-prefixed). A dApp manifest including basket "default"
+				// would otherwise leave a stored grant that future bugs could
+				// honor.
+				if (this.isAdminBasketUpstream(b.basket)) continue
 				await this.permissionStore.putGrant({
 					key: { type: 'basket', originator, basket: b.basket },
 					expiry,
