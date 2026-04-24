@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.61
+
+### Added
+- `handleCWIRequest` channel-agnostic receiver core. Validates the action against the `CWIEventName` allowlist and forwards `(params, originator)` to the corresponding `WalletInterface` method.
+- `createChromeCWIReceiver`, `createWebCWIReceiver`, `createSigmaCWIReceiver` — wallet-side adapters mirroring the existing senders. Each extracts originator from its channel's trusted source (envelope field for Chrome, `MessageEvent.origin` for iframe).
+- Runtime `CWIEventName` allowlist: `CWI_EVENT_NAMES` (frozen Set) and `isCWIEventName` (type guard).
+- Shared envelope types: `CWIRequest`, `CWIResponse`, `CWIRequestMessage`, `CWIResponseMessage`. Previously duplicated in `web.ts`, `sigma.ts`, and `@1sat/connect`.
+
+### Changed
+- `web.ts` and `sigma.ts` now import `CWIRequestMessage` / `CWIResponseMessage` from `./types` instead of redeclaring them.
+
 ## 0.0.58
 
 ### Added
