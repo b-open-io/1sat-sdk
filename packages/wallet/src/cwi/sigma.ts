@@ -6,7 +6,11 @@
 
 import type { WalletInterface } from '@bsv/sdk'
 import { type CWITransport, createCWI } from './factory'
-import type { CWIEventName } from './types'
+import type {
+	CWIEventName,
+	CWIRequestMessage,
+	CWIResponseMessage,
+} from './types'
 
 const DEFAULT_IFRAME_PATH = '/signer'
 const DEFAULT_REQUEST_TIMEOUT_MS = 120_000
@@ -34,24 +38,6 @@ interface PendingRequest {
 	resolve: (value: unknown) => void
 	reject: (error: Error) => void
 	timeoutId: ReturnType<typeof setTimeout>
-}
-
-interface CWIRequestMessage {
-	type: 'CWI'
-	isInvocation: true
-	id: string
-	call: string
-	args?: unknown
-}
-
-interface CWIResponseMessage {
-	type: 'CWI'
-	isInvocation: false
-	id: string
-	result?: unknown
-	status?: 'error'
-	description?: string
-	code?: number
 }
 
 interface CWIStateMessage {
