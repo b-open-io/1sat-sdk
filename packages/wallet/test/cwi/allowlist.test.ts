@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import {
-	CWI_EVENT_NAMES,
 	CWIEventName,
+	CWI_EVENT_NAMES,
 	isCWIEventName,
 } from '../../src/cwi/types'
 

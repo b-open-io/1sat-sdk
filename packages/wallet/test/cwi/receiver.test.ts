@@ -1,5 +1,5 @@
-import type { WalletInterface } from '@bsv/sdk'
 import { describe, expect, it, mock } from 'bun:test'
+import type { WalletInterface } from '@bsv/sdk'
 import { handleCWIRequest } from '../../src/cwi/receiver'
 import { CWIEventName } from '../../src/cwi/types'
 

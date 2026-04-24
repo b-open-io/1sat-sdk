@@ -1,13 +1,25 @@
 /**
- * CWI (Compute With Integrity) - BRC-100 WalletInterface implementations
+ * CWI (Compute With Integrity) — BRC-100 WalletInterface implementations
  *
- * Two implementations for different contexts:
- * - event.ts: For browser pages (uses CustomEvent, forwarded by content script)
- * - chrome.ts: For extension popup/options (uses chrome.runtime.sendMessage directly)
+ * Sender-side helpers produce a WalletInterface bound to a transport channel.
+ * Receiver-side helpers bind a WalletInterface to a channel so other processes
+ * can invoke it.
  */
 
-export { CWIEventName, type CWIResponseDetail } from './types'
+export {
+	CWIEventName,
+	type CWIResponseDetail,
+	type CWIRequest,
+	type CWIResponse,
+	type CWIRequestMessage,
+	type CWIResponseMessage,
+	CWI_EVENT_NAMES,
+	isCWIEventName,
+} from './types'
+
 export { createCWI, type CWITransport } from './factory'
+
+// Senders
 export { createEventCWI, CWI as EventCWI } from './event'
 export { createChromeCWI, ChromeCWI } from './chrome'
 export { createWebCWI, type WebCWIConfig, type WebCWIResult } from './web'
@@ -16,3 +28,21 @@ export {
 	type SigmaCWIConfig,
 	type SigmaCWIResult,
 } from './sigma'
+
+// Receivers
+export { handleCWIRequest } from './receiver'
+export {
+	createChromeCWIReceiver,
+	type ChromeCWIReceiver,
+} from './chrome-receiver'
+export {
+	createWebCWIReceiver,
+	type WebCWIReceiver,
+	type WebCWIReceiverConfig,
+} from './web-receiver'
+export {
+	createSigmaCWIReceiver,
+	type SigmaCWIReceiver,
+	type SigmaCWIReceiverConfig,
+	type SigmaCustomMessage,
+} from './sigma-receiver'

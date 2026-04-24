@@ -1,5 +1,5 @@
-import type { WalletInterface } from '@bsv/sdk'
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
+import type { WalletInterface } from '@bsv/sdk'
 import { createChromeCWIReceiver } from '../../src/cwi/chrome-receiver'
 import { CWIEventName } from '../../src/cwi/types'
 
@@ -7,7 +7,7 @@ type Listener = (
 	msg: unknown,
 	sender: unknown,
 	sendResponse: (r: unknown) => void,
-) => boolean | void
+) => boolean | undefined
 
 let listener: Listener | null = null
 const chromeMock = {

@@ -1,7 +1,7 @@
-import type { WalletInterface } from '@bsv/sdk'
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
-import { createWebCWIReceiver } from '../../src/cwi/web-receiver'
+import type { WalletInterface } from '@bsv/sdk'
 import { CWIEventName } from '../../src/cwi/types'
+import { createWebCWIReceiver } from '../../src/cwi/web-receiver'
 
 interface PostedEnvelope {
 	data: unknown
