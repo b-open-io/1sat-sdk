@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.62
+
+### Fixed
+- Package entry point (`src/index.ts`) now re-exports the new CWI receiver symbols (`handleCWIRequest`, `createChromeCWIReceiver`, `createWebCWIReceiver`, `createSigmaCWIReceiver`, `isCWIEventName`, `CWI_EVENT_NAMES`, and associated types). They were added to `cwi/index.ts` in 0.0.61 but not surfaced at the package boundary.
+
 ## 0.0.61
 
 ### Added
