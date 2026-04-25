@@ -221,11 +221,10 @@ export async function createWalletCore(
 	}
 
 	// Backup remotes register asynchronously so boot doesn't block on a
-	// down or slow backup. Each URL gets one attempt on start; failures
-	// retry at `backupSyncIntervalMs`. Caller-visible sync lives on the
-	// existing BackupSync monitor task — once a backup registers here,
-	// that task picks it up on its next tick.
-	const backupRetryMsecs = config.backupSyncIntervalMs ?? 5 * 60 * 1000
+	// down or slow backup. Each URL gets one attempt; no in-process retry.
+	// Long-lived processes recover via the periodic BackupSync monitor
+	// task; transient processes (CLI invocations, service worker wakes)
+	// retry on the next process boot.
 	const backupRegistration =
 		config.backups && config.backups.length > 0
 			? new BackupRegistration({
@@ -234,10 +233,9 @@ export async function createWalletCore(
 						await connectRemote(url)
 						await reconcileActive()
 					},
-					retryMsecs: backupRetryMsecs,
-					onError: (url, err, attempts) => {
+					onError: (url, err) => {
 						console.warn(
-							`[wallet-core] backup registration failed for ${url} (attempt ${attempts}):`,
+							`[wallet-core] backup registration failed for ${url}:`,
 							err,
 						)
 					},
