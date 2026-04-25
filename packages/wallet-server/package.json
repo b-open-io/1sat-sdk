@@ -1,6 +1,6 @@
 {
   "name": "@1sat/wallet-server",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "description": "BRC-100 wallet storage RPC server for 1Sat Ordinals SDK",
   "type": "module",
   "main": "./dist/index.js",
@@ -33,6 +33,7 @@
   "dependencies": {
     "@1sat/client": "workspace:*",
     "@1sat/wallet": "workspace:*",
+    "evlog": "^2.13.0",
     "express": "^4.21.2"
   },
   "peerDependencies": {

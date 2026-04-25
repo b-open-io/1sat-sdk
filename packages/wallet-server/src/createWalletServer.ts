@@ -1,6 +1,8 @@
 import type { Server } from 'node:http'
 import { createAuthMiddleware } from '@bsv/auth-express-middleware'
 import type { WalletInterface } from '@bsv/sdk'
+import { createLogger } from 'evlog'
+import { evlog, useLogger } from 'evlog/express'
 import express, {
 	type Express,
 	type NextFunction,
@@ -76,6 +78,7 @@ export function createWalletServer(
 	}
 
 	const app = express()
+	app.use(evlog())
 	app.use(express.json({ limit: config.bodyLimit ?? '30mb' }))
 	app.use(corsMiddleware)
 
@@ -114,6 +117,7 @@ export function createWalletServer(
 	}
 
 	let server: Server | undefined
+	const lifecycleLog = createLogger({ context: 'wallet-server' })
 
 	return {
 		app,
@@ -128,16 +132,43 @@ export function createWalletServer(
 							typeof address === 'object' && address
 								? address.port
 								: config.listen.port
+						lifecycleLog.set({
+							event: 'server_listening',
+							host: config.listen.host ?? '0.0.0.0',
+							port,
+							publicPath,
+							internalPath,
+							accountsEnabled: !!config.accounts,
+						})
+						lifecycleLog.emit()
 						resolve(port)
 					},
 				)
-				server.on('error', reject)
+				server.on('error', (err: Error) => {
+					lifecycleLog.set({
+						event: 'server_start_failed',
+						host: config.listen.host ?? '0.0.0.0',
+						port: config.listen.port,
+					})
+					lifecycleLog.error(err)
+					reject(err)
+				})
 			})
 		},
 		stop() {
 			return new Promise<void>((resolve, reject) => {
 				if (!server) return resolve()
-				server.close((err) => (err ? reject(err) : resolve()))
+				server.close((err) => {
+					if (err) {
+						lifecycleLog.set({ event: 'server_shutdown_failed' })
+						lifecycleLog.error(err)
+						reject(err)
+						return
+					}
+					lifecycleLog.set({ event: 'server_shutdown' })
+					lifecycleLog.emit()
+					resolve()
+				})
 			})
 		},
 	}
@@ -169,23 +200,31 @@ function mountPublicRoute(
 
 function dispatchHandler(config: WalletServerConfig) {
 	return async (req: AuthenticatedRequest, res: ExpressResponse) => {
+		const log = useLogger()
+		log.set({ context: 'wallet-server', route: 'rpc' })
+
 		const identityKey = req.auth?.identityKey
 		if (!identityKey || identityKey === 'unknown') {
+			log.set({ event: 'auth_failed', reason: 'missing_identity' })
 			return res.status(401).json({
 				jsonrpc: '2.0',
 				error: { code: -32000, message: 'Unauthenticated' },
 				id: req.body?.id ?? null,
 			})
 		}
+		log.set({ identityKey })
 
 		const body = req.body
 		if (!isJsonRpcLike(body)) {
+			log.set({ event: 'invalid_request', reason: 'not_jsonrpc' })
 			return res.status(400).json({
 				jsonrpc: '2.0',
 				error: { code: -32600, message: 'Invalid Request' },
 				id: body?.id ?? null,
 			})
 		}
+
+		log.set({ event: 'rpc_request', method: body.method })
 
 		const response = await dispatch(
 			{
@@ -200,6 +239,17 @@ function dispatchHandler(config: WalletServerConfig) {
 				identity: { identityKey },
 			},
 		)
+
+		const errorObj = (
+			response as { error?: { code?: number; message?: string } }
+		).error
+		if (errorObj) {
+			log.set({
+				event: 'rpc_error',
+				rpcErrorCode: errorObj.code,
+				rpcErrorMessage: errorObj.message,
+			})
+		}
 
 		res.status(200).json(response)
 	}
@@ -216,10 +266,15 @@ function mountStatusRoute(
 	app.get(
 		statusPath,
 		async (req: AuthenticatedRequest, res: ExpressResponse) => {
+			const log = useLogger()
+			log.set({ context: 'wallet-server', route: 'account_status' })
+
 			const identityKey = req.auth?.identityKey
 			if (!identityKey || identityKey === 'unknown') {
+				log.set({ event: 'auth_failed', reason: 'missing_identity' })
 				return res.status(401).json({ error: 'Unauthenticated' })
 			}
+			log.set({ identityKey })
 
 			const accounts = config.accounts
 			if (!accounts) {
@@ -261,10 +316,7 @@ function mountStatusRoute(
 			const capacityBytes = accounts.config.baselineBytes + paidBytes
 			const deficitBytes = Math.max(0, usedBytes - capacityBytes)
 
-			const nextPayment = await nextPaymentDerivation(
-				identityKey,
-				serverWallet,
-			)
+			const nextPayment = await nextPaymentDerivation(identityKey, serverWallet)
 
 			return res.status(200).json({
 				identityKey,
@@ -320,7 +372,6 @@ function mountInternalRoute(
 		res.send(buf)
 	})
 }
-
 
 interface AuthenticatedRequest extends ExpressRequest {
 	auth?: { identityKey: string }

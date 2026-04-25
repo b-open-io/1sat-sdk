@@ -23,6 +23,7 @@ import {
 } from '@1sat/wallet-node'
 import { createWalletServer } from '@1sat/wallet-server'
 import type { PrivateKey } from '@bsv/sdk'
+import { initLogger } from 'evlog'
 import type { GlobalFlags } from '../args'
 import {
 	type ServerAccountsConfig,
@@ -86,6 +87,8 @@ export async function handleServeCommand(
 		if (subcommand && subcommand !== 'help') process.exit(1)
 		return
 	}
+
+	initLogger({ env: { service: `1sat-cli-serve-${mode}` } })
 
 	const resolved = await resolveServe(opts)
 	const handles: Stoppable[] = []

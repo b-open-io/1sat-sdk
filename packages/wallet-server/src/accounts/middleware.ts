@@ -12,6 +12,8 @@
  */
 
 import { Beef, P2PKH, PublicKey, type WalletInterface, Utils } from '@bsv/sdk'
+import { createLogger } from 'evlog'
+import { useLogger } from 'evlog/express'
 import type { NextFunction, Request, Response } from 'express'
 import { isBillableMethod } from '../dispatch'
 import type { WalletStorageProvider } from '../types'
@@ -412,11 +414,13 @@ export function accountsCapacityGate(deps: AccountsMiddlewareDeps) {
 						res.on('finish', () => {
 							if (res.statusCode !== 200) return
 							autoInternalizeSelfPayment(deps, ctx).catch((err) => {
-								console.error(
-									'[accounts] auto-internalize failed for',
-									ctx.txid,
-									err,
-								)
+								const log = createLogger({ context: 'accounts' })
+								log.set({
+									event: 'auto_internalize_failed',
+									txid: ctx.txid,
+									payerIdentity: ctx.payerIdentity,
+								})
+								log.error(err)
 							})
 						})
 					}
@@ -425,6 +429,16 @@ export function accountsCapacityGate(deps: AccountsMiddlewareDeps) {
 			}
 
 			const id = normalizeJsonRpcId((req.body as { id?: unknown })?.id)
+			useLogger().set({
+				context: 'accounts',
+				event: 'capacity_exceeded',
+				method,
+				identityKey,
+				userId,
+				usedBytes,
+				deficitBytes: quote.bytesCovered,
+				satsRequired: quote.chargeSats,
+			})
 			return res.status(507).json({
 				jsonrpc: '2.0',
 				error: {
@@ -454,7 +468,8 @@ export function accountsCapacityGate(deps: AccountsMiddlewareDeps) {
 				id,
 			})
 		} catch (err) {
-			console.error('[accounts] capacity gate error:', err)
+			useLogger().set({ context: 'accounts', event: 'capacity_gate_error' })
+			useLogger().error(err as Error)
 			return next()
 		}
 	}

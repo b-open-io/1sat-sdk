@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.52
+
+### Added
+- `1sat serve` (all modes) initializes structured logging via `evlog`. Service name is `1sat-cli-serve-<mode>`. Picks up the request, lifecycle, monitor, and accounts events emitted by `@1sat/wallet-server`. One-shot CLI commands continue using `console.log` / `console.error`.
+- Picks up `@1sat/wallet-server@0.0.13` (structured logging in the server itself).
+
 ## 0.0.50
 
 ### Fixed

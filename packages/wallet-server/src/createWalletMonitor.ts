@@ -6,6 +6,7 @@ import {
 	type sdk as walletSdk,
 } from '@bsv/wallet-toolbox'
 import type { ChaintracksClientApi } from '@bsv/wallet-toolbox/out/src/services/chaintracker/chaintracks/Api/ChaintracksClientApi.js'
+import { createLogger } from 'evlog'
 import { type Knex, knex as makeKnex } from 'knex'
 
 type FeeModel = walletSdk.StorageFeeModel
@@ -52,62 +53,82 @@ export function createWalletMonitor(
 			if (started) return
 			started = true
 
-			knex = makeKnex(config.knex)
+			const startLog = createLogger({ context: 'monitor' })
+			startLog.set({ event: 'monitor_starting', chain: config.chain })
 
-			storage = new StorageKnex({
-				chain: config.chain,
-				knex,
-				feeModel: config.feeModel ?? { model: 'sat/kb', value: 1 },
-				commissionSatoshis: 0,
-				commissionPubKeyHex: undefined,
-			})
-			await storage.makeAvailable()
+			try {
+				knex = makeKnex(config.knex)
 
-			const settings = await storage.getSettings()
-			const manager = new WalletStorageManager(
-				settings.storageIdentityKey,
-				storage,
-			)
-			await manager.makeAvailable()
+				storage = new StorageKnex({
+					chain: config.chain,
+					knex,
+					feeModel: config.feeModel ?? { model: 'sat/kb', value: 1 },
+					commissionSatoshis: 0,
+					commissionPubKeyHex: undefined,
+				})
+				await storage.makeAvailable()
 
-			const services =
-				config.services ??
-				(new OneSatServices(
-					config.chain,
-					config.onesatURL,
-				) as unknown as walletSdk.WalletServices)
-			manager.setServices(services)
-
-			const chaintracks =
-				config.chaintracks ??
-				(services as unknown as { chaintracks?: ChaintracksClientApi })
-					.chaintracks
-			if (!chaintracks) {
-				throw new Error(
-					'createWalletMonitor: services does not expose `chaintracks`; pass `chaintracks` explicitly.',
+				const settings = await storage.getSettings()
+				const manager = new WalletStorageManager(
+					settings.storageIdentityKey,
+					storage,
 				)
+				await manager.makeAvailable()
+
+				const services =
+					config.services ??
+					(new OneSatServices(
+						config.chain,
+						config.onesatURL,
+					) as unknown as walletSdk.WalletServices)
+				manager.setServices(services)
+
+				const chaintracks =
+					config.chaintracks ??
+					(services as unknown as { chaintracks?: ChaintracksClientApi })
+						.chaintracks
+				if (!chaintracks) {
+					throw new Error(
+						'createWalletMonitor: services does not expose `chaintracks`; pass `chaintracks` explicitly.',
+					)
+				}
+
+				monitor = new Monitor({
+					chain: config.chain,
+					services,
+					storage: manager,
+					chaintracks,
+					msecsWaitPerMerkleProofServiceReq: 500,
+					taskRunWaitMsecs: 5000,
+					abandonedMsecs: 5 * 60 * 1000,
+					unprovenAttemptsLimitTest: 10,
+					unprovenAttemptsLimitMain: 144,
+				})
+
+				if (monitor._tasks.length === 0) monitor.addMultiUserTasks()
+
+				tasksPromise = monitor.startTasks()
+
+				startLog.set({
+					event: 'monitor_started',
+					taskCount: monitor._tasks.length,
+					storageIdentityKey: settings.storageIdentityKey,
+				})
+				startLog.emit()
+			} catch (err) {
+				started = false
+				startLog.set({ event: 'monitor_start_failed' })
+				startLog.error(err as Error)
+				throw err
 			}
-
-			monitor = new Monitor({
-				chain: config.chain,
-				services,
-				storage: manager,
-				chaintracks,
-				msecsWaitPerMerkleProofServiceReq: 500,
-				taskRunWaitMsecs: 5000,
-				abandonedMsecs: 5 * 60 * 1000,
-				unprovenAttemptsLimitTest: 10,
-				unprovenAttemptsLimitMain: 144,
-			})
-
-			if (monitor._tasks.length === 0) monitor.addMultiUserTasks()
-
-			tasksPromise = monitor.startTasks()
 		},
 
 		async stop() {
 			if (!started) return
 			started = false
+
+			const stopLog = createLogger({ context: 'monitor' })
+			stopLog.set({ event: 'monitor_stopping' })
 
 			if (monitor) monitor.stopTasks()
 			if (tasksPromise) {
@@ -129,6 +150,9 @@ export function createWalletMonitor(
 			tasksPromise = undefined
 			storage = undefined
 			knex = undefined
+
+			stopLog.set({ event: 'monitor_stopped' })
+			stopLog.emit()
 		},
 	}
 }
