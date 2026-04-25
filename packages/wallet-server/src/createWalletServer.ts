@@ -117,7 +117,6 @@ export function createWalletServer(
 	}
 
 	let server: Server | undefined
-	const lifecycleLog = createLogger({ context: 'wallet-server' })
 
 	return {
 		app,
@@ -132,7 +131,8 @@ export function createWalletServer(
 							typeof address === 'object' && address
 								? address.port
 								: config.listen.port
-						lifecycleLog.set({
+						const log = createLogger({ context: 'wallet-server' })
+						log.set({
 							event: 'server_listening',
 							host: config.listen.host ?? '0.0.0.0',
 							port,
@@ -140,17 +140,18 @@ export function createWalletServer(
 							internalPath,
 							accountsEnabled: !!config.accounts,
 						})
-						lifecycleLog.emit()
+						log.emit()
 						resolve(port)
 					},
 				)
 				server.on('error', (err: Error) => {
-					lifecycleLog.set({
+					const log = createLogger({ context: 'wallet-server' })
+					log.set({
 						event: 'server_start_failed',
 						host: config.listen.host ?? '0.0.0.0',
 						port: config.listen.port,
 					})
-					lifecycleLog.error(err)
+					log.error(err)
 					reject(err)
 				})
 			})
@@ -159,14 +160,15 @@ export function createWalletServer(
 			return new Promise<void>((resolve, reject) => {
 				if (!server) return resolve()
 				server.close((err) => {
+					const log = createLogger({ context: 'wallet-server' })
 					if (err) {
-						lifecycleLog.set({ event: 'server_shutdown_failed' })
-						lifecycleLog.error(err)
+						log.set({ event: 'server_shutdown_failed' })
+						log.error(err)
 						reject(err)
 						return
 					}
-					lifecycleLog.set({ event: 'server_shutdown' })
-					lifecycleLog.emit()
+					log.set({ event: 'server_shutdown' })
+					log.emit()
 					resolve()
 				})
 			})
