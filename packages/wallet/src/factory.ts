@@ -297,7 +297,20 @@ export async function createWalletCore(
 		const backupSyncIntervalMs = config.backupSyncIntervalMs ?? 5 * 60 * 1000
 		if (backupSyncIntervalMs > 0) {
 			monitor.addTask(
-				buildBackupSyncTask(monitor, backupSyncIntervalMs, storage),
+				buildBackupSyncTask(monitor, backupSyncIntervalMs, storage, {
+					unregisteredBackupUrls: () => {
+						const configured = config.backups ?? []
+						if (configured.length === 0) return []
+						const registered = new Set(
+							remoteClients.map((c: { endpointUrl?: string }) => c.endpointUrl),
+						)
+						return configured.filter((url) => !registered.has(url))
+					},
+					registerBackup: async (url) => {
+						await connectRemote(url)
+						await reconcileActive()
+					},
+				}),
 			)
 		}
 
@@ -401,21 +414,32 @@ export async function createWalletCore(
 	}
 }
 
+interface BackupSyncTaskOptions {
+	/** Returns configured backup URLs that are not yet registered. */
+	unregisteredBackupUrls: () => string[]
+	/** Attempts to register a backup URL (handshake + reconcile). */
+	registerBackup: (url: string) => Promise<void>
+}
+
 /**
- * Builds a plain-object Monitor task that calls `storage.updateBackups()`
- * periodically. Shape-compatible with `WalletMonitorTask` — no class
- * extension needed, so the factory doesn't need to import the abstract
- * class from whichever wallet-toolbox variant the caller uses.
+ * Builds a plain-object Monitor task that drives ongoing backup
+ * reconciliation. On each tick (when local is the active store):
+ * 1. Re-attempt registration for any configured URLs not yet registered
+ *    (recovers from initial handshake failures).
+ * 2. Call `storage.updateBackups()` to push pending state to all
+ *    successfully-registered backups.
  *
- * Only fires when local is the active store — with a remote active,
- * pushing local-to-remote on a schedule is unnecessary (remote is
- * canonical) and in a metered-remote setup it can trigger the auto-retry
- * payment path to deadlock against the manager's locks.
+ * Shape-compatible with `WalletMonitorTask` so the factory doesn't import
+ * the abstract class from whichever wallet-toolbox variant the caller
+ * uses. Only fires when local is the active store — with a remote active,
+ * pushing local-to-remote on a schedule is unnecessary and the auto-retry
+ * payment path can deadlock against the manager's locks.
  */
 function buildBackupSyncTask(
 	monitor: any,
 	triggerMsecs: number,
 	storage: any,
+	options: BackupSyncTaskOptions,
 ): any {
 	return {
 		monitor,
@@ -427,7 +451,9 @@ function buildBackupSyncTask(
 			if (nowMsecsSinceEpoch - this.lastRunMsecsSinceEpoch < triggerMsecs) {
 				return { run: false }
 			}
-			if (storage.getBackupStores().length === 0) return { run: false }
+			const hasRegistered = storage.getBackupStores().length > 0
+			const hasUnregistered = options.unregisteredBackupUrls().length > 0
+			if (!hasRegistered && !hasUnregistered) return { run: false }
 			try {
 				const active = storage.getActive() as any
 				if (!active?.isStorageProvider?.()) return { run: false }
@@ -437,12 +463,33 @@ function buildBackupSyncTask(
 			return { run: true }
 		},
 		async runTask(): Promise<string> {
-			try {
-				await storage.updateBackups()
-				return 'backup sync complete'
-			} catch (err) {
-				return `backup sync failed: ${(err as Error).message}`
+			const unregistered = options.unregisteredBackupUrls()
+			const messages: string[] = []
+			if (unregistered.length > 0) {
+				const results = await Promise.allSettled(
+					unregistered.map((url) => options.registerBackup(url)),
+				)
+				for (let i = 0; i < results.length; i++) {
+					const r = results[i]
+					if (r.status === 'rejected') {
+						console.warn(
+							`[BackupSync] registration retry failed for ${unregistered[i]}:`,
+							r.reason,
+						)
+					}
+				}
+				const recovered = results.filter((r) => r.status === 'fulfilled').length
+				if (recovered > 0) messages.push(`registered ${recovered}`)
 			}
+			if (storage.getBackupStores().length > 0) {
+				try {
+					await storage.updateBackups()
+					messages.push('sync complete')
+				} catch (err) {
+					messages.push(`sync failed: ${(err as Error).message}`)
+				}
+			}
+			return messages.join('; ') || 'no work'
 		},
 	}
 }
