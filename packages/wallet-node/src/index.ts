@@ -1,6 +1,7 @@
 export * from '@1sat/wallet'
 
 export { createNodeWallet } from './createNodeWallet'
+export { createFsTaskStateStore } from './fsTaskStateStore'
 export type {
 	BunSqliteStorageConfig,
 	NodeWalletConfig,

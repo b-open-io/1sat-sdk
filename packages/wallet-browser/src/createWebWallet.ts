@@ -1,5 +1,9 @@
 import type { OneSatServices } from '@1sat/client'
-import { DEFAULT_FEE_MODEL, createWalletCore } from '@1sat/wallet'
+import {
+	DEFAULT_FEE_MODEL,
+	type TaskStateStore,
+	createWalletCore,
+} from '@1sat/wallet'
 import type { PrivateKey } from '@bsv/sdk'
 import {
 	Monitor,
@@ -25,6 +29,15 @@ export interface WebWalletConfig {
 	onTransactionBroadcasted?: (txid: string) => void
 	onTransactionProven?: (txid: string, blockHeight: number) => void
 	onMonitorEvent?: (event: MonitorEvent) => void
+	/**
+	 * Persistent store for Monitor task `lastRunMsecsSinceEpoch`. When
+	 * provided, the factory hydrates each task's last-run timestamp on
+	 * Monitor construction and snapshots back after every `runOnce`. In a
+	 * service worker, this is what makes wakes within a task's interval
+	 * effectively no-ops. Use `createIndexedDbTaskStateStore()` from
+	 * `@1sat/wallet-browser` for the standard implementation.
+	 */
+	taskStateStore?: TaskStateStore
 }
 
 export interface WebWalletResult {

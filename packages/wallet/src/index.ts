@@ -112,6 +112,7 @@ export {
 	DEFAULT_FEE_MODEL,
 	DEFAULT_CONNECTION_TIMEOUT,
 	type Chain,
+	type TaskStateStore,
 	type WalletCoreConfig,
 	type WalletCoreResult,
 } from './factory'

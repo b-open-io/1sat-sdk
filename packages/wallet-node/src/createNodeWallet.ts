@@ -1,5 +1,9 @@
 import type { OneSatServices } from '@1sat/client'
-import { DEFAULT_FEE_MODEL, createWalletCore } from '@1sat/wallet'
+import {
+	DEFAULT_FEE_MODEL,
+	type TaskStateStore,
+	createWalletCore,
+} from '@1sat/wallet'
 import type { PrivateKey } from '@bsv/sdk'
 import {
 	Monitor,
@@ -10,6 +14,7 @@ import {
 	WalletStorageManager,
 	type sdk,
 } from '@bsv/wallet-toolbox'
+import { createFsTaskStateStore } from './fsTaskStateStore'
 import { StorageBunSqlite } from './storage-bun-sqlite'
 
 const DEFAULT_STORAGE_NAME = 'wallet'
@@ -28,9 +33,7 @@ export interface PgStorageConfig {
 	pool?: { min?: number; max?: number }
 }
 
-export type NodeWalletStorageConfig =
-	| BunSqliteStorageConfig
-	| PgStorageConfig
+export type NodeWalletStorageConfig = BunSqliteStorageConfig | PgStorageConfig
 
 export interface NodeWalletConfig {
 	privateKey: PrivateKey | string
@@ -52,6 +55,14 @@ export interface NodeWalletConfig {
 	 * is already running against the same storage.
 	 */
 	skipInitialMonitor?: boolean
+	/**
+	 * Persistent store for Monitor task `lastRunMsecsSinceEpoch`. Defaults
+	 * to a JSON sidecar next to the bun-sqlite file when storage is
+	 * bun-sqlite and no store is supplied. For Postgres storage, no default
+	 * is constructed; pass one explicitly if cross-process throttle
+	 * persistence is wanted.
+	 */
+	taskStateStore?: TaskStateStore
 }
 
 export interface NodeWalletResult {
@@ -86,14 +97,26 @@ export async function createNodeWallet(
 
 	await localStorage.migrate(DEFAULT_STORAGE_NAME, config.storageIdentityKey)
 
-	const core = await createWalletCore(config, localStorage, {
-		Services,
-		StorageClient,
-		StorageProvider,
-		Wallet,
-		WalletStorageManager,
-		Monitor,
-	})
+	const taskStateStore =
+		config.taskStateStore ??
+		(storageConfig.provider === 'bun-sqlite'
+			? createFsTaskStateStore(
+					`${storageConfig.filename ?? DEFAULT_SQLITE_FILENAME}.tasks.json`,
+				)
+			: undefined)
+
+	const core = await createWalletCore(
+		{ ...config, taskStateStore },
+		localStorage,
+		{
+			Services,
+			StorageClient,
+			StorageProvider,
+			Wallet,
+			WalletStorageManager,
+			Monitor,
+		},
+	)
 
 	// Fire monitor.runOnce() on wake when local is active. The server runs
 	// its own monitor when remote is active, so firing ours would duplicate
@@ -151,5 +174,7 @@ async function buildLocalStorage(
 	}
 	// Exhaustiveness check
 	const _exhaustive: never = config
-	throw new Error(`unsupported storage provider: ${JSON.stringify(_exhaustive)}`)
+	throw new Error(
+		`unsupported storage provider: ${JSON.stringify(_exhaustive)}`,
+	)
 }

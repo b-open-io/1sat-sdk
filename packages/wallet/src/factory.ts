@@ -4,9 +4,9 @@ import type { sdk as toolboxSdk } from '@bsv/wallet-toolbox'
 import { BackupRegistration } from './backupRegistration'
 import { parsePrivateKey } from './parsePrivateKey'
 import {
+	type StoragePaymentHook,
 	installStorageClientPaymentAutoRetry,
 	installStoragePaymentAutoRetry,
-	type StoragePaymentHook,
 } from './storagePaymentAutoRetry'
 
 type WalletServices = toolboxSdk.WalletServices
@@ -16,6 +16,20 @@ export type Chain = 'main' | 'test'
 
 export const DEFAULT_FEE_MODEL = { model: 'sat/kb' as const, value: 100 }
 export const DEFAULT_CONNECTION_TIMEOUT = 5000
+
+/**
+ * Persists Monitor task `lastRunMsecsSinceEpoch` across processes so that
+ * transient consumers (CLI invocations, service worker wakes) inherit the
+ * trigger throttle that's otherwise reset to 0 on every fresh Monitor.
+ *
+ * Bulk semantics: load returns the entire taskName -> timestamp map; save
+ * replaces it. Implementations live in runtime-specific packages
+ * (`@1sat/wallet-node` for filesystem, `@1sat/wallet-browser` for IndexedDB).
+ */
+export interface TaskStateStore {
+	load(): Promise<Record<string, number>>
+	save(state: Record<string, number>): Promise<void>
+}
 
 export interface WalletCoreConfig {
 	privateKey: PrivateKey | string
@@ -45,6 +59,14 @@ export interface WalletCoreConfig {
 	 * can't hit a 507.
 	 */
 	onStoragePaymentRequired?: StoragePaymentHook
+	/**
+	 * Optional persistent store for Monitor task `lastRunMsecsSinceEpoch`.
+	 * When provided, the factory hydrates each task's last-run timestamp on
+	 * Monitor construction and snapshots back after every `runOnce` cycle.
+	 * Without it, every fresh Monitor starts at lastRun=0 and re-fires every
+	 * task on first invocation.
+	 */
+	taskStateStore?: TaskStateStore
 }
 
 export interface WalletCoreResult {
@@ -289,6 +311,26 @@ export async function createWalletCore(
 		if (config.onTransactionProven) {
 			monitor.onTransactionProven = async (status: any) => {
 				config.onTransactionProven!(status.txid, status.blockHeight)
+			}
+		}
+
+		// Persist task lastRun timestamps across processes. Hydrate on
+		// construction; snapshot after each runOnce cycle. The trigger logic
+		// already in each task does the rest — repeated CLI invocations or
+		// service-worker wakes within a task's interval become no-ops.
+		if (config.taskStateStore) {
+			const store = config.taskStateStore
+			const persisted = await store.load()
+			for (const t of monitor._tasks) {
+				const last = persisted[t.name]
+				if (typeof last === 'number') t.lastRunMsecsSinceEpoch = last
+			}
+			const originalRunOnce = monitor.runOnce.bind(monitor)
+			monitor.runOnce = async () => {
+				await originalRunOnce()
+				const next: Record<string, number> = {}
+				for (const t of monitor._tasks) next[t.name] = t.lastRunMsecsSinceEpoch
+				await store.save(next)
 			}
 		}
 	}

@@ -4,6 +4,7 @@ export { createWebWallet } from './createWebWallet'
 export type { WebWalletConfig, WebWalletResult } from './createWebWallet'
 
 export { IndexedDbPermissionStore } from './permissions/indexed-db-store'
+export { createIndexedDbTaskStateStore } from './indexedDbTaskStateStore'
 
 export type { MonitorEvent } from './types'
 
