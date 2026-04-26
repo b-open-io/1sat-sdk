@@ -22,7 +22,7 @@ import { handleSweepCommand } from './commands/sweep'
 import { handleTokensCommand } from './commands/tokens'
 import { handleTxCommand } from './commands/tx'
 import { handleWalletCommand } from './commands/wallet'
-import { printHelp, printVersion } from './help'
+import { getCommand, printCommandHelp, printHelp, printVersion } from './help'
 import { formatError } from './output'
 
 const rawArgs = process.argv.slice(2)
@@ -37,8 +37,17 @@ async function main(): Promise<void> {
 
 	const [command, ...rest] = flags.rest
 
-	if (!command || flags.help) {
+	if (!command) {
 		printHelp(flags.json)
+		process.exit(0)
+	}
+
+	if (flags.help) {
+		if (getCommand(command)) {
+			printCommandHelp(command, flags.json)
+		} else {
+			printHelp(flags.json)
+		}
 		process.exit(0)
 	}
 
