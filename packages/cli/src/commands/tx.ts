@@ -17,9 +17,7 @@ export async function handleTxCommand(
 		case 'decode':
 			return txDecode(rest, opts)
 		default:
-			printCommandHelp('tx', {
-				decode: 'Decode a raw transaction hex',
-			})
+			printCommandHelp('tx', opts.json)
 			if (subcommand && subcommand !== 'help') {
 				process.exit(1)
 			}

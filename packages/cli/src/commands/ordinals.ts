@@ -46,15 +46,7 @@ export async function handleOrdinalsCommand(
 		case 'burn':
 			return ordinalsBurn(rest, opts)
 		default:
-			printCommandHelp('ordinals', {
-				list: 'List owned ordinals/inscriptions',
-				mint: 'Mint a new ordinal inscription (--file <path> [--type <mime>] [--map <json>] [--sign-with-bap])',
-				transfer: 'Transfer an ordinal (--outpoint <op> --to <addr>)',
-				sell: 'List an ordinal for sale (--outpoint <op> --price <sats>)',
-				cancel: 'Cancel an ordinal listing (--outpoint <op>)',
-				buy: 'Purchase a listed ordinal (--outpoint <op>)',
-				burn: 'Burn ordinals permanently (--outpoints <op1,op2,...>)',
-			})
+			printCommandHelp('ordinals', opts.json)
 			if (subcommand && subcommand !== 'help') {
 				process.exit(1)
 			}

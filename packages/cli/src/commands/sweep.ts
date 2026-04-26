@@ -32,10 +32,7 @@ export async function handleSweepCommand(
 		case 'import':
 			return sweepImport(rest, opts)
 		default:
-			printCommandHelp('sweep', {
-				scan: 'Scan an address for UTXOs (--wif <key>)',
-				import: 'Import UTXOs into wallet (--wif <key>)',
-			})
+			printCommandHelp('sweep', opts.json)
 			if (subcommand && subcommand !== 'help') {
 				process.exit(1)
 			}

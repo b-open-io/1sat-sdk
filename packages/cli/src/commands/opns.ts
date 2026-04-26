@@ -32,11 +32,7 @@ export async function handleOpnsCommand(
 		case 'lookup':
 			return opnsLookup(rest, opts)
 		default:
-			printCommandHelp('opns', {
-				register: 'Register identity on an OpNS name (--outpoint <op>)',
-				deregister: 'Deregister identity from an OpNS name (--outpoint <op>)',
-				lookup: 'List OpNS names from wallet',
-			})
+			printCommandHelp('opns', opts.json)
 			if (subcommand && subcommand !== 'help') {
 				process.exit(1)
 			}

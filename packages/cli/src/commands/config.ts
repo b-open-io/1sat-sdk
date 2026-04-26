@@ -42,12 +42,7 @@ export async function handleConfigCommand(
 		case 'path':
 			return configPath(opts)
 		default:
-			printCommandHelp('config', {
-				show: 'Display current configuration',
-				set: 'Set a config value (e.g. 1sat config set chain test)',
-				unset: 'Remove a configuration key (e.g. 1sat config unset chain)',
-				path: 'Print config directory path',
-			})
+			printCommandHelp('config', opts.json)
 			if (subcommand && subcommand !== 'help') {
 				process.exit(1)
 			}

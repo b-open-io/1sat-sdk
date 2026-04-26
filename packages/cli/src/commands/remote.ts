@@ -38,17 +38,7 @@ export async function handleRemoteCommand(
 		case 'topup':
 			return remoteTopup(rest, opts)
 		default:
-			printCommandHelp('remote', {
-				add: 'Add a remote storage as backup (1sat remote add <url>)',
-				list: 'List all configured remotes and their status',
-				delete:
-					'Remove a remote from the backup list (1sat remote delete <url>)',
-				'set-active':
-					'Switch active storage (1sat remote set-active <url | local>)',
-				status:
-					'Fetch GET /account/status from a remote (1sat remote status [url])',
-				topup: 'Buy capacity on a remote (1sat remote topup [url] [--units N])',
-			})
+			printCommandHelp('remote', opts.json)
 			if (subcommand && subcommand !== 'help') {
 				process.exit(1)
 			}

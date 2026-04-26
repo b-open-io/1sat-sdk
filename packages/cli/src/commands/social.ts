@@ -22,9 +22,7 @@ export async function handleSocialCommand(
 		case 'post':
 			return socialPost(rest, opts)
 		default:
-			printCommandHelp('social', {
-				post: 'Create an on-chain social post (--content <text> [--app <name>] [--content-type <text/plain|text/markdown>] [--tags <t1,t2>])',
-			})
+			printCommandHelp('social', opts.json)
 			if (subcommand && subcommand !== 'help') {
 				process.exit(1)
 			}

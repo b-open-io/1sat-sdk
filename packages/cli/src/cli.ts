@@ -38,7 +38,7 @@ async function main(): Promise<void> {
 	const [command, ...rest] = flags.rest
 
 	if (!command || flags.help) {
-		printHelp()
+		printHelp(flags.json)
 		process.exit(0)
 	}
 
@@ -104,12 +104,12 @@ async function main(): Promise<void> {
 			break
 
 		case 'help':
-			printHelp()
+			printHelp(flags.json)
 			break
 
 		default:
 			console.error(formatError(`Unknown command: ${command}`))
-			printHelp()
+			printHelp(flags.json)
 			process.exit(1)
 	}
 }

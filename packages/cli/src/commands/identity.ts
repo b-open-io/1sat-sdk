@@ -30,14 +30,7 @@ export async function handleIdentityCommand(
 		case 'verify':
 			return identityVerify(rest, opts)
 		default:
-			printCommandHelp('identity', {
-				create: 'Create/publish a BAP identity',
-				'update-profile': 'Update BAP identity profile (--profile <json>)',
-				info: 'Show BAP identity information',
-				sign: 'Sign a message with identity key (--message <text> [--encoding <utf8|hex|base64>])',
-				verify:
-					'Verify a signed message (--message <text> --sig <sig> --address <addr>)',
-			})
+			printCommandHelp('identity', opts.json)
 			if (subcommand && subcommand !== 'help') {
 				process.exit(1)
 			}

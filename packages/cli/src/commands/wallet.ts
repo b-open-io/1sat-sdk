@@ -53,26 +53,7 @@ export async function handleWalletCommand(
 		case 'relinquish-certificate':
 			return walletRelinquishCertificate(rest, opts)
 		default:
-			printCommandHelp('wallet', {
-				balance: 'Show wallet balance in satoshis',
-				address:
-					'Show deposit address [--prefix <p>] [--start-index <n>] [--count <n>]',
-				send: 'Send BSV (--to <addr> --sats <n> | --script <hex> --sats <n> | --data-asm "<asm>")',
-				'send-all': 'Send all BSV to an address (--to <addr>)',
-				sync: 'Sync inbound payments at BRC-29 deposit addresses [--prefix <p>] [--start-index <n>] [--count <n>]',
-				info: 'Show wallet info (address, balance, network)',
-				'list-outputs':
-					'List wallet outputs (--basket <name> [--tags <t1,t2>] [--limit N] [--include-tags] [--include <val>])',
-				'relinquish-output':
-					'Remove output from basket (--basket <name> --output <txid.vout>)',
-				'list-actions': 'List wallet actions [--labels <l1,l2>] [--limit N]',
-				'create-action': 'Create action (JSON args)',
-				'sign-action': 'Sign action (JSON args)',
-				'abort-action': 'Abort action (--reference <ref>)',
-				'list-certificates': 'List certificates',
-				'relinquish-certificate':
-					'Relinquish certificate (--type <t> --serialNumber <s> --certifier <c>)',
-			})
+			printCommandHelp('wallet', opts.json)
 			if (subcommand && subcommand !== 'help') {
 				process.exit(1)
 			}

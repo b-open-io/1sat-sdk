@@ -79,11 +79,7 @@ export async function handleServeCommand(
 	const mode = resolveMode(subcommand)
 
 	if (mode === null) {
-		printCommandHelp('serve', {
-			'(no subcommand)': 'Wallet server plus monitor daemon',
-			wallet: 'Wallet server only',
-			monitor: 'Monitor daemon only',
-		})
+		printCommandHelp('serve', opts.json)
 		if (subcommand && subcommand !== 'help') process.exit(1)
 		return
 	}

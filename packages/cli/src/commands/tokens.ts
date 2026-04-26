@@ -35,13 +35,7 @@ export async function handleTokensCommand(
 		case 'buy':
 			return tokenBuy(rest, opts)
 		default:
-			printCommandHelp('tokens', {
-				balances: 'Show token balances by token ID',
-				list: 'List owned token UTXOs (--token-id <id>)',
-				send: 'Transfer tokens (--token-id <id> --to <addr> --amount <n>)',
-				deploy: 'Deploy a new BSV21 token (not yet available)',
-				buy: 'Purchase listed tokens (--outpoint <op> --token-id <id> --amount <n>)',
-			})
+			printCommandHelp('tokens', opts.json)
 			if (subcommand && subcommand !== 'help') {
 				process.exit(1)
 			}

@@ -25,11 +25,7 @@ export async function handleLocksCommand(
 		case 'unlock':
 			return locksUnlock(rest, opts)
 		default:
-			printCommandHelp('locks', {
-				info: 'Show lock information and maturity status',
-				lock: 'Time-lock BSV (--sats <amount> --blocks <n>)',
-				unlock: 'Unlock matured BSV locks',
-			})
+			printCommandHelp('locks', opts.json)
 			if (subcommand && subcommand !== 'help') {
 				process.exit(1)
 			}
