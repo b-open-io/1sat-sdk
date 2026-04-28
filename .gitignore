@@ -16,5 +16,3 @@ icon-build/
 store/
 *.p12
 .superpowers/
-
-test-1sat-sdk/

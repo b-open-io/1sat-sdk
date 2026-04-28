@@ -1,0 +1,40 @@
+{
+  "name": "1Sat SDK Test App",
+  "description": "QA test harness for @1sat/actions + @1sat/connect with Yours Wallet",
+  "metanet": {
+    "groupPermissions": {
+      "description": "1Sat SDK test app needs access to ordinals, tokens, and signing",
+      "protocolPermissions": [
+        {
+          "protocolID": [0, "1sat-ordinals"],
+          "description": "Ordinal key derivation"
+        },
+        {
+          "protocolID": [0, "message signing"],
+          "description": "Sign messages"
+        }
+      ],
+      "basketAccess": [
+        {
+          "basket": "ordinals",
+          "description": "Read and write ordinal outputs",
+          "operations": ["insert", "remove", "list"]
+        },
+        {
+          "basket": "bsv21",
+          "description": "Read and write BSV21 token outputs",
+          "operations": ["insert", "remove", "list"]
+        },
+        {
+          "basket": "default",
+          "description": "Read and write payment outputs",
+          "operations": ["insert", "remove", "list"]
+        }
+      ],
+      "spendingAuthorization": {
+        "amount": 100000,
+        "description": "Spend up to 100,000 satoshis for testing"
+      }
+    }
+  }
+}
