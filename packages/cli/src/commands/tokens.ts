@@ -3,6 +3,8 @@
  */
 
 import {
+	deployBsv21Auth,
+	deployBsv21Mint,
 	getBsv21Balances,
 	getDisplayValue,
 	listTokens,
@@ -30,8 +32,10 @@ export async function handleTokensCommand(
 			return tokenList(rest, opts)
 		case 'send':
 			return tokenSend(rest, opts)
-		case 'deploy':
-			return tokenDeploy(rest, opts)
+		case 'deploy-mint':
+			return tokenDeployMint(rest, opts)
+		case 'deploy-auth':
+			return tokenDeployAuth(rest, opts)
 		case 'buy':
 			return tokenBuy(rest, opts)
 		default:
@@ -169,10 +173,122 @@ async function tokenSend(args: string[], opts: GlobalFlags): Promise<void> {
 	}
 }
 
-async function tokenDeploy(_args: string[], _opts: GlobalFlags): Promise<void> {
-	fatal(
-		'tokens deploy is not yet available. No deploy action exists in the actions package.',
-	)
+async function tokenDeployMint(
+	args: string[],
+	opts: GlobalFlags,
+): Promise<void> {
+	const symbol = extractFlag(args, '--symbol')
+	const amountStr = extractFlag(args, '--amount')
+	const decimalsStr = extractFlag(args, '--decimals')
+	const icon = extractFlag(args, '--icon')
+	const to = extractFlag(args, '--to')
+	const counterparty = extractFlag(args, '--counterparty')
+
+	if (!symbol) fatal('Missing --symbol <ticker>')
+	if (!amountStr) fatal('Missing --amount <total-supply>')
+
+	const amount = BigInt(amountStr)
+	if (amount <= 0n) fatal('--amount must be a positive number')
+
+	const decimals = decimalsStr ? Number.parseInt(decimalsStr, 10) : 0
+	if (Number.isNaN(decimals) || decimals < 0 || decimals > 18) {
+		fatal('--decimals must be an integer between 0 and 18')
+	}
+
+	if (!opts.yes) {
+		const ok = await confirm({
+			message: `Deploy ${symbol} with fixed supply ${amountStr} (decimals=${decimals})?`,
+		})
+		if (isCancel(ok) || !ok) {
+			fatal('Deploy cancelled.')
+		}
+	}
+
+	const privateKey = await loadKey()
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const result = await deployBsv21Mint.execute(ctx, {
+			symbol,
+			amount: amountStr,
+			decimals,
+			icon,
+			destinationAddress: to,
+			destinationCounterparty: counterparty,
+		})
+
+		if (result.error) {
+			fatal(result.error)
+		}
+
+		output(
+			opts.json ? result : { txid: result.txid, tokenId: result.tokenId },
+			opts,
+		)
+	} finally {
+		await destroy()
+	}
+}
+
+async function tokenDeployAuth(
+	args: string[],
+	opts: GlobalFlags,
+): Promise<void> {
+	const symbol = extractFlag(args, '--symbol')
+	const decimalsStr = extractFlag(args, '--decimals')
+	const icon = extractFlag(args, '--icon')
+	const to = extractFlag(args, '--to')
+	const counterparty = extractFlag(args, '--counterparty')
+
+	if (!symbol) fatal('Missing --symbol <ticker>')
+
+	const decimals = decimalsStr ? Number.parseInt(decimalsStr, 10) : 0
+	if (Number.isNaN(decimals) || decimals < 0 || decimals > 18) {
+		fatal('--decimals must be an integer between 0 and 18')
+	}
+
+	if (!opts.yes) {
+		const ok = await confirm({
+			message: `Deploy ${symbol} as a mintable token (decimals=${decimals})?`,
+		})
+		if (isCancel(ok) || !ok) {
+			fatal('Deploy cancelled.')
+		}
+	}
+
+	const privateKey = await loadKey()
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const result = await deployBsv21Auth.execute(ctx, {
+			symbol,
+			decimals,
+			icon,
+			authAddress: to,
+			authCounterparty: counterparty,
+		})
+
+		if (result.error) {
+			fatal(result.error)
+		}
+
+		output(
+			opts.json
+				? result
+				: {
+						txid: result.txid,
+						tokenId: result.tokenId,
+						authOutpoint: result.authOutpoint,
+					},
+			opts,
+		)
+	} finally {
+		await destroy()
+	}
 }
 
 async function tokenBuy(args: string[], opts: GlobalFlags): Promise<void> {

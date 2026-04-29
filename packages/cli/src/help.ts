@@ -350,10 +350,28 @@ export const COMMANDS: CommandSpec[] = [
 				],
 			},
 			{
-				name: 'deploy',
-				description: 'Deploy a new BSV21 token',
-				unavailable: true,
-				notes: 'No deploy action exists in @1sat/actions yet.',
+				name: 'deploy-mint',
+				description: 'Deploy a new BSV21 token with fixed supply (deploy+mint)',
+				args: [
+					{ flag: '--symbol', values: '<ticker>', required: true },
+					{ flag: '--amount', values: '<total-supply>', required: true },
+					{ flag: '--decimals', values: '<0-18>' },
+					{ flag: '--icon', values: '<url-or-data-uri>' },
+					{ flag: '--to', values: '<address>' },
+					{ flag: '--counterparty', values: '<pubkey-hex>' },
+				],
+			},
+			{
+				name: 'deploy-auth',
+				description:
+					'Deploy a new BSV21 token with mintable supply via auth UTXOs (deploy+auth)',
+				args: [
+					{ flag: '--symbol', values: '<ticker>', required: true },
+					{ flag: '--decimals', values: '<0-18>' },
+					{ flag: '--icon', values: '<url-or-data-uri>' },
+					{ flag: '--to', values: '<address>' },
+					{ flag: '--counterparty', values: '<pubkey-hex>' },
+				],
 			},
 			{
 				name: 'buy',
