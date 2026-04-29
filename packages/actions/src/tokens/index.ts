@@ -7,18 +7,24 @@
 import { BSV21, OrdLock } from '@1sat/templates'
 import { parseOutpoint } from '@1sat/utils'
 import {
+	Beef,
 	BigNumber,
 	LockingScript,
 	OP,
 	P2PKH,
 	PublicKey,
-	type Transaction,
+	Transaction,
 	TransactionSignature,
 	UnlockingScript,
 	Utils,
 	type WalletOutput,
 } from '@bsv/sdk'
-import { BSV21_BASKET, BSV21_PROTOCOL } from '../constants'
+import {
+	BSV21_AUTH_BASKET,
+	BSV21_BASKET,
+	BSV21_DEPLOY_FUNDING_BASKET,
+	BSV21_PROTOCOL,
+} from '../constants'
 import type {
 	Action,
 	ActionLogEntry,
@@ -93,6 +99,44 @@ export interface TokenOperationResponse {
 	txid?: string
 	tx?: number[]
 	error?: string
+}
+
+export interface DeployBsv21MintInput extends ActionOptions {
+	/** Token symbol/ticker (max 32 chars) */
+	symbol: string
+	/** Total fixed supply (as bigint or string) */
+	amount: bigint | string
+	/** Decimal places (0-18) */
+	decimals?: number
+	/** Optional icon URL or data URI */
+	icon?: string
+	/** Recipient identity public key (preferred) */
+	destinationCounterparty?: string
+	/** Recipient P2PKH address (legacy) */
+	destinationAddress?: string
+}
+
+export interface DeployBsv21AuthInput extends ActionOptions {
+	/** Token symbol/ticker (max 32 chars) */
+	symbol: string
+	/** Decimal places (0-18) */
+	decimals?: number
+	/** Optional icon URL or data URI */
+	icon?: string
+	/** Auth-holder identity public key (preferred) */
+	authCounterparty?: string
+	/** Auth-holder P2PKH address (legacy) */
+	authAddress?: string
+}
+
+export interface DeployBsv21Response extends TokenOperationResponse {
+	/** New token ID = `${txid}_${deployVout}` */
+	tokenId?: string
+}
+
+export interface DeployBsv21AuthResponse extends DeployBsv21Response {
+	/** Outpoint of the auth UTXO needed for future mints */
+	authOutpoint?: string
 }
 
 // ============================================================================
@@ -892,6 +936,479 @@ export const purchaseBsv21: Action<
 	},
 }
 
+/** Miner fee rate used for manual deploy tx fee calculation. */
+const DEPLOY_FEE_PER_KB = 100
+
+/**
+ * Resolve a destination address from a counterparty pubkey or literal address.
+ * Returns the address plus the keyID used (undefined for literal addresses).
+ */
+async function resolveDestination(
+	ctx: OneSatContext,
+	keyIDPrefix: string,
+	counterparty?: string,
+	address?: string,
+): Promise<{ address: string; keyID?: string } | { error: string }> {
+	if (counterparty) {
+		const keyID = `${keyIDPrefix}-${Date.now()}`
+		const { publicKey } = await ctx.wallet.getPublicKey({
+			protocolID: BSV21_PROTOCOL,
+			keyID,
+			counterparty,
+			forSelf: false,
+		})
+		return {
+			address: PublicKey.fromString(publicKey).toAddress(),
+			keyID,
+		}
+	}
+	if (address) {
+		return { address }
+	}
+	const keyID = `${keyIDPrefix}-${Date.now()}`
+	const { publicKey } = await ctx.wallet.getPublicKey({
+		protocolID: BSV21_PROTOCOL,
+		keyID,
+		counterparty: 'self',
+		forSelf: true,
+	})
+	return {
+		address: PublicKey.fromString(publicKey).toAddress(),
+		keyID,
+	}
+}
+
+/**
+ * Estimate the byte size of the manually-built deploy tx (1 input, 1 output, no
+ * change). Conservative — sized for a typical signed P2PKH unlocking script.
+ */
+function estimateDeployTxSize(deployScriptBytes: number): number {
+	const overhead = 10 // version(4) + locktime(4) + inCount(1) + outCount(1)
+	const input = 148 // P2PKH spend: txid(32)+vout(4)+scriptLen(1)+script(~107)+seq(4)
+	const scriptLenVarint =
+		deployScriptBytes < 0xfd
+			? 1
+			: deployScriptBytes < 0x10000
+				? 3
+				: 5
+	const output = 8 + scriptLenVarint + deployScriptBytes
+	return overhead + input + output
+}
+
+/**
+ * Shared deploy flow: createAction a funding intermediate → manually build the
+ * deploy tx spending it → internalizeAction adopts the deploy with proper
+ * tokenId-bearing tags and broadcasts.
+ *
+ * Used by both deployBsv21Mint and deployBsv21Auth — they only differ in the
+ * deploy script (BSV21.deployMint vs BSV21.deployAuth) and target basket.
+ */
+async function executeBsv21Deploy(args: {
+	ctx: OneSatContext
+	symbol: string
+	deployScript: LockingScript
+	destination: { address: string; keyID?: string }
+	basket: string
+	buildTags: (tokenId: string) => string[]
+	description: string
+	outputDescription: string
+}): Promise<{ txid?: string; tx?: number[]; tokenId?: string; error?: string }> {
+	const { ctx, symbol, deployScript, destination, basket } = args
+
+	const deployScriptBin = deployScript.toBinary()
+	const txSize = estimateDeployTxSize(deployScriptBin.length)
+	const fee = Math.ceil((txSize * DEPLOY_FEE_PER_KB) / 1000)
+	// 1 sat for the deploy output + computed fee + small buffer for unlocking
+	// script size variance (low-S signatures can be a byte shorter, etc.)
+	const fundingValue = 1 + fee + 5
+
+	const fundingKeyID = `bsv21-deploy-fund-${symbol}-${Date.now()}`
+	const { publicKey: fundingPubKey } = await ctx.wallet.getPublicKey({
+		protocolID: BSV21_PROTOCOL,
+		keyID: fundingKeyID,
+		counterparty: 'self',
+		forSelf: true,
+	})
+	const fundingAddress = PublicKey.fromString(fundingPubKey).toAddress()
+	const fundingScript = new P2PKH().lock(fundingAddress)
+
+	const fundingResult = await ctx.wallet.createAction({
+		description: `${args.description} (funding)`,
+		outputs: [
+			{
+				lockingScript: fundingScript.toHex(),
+				satoshis: fundingValue,
+				outputDescription: 'Deploy funding intermediate',
+				basket: BSV21_DEPLOY_FUNDING_BASKET,
+				customInstructions: JSON.stringify({
+					protocolID: BSV21_PROTOCOL,
+					keyID: fundingKeyID,
+				}),
+			},
+		],
+		options: { randomizeOutputs: false },
+	})
+
+	if (!fundingResult.txid || !fundingResult.tx) {
+		return { error: 'funding-failed' }
+	}
+
+	const fundingBeef = Beef.fromBinary(Array.from(fundingResult.tx))
+	const fundingTx = fundingBeef.findAtomicTransaction(fundingResult.txid)
+	if (!fundingTx) {
+		return { error: 'funding-tx-not-in-beef' }
+	}
+
+	const deployTx = new Transaction()
+	deployTx.addInput({
+		sourceTransaction: fundingTx,
+		// Setting sourceTXID is required so BeefTx.updateInputTxids picks up
+		// the dependency. Without it, the deploy's inputTxids is empty and
+		// Beef.sortTxs orders the deploy before its ancestors, which then get
+		// trimmed by toBinaryAtomic.
+		sourceTXID: fundingResult.txid,
+		sourceOutputIndex: 0,
+		unlockingScript: new UnlockingScript(),
+		sequence: 0xffffffff,
+	})
+	deployTx.addOutput({
+		lockingScript: deployScript,
+		satoshis: 1,
+	})
+
+	const sigResult = await signP2PKHInput(
+		ctx,
+		deployTx,
+		0,
+		BSV21_PROTOCOL,
+		fundingKeyID,
+	)
+	if (typeof sigResult !== 'string') {
+		return { error: sigResult.error }
+	}
+	deployTx.inputs[0].unlockingScript = UnlockingScript.fromHex(sigResult)
+
+	const deployTxid = deployTx.id('hex')
+	const tokenId = `${deployTxid}_0`
+
+	fundingBeef.mergeTransaction(deployTx)
+	const deployBeefBin = fundingBeef.toBinaryAtomic(deployTxid)
+
+	const customInstructions = destination.keyID
+		? JSON.stringify({
+				protocolID: BSV21_PROTOCOL,
+				keyID: destination.keyID,
+				sym: symbol,
+			})
+		: undefined
+
+	await ctx.wallet.internalizeAction({
+		tx: deployBeefBin,
+		outputs: [
+			{
+				outputIndex: 0,
+				protocol: 'basket insertion',
+				insertionRemittance: {
+					basket,
+					tags: args.buildTags(tokenId),
+					customInstructions,
+				},
+			},
+		],
+		description: args.description,
+		labels: ['bsv21:deploy'],
+	})
+
+	return {
+		txid: deployTxid,
+		tx: deployBeefBin,
+		tokenId,
+	}
+}
+
+/**
+ * Deploy a new BSV21 token with a fixed supply (deploy+mint).
+ *
+ * The entire supply is minted in this transaction and sent to the destination.
+ * No further minting is possible — total supply is locked at deploy time.
+ */
+export const deployBsv21Mint: Action<
+	DeployBsv21MintInput,
+	DeployBsv21Response
+> = {
+	meta: {
+		name: 'deployBsv21Mint',
+		description: 'Deploy a new BSV21 token with fixed supply (deploy+mint)',
+		category: 'tokens',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				symbol: { type: 'string', description: 'Token symbol/ticker' },
+				amount: {
+					type: 'string',
+					description: 'Total fixed supply (as string for bigint)',
+				},
+				decimals: {
+					type: 'integer',
+					description: 'Decimal places (0-18, default 0)',
+				},
+				icon: { type: 'string', description: 'Icon URL or data URI' },
+				destinationCounterparty: {
+					type: 'string',
+					description: 'Recipient identity public key (hex)',
+				},
+				destinationAddress: {
+					type: 'string',
+					description: 'Recipient P2PKH address',
+				},
+			},
+			required: ['symbol', 'amount'],
+		},
+	},
+	async execute(ctx, input) {
+		try {
+			const {
+				symbol,
+				amount: rawAmount,
+				decimals = 0,
+				icon,
+				destinationCounterparty,
+				destinationAddress,
+			} = input
+
+			const amount =
+				typeof rawAmount === 'string' ? BigInt(rawAmount) : rawAmount
+			if (amount <= 0n) {
+				return { error: 'amount-must-be-positive' }
+			}
+
+			const dest = await resolveDestination(
+				ctx,
+				`bsv21-deploy-${symbol}`,
+				destinationCounterparty,
+				destinationAddress,
+			)
+			if ('error' in dest) return { error: dest.error }
+
+			const deployScript = BSV21.deployMint(
+				symbol,
+				amount,
+				decimals,
+				icon,
+			).lock(new P2PKH().lock(dest.address))
+
+			const result = await executeBsv21Deploy({
+				ctx,
+				symbol,
+				deployScript,
+				destination: dest,
+				basket: BSV21_BASKET,
+				description: `Deploy ${symbol} (${amount} fixed supply)`,
+				outputDescription: `Deploy ${symbol}`,
+				buildTags: (tokenId) => {
+					const tags = [
+						`bsv21:${tokenId}`,
+						`amt:${amount}`,
+						`dec:${decimals}`,
+						`sym:${symbol}`,
+					]
+					if (icon) tags.push(`icon:${icon}`)
+					return tags
+				},
+			})
+
+			if (result.error) return { error: result.error }
+
+			if (result.tx && ctx.services) {
+				try {
+					await ctx.services.overlay.submitBsv21Discovery(result.tx)
+				} catch (overlayError) {
+					console.warn(
+						'[deployBsv21Mint] Overlay submission failed:',
+						overlayError,
+					)
+				}
+			}
+
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'deployBsv21Mint',
+					input: {
+						symbol,
+						amount: amount.toString(),
+						decimals,
+						icon,
+						destinationCounterparty,
+						destinationAddress,
+					},
+					txid: result.txid,
+					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
+					outputs: [
+						{
+							index: 0,
+							protocolID: BSV21_PROTOCOL,
+							keyID: dest.keyID,
+							basket: BSV21_BASKET,
+							satoshis: 1,
+						},
+					],
+				})
+			}
+
+			return result
+		} catch (error) {
+			console.error('[deployBsv21Mint]', error)
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'deployBsv21Mint',
+					input: { symbol: input.symbol },
+					error: error instanceof Error ? error.message : 'unknown-error',
+				})
+			}
+			return {
+				error: error instanceof Error ? error.message : 'unknown-error',
+			}
+		}
+	},
+}
+
+/**
+ * Deploy a new BSV21 token with mintable supply (deploy+auth).
+ *
+ * Emits a single `deploy+auth` output that doubles as the genesis auth UTXO.
+ * Initial supply is zero — the auth holder must spend this output via a
+ * separate mint transaction to create supply. Authority can be split,
+ * combined, transferred, or burned via subsequent auth operations.
+ */
+export const deployBsv21Auth: Action<
+	DeployBsv21AuthInput,
+	DeployBsv21AuthResponse
+> = {
+	meta: {
+		name: 'deployBsv21Auth',
+		description:
+			'Deploy a new BSV21 token with mintable supply via auth UTXOs (deploy+auth)',
+		category: 'tokens',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				symbol: { type: 'string', description: 'Token symbol/ticker' },
+				decimals: {
+					type: 'integer',
+					description: 'Decimal places (0-18, default 0)',
+				},
+				icon: { type: 'string', description: 'Icon URL or data URI' },
+				authCounterparty: {
+					type: 'string',
+					description: 'Auth-holder identity public key (hex)',
+				},
+				authAddress: {
+					type: 'string',
+					description: 'Auth-holder P2PKH address',
+				},
+			},
+			required: ['symbol'],
+		},
+	},
+	async execute(ctx, input) {
+		try {
+			const {
+				symbol,
+				decimals = 0,
+				icon,
+				authCounterparty,
+				authAddress,
+			} = input
+
+			const dest = await resolveDestination(
+				ctx,
+				`bsv21-auth-${symbol}`,
+				authCounterparty,
+				authAddress,
+			)
+			if ('error' in dest) return { error: dest.error }
+
+			const deployScript = BSV21.deployAuth(symbol, decimals, icon).lock(
+				new P2PKH().lock(dest.address),
+			)
+
+			const result = await executeBsv21Deploy({
+				ctx,
+				symbol,
+				deployScript,
+				destination: dest,
+				basket: BSV21_AUTH_BASKET,
+				description: `Deploy ${symbol} (mintable)`,
+				outputDescription: `Deploy ${symbol} auth`,
+				buildTags: (tokenId) => {
+					const tags = [`bsv21:${tokenId}`, `dec:${decimals}`, `sym:${symbol}`]
+					if (icon) tags.push(`icon:${icon}`)
+					return tags
+				},
+			})
+
+			if (result.error) return { error: result.error }
+
+			if (result.tx && ctx.services) {
+				try {
+					await ctx.services.overlay.submitBsv21Discovery(result.tx)
+				} catch (overlayError) {
+					console.warn(
+						'[deployBsv21Auth] Overlay submission failed:',
+						overlayError,
+					)
+				}
+			}
+
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'deployBsv21Auth',
+					input: {
+						symbol,
+						decimals,
+						icon,
+						authCounterparty,
+						authAddress,
+					},
+					txid: result.txid,
+					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
+					outputs: [
+						{
+							index: 0,
+							protocolID: BSV21_PROTOCOL,
+							keyID: dest.keyID,
+							basket: BSV21_AUTH_BASKET,
+							satoshis: 1,
+						},
+					],
+				})
+			}
+
+			// For deploy+auth, the deploy output IS the first auth UTXO.
+			return {
+				...result,
+				authOutpoint: result.tokenId,
+			}
+		} catch (error) {
+			console.error('[deployBsv21Auth]', error)
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'deployBsv21Auth',
+					input: { symbol: input.symbol },
+					error: error instanceof Error ? error.message : 'unknown-error',
+				})
+			}
+			return {
+				error: error instanceof Error ? error.message : 'unknown-error',
+			}
+		}
+	},
+}
+
 // ============================================================================
 // Module exports
 // ============================================================================
@@ -902,4 +1419,6 @@ export const tokensActions = [
 	getBsv21Balances,
 	sendBsv21,
 	purchaseBsv21,
+	deployBsv21Mint,
+	deployBsv21Auth,
 ]
