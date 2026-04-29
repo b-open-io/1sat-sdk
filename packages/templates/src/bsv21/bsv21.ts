@@ -11,38 +11,51 @@ import Inscription from '../inscription/inscription.js'
 /**
  * BSV-21 token operation types
  */
-export type BSV21Operation = 'deploy+mint' | 'transfer' | 'burn'
+export type BSV21Operation =
+	| 'deploy+mint'
+	| 'deploy+auth'
+	| 'mint'
+	| 'auth'
+	| 'transfer'
+	| 'burn'
 
 /**
- * BSV-21 token data structure for JSON payload
+ * BSV-21 token data structure for JSON payload.
+ *
+ * `amt` is required for `deploy+mint`, `mint`, `transfer`, `burn`.
+ * `amt` MUST be absent for `deploy+auth` and `auth` (capability-only ops).
  */
-export interface BSV21TokenData extends TokenInscription {
+export interface BSV21TokenData extends Omit<TokenInscription, 'amt'> {
 	/** Token operation */
 	op: BSV21Operation
-	/** Token symbol (for deploy+mint only) */
+	/** Token symbol (for deploy+mint and deploy+auth only) */
 	sym?: string
-	/** Decimals (for deploy+mint only, max 18) */
+	/** Decimals (for deploy+mint and deploy+auth only, max 18) */
 	dec?: number
-	/** Icon URL or data URI (for deploy+mint only) */
+	/** Icon URL or data URI (for deploy+mint and deploy+auth only) */
 	icon?: string
-	/** Token ID (for transfer/burn only) */
+	/** Token ID (for mint/auth/transfer/burn only) */
 	id?: string
+	/** Token amount (omitted for deploy+auth and auth) */
+	amt?: string
 }
 
 /**
  * BSV-21 token inscription interface (compatible with js-1sat-ord)
  */
-export interface BSV21Inscription extends TokenInscription {
+export interface BSV21Inscription extends Omit<TokenInscription, 'amt'> {
 	/** Token operation */
-	op: 'deploy+mint' | 'transfer' | 'burn'
-	/** Token symbol (for deploy+mint only) */
+	op: BSV21Operation
+	/** Token symbol (for deploy+mint and deploy+auth only) */
 	sym?: string
-	/** Decimals (for deploy+mint only, max 18) */
+	/** Decimals (for deploy+mint and deploy+auth only, max 18) */
 	dec?: number
-	/** Icon URL or data URI (for deploy+mint only) */
+	/** Icon URL or data URI (for deploy+mint and deploy+auth only) */
 	icon?: string
-	/** Token ID (for transfer/burn only) */
+	/** Token ID (for mint/auth/transfer/burn only) */
 	id?: string
+	/** Token amount (omitted for deploy+auth and auth) */
+	amt?: string
 }
 
 /**
@@ -156,6 +169,157 @@ export default class BSV21 implements ScriptTemplate {
 		const jsonContent = JSON.stringify(wireFormat)
 		const inscription = Inscription.fromText(
 			jsonContent,
+			'application/bsv-20',
+			options,
+		)
+
+		return new BSV21(tokenData, inscription)
+	}
+
+	/**
+	 * Creates a deploy+auth token (mintable token genesis with no initial supply).
+	 *
+	 * Emits a deploy declaration carrying the token's metadata. The accompanying
+	 * `auth` output (built separately via {@link BSV21.auth}) carries the capability
+	 * to mint future supply.
+	 *
+	 * @param symbol - Token symbol/ticker
+	 * @param decimals - Number of decimal places (0-18, default 0)
+	 * @param icon - Optional icon URL or data URI
+	 * @param options - Optional inscription parameters
+	 * @returns A new BSV21 instance
+	 */
+	static deployAuth(
+		symbol: string,
+		decimals = 0,
+		icon?: string,
+		options: BSV21Options = {},
+	): BSV21 {
+		if (symbol == null || symbol === '' || symbol.length === 0) {
+			throw new Error('Symbol cannot be empty')
+		}
+		if (symbol.length > 32) {
+			throw new Error('Symbol cannot exceed 32 characters')
+		}
+		if (decimals < 0 || decimals > 18) {
+			throw new Error('Decimals must be between 0 and 18')
+		}
+
+		const tokenData: BSV21TokenData = {
+			p: 'bsv-20',
+			op: 'deploy+auth',
+			sym: symbol,
+		}
+
+		if (decimals > 0) {
+			tokenData.dec = decimals
+		}
+		if (icon != null && icon !== '') {
+			tokenData.icon = icon
+		}
+
+		const wireFormat: Record<string, unknown> = {
+			p: tokenData.p,
+			op: tokenData.op,
+			sym: tokenData.sym,
+		}
+		if (tokenData.dec !== undefined) {
+			wireFormat.dec = tokenData.dec.toString()
+		}
+		if (tokenData.icon !== undefined) {
+			wireFormat.icon = tokenData.icon
+		}
+
+		const inscription = Inscription.fromText(
+			JSON.stringify(wireFormat),
+			'application/bsv-20',
+			options,
+		)
+
+		return new BSV21(tokenData, inscription)
+	}
+
+	/**
+	 * Creates a mint operation that adds new supply to an existing mintable token.
+	 *
+	 * The transaction containing this output must spend an existing `auth` UTXO
+	 * for the same `tokenId` to prove minting authority.
+	 *
+	 * @param tokenId - Token deployment outpoint (txid_vout)
+	 * @param amount - Amount to mint
+	 * @param options - Optional inscription parameters
+	 * @returns A new BSV21 instance
+	 */
+	static mint(
+		tokenId: string,
+		amount: bigint,
+		options: BSV21Options = {},
+	): BSV21 {
+		if (tokenId == null || tokenId === '' || tokenId.length === 0) {
+			throw new Error('Token ID cannot be empty')
+		}
+		if (amount <= BigInt(0)) {
+			throw new Error('Amount must be positive')
+		}
+
+		const parts = tokenId.split('_')
+		if (
+			parts.length !== 2 ||
+			parts[0].length !== 64 ||
+			!/^\d+$/.test(parts[1])
+		) {
+			throw new Error('Token ID must be in format: txid_vout')
+		}
+
+		const tokenData: BSV21TokenData = {
+			p: 'bsv-20',
+			op: 'mint',
+			id: tokenId,
+			amt: amount.toString(),
+		}
+
+		const inscription = Inscription.fromText(
+			JSON.stringify(tokenData),
+			'application/bsv-20',
+			options,
+		)
+
+		return new BSV21(tokenData, inscription)
+	}
+
+	/**
+	 * Creates an auth output that propagates the mint capability for a token.
+	 *
+	 * Auth outputs carry no `amt` — they are pure capability tokens. A mint
+	 * transaction must spend an existing auth UTXO and (typically) produce a
+	 * new auth output to continue the chain.
+	 *
+	 * @param tokenId - Token deployment outpoint (txid_vout)
+	 * @param options - Optional inscription parameters
+	 * @returns A new BSV21 instance
+	 */
+	static auth(tokenId: string, options: BSV21Options = {}): BSV21 {
+		if (tokenId == null || tokenId === '' || tokenId.length === 0) {
+			throw new Error('Token ID cannot be empty')
+		}
+
+		const parts = tokenId.split('_')
+		if (
+			parts.length !== 2 ||
+			parts[0].length !== 64 ||
+			!/^\d+$/.test(parts[1])
+		) {
+			throw new Error('Token ID must be in format: txid_vout')
+		}
+
+		const tokenData: BSV21TokenData = {
+			p: 'bsv-20',
+			op: 'auth',
+			id: tokenId,
+		}
+
+		const inscription = Inscription.fromText(
+			JSON.stringify(tokenData),
 			'application/bsv-20',
 			options,
 		)
@@ -291,21 +455,27 @@ export default class BSV21 implements ScriptTemplate {
 			// Validate required protocol fields
 			if (data.p !== 'bsv-20') return null
 			if (data.op == null || typeof data.op !== 'string') return null
-			if (data.amt == null || typeof data.amt !== 'string') return null
 
-			// Parse amount
-			let amount: bigint
-			try {
-				amount = BigInt(data.amt)
-				if (amount <= BigInt(0)) return null
-			} catch {
-				return null
+			const operation = data.op.toLowerCase() as BSV21Operation
+
+			// Auth ops MUST NOT carry amt; all other ops require amt
+			const isAuthOp = operation === 'deploy+auth' || operation === 'auth'
+			if (isAuthOp) {
+				if (data.amt !== undefined) return null
+			} else {
+				if (data.amt == null || typeof data.amt !== 'string') return null
+				try {
+					const amount = BigInt(data.amt)
+					if (amount <= BigInt(0)) return null
+				} catch {
+					return null
+				}
 			}
 
 			// Validate operation and required fields
-			const operation = data.op.toLowerCase() as BSV21Operation
 			switch (operation) {
 				case 'deploy+mint':
+				case 'deploy+auth':
 					if (data.sym == null || typeof data.sym !== 'string') return null
 					if (data.sym.length === 0 || data.sym.length > 32) return null
 					if (data.dec !== undefined) {
@@ -319,6 +489,8 @@ export default class BSV21 implements ScriptTemplate {
 					}
 					break
 
+				case 'mint':
+				case 'auth':
 				case 'transfer':
 				case 'burn': {
 					if (data.id == null || typeof data.id !== 'string') return null
@@ -342,11 +514,13 @@ export default class BSV21 implements ScriptTemplate {
 			const tokenData: BSV21TokenData = {
 				p: 'bsv-20',
 				op: operation,
-				amt: data.amt,
+			}
+			if (!isAuthOp) {
+				tokenData.amt = data.amt
 			}
 
 			// Add operation-specific fields
-			if (operation === 'deploy+mint') {
+			if (operation === 'deploy+mint' || operation === 'deploy+auth') {
 				tokenData.sym = data.sym
 				if (data.dec !== undefined) {
 					tokenData.dec = data.dec
@@ -372,17 +546,26 @@ export default class BSV21 implements ScriptTemplate {
 	 */
 	lock(lockingScript?: LockingScript): LockingScript {
 		if (lockingScript != null) {
-			// Create new inscription with the locking script as suffix
 			const options: BSV21Options = {
 				parent: this.inscription.parent,
 				scriptPrefix: this.inscription.scriptPrefix,
 				scriptSuffix: lockingScript,
 			}
 
-			// Create new inscription with suffix
-			const jsonContent = JSON.stringify(this.tokenData)
+			// Build wire format: `dec` must be serialized as a string per BSV-20
+			// protocol; strip any undefined fields.
+			const wireFormat: Record<string, unknown> = { ...this.tokenData }
+			if (this.tokenData.dec !== undefined) {
+				wireFormat.dec = this.tokenData.dec.toString()
+			}
+			for (const key of Object.keys(wireFormat)) {
+				if (wireFormat[key] === undefined) {
+					delete wireFormat[key]
+				}
+			}
+
 			const newInscription = Inscription.fromText(
-				jsonContent,
+				JSON.stringify(wireFormat),
 				'application/bsv-20',
 				options,
 			)
@@ -405,12 +588,13 @@ export default class BSV21 implements ScriptTemplate {
 	}
 
 	/**
-	 * Gets the token amount as BigInt
+	 * Gets the token amount as BigInt. Auth ops (`deploy+auth`, `auth`) carry no
+	 * amount and return 0n.
 	 *
-	 * @returns Token amount
+	 * @returns Token amount, or 0n for auth ops
 	 */
 	getAmount(): bigint {
-		return BigInt(this.tokenData.amt)
+		return this.tokenData.amt != null ? BigInt(this.tokenData.amt) : 0n
 	}
 
 	/**
@@ -537,69 +721,5 @@ export default class BSV21 implements ScriptTemplate {
 	 */
 	toJSON(): string {
 		return JSON.stringify(this.tokenData, null, 2)
-	}
-
-	/**
-	 * Validates the token data structure
-	 *
-	 * @returns true if token data is valid
-	 */
-	validate(): boolean {
-		try {
-			// Validate basic structure
-			if (this.tokenData.p !== 'bsv-20') return false
-			if (
-				this.tokenData.op == null ||
-				this.tokenData.amt == null ||
-				this.tokenData.amt === ''
-			)
-				return false
-
-			// Validate amount
-			const amount = BigInt(this.tokenData.amt)
-			if (amount <= BigInt(0)) return false
-
-			// Validate operation-specific fields
-			switch (this.tokenData.op) {
-				case 'deploy+mint':
-					if (
-						this.tokenData.sym == null ||
-						this.tokenData.sym === '' ||
-						this.tokenData.sym.length === 0 ||
-						this.tokenData.sym.length > 32
-					) {
-						return false
-					}
-					if (
-						this.tokenData.dec !== undefined &&
-						(this.tokenData.dec < 0 || this.tokenData.dec > 18)
-					) {
-						return false
-					}
-					break
-
-				case 'transfer':
-				case 'burn': {
-					if (this.tokenData.id == null || this.tokenData.id === '')
-						return false
-					const parts = this.tokenData.id.split('_')
-					if (
-						parts.length !== 2 ||
-						parts[0].length !== 64 ||
-						!/^\d+$/.test(parts[1])
-					) {
-						return false
-					}
-					break
-				}
-
-				default:
-					return false
-			}
-
-			return true
-		} catch {
-			return false
-		}
 	}
 }
