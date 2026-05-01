@@ -5,7 +5,8 @@
  */
 
 import { Inscription, MAP as MAPTemplate } from '@1sat/templates'
-import { P2PKH, PublicKey, Script, Utils } from '@bsv/sdk'
+import type { Destination } from '@1sat/types'
+import { type LockingScript, P2PKH, PublicKey, Script, Utils } from '@bsv/sdk'
 import {
 	MAX_INSCRIPTION_BYTES,
 	ONESAT_PROTOCOL,
@@ -15,6 +16,7 @@ import {
 import { applySigma } from '../signing/sigma'
 import type { Action, ActionOptions, OneSatContext } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
+import { resolveDestination } from '../utils/resolveDestination'
 import { signP2PKHInput } from '../utils/signP2PKH'
 
 // ============================================================================
@@ -30,6 +32,8 @@ export interface InscribeRequest extends ActionOptions {
 	map?: Record<string, string>
 	/** Sign with BAP identity (Sigma protocol) */
 	signWithBAP?: boolean
+	/** Where to lock the inscription output. Defaults to self. */
+	destination?: Destination
 }
 
 export interface InscribeResponse {
@@ -43,17 +47,16 @@ export interface InscribeResponse {
 // ============================================================================
 
 function buildInscriptionScript(
-	address: string,
+	lockingScript: LockingScript,
 	base64Content: string,
 	contentType: string,
 	map?: Record<string, string>,
 ): Script {
 	const content = Utils.toArray(base64Content, 'base64')
-	const p2pkhScript = new P2PKH().lock(address)
 
-	// Build suffix: P2PKH + optional MAP
+	// Build suffix: caller-provided locking script + optional MAP
 	const suffix = new Script()
-	for (const chunk of p2pkhScript.chunks) suffix.chunks.push(chunk)
+	for (const chunk of lockingScript.chunks) suffix.chunks.push(chunk)
 	if (map && Object.keys(map).length > 0) {
 		const mapScript = MAPTemplate.set(map)
 		for (const chunk of mapScript.chunks) suffix.chunks.push(chunk)
@@ -68,11 +71,12 @@ function buildInscriptionScript(
 async function inscribeWithSigma(
 	ctx: OneSatContext,
 	lockingScript: Script,
-	keyID: string,
 	tags: string[],
 	input: InscribeRequest,
+	outputCustomInstructions?: string,
+	outputKeyIDForLog?: string,
 ): Promise<InscribeResponse> {
-	const anchorKeyID = `anchor-${keyID}`
+	const anchorKeyID = `anchor-${Date.now()}`
 	const { publicKey: anchorPubKey } = await ctx.wallet.getPublicKey({
 		protocolID: ONESAT_PROTOCOL,
 		keyID: anchorKeyID,
@@ -141,11 +145,7 @@ async function inscribeWithSigma(
 					outputDescription: 'Inscription',
 					basket: ORDINALS_BASKET,
 					tags,
-					customInstructions: JSON.stringify({
-						protocolID: ONESAT_PROTOCOL,
-						keyID,
-						...(input.map?.name && { name: input.map.name.slice(0, 64) }),
-					}),
+					customInstructions: outputCustomInstructions,
 				},
 			],
 			options: {
@@ -189,7 +189,7 @@ async function inscribeWithSigma(
 				{
 					index: 0,
 					protocolID: ONESAT_PROTOCOL,
-					keyID,
+					keyID: outputKeyIDForLog,
 					basket: ORDINALS_BASKET,
 					satoshis: 1,
 				},
@@ -232,6 +232,11 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 					type: 'boolean',
 					description: 'Sign with BAP identity (Sigma protocol)',
 				},
+				destination: {
+					type: 'object',
+					description:
+						'Where to lock the inscription output. One of lockingScript (hex), counterparty (pubkey), or address. Defaults to self.',
+				},
 			},
 			required: ['base64Content', 'contentType'],
 		},
@@ -245,17 +250,13 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 				}
 			}
 
-			const keyID = Date.now().toString()
-			const { publicKey } = await ctx.wallet.getPublicKey({
+			const resolved = await resolveDestination(ctx, input.destination, {
 				protocolID: ONESAT_PROTOCOL,
-				keyID,
-				counterparty: 'self',
-				forSelf: true,
+				keyIDPrefix: 'inscribe',
 			})
-			const address = PublicKey.fromString(publicKey).toAddress()
 
 			const lockingScript = buildInscriptionScript(
-				address,
+				resolved.lockingScript,
 				input.base64Content,
 				input.contentType,
 				input.map,
@@ -266,8 +267,23 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 				tags.push(`name:${input.map.name}`)
 			}
 
+			const customInstructions = resolved.customInstructions
+				? JSON.stringify({
+						protocolID: resolved.customInstructions.protocolID,
+						keyID: resolved.customInstructions.keyID,
+						...(input.map?.name && { name: input.map.name.slice(0, 64) }),
+					})
+				: undefined
+
 			if (input.signWithBAP) {
-				return await inscribeWithSigma(ctx, lockingScript, keyID, tags, input)
+				return await inscribeWithSigma(
+					ctx,
+					lockingScript,
+					tags,
+					input,
+					customInstructions,
+					resolved.customInstructions?.keyID,
+				)
 			}
 
 			const result = await executeTrackedAction(
@@ -281,11 +297,7 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 							outputDescription: 'Inscription',
 							basket: ORDINALS_BASKET,
 							tags,
-							customInstructions: JSON.stringify({
-								protocolID: ONESAT_PROTOCOL,
-								keyID,
-								...(input.map?.name && { name: input.map.name.slice(0, 64) }),
-							}),
+							customInstructions,
 						},
 					],
 					options: {
@@ -304,14 +316,18 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'inscribe',
-					input: { contentType: input.contentType, map: input.map },
+					input: {
+						contentType: input.contentType,
+						map: input.map,
+						destination: input.destination,
+					},
 					txid: result.txid,
 					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 					outputs: [
 						{
 							index: 0,
 							protocolID: ONESAT_PROTOCOL,
-							keyID,
+							keyID: resolved.customInstructions?.keyID,
 							basket: ORDINALS_BASKET,
 							satoshis: 1,
 						},

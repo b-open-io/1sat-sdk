@@ -7,6 +7,7 @@
  */
 
 import type { PrivateKey, Script, Transaction } from '@bsv/sdk'
+import type { Destination } from './destination'
 
 // ============================================================================
 // Signer Types
@@ -185,8 +186,13 @@ export type IconInscription = {
 	contentType: ImageContentType
 }
 
-export type Destination = {
-	address: string
+/**
+ * Recipient for ordinal-minting flows. Pairs a {@link Destination} (locking
+ * spec) with the inscription content to embed at that output. Used by
+ * CreateOrdinalsConfig, SendOrdinalsConfig, and the collection variants.
+ */
+export type OrdinalRecipient = {
+	destination: Destination
 	inscription?: Inscription
 }
 
@@ -392,7 +398,7 @@ export interface CreateOrdinalsCollectionItemMetadata extends PreMAP {
 
 export type CreateOrdinalsConfig = {
 	utxos: Utxo[]
-	destinations: Destination[]
+	destinations: OrdinalRecipient[]
 	paymentPk?: PrivateKey
 	changeAddress?: string
 	satsPerKb?: number
@@ -423,7 +429,7 @@ export type SendOrdinalsConfig = {
 	ordinals: Utxo[]
 	paymentPk?: PrivateKey
 	ordPk?: PrivateKey
-	destinations: Destination[]
+	destinations: OrdinalRecipient[]
 	changeAddress?: string
 	satsPerKb?: number
 	metaData?: PreMAP
@@ -569,6 +575,7 @@ export interface CreateOrdTokenListingsConfig {
 // ============================================================================
 
 export * from './constants'
+export * from './destination'
 export * from './services'
 export * from './indexer'
 export * from './address-sync'

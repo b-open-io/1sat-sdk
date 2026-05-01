@@ -1,44 +1,44 @@
 {
-	"name": "@1sat/templates",
-	"version": "0.0.9",
-	"description": "Bitcoin script templates for 1Sat Ordinals SDK",
-	"type": "module",
-	"main": "./dist/index.js",
-	"types": "./dist/index.d.ts",
-	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js"
-		},
-		"./sigma": {
-			"types": "./dist/bitcom/sigma.d.ts",
-			"import": "./dist/bitcom/sigma.js"
-		}
-	},
-	"files": [
-		"dist"
-	],
-	"scripts": {
-		"build": "tsc",
-		"dev": "tsc --watch",
-		"clean": "rm -rf dist"
-	},
-	"keywords": [
-		"1sat",
-		"bsv",
-		"ordinals",
-		"templates",
-		"typescript"
-	],
-	"license": "MIT",
-	"dependencies": {
-		"@1sat/types": "workspace:*"
-	},
-	"peerDependencies": {
-		"@bsv/sdk": "^2.0.13"
-	},
-	"devDependencies": {
-		"@bsv/sdk": "^2.0.13",
-		"typescript": "^5.9.3"
-	}
+  "name": "@1sat/templates",
+  "version": "0.0.10",
+  "description": "Bitcoin script templates for 1Sat Ordinals SDK",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./sigma": {
+      "types": "./dist/bitcom/sigma.d.ts",
+      "import": "./dist/bitcom/sigma.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "1sat",
+    "bsv",
+    "ordinals",
+    "templates",
+    "typescript"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@1sat/types": "workspace:*"
+  },
+  "peerDependencies": {
+    "@bsv/sdk": "^2.0.13"
+  },
+  "devDependencies": {
+    "@bsv/sdk": "^2.0.13",
+    "typescript": "^5.9.3"
+  }
 }

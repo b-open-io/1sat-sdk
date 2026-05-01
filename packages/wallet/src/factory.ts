@@ -18,17 +18,27 @@ export const DEFAULT_FEE_MODEL = { model: 'sat/kb' as const, value: 100 }
 export const DEFAULT_CONNECTION_TIMEOUT = 5000
 
 /**
- * Persists Monitor task `lastRunMsecsSinceEpoch` across processes so that
- * transient consumers (CLI invocations, service worker wakes) inherit the
- * trigger throttle that's otherwise reset to 0 on every fresh Monitor.
+ * Persists Monitor task state across processes so that transient consumers
+ * (CLI invocations, service worker wakes) can inherit triggers and queued
+ * chain-tip state that would otherwise be lost on every fresh Monitor.
  *
- * Bulk semantics: load returns the entire taskName -> timestamp map; save
- * replaces it. Implementations live in runtime-specific packages
- * (`@1sat/wallet-node` for filesystem, `@1sat/wallet-browser` for IndexedDB).
+ * Bulk semantics: load returns the entire taskName -> state map; save
+ * replaces it. Per-task value shape is interpreted in this factory:
+ * - Most tasks store a `number` (`lastRunMsecsSinceEpoch`).
+ * - `TaskNewHeader` stores `{ header, queuedHeader, queuedHeaderWhen }` so
+ *   the "wait one cycle before fetching proofs" handshake survives a process
+ *   restart — without this, CLI invocations always look like first-run and
+ *   `TaskCheckForProofs` never gets armed.
+ *
+ * Backward compat: if the persisted value for a task is a raw `number`, it
+ * is treated as legacy `lastRunMsecsSinceEpoch` (matches the old shape).
+ *
+ * Implementations live in runtime-specific packages (`@1sat/wallet-node` for
+ * filesystem, `@1sat/wallet-browser` for IndexedDB).
  */
 export interface TaskStateStore {
-	load(): Promise<Record<string, number>>
-	save(state: Record<string, number>): Promise<void>
+	load(): Promise<Record<string, unknown>>
+	save(state: Record<string, unknown>): Promise<void>
 }
 
 export interface WalletCoreConfig {
@@ -103,6 +113,18 @@ export interface WalletCoreResult {
 	 */
 	getActiveStorage: () => WalletStorageProvider
 	feeModel: { model: 'sat/kb'; value: number }
+	/**
+	 * Resolves once initial backup-remote registration has settled (each
+	 * configured backup URL has either succeeded or errored). Resolves
+	 * immediately when no backups are configured.
+	 *
+	 * Callers that initiate concurrent storage operations (notably an
+	 * automatic `monitor.runOnce()` on boot) should await this to avoid
+	 * racing against `WalletStorageManager.addWalletStorageProvider`, which
+	 * briefly flips `_isAvailable=false` on each registration and causes
+	 * concurrent `getActive()` calls to throw `WERR_INVALID_OPERATION`.
+	 */
+	backupsSettled: Promise<void>
 }
 
 export async function createWalletCore(
@@ -325,22 +347,84 @@ export async function createWalletCore(
 			}
 		}
 
-		// Persist task lastRun timestamps across processes. Hydrate on
-		// construction; snapshot after each runOnce cycle. The trigger logic
-		// already in each task does the rest — repeated CLI invocations or
-		// service-worker wakes within a task's interval become no-ops.
+		// Persist task state across processes. Hydrate on construction;
+		// snapshot after each runOnce cycle. Most tasks just persist
+		// `lastRunMsecsSinceEpoch` so their per-task interval throttle
+		// survives a fresh Monitor. `TaskNewHeader` additionally persists its
+		// queued chain-tip so the "wait one cycle before fetching proofs"
+		// handshake can complete across CLI invocations / service-worker
+		// wakes — without this, transient consumers always look like a
+		// first-run and `TaskCheckForProofs` never fires.
 		if (config.taskStateStore) {
 			const store = config.taskStateStore
 			const persisted = await store.load()
 			for (const t of monitor._tasks) {
-				const last = persisted[t.name]
-				if (typeof last === 'number') t.lastRunMsecsSinceEpoch = last
+				const value = persisted[t.name]
+				// Legacy shape: raw number = lastRunMsecsSinceEpoch.
+				if (typeof value === 'number') {
+					t.lastRunMsecsSinceEpoch = value
+					continue
+				}
+				if (value && typeof value === 'object') {
+					const v = value as { lastRun?: unknown }
+					if (typeof v.lastRun === 'number') {
+						t.lastRunMsecsSinceEpoch = v.lastRun
+					}
+					if (t.name === 'NewHeader') {
+						const nh = value as {
+							header?: unknown
+							queuedHeader?: unknown
+							queuedHeaderWhen?: unknown
+						}
+						const target = t as unknown as {
+							header?: unknown
+							queuedHeader?: unknown
+							queuedHeaderWhen?: Date
+						}
+						if (nh.header) target.header = nh.header
+						if (nh.queuedHeader) target.queuedHeader = nh.queuedHeader
+						if (typeof nh.queuedHeaderWhen === 'string') {
+							target.queuedHeaderWhen = new Date(nh.queuedHeaderWhen)
+						}
+					}
+				}
 			}
 			const originalRunOnce = monitor.runOnce.bind(monitor)
+			const newHeaderTask = monitor._tasks.find(
+				(t: { name: string }) => t.name === 'NewHeader',
+			) as { queuedHeader?: unknown } | undefined
 			monitor.runOnce = async () => {
+				// If we restored a queuedHeader from disk, the first pass of
+				// originalRunOnce will trigger TaskNewHeader.runTask which calls
+				// processNewBlockHeader, setting TaskCheckForProofs.checkNow=true.
+				// But that flip happens AFTER Monitor.runOnce's trigger-eval phase,
+				// so TaskCheckForProofs is already excluded from this pass's task
+				// list. Daemons get a follow-up cycle to consume the flag; CLI /
+				// service-worker consumers don't. Do a second pass inline when we
+				// know the flag was just set.
+				const hadQueuedHeader = !!newHeaderTask?.queuedHeader
 				await originalRunOnce()
-				const next: Record<string, number> = {}
-				for (const t of monitor._tasks) next[t.name] = t.lastRunMsecsSinceEpoch
+				if (hadQueuedHeader && !newHeaderTask?.queuedHeader) {
+					await originalRunOnce()
+				}
+				const next: Record<string, unknown> = {}
+				for (const t of monitor._tasks) {
+					if (t.name === 'NewHeader') {
+						const src = t as unknown as {
+							header?: unknown
+							queuedHeader?: unknown
+							queuedHeaderWhen?: Date
+						}
+						next[t.name] = {
+							lastRun: t.lastRunMsecsSinceEpoch,
+							header: src.header ?? null,
+							queuedHeader: src.queuedHeader ?? null,
+							queuedHeaderWhen: src.queuedHeaderWhen?.toISOString() ?? null,
+						}
+					} else {
+						next[t.name] = t.lastRunMsecsSinceEpoch
+					}
+				}
 				await store.save(next)
 			}
 		}
@@ -411,6 +495,9 @@ export async function createWalletCore(
 		addRemote,
 		getActiveStorage: () => storage.getActive(),
 		feeModel,
+		backupsSettled: backupRegistration
+			? backupRegistration.whenSettled()
+			: Promise.resolve(),
 	}
 }
 

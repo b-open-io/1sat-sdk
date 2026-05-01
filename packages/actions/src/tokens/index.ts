@@ -5,6 +5,7 @@
  */
 
 import { BSV21, OrdLock } from '@1sat/templates'
+import type { Destination } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
 import {
 	Beef,
@@ -33,13 +34,12 @@ import type {
 } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
 import { getDisplayValue } from '../utils/displayValue'
+import { resolveDestination } from '../utils/resolveDestination'
 import { signP2PKHInput } from '../utils/signP2PKH'
 
 // ============================================================================
 // Types
 // ============================================================================
-
-type PubKeyHex = string
 
 export interface Bsv21Balance {
 	/** Token protocol (bsv-20) */
@@ -69,10 +69,8 @@ export interface Bsv21Balance {
 export interface SendBsv21Recipient {
 	/** Amount to send (as bigint or string) */
 	amount: bigint | string
-	/** Recipient's identity public key (preferred) */
-	counterparty?: PubKeyHex
-	/** Legacy: raw P2PKH address */
-	address?: string
+	/** Where to lock the output. */
+	destination: Destination
 }
 
 export interface SendBsv21Input extends ActionOptions {
@@ -110,10 +108,8 @@ export interface DeployBsv21MintInput extends ActionOptions {
 	decimals?: number
 	/** Optional icon URL or data URI */
 	icon?: string
-	/** Recipient identity public key (preferred) */
-	destinationCounterparty?: string
-	/** Recipient P2PKH address (legacy) */
-	destinationAddress?: string
+	/** Recipient of the supply. Defaults to self. */
+	destination?: Destination
 }
 
 export interface DeployBsv21AuthInput extends ActionOptions {
@@ -123,10 +119,8 @@ export interface DeployBsv21AuthInput extends ActionOptions {
 	decimals?: number
 	/** Optional icon URL or data URI */
 	icon?: string
-	/** Auth-holder identity public key (preferred) */
-	authCounterparty?: string
-	/** Auth-holder P2PKH address (legacy) */
-	authAddress?: string
+	/** Auth-holder for the deploy+auth UTXO (= the first auth). Defaults to self. */
+	destination?: Destination
 }
 
 export interface DeployBsv21Response extends TokenOperationResponse {
@@ -136,6 +130,25 @@ export interface DeployBsv21Response extends TokenOperationResponse {
 
 export interface DeployBsv21AuthResponse extends DeployBsv21Response {
 	/** Outpoint of the auth UTXO needed for future mints */
+	authOutpoint?: string
+}
+
+export interface MintBsv21Input extends ActionOptions {
+	/** Token ID (txid_vout of the deploy+auth) */
+	tokenId: string
+	/** Optional mint output. Omit to skip minting (auth-only operation). */
+	mint?: { amount: bigint | string; destination: Destination }
+	/**
+	 * Optional continuing/transferred auth output. Omit to permanently end
+	 * minting; in that case `endMinting: true` is required as confirmation.
+	 */
+	auth?: { destination: Destination }
+	/** Required when `auth` is omitted — explicit confirmation that minting ends. */
+	endMinting?: boolean
+}
+
+export interface MintBsv21Response extends TokenOperationResponse {
+	/** Outpoint of the new auth UTXO, if one was emitted. */
 	authOutpoint?: string
 }
 
@@ -336,8 +349,7 @@ export const getBsv21Balances: Action<GetBsv21BalancesInput, Bsv21Balance[]> = {
 export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 	meta: {
 		name: 'sendBsv21',
-		description:
-			'Send BSV21 tokens to one or more recipients (counterparty or address)',
+		description: 'Send BSV21 tokens to one or more recipients',
 		category: 'tokens',
 		inputSchema: {
 			type: 'object',
@@ -353,16 +365,13 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 								type: 'string',
 								description: 'Amount to send (as string for bigint)',
 							},
-							counterparty: {
-								type: 'string',
-								description: 'Recipient identity public key (hex)',
-							},
-							address: {
-								type: 'string',
-								description: 'Recipient P2PKH address',
+							destination: {
+								type: 'object',
+								description:
+									'Where to lock the output. One of lockingScript (hex), counterparty (pubkey), or address.',
 							},
 						},
-						required: ['amount'],
+						required: ['amount', 'destination'],
 					},
 				},
 			},
@@ -379,8 +388,7 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 
 			const resolved: Array<{
 				amount: bigint
-				counterparty?: string
-				address?: string
+				destination: Destination
 			}> = []
 
 			for (const r of recipients) {
@@ -389,14 +397,10 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				if (amount <= 0n) {
 					return { error: 'amount-must-be-positive' }
 				}
-				if (!r.counterparty && !r.address) {
-					return { error: 'must-provide-counterparty-or-address' }
+				if (!r.destination) {
+					return { error: 'recipient-missing-destination' }
 				}
-				resolved.push({
-					amount,
-					counterparty: r.counterparty,
-					address: r.address,
-				})
+				resolved.push({ amount, destination: r.destination })
 			}
 
 			const totalAmount = resolved.reduce((sum, r) => sum + r.amount, 0n)
@@ -483,29 +487,14 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 
 			// Build recipient outputs
 			for (const r of resolved) {
-				let recipientAddress: string
-				let recipientKeyID: string | undefined
+				const recipientResolved = await resolveDestination(ctx, r.destination, {
+					protocolID: BSV21_PROTOCOL,
+					keyIDPrefix: tokenId,
+				})
+				recipientKeyIDs.push(recipientResolved.customInstructions?.keyID)
 
-				if (r.counterparty) {
-					recipientKeyID = `${tokenId}-${Date.now()}`
-					const { publicKey } = await ctx.wallet.getPublicKey({
-						protocolID: BSV21_PROTOCOL,
-						keyID: recipientKeyID,
-						counterparty: r.counterparty,
-						forSelf: false,
-					})
-					recipientAddress = PublicKey.fromString(publicKey).toAddress()
-				} else if (r.address) {
-					recipientAddress = r.address
-				} else {
-					return { error: 'must-provide-counterparty-or-address' }
-				}
-
-				recipientKeyIDs.push(recipientKeyID)
-
-				const destinationLockingScript = p2pkh.lock(recipientAddress)
 				const transferScript = BSV21.transfer(tokenId, r.amount).lock(
-					destinationLockingScript,
+					recipientResolved.lockingScript,
 				)
 				outputs.push({
 					lockingScript: transferScript.toHex(),
@@ -657,8 +646,7 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 						tokenId,
 						recipients: resolved.map((r) => ({
 							amount: r.amount.toString(),
-							counterparty: r.counterparty,
-							address: r.address,
+							destination: r.destination,
 						})),
 					},
 					txid: result.txid,
@@ -940,45 +928,6 @@ export const purchaseBsv21: Action<
 const DEPLOY_FEE_PER_KB = 100
 
 /**
- * Resolve a destination address from a counterparty pubkey or literal address.
- * Returns the address plus the keyID used (undefined for literal addresses).
- */
-async function resolveDestination(
-	ctx: OneSatContext,
-	keyIDPrefix: string,
-	counterparty?: string,
-	address?: string,
-): Promise<{ address: string; keyID?: string } | { error: string }> {
-	if (counterparty) {
-		const keyID = `${keyIDPrefix}-${Date.now()}`
-		const { publicKey } = await ctx.wallet.getPublicKey({
-			protocolID: BSV21_PROTOCOL,
-			keyID,
-			counterparty,
-			forSelf: false,
-		})
-		return {
-			address: PublicKey.fromString(publicKey).toAddress(),
-			keyID,
-		}
-	}
-	if (address) {
-		return { address }
-	}
-	const keyID = `${keyIDPrefix}-${Date.now()}`
-	const { publicKey } = await ctx.wallet.getPublicKey({
-		protocolID: BSV21_PROTOCOL,
-		keyID,
-		counterparty: 'self',
-		forSelf: true,
-	})
-	return {
-		address: PublicKey.fromString(publicKey).toAddress(),
-		keyID,
-	}
-}
-
-/**
  * Estimate the byte size of the manually-built deploy tx (1 input, 1 output, no
  * change). Conservative — sized for a typical signed P2PKH unlocking script.
  */
@@ -1007,13 +956,16 @@ async function executeBsv21Deploy(args: {
 	ctx: OneSatContext
 	symbol: string
 	deployScript: LockingScript
-	destination: { address: string; keyID?: string }
+	/** customInstructions to record on the deploy output. Pass through from
+	 *  resolveDestination so wallet-derived destinations carry the keyID for
+	 *  later spends; literal scripts/addresses pass undefined. */
+	destinationCustomInstructions?: { protocolID: unknown; keyID: string }
 	basket: string
 	buildTags: (tokenId: string) => string[]
 	description: string
 	outputDescription: string
 }): Promise<{ txid?: string; tx?: number[]; tokenId?: string; error?: string }> {
-	const { ctx, symbol, deployScript, destination, basket } = args
+	const { ctx, symbol, deployScript, basket } = args
 
 	const deployScriptBin = deployScript.toBinary()
 	const txSize = estimateDeployTxSize(deployScriptBin.length)
@@ -1094,10 +1046,10 @@ async function executeBsv21Deploy(args: {
 	fundingBeef.mergeTransaction(deployTx)
 	const deployBeefBin = fundingBeef.toBinaryAtomic(deployTxid)
 
-	const customInstructions = destination.keyID
+	const customInstructions = args.destinationCustomInstructions
 		? JSON.stringify({
-				protocolID: BSV21_PROTOCOL,
-				keyID: destination.keyID,
+				protocolID: args.destinationCustomInstructions.protocolID,
+				keyID: args.destinationCustomInstructions.keyID,
 				sym: symbol,
 			})
 		: undefined
@@ -1153,13 +1105,10 @@ export const deployBsv21Mint: Action<
 					description: 'Decimal places (0-18, default 0)',
 				},
 				icon: { type: 'string', description: 'Icon URL or data URI' },
-				destinationCounterparty: {
-					type: 'string',
-					description: 'Recipient identity public key (hex)',
-				},
-				destinationAddress: {
-					type: 'string',
-					description: 'Recipient P2PKH address',
+				destination: {
+					type: 'object',
+					description:
+						'Recipient destination. One of lockingScript (hex), counterparty (pubkey), or address. Defaults to self.',
 				},
 			},
 			required: ['symbol', 'amount'],
@@ -1167,14 +1116,8 @@ export const deployBsv21Mint: Action<
 	},
 	async execute(ctx, input) {
 		try {
-			const {
-				symbol,
-				amount: rawAmount,
-				decimals = 0,
-				icon,
-				destinationCounterparty,
-				destinationAddress,
-			} = input
+			const { symbol, amount: rawAmount, decimals = 0, icon, destination } =
+				input
 
 			const amount =
 				typeof rawAmount === 'string' ? BigInt(rawAmount) : rawAmount
@@ -1182,26 +1125,23 @@ export const deployBsv21Mint: Action<
 				return { error: 'amount-must-be-positive' }
 			}
 
-			const dest = await resolveDestination(
-				ctx,
-				`bsv21-deploy-${symbol}`,
-				destinationCounterparty,
-				destinationAddress,
-			)
-			if ('error' in dest) return { error: dest.error }
+			const resolved = await resolveDestination(ctx, destination, {
+				protocolID: BSV21_PROTOCOL,
+				keyIDPrefix: `bsv21-deploy-${symbol}`,
+			})
 
 			const deployScript = BSV21.deployMint(
 				symbol,
 				amount,
 				decimals,
 				icon,
-			).lock(new P2PKH().lock(dest.address))
+			).lock(resolved.lockingScript)
 
 			const result = await executeBsv21Deploy({
 				ctx,
 				symbol,
 				deployScript,
-				destination: dest,
+				destinationCustomInstructions: resolved.customInstructions,
 				basket: BSV21_BASKET,
 				description: `Deploy ${symbol} (${amount} fixed supply)`,
 				outputDescription: `Deploy ${symbol}`,
@@ -1239,8 +1179,7 @@ export const deployBsv21Mint: Action<
 						amount: amount.toString(),
 						decimals,
 						icon,
-						destinationCounterparty,
-						destinationAddress,
+						destination,
 					},
 					txid: result.txid,
 					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
@@ -1248,7 +1187,7 @@ export const deployBsv21Mint: Action<
 						{
 							index: 0,
 							protocolID: BSV21_PROTOCOL,
-							keyID: dest.keyID,
+							keyID: resolved.customInstructions?.keyID,
 							basket: BSV21_BASKET,
 							satoshis: 1,
 						},
@@ -1300,13 +1239,10 @@ export const deployBsv21Auth: Action<
 					description: 'Decimal places (0-18, default 0)',
 				},
 				icon: { type: 'string', description: 'Icon URL or data URI' },
-				authCounterparty: {
-					type: 'string',
-					description: 'Auth-holder identity public key (hex)',
-				},
-				authAddress: {
-					type: 'string',
-					description: 'Auth-holder P2PKH address',
+				destination: {
+					type: 'object',
+					description:
+						'Auth-holder destination. One of lockingScript (hex), counterparty (pubkey), or address. Defaults to self.',
 				},
 			},
 			required: ['symbol'],
@@ -1314,31 +1250,22 @@ export const deployBsv21Auth: Action<
 	},
 	async execute(ctx, input) {
 		try {
-			const {
-				symbol,
-				decimals = 0,
-				icon,
-				authCounterparty,
-				authAddress,
-			} = input
+			const { symbol, decimals = 0, icon, destination } = input
 
-			const dest = await resolveDestination(
-				ctx,
-				`bsv21-auth-${symbol}`,
-				authCounterparty,
-				authAddress,
-			)
-			if ('error' in dest) return { error: dest.error }
+			const resolved = await resolveDestination(ctx, destination, {
+				protocolID: BSV21_PROTOCOL,
+				keyIDPrefix: `bsv21-auth-${symbol}`,
+			})
 
 			const deployScript = BSV21.deployAuth(symbol, decimals, icon).lock(
-				new P2PKH().lock(dest.address),
+				resolved.lockingScript,
 			)
 
 			const result = await executeBsv21Deploy({
 				ctx,
 				symbol,
 				deployScript,
-				destination: dest,
+				destinationCustomInstructions: resolved.customInstructions,
 				basket: BSV21_AUTH_BASKET,
 				description: `Deploy ${symbol} (mintable)`,
 				outputDescription: `Deploy ${symbol} auth`,
@@ -1366,20 +1293,14 @@ export const deployBsv21Auth: Action<
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'deployBsv21Auth',
-					input: {
-						symbol,
-						decimals,
-						icon,
-						authCounterparty,
-						authAddress,
-					},
+					input: { symbol, decimals, icon, destination },
 					txid: result.txid,
 					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 					outputs: [
 						{
 							index: 0,
 							protocolID: BSV21_PROTOCOL,
-							keyID: dest.keyID,
+							keyID: resolved.customInstructions?.keyID,
 							basket: BSV21_AUTH_BASKET,
 							satoshis: 1,
 						},
@@ -1409,6 +1330,283 @@ export const deployBsv21Auth: Action<
 	},
 }
 
+/**
+ * Spend an auth UTXO to mint new supply, transfer authority, or burn it.
+ *
+ * Both `mint` and `auth` are optional, but at least one must be present.
+ * Omitting `auth` ends minting permanently and requires `endMinting: true`
+ * as explicit confirmation.
+ */
+export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
+	meta: {
+		name: 'mintBsv21',
+		description:
+			'Spend an auth UTXO to mint new supply and/or re-issue authority',
+		category: 'tokens',
+		requiresServices: true,
+		inputSchema: {
+			type: 'object',
+			properties: {
+				tokenId: { type: 'string', description: 'Token ID (txid_vout format)' },
+				mint: {
+					type: 'object',
+					description: 'Optional mint output: { amount, destination }',
+				},
+				auth: {
+					type: 'object',
+					description: 'Optional continuing auth output: { destination }',
+				},
+				endMinting: {
+					type: 'boolean',
+					description:
+						'Required when auth is omitted — explicit confirmation that minting ends.',
+				},
+			},
+			required: ['tokenId'],
+		},
+	},
+	async execute(ctx, input) {
+		try {
+			const { tokenId, mint, auth, endMinting } = input
+
+			if (!mint && !auth) {
+				return { error: 'must-provide-mint-or-auth' }
+			}
+			if (!auth && !endMinting) {
+				return { error: 'omitting-auth-requires-endMinting-true' }
+			}
+
+			const mintAmount =
+				mint?.amount !== undefined
+					? typeof mint.amount === 'string'
+						? BigInt(mint.amount)
+						: mint.amount
+					: 0n
+			if (mint && mintAmount <= 0n) {
+				return { error: 'mint-amount-must-be-positive' }
+			}
+
+			if (!ctx.services) {
+				return { error: 'services-required' }
+			}
+
+			// Look up the token's metadata for tag enrichment.
+			const tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId)
+
+			// Find a spendable auth UTXO for this token.
+			const authList = await ctx.wallet.listOutputs({
+				basket: BSV21_AUTH_BASKET,
+				includeTags: true,
+				includeCustomInstructions: true,
+				include: 'entire transactions',
+				limit: 1000,
+			})
+			const authUtxo = authList.outputs.find((o) =>
+				o.tags?.includes(`bsv21:${tokenId}`),
+			)
+			if (!authUtxo) {
+				return { error: 'no-auth-utxo-for-token' }
+			}
+			if (!authUtxo.customInstructions) {
+				return { error: 'auth-utxo-missing-custom-instructions' }
+			}
+			const authCI = JSON.parse(authUtxo.customInstructions) as {
+				protocolID: [0 | 1 | 2, string]
+				keyID: string
+			}
+
+			// Build outputs.
+			const outputs: Array<{
+				lockingScript: string
+				satoshis: number
+				outputDescription: string
+				basket?: string
+				tags?: string[]
+				customInstructions?: string
+			}> = []
+
+			let authOutputIndex: number | undefined
+
+			if (mint) {
+				const mintResolved = await resolveDestination(ctx, mint.destination, {
+					protocolID: BSV21_PROTOCOL,
+					keyIDPrefix: `bsv21-mint-${tokenId}`,
+				})
+				const mintScript = BSV21.mint(tokenId, mintAmount).lock(
+					mintResolved.lockingScript,
+				)
+				const mintTags = [
+					`bsv21:${tokenId}`,
+					`amt:${mintAmount}`,
+					`dec:${tokenDetails.token.dec ?? 0}`,
+					...(tokenDetails.token.sym
+						? [`sym:${tokenDetails.token.sym}`]
+						: []),
+					...(tokenDetails.token.icon
+						? [`icon:${tokenDetails.token.icon}`]
+						: []),
+				]
+				const mintCI = mintResolved.customInstructions
+					? JSON.stringify({
+							protocolID: mintResolved.customInstructions.protocolID,
+							keyID: mintResolved.customInstructions.keyID,
+							...(tokenDetails.token.sym && { sym: tokenDetails.token.sym }),
+						})
+					: undefined
+				outputs.push({
+					lockingScript: mintScript.toHex(),
+					satoshis: 1,
+					outputDescription: `Mint ${mintAmount} tokens`,
+					basket: BSV21_BASKET,
+					tags: mintTags,
+					customInstructions: mintCI,
+				})
+			}
+
+			if (auth) {
+				const authResolved = await resolveDestination(ctx, auth.destination, {
+					protocolID: BSV21_PROTOCOL,
+					keyIDPrefix: `bsv21-auth-${tokenId}`,
+				})
+				const authScript = BSV21.auth(tokenId).lock(authResolved.lockingScript)
+				const authTags = [
+					`bsv21:${tokenId}`,
+					`dec:${tokenDetails.token.dec ?? 0}`,
+					...(tokenDetails.token.sym
+						? [`sym:${tokenDetails.token.sym}`]
+						: []),
+					...(tokenDetails.token.icon
+						? [`icon:${tokenDetails.token.icon}`]
+						: []),
+				]
+				const authCustomInstructions = authResolved.customInstructions
+					? JSON.stringify({
+							protocolID: authResolved.customInstructions.protocolID,
+							keyID: authResolved.customInstructions.keyID,
+							...(tokenDetails.token.sym && { sym: tokenDetails.token.sym }),
+						})
+					: undefined
+				authOutputIndex = outputs.length
+				outputs.push({
+					lockingScript: authScript.toHex(),
+					satoshis: 1,
+					outputDescription: 'Continuing mint authority',
+					basket: BSV21_AUTH_BASKET,
+					tags: authTags,
+					customInstructions: authCustomInstructions,
+				})
+			}
+
+			// Optional fee output to overlay fund address (per token output).
+			const tokenOutputCount =
+				(mint ? 1 : 0) + (auth ? 1 : 0)
+			if (
+				tokenDetails.status.is_active &&
+				tokenDetails.status.fee_per_output > 0
+			) {
+				outputs.push({
+					lockingScript: new P2PKH()
+						.lock(tokenDetails.status.fee_address)
+						.toHex(),
+					satoshis: tokenDetails.status.fee_per_output * tokenOutputCount,
+					outputDescription: 'Overlay processing fee',
+					tags: [],
+				})
+			}
+
+			let inputBEEF = authList.BEEF
+			if (!inputBEEF || (inputBEEF as number[]).length === 0) {
+				const beef = await ctx.services.getBeefForTxid(
+					authUtxo.outpoint.split('.')[0],
+				)
+				inputBEEF = beef.toBinary()
+			}
+
+			const symbol = tokenDetails.token.sym || tokenId.slice(0, 8)
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				{
+					description: mint
+						? `Mint ${mintAmount} ${symbol}`
+						: `Re-issue ${symbol} authority`,
+					labels: [`bsv21:${tokenId}`],
+					inputBEEF,
+					inputs: [
+						{
+							outpoint: authUtxo.outpoint,
+							inputDescription: 'Mint authority',
+							unlockingScriptLength: 108,
+						},
+					],
+					outputs,
+					options: { randomizeOutputs: false },
+				},
+				input.fundingProvider,
+				inputBEEF as number[],
+				async (tx) => {
+					const unlocking = await signP2PKHInput(
+						ctx,
+						tx,
+						0,
+						authCI.protocolID,
+						authCI.keyID,
+					)
+					if (typeof unlocking !== 'string') throw new Error(unlocking.error)
+					return { 0: { unlockingScript: unlocking } }
+				},
+			)
+
+			if (result.error) return { error: result.error }
+
+			// Submit to per-token overlay topic.
+			if (result.tx && ctx.services) {
+				try {
+					await ctx.services.overlay.submitBsv21(result.tx, tokenId)
+				} catch (overlayError) {
+					console.warn(
+						'[mintBsv21] Overlay submission failed:',
+						overlayError,
+					)
+				}
+			}
+
+			const authOutpoint =
+				result.txid && authOutputIndex !== undefined
+					? `${result.txid}_${authOutputIndex}`
+					: undefined
+
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'mintBsv21',
+					input: { tokenId, mint, auth, endMinting },
+					txid: result.txid,
+					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
+				})
+			}
+
+			return {
+				txid: result.txid,
+				tx: result.tx,
+				authOutpoint,
+			}
+		} catch (error) {
+			console.error('[mintBsv21]', error)
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'mintBsv21',
+					input: { tokenId: input.tokenId },
+					error: error instanceof Error ? error.message : 'unknown-error',
+				})
+			}
+			return {
+				error: error instanceof Error ? error.message : 'unknown-error',
+			}
+		}
+	},
+}
+
 // ============================================================================
 // Module exports
 // ============================================================================
@@ -1421,4 +1619,5 @@ export const tokensActions = [
 	purchaseBsv21,
 	deployBsv21Mint,
 	deployBsv21Auth,
+	mintBsv21,
 ]

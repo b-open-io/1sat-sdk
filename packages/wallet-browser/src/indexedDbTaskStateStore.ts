@@ -19,7 +19,11 @@ interface IndexedDbTaskStateStoreOptions {
  * IndexedDB-backed `TaskStateStore`. Works in main-thread browser contexts
  * AND in service workers (extension or web) — IDB is one of the few storage
  * APIs available in both. Single object store, single record holding the
- * full taskName -> timestamp map; bulk read/write each call.
+ * full taskName -> state map; bulk read/write each call.
+ *
+ * Per-task value interpretation lives in the wallet factory; this store is
+ * an opaque blob carrier. IDB's structured clone preserves nested object
+ * shapes natively, so no JSON encoding is needed at this layer.
  */
 export function createIndexedDbTaskStateStore(
 	options: IndexedDbTaskStateStoreOptions = {},
@@ -66,12 +70,10 @@ export function createIndexedDbTaskStateStore(
 			const value = await withStore<unknown>('readonly', (store) =>
 				store.get(RECORD_KEY),
 			)
-			if (!value || typeof value !== 'object') return {}
-			const out: Record<string, number> = {}
-			for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-				if (typeof v === 'number' && Number.isFinite(v)) out[k] = v
+			if (!value || typeof value !== 'object' || Array.isArray(value)) {
+				return {}
 			}
-			return out
+			return value as Record<string, unknown>
 		},
 		async save(state) {
 			await withStore('readwrite', (store) => store.put(state, RECORD_KEY))

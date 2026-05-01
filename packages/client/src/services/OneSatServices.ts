@@ -248,8 +248,10 @@ export class OneSatServices implements WalletServices {
 				console.log('[OneSatServices] Arcade response:', status)
 
 				const SUCCESS_STATUSES = new Set([
+					'IMMUTABLE',
 					'MINED',
 					'SEEN_ON_NETWORK',
+					'SEEN_MULTIPLE_NODES',
 					'ACCEPTED_BY_NETWORK',
 				])
 				const PROCESSING_STATUSES = new Set([

@@ -13,6 +13,7 @@ import type { Indexer, ParseContext, Txo } from '@1sat/types'
 import { BRC29_PROTOCOL_ID } from '@1sat/types'
 import {
 	Bsv21Indexer,
+	CosignIndexer,
 	FundIndexer,
 	InscriptionIndexer,
 	MapIndexer,
@@ -118,6 +119,7 @@ export async function internalizeBeef(
 		new FundIndexer(owners, network),
 		new InscriptionIndexer(owners, network),
 		new Bsv21Indexer(owners, network, services),
+		new CosignIndexer(owners, network),
 		new OriginIndexer(owners, network, services),
 		new OpNSIndexer(owners, network),
 		new SigmaIndexer(owners, network),

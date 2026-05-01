@@ -64,6 +64,9 @@ export * from './identity'
 export * from './opns'
 export * from './mnee'
 
+// Export cosign module (cosigner-validated BSV21 transfer actions)
+export * from './cosign'
+
 // Export sweep module (uses external signing, not action-based)
 export * from './sweep'
 

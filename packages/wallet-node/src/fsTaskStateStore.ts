@@ -3,22 +3,25 @@ import { dirname } from 'node:path'
 import type { TaskStateStore } from '@1sat/wallet'
 
 /**
- * Filesystem-backed `TaskStateStore`. Stores the task lastRun map as JSON
- * at the given path. Writes are atomic via temp-file-and-rename, so two
+ * Filesystem-backed `TaskStateStore`. Stores the task state map as JSON at
+ * the given path. Writes are atomic via temp-file-and-rename, so two
  * processes writing concurrently never produce a torn file (last writer
  * wins, which is correct for monotonically advancing timestamps).
+ *
+ * Per-task value interpretation lives in the wallet factory; this store is
+ * an opaque blob carrier for whatever JSON-serializable shape the factory
+ * decides to persist.
  */
 export function createFsTaskStateStore(filePath: string): TaskStateStore {
 	return {
 		async load() {
 			try {
 				const raw = await fs.readFile(filePath, 'utf8')
-				const parsed = JSON.parse(raw) as Record<string, unknown>
-				const out: Record<string, number> = {}
-				for (const [k, v] of Object.entries(parsed)) {
-					if (typeof v === 'number' && Number.isFinite(v)) out[k] = v
+				const parsed = JSON.parse(raw)
+				if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+					return parsed as Record<string, unknown>
 				}
-				return out
+				return {}
 			} catch (err) {
 				if ((err as NodeJS.ErrnoException).code === 'ENOENT') return {}
 				throw err

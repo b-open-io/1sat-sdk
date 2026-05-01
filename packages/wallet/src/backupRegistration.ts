@@ -18,19 +18,36 @@ export interface BackupRegistrationOptions {
  */
 export class BackupRegistration {
 	private stopped = false
+	private inFlight: Promise<void>[] = []
 
 	constructor(private readonly opts: BackupRegistrationOptions) {}
 
 	start(): void {
-		for (const url of this.opts.urls) this.attempt(url)
+		for (const url of this.opts.urls) this.inFlight.push(this.attempt(url))
 	}
 
 	stop(): void {
 		this.stopped = true
 	}
 
-	private attempt(url: string): void {
-		void (async () => {
+	/**
+	 * Resolves once every configured backup URL has either successfully
+	 * registered or errored (errors are surfaced via `onError`, not by
+	 * rejecting this promise). Resolves immediately if `start()` was never
+	 * called or no URLs were configured. Safe to call before or after
+	 * `start()`.
+	 *
+	 * Use this to coordinate with concurrent storage consumers (e.g. the
+	 * monitor's initial run) so they don't race against the
+	 * `WalletStorageManager.addWalletStorageProvider` flip.
+	 */
+	async whenSettled(): Promise<void> {
+		if (this.inFlight.length === 0) return
+		await Promise.allSettled(this.inFlight)
+	}
+
+	private attempt(url: string): Promise<void> {
+		return (async () => {
 			try {
 				await this.opts.register(url)
 			} catch (err) {
