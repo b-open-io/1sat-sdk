@@ -71,8 +71,6 @@ export async function signP2PKHInput(
 
 	const sighash = Hash.sha256(Hash.sha256(preimage))
 
-	const isSelf = counterparty === 'self'
-
 	const { signature } = await ctx.wallet.createSignature({
 		protocolID,
 		keyID,
@@ -80,11 +78,15 @@ export async function signP2PKHInput(
 		hashToDirectlySign: Array.from(sighash),
 	})
 
+	// forSelf is always true here: we want OUR derived pubkey in conversation
+	// with `counterparty`, which matches the address the sender locked to via
+	// BRC-42 symmetry. forSelf:false would return the sender's derived key —
+	// hashing to a different pkhash and failing OP_EQUALVERIFY.
 	const { publicKey } = await ctx.wallet.getPublicKey({
 		protocolID,
 		keyID,
 		counterparty,
-		forSelf: isSelf,
+		forSelf: true,
 	})
 
 	const sigWithHashtype = [
