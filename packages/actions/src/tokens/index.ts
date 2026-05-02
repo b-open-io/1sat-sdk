@@ -139,11 +139,15 @@ export interface MintBsv21Input extends ActionOptions {
 	/** Optional mint output. Omit to skip minting (auth-only operation). */
 	mint?: { amount: bigint | string; destination: Destination }
 	/**
-	 * Optional continuing/transferred auth output. Omit to permanently end
-	 * minting; in that case `endMinting: true` is required as confirmation.
+	 * Optional continuing/transferred auth output. Omit to emit a continuing
+	 * auth back to self (default). Pass an explicit `destination` to transfer
+	 * mint authority to another counterparty/address.
 	 */
 	auth?: { destination: Destination }
-	/** Required when `auth` is omitted — explicit confirmation that minting ends. */
+	/**
+	 * Permanently end minting — no continuing auth output is emitted. Required
+	 * to be explicit since this is destructive (the token can never mint again).
+	 */
 	endMinting?: boolean
 }
 
@@ -1370,9 +1374,9 @@ export const deployBsv21Auth: Action<
 /**
  * Spend an auth UTXO to mint new supply, transfer authority, or burn it.
  *
- * Both `mint` and `auth` are optional, but at least one must be present.
- * Omitting `auth` ends minting permanently and requires `endMinting: true`
- * as explicit confirmation.
+ * By default a continuing self auth output is emitted so minting can continue.
+ * Pass `auth: { destination }` to transfer authority to another counterparty.
+ * Pass `endMinting: true` to permanently end minting (no auth output emitted).
  */
 export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 	meta: {
@@ -1406,11 +1410,11 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 		try {
 			const { tokenId, mint, auth, endMinting } = input
 
+			if (!mint && !auth && endMinting) {
+				return { error: 'cannot-end-minting-without-mint' }
+			}
 			if (!mint && !auth) {
 				return { error: 'must-provide-mint-or-auth' }
-			}
-			if (!auth && !endMinting) {
-				return { error: 'omitting-auth-requires-endMinting-true' }
 			}
 
 			const mintAmount =
@@ -1504,11 +1508,15 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 				})
 			}
 
-			if (auth) {
-				const authResolved = await resolveDestination(ctx, auth.destination, {
-					protocolID: BSV21_PROTOCOL,
-					keyIDPrefix: `bsv21-auth-${tokenId}`,
-				})
+			if (!endMinting) {
+				const authResolved = await resolveDestination(
+					ctx,
+					auth?.destination,
+					{
+						protocolID: BSV21_PROTOCOL,
+						keyIDPrefix: `bsv21-auth-${tokenId}`,
+					},
+				)
 				const authScript = BSV21.auth(tokenId).lock(authResolved.lockingScript)
 				const authTags = [
 					`bsv21:${tokenId}`,
