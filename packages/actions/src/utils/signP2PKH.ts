@@ -4,12 +4,25 @@ import {
 	TransactionSignature,
 	UnlockingScript,
 	Utils,
+	type WalletCounterparty,
 	type WalletProtocol,
 } from '@bsv/sdk'
 import type { OneSatContext } from '../types'
 
 /**
  * Sign a P2PKH input using the wallet's key derivation.
+ *
+ * `counterparty` selects the BRC-43 derivation peer:
+ *   - `'self'` (default) — output was self-derived; the wallet signs with
+ *     its own (privKey × protocolID × keyID).
+ *   - `<pubKey hex>` — output was sent to this wallet by a counterparty
+ *     (BRC-29 receive). The wallet derives the spend privkey via
+ *     (privKey × counterpartyPub × protocolID × keyID) and the unlock
+ *     pubkey is the matching shared key — `forSelf: false`.
+ *
+ * Outputs whose customInstructions were recorded without a counterparty
+ * field continue to default to `'self'`, preserving the legacy behavior.
+ *
  * Returns the unlocking script hex for the input.
  */
 export async function signP2PKHInput(
@@ -18,6 +31,7 @@ export async function signP2PKHInput(
 	inputIndex: number,
 	protocolID: WalletProtocol,
 	keyID: string,
+	counterparty: WalletCounterparty = 'self',
 ): Promise<string | { error: string }> {
 	const txInput = tx.inputs[inputIndex]
 
@@ -57,17 +71,20 @@ export async function signP2PKHInput(
 
 	const sighash = Hash.sha256(Hash.sha256(preimage))
 
+	const isSelf = counterparty === 'self'
+
 	const { signature } = await ctx.wallet.createSignature({
 		protocolID,
 		keyID,
-		counterparty: 'self',
+		counterparty,
 		hashToDirectlySign: Array.from(sighash),
 	})
 
 	const { publicKey } = await ctx.wallet.getPublicKey({
 		protocolID,
 		keyID,
-		forSelf: true,
+		counterparty,
+		forSelf: isSelf,
 	})
 
 	const sigWithHashtype = [

@@ -3,6 +3,7 @@ import {
 	LockingScript,
 	P2PKH,
 	PublicKey,
+	type WalletCounterparty,
 	type WalletProtocol,
 } from '@bsv/sdk'
 import type { OneSatContext } from '../types'
@@ -19,10 +20,17 @@ export interface ResolvedDestination {
 	 * (counterparty path, or default-to-self); omitted when the caller passed
 	 * a literal lockingScript or a literal address — those callers track the
 	 * spend path themselves.
+	 *
+	 * `counterparty` is included only when the destination was derived for a
+	 * non-self counterparty. The downstream wallet that holds the matching
+	 * shared key reads this back at spend time to invoke createSignature
+	 * with the correct counterparty (BRC-29 symmetry). Self-derived outputs
+	 * omit the field, and readers default to `'self'` for backward compatibility.
 	 */
 	customInstructions?: {
 		protocolID: WalletProtocol
 		keyID: string
+		counterparty?: WalletCounterparty
 	}
 }
 
@@ -80,6 +88,7 @@ export async function resolveDestination(
 		customInstructions: {
 			protocolID: opts.protocolID,
 			keyID,
+			...(isSelf ? {} : { counterparty }),
 		},
 	}
 }

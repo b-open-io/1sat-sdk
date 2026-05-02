@@ -159,7 +159,9 @@ export const opnsRegister: Action<OpnsRegisterRequest, OpnsOperationResponse> =
 				if (!ordinal.customInstructions) {
 					return { error: 'missing-custom-instructions' }
 				}
-				const { protocolID, keyID } = JSON.parse(ordinal.customInstructions)
+				const { protocolID, keyID, counterparty } = JSON.parse(
+					ordinal.customInstructions,
+				)
 
 				const result = await executeTrackedAction(
 					ctx.wallet,
@@ -176,6 +178,7 @@ export const opnsRegister: Action<OpnsRegisterRequest, OpnsOperationResponse> =
 							0,
 							protocolID,
 							keyID,
+							counterparty,
 						)
 						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
 						return { 0: { unlockingScript: unlocking } }
@@ -257,7 +260,9 @@ export const opnsDeregister: Action<
 			if (!ordinal.customInstructions) {
 				return { error: 'missing-custom-instructions' }
 			}
-			const { protocolID, keyID } = JSON.parse(ordinal.customInstructions)
+			const { protocolID, keyID, counterparty } = JSON.parse(
+				ordinal.customInstructions,
+			)
 
 			const result = await executeTrackedAction(
 				ctx.wallet,
@@ -268,7 +273,14 @@ export const opnsDeregister: Action<
 				input.fundingProvider,
 				inputBEEF,
 				async (tx) => {
-					const unlocking = await signP2PKHInput(ctx, tx, 0, protocolID, keyID)
+					const unlocking = await signP2PKHInput(
+						ctx,
+						tx,
+						0,
+						protocolID,
+						keyID,
+						counterparty,
+					)
 					if (typeof unlocking !== 'string') throw new Error(unlocking.error)
 					return { 0: { unlockingScript: unlocking } }
 				},

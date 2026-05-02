@@ -298,6 +298,12 @@ function buildInternalizeOutput(
 				customInstructions: JSON.stringify({
 					protocolID: BRC29_PROTOCOL_ID,
 					keyID: `${derivation.derivationPrefix} ${derivation.derivationSuffix}`,
+					// senderIdentityKey is the counterparty from this wallet's
+					// perspective — needed at spend time so signP2PKHInput can
+					// derive the correct shared key (BRC-29 symmetry).
+					...(derivation.senderIdentityKey && {
+						counterparty: derivation.senderIdentityKey,
+					}),
 					...(nameTag && { name: nameTag.slice(5).slice(0, 64) }),
 					...(sym && { sym }),
 				}),

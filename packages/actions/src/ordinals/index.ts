@@ -393,6 +393,7 @@ export async function buildTransferOrdinals(
 				customInstructions: JSON.stringify({
 					protocolID: ONESAT_PROTOCOL,
 					keyID: outpoint,
+					counterparty,
 					...(sourceName && { name: sourceName }),
 				}),
 			})
@@ -727,13 +728,16 @@ export const transferOrdinals: Action<
 								`missing-custom-instructions-for-${ordinal.outpoint}`,
 							)
 						}
-						const { protocolID, keyID } = JSON.parse(ordinal.customInstructions)
+						const { protocolID, keyID, counterparty } = JSON.parse(
+							ordinal.customInstructions,
+						)
 						const unlocking = await signP2PKHInput(
 							ctx,
 							tx,
 							i,
 							protocolID,
 							keyID,
+							counterparty,
 						)
 						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
 						spends[i] = { unlockingScript: unlocking }
@@ -830,7 +834,7 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 				if (!input.ordinal.customInstructions) {
 					return { error: 'missing-custom-instructions' }
 				}
-				const { protocolID, keyID } = JSON.parse(
+				const { protocolID, keyID, counterparty } = JSON.parse(
 					input.ordinal.customInstructions,
 				)
 
@@ -849,6 +853,7 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 							0,
 							protocolID,
 							keyID,
+							counterparty,
 						)
 						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
 						return { 0: { unlockingScript: unlocking } }
@@ -939,7 +944,9 @@ export const cancelListing: Action<
 			if (!listing.customInstructions) {
 				return { error: 'missing-custom-instructions' }
 			}
-			const { protocolID, keyID } = JSON.parse(listing.customInstructions)
+			const { protocolID, keyID, counterparty } = JSON.parse(
+				listing.customInstructions,
+			)
 
 			const cancelAddress = await deriveCancelAddressInternal(ctx, keyID)
 
@@ -975,6 +982,7 @@ export const cancelListing: Action<
 							customInstructions: JSON.stringify({
 								protocolID,
 								keyID,
+								...(counterparty !== undefined && { counterparty }),
 							}),
 						},
 					],
@@ -1291,13 +1299,16 @@ export const burnOrdinals: Action<
 								`missing-custom-instructions-for-${ordinal.outpoint}`,
 							)
 						}
-						const { protocolID, keyID } = JSON.parse(ordinal.customInstructions)
+						const { protocolID, keyID, counterparty } = JSON.parse(
+							ordinal.customInstructions,
+						)
 						const unlocking = await signP2PKHInput(
 							ctx,
 							tx,
 							i,
 							protocolID,
 							keyID,
+							counterparty,
 						)
 						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
 						spends[i] = { unlockingScript: unlocking }

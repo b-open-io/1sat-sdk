@@ -594,13 +594,16 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 					for (let i = 0; i < selected.length; i++) {
 						const utxo = selected[i]
 						if (!utxo.customInstructions) continue
-						const { protocolID, keyID } = JSON.parse(utxo.customInstructions)
+						const { protocolID, keyID, counterparty } = JSON.parse(
+							utxo.customInstructions,
+						)
 						const unlocking = await signP2PKHInput(
 							ctx,
 							tx,
 							i,
 							protocolID,
 							keyID,
+							counterparty,
 						)
 						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
 						spends[i] = { unlockingScript: unlocking }
@@ -965,7 +968,11 @@ async function executeBsv21Deploy(args: {
 	/** customInstructions to record on the deploy output. Pass through from
 	 *  resolveDestination so wallet-derived destinations carry the keyID for
 	 *  later spends; literal scripts/addresses pass undefined. */
-	destinationCustomInstructions?: { protocolID: unknown; keyID: string }
+	destinationCustomInstructions?: {
+		protocolID: unknown
+		keyID: string
+		counterparty?: import('@bsv/sdk').WalletCounterparty
+	}
 	basket: string
 	buildTags: (tokenId: string) => string[]
 	description: string
@@ -1077,6 +1084,9 @@ async function executeBsv21Deploy(args: {
 		? JSON.stringify({
 				protocolID: args.destinationCustomInstructions.protocolID,
 				keyID: args.destinationCustomInstructions.keyID,
+				...(args.destinationCustomInstructions.counterparty !== undefined && {
+					counterparty: args.destinationCustomInstructions.counterparty,
+				}),
 				sym: symbol,
 			})
 		: undefined
@@ -1440,6 +1450,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 			const authCI = JSON.parse(authUtxo.customInstructions) as {
 				protocolID: [0 | 1 | 2, string]
 				keyID: string
+				counterparty?: import('@bsv/sdk').WalletCounterparty
 			}
 
 			// Build outputs.
@@ -1477,6 +1488,9 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 					? JSON.stringify({
 							protocolID: mintResolved.customInstructions.protocolID,
 							keyID: mintResolved.customInstructions.keyID,
+							...(mintResolved.customInstructions.counterparty !== undefined && {
+								counterparty: mintResolved.customInstructions.counterparty,
+							}),
 							...(tokenDetails.token.sym && { sym: tokenDetails.token.sym }),
 						})
 					: undefined
@@ -1510,6 +1524,9 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 					? JSON.stringify({
 							protocolID: authResolved.customInstructions.protocolID,
 							keyID: authResolved.customInstructions.keyID,
+							...(authResolved.customInstructions.counterparty !== undefined && {
+								counterparty: authResolved.customInstructions.counterparty,
+							}),
 							...(tokenDetails.token.sym && { sym: tokenDetails.token.sym }),
 						})
 					: undefined
@@ -1577,6 +1594,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 						0,
 						authCI.protocolID,
 						authCI.keyID,
+						authCI.counterparty,
 					)
 					if (typeof unlocking !== 'string') throw new Error(unlocking.error)
 					return { 0: { unlockingScript: unlocking } }

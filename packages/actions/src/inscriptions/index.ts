@@ -271,6 +271,9 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 				? JSON.stringify({
 						protocolID: resolved.customInstructions.protocolID,
 						keyID: resolved.customInstructions.keyID,
+						...(resolved.customInstructions.counterparty !== undefined && {
+							counterparty: resolved.customInstructions.counterparty,
+						}),
 						...(input.map?.name && { name: input.map.name.slice(0, 64) }),
 					})
 				: undefined
