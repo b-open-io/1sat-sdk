@@ -1,6 +1,6 @@
 {
   "name": "@1sat/cli",
-  "version": "0.0.53",
+  "version": "0.0.54",
   "description": "CLI for 1Sat Ordinals SDK",
   "type": "module",
   "main": "./src/cli.ts",
@@ -27,7 +27,6 @@
   "dependencies": {
     "@1sat/actions": "workspace:*",
     "@1sat/client": "workspace:*",
-    "@1sat/knex-bun-sqlite": "workspace:*",
     "@1sat/types": "workspace:*",
     "@1sat/wallet-node": "workspace:*",
     "@1sat/wallet-server": "workspace:*",

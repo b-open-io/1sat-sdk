@@ -8,8 +8,3 @@ declare module '@bopen-io/messagebox-server' {
 	export const ROUTING_PREFIX: string
 	export function start(): Promise<void>
 }
-
-declare module '@bopen-io/messagebox-server/out/knexfile.js' {
-	const knexfile: Record<string, { client: unknown; [k: string]: unknown }>
-	export default knexfile
-}

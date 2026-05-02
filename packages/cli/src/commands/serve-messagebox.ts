@@ -2,18 +2,17 @@
  * `1sat serve messagebox` — launch the BSV message-box server using the
  * CLI's wallet identity.
  *
- * Storage mirrors the wallet's choice: SQLite via `@1sat/knex-bun-sqlite`
- * when wallet storage is `bun-sqlite`, Postgres when wallet storage is `pg`.
- *
  * messagebox-server boots itself as a side effect of `import` once env vars
  * are populated, so this handler:
  *   1. Reads CLI config + private key
  *   2. Composes env (SERVER_PRIVATE_KEY, PORT, KNEX_DB_*, WALLET_STORAGE_URL, …)
- *   3. Dynamically imports `messagebox-server`
- *   4. Awaits SIGINT/SIGTERM, then closes the HTTP and WebSocket servers
+ *   3. Switches cwd to the messagebox-server install dir so its knexfile's
+ *      relative `./out/src/migrations` path resolves correctly
+ *   4. Dynamically imports `@bopen-io/messagebox-server`
+ *   5. Awaits SIGINT/SIGTERM, then closes the HTTP and WebSocket servers
  */
 
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { PrivateKey } from '@bsv/sdk'
 import type { GlobalFlags } from '../args'
@@ -65,33 +64,14 @@ export async function startMessagebox(
 		`[messagebox] websockets: ${resolved.websockets ? 'enabled' : 'disabled'}`,
 	)
 
-	// When the env-driven knexfile resolves to 'sqlite3', swap in our
-	// bun:sqlite-backed Knex dialect class and rewrite the migrations
-	// directory to an absolute path. ESM singleton semantics mean
-	// messagebox-server's app.ts gets the same (mutated) module instance
-	// when it imports the knexfile next.
-	if (resolved.knexClient === 'sqlite3') {
-		const knexfileUrl = import.meta.resolve(
-			'@bopen-io/messagebox-server/out/knexfile.js',
-		)
-		const migrationsDir = fileURLToPath(new URL('src/migrations/', knexfileUrl))
-		const [knexfile, dialect] = await Promise.all([
-			import('@bopen-io/messagebox-server/out/knexfile.js') as Promise<{
-				default: Record<
-					string,
-					{ client: unknown; migrations?: { directory: string } }
-				>
-			}>,
-			import('@1sat/knex-bun-sqlite'),
-		])
-		const Client = dialect.default
-		for (const env of ['development', 'staging', 'production']) {
-			const cfg = knexfile.default[env]
-			if (!cfg) continue
-			cfg.client = Client
-			if (cfg.migrations) cfg.migrations.directory = migrationsDir
-		}
-	}
+	// messagebox-server's knexfile uses `./out/src/migrations` relative to
+	// cwd. Switch cwd to its install dir so that path resolves correctly
+	// regardless of where the CLI was invoked from.
+	const packageJsonUrl = import.meta.resolve(
+		'@bopen-io/messagebox-server/package.json',
+	)
+	const messageboxDir = dirname(fileURLToPath(packageJsonUrl))
+	process.chdir(messageboxDir)
 
 	// messagebox-server boots itself when its index module is loaded.
 	const mbox = (await import(
