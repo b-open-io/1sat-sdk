@@ -27,6 +27,7 @@
   "dependencies": {
     "@1sat/actions": "workspace:*",
     "@1sat/client": "workspace:*",
+    "@1sat/knex-bun-sqlite": "workspace:*",
     "@1sat/types": "workspace:*",
     "@1sat/wallet-node": "workspace:*",
     "@1sat/wallet-server": "workspace:*",
@@ -38,6 +39,7 @@
     "dotenv": "^17.0.0",
     "evlog": "^2.10.0",
     "knex": "^3.1.0",
+    "messagebox-server": "file:../../../message-box-server",
     "pg": "^8.11.3"
   },
   "devDependencies": {

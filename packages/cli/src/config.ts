@@ -40,6 +40,28 @@ export interface ServerAccountsConfig {
 	freeIdentityKeys?: string[]
 }
 
+export interface ServerMessageboxConfig {
+	/** Port to bind. Defaults to `8101`. */
+	port?: number
+	/** Enable WebSocket delivery. Defaults to `true`. */
+	websockets?: boolean
+	/**
+	 * SQLite file path for messagebox storage. Used only when wallet storage
+	 * is `bun-sqlite`. Defaults to `<dataDir>/messagebox-{chain}.db`.
+	 */
+	dbPath?: string
+	/**
+	 * Postgres schema for messagebox tables. Used only when wallet storage
+	 * is `pg`. Defaults to `messagebox`.
+	 */
+	pgSchema?: string
+	/**
+	 * Override the wallet storage URL messagebox calls for BRC-31/BRC-29
+	 * operations. Defaults to the local wallet server URL (`http://<host>:<port>/`).
+	 */
+	walletStorageUrl?: string
+}
+
 export interface ServerConfig {
 	/** Hostname to bind. Defaults to `127.0.0.1`. */
 	host?: string
@@ -49,6 +71,8 @@ export interface ServerConfig {
 	storage?: ServerStorageConfig
 	/** Optional account/metering layer (opt-in per-deployment). */
 	accounts?: ServerAccountsConfig
+	/** Messagebox subcommand settings. */
+	messagebox?: ServerMessageboxConfig
 }
 
 export interface OneSatCliConfig {

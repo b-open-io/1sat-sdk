@@ -1,9 +1,10 @@
 /**
  * `1sat serve` command — launch wallet server and/or monitor.
  *
- *   1sat serve             Wallet server + monitor daemon
- *   1sat serve wallet      Wallet server only
- *   1sat serve monitor     Monitor daemon only
+ *   1sat serve              Wallet server + monitor daemon
+ *   1sat serve wallet       Wallet server only
+ *   1sat serve monitor      Monitor daemon only
+ *   1sat serve messagebox   BSV message-box server
  *
  * The server wraps the same wallet instance the CLI uses. Storage, active
  * remote, and backups all come from `~/.1sat/cli/config.json` via the same
@@ -13,6 +14,7 @@
  *   1sat config set server.port 8100
  *   1sat config set server.host 0.0.0.0
  *   1sat config set server.accounts.enabled true
+ *   1sat config set server.messagebox.port 8771
  */
 
 import { join } from 'node:path'
@@ -35,6 +37,7 @@ import { printCommandHelp } from '../help'
 import { loadKey } from '../keys'
 import { clearMonitorPid, writeMonitorPid } from '../monitor-lock'
 import { fatal } from '../output'
+import { startMessagebox } from './serve-messagebox'
 
 const DEFAULT_HOST = '127.0.0.1'
 const DEFAULT_PORT = 8100
@@ -45,7 +48,7 @@ const DEFAULT_SATS_PER_UNIT = 1_000_000
 const DEFAULT_DURATION_BLOCKS = 4383
 const DEFAULT_STORAGE_IDENTITY_KEY = '1sat-cli-default'
 
-type ServeMode = 'all' | 'wallet' | 'monitor'
+type ServeMode = 'all' | 'wallet' | 'monitor' | 'messagebox'
 
 interface ResolvedServe {
 	chain: 'main' | 'test'
@@ -86,6 +89,20 @@ export async function handleServeCommand(
 
 	initLogger({ env: { service: `1sat-cli-serve-${mode}` } })
 
+	if (mode === 'messagebox') {
+		const handle = await startMessagebox(opts)
+		try {
+			await waitForShutdown()
+		} finally {
+			try {
+				await handle.stop()
+			} catch (err) {
+				console.error(`Error during shutdown: ${(err as Error).message}`)
+			}
+		}
+		return
+	}
+
 	const resolved = await resolveServe(opts)
 	const handles: Stoppable[] = []
 
@@ -108,6 +125,7 @@ function resolveMode(subcommand: string | undefined): ServeMode | null {
 	switch (subcommand) {
 		case 'wallet':
 		case 'monitor':
+		case 'messagebox':
 			return subcommand
 		default:
 			return null

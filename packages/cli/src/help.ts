@@ -345,8 +345,10 @@ export const COMMANDS: CommandSpec[] = [
 				description: 'Transfer tokens',
 				args: [
 					{ flag: '--token-id', values: '<id>', required: true },
-					{ flag: '--to', values: '<address>', required: true },
 					{ flag: '--amount', values: '<n>', required: true },
+					{ flag: '--to', values: '<address>' },
+					{ flag: '--counterparty', values: '<pubkey-hex>' },
+					{ flag: '--locking-script', values: '<hex>' },
 				],
 			},
 			{
@@ -359,6 +361,7 @@ export const COMMANDS: CommandSpec[] = [
 					{ flag: '--icon', values: '<url-or-data-uri>' },
 					{ flag: '--to', values: '<address>' },
 					{ flag: '--counterparty', values: '<pubkey-hex>' },
+					{ flag: '--locking-script', values: '<hex>' },
 				],
 			},
 			{
@@ -371,6 +374,23 @@ export const COMMANDS: CommandSpec[] = [
 					{ flag: '--icon', values: '<url-or-data-uri>' },
 					{ flag: '--to', values: '<address>' },
 					{ flag: '--counterparty', values: '<pubkey-hex>' },
+					{ flag: '--locking-script', values: '<hex>' },
+				],
+			},
+			{
+				name: 'mint',
+				description:
+					'Spend an auth UTXO to mint new supply, re-issue authority, or burn it',
+				args: [
+					{ flag: '--token-id', values: '<id>', required: true },
+					{ flag: '--amount', values: '<n>' },
+					{ flag: '--to', values: '<address>' },
+					{ flag: '--counterparty', values: '<pubkey-hex>' },
+					{ flag: '--locking-script', values: '<hex>' },
+					{ flag: '--auth-to', values: '<address>' },
+					{ flag: '--auth-counterparty', values: '<pubkey-hex>' },
+					{ flag: '--auth-locking-script', values: '<hex>' },
+					{ flag: '--end-minting' },
 				],
 			},
 			{
@@ -519,6 +539,11 @@ export const COMMANDS: CommandSpec[] = [
 			},
 			{ name: 'wallet', description: 'Wallet server only (BRC-100 HTTP)' },
 			{ name: 'monitor', description: 'Monitor daemon only' },
+			{
+				name: 'messagebox',
+				description:
+					'BSV message-box server (port 8771 default; uses wallet identity)',
+			},
 		],
 	},
 
