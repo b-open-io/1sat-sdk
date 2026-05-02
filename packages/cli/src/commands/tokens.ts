@@ -8,9 +8,11 @@ import {
 	getBsv21Balances,
 	getDisplayValue,
 	listTokens,
+	mintBsv21,
 	purchaseBsv21,
 	sendBsv21,
 } from '@1sat/actions'
+import type { Destination } from '@1sat/types'
 import { confirm, isCancel } from '@clack/prompts'
 import type { GlobalFlags } from '../args'
 import { extractFlag } from '../args'
@@ -36,6 +38,8 @@ export async function handleTokensCommand(
 			return tokenDeployMint(rest, opts)
 		case 'deploy-auth':
 			return tokenDeployAuth(rest, opts)
+		case 'mint':
+			return tokenMint(rest, opts)
 		case 'buy':
 			return tokenBuy(rest, opts)
 		default:
@@ -129,14 +133,37 @@ async function tokenList(args: string[], opts: GlobalFlags): Promise<void> {
 	}
 }
 
+/**
+ * Build a {@link Destination} from CLI flags. Only the first set wins.
+ * Returns undefined when no flags are set — actions interpret that as 'self'.
+ */
+function destinationFromFlags(opts: {
+	to?: string
+	counterparty?: string
+	lockingScript?: string
+}): Destination | undefined {
+	if (opts.lockingScript) return { lockingScript: opts.lockingScript }
+	if (opts.counterparty) return { counterparty: opts.counterparty }
+	if (opts.to) return { address: opts.to }
+	return undefined
+}
+
 async function tokenSend(args: string[], opts: GlobalFlags): Promise<void> {
 	const tokenId = extractFlag(args, '--token-id')
 	const to = extractFlag(args, '--to')
+	const counterparty = extractFlag(args, '--counterparty')
+	const lockingScript = extractFlag(args, '--locking-script')
 	const amountStr = extractFlag(args, '--amount')
 
 	if (!tokenId) fatal('Missing --token-id <id>')
-	if (!to) fatal('Missing --to <address>')
 	if (!amountStr) fatal('Missing --amount <number>')
+
+	const destination = destinationFromFlags({ to, counterparty, lockingScript })
+	if (!destination) {
+		fatal(
+			'Missing destination — provide one of: --to <address>, --counterparty <pubkey>, --locking-script <hex>',
+		)
+	}
 
 	const amount = BigInt(amountStr)
 	if (amount <= 0n) {
@@ -144,8 +171,9 @@ async function tokenSend(args: string[], opts: GlobalFlags): Promise<void> {
 	}
 
 	if (!opts.yes) {
+		const dest = to ?? counterparty ?? lockingScript ?? ''
 		const ok = await confirm({
-			message: `Send ${amountStr} tokens (${tokenId.slice(0, 12)}...) to ${to}?`,
+			message: `Send ${amountStr} tokens (${tokenId.slice(0, 12)}...) to ${dest.slice(0, 32)}?`,
 		})
 		if (isCancel(ok) || !ok) {
 			fatal('Token send cancelled.')
@@ -160,7 +188,9 @@ async function tokenSend(args: string[], opts: GlobalFlags): Promise<void> {
 	try {
 		const result = await sendBsv21.execute(ctx, {
 			tokenId,
-			recipients: [{ amount: amountStr, address: to }],
+			recipients: [
+				{ amount: amountStr, destination: destination as Destination },
+			],
 		})
 
 		if (result.error) {
@@ -183,6 +213,7 @@ async function tokenDeployMint(
 	const icon = extractFlag(args, '--icon')
 	const to = extractFlag(args, '--to')
 	const counterparty = extractFlag(args, '--counterparty')
+	const lockingScript = extractFlag(args, '--locking-script')
 
 	if (!symbol) fatal('Missing --symbol <ticker>')
 	if (!amountStr) fatal('Missing --amount <total-supply>')
@@ -215,8 +246,7 @@ async function tokenDeployMint(
 			amount: amountStr,
 			decimals,
 			icon,
-			destinationAddress: to,
-			destinationCounterparty: counterparty,
+			destination: destinationFromFlags({ to, counterparty, lockingScript }),
 		})
 
 		if (result.error) {
@@ -241,6 +271,7 @@ async function tokenDeployAuth(
 	const icon = extractFlag(args, '--icon')
 	const to = extractFlag(args, '--to')
 	const counterparty = extractFlag(args, '--counterparty')
+	const lockingScript = extractFlag(args, '--locking-script')
 
 	if (!symbol) fatal('Missing --symbol <ticker>')
 
@@ -268,8 +299,7 @@ async function tokenDeployAuth(
 			symbol,
 			decimals,
 			icon,
-			authAddress: to,
-			authCounterparty: counterparty,
+			destination: destinationFromFlags({ to, counterparty, lockingScript }),
 		})
 
 		if (result.error) {
@@ -284,6 +314,98 @@ async function tokenDeployAuth(
 						tokenId: result.tokenId,
 						authOutpoint: result.authOutpoint,
 					},
+			opts,
+		)
+	} finally {
+		await destroy()
+	}
+}
+
+async function tokenMint(args: string[], opts: GlobalFlags): Promise<void> {
+	const tokenId = extractFlag(args, '--token-id')
+	const amountStr = extractFlag(args, '--amount')
+
+	const mintTo = extractFlag(args, '--to')
+	const mintCounterparty = extractFlag(args, '--counterparty')
+	const mintLockingScript = extractFlag(args, '--locking-script')
+
+	const authTo = extractFlag(args, '--auth-to')
+	const authCounterparty = extractFlag(args, '--auth-counterparty')
+	const authLockingScript = extractFlag(args, '--auth-locking-script')
+
+	const endMinting = args.includes('--end-minting')
+
+	if (!tokenId) fatal('Missing --token-id <id>')
+
+	const mintDestination = destinationFromFlags({
+		to: mintTo,
+		counterparty: mintCounterparty,
+		lockingScript: mintLockingScript,
+	})
+	const authDestination = destinationFromFlags({
+		to: authTo,
+		counterparty: authCounterparty,
+		lockingScript: authLockingScript,
+	})
+
+	// At least one operation
+	if (!amountStr && !authDestination && !endMinting) {
+		fatal(
+			'Provide either --amount (and optional mint destination) or auth destination, or --end-minting to burn authority',
+		)
+	}
+
+	const mint = amountStr
+		? {
+				amount: amountStr,
+				// Default mint destination to self when only amount is provided
+				destination: mintDestination ?? ({} as Destination),
+			}
+		: undefined
+	// Default auth destination to self when not ending minting. Symmetric
+	// with the mint default above. The action treats omitted `auth` as
+	// "burn authority" and requires `endMinting: true` for that, so leave
+	// auth undefined only when the user explicitly opted into ending.
+	const auth = endMinting
+		? authDestination
+			? { destination: authDestination }
+			: undefined
+		: { destination: authDestination ?? ({} as Destination) }
+
+	if (!opts.yes) {
+		const summary: string[] = []
+		if (mint) summary.push(`mint ${amountStr}`)
+		if (auth) summary.push('re-issue auth')
+		if (!auth && endMinting) summary.push('END MINTING (burn auth)')
+		const ok = await confirm({
+			message: `${summary.join(' + ')} for token ${tokenId.slice(0, 12)}...?`,
+		})
+		if (isCancel(ok) || !ok) {
+			fatal('Mint cancelled.')
+		}
+	}
+
+	const privateKey = await loadKey()
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const result = await mintBsv21.execute(ctx, {
+			tokenId,
+			mint,
+			auth,
+			endMinting: endMinting || undefined,
+		})
+
+		if (result.error) {
+			fatal(result.error)
+		}
+
+		output(
+			opts.json
+				? result
+				: { txid: result.txid, authOutpoint: result.authOutpoint },
 			opts,
 		)
 	} finally {
