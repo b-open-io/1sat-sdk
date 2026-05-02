@@ -71,10 +71,12 @@ export async function startMessagebox(
 	// messagebox-server's app.ts gets the same (mutated) module instance
 	// when it imports the knexfile next.
 	if (resolved.knexClient === 'sqlite3') {
-		const knexfileUrl = import.meta.resolve('messagebox-server/out/knexfile.js')
+		const knexfileUrl = import.meta.resolve(
+			'@bopen-io/messagebox-server/out/knexfile.js',
+		)
 		const migrationsDir = fileURLToPath(new URL('src/migrations/', knexfileUrl))
 		const [knexfile, dialect] = await Promise.all([
-			import('messagebox-server/out/knexfile.js') as Promise<{
+			import('@bopen-io/messagebox-server/out/knexfile.js') as Promise<{
 				default: Record<
 					string,
 					{ client: unknown; migrations?: { directory: string } }
@@ -93,7 +95,7 @@ export async function startMessagebox(
 
 	// messagebox-server boots itself when its index module is loaded.
 	const mbox = (await import(
-		'messagebox-server'
+		'@bopen-io/messagebox-server'
 	)) as unknown as MessageboxModule
 
 	return {

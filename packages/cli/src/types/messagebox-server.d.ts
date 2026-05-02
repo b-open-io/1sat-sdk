@@ -1,4 +1,4 @@
-declare module 'messagebox-server' {
+declare module '@bopen-io/messagebox-server' {
 	import type { Server as HttpServer } from 'node:http'
 	export const http: HttpServer
 	export const io: {
@@ -9,7 +9,7 @@ declare module 'messagebox-server' {
 	export function start(): Promise<void>
 }
 
-declare module 'messagebox-server/out/knexfile.js' {
+declare module '@bopen-io/messagebox-server/out/knexfile.js' {
 	const knexfile: Record<string, { client: unknown; [k: string]: unknown }>
 	export default knexfile
 }
