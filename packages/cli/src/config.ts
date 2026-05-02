@@ -52,9 +52,15 @@ export interface ServerMessageboxConfig {
 	dbPath?: string
 	/**
 	 * Postgres schema for messagebox tables. Used only when wallet storage
-	 * is `pg`. Defaults to `messagebox`.
+	 * is `pg` AND `dbUrl` is unset. Defaults to `messagebox`.
 	 */
 	pgSchema?: string
+	/**
+	 * Override Postgres connection URL for messagebox storage. Use this
+	 * to point messagebox at a separate Postgres database from the wallet
+	 * (recommended — avoids `knex_migrations` table collisions).
+	 */
+	dbUrl?: string
 	/**
 	 * Override the wallet storage URL messagebox calls for BRC-31/BRC-29
 	 * operations. Defaults to the local wallet server URL (`http://<host>:<port>/`).

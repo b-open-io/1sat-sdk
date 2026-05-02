@@ -167,9 +167,6 @@ function resolveStorage(
 		const dataDir = ensureDataDir()
 		const filename =
 			messagebox.dbPath ?? join(dataDir, `messagebox-${chain}.db`)
-		// We pass `sqlite3` to satisfy the env-driven knexfile's alias check;
-		// the actual Client class is swapped in via ESM module mutation
-		// just before messagebox-server is imported.
 		return {
 			knexClient: 'sqlite3',
 			knexConnection: { filename },
@@ -177,6 +174,17 @@ function resolveStorage(
 	}
 
 	if (storage.provider === 'pg') {
+		// Prefer a dedicated messagebox database when configured (recommended:
+		// avoids `knex_migrations` table collisions with wallet-toolbox).
+		// Fall back to schema isolation against the wallet's database — note
+		// the `messagebox` schema must exist in that database for table
+		// creation to land there instead of `public`.
+		if (messagebox.dbUrl) {
+			return {
+				knexClient: 'pg',
+				knexConnection: { connectionString: messagebox.dbUrl },
+			}
+		}
 		const schema = messagebox.pgSchema ?? DEFAULT_PG_SCHEMA
 		return {
 			knexClient: 'pg',
