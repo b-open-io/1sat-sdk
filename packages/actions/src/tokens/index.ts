@@ -945,9 +945,15 @@ function estimateDeployTxSize(deployScriptBytes: number): number {
 }
 
 /**
- * Shared deploy flow: createAction a funding intermediate → manually build the
- * deploy tx spending it → internalizeAction adopts the deploy with proper
- * tokenId-bearing tags and broadcasts.
+ * Shared deploy flow:
+ *   1. createAction a funding intermediate (wallet broadcasts via signAndProcess).
+ *   2. Manually build + sign the deploy tx that spends the funding output.
+ *   3. Synchronously broadcast the deploy via services.postBeef and require a
+ *      success/processing arcade status before continuing. internalize alone
+ *      only QUEUES a tx for later background broadcast — silent drops there
+ *      have left tokens in a half-deployed state.
+ *   4. internalizeAction adopts the deploy into the wallet basket so the auth
+ *      UTXO becomes spendable.
  *
  * Used by both deployBsv21Mint and deployBsv21Auth — they only differ in the
  * deploy script (BSV21.deployMint vs BSV21.deployAuth) and target basket.
@@ -1045,6 +1051,27 @@ async function executeBsv21Deploy(args: {
 
 	fundingBeef.mergeTransaction(deployTx)
 	const deployBeefBin = fundingBeef.toBinaryAtomic(deployTxid)
+
+	// Synchronous broadcast — internalize alone queues for background
+	// broadcast and has been observed to silently drop the deploy tx,
+	// stranding the funding output and leaving the wallet with a
+	// "deployed" record for a tx that never reached the network.
+	if (!ctx.services) {
+		return { error: 'broadcast-services-unavailable' }
+	}
+	const broadcastResults = await ctx.services.postBeef(fundingBeef, [
+		deployTxid,
+	])
+	const broadcastFailure = broadcastResults.find(
+		(r) => r.status !== 'success',
+	)
+	if (broadcastFailure) {
+		const reason =
+			broadcastFailure.error?.message ??
+			broadcastFailure.error?.code ??
+			'broadcast-failed'
+		return { error: `deploy-broadcast-failed: ${reason}` }
+	}
 
 	const customInstructions = args.destinationCustomInstructions
 		? JSON.stringify({
