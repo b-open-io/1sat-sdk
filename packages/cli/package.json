@@ -1,6 +1,6 @@
 {
   "name": "@1sat/cli",
-  "version": "0.0.52",
+  "version": "0.0.53",
   "description": "CLI for 1Sat Ordinals SDK",
   "type": "module",
   "main": "./src/cli.ts",
@@ -39,7 +39,7 @@
     "dotenv": "^17.0.0",
     "evlog": "^2.10.0",
     "knex": "^3.1.0",
-    "@bopen-io/messagebox-server": "file:../../../message-box-server",
+    "@bopen-io/messagebox-server": "^1.1.5",
     "pg": "^8.11.3"
   },
   "devDependencies": {
