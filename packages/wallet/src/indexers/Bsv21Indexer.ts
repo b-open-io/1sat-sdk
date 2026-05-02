@@ -1,6 +1,10 @@
 import { HttpError, type OneSatServices } from '@1sat/client'
 import { BSV21 } from '@1sat/templates'
-import { BSV21_FEE_XPUB } from '@1sat/types'
+import {
+	BSV21_AUTH_BASKET,
+	BSV21_BASKET,
+	BSV21_FEE_XPUB,
+} from '@1sat/types'
 import {
 	type IndexSummary,
 	Indexer,
@@ -96,27 +100,38 @@ export class Bsv21Indexer extends Indexer {
 			bsv21.icon = resolveIcon(bsv21.icon, tokenId)
 		}
 
-		// Validate amount range
-		if (bsv21.amt <= 0n || bsv21.amt > 2n ** 64n - 1n) return
+		// Auth ops legitimately have no amount; only enforce the range check
+		// on amount-bearing ops.
+		const isAuthOp = bsv21.op === 'auth' || bsv21.op === 'deploy+auth'
+		if (!isAuthOp && (bsv21.amt <= 0n || bsv21.amt > 2n ** 64n - 1n)) return
 
 		const tags: string[] = []
 		if (txo.owner && this.owners.has(txo.owner)) {
 			tags.push(`bsv21:${bsv21.id}`)
-			tags.push(`amt:${bsv21.amt.toString()}`)
+			if (!isAuthOp) tags.push(`amt:${bsv21.amt.toString()}`)
 			// Add metadata tags for efficient querying
 			if (bsv21.sym) tags.push(`sym:${bsv21.sym}`)
 			if (bsv21.icon) tags.push(`icon:${bsv21.icon}`)
 			tags.push(`dec:${bsv21.dec}`)
 		}
 
+		// Route auth-bearing outputs to the auth basket so mintBsv21 can
+		// listOutputs({ basket: BSV21_AUTH_BASKET }) and find them. Owner-sync
+		// records the on-chain derivation triple in customInstructions, which
+		// is what mintBsv21 uses for spend-time signing — so an auth UTXO
+		// delivered to a wallet's standard receive address remains spendable
+		// after this reclassification.
+		const basket = isAuthOp
+			? BSV21_AUTH_BASKET
+			: tokenId ===
+					'ae59f3b898ec61acbdb6cc7a245fabeded0c094bf046f35206a3aec60ef88127_0'
+				? 'mnee'
+				: BSV21_BASKET
+
 		return {
 			data: bsv21,
 			tags,
-			basket:
-				tokenId ===
-				'ae59f3b898ec61acbdb6cc7a245fabeded0c094bf046f35206a3aec60ef88127_0'
-					? 'mnee'
-					: 'bsv21',
+			basket,
 		}
 	}
 

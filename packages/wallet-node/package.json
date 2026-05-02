@@ -1,6 +1,6 @@
 {
   "name": "@1sat/wallet-node",
-  "version": "0.0.43",
+  "version": "0.0.44",
   "description": "Node/Bun wallet factory for 1Sat Ordinals SDK",
   "type": "module",
   "main": "./dist/index.js",
