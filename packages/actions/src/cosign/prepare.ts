@@ -7,7 +7,7 @@
  * canonical source for derivation paths.
  */
 
-import { BSV21, Cosign } from '@1sat/templates'
+import { BSV21, Cosign, P2MS } from '@1sat/templates'
 import {
 	Beef,
 	type CreateActionInput,
@@ -24,6 +24,7 @@ import {
 	COSIGN_PROTOCOL_ID,
 	type CosignSessionDestinationMeta,
 	type CosignSessionInputMeta,
+	type CosignSessionMultisigDestinationMeta,
 	type CosignTransferSession,
 	type PrepareCosignBsv21TransferInput,
 	type PrepareCosignBsv21TransferResult,
@@ -41,6 +42,7 @@ export async function prepareCosignBsv21Transfer(
 		tokenInputs,
 		inputBEEF,
 		destinations,
+		multisigDestinations,
 		burns,
 		senderIdentityKey,
 		sessionStore,
@@ -49,9 +51,15 @@ export async function prepareCosignBsv21Transfer(
 	if (tokenInputs.length === 0) {
 		throw new Error('prepareCosignBsv21Transfer: at least one tokenInput required')
 	}
-	if (destinations.length === 0 && (!burns || burns.length === 0)) {
+	const hasMultisig =
+		!!multisigDestinations && multisigDestinations.length > 0
+	if (
+		destinations.length === 0 &&
+		!hasMultisig &&
+		(!burns || burns.length === 0)
+	) {
 		throw new Error(
-			'prepareCosignBsv21Transfer: at least one destination or burn required',
+			'prepareCosignBsv21Transfer: at least one destination, multisigDestination, or burn required',
 		)
 	}
 
@@ -169,6 +177,46 @@ export async function prepareCosignBsv21Transfer(
 			satoshis: 1,
 			outputDescription: `Cosign-wrapped BSV21 transfer to ${dest.recipientIdentityKey.slice(0, 8)}…`,
 		})
+	}
+
+	// ----------------------------------------------------------------------
+	// Multi-sig (P2MS) destinations — typically the redemption holding
+	// output. The cosigner does NOT cosign these; spending requires M-of-N
+	// admin sigs against the baked pubkeys.
+	// ----------------------------------------------------------------------
+	const multisigDestinationMetas: CosignSessionMultisigDestinationMeta[] = []
+	if (multisigDestinations) {
+		for (const dest of multisigDestinations) {
+			const amountBig = BigInt(dest.amount)
+			if (amountBig <= 0n) {
+				throw new Error(
+					'prepareCosignBsv21Transfer: multisigDestination amount must be positive',
+				)
+			}
+			if (dest.threshold < 1 || dest.threshold > dest.pubKeys.length) {
+				throw new Error(
+					`prepareCosignBsv21Transfer: threshold ${dest.threshold} out of range for ${dest.pubKeys.length} pubkeys`,
+				)
+			}
+			const inscription = BSV21.transfer(tokenId, amountBig)
+			const p2ms = P2MS.lock(dest.pubKeys, dest.threshold)
+			const lockingScript = inscription.lock(p2ms)
+			const vout = outputs.length
+			multisigDestinationMetas.push({
+				vout,
+				amount: dest.amount,
+				threshold: dest.threshold,
+				pubKeys: dest.pubKeys,
+				tags: dest.tags,
+				customInstructions: dest.customInstructions,
+				basket: dest.basket,
+			})
+			outputs.push({
+				lockingScript: lockingScript.toHex(),
+				satoshis: 1,
+				outputDescription: `BSV21 transfer to ${dest.threshold}-of-${dest.pubKeys.length} multi-sig`,
+			})
+		}
 	}
 
 	// ----------------------------------------------------------------------
@@ -291,6 +339,7 @@ export async function prepareCosignBsv21Transfer(
 		cosignerIdentityKey,
 		cosignerInputs,
 		destinations: destinationMetas,
+		multisigDestinations: multisigDestinationMetas,
 		burns: burnMetas,
 		createdAt: Date.now(),
 	}

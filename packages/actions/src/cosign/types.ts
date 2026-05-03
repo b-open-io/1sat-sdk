@@ -46,6 +46,32 @@ export interface CosignTransferBurn {
 	amount: string
 }
 
+/**
+ * A multi-sig (P2MS) destination — typically used for redemption holding
+ * outputs locked to the admin set. The cosigner does NOT cosign these
+ * outputs; spending them later requires M-of-N admin signatures.
+ *
+ * The cosigner also doesn't itself derive the pubkeys — the caller passes
+ * the already-derived signing pubkeys (admins typically derive via
+ * counterparty='anyone' + a known protocol/keyID).
+ */
+export interface CosignTransferMultisigDestination {
+	/** Token amount routed to this output (bigint serialized as string). */
+	amount: string
+	/** M — signatures required. */
+	threshold: number
+	/** Compressed signing pubkeys (33-byte hex), in lock order. */
+	pubKeys: string[]
+	/**
+	 * Free-form metadata recorded on the resulting output's wallet record
+	 * (cosigner-side internalize tags + customInstructions). Lets callers
+	 * stamp redemption-specific data onto the holding UTXO.
+	 */
+	tags?: string[]
+	customInstructions?: Record<string, unknown>
+	basket?: string
+}
+
 // ============================================================================
 // Persistent session shape
 // ============================================================================
@@ -71,6 +97,17 @@ export interface CosignSessionDestinationMeta {
 	address: string
 }
 
+/** Per-multisig-destination metadata captured at prepare time. */
+export interface CosignSessionMultisigDestinationMeta {
+	vout: number
+	amount: string
+	threshold: number
+	pubKeys: string[]
+	tags?: string[]
+	customInstructions?: Record<string, unknown>
+	basket?: string
+}
+
 /** Session record persisted between /transfer/prepare and /transfer/finalize. */
 export interface CosignTransferSession {
 	sessionId: string
@@ -84,6 +121,7 @@ export interface CosignTransferSession {
 	cosignerIdentityKey: string
 	cosignerInputs: CosignSessionInputMeta[]
 	destinations: CosignSessionDestinationMeta[]
+	multisigDestinations: CosignSessionMultisigDestinationMeta[]
 	burns: Array<{ vout: number; amount: string }>
 	createdAt: number
 }
@@ -141,8 +179,10 @@ export interface PrepareCosignBsv21TransferInput {
 	 * shape produced by Beef.toBinaryAtomic on the user's wallet.
 	 */
 	inputBEEF: number[]
-	/** Transfer destinations. May be empty if the request is burn-only. */
+	/** Transfer destinations. May be empty if the request is burn-only or holding-only. */
 	destinations: CosignTransferDestination[]
+	/** Optional multi-sig (P2MS) destinations — used for redemption holding outputs. */
+	multisigDestinations?: CosignTransferMultisigDestination[]
 	/** Optional burn outputs. */
 	burns?: CosignTransferBurn[]
 	/** Sender's identityKey, supplied by the auth middleware. */

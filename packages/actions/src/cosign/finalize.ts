@@ -132,7 +132,38 @@ export async function finalizeCosignBsv21Transfer(
 	}
 
 	// ----------------------------------------------------------------------
-	// 6. Build per-recipient delivery payloads.
+	// 6. Internalize multisig destinations (e.g. redemption holding outputs)
+	//    into the cosigner's wallet so admin queries can find them via
+	//    listOutputs. Each output gets the caller-supplied tags +
+	//    customInstructions verbatim.
+	// ----------------------------------------------------------------------
+	const multisigDests = session.multisigDestinations ?? []
+	if (multisigDests.length > 0) {
+		try {
+			await wallet.internalizeAction({
+				tx: beef,
+				outputs: multisigDests.map((d) => ({
+					outputIndex: d.vout,
+					protocol: 'basket insertion',
+					insertionRemittance: {
+						basket: d.basket ?? 'multisig',
+						tags: d.tags ?? [],
+						customInstructions: JSON.stringify(d.customInstructions ?? {}),
+					},
+				})),
+				description: `Cosign-multisig outputs (${multisigDests.length})`,
+				labels: [`bsv21:${session.tokenId}`],
+			})
+		} catch (err) {
+			console.warn(
+				`[finalizeCosignBsv21Transfer] multisig internalize failed:`,
+				err,
+			)
+		}
+	}
+
+	// ----------------------------------------------------------------------
+	// 7. Build per-recipient delivery payloads.
 	// ----------------------------------------------------------------------
 	const recipients: CosignRecipientPayload[] = session.destinations.map(
 		(d) => ({
@@ -151,7 +182,7 @@ export async function finalizeCosignBsv21Transfer(
 	)
 
 	// ----------------------------------------------------------------------
-	// 7. Cleanup: drop the session record once finalized.
+	// 8. Cleanup: drop the session record once finalized.
 	// ----------------------------------------------------------------------
 	await sessionStore.delete(sessionId)
 
