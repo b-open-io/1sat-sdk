@@ -30,3 +30,8 @@ export {
 } from './types'
 export { prepareCosignBsv21Transfer } from './prepare'
 export { finalizeCosignBsv21Transfer } from './finalize'
+export {
+	buildCosignDestination,
+	type BuildCosignDestinationInput,
+	type BuildCosignDestinationResult,
+} from './buildDestination'
