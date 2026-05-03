@@ -10,6 +10,8 @@ export { default as OrdLock } from './ordlock/ordlock.js'
 export { default as Lock } from './lock/lock.js'
 export { default as Cosign } from './cosign/cosign.js'
 export type { CosignData } from './cosign/cosign.js'
+export { default as P2MS } from './multisig/multisig.js'
+export type { P2MSData } from './multisig/multisig.js'
 
 // BitCom Protocols
 export { default as BitCom } from './bitcom/bitcom.js'
