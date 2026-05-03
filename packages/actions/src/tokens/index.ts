@@ -1497,7 +1497,9 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 							}),
 							...(tokenDetails.token.sym && { sym: tokenDetails.token.sym }),
 						})
-					: undefined
+					: tokenDetails.token.sym
+						? JSON.stringify({ sym: tokenDetails.token.sym })
+						: undefined
 				outputs.push({
 					lockingScript: mintScript.toHex(),
 					satoshis: 1,
@@ -1537,7 +1539,9 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 							}),
 							...(tokenDetails.token.sym && { sym: tokenDetails.token.sym }),
 						})
-					: undefined
+					: tokenDetails.token.sym
+						? JSON.stringify({ sym: tokenDetails.token.sym })
+						: undefined
 				authOutputIndex = outputs.length
 				outputs.push({
 					lockingScript: authScript.toHex(),
