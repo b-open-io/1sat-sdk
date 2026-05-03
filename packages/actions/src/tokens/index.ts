@@ -4,7 +4,7 @@
  * Actions for managing BSV21 tokens.
  */
 
-import { BSV21, OrdLock } from '@1sat/templates'
+import { BSV21, OrdLock, P2MS } from '@1sat/templates'
 import type { Destination } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
 import {
@@ -1490,11 +1490,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 				]
 				const mintCI = mintResolved.customInstructions
 					? JSON.stringify({
-							protocolID: mintResolved.customInstructions.protocolID,
-							keyID: mintResolved.customInstructions.keyID,
-							...(mintResolved.customInstructions.counterparty !== undefined && {
-								counterparty: mintResolved.customInstructions.counterparty,
-							}),
+							...mintResolved.customInstructions,
 							...(tokenDetails.token.sym && { sym: tokenDetails.token.sym }),
 						})
 					: tokenDetails.token.sym
@@ -1532,11 +1528,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 				]
 				const authCustomInstructions = authResolved.customInstructions
 					? JSON.stringify({
-							protocolID: authResolved.customInstructions.protocolID,
-							keyID: authResolved.customInstructions.keyID,
-							...(authResolved.customInstructions.counterparty !== undefined && {
-								counterparty: authResolved.customInstructions.counterparty,
-							}),
+							...authResolved.customInstructions,
 							...(tokenDetails.token.sym && { sym: tokenDetails.token.sym }),
 						})
 					: tokenDetails.token.sym
@@ -1600,6 +1592,31 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 				input.fundingProvider,
 				inputBEEF as number[],
 				async (tx) => {
+					if ((authCI as { multiSig?: boolean }).multiSig === true) {
+						// 1-of-N P2MS auth: this wallet contributes its single
+						// portion. For M > 1 the prepare/finalize flow collects
+						// portions from multiple admins out-of-band; that lives
+						// in a separate action.
+						const counterparty = authCI.counterparty ?? 'self'
+						const portion = await P2MS.unlockSingleWithWallet(
+							tx,
+							0,
+							ctx.wallet,
+							authCI.protocolID,
+							authCI.keyID,
+							typeof counterparty === 'string' ? counterparty : 'self',
+						)
+						const { publicKey: myPub } = await ctx.wallet.getPublicKey({
+							protocolID: authCI.protocolID,
+							keyID: authCI.keyID,
+							counterparty,
+							forSelf: true,
+						})
+						const portions = new Map([[myPub, portion]])
+						const assembler = P2MS.unlock(portions)
+						const unlockScript = await assembler.sign(tx, 0)
+						return { 0: { unlockingScript: unlockScript.toHex() } }
+					}
 					const unlocking = await signP2PKHInput(
 						ctx,
 						tx,

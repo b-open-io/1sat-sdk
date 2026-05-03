@@ -26,11 +26,16 @@ export interface ResolvedDestination {
 	 * shared key reads this back at spend time to invoke createSignature
 	 * with the correct counterparty (BRC-29 symmetry). Self-derived outputs
 	 * omit the field, and readers default to `'self'` for backward compatibility.
+	 *
+	 * Carries the optional `extra` map from `Destination.customInstructions`
+	 * verbatim, so callers can record custom spend-time metadata (e.g.
+	 * multi-sig template params) alongside the derived spending fields.
 	 */
 	customInstructions?: {
 		protocolID: WalletProtocol
 		keyID: string
 		counterparty?: WalletCounterparty
+		[extra: string]: unknown
 	}
 }
 
@@ -61,6 +66,31 @@ export async function resolveDestination(
 			typeof destination.lockingScript === 'string'
 				? LockingScript.fromHex(destination.lockingScript)
 				: (destination.lockingScript as LockingScript)
+		// Literal lockingScript path: the caller knows the spend semantics.
+		// If they provided customInstructions, propagate them — but they
+		// likely lack a wallet-derivation triple (protocolID/keyID), so we
+		// only return the customInstructions block when the caller supplied
+		// the required derivation fields. Otherwise downstream callers
+		// (mintBsv21 etc.) decide how to emit minimal display metadata.
+		if (destination.customInstructions) {
+			const ci = destination.customInstructions as Record<string, unknown>
+			const protocolID = ci.protocolID as WalletProtocol | undefined
+			const keyID = ci.keyID as string | undefined
+			if (protocolID && keyID) {
+				const { protocolID: _p, keyID: _k, counterparty: _c, ...rest } = ci
+				return {
+					lockingScript: ls,
+					customInstructions: {
+						protocolID,
+						keyID,
+						...(ci.counterparty !== undefined && {
+							counterparty: ci.counterparty as WalletCounterparty,
+						}),
+						...rest,
+					},
+				}
+			}
+		}
 		return { lockingScript: ls }
 	}
 
@@ -83,12 +113,14 @@ export async function resolveDestination(
 	})
 	const address = PublicKey.fromString(publicKey).toAddress()
 
+	const extra = destination?.customInstructions ?? {}
 	return {
 		lockingScript: new P2PKH().lock(address),
 		customInstructions: {
 			protocolID: opts.protocolID,
 			keyID,
 			...(isSelf ? {} : { counterparty }),
+			...extra,
 		},
 	}
 }

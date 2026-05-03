@@ -29,7 +29,7 @@
     },
     "packages/actions": {
       "name": "@1sat/actions",
-      "version": "0.0.123",
+      "version": "0.0.124",
       "dependencies": {
         "@1sat/client": "workspace:*",
         "@1sat/templates": "workspace:*",
@@ -207,7 +207,7 @@
     },
     "packages/types": {
       "name": "@1sat/types",
-      "version": "0.0.19",
+      "version": "0.0.20",
       "devDependencies": {
         "@bsv/sdk": "^2.0.13",
         "typescript": "^5.9.3",

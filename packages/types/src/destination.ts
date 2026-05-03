@@ -25,6 +25,17 @@ export interface Destination {
 	counterparty?: string
 	/** Literal P2PKH address. */
 	address?: string
+	/**
+	 * Override / augment the customInstructions written on the resulting
+	 * output's wallet record. For wallet-derived destinations
+	 * (counterparty/self/address), these merge on top of the standard
+	 * { protocolID, keyID, counterparty } block. For literal lockingScripts
+	 * (which otherwise carry no derivation info), this is the only way to
+	 * record spend-time metadata — useful for multi-sig destinations where
+	 * the spending wallet needs to know { protocolID, keyID, counterparty,
+	 * multiSig, M, N } to participate in a future P2MS unlock.
+	 */
+	customInstructions?: Record<string, unknown>
 }
 
 /**
