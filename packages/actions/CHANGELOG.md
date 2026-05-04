@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.129
+
+### Fixed
+- `syncCosignDeliveries` now unwraps the messagebox-server's `{message: <inner>}` storage envelope and decrypts manually using `wallet.decrypt` with `protocolID: [1, 'messagebox']`, `keyID: '1'`, `counterparty: <sender>`. `MessageBoxClient.listMessages`'s built-in decryption only matches `encryptedMessage` at the top level of the parsed body, so the nested envelope was being passed through verbatim.
+
 ## 0.0.128
 
 ### Fixed
