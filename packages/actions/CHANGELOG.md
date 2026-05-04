@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.127
+
+### Fixed
+- `syncCosignDeliveries`: defensive checks on the parsed message body. Logs the body's keys when a message arrives so unexpected/legacy messages in the inbox produce useful diagnostics instead of an opaque `Cannot read properties of undefined (reading 'slice')`.
+
 ## 0.0.126
 
 ### Added

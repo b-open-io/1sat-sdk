@@ -123,12 +123,27 @@ export const syncCosignDeliveries: Action<
 		for (const msg of messages) {
 			try {
 				const delivery = JSON.parse(msg.body) as CosignDeliveryMessage
+				console.log(
+					`[syncCosignDeliveries] message ${msg.messageId} parsed body keys:`,
+					Object.keys(delivery as object),
+				)
+				if (
+					!delivery.tokenId ||
+					delivery.vout === undefined ||
+					!delivery.beef ||
+					!delivery.customInstructions
+				) {
+					throw new Error(
+						`message body missing required fields (have keys: ${Object.keys(delivery as object).join(',')})`,
+					)
+				}
 				const beefBytes = Array.isArray(delivery.beef)
 					? delivery.beef
 					: Utils.toArray(delivery.beef, 'hex')
+				const tokenIdShort = String(delivery.tokenId).slice(0, 8)
 				const tags = [
 					`bsv21:${delivery.tokenId}`,
-					`amt:${delivery.amount}`,
+					`amt:${delivery.amount ?? '0'}`,
 					`tokenId:${delivery.tokenId}`,
 				]
 				await ctx.wallet.internalizeAction({
@@ -144,10 +159,7 @@ export const syncCosignDeliveries: Action<
 							},
 						},
 					],
-					description: `Cosign token delivery (${delivery.tokenId.slice(0, 8)}…)`.slice(
-						0,
-						50,
-					),
+					description: `Cosign token delivery (${tokenIdShort}…)`.slice(0, 50),
 					labels: [`bsv21:${delivery.tokenId}`],
 				})
 				acknowledgedIds.push(msg.messageId)
