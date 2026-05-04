@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.128
+
+### Fixed
+- `syncCosignDeliveries` now uses `@bsv/p2p` `MessageBoxClient` for `listMessages` / `acknowledgeMessage`. The raw `AuthFetch` calls in 0.0.126/0.0.127 returned the encrypted-body envelope (`{encryptedMessage}` ciphertext under BRC-2 ECDH/AES-256-GCM) verbatim, so parsing the cleartext fields failed. `MessageBoxClient` decrypts using the wallet, matching what the sender used to encrypt.
+
+### Changed
+- `@bsv/p2p` added as a runtime dependency.
+
 ## 0.0.127
 
 ### Fixed

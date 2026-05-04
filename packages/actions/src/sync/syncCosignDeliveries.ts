@@ -2,18 +2,19 @@
  * Cosign Token Deliveries Sync Action
  *
  * One-shot pull from a MessageBox slot used by cosign-wrapped BSV21 mints
- * and transfers. Each message body carries a finalized BEEF, the cosign
- * customInstructions the recipient will need to sign at spend time, and
+ * and transfers. Each (decrypted) message body carries a finalized BEEF,
+ * the cosign customInstructions the recipient will need at spend time, and
  * the output index that's owned by this wallet. We internalize the output
- * into the bsv21 basket with the supplied customInstructions verbatim
- * (no derivation re-write — these are cosign-protocol keys, not BRC-29).
+ * into the bsv21 basket with the supplied customInstructions verbatim.
  *
- * Intended call sites: any UI mount where a fresh sync is desired (e.g.
- * yours-wallet popup mount). Not a polling loop.
+ * Uses `@bsv/p2p` MessageBoxClient so encrypted bodies are decrypted using
+ * BRC-2 ECDH/AES-256-GCM via the wallet (matches what the sender used to
+ * encrypt). Intended call sites: any UI mount where a fresh sync is
+ * desired (e.g. yours-wallet popup mount). Not a polling loop.
  */
 
+import { MessageBoxClient } from '@bsv/p2p'
 import { Utils } from '@bsv/sdk'
-import { AuthFetch } from '@bsv/sdk/auth'
 import type { Action } from '../types'
 
 // ============================================================================
@@ -34,8 +35,8 @@ export interface SyncCosignDeliveriesResult {
 	failed: number
 }
 
-/** Shape of the cosign-delivery body in each message. */
-interface CosignDeliveryMessage {
+/** Shape of the cosign-delivery body in each message (after decryption). */
+interface CosignDeliveryBody {
 	tokenId: string
 	txid: string
 	vout: number
@@ -43,19 +44,6 @@ interface CosignDeliveryMessage {
 	beef: number[] | string
 	customInstructions: string
 	deliveredAt?: string
-}
-
-interface MessageOut {
-	messageId: string
-	body: string
-	sender: string
-	createdAt: string
-	updatedAt: string
-}
-
-interface ListMessagesResponse {
-	status: string
-	messages: MessageOut[]
 }
 
 // ============================================================================
@@ -91,76 +79,71 @@ export const syncCosignDeliveries: Action<
 
 	async execute(ctx, input) {
 		const messageBox = input.messageBox || 'cosign_token_inbox'
-		const messageboxUrl =
+		const host =
 			input.messageboxUrl?.replace(/\/+$/, '') ||
 			'https://messagebox.1sat.app'
 
-		const authFetch = new AuthFetch(ctx.wallet)
+		// MessageBoxClient encrypts on send and decrypts on listMessages,
+		// so we go through it (not raw AuthFetch) — the bodies on the wire
+		// are AES-256-GCM ciphertext under BRC-2 ECDH keys.
+		// biome-ignore lint/suspicious/noExplicitAny: WalletInterface typing diff between @bsv/sdk versions
+		const client = new MessageBoxClient({ walletClient: ctx.wallet as any, host })
 
-		// 1. List pending messages.
-		const listResponse = await authFetch.fetch(
-			`${messageboxUrl}/listMessages`,
-			{
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ messageBox }),
-			},
-		)
-		if (!listResponse.ok) {
-			throw new Error(
-				`Failed to list messages: ${listResponse.status} ${listResponse.statusText}`,
-			)
-		}
-		const { messages } = (await listResponse.json()) as ListMessagesResponse
-		if (!messages || messages.length === 0) {
+		const messages = await client.listMessages({ messageBox, host })
+		if (messages.length === 0) {
 			return { processed: 0, failed: 0 }
 		}
 
-		// 2. Internalize each delivery into the wallet's bsv21 basket.
 		let processed = 0
 		let failed = 0
 		const acknowledgedIds: string[] = []
 		for (const msg of messages) {
 			try {
-				const delivery = JSON.parse(msg.body) as CosignDeliveryMessage
+				// MessageBoxClient.listMessages returns body as already-parsed
+				// JSON object when the cleartext was JSON. Defensive: parse if
+				// we still see a string.
+				const body =
+					typeof msg.body === 'string'
+						? (JSON.parse(msg.body) as CosignDeliveryBody)
+						: (msg.body as unknown as CosignDeliveryBody)
 				console.log(
 					`[syncCosignDeliveries] message ${msg.messageId} parsed body keys:`,
-					Object.keys(delivery as object),
+					Object.keys(body as object),
 				)
 				if (
-					!delivery.tokenId ||
-					delivery.vout === undefined ||
-					!delivery.beef ||
-					!delivery.customInstructions
+					!body.tokenId ||
+					body.vout === undefined ||
+					!body.beef ||
+					!body.customInstructions
 				) {
 					throw new Error(
-						`message body missing required fields (have keys: ${Object.keys(delivery as object).join(',')})`,
+						`message body missing required fields (have keys: ${Object.keys(body as object).join(',')})`,
 					)
 				}
-				const beefBytes = Array.isArray(delivery.beef)
-					? delivery.beef
-					: Utils.toArray(delivery.beef, 'hex')
-				const tokenIdShort = String(delivery.tokenId).slice(0, 8)
+				const beefBytes = Array.isArray(body.beef)
+					? body.beef
+					: Utils.toArray(body.beef, 'hex')
+				const tokenIdShort = String(body.tokenId).slice(0, 8)
 				const tags = [
-					`bsv21:${delivery.tokenId}`,
-					`amt:${delivery.amount ?? '0'}`,
-					`tokenId:${delivery.tokenId}`,
+					`bsv21:${body.tokenId}`,
+					`amt:${body.amount ?? '0'}`,
+					`tokenId:${body.tokenId}`,
 				]
 				await ctx.wallet.internalizeAction({
 					tx: beefBytes,
 					outputs: [
 						{
-							outputIndex: delivery.vout,
+							outputIndex: body.vout,
 							protocol: 'basket insertion',
 							insertionRemittance: {
 								basket: 'bsv21',
 								tags,
-								customInstructions: delivery.customInstructions,
+								customInstructions: body.customInstructions,
 							},
 						},
 					],
 					description: `Cosign token delivery (${tokenIdShort}…)`.slice(0, 50),
-					labels: [`bsv21:${delivery.tokenId}`],
+					labels: [`bsv21:${body.tokenId}`],
 				})
 				acknowledgedIds.push(msg.messageId)
 				processed++
@@ -173,19 +156,13 @@ export const syncCosignDeliveries: Action<
 			}
 		}
 
-		// 3. Acknowledge successfully internalized messages.
 		if (acknowledgedIds.length > 0) {
-			const ackResponse = await authFetch.fetch(
-				`${messageboxUrl}/acknowledgeMessage`,
-				{
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ messageIds: acknowledgedIds }),
-				},
-			)
-			if (!ackResponse.ok) {
+			try {
+				await client.acknowledgeMessage({ messageIds: acknowledgedIds, host })
+			} catch (err) {
 				console.error(
-					`[syncCosignDeliveries] Failed to acknowledge messages: ${ackResponse.status}`,
+					'[syncCosignDeliveries] Failed to acknowledge messages:',
+					err instanceof Error ? err.message : String(err),
 				)
 			}
 		}
