@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.126
+
+### Added
+- `syncCosignDeliveries` action — pulls cosign-wrapped BSV21 deliveries from a MessageBox slot (default: `cosign_token_inbox` on `messagebox.1sat.app`) and internalizes each into the wallet's `bsv21` basket using the supplied `customInstructions` verbatim. Intended for one-shot calls on UI mount or wallet init, not polling.
+
 ## 0.0.113
 
 ### Added

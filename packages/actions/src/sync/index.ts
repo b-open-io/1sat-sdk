@@ -17,6 +17,7 @@ import {
 import type { ProcessedTxStore } from './ProcessedTxStore'
 import { ProcessedTxStoreIdb } from './ProcessedTxStoreIdb'
 import { ProcessedTxStoreSqlite } from './ProcessedTxStoreSqlite'
+import { syncCosignDeliveries } from './syncCosignDeliveries'
 import { syncMessages } from './syncMessages'
 
 const REORG_SAFE_DEPTH = 6
@@ -269,8 +270,14 @@ async function processTxid(
 export { syncMessages }
 export type { SyncMessagesInput, SyncMessagesResult } from './syncMessages'
 
+export { syncCosignDeliveries }
+export type {
+	SyncCosignDeliveriesInput,
+	SyncCosignDeliveriesResult,
+} from './syncCosignDeliveries'
+
 /** All sync actions for registry */
-export const syncActions = [syncAddresses, syncMessages]
+export const syncActions = [syncAddresses, syncMessages, syncCosignDeliveries]
 
 export type { ProcessedTxStore } from './ProcessedTxStore'
 export { ProcessedTxStoreIdb } from './ProcessedTxStoreIdb'
