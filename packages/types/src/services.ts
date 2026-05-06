@@ -105,16 +105,6 @@ export interface SubmitOptions {
 	skipScriptValidation?: boolean
 }
 
-/**
- * Mining policy from arcade
- */
-export interface Policy {
-	maxscriptsizepolicy: number
-	maxtxsigopscountspolicy: number
-	maxtxsizepolicy: number
-	miningFee: { satoshis: number; bytes: number }
-}
-
 // ============================================================================
 // TXO Types (Transaction Outputs)
 // ============================================================================

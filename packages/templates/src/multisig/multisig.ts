@@ -221,25 +221,38 @@ export default class P2MS {
 			const chunks = script.chunks
 			if (chunks.length < 4) return null
 
-			if (chunks[chunks.length - 1].op !== OP.OP_CHECKMULTISIG) return null
+			// Scan all chunks for OP_CHECKMULTISIG and walk backwards from each
+			// candidate to extract the P2MS pattern. Handles bare P2MS as well
+			// as patterns embedded in larger scripts (e.g. BSV21-prefixed,
+			// inscription-suffixed, or with trailing OP_RETURN data).
+			for (let i = chunks.length - 1; i >= 3; i--) {
+				if (chunks[i].op !== OP.OP_CHECKMULTISIG) continue
 
-			const total = nForOp(chunks[chunks.length - 2].op)
-			if (total === null) return null
+				const total = nForOp(chunks[i - 1].op)
+				if (total === null) continue
 
-			if (chunks.length !== total + 3) return null
+				const thresholdIdx = i - 1 - total - 1
+				if (thresholdIdx < 0) continue
 
-			const pubKeys: string[] = []
-			for (let i = 1; i <= total; i++) {
-				const c = chunks[i]
-				if (!c.data || c.data.length !== 33) return null
-				pubKeys.push(Utils.toHex(c.data as number[]))
+				const threshold = nForOp(chunks[thresholdIdx].op)
+				if (threshold === null) continue
+				if (threshold < 1 || threshold > total) continue
+
+				const pubKeys: string[] = []
+				let valid = true
+				for (let j = thresholdIdx + 1; j <= thresholdIdx + total; j++) {
+					const c = chunks[j]
+					if (!c.data || c.data.length !== 33) {
+						valid = false
+						break
+					}
+					pubKeys.push(Utils.toHex(c.data as number[]))
+				}
+				if (!valid) continue
+
+				return { pubKeys, threshold, total }
 			}
-
-			const threshold = nForOp(chunks[0].op)
-			if (threshold === null) return null
-			if (threshold < 1 || threshold > total) return null
-
-			return { pubKeys, threshold, total }
+			return null
 		} catch {
 			return null
 		}

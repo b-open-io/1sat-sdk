@@ -129,7 +129,7 @@ export const syncCosignDeliveries: Action<
 				},
 			},
 		},
-		requiresServices: false,
+		requiresServices: true,
 	},
 
 	async execute(ctx, input) {
@@ -199,6 +199,23 @@ export const syncCosignDeliveries: Action<
 					`amt:${amount}`,
 					`tokenId:${tokenId}`,
 				]
+				// Pull token metadata from the BSV21 overlay so the wallet's
+				// balance/listing UIs can render symbol, icon, and decimals.
+				// Bsv21Client caches per-tokenId, so subsequent messages for
+				// the same token are free.
+				if (ctx.services) {
+					try {
+						const details = await ctx.services.bsv21.getTokenDetails(tokenId)
+						if (details.token.sym) tags.push(`sym:${details.token.sym}`)
+						if (details.token.icon) tags.push(`icon:${details.token.icon}`)
+						if (details.token.dec) tags.push(`dec:${details.token.dec}`)
+					} catch (err) {
+						console.warn(
+							`[syncCosignDeliveries] token-details lookup failed for ${tokenIdShort}:`,
+							err instanceof Error ? err.message : String(err),
+						)
+					}
+				}
 				await ctx.wallet.internalizeAction({
 					tx: beefBytes,
 					outputs: [

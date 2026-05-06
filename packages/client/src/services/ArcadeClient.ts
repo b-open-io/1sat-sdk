@@ -1,6 +1,5 @@
 import type {
 	ClientOptions,
-	Policy,
 	SubmitOptions,
 	TransactionStatus,
 } from '@1sat/types'
@@ -77,13 +76,6 @@ export class ArcadeClient extends BaseClient {
 	 */
 	async getStatus(txid: string): Promise<TransactionStatus> {
 		return this.request<TransactionStatus>(`/tx/${txid}`)
-	}
-
-	/**
-	 * Get current mining policy
-	 */
-	async getPolicy(): Promise<Policy> {
-		return this.request<Policy>('/policy')
 	}
 
 	/**
