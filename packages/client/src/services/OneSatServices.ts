@@ -51,7 +51,8 @@ export type { SyncOutput }
  * API Routes:
  * - /1sat/chaintracks/* - Block headers and chain tracking
  * - /1sat/beef/* - Raw transactions and proofs
- * - /1sat/arcade/* - Transaction broadcasting
+ * - /1sat/tx, /1sat/tx/:txid - Transaction broadcast and status (via 1sat-stack's
+ *   broker, which fronts arcade with the stack's callback token)
  * - /1sat/bap/* - BAP identity attestation
  * - /1sat/bsv21/* - BSV21 token data
  * - /1sat/txo/* - Transaction outputs
@@ -216,6 +217,72 @@ export class OneSatServices implements WalletServices {
 		}
 	}
 
+	/**
+	 * Submit a serialized transaction (raw tx bytes or atomic BEEF) to 1sat-stack's
+	 * /1sat/tx broadcast endpoint. The handler captures BEEF locally, forwards to
+	 * arcade with the stack's callback token, waits up to its configured window for
+	 * an accepted/terminal status, and returns the full TransactionStatus.
+	 */
+	async submitToStack(payload: number[] | Uint8Array): Promise<{
+		txid: string
+		txStatus: string
+		timestamp: string
+		blockHash?: string
+		blockHeight?: number
+		merklePath?: string
+		extraInfo?: string
+		competingTxs?: string[]
+	}> {
+		const bytes = payload instanceof Uint8Array ? payload : new Uint8Array(payload)
+		const controller = new AbortController()
+		const timeoutId = setTimeout(() => controller.abort(), 35000)
+		try {
+			const resp = await fetch(`${this.baseUrl}/1sat/tx`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/octet-stream' },
+				body: bytes as unknown as BodyInit,
+				signal: controller.signal,
+			})
+			const text = await resp.text()
+			if (!resp.ok && resp.status !== 202 && resp.status !== 400) {
+				throw new Error(`/1sat/tx returned ${resp.status}: ${text}`)
+			}
+			return text ? JSON.parse(text) : { txid: '', txStatus: 'UNKNOWN', timestamp: '' }
+		} finally {
+			clearTimeout(timeoutId)
+		}
+	}
+
+	/**
+	 * Look up a transaction's status by txid via 1sat-stack's /1sat/tx/:txid
+	 * passthrough endpoint. Returns null on 404.
+	 */
+	async getStackStatus(txid: string): Promise<{
+		txid: string
+		txStatus: string
+		timestamp: string
+		blockHash?: string
+		blockHeight?: number
+		merklePath?: string
+		extraInfo?: string
+		competingTxs?: string[]
+	} | null> {
+		const controller = new AbortController()
+		const timeoutId = setTimeout(() => controller.abort(), 10000)
+		try {
+			const resp = await fetch(`${this.baseUrl}/1sat/tx/${txid}`, {
+				signal: controller.signal,
+			})
+			if (resp.status === 404) return null
+			if (!resp.ok) {
+				throw new Error(`/1sat/tx/${txid} returned ${resp.status}`)
+			}
+			return await resp.json()
+		} finally {
+			clearTimeout(timeoutId)
+		}
+	}
+
 	async postBeef(
 		beef: Beef,
 		txids: string[],
@@ -227,25 +294,17 @@ export class OneSatServices implements WalletServices {
 
 		for (const txid of txids) {
 			try {
-				// Submit as AtomicBEEF which includes all source transactions
-				console.log('[OneSatServices] Submitting tx to arcade:', txid)
+				// Submit as AtomicBEEF which includes all source transactions.
+				// 1sat-stack's /1sat/tx accepts BEEF and auto-detects the format.
+				console.log('[OneSatServices] Submitting tx to 1sat-stack:', txid)
 				const atomicBeef = beef.toBinaryAtomic(txid)
 				console.log(
 					'[OneSatServices] AtomicBEEF length:',
 					atomicBeef.length,
 					'bytes',
 				)
-				// Parse back to verify structure
-				const verifyBeef = Beef.fromBinary(atomicBeef)
-				console.log(
-					`[OneSatServices] AtomicBEEF parsed back:\n${verifyBeef.toLogString()}`,
-				)
-				// TODO: Remove hardcoded callback headers after server testing
-				const status = await this.arcade.submitTransaction(atomicBeef, {
-					callbackUrl: `${this.baseUrl}/1sat/arc/callback`,
-					callbackToken: 'test-callback-token',
-				})
-				console.log('[OneSatServices] Arcade response:', status)
+				const status = await this.submitToStack(atomicBeef)
+				console.log('[OneSatServices] /1sat/tx response:', status)
 
 				const SUCCESS_STATUSES = new Set([
 					'IMMUTABLE',
@@ -368,11 +427,15 @@ export class OneSatServices implements WalletServices {
 
 		for (const txid of txids) {
 			try {
-				// Try Arcade first (only knows about txs broadcast through it)
-				const status = await this.arcade.getStatus(txid)
+				// Try 1sat-stack first (only knows about txs broadcast through it
+				// or that arcade has visibility on under the stack's callback token).
+				const status = await this.getStackStatus(txid)
+				if (!status) {
+					results.push(await this.getStatusFromBeef(txid))
+					continue
+				}
 
 				if (status.txStatus === 'MINED' || status.txStatus === 'IMMUTABLE') {
-					// Get current height for depth calculation if we haven't already
 					if (currentHeight === undefined) {
 						currentHeight = await this.getHeight()
 					}
@@ -382,6 +445,7 @@ export class OneSatServices implements WalletServices {
 					results.push({ txid, status: 'mined', depth })
 				} else if (
 					status.txStatus === 'SEEN_ON_NETWORK' ||
+					status.txStatus === 'SEEN_MULTIPLE_NODES' ||
 					status.txStatus === 'ACCEPTED_BY_NETWORK' ||
 					status.txStatus === 'SENT_TO_NETWORK' ||
 					status.txStatus === 'RECEIVED'
@@ -392,9 +456,7 @@ export class OneSatServices implements WalletServices {
 					results.push(await this.getStatusFromBeef(txid))
 				}
 			} catch {
-				// Arcade 404 or error - fall back to Beef storage
-				// NOTE: If Arcade's scope is too limited (only knows txs it broadcast),
-				// consider using Beef storage as the primary source instead.
+				// Network or other error — fall back to Beef storage
 				results.push(await this.getStatusFromBeef(txid))
 			}
 		}
