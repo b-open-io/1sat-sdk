@@ -1,6 +1,6 @@
 {
   "name": "@1sat/wallet-browser",
-  "version": "0.0.54",
+  "version": "0.0.55",
   "description": "Browser wallet factory for 1Sat Ordinals SDK",
   "type": "module",
   "main": "./dist/index.js",
