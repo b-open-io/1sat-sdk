@@ -521,6 +521,7 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 	): Promise<PermissionToken[]> {
 		const normalized = normalizeOriginator(originator)
 		await this.permissionStore.deleteAllForOriginator(normalized)
+		this.clearPermissionCache()
 		return super.revokeAllForOriginator(normalized)
 	}
 
@@ -531,10 +532,25 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 		if (idbKey) {
 			await this.permissionStore.deleteGrant(idbKey)
 		}
+		this.clearPermissionCache()
 		if (oldToken.txid.startsWith(IDB_TXID_PREFIX)) {
 			return
 		}
 		return super.revokePermission(oldToken)
+	}
+
+	/**
+	 * Clear the parent WPM's in-memory permission cache so revoked grants
+	 * aren't served from cache for up to 5 minutes after revocation.
+	 * `permissionCache` is declared `private` upstream (TypeScript-private,
+	 * not `#`-private) so it exists on the prototype at runtime.
+	 */
+	private clearPermissionCache(): void {
+		const cache = (this as unknown as { permissionCache: Map<string, unknown> })
+			.permissionCache
+		if (cache instanceof Map) {
+			cache.clear()
+		}
 	}
 }
 
