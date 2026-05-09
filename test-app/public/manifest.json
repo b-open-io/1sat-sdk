@@ -3,20 +3,20 @@
   "description": "QA test harness for @1sat/actions + @1sat/connect with Yours Wallet",
   "metanet": {
     "groupPermissions": {
-      "description": "1Sat SDK test app needs access to ordinals, tokens, and signing",
+      "description": "1Sat SDK test app needs to interact with 1Sat assets (ordinals, BSV21 tokens, locks, OpNS)",
       "protocolPermissions": [
         {
-          "protocolID": [0, "1sat-ordinals"],
-          "description": "Ordinal key derivation"
+          "protocolID": [1, "identity key retrieval"],
+          "description": "Read your identity public key"
         },
         {
-          "protocolID": [0, "message signing"],
-          "description": "Sign messages"
+          "protocolID": [0, "p 1sat"],
+          "description": "Sign 1Sat asset transactions (ordinals, BSV21, locks, OpNS, deposits)"
         }
       ],
       "basketAccess": [
         {
-          "basket": "ordinals",
+          "basket": "1sat",
           "description": "Read and write ordinal outputs",
           "operations": ["insert", "remove", "list"]
         },
@@ -26,8 +26,18 @@
           "operations": ["insert", "remove", "list"]
         },
         {
-          "basket": "default",
-          "description": "Read and write payment outputs",
+          "basket": "lock",
+          "description": "Read and write timelocked outputs",
+          "operations": ["insert", "remove", "list"]
+        },
+        {
+          "basket": "opns",
+          "description": "Read and write OpNS name outputs",
+          "operations": ["insert", "remove", "list"]
+        },
+        {
+          "basket": "bsocial",
+          "description": "Read and write BSocial post outputs",
           "operations": ["insert", "remove", "list"]
         }
       ],
