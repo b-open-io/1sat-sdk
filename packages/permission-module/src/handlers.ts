@@ -8,12 +8,6 @@ import type {
 	WalletInterface,
 } from '@bsv/sdk'
 import { Beef, Transaction } from '@bsv/sdk'
-import { P1SAT_PROTOCOL } from '@1sat/types'
-import {
-	type IPermissionStore,
-	normalizeOriginator,
-	type PermissionKey,
-} from '@1sat/wallet'
 import { CommitmentCache } from './commitmentCache'
 import { enrichIntent } from './enrichIntent'
 import { computeHashOutputs } from './hashOutputs'
@@ -26,15 +20,6 @@ interface HandlerDeps {
 	promptHandler: PromptHandler
 	cache: CommitmentCache
 	adminOriginator?: string
-	permissionStore?: IPermissionStore
-	/**
-	 * Coalesces concurrent protocol-access prompts for the same originator.
-	 * deriveDepositAddresses typically issues N parallel getPublicKey calls
-	 * (one per derivation index) — without coalescing the user sees N
-	 * prompts. With it: the first call opens the prompt, the rest await
-	 * the same Promise.
-	 */
-	pendingProtocolGrants: Map<string, Promise<boolean>>
 }
 
 /**
@@ -191,71 +176,18 @@ export async function handleCreateSignatureRequest(
 
 /**
  * getPublicKey onRequest:
- *   Admin → allow. External → check the persisted protocol grant; if
- *   present, allow silently. If not, prompt the user with a `'protocol'`
- *   request describing read-only address access — on approve, persist
- *   the grant so subsequent calls are silent.
- *
- *   The grant is read-only: it covers `getPublicKey` only. Signing
- *   (createAction/createSignature) is gated separately, per-operation.
+ *   Pass through unconditionally. P1SAT_PROTOCOL is security level 0 —
+ *   public-key revelation is the open default per BRC-100. Public keys
+ *   are not signing authority; the signing oracle is gated at
+ *   createAction (rich intent prompt + hashOutputs commitment) and
+ *   createSignature (commitment verify or prompt). The connect dialog
+ *   already discloses address-derivation access at the wallet level.
  */
 export async function handleGetPublicKeyRequest(
-	deps: HandlerDeps,
+	_deps: HandlerDeps,
 	args: GetPublicKeyArgs,
-	originator: string,
+	_originator: string,
 ): Promise<GetPublicKeyArgs> {
-	if (isAdmin(deps, originator)) return args
-
-	// Normalize the originator the same way LocalWalletPermissionsManager
-	// does so the grant we write lands in the same key bucket the wallet's
-	// existing `listProtocolPermissions` / revoke flows query.
-	const normalized = normalizeOriginator(originator)
-	const grantKey = buildProtocolGrantKey(normalized)
-
-	if (deps.permissionStore) {
-		const existing = await deps.permissionStore.findGrant(grantKey)
-		if (existing && !isExpired(existing.expiry)) return args
-	}
-
-	// Coalesce concurrent prompts for the same originator. The first call
-	// opens the prompt; any other getPublicKey requests that arrive while
-	// it's pending await the same Promise instead of opening duplicates.
-	let pending = deps.pendingProtocolGrants.get(originator)
-	if (!pending) {
-		pending = (async () => {
-			try {
-				const approved = await deps.promptHandler({
-					kind: 'protocol',
-					originator,
-					intent: {
-						protocolID: P1SAT_PROTOCOL,
-						counterparty: 'self',
-						access: 'read-only',
-						notes:
-							'Allows the app to derive your 1Sat addresses for receiving funds. Signing is approved separately for each transaction.',
-					},
-					summary: 'Allow read-only 1Sat protocol access (address derivation)',
-				})
-				if (approved && deps.permissionStore) {
-					await deps.permissionStore.putGrant({
-						key: grantKey,
-						expiry: 0,
-						grantedAt: Date.now(),
-						reason: '1Sat read-only protocol access',
-					})
-				}
-				return approved
-			} finally {
-				deps.pendingProtocolGrants.delete(originator)
-			}
-		})()
-		deps.pendingProtocolGrants.set(originator, pending)
-	}
-
-	const approved = await pending
-	if (!approved) {
-		throw new Error('1Sat permission module: user rejected protocol access.')
-	}
 	return args
 }
 
@@ -265,22 +197,6 @@ export async function handleGetPublicKeyRequest(
 
 function isAdmin(deps: HandlerDeps, originator: string): boolean {
 	return !!deps.adminOriginator && originator === deps.adminOriginator
-}
-
-function buildProtocolGrantKey(normalizedOriginator: string): PermissionKey {
-	return {
-		type: 'protocol',
-		originator: normalizedOriginator,
-		privileged: false,
-		protocolLevel: P1SAT_PROTOCOL[0],
-		protocolName: P1SAT_PROTOCOL[1],
-		counterparty: 'self',
-	}
-}
-
-function isExpired(expiry: number): boolean {
-	if (expiry === 0) return false
-	return Math.floor(Date.now() / 1000) > expiry
 }
 
 function resolveInputOutpoint(

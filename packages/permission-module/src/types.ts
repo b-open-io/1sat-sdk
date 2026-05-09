@@ -1,4 +1,3 @@
-import type { IPermissionStore } from '@1sat/wallet'
 import type { WalletInterface } from '@bsv/sdk'
 
 /**
@@ -70,15 +69,4 @@ export interface CreateOneSatPermissionModuleArgs {
 	 * `adminOriginator` value if your wallet wires it through.
 	 */
 	adminOriginator?: string
-	/**
-	 * Permission store for persisting the read-only `'p 1sat'` protocol
-	 * grant. Pass the **same `IPermissionStore` instance** the host
-	 * wallet's `LocalWalletPermissionsManager` is using — the module
-	 * writes grants in the canonical shape so the wallet's existing
-	 * `listProtocolPermissions` / revoke flows pick them up.
-	 *
-	 * If omitted, every `getPublicKey` call from an external originator
-	 * triggers a fresh prompt — workable but noisy.
-	 */
-	permissionStore?: IPermissionStore
 }
