@@ -97,8 +97,12 @@ export const P1SAT_PROTOCOL: [0 | 1 | 2, string] = [0, 'p 1sat']
  * outputs. The `'p 1sat'` prefix triggers WalletPermissionsManager dispatch
  * to the registered `'1sat'` module so the module can prompt the user and
  * capture the hashOutputs commitment.
+ *
+ * The wallet-toolbox enforces a `'p <scheme> <payload>'` shape — schemeID
+ * alone isn't accepted. The payload `'tx'` is a placeholder that satisfies
+ * the format; modules don't read it.
  */
-export const P1SAT_LABEL = 'p 1sat'
+export const P1SAT_LABEL = 'p 1sat tx'
 
 /**
  * Placeholder marker prefix. SDK actions that need an AIP or Sigma
