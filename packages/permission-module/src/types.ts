@@ -23,7 +23,35 @@ export interface CapturedCommitment {
 }
 
 /** Kinds of prompts the module asks the host wallet to show. */
-export type PromptKind = 'transaction' | 'signature'
+export type PromptKind = 'transaction' | 'signature' | 'protocol'
+
+/**
+ * Minimal subset of the @1sat/wallet `IPermissionStore` interface that the
+ * 1Sat module needs. Defined locally to avoid a hard dependency on
+ * @1sat/wallet — host wallets that already construct an IPermissionStore
+ * (e.g. yours-wallet via `LocalWalletPermissionsManager`) can pass that
+ * same instance to the module.
+ */
+export interface PermissionStoreLike {
+	findGrant(key: ProtocolPermissionKey): Promise<StoredGrantLike | null>
+	putGrant(grant: StoredGrantLike): Promise<void>
+}
+
+export interface ProtocolPermissionKey {
+	type: 'protocol'
+	originator: string
+	privileged: boolean
+	protocolLevel: 0 | 1 | 2
+	protocolName: string
+	counterparty: string
+}
+
+export interface StoredGrantLike {
+	key: ProtocolPermissionKey
+	expiry: number
+	grantedAt: number
+	reason?: string
+}
 
 /**
  * Structured request handed to the wallet's promptHandler.
@@ -69,4 +97,14 @@ export interface CreateOneSatPermissionModuleArgs {
 	 * `adminOriginator` value if your wallet wires it through.
 	 */
 	adminOriginator?: string
+	/**
+	 * Optional permission store for persisting the read-only `'p 1sat'`
+	 * protocol grant (lets `getPublicKey` succeed without a prompt every
+	 * time). Pass the same `IPermissionStore` instance the host wallet
+	 * uses for its other grants.
+	 *
+	 * If omitted, every `getPublicKey` call from an external originator
+	 * triggers a fresh prompt — workable but noisy.
+	 */
+	permissionStore?: PermissionStoreLike
 }

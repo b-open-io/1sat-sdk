@@ -189,7 +189,29 @@ function summarizeRequest(req: PromptRequest): IntentSummary {
 	if (req.kind === 'transaction') {
 		return summarizeTransaction(req)
 	}
+	if (req.kind === 'protocol') {
+		return summarizeProtocol(req)
+	}
 	return summarizeSignature(req)
+}
+
+function summarizeProtocol(req: PromptRequest): IntentSummary {
+	const intent = req.intent as {
+		protocolID?: unknown
+		access?: string
+		notes?: string
+	}
+	const rows: DetailRow[] = [
+		{ key: 'Protocol', value: '1Sat (p 1sat)' },
+		{ key: 'Access', value: (intent.access as string) ?? 'read-only' },
+	]
+	return {
+		title: 'Protocol Access',
+		subtitle:
+			intent.notes ??
+			`${shortenOriginator(req.originator)} requests read-only access to derive your 1Sat addresses. Signing remains per-transaction.`,
+		rows,
+	}
 }
 
 function summarizeTransaction(req: PromptRequest): IntentSummary {

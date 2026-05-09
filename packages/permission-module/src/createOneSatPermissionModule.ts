@@ -64,6 +64,7 @@ export function createOneSatPermissionModule(
 		promptHandler: args.promptHandler,
 		cache,
 		adminOriginator: args.adminOriginator,
+		permissionStore: args.permissionStore,
 	}
 
 	return {
@@ -86,7 +87,7 @@ export function createOneSatPermissionModule(
 					return { args: next }
 				}
 				case 'getPublicKey': {
-					const next = handleGetPublicKeyRequest(
+					const next = await handleGetPublicKeyRequest(
 						deps,
 						req.args as GetPublicKeyArgs,
 						req.originator,

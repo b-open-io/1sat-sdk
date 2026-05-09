@@ -8,17 +8,23 @@ import type {
 	WalletInterface,
 } from '@bsv/sdk'
 import { Beef, Transaction } from '@bsv/sdk'
+import { P1SAT_PROTOCOL } from '@1sat/types'
 import { CommitmentCache } from './commitmentCache'
 import { computeHashOutputs } from './hashOutputs'
 import { substitutePlaceholders } from './placeholder'
 import { MIN_BIP143_PREIMAGE_BYTES, parsePreimage } from './sighashParser'
-import type { PromptHandler } from './types'
+import type {
+	PermissionStoreLike,
+	PromptHandler,
+	ProtocolPermissionKey,
+} from './types'
 
 interface HandlerDeps {
 	wallet: WalletInterface
 	promptHandler: PromptHandler
 	cache: CommitmentCache
 	adminOriginator?: string
+	permissionStore?: PermissionStoreLike
 }
 
 /**
@@ -148,21 +154,53 @@ export async function handleCreateSignatureRequest(
 
 /**
  * getPublicKey onRequest:
- *   Admin → allow. External → reject. There is no use case where an
- *   external dApp needs a derived pubkey under the 'p 1sat' protocol
- *   on the user's wallet (BRC-29 sender derivation is done locally by
- *   the sender from the recipient's identity key). Rejecting closes
- *   the surface entirely.
+ *   Admin → allow. External → check the persisted protocol grant; if
+ *   present, allow silently. If not, prompt the user with a `'protocol'`
+ *   request describing read-only address access — on approve, persist
+ *   the grant so subsequent calls are silent.
+ *
+ *   The grant is read-only: it covers `getPublicKey` only. Signing
+ *   (createAction/createSignature) is gated separately, per-operation.
  */
-export function handleGetPublicKeyRequest(
+export async function handleGetPublicKeyRequest(
 	deps: HandlerDeps,
 	args: GetPublicKeyArgs,
 	originator: string,
-): GetPublicKeyArgs {
+): Promise<GetPublicKeyArgs> {
 	if (isAdmin(deps, originator)) return args
-	throw new Error(
-		"1Sat permission module: getPublicKey under 'p 1sat' is not available to external originators.",
-	)
+
+	const grantKey = buildProtocolGrantKey(originator)
+
+	if (deps.permissionStore) {
+		const existing = await deps.permissionStore.findGrant(grantKey)
+		if (existing && !isExpired(existing.expiry)) return args
+	}
+
+	const approved = await deps.promptHandler({
+		kind: 'protocol',
+		originator,
+		intent: {
+			protocolID: P1SAT_PROTOCOL,
+			counterparty: 'self',
+			access: 'read-only',
+			notes:
+				'Allows the app to derive your 1Sat addresses for receiving funds. Signing is approved separately for each transaction.',
+		},
+		summary: 'Allow read-only 1Sat protocol access (address derivation)',
+	})
+	if (!approved) {
+		throw new Error('1Sat permission module: user rejected protocol access.')
+	}
+
+	if (deps.permissionStore) {
+		await deps.permissionStore.putGrant({
+			key: grantKey,
+			expiry: 0,
+			grantedAt: Date.now(),
+			reason: '1Sat read-only protocol access',
+		})
+	}
+	return args
 }
 
 // ---------------------------------------------------------------------------
@@ -171,6 +209,22 @@ export function handleGetPublicKeyRequest(
 
 function isAdmin(deps: HandlerDeps, originator: string): boolean {
 	return !!deps.adminOriginator && originator === deps.adminOriginator
+}
+
+function buildProtocolGrantKey(originator: string): ProtocolPermissionKey {
+	return {
+		type: 'protocol',
+		originator,
+		privileged: false,
+		protocolLevel: P1SAT_PROTOCOL[0],
+		protocolName: P1SAT_PROTOCOL[1],
+		counterparty: 'self',
+	}
+}
+
+function isExpired(expiry: number): boolean {
+	if (expiry === 0) return false
+	return Math.floor(Date.now() / 1000) > expiry
 }
 
 function resolveInputOutpoint(
