@@ -65,6 +65,7 @@ export function createOneSatPermissionModule(
 		cache,
 		adminOriginator: args.adminOriginator,
 		permissionStore: args.permissionStore,
+		pendingProtocolGrants: new Map<string, Promise<boolean>>(),
 	}
 
 	return {

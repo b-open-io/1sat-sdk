@@ -25,6 +25,14 @@ interface HandlerDeps {
 	cache: CommitmentCache
 	adminOriginator?: string
 	permissionStore?: PermissionStoreLike
+	/**
+	 * Coalesces concurrent protocol-access prompts for the same originator.
+	 * deriveDepositAddresses typically issues N parallel getPublicKey calls
+	 * (one per derivation index) — without coalescing the user sees N
+	 * prompts. With it: the first call opens the prompt, the rest await
+	 * the same Promise.
+	 */
+	pendingProtocolGrants: Map<string, Promise<boolean>>
 }
 
 /**
@@ -176,29 +184,44 @@ export async function handleGetPublicKeyRequest(
 		if (existing && !isExpired(existing.expiry)) return args
 	}
 
-	const approved = await deps.promptHandler({
-		kind: 'protocol',
-		originator,
-		intent: {
-			protocolID: P1SAT_PROTOCOL,
-			counterparty: 'self',
-			access: 'read-only',
-			notes:
-				'Allows the app to derive your 1Sat addresses for receiving funds. Signing is approved separately for each transaction.',
-		},
-		summary: 'Allow read-only 1Sat protocol access (address derivation)',
-	})
-	if (!approved) {
-		throw new Error('1Sat permission module: user rejected protocol access.')
+	// Coalesce concurrent prompts for the same originator. The first call
+	// opens the prompt; any other getPublicKey requests that arrive while
+	// it's pending await the same Promise instead of opening duplicates.
+	let pending = deps.pendingProtocolGrants.get(originator)
+	if (!pending) {
+		pending = (async () => {
+			try {
+				const approved = await deps.promptHandler({
+					kind: 'protocol',
+					originator,
+					intent: {
+						protocolID: P1SAT_PROTOCOL,
+						counterparty: 'self',
+						access: 'read-only',
+						notes:
+							'Allows the app to derive your 1Sat addresses for receiving funds. Signing is approved separately for each transaction.',
+					},
+					summary: 'Allow read-only 1Sat protocol access (address derivation)',
+				})
+				if (approved && deps.permissionStore) {
+					await deps.permissionStore.putGrant({
+						key: grantKey,
+						expiry: 0,
+						grantedAt: Date.now(),
+						reason: '1Sat read-only protocol access',
+					})
+				}
+				return approved
+			} finally {
+				deps.pendingProtocolGrants.delete(originator)
+			}
+		})()
+		deps.pendingProtocolGrants.set(originator, pending)
 	}
 
-	if (deps.permissionStore) {
-		await deps.permissionStore.putGrant({
-			key: grantKey,
-			expiry: 0,
-			grantedAt: Date.now(),
-			reason: '1Sat read-only protocol access',
-		})
+	const approved = await pending
+	if (!approved) {
+		throw new Error('1Sat permission module: user rejected protocol access.')
 	}
 	return args
 }
