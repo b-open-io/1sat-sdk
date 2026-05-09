@@ -27,6 +27,15 @@ export const SIGMA_BASKET = 'sigma'
 export const BSOCIAL_BASKET = 'bsocial'
 export const BAP_BASKET = 'bap'
 
+/**
+ * Holding basket for plain BSV received at the user's P1SAT-derived
+ * deposit address. UTXOs land here via `internalizeBeef` and stay until
+ * `sweepDeposit` rotates them into a fresh P1SAT-derived funding output
+ * in {@link FUNDING_BASKET}. The basket name itself is the queue marker
+ * — no separate tag is needed.
+ */
+export const DEPOSIT_BASKET = '1sat-deposit'
+
 // ============================================================================
 // Fee Configuration
 // ============================================================================
@@ -75,12 +84,61 @@ export const ONESAT_TESTNET_CONTENT_URL = 'https://testnet.api.1sat.app/content'
 // Protocol IDs
 // ============================================================================
 
-export const ONESAT_PROTOCOL: [0 | 1 | 2, string] = [1, 'onesat']
+/**
+ * 1Sat ecosystem signing protocol. All 1Sat asset operations (ordinals,
+ * BSV21, locks, OPNS, cosign, MNEE, deposits) sign and derive under this
+ * protocol. The `'p '` prefix routes calls to the registered 1Sat permission
+ * module per BRC-0098.
+ */
+export const P1SAT_PROTOCOL: [0 | 1 | 2, string] = [0, 'p 1sat']
+
+/**
+ * Label added to every createAction that involves 1Sat asset inputs or
+ * outputs. The `'p 1sat'` prefix triggers WalletPermissionsManager dispatch
+ * to the registered `'1sat'` module so the module can prompt the user and
+ * capture the hashOutputs commitment.
+ */
+export const P1SAT_LABEL = 'p 1sat'
+
+/**
+ * Placeholder marker prefix. SDK actions that need an AIP or Sigma
+ * signature embedded in an output script append a single data push
+ * containing one of:
+ *
+ *   '1SATPM:AIP'                          — needs AIP signature, current BAP key
+ *   '1SATPM:AIP:<keyID>'                  — needs AIP signature, specific keyID
+ *   '1SATPM:SIGMA:<targetVout>:<refVin>'  — needs Sigma signature, current BAP key
+ *
+ * The 1Sat permission module recognizes these markers in the output
+ * script tail, removes them, and computes the real signature pushes via
+ * the underlying wallet (bypassing the permission manager so no re-prompt).
+ *
+ * The explicit-keyID variant is needed for BAP chain operations:
+ *   - publishIdentity uses keyID `identity-0` (root, predates current key)
+ *   - rotateIdentity passes the outgoing keyID explicitly
+ *   - attest / updateProfile (existing) omit keyID and resolve current
+ */
+export const P1SAT_PLACEHOLDER_PREFIX = '1SATPM:'
+export const P1SAT_AIP_PLACEHOLDER = '1SATPM:AIP'
+export const P1SAT_AIP_PLACEHOLDER_PREFIX = '1SATPM:AIP:'
+export const P1SAT_SIGMA_PLACEHOLDER_PREFIX = '1SATPM:SIGMA:'
+
+/**
+ * @deprecated Use {@link P1SAT_PROTOCOL} directly. Aliased to P1SAT_PROTOCOL
+ * so existing call sites continue to function under the unified scheme.
+ */
+export const ONESAT_PROTOCOL: [0 | 1 | 2, string] = P1SAT_PROTOCOL
+
 export const MESSAGE_SIGNING_PROTOCOL: [0 | 1 | 2, string] = [
 	1,
 	'message signing',
 ]
-export const BSV21_PROTOCOL: [0 | 1 | 2, string] = [1, 'bsv21']
+
+/**
+ * @deprecated Use {@link P1SAT_PROTOCOL} directly. Aliased to P1SAT_PROTOCOL
+ * so existing call sites continue to function under the unified scheme.
+ */
+export const BSV21_PROTOCOL: [0 | 1 | 2, string] = P1SAT_PROTOCOL
 export const BAP_PROTOCOL_ID: [0 | 1 | 2, string] = [1, 'sigma']
 export const BAP_KEY_ID = 'identity'
 export const BAP_BITCOM_ADDRESS = '1BAPSuaPnfGnSBM3GLV9yhxUdYe4vGbdMT'

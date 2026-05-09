@@ -1,7 +1,7 @@
 {
-  "name": "@1sat/client",
-  "version": "0.0.29",
-  "description": "API client for 1Sat Ordinals SDK",
+  "name": "@1sat/permission-module-ui",
+  "version": "0.0.1",
+  "description": "React component for the 1Sat permission module's prompt UX",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -15,27 +15,27 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "bun run build.ts && tsc --emitDeclarationOnly",
     "dev": "tsc --watch",
     "clean": "rm -rf dist"
   },
   "keywords": [
     "1sat",
     "bsv",
-    "ordinals",
-    "client",
-    "api"
+    "wallet",
+    "permissions",
+    "react"
   ],
   "license": "MIT",
   "dependencies": {
-    "@1sat/types": "workspace:*",
-    "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.21-parity-fix.2"
+    "@1sat/permission-module": "workspace:*"
   },
   "peerDependencies": {
-    "@bsv/sdk": "^2.0.13"
+    "react": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
-    "@bsv/sdk": "^2.0.13",
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0",
     "typescript": "^5.9.3"
   }
 }

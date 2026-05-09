@@ -14,7 +14,7 @@ import type {
 	MneeUtxo,
 } from '@1sat/client'
 import { Cosign, Inscription as InscriptionTemplate } from '@1sat/templates'
-import { type AddressDerivation, BRC29_PROTOCOL_ID } from '@1sat/types'
+import { type AddressDerivation, P1SAT_PROTOCOL } from '@1sat/types'
 import {
 	Hash,
 	LockingScript,
@@ -190,14 +190,14 @@ async function signCosignInput(
 	const sighash = Hash.sha256(Hash.sha256(preimage))
 
 	const { signature } = await ctx.wallet.createSignature({
-		protocolID: BRC29_PROTOCOL_ID,
+		protocolID: P1SAT_PROTOCOL,
 		keyID,
 		counterparty: 'self',
 		hashToDirectlySign: Array.from(sighash),
 	})
 
 	const { publicKey } = await ctx.wallet.getPublicKey({
-		protocolID: BRC29_PROTOCOL_ID,
+		protocolID: P1SAT_PROTOCOL,
 		keyID,
 		forSelf: true,
 	})

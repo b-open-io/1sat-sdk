@@ -8,8 +8,9 @@ import {
 	Signature,
 	Utils,
 } from '@bsv/sdk'
-import { BAP_KEY_ID, BAP_PROTOCOL_ID } from '../constants'
+import { BAP_PROTOCOL_ID } from '../constants'
 import type { OneSatContext } from '../types'
+import { resolveCurrentKeyId } from './aip'
 
 const { toArray } = Utils
 
@@ -76,16 +77,18 @@ export async function applySigma(
 	const messageHash = getMessageHash(inputHash, dataHash)
 	const bsmHash = BSM.magicHash(messageHash)
 
+	const keyID = await resolveCurrentKeyId(ctx)
+
 	const result = await ctx.wallet.createSignature({
 		protocolID: BAP_PROTOCOL_ID,
-		keyID: BAP_KEY_ID,
+		keyID,
 		counterparty: 'self',
 		hashToDirectlySign: Array.from(bsmHash),
 	})
 
 	const pubKeyResult = await ctx.wallet.getPublicKey({
 		protocolID: BAP_PROTOCOL_ID,
-		keyID: BAP_KEY_ID,
+		keyID,
 		forSelf: true,
 	})
 

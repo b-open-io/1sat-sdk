@@ -4,6 +4,7 @@
  * Actions for time-locking BSV.
  */
 
+import { P1SAT_PROTOCOL } from '@1sat/types'
 import { Lock } from '@1sat/templates'
 import {
 	type CreateActionOutput,
@@ -19,7 +20,10 @@ import { executeTrackedAction } from '../utils/createTrackedAction'
 // Constants
 // ============================================================================
 
-const LOCK_PROTOCOL: [0 | 1 | 2, string] = [1, 'locks']
+/** Lock signing protocol — unified under 'p 1sat' so the permission module
+ * sees signing requests for lock UTXOs and verifies against captured commits.
+ */
+const LOCK_PROTOCOL = P1SAT_PROTOCOL
 const LOCK_KEY_ID = 'lock'
 
 // ============================================================================

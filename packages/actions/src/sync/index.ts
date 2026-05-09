@@ -6,7 +6,7 @@
  * with the indexer pipeline, and internalizes them into the wallet.
  */
 
-import { type AddressDerivation, BRC29_PROTOCOL_ID } from '@1sat/types'
+import { type AddressDerivation, P1SAT_PROTOCOL } from '@1sat/types'
 import type { SyncOutput, SyncProgress } from '@1sat/types'
 import { PublicKey, Utils } from '@bsv/sdk'
 import type { Action, OneSatContext } from '../types'
@@ -143,7 +143,7 @@ export const syncAddresses: Action<SyncAddressesInput, SyncAddressesResult> = {
 			const keyID = `${derivationPrefix} ${derivationSuffix}`
 
 			const { publicKey } = await ctx.wallet.getPublicKey({
-				protocolID: BRC29_PROTOCOL_ID,
+				protocolID: P1SAT_PROTOCOL,
 				keyID,
 				forSelf: true,
 			})

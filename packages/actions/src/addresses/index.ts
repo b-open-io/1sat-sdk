@@ -4,7 +4,7 @@
  * Actions for BRC-29 deposit address derivation.
  */
 
-import { type AddressDerivation, BRC29_PROTOCOL_ID } from '@1sat/types'
+import { type AddressDerivation, P1SAT_PROTOCOL } from '@1sat/types'
 import { PublicKey, Utils } from '@bsv/sdk'
 import type { Action } from '../types'
 
@@ -93,7 +93,7 @@ export const deriveDepositAddresses: Action<
 			const keyID = `${derivationPrefix} ${derivationSuffix}`
 
 			const { publicKey } = await ctx.wallet.getPublicKey({
-				protocolID: BRC29_PROTOCOL_ID,
+				protocolID: P1SAT_PROTOCOL,
 				keyID,
 				forSelf: true,
 			})
@@ -116,7 +116,7 @@ export const deriveDepositAddresses: Action<
 // Module exports
 // ============================================================================
 
-export { type AddressDerivation, BRC29_PROTOCOL_ID }
+export { type AddressDerivation, P1SAT_PROTOCOL }
 export { toBase64Prefix, toBase64Suffix }
 
 /** All address actions for registry */

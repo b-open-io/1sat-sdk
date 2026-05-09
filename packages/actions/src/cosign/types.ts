@@ -15,13 +15,17 @@
  */
 
 import type { WalletProtocol } from '@bsv/sdk'
+import { P1SAT_PROTOCOL } from '@1sat/types'
 
 /**
- * BRC-29 protocol used to derive cosign-locked destination keys.
+ * Protocol used to derive cosign-locked destination keys. Unified under
+ * 'p 1sat' so the permission module gates signing requests for cosign
+ * UTXOs the same way as ordinals/BSV21/etc.
+ *
  * Both cosigner (as constructor) and recipient (when later spending) derive
  * with this protocol, with the cosigner's identityKey as counterparty.
  */
-export const COSIGN_PROTOCOL_ID: WalletProtocol = [2, 'cosign']
+export const COSIGN_PROTOCOL_ID: WalletProtocol = P1SAT_PROTOCOL
 
 /** Default sighash byte for the cosigner's signature on cosign-wrapped inputs. */
 export const COSIGN_DEFAULT_SIGHASH = 0x41 // SIGHASH_ALL | SIGHASH_FORKID

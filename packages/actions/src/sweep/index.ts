@@ -873,6 +873,13 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 	},
 }
 
+// Deposit sweep: rotate plain BSV from DEPOSIT_BASKET into FUNDING_BASKET
+export {
+	sweepDeposit,
+	type SweepDepositInput,
+	type SweepDepositResult,
+} from './sweepDeposit'
+
 // Export actions array for registry
 export const sweepActions = [sweepBsv, sweepOrdinals, sweepBsv21]
 

@@ -1,3 +1,4 @@
+import { P1SAT_LABEL } from '@1sat/types'
 import {
 	type CreateActionArgs,
 	type CreateActionResult,
@@ -35,6 +36,19 @@ function applyTrackingTags(args: CreateActionArgs, actionId: string): void {
 }
 
 /**
+ * Ensure the args carry the `'p 1sat'` label so WalletPermissionsManager
+ * dispatches the createAction call to the registered 1Sat permission
+ * module. Without this label, the module never sees createAction and
+ * subsequent createSignature calls under `'p 1sat'` arrive with no
+ * captured commitment — which would prompt the user once per input.
+ */
+function applyOneSatLabel(args: CreateActionArgs): void {
+	const labels = args.labels ?? []
+	if (labels.includes(P1SAT_LABEL)) return
+	args.labels = [...labels, P1SAT_LABEL]
+}
+
+/**
  * Wrapper around wallet.createAction that injects an `id:<hex>` tag
  * into every output that has a basket. All outputs in the same action
  * share the same ID, allowing targeted lookups via listOutputs tag filter.
@@ -52,6 +66,7 @@ export async function createTrackedAction(
 ): Promise<CreateActionResult & { actionId: string }> {
 	const actionId = randomActionId()
 	applyTrackingTags(args, actionId)
+	applyOneSatLabel(args)
 
 	const { options, ...rest } = args
 	const createResult = await wallet.createAction({
@@ -94,6 +109,7 @@ export async function executeTrackedAction(
 	if (fundingProvider) {
 		const actionId = randomActionId()
 		applyTrackingTags(args, actionId)
+		applyOneSatLabel(args)
 
 		const funded = await fundingProvider.fund(args)
 

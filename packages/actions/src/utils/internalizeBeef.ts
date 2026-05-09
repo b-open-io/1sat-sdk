@@ -10,7 +10,7 @@
 
 import type { OneSatServices } from '@1sat/client'
 import type { Indexer, ParseContext, Txo } from '@1sat/types'
-import { BRC29_PROTOCOL_ID } from '@1sat/types'
+import { DEPOSIT_BASKET, P1SAT_PROTOCOL } from '@1sat/types'
 import {
 	Bsv21Indexer,
 	CosignIndexer,
@@ -283,7 +283,8 @@ function buildInternalizeOutput(
 		}
 	}
 
-	// P2PKH ordinals/tokens: basket insertion so they don't get consumed as change
+	// P2PKH 1Sat asset (ordinals/tokens) — basket insertion so the wallet
+	// records the spend protocol/keyID for later signing under P1SAT.
 	if (txo.basket && txo.basket !== 'fund') {
 		const tags = [...collectTags(txo), idTag]
 		const nameTag = tags.find((t) => t.startsWith('name:'))
@@ -296,14 +297,8 @@ function buildInternalizeOutput(
 				basket: txo.basket,
 				tags,
 				customInstructions: JSON.stringify({
-					protocolID: BRC29_PROTOCOL_ID,
+					protocolID: P1SAT_PROTOCOL,
 					keyID: `${derivation.derivationPrefix} ${derivation.derivationSuffix}`,
-					// senderIdentityKey is the counterparty from this wallet's
-					// perspective — needed at spend time so signP2PKHInput can
-					// derive the correct shared key (BRC-29 symmetry).
-					...(derivation.senderIdentityKey && {
-						counterparty: derivation.senderIdentityKey,
-					}),
 					...(nameTag && { name: nameTag.slice(5).slice(0, 64) }),
 					...(sym && { sym }),
 				}),
@@ -311,14 +306,19 @@ function buildInternalizeOutput(
 		}
 	}
 
-	// P2PKH funding output
+	// Plain BSV at the user's deposit address — park in the deposit basket
+	// for the sweep helper to pick up. Custom instructions record P1SAT so
+	// the sweep tx can sign under the right protocol.
 	return {
 		outputIndex: vout,
-		protocol: 'wallet payment',
-		paymentRemittance: {
-			derivationPrefix: derivation.derivationPrefix,
-			derivationSuffix: derivation.derivationSuffix,
-			senderIdentityKey: derivation.senderIdentityKey,
+		protocol: 'basket insertion',
+		insertionRemittance: {
+			basket: DEPOSIT_BASKET,
+			tags: [idTag],
+			customInstructions: JSON.stringify({
+				protocolID: P1SAT_PROTOCOL,
+				keyID: `${derivation.derivationPrefix} ${derivation.derivationSuffix}`,
+			}),
 		},
 	}
 }
