@@ -393,7 +393,17 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 	}
 
 	// -----------------------------------------------------------------
-	// Listing — merge IDB grants with super's on-chain tokens.
+	// Listing — IDB-only.
+	//
+	// Earlier this manager merged IDB grants with `super.list*` on-chain
+	// tokens. That coupling is the wrong default for the local flavor:
+	// any stale on-chain reference (e.g. a token whose source tx isn't
+	// known to local wallet storage) throws inside the base wallet's
+	// `listOutputs`, which propagates up and blocks the IDB list too.
+	//
+	// LocalWalletPermissionsManager exists specifically because grants
+	// belong in IDB, not on chain. Listing returns just IDB grants now;
+	// the base WPM's on-chain listing is bypassed entirely.
 	// -----------------------------------------------------------------
 
 	public override async listProtocolPermissions(
@@ -405,8 +415,7 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 			counterparty?: string
 		} = {},
 	): Promise<PermissionToken[]> {
-		const onchain = await super.listProtocolPermissions(filter)
-		const idb = await this.idbTokensFor('protocol', filter.originator, (g) => {
+		return this.idbTokensFor('protocol', filter.originator, (g) => {
 			if (g.key.type !== 'protocol') return false
 			if (
 				filter.privileged !== undefined &&
@@ -434,33 +443,28 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 			}
 			return true
 		})
-		return mergeTokens(onchain, idb)
 	}
 
 	public override async listBasketAccess(
 		params: { originator?: string; basket?: string } = {},
 	): Promise<PermissionToken[]> {
-		const onchain = await super.listBasketAccess(params)
-		const idb = await this.idbTokensFor('basket', params.originator, (g) => {
+		return this.idbTokensFor('basket', params.originator, (g) => {
 			if (g.key.type !== 'basket') return false
 			if (params.basket !== undefined && g.key.basket !== params.basket) {
 				return false
 			}
 			return true
 		})
-		return mergeTokens(onchain, idb)
 	}
 
 	public override async listSpendingAuthorizations(params: {
 		originator?: string
 	}): Promise<PermissionToken[]> {
-		const onchain = await super.listSpendingAuthorizations(params)
-		const idb = await this.idbTokensFor(
+		return this.idbTokensFor(
 			'spending',
 			params.originator,
 			(g) => g.key.type === 'spending',
 		)
-		return mergeTokens(onchain, idb)
 	}
 
 	public override async listCertificateAccess(
@@ -471,34 +475,22 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 			verifier?: string
 		} = {},
 	): Promise<PermissionToken[]> {
-		const onchain = await super.listCertificateAccess(params)
-		const idb = await this.idbTokensFor(
-			'certificate',
-			params.originator,
-			(g) => {
-				if (g.key.type !== 'certificate') return false
-				if (
-					params.privileged !== undefined &&
-					g.key.privileged !== params.privileged
-				) {
-					return false
-				}
-				if (
-					params.certType !== undefined &&
-					g.key.certType !== params.certType
-				) {
-					return false
-				}
-				if (
-					params.verifier !== undefined &&
-					g.key.verifier !== params.verifier
-				) {
-					return false
-				}
-				return true
-			},
-		)
-		return mergeTokens(onchain, idb)
+		return this.idbTokensFor('certificate', params.originator, (g) => {
+			if (g.key.type !== 'certificate') return false
+			if (
+				params.privileged !== undefined &&
+				g.key.privileged !== params.privileged
+			) {
+				return false
+			}
+			if (params.certType !== undefined && g.key.certType !== params.certType) {
+				return false
+			}
+			if (params.verifier !== undefined && g.key.verifier !== params.verifier) {
+				return false
+			}
+			return true
+		})
 	}
 
 	private async idbTokensFor(
@@ -513,7 +505,10 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 	}
 
 	// -----------------------------------------------------------------
-	// Revocation — clear store, then delegate on-chain spend to super.
+	// Revocation — IDB-only. Symmetric with the IDB-only listing above:
+	// since we no longer surface on-chain tokens, revoking them via
+	// super (which would try to spend them) is unnecessary and would
+	// fail on stale references.
 	// -----------------------------------------------------------------
 
 	public override async revokeAllForOriginator(
@@ -522,7 +517,7 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 		const normalized = normalizeOriginator(originator)
 		await this.permissionStore.deleteAllForOriginator(normalized)
 		this.clearPermissionCache()
-		return super.revokeAllForOriginator(normalized)
+		return []
 	}
 
 	public override async revokePermission(
@@ -533,10 +528,6 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 			await this.permissionStore.deleteGrant(idbKey)
 		}
 		this.clearPermissionCache()
-		if (oldToken.txid.startsWith(IDB_TXID_PREFIX)) {
-			return
-		}
-		return super.revokePermission(oldToken)
 	}
 
 	/**
@@ -673,39 +664,3 @@ function parseIdbKey(serialized: string): PermissionKey | null {
 	return null
 }
 
-function mergeTokens(
-	onchain: PermissionToken[],
-	idb: PermissionToken[],
-): PermissionToken[] {
-	const seen = new Set<string>()
-	const out: PermissionToken[] = []
-	for (const t of onchain) {
-		const k = onchainSignature(t)
-		if (k) seen.add(k)
-		out.push(t)
-	}
-	for (const t of idb) {
-		const k = idbSignature(t)
-		if (k && seen.has(k)) continue
-		out.push(t)
-	}
-	return out
-}
-
-function onchainSignature(t: PermissionToken): string | null {
-	const originator = normalizeOriginator(t.originator)
-	if (t.basketName) return `basket:${originator}:${t.basketName}`
-	if (t.protocol && t.securityLevel !== undefined) {
-		return `proto:${originator}:${!!t.privileged}:${t.securityLevel},${t.protocol}:${t.counterparty ?? 'self'}`
-	}
-	if (t.certType && t.verifier && t.certFields) {
-		return `cert:${originator}:${!!t.privileged}:${t.verifier}:${t.certType}:${[...t.certFields].sort().join('|')}`
-	}
-	if (t.authorizedAmount !== undefined) return `spend:${originator}`
-	return null
-}
-
-function idbSignature(t: PermissionToken): string | null {
-	if (!t.txid.startsWith(IDB_TXID_PREFIX)) return null
-	return t.txid.slice(IDB_TXID_PREFIX.length)
-}

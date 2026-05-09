@@ -29,7 +29,7 @@
     },
     "packages/actions": {
       "name": "@1sat/actions",
-      "version": "0.0.133",
+      "version": "0.0.134",
       "dependencies": {
         "@1sat/client": "workspace:*",
         "@1sat/templates": "workspace:*",
@@ -91,7 +91,7 @@
     },
     "packages/connect": {
       "name": "@1sat/connect",
-      "version": "0.0.54",
+      "version": "0.0.55",
       "dependencies": {
         "@1sat/wallet": "workspace:*",
         "@sigma-auth/better-auth-plugin": "^0.0.84",
@@ -150,7 +150,7 @@
     },
     "packages/permission-module": {
       "name": "@1sat/permission-module",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "dependencies": {
         "@1sat/actions": "workspace:*",
         "@1sat/types": "workspace:*",
@@ -167,7 +167,7 @@
     },
     "packages/permission-module-ui": {
       "name": "@1sat/permission-module-ui",
-      "version": "0.0.2",
+      "version": "0.0.3",
       "dependencies": {
         "@1sat/permission-module": "workspace:*",
       },
@@ -273,7 +273,7 @@
     },
     "packages/wallet": {
       "name": "@1sat/wallet",
-      "version": "0.0.71",
+      "version": "0.0.72",
       "dependencies": {
         "@1sat/client": "workspace:*",
         "@1sat/templates": "workspace:*",
@@ -294,7 +294,7 @@
     },
     "packages/wallet-browser": {
       "name": "@1sat/wallet-browser",
-      "version": "0.0.57",
+      "version": "0.0.58",
       "dependencies": {
         "@1sat/wallet": "workspace:*",
       },
