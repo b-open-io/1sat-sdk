@@ -14,6 +14,7 @@ import {
 	type OutputDerivation,
 	internalizeBeef,
 } from '../utils/internalizeBeef'
+import { sweepDeposit } from '../sweep/sweepDeposit'
 import type { ProcessedTxStore } from './ProcessedTxStore'
 import { ProcessedTxStoreIdb } from './ProcessedTxStoreIdb'
 import { ProcessedTxStoreSqlite } from './ProcessedTxStoreSqlite'
@@ -218,6 +219,18 @@ export const syncAddresses: Action<SyncAddressesInput, SyncAddressesResult> = {
 			// 6. Update last score
 			if (maxSafeScore > lastScore) {
 				await store.setLastScore(maxSafeScore)
+			}
+
+			// 7. Rotate any plain-BSV inbounds out of the deposit basket and
+			//    into a fresh BRC-29 funding output. Idempotent: returns
+			//    `swept: 0` if the deposit basket is empty.
+			try {
+				await sweepDeposit.execute(ctx, {})
+			} catch (error) {
+				console.error(
+					'[syncAddresses] sweepDeposit failed:',
+					error instanceof Error ? error.message : String(error),
+				)
 			}
 
 			return { processed, failed, lastScore: maxSafeScore, addresses }

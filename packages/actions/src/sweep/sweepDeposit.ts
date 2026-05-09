@@ -1,6 +1,6 @@
 /**
  * sweepDeposit — rotate plain BSV out of the user's P1SAT-derived deposit
- * address into a fresh P1SAT-derived funding output.
+ * address into a fresh BRC-29-derived funding output.
  *
  * Run by the wallet (or an explicit caller) after a batch of inbound
  * payments has been internalized. Plain BSV inbounds are parked in
@@ -8,12 +8,18 @@
  * picks them up — so a failed sweep is harmless; the next call retries.
  *
  * Each call queries every UTXO currently in the deposit basket, builds
- * one createAction that spends them all, and locks the change to a freshly
- * derived address recorded in `FUNDING_BASKET`. From that point the funds
- * are normal P1SAT-protocol funding, available for ordinary spending.
+ * one createAction that spends them all (signed under P1SAT), and locks
+ * the change to a freshly BRC-29-derived address recorded in `FUNDING_BASKET`.
+ * From that point the funds are normal BRC-29 funding, available for
+ * ordinary spending under the wallet's standard funding protocol.
  */
 
-import { DEPOSIT_BASKET, FUNDING_BASKET, P1SAT_PROTOCOL } from '@1sat/types'
+import {
+	BRC29_PROTOCOL_ID,
+	DEPOSIT_BASKET,
+	FUNDING_BASKET,
+	P1SAT_PROTOCOL,
+} from '@1sat/types'
 import { P2PKH, PublicKey, Utils } from '@bsv/sdk'
 import type { Action, ActionOptions } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
@@ -46,13 +52,18 @@ interface DepositInputInfo {
 
 /**
  * Generate a unique keyID for the sweep destination output. The funds
- * land at a self-derived address under P1SAT — the keyID just needs to
+ * land at a self-derived address under BRC-29 — the keyID just needs to
  * be unique and recoverable from the on-chain output's customInstructions.
+ * BRC-29 keyID convention is `${derivationPrefix} ${derivationSuffix}`
+ * (space-separated base64); we follow that shape with random bytes so any
+ * BRC-29-aware tooling can parse the parts.
  */
 function generateSweepKeyID(): string {
-	const random = new Uint8Array(8)
-	crypto.getRandomValues(random)
-	return `sweep ${Utils.toHex(Array.from(random))}`
+	const prefixBytes = new Uint8Array(4)
+	const suffixBytes = new Uint8Array(8)
+	crypto.getRandomValues(prefixBytes)
+	crypto.getRandomValues(suffixBytes)
+	return `${Utils.toBase64(Array.from(prefixBytes))} ${Utils.toBase64(Array.from(suffixBytes))}`
 }
 
 // ============================================================================
@@ -79,15 +90,21 @@ export const sweepDeposit: Action<SweepDepositInput, SweepDepositResult> = {
 	async execute(ctx, input) {
 		const limit = input.limit ?? 50
 
-		// 1. Find every plain-BSV UTXO sitting in the deposit basket.
+		// 1. Find every plain-BSV UTXO sitting in the deposit basket. Pull
+		//    full tx data so we can hand the wallet a self-contained
+		//    inputBEEF for the sweep. The wallet stored each deposit's
+		//    parent BEEF chain at internalize time; getValidBeefForTxid
+		//    reassembles it here when the deposit isn't yet proven.
 		const list = await ctx.wallet.listOutputs({
 			basket: DEPOSIT_BASKET,
 			includeCustomInstructions: true,
+			include: 'entire transactions',
 			limit,
 		})
 		if (list.outputs.length === 0) {
 			return { swept: 0 }
 		}
+		const inputBEEF = list.BEEF ? Array.from(list.BEEF) : undefined
 
 		const inputs: DepositInputInfo[] = []
 		for (const out of list.outputs) {
@@ -109,10 +126,12 @@ export const sweepDeposit: Action<SweepDepositInput, SweepDepositResult> = {
 			return { swept: 0 }
 		}
 
-		// 2. Derive a fresh destination address under P1SAT_PROTOCOL.
+		// 2. Derive a fresh destination address under BRC-29 — sweep target
+		//    is the wallet's standard funding protocol, so spending the
+		//    output later goes through the normal BRC-29 funding path.
 		const destKeyID = generateSweepKeyID()
 		const { publicKey: destPubHex } = await ctx.wallet.getPublicKey({
-			protocolID: P1SAT_PROTOCOL,
+			protocolID: BRC29_PROTOCOL_ID,
 			keyID: destKeyID,
 			forSelf: true,
 		})
@@ -127,6 +146,7 @@ export const sweepDeposit: Action<SweepDepositInput, SweepDepositResult> = {
 			ctx.wallet,
 			{
 				description: 'Sweep deposit funds',
+				inputBEEF,
 				inputs: inputs.map((i) => ({
 					outpoint: i.outpoint,
 					inputDescription: 'Deposit sweep',
@@ -139,7 +159,7 @@ export const sweepDeposit: Action<SweepDepositInput, SweepDepositResult> = {
 						outputDescription: 'Swept funding',
 						basket: FUNDING_BASKET,
 						customInstructions: JSON.stringify({
-							protocolID: P1SAT_PROTOCOL,
+							protocolID: BRC29_PROTOCOL_ID,
 							keyID: destKeyID,
 						}),
 					},
@@ -150,7 +170,7 @@ export const sweepDeposit: Action<SweepDepositInput, SweepDepositResult> = {
 				},
 			},
 			input.fundingProvider,
-			undefined,
+			inputBEEF,
 			async (tx) => {
 				const spends: Record<number, { unlockingScript: string }> = {}
 				for (let i = 0; i < inputs.length; i++) {
