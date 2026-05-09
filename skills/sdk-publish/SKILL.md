@@ -116,6 +116,14 @@ It outputs a browser URL — click it to authenticate. Verify with `npm whoami`.
 ### Publish auth
 `bun publish` and `npm publish` each require a separate browser auth step (OTP/passkey). Run the publish command, then click the URL it outputs. The auth token from `npm login` covers CLI operations, but publishing requires a fresh browser auth each time.
 
+### Trusted publisher window (multi-package releases)
+For a multi-package release, ask the user to enable "Trust this publisher" for ~5 minutes on the FIRST publish auth dialog. Once confirmed in chat, all subsequent `bun publish` calls in that window auto-authenticate without prompting — so you can publish the rest of the chain (including parallel publishes within the same dependency tier) without polling for auth URLs. Default flow:
+
+1. First package: run `bun publish --access public`, open the auth URL, the user authenticates and selects the trust-publisher option (and tells you the duration in chat).
+2. Remaining packages within the trust window: run `bun publish --access public` directly. They complete in seconds without any auth URL.
+3. Publish independent packages within the same tier in parallel (background each `bun publish` and `wait`) to stay inside the trust window.
+4. If the window lapses mid-release, the next publish prints a fresh auth URL — open it, ask the user to re-trust, and continue.
+
 ## Common Mistakes
 
 ### Publishing without regenerating lockfile
