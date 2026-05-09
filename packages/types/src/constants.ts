@@ -93,16 +93,44 @@ export const ONESAT_TESTNET_CONTENT_URL = 'https://testnet.api.1sat.app/content'
 export const P1SAT_PROTOCOL: [0 | 1 | 2, string] = [0, 'p 1sat']
 
 /**
- * Label added to every createAction that involves 1Sat asset inputs or
- * outputs. The `'p 1sat'` prefix triggers WalletPermissionsManager dispatch
- * to the registered `'1sat'` module so the module can prompt the user and
- * capture the hashOutputs commitment.
+ * Generic dispatch-trigger label. Added by `createTrackedAction` when no
+ * asset-specific labels are present, so the module still gets a chance
+ * to capture the hashOutputs commitment for any 1Sat-asset createAction.
  *
- * The wallet-toolbox enforces a `'p <scheme> <payload>'` shape — schemeID
- * alone isn't accepted. The payload `'tx'` is a placeholder that satisfies
- * the format; modules don't read it.
+ * Asset-specific labels (built via {@link buildInputAssetLabel} /
+ * {@link buildOutputAssetLabel}) carry per-asset lookup keys the module
+ * uses to render the prompt with rich detail (ordinal name, token amount,
+ * etc.). The wallet-toolbox enforces a `'p <scheme> <payload>'` shape, so
+ * a bare `'p 1sat'` is invalid; we use `'p 1sat action'` as the fallback.
  */
-export const P1SAT_LABEL = 'p 1sat tx'
+export const P1SAT_LABEL = 'p 1sat action'
+
+/**
+ * Label prefix recognized by the 1Sat permission module. Carries the
+ * `'p 1sat'` dispatch trigger; payload is `'<basket> <id>'` — a lookup
+ * key for the input asset's record in the wallet's storage.
+ *
+ * Outputs don't need a label: the SDK sets tags directly on
+ * `args.outputs[i].tags` (unencrypted, visible to the module), and
+ * `args.outputs[i].lockingScript` is cryptographically committed to
+ * the final tx. The module reads both directly.
+ */
+export const P1SAT_INPUT_LABEL_PREFIX = 'p 1sat input '
+
+/**
+ * Build a label that points the 1Sat permission module at a specific
+ * input asset record in the wallet's storage. The module looks the
+ * record up by `(basket, id)` and reads the indexer-written tags
+ * (origin, name, sym, amt, etc.) directly from wallet storage —
+ * not anything the calling dApp could fabricate in args.
+ *
+ * @param basket - Basket the source output sits in (e.g. `'1sat'`).
+ * @param id     - Action-id hex `createTrackedAction` tags every basketed
+ *                 output with (the `id:<hex>` tag value).
+ */
+export function buildInputAssetLabel(basket: string, id: string): string {
+	return `${P1SAT_INPUT_LABEL_PREFIX}${basket} ${id}`
+}
 
 /**
  * Placeholder marker prefix. SDK actions that need an AIP or Sigma

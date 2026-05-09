@@ -32,6 +32,28 @@ interface IntentSummary {
 	rows: DetailRow[]
 	feeSats?: number
 	network?: string
+	/** When present, render as a featured asset card (NFT image). */
+	featured?: {
+		imageUrl: string
+		title: string
+		subtitle?: string
+	}
+}
+
+interface AssetEntry {
+	basket: string
+	id: string
+	outpoint: string
+	satoshis: number
+	tags: string[]
+}
+
+interface OutputEntry {
+	index: number
+	satoshis: number
+	basket?: string
+	tags: string[]
+	recipient?: string
 }
 
 /**
@@ -101,6 +123,24 @@ export function OneSatPermissionPrompt({
 				<p className="opp-subtitle">{summary.subtitle}</p>
 				<div className="opp-status">Awaiting Approval</div>
 			</div>
+
+			{summary.featured && (
+				<div className="opp-featured">
+					<img
+						className="opp-featured-image"
+						src={summary.featured.imageUrl}
+						alt={summary.featured.title}
+					/>
+					<div className="opp-featured-meta">
+						<div className="opp-featured-title">{summary.featured.title}</div>
+						{summary.featured.subtitle && (
+							<div className="opp-featured-subtitle">
+								{summary.featured.subtitle}
+							</div>
+						)}
+					</div>
+				</div>
+			)}
 
 			{summary.rows.length > 0 && (
 				<div className="opp-card">
@@ -187,12 +227,203 @@ function readSystemTheme(): 'light' | 'dark' {
 
 function summarizeRequest(req: PromptRequest): IntentSummary {
 	if (req.kind === 'transaction') {
-		return summarizeTransaction(req)
+		const intent = req.intent as unknown as TransactionIntent
+		switch (intent.kind) {
+			case 'ordinal-transfer':
+				return summarizeOrdinalTransfer(req, intent)
+			case 'token-transfer':
+				return summarizeTokenTransfer(req, intent)
+			case 'lock':
+				return summarizeLock(req, intent)
+			case 'unlock':
+				return summarizeUnlock(req, intent)
+			case 'inscription':
+				return summarizeInscription(req, intent)
+			case 'social-post':
+				return summarizeSocialPost(req, intent)
+			default:
+				return summarizeUnknownTx(req, intent)
+		}
 	}
 	if (req.kind === 'protocol') {
 		return summarizeProtocol(req)
 	}
 	return summarizeSignature(req)
+}
+
+interface TransactionIntent {
+	kind:
+		| 'ordinal-transfer'
+		| 'token-transfer'
+		| 'lock'
+		| 'unlock'
+		| 'inscription'
+		| 'social-post'
+		| 'opns'
+		| 'unknown'
+	inputs: AssetEntry[]
+	outputs: OutputEntry[]
+	contentUrls?: Record<string, string>
+	chain?: string
+}
+
+function tagValue(tags: string[] | undefined, key: string): string | undefined {
+	if (!tags) return undefined
+	const prefix = `${key}:`
+	for (const t of tags) {
+		if (t.startsWith(prefix)) return t.slice(prefix.length)
+	}
+	return undefined
+}
+
+function summarizeOrdinalTransfer(
+	req: PromptRequest,
+	intent: TransactionIntent,
+): IntentSummary {
+	const ordinal = intent.inputs[0]
+	const origin = tagValue(ordinal?.tags, 'origin')
+	const name = tagValue(ordinal?.tags, 'name')
+	const contentType = tagValue(ordinal?.tags, 'type')
+	const collectionId = tagValue(ordinal?.tags, 'collectionId')
+	const recipient = intent.outputs.find((o) => o.recipient)?.recipient
+	const imageUrl = ordinal && intent.contentUrls?.[ordinal.id]
+
+	const rows: DetailRow[] = []
+	if (recipient) rows.push({ key: 'Recipient', value: recipient })
+	if (origin) rows.push({ key: 'Origin', value: origin })
+	if (contentType) rows.push({ key: 'Type', value: contentType })
+
+	return {
+		title: 'NFT Transfer',
+		subtitle: `${shortenOriginator(req.originator)} wants to transfer an ordinal`,
+		rows,
+		featured: imageUrl
+			? {
+					imageUrl,
+					title: name ?? 'Untitled ordinal',
+					subtitle: collectionId ?? contentType,
+				}
+			: undefined,
+		network: networkLabel(intent.chain),
+	}
+}
+
+function summarizeTokenTransfer(
+	req: PromptRequest,
+	intent: TransactionIntent,
+): IntentSummary {
+	// Token inputs of the same id are consolidated for display.
+	const totals = new Map<string, { sym?: string; amt: bigint }>()
+	for (const input of intent.inputs) {
+		const tokenId = tagValue(input.tags, 'bsv21')
+		if (!tokenId) continue
+		const sym = tagValue(input.tags, 'sym')
+		const amt = BigInt(tagValue(input.tags, 'amt') ?? '0')
+		const cur = totals.get(tokenId) ?? { sym, amt: 0n }
+		cur.amt += amt
+		if (!cur.sym && sym) cur.sym = sym
+		totals.set(tokenId, cur)
+	}
+
+	const rows: DetailRow[] = []
+	for (const [tokenId, info] of totals) {
+		rows.push({
+			key: 'Token',
+			value: info.sym ? `${info.sym} — ${shortenId(tokenId)}` : shortenId(tokenId),
+		})
+		rows.push({ key: 'Amount', value: info.amt.toString() })
+	}
+	const recipient = intent.outputs.find((o) => o.recipient)?.recipient
+	if (recipient) rows.push({ key: 'Recipient', value: recipient })
+
+	return {
+		title: 'Token Transfer',
+		subtitle: `${shortenOriginator(req.originator)} wants to send tokens`,
+		rows,
+		network: networkLabel(intent.chain),
+	}
+}
+
+function summarizeLock(
+	req: PromptRequest,
+	intent: TransactionIntent,
+): IntentSummary {
+	const sats = intent.outputs.reduce((s, o) => s + o.satoshis, 0)
+	const until = intent.outputs
+		.flatMap((o) => o.tags)
+		.find((t) => t.startsWith('lock:until:'))
+		?.slice('lock:until:'.length)
+	const rows: DetailRow[] = [{ key: 'Amount', value: `${sats} sats` }]
+	if (until) rows.push({ key: 'Lock until block', value: until })
+	return {
+		title: 'Lock BSV',
+		subtitle: `${shortenOriginator(req.originator)} wants to time-lock funds`,
+		rows,
+		network: networkLabel(intent.chain),
+	}
+}
+
+function summarizeUnlock(
+	req: PromptRequest,
+	intent: TransactionIntent,
+): IntentSummary {
+	const sats = intent.inputs.reduce((s, i) => s + i.satoshis, 0)
+	return {
+		title: 'Unlock Matured',
+		subtitle: `${shortenOriginator(req.originator)} wants to unlock matured locks`,
+		rows: [{ key: 'Amount', value: `${sats} sats` }],
+		network: networkLabel(intent.chain),
+	}
+}
+
+function summarizeInscription(
+	req: PromptRequest,
+	intent: TransactionIntent,
+): IntentSummary {
+	const recipient = intent.outputs.find((o) => o.recipient)?.recipient
+	const rows: DetailRow[] = []
+	if (recipient) rows.push({ key: 'Recipient', value: recipient })
+	return {
+		title: 'Create Inscription',
+		subtitle: `${shortenOriginator(req.originator)} wants to inscribe content`,
+		rows,
+		network: networkLabel(intent.chain),
+	}
+}
+
+function summarizeSocialPost(
+	req: PromptRequest,
+	intent: TransactionIntent,
+): IntentSummary {
+	return {
+		title: 'Social Post',
+		subtitle: `${shortenOriginator(req.originator)} wants to publish a post`,
+		rows: [],
+		network: networkLabel(intent.chain),
+	}
+}
+
+function summarizeUnknownTx(
+	req: PromptRequest,
+	intent: TransactionIntent,
+): IntentSummary {
+	const ins = intent.inputs.length
+	const outs = intent.outputs.length
+	return {
+		title: 'Transaction Request',
+		subtitle: `${shortenOriginator(req.originator)} wants to ${req.summary.toLowerCase()}`,
+		rows: [{ key: 'Inputs / Outputs', value: `${ins} / ${outs}` }],
+		network: networkLabel(intent.chain),
+	}
+}
+
+function networkLabel(chain?: string): string {
+	return chain === 'testnet' ? 'BSV Testnet' : 'BSV Mainnet'
+}
+
+function shortenId(id: string, max = 24): string {
+	if (id.length <= max) return id
+	return `${id.slice(0, 8)}…${id.slice(-6)}`
 }
 
 function summarizeProtocol(req: PromptRequest): IntentSummary {
@@ -211,38 +442,6 @@ function summarizeProtocol(req: PromptRequest): IntentSummary {
 			intent.notes ??
 			`${shortenOriginator(req.originator)} requests read-only access to derive your 1Sat addresses. Signing remains per-transaction.`,
 		rows,
-	}
-}
-
-function summarizeTransaction(req: PromptRequest): IntentSummary {
-	const intent = req.intent as {
-		description?: string
-		inputs?: Array<{ outpoint?: string; inputDescription?: string }>
-		outputs?: Array<{
-			satoshis: number
-			outputDescription?: string
-			basket?: string
-		}>
-	}
-	const rows: DetailRow[] = []
-	let totalSats = 0
-	for (const out of intent.outputs ?? []) {
-		totalSats += out.satoshis ?? 0
-		if (out.outputDescription) {
-			rows.push({
-				key: out.outputDescription,
-				value: `${out.satoshis ?? 0} sats`,
-			})
-		}
-	}
-	if (rows.length === 0 && totalSats > 0) {
-		rows.push({ key: 'Total Out', value: `${totalSats} sats` })
-	}
-	return {
-		title: 'Transaction Request',
-		subtitle: `${shortenOriginator(req.originator)} wants to ${req.summary.toLowerCase()}`,
-		rows,
-		network: 'BSV Mainnet',
 	}
 }
 

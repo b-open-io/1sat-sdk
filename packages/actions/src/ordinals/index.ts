@@ -8,6 +8,7 @@
 import { MAP as MAPTemplate } from '@1sat/templates'
 import { OrdLock } from '@1sat/templates'
 import { parseOutpoint } from '@1sat/utils'
+import { buildInputAssetLabel } from '@1sat/types'
 import {
 	type BEEF,
 	Beef,
@@ -320,6 +321,7 @@ export async function buildTransferOrdinals(
 
 	const inputs: CreateActionArgs['inputs'] = []
 	const outputs: CreateActionArgs['outputs'] = []
+	const labels: string[] = []
 
 	for (const { ordinal, counterparty, address, map, extraTags } of transfers) {
 		if (!counterparty && !address) {
@@ -361,6 +363,15 @@ export async function buildTransferOrdinals(
 			inputDescription: 'Ordinal to transfer',
 			unlockingScriptLength: 108,
 		})
+
+		// Emit a per-ordinal input label for the 1Sat permission module.
+		// Module looks up (basket, id) in wallet storage to render trusted
+		// metadata in the prompt — origin/contentType/name from indexers.
+		const ordinalIdTag = ordinal.tags?.find((t) => t.startsWith('id:'))
+		if (ordinalIdTag) {
+			const id = ordinalIdTag.slice(3)
+			labels.push(buildInputAssetLabel(ORDINALS_BASKET, id))
+		}
 
 		// Build locking script — append MAP metadata when provided
 		const p2pkhScript = new P2PKH().lock(recipientAddress)
@@ -419,6 +430,7 @@ export async function buildTransferOrdinals(
 		inputBEEF,
 		inputs,
 		outputs,
+		labels,
 	}
 }
 

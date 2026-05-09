@@ -15,6 +15,7 @@ import {
 	type PermissionKey,
 } from '@1sat/wallet'
 import { CommitmentCache } from './commitmentCache'
+import { enrichIntent } from './enrichIntent'
 import { computeHashOutputs } from './hashOutputs'
 import { substitutePlaceholders } from './placeholder'
 import { MIN_BIP143_PREIMAGE_BYTES, parsePreimage } from './sighashParser'
@@ -40,7 +41,9 @@ interface HandlerDeps {
  * createAction onRequest:
  *   1. Admin originator → return args unchanged.
  *   2. Substitute placeholder markers in outputs (AIP/Sigma).
- *   3. Prompt user with structured intent. Reject throws.
+ *   3. Enrich the intent — look up input assets in the wallet by their
+ *      `'p 1sat input <basket> <id>'` labels (trusted records, not dApp-supplied).
+ *   4. Prompt user with the structured intent. Reject throws.
  */
 export async function handleCreateActionRequest(
 	deps: HandlerDeps,
@@ -58,23 +61,48 @@ export async function handleCreateActionRequest(
 		)
 	}
 
-	const summary = summarizeIntent(args)
+	const enriched = await enrichIntent(deps.wallet, { ...args, outputs })
+
 	const approved = await deps.promptHandler({
 		kind: 'transaction',
 		originator,
 		intent: {
-			description: args.description,
-			inputs: args.inputs?.map(stripInputForPrompt) ?? [],
-			outputs: outputs.map(stripOutputForPrompt),
-			labels: args.labels ?? [],
+			kind: enriched.kind,
+			inputs: enriched.inputs,
+			outputs: enriched.outputs.map((o) => ({
+				index: o.index,
+				satoshis: o.satoshis,
+				basket: o.basket,
+				tags: o.tags,
+				recipient: o.recipient,
+			})),
+			contentUrls: buildContentUrlMap(enriched),
+			chain: enriched.chain,
 		},
-		summary,
+		summary: enriched.summary,
 	})
 	if (!approved) {
 		throw new Error('1Sat permission module: user rejected the transaction.')
 	}
 
 	return { ...args, outputs }
+}
+
+/**
+ * Pre-resolve content URLs for each input asset that has an `origin:`
+ * tag, so the UI doesn't need to know how to construct ORDFS URLs.
+ */
+function buildContentUrlMap(
+	enriched: ReturnType<typeof enrichIntent> extends Promise<infer T> ? T : never,
+): Record<string, string> {
+	const out: Record<string, string> = {}
+	for (const asset of enriched.inputs) {
+		const origin = asset.tags.find((t) => t.startsWith('origin:'))
+		if (!origin) continue
+		const value = origin.slice('origin:'.length)
+		out[asset.id] = enriched.contentUrlForOrigin(value)
+	}
+	return out
 }
 
 /**

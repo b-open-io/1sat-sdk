@@ -1,6 +1,6 @@
 {
   "name": "@1sat/permission-module-ui",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "React component for the 1Sat permission module's prompt UX",
   "type": "module",
   "main": "./dist/index.js",

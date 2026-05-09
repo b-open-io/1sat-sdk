@@ -136,6 +136,47 @@ export const promptStyles = `
   gap: 8px;
 }
 
+.opp-featured {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--opp-card-bg);
+  border-radius: 8px;
+  margin: 0 16px;
+  padding: 12px;
+}
+
+.opp-featured-image {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
+.opp-featured-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.opp-featured-title {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.opp-featured-subtitle {
+  font-size: 12px;
+  color: var(--opp-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .opp-row {
   display: flex;
   justify-content: space-between;
