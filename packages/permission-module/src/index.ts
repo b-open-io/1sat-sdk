@@ -19,10 +19,7 @@ export {
 	DEFAULT_COMMITMENT_TTL_SECONDS,
 	type CapturedCommitment,
 	type CreateOneSatPermissionModuleArgs,
-	type PermissionStoreLike,
 	type PromptHandler,
 	type PromptKind,
 	type PromptRequest,
-	type ProtocolPermissionKey,
-	type StoredGrantLike,
 } from './types'

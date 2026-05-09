@@ -9,22 +9,23 @@ import type {
 } from '@bsv/sdk'
 import { Beef, Transaction } from '@bsv/sdk'
 import { P1SAT_PROTOCOL } from '@1sat/types'
+import {
+	type IPermissionStore,
+	normalizeOriginator,
+	type PermissionKey,
+} from '@1sat/wallet'
 import { CommitmentCache } from './commitmentCache'
 import { computeHashOutputs } from './hashOutputs'
 import { substitutePlaceholders } from './placeholder'
 import { MIN_BIP143_PREIMAGE_BYTES, parsePreimage } from './sighashParser'
-import type {
-	PermissionStoreLike,
-	PromptHandler,
-	ProtocolPermissionKey,
-} from './types'
+import type { PromptHandler } from './types'
 
 interface HandlerDeps {
 	wallet: WalletInterface
 	promptHandler: PromptHandler
 	cache: CommitmentCache
 	adminOriginator?: string
-	permissionStore?: PermissionStoreLike
+	permissionStore?: IPermissionStore
 	/**
 	 * Coalesces concurrent protocol-access prompts for the same originator.
 	 * deriveDepositAddresses typically issues N parallel getPublicKey calls
@@ -177,7 +178,11 @@ export async function handleGetPublicKeyRequest(
 ): Promise<GetPublicKeyArgs> {
 	if (isAdmin(deps, originator)) return args
 
-	const grantKey = buildProtocolGrantKey(originator)
+	// Normalize the originator the same way LocalWalletPermissionsManager
+	// does so the grant we write lands in the same key bucket the wallet's
+	// existing `listProtocolPermissions` / revoke flows query.
+	const normalized = normalizeOriginator(originator)
+	const grantKey = buildProtocolGrantKey(normalized)
 
 	if (deps.permissionStore) {
 		const existing = await deps.permissionStore.findGrant(grantKey)
@@ -234,10 +239,10 @@ function isAdmin(deps: HandlerDeps, originator: string): boolean {
 	return !!deps.adminOriginator && originator === deps.adminOriginator
 }
 
-function buildProtocolGrantKey(originator: string): ProtocolPermissionKey {
+function buildProtocolGrantKey(normalizedOriginator: string): PermissionKey {
 	return {
 		type: 'protocol',
-		originator,
+		originator: normalizedOriginator,
 		privileged: false,
 		protocolLevel: P1SAT_PROTOCOL[0],
 		protocolName: P1SAT_PROTOCOL[1],
