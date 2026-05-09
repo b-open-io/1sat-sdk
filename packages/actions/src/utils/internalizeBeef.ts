@@ -258,7 +258,10 @@ function buildInternalizeOutput(
 ): InternalizeOutput | null {
 	const vout = txo.outpoint.vout
 	const protocol = txo.protocol || 'wallet payment'
-	const idTag = `id:${actionId}`
+	// Per-output id: combines the per-action discriminator with the vout
+	// so listOutputs lookups by tag resolve to exactly one record. See
+	// applyTrackingTags in createTrackedAction.ts for the parallel.
+	const idTag = `id:${actionId}_${vout}`
 
 	if (protocol === 'basket insertion') {
 		const basket = txo.basket || 'custom'

@@ -107,8 +107,8 @@ export const P1SAT_LABEL = 'p 1sat action'
 
 /**
  * Label prefix recognized by the 1Sat permission module. Carries the
- * `'p 1sat'` dispatch trigger; payload is `'<basket> <id>'` — a lookup
- * key for the input asset's record in the wallet's storage.
+ * `'p 1sat'` dispatch trigger; payload is `'<basket> <outpoint>'` —
+ * a lookup key for the input asset's record in the wallet's storage.
  *
  * Outputs don't need a label: the SDK sets tags directly on
  * `args.outputs[i].tags` (unencrypted, visible to the module), and
@@ -120,16 +120,22 @@ export const P1SAT_INPUT_LABEL_PREFIX = 'p 1sat input '
 /**
  * Build a label that points the 1Sat permission module at a specific
  * input asset record in the wallet's storage. The module looks the
- * record up by `(basket, id)` and reads the indexer-written tags
- * (origin, name, sym, amt, etc.) directly from wallet storage —
- * not anything the calling dApp could fabricate in args.
+ * record up by outpoint and reads the indexer-written tags (origin,
+ * name, sym, amt, etc.) directly from wallet storage — not anything
+ * the calling dApp could fabricate in args.
  *
- * @param basket - Basket the source output sits in (e.g. `'1sat'`).
- * @param id     - Action-id hex `createTrackedAction` tags every basketed
- *                 output with (the `id:<hex>` tag value).
+ * Outpoint is the natural unique key for an output. Earlier iterations
+ * used the per-action `id:<hex>` tag, but that tag was shared across
+ * outputs of a multi-output action, so the lookup was ambiguous.
+ *
+ * @param basket   - Basket the source output sits in (e.g. `'1sat'`).
+ * @param outpoint - The input outpoint as `'txid.vout'`.
  */
-export function buildInputAssetLabel(basket: string, id: string): string {
-	return `${P1SAT_INPUT_LABEL_PREFIX}${basket} ${id}`
+export function buildInputAssetLabel(
+	basket: string,
+	outpoint: string,
+): string {
+	return `${P1SAT_INPUT_LABEL_PREFIX}${basket} ${outpoint}`
 }
 
 /**

@@ -365,13 +365,10 @@ export async function buildTransferOrdinals(
 		})
 
 		// Emit a per-ordinal input label for the 1Sat permission module.
-		// Module looks up (basket, id) in wallet storage to render trusted
-		// metadata in the prompt — origin/contentType/name from indexers.
-		const ordinalIdTag = ordinal.tags?.find((t) => t.startsWith('id:'))
-		if (ordinalIdTag) {
-			const id = ordinalIdTag.slice(3)
-			labels.push(buildInputAssetLabel(ORDINALS_BASKET, id))
-		}
+		// Module looks up the source output by outpoint in wallet storage
+		// to render trusted metadata in the prompt (origin / contentType /
+		// name from indexer-written tags).
+		labels.push(buildInputAssetLabel(ORDINALS_BASKET, outpoint))
 
 		// Build locking script — append MAP metadata when provided
 		const p2pkhScript = new P2PKH().lock(recipientAddress)

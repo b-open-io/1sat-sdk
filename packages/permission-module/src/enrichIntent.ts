@@ -102,7 +102,7 @@ export async function enrichIntent(
 
 	const inputRefs = parseAssetLabels(labels, P1SAT_INPUT_LABEL_PREFIX)
 	const inputs = (await Promise.all(
-		inputRefs.map((ref) => lookupAsset(wallet, ref.basket, ref.id)),
+		inputRefs.map((ref) => lookupAsset(wallet, ref.basket, ref.outpoint)),
 	)).filter((a): a is EnrichedAsset => a !== null)
 
 	const outputs = (args.outputs ?? []).map((out, i) =>
@@ -124,12 +124,12 @@ export async function enrichIntent(
 }
 
 // ---------------------------------------------------------------------------
-// Label parsing — `'p 1sat input <basket> <id>'` / `'p 1sat output <basket> <id>'`
+// Label parsing — `'p 1sat input <basket> <outpoint>'`
 // ---------------------------------------------------------------------------
 
 interface AssetLabelRef {
 	basket: string
-	id: string
+	outpoint: string
 }
 
 function parseAssetLabels(labels: string[], prefix: string): AssetLabelRef[] {
@@ -140,21 +140,21 @@ function parseAssetLabels(labels: string[], prefix: string): AssetLabelRef[] {
 		const sep = payload.indexOf(' ')
 		if (sep <= 0) continue
 		const basket = payload.slice(0, sep)
-		const id = payload.slice(sep + 1).trim()
-		if (!basket || !id) continue
-		refs.push({ basket, id })
+		const outpoint = payload.slice(sep + 1).trim()
+		if (!basket || !outpoint) continue
+		refs.push({ basket, outpoint })
 	}
 	return refs
 }
 
 // ---------------------------------------------------------------------------
-// Asset lookup — listOutputs filtered by tag, narrows to the matching record.
+// Asset lookup — list outputs in the basket and find by outpoint match.
 // ---------------------------------------------------------------------------
 
 async function lookupAsset(
 	wallet: WalletInterface,
 	basket: string,
-	id: string,
+	outpoint: string,
 ): Promise<EnrichedAsset | null> {
 	// Only query baskets the module knows about — guards against malicious
 	// labels pointing at unrelated baskets.
@@ -162,16 +162,16 @@ async function lookupAsset(
 	try {
 		const result = await wallet.listOutputs({
 			basket,
-			tags: [`id:${id}`],
 			includeTags: true,
 			includeCustomInstructions: true,
-			limit: 10,
+			limit: 1000,
 		})
-		const match = result.outputs[0]
+		const match = result.outputs.find((o) => o.outpoint === outpoint)
 		if (!match) return null
+		const idTag = match.tags?.find((t) => t.startsWith('id:'))
 		return {
 			basket,
-			id,
+			id: idTag ? idTag.slice(3) : outpoint,
 			outpoint: match.outpoint,
 			satoshis: match.satoshis,
 			tags: match.tags ?? [],

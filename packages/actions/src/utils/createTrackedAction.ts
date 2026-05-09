@@ -23,16 +23,21 @@ export function randomActionId(): string {
 
 /**
  * Inject tracking tags into outputs that have baskets.
+ *
+ * Each basketed output gets `id:<actionId>_<argsIndex>` — unique per
+ * output. The original "all outputs share one id" scheme made
+ * targeted lookups ambiguous when an action created multiple outputs;
+ * per-output ids make `listOutputs(basket, tags:[id:<value>])` resolve
+ * to exactly one record. Existing readers (resolveBeef, identity
+ * getProfile, the 1Sat permission module's lookup) all want this.
  */
 function applyTrackingTags(args: CreateActionArgs, actionId: string): void {
-	const tag = `id:${actionId}`
-	if (args.outputs) {
-		for (const output of args.outputs) {
-			if (output.basket) {
-				output.tags = [...(output.tags ?? []), tag]
-			}
+	if (!args.outputs) return
+	args.outputs.forEach((output, i) => {
+		if (output.basket) {
+			output.tags = [...(output.tags ?? []), `id:${actionId}_${i}`]
 		}
-	}
+	})
 }
 
 /**
