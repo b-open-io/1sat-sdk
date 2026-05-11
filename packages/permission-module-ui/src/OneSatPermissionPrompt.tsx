@@ -15,12 +15,6 @@ export interface OneSatPermissionPromptProps {
 	onReject: () => void
 	/** Theme override. Defaults to 'auto' (matches `prefers-color-scheme`). */
 	theme?: Theme
-	/** Host wallet name shown in the header (e.g. 'Yours Wallet'). */
-	appName?: string
-	/** Host wallet icon URL shown in the header avatar. Falls back to text initial. */
-	appIcon?: string
-	/** Version string shown in the footer (e.g. wallet version). */
-	version?: string
 }
 
 interface DetailRow {
@@ -63,17 +57,14 @@ interface OutputEntry {
  *
  * The host wallet feeds in the `request` it received from its promptHandler
  * callback and wires `onApprove`/`onReject` to resolve the same Promise.
- * Layout mirrors the design in `1sat-permissions-popups.pen` — branding
- * header, intent title, asset detail card, network/fee, approve/reject.
+ * Layout mirrors the design in `1sat-permissions-popups.pen` — 1Sat coin
+ * badge, intent title, asset detail card, network/fee, approve/reject.
  */
 export function OneSatPermissionPrompt({
 	request,
 	onApprove,
 	onReject,
 	theme = 'auto',
-	appName,
-	appIcon,
-	version,
 }: OneSatPermissionPromptProps) {
 	const resolvedTheme = useResolvedTheme(theme)
 	const summary = summarizeRequest(request)
@@ -105,31 +96,13 @@ export function OneSatPermissionPrompt({
 		<div className={className}>
 			<style>{promptStyles}</style>
 
-			<div className="opp-header">
-				<div className="opp-header-brand">
-					<svg className="opp-avatar-svg" viewBox="0 0 100 100" aria-label="1Sat Ordinals">
-						<circle cx="50" cy="50" r="50" fill="#222" />
-						<circle cx="50" cy="50" r="40" fill="#fff" />
-						<circle cx="50" cy="50" r="32" fill="#E5A920" />
-						<rect x="47" y="28" width="6" height="28" rx="3" fill="#fff" />
-					</svg>
-					{appIcon && (
-						<img className="opp-avatar-img" src={appIcon} alt={appName ?? ''} />
-					)}
-					{appName && <span>{appName}</span>}
-				</div>
-				<div className="opp-header-app">
-					<div className="opp-avatar opp-app">
-						{originatorInitial(request.originator)}
-					</div>
-					<span>{shortenOriginator(request.originator)}</span>
-				</div>
-			</div>
-
 			<div className="opp-body">
-				<div className="opp-icon" aria-hidden="true">
-					🛡
-				</div>
+				<svg className="opp-coin" viewBox="0 0 100 100" aria-label="1Sat Ordinals">
+					<circle cx="50" cy="50" r="50" fill="#222" />
+					<circle cx="50" cy="50" r="40" fill="#fff" />
+					<circle cx="50" cy="50" r="32" fill="#E5A920" />
+					<rect x="47" y="28" width="6" height="28" rx="3" fill="#fff" />
+				</svg>
 				<h2 className="opp-title">{summary.title}</h2>
 				<p className="opp-subtitle">{summary.subtitle}</p>
 				<div className="opp-status">Awaiting Approval</div>
@@ -201,7 +174,6 @@ export function OneSatPermissionPrompt({
 
 			<div className="opp-footer">
 				<span>Secured by 1Sat Ordinals</span>
-				{version && <span>v{version}</span>}
 			</div>
 		</div>
 	)
@@ -487,10 +459,4 @@ function summarizeSignature(req: PromptRequest): IntentSummary {
 function shortenOriginator(origin: string): string {
 	if (origin.length <= 28) return origin
 	return `${origin.slice(0, 18)}…${origin.slice(-6)}`
-}
-
-function originatorInitial(origin: string): string {
-	const cleaned = origin.replace(/^https?:\/\//, '')
-	const first = cleaned[0]
-	return first ? first.toUpperCase() : '?'
 }

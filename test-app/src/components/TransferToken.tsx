@@ -26,7 +26,7 @@ export function TransferToken() {
     try {
       const res = await sendBsv21.execute(ctx, {
         tokenId,
-        recipients: [{ amount, address: destAddress }],
+        recipients: [{ amount, destination: { address: destAddress } }],
       })
 
       if (res.error) throw new Error(res.error)

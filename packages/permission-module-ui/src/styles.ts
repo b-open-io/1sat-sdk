@@ -2,29 +2,28 @@
  * CSS string for the OneSatPermissionPrompt component. Inlined as a style
  * tag so the host wallet doesn't have to wire up CSS imports.
  *
- * Colors and spacing are kept minimal and theme-driven via CSS variables;
- * a designer pass will replace these with the production palette.
+ * Colors match the design in `1sat-permissions-popups.pen`.
  */
 export const promptStyles = `
 .opp-root {
   --opp-bg: #ffffff;
-  --opp-fg: #1a1a1a;
+  --opp-fg: #111827;
   --opp-muted: #6b7280;
-  --opp-card-bg: #f5f5f7;
-  --opp-card-border: #e5e7eb;
-  --opp-accent: #f59e0b;
-  --opp-approve-bg: #f59e0b;
+  --opp-card-bg: #f7f8fa;
+  --opp-card-border: #eceef2;
+  --opp-accent: #E5A920;
+  --opp-approve-bg: #E5A920;
   --opp-approve-fg: #ffffff;
   --opp-reject-bg: #ffffff;
-  --opp-reject-fg: #1a1a1a;
+  --opp-reject-fg: #111827;
   --opp-reject-border: #d1d5db;
-  --opp-status-bg: #fde68a;
-  --opp-status-fg: #92400e;
+  --opp-status-bg: #FFFBE6;
+  --opp-status-fg: #E5A920;
 
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: var(--opp-bg);
   color: var(--opp-fg);
-  border-radius: 12px;
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -33,65 +32,16 @@ export const promptStyles = `
 }
 
 .opp-root.opp-dark {
-  --opp-bg: #1a1a1a;
-  --opp-fg: #f5f5f7;
+  --opp-bg: #0F1117;
+  --opp-fg: #F9FAFB;
   --opp-muted: #9ca3af;
-  --opp-card-bg: #262626;
-  --opp-card-border: #3a3a3a;
-  --opp-reject-bg: #262626;
-  --opp-reject-fg: #f5f5f7;
-  --opp-reject-border: #3a3a3a;
-  --opp-status-bg: rgba(245, 158, 11, 0.2);
-  --opp-status-fg: #fbbf24;
-}
-
-.opp-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--opp-card-border);
-}
-
-.opp-header-brand,
-.opp-header-app {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.opp-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--opp-accent);
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.opp-avatar.opp-app {
-  background: #3b82f6;
-}
-
-.opp-avatar-svg {
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-}
-
-.opp-avatar-img {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex-shrink: 0;
+  --opp-card-bg: #1A1D27;
+  --opp-card-border: #232636;
+  --opp-reject-bg: #0F1117;
+  --opp-reject-fg: #F9FAFB;
+  --opp-reject-border: #2D3142;
+  --opp-status-bg: #2A2408;
+  --opp-status-fg: #E5A920;
 }
 
 .opp-body {
@@ -102,27 +52,21 @@ export const promptStyles = `
   align-items: center;
 }
 
-.opp-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--opp-card-bg);
-  border: 1px solid var(--opp-card-border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 4px;
+.opp-coin {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
 }
 
 .opp-title {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   margin: 0;
   text-align: center;
 }
 
 .opp-subtitle {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--opp-muted);
   margin: 0;
   text-align: center;
@@ -134,20 +78,22 @@ export const promptStyles = `
   color: var(--opp-status-fg);
   padding: 4px 12px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   margin-top: 4px;
+  border: 1px solid var(--opp-card-border);
 }
 
 .opp-card {
   background: var(--opp-card-bg);
-  border-radius: 8px;
-  margin: 0 16px;
-  padding: 12px 16px;
+  border: 1px solid var(--opp-card-border);
+  border-radius: 10px;
+  margin: 0 20px;
+  padding: 16px;
   font-size: 13px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .opp-featured {
@@ -155,14 +101,15 @@ export const promptStyles = `
   align-items: center;
   gap: 12px;
   background: var(--opp-card-bg);
-  border-radius: 8px;
-  margin: 0 16px;
-  padding: 12px;
+  border: 1px solid var(--opp-card-border);
+  border-radius: 10px;
+  margin: 0 20px;
+  padding: 16px;
 }
 
 .opp-featured-image {
-  width: 64px;
-  height: 64px;
+  width: 80px;
+  height: 80px;
   border-radius: 8px;
   object-fit: cover;
   background: rgba(0, 0, 0, 0.1);
@@ -172,6 +119,7 @@ export const promptStyles = `
 .opp-featured-meta {
   display: flex;
   flex-direction: column;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -203,8 +151,9 @@ export const promptStyles = `
 }
 
 .opp-row-value {
-  font-family: ui-monospace, SFMono-Regular, monospace;
-  font-size: 12px;
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
+  font-size: 13px;
+  font-weight: 500;
   word-break: break-all;
   text-align: right;
 }
@@ -219,19 +168,21 @@ export const promptStyles = `
 
 .opp-meta-value {
   color: var(--opp-fg);
+  font-weight: 500;
 }
 
 .opp-actions {
   display: flex;
   gap: 12px;
-  padding: 16px 20px 12px;
+  padding: 20px 20px 12px;
 }
 
 .opp-button {
   flex: 1;
-  padding: 12px 16px;
-  border-radius: 8px;
-  font-size: 14px;
+  padding: 0 16px;
+  height: 48px;
+  border-radius: 10px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   border: 1px solid transparent;
@@ -256,12 +207,12 @@ export const promptStyles = `
 
 .opp-footer {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 6px;
   padding: 8px 20px 16px;
   font-size: 11px;
+  font-weight: 500;
   color: var(--opp-muted);
-  text-align: center;
 }
 `
