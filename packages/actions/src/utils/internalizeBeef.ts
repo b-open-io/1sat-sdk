@@ -10,7 +10,7 @@
 
 import type { OneSatServices } from '@1sat/client'
 import type { Indexer, ParseContext, Txo } from '@1sat/types'
-import { DEPOSIT_BASKET, P1SAT_PROTOCOL } from '@1sat/types'
+import { DEPOSIT_BASKET } from '@1sat/types'
 import {
 	Bsv21Indexer,
 	CosignIndexer,
@@ -27,6 +27,7 @@ import {
 	type InternalizeActionArgs,
 	type InternalizeOutput,
 	Transaction,
+	type WalletCounterparty,
 	type WalletInterface,
 } from '@bsv/sdk'
 import { randomActionId } from './createTrackedAction'
@@ -41,6 +42,22 @@ export interface OutputDerivation {
 	derivationPrefix: string
 	derivationSuffix: string
 	senderIdentityKey: string
+	/**
+	 * Protocol the receiver derived under — recorded verbatim in the
+	 * output's customInstructions so signP2PKHInput later derives the
+	 * matching spend key.
+	 *
+	 * Different inputs can carry different protocols (e.g. legacy BRC-29
+	 * receive addresses vs. new P1SAT-derived ones); callers must specify
+	 * the actual protocol used to derive the address.
+	 */
+	protocolID: [0 | 1 | 2, string]
+	/**
+	 * Counterparty the receiver derived under. Defaults to `'self'` when
+	 * omitted — BRC-43/BRC-29 receive addresses created with `forSelf:true`
+	 * use the wallet's own identity as the counterparty.
+	 */
+	counterparty?: WalletCounterparty
 }
 
 export interface InternalizeBeefOptions {
@@ -287,7 +304,10 @@ function buildInternalizeOutput(
 	}
 
 	// P2PKH 1Sat asset (ordinals/tokens) — basket insertion so the wallet
-	// records the spend protocol/keyID for later signing under P1SAT.
+	// records the spend protocol/keyID for later signing. protocolID +
+	// counterparty come straight from the caller-supplied derivation so
+	// signP2PKHInput derives the matching key (caller knows whether the
+	// receive address was P1SAT-derived, BRC-29-derived, etc.).
 	if (txo.basket && txo.basket !== 'fund') {
 		const tags = [...collectTags(txo), idTag]
 		const nameTag = tags.find((t) => t.startsWith('name:'))
@@ -300,8 +320,11 @@ function buildInternalizeOutput(
 				basket: txo.basket,
 				tags,
 				customInstructions: JSON.stringify({
-					protocolID: P1SAT_PROTOCOL,
+					protocolID: derivation.protocolID,
 					keyID: `${derivation.derivationPrefix} ${derivation.derivationSuffix}`,
+					...(derivation.counterparty != null && {
+						counterparty: derivation.counterparty,
+					}),
 					...(nameTag && { name: nameTag.slice(5).slice(0, 64) }),
 					...(sym && { sym }),
 				}),
@@ -310,8 +333,8 @@ function buildInternalizeOutput(
 	}
 
 	// Plain BSV at the user's deposit address — park in the deposit basket
-	// for the sweep helper to pick up. Custom instructions record P1SAT so
-	// the sweep tx can sign under the right protocol.
+	// for the sweep helper to pick up. customInstructions record the
+	// caller-supplied protocol/counterparty so the sweep signs correctly.
 	return {
 		outputIndex: vout,
 		protocol: 'basket insertion',
@@ -319,8 +342,11 @@ function buildInternalizeOutput(
 			basket: DEPOSIT_BASKET,
 			tags: [idTag],
 			customInstructions: JSON.stringify({
-				protocolID: P1SAT_PROTOCOL,
+				protocolID: derivation.protocolID,
 				keyID: `${derivation.derivationPrefix} ${derivation.derivationSuffix}`,
+				...(derivation.counterparty != null && {
+					counterparty: derivation.counterparty,
+				}),
 			}),
 		},
 	}

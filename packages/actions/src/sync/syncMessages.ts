@@ -8,6 +8,7 @@
 
 import { Utils } from '@bsv/sdk'
 import { AuthFetch } from '@bsv/sdk/auth'
+import { P1SAT_PROTOCOL } from '@1sat/types'
 import type { Action } from '../types'
 import {
 	type OutputDerivation,
@@ -121,11 +122,17 @@ export const syncMessages: Action<SyncMessagesInput, SyncMessagesResult> = {
 
 				const beefBytes = new Uint8Array(Utils.toArray(payment.beef, 'hex'))
 
+				// Paymail-style messagebox payments are BRC-29 sends from a
+				// known counterparty — sender provides their identity, our
+				// wallet derives the spend key under P1SAT_PROTOCOL with the
+				// sender as counterparty.
 				const outputDerivation: OutputDerivation = {
 					outputIndex: payment.outputIndex,
 					derivationPrefix: payment.derivationPrefix,
 					derivationSuffix: payment.derivationSuffix,
 					senderIdentityKey: payment.senderIdentityKey,
+					protocolID: P1SAT_PROTOCOL,
+					counterparty: payment.senderIdentityKey,
 				}
 
 				await internalizeBeef({

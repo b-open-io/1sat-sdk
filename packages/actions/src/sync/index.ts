@@ -260,7 +260,10 @@ async function processTxid(
 		throw new Error(`Failed to load BEEF for ${txid}`)
 	}
 
-	// Build address → derivation map for the indexer-based owner matching
+	// Build address → derivation map for the indexer-based owner matching.
+	// Addresses were derived under P1SAT_PROTOCOL with forSelf:true (see the
+	// deriveDepositAddresses loop above), so spending uses the same protocol
+	// + counterparty 'self'.
 	const addrDerivations = new Map<string, OutputDerivation>()
 	for (const [address, d] of addressMap) {
 		addrDerivations.set(address, {
@@ -268,6 +271,8 @@ async function processTxid(
 			derivationPrefix: d.derivationPrefix,
 			derivationSuffix: d.derivationSuffix,
 			senderIdentityKey: d.senderIdentityKey,
+			protocolID: P1SAT_PROTOCOL,
+			counterparty: 'self',
 		})
 	}
 
