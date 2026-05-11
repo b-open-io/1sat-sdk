@@ -147,22 +147,10 @@ export async function handleCreateSignatureRequest(
 	// can parse hashOutputs + outpoint and verify against the commitment;
 	// fall back to `hashToDirectlySign` only when `data` is absent.
 	const preimage = args.data ?? args.hashToDirectlySign
-	console.log(
-		'[handleCreateSignatureRequest] originator=', originator,
-		'dataLen=', args.data?.length ?? 'undefined',
-		'hashLen=', args.hashToDirectlySign?.length ?? 'undefined',
-		'cacheSize=', deps.cache.size(),
-	)
 	if (preimage && preimage.length >= MIN_BIP143_PREIMAGE_BYTES) {
 		const parsed = parsePreimage(preimage)
-		console.log(
-			'[handleCreateSignatureRequest] parsed=', parsed ? `hashOutputs=${parsed.hashOutputs.slice(0,16)}… outpoint=${parsed.outpoint}` : 'null',
-		)
 		if (parsed) {
 			const commitment = deps.cache.findByHashOutputs(originator, parsed.hashOutputs)
-			console.log(
-				'[handleCreateSignatureRequest] commitment=', commitment ? `outpoints=${Array.from(commitment.authorizedOutpoints).join(',')}` : 'null',
-			)
 			if (commitment && commitment.authorizedOutpoints.has(parsed.outpoint)) {
 				return args
 			}
