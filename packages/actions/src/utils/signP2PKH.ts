@@ -71,10 +71,17 @@ export async function signP2PKHInput(
 
 	const sighash = Hash.sha256(Hash.sha256(preimage))
 
+	// `data` carries the full BIP-143 preimage so the 1Sat permission
+	// module can extract `hashOutputs` + outpoint and verify the signature
+	// against the commitment captured at createAction time. `hashToDirectlySign`
+	// is what the wallet actually signs — passing both keeps signing
+	// cryptographically unchanged (wallet picks hashToDirectlySign per
+	// BRC-100 / ProtoWallet) while letting the module see the preimage.
 	const { signature } = await ctx.wallet.createSignature({
 		protocolID,
 		keyID,
 		counterparty,
+		data: Array.from(preimage),
 		hashToDirectlySign: Array.from(sighash),
 	})
 

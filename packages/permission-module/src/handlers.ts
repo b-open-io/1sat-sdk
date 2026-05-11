@@ -141,9 +141,14 @@ export async function handleCreateSignatureRequest(
 ): Promise<CreateSignatureArgs> {
 	if (isAdmin(deps, originator)) return args
 
-	const data = args.hashToDirectlySign ?? args.data
-	if (data && data.length >= MIN_BIP143_PREIMAGE_BYTES) {
-		const parsed = parsePreimage(data)
+	// `args.data` carries the full BIP-143 preimage when the caller is
+	// signing a tx input (signP2PKHInput passes both `data: preimage` and
+	// `hashToDirectlySign: sha256(sha256(preimage))`). Prefer `data` so we
+	// can parse hashOutputs + outpoint and verify against the commitment;
+	// fall back to `hashToDirectlySign` only when `data` is absent.
+	const preimage = args.data ?? args.hashToDirectlySign
+	if (preimage && preimage.length >= MIN_BIP143_PREIMAGE_BYTES) {
+		const parsed = parsePreimage(preimage)
 		if (parsed) {
 			const commitment = deps.cache.findByHashOutputs(originator, parsed.hashOutputs)
 			if (commitment && commitment.authorizedOutpoints.has(parsed.outpoint)) {
@@ -164,7 +169,7 @@ export async function handleCreateSignatureRequest(
 			protocolID: args.protocolID,
 			keyID: args.keyID,
 			counterparty: args.counterparty,
-			dataLength: data?.length ?? 0,
+			dataLength: preimage?.length ?? 0,
 		},
 		summary: 'Sign payload',
 	})
