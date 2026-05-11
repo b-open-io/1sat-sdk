@@ -80,6 +80,20 @@ export const promptStyles = `
   background: #3b82f6;
 }
 
+.opp-avatar-svg {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.opp-avatar-img {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
 .opp-body {
   padding: 24px 20px 16px;
   display: flex;

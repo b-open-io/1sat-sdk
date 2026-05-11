@@ -15,8 +15,10 @@ export interface OneSatPermissionPromptProps {
 	onReject: () => void
 	/** Theme override. Defaults to 'auto' (matches `prefers-color-scheme`). */
 	theme?: Theme
-	/** App name shown in the header. Defaults to '1Sat Ordinals'. */
+	/** Host wallet name shown in the header (e.g. 'Yours Wallet'). */
 	appName?: string
+	/** Host wallet icon URL shown in the header avatar. Falls back to text initial. */
+	appIcon?: string
 	/** Version string shown in the footer (e.g. wallet version). */
 	version?: string
 }
@@ -69,7 +71,8 @@ export function OneSatPermissionPrompt({
 	onApprove,
 	onReject,
 	theme = 'auto',
-	appName = '1Sat Ordinals',
+	appName,
+	appIcon,
 	version,
 }: OneSatPermissionPromptProps) {
 	const resolvedTheme = useResolvedTheme(theme)
@@ -104,8 +107,16 @@ export function OneSatPermissionPrompt({
 
 			<div className="opp-header">
 				<div className="opp-header-brand">
-					<div className="opp-avatar">1</div>
-					<span>{appName}</span>
+					<svg className="opp-avatar-svg" viewBox="0 0 100 100" aria-label="1Sat Ordinals">
+						<circle cx="50" cy="50" r="50" fill="#222" />
+						<circle cx="50" cy="50" r="40" fill="#fff" />
+						<circle cx="50" cy="50" r="32" fill="#E5A920" />
+						<rect x="47" y="28" width="6" height="28" rx="3" fill="#fff" />
+					</svg>
+					{appIcon && (
+						<img className="opp-avatar-img" src={appIcon} alt={appName ?? ''} />
+					)}
+					{appName && <span>{appName}</span>}
 				</div>
 				<div className="opp-header-app">
 					<div className="opp-avatar opp-app">
@@ -189,7 +200,7 @@ export function OneSatPermissionPrompt({
 			</div>
 
 			<div className="opp-footer">
-				<span>Secured by {appName}</span>
+				<span>Secured by 1Sat Ordinals</span>
 				{version && <span>v{version}</span>}
 			</div>
 		</div>
