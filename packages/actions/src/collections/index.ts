@@ -26,7 +26,7 @@ import { parseOutpoint } from '@1sat/utils'
 import { P2PKH, PublicKey, Script, Utils } from '@bsv/sdk'
 import {
 	MAX_INSCRIPTION_BYTES,
-	ONESAT_PROTOCOL,
+	P1SAT_PROTOCOL,
 	ORDINALS_BASKET,
 } from '../constants'
 import type { Action, ActionOptions } from '../types'
@@ -265,7 +265,7 @@ export const mintCollection: Action<MintCollectionInput, MintCollectionOutput> =
 
 				const keyID = Date.now().toString()
 				const { publicKey } = await ctx.wallet.getPublicKey({
-					protocolID: ONESAT_PROTOCOL,
+					protocolID: P1SAT_PROTOCOL,
 					keyID,
 					counterparty: 'self',
 					forSelf: true,
@@ -299,7 +299,7 @@ export const mintCollection: Action<MintCollectionInput, MintCollectionOutput> =
 								basket: ORDINALS_BASKET,
 								tags,
 								customInstructions: JSON.stringify({
-									protocolID: ONESAT_PROTOCOL,
+									protocolID: P1SAT_PROTOCOL,
 									keyID,
 									name: input.name.slice(0, 64),
 								}),
@@ -333,7 +333,7 @@ export const mintCollection: Action<MintCollectionInput, MintCollectionOutput> =
 						outputs: [
 							{
 								index: 0,
-								protocolID: ONESAT_PROTOCOL,
+								protocolID: P1SAT_PROTOCOL,
 								keyID,
 								basket: ORDINALS_BASKET,
 								satoshis: 1,
@@ -438,7 +438,7 @@ export const mintCollectionItem: Action<
 
 			const keyID = Date.now().toString()
 			const { publicKey } = await ctx.wallet.getPublicKey({
-				protocolID: ONESAT_PROTOCOL,
+				protocolID: P1SAT_PROTOCOL,
 				keyID,
 				counterparty: 'self',
 				forSelf: true,
@@ -474,7 +474,7 @@ export const mintCollectionItem: Action<
 							basket: ORDINALS_BASKET,
 							tags,
 							customInstructions: JSON.stringify({
-								protocolID: ONESAT_PROTOCOL,
+								protocolID: P1SAT_PROTOCOL,
 								keyID,
 								name: input.name.slice(0, 64),
 							}),
@@ -507,7 +507,7 @@ export const mintCollectionItem: Action<
 					outputs: [
 						{
 							index: 0,
-							protocolID: ONESAT_PROTOCOL,
+							protocolID: P1SAT_PROTOCOL,
 							keyID,
 							basket: ORDINALS_BASKET,
 							satoshis: 1,

@@ -1,36 +1,19 @@
 /**
  * Addresses Module
  *
- * Actions for BRC-29 deposit address derivation.
+ * Actions for deposit address derivation under P1SAT.
  */
 
 import { type AddressDerivation, P1SAT_PROTOCOL } from '@1sat/types'
-import { PublicKey, Utils } from '@bsv/sdk'
+import { PublicKey } from '@bsv/sdk'
 import type { Action } from '../types'
-
-// ============================================================================
-// Encoding helpers
-// ============================================================================
-
-function toBase64Prefix(prefix: string): string {
-	return Utils.toBase64(Array.from(new TextEncoder().encode(prefix)))
-}
-
-function toBase64Suffix(index: number): string {
-	return Utils.toBase64([
-		(index >>> 24) & 0xff,
-		(index >>> 16) & 0xff,
-		(index >>> 8) & 0xff,
-		index & 0xff,
-	])
-}
 
 // ============================================================================
 // Types
 // ============================================================================
 
 export interface DeriveDepositAddressesInput {
-	/** Derivation prefix string (e.g., "yours", "1sat", "mcp") */
+	/** KeyID prefix string (e.g., "yours", "1sat", "mcp") */
 	prefix: string
 	/** First index to derive (default: 0) */
 	startIndex?: number
@@ -47,7 +30,8 @@ export interface DeriveDepositAddressesResult {
 // ============================================================================
 
 /**
- * Derive BRC-29 deposit addresses from the wallet's identity key.
+ * Derive deposit addresses from the wallet's identity key under P1SAT.
+ * KeyID format: `<prefix> <index>` (plaintext, no base64).
  */
 export const deriveDepositAddresses: Action<
 	DeriveDepositAddressesInput,
@@ -56,15 +40,14 @@ export const deriveDepositAddresses: Action<
 	meta: {
 		name: 'deriveDepositAddresses',
 		description:
-			'Derive BRC-29 deposit addresses for receiving payments, ordinals, or tokens',
+			'Derive P1SAT deposit addresses for receiving payments, ordinals, or tokens',
 		category: 'addresses',
 		inputSchema: {
 			type: 'object',
 			properties: {
 				prefix: {
 					type: 'string',
-					description:
-						'Derivation prefix string (e.g., "yours", "1sat", "mcp")',
+					description: 'KeyID prefix string (e.g., "yours", "1sat", "mcp")',
 				},
 				startIndex: {
 					type: 'integer',
@@ -85,12 +68,11 @@ export const deriveDepositAddresses: Action<
 			identityKey: true,
 		})
 
-		const derivationPrefix = toBase64Prefix(prefix)
 		const derivations: AddressDerivation[] = []
 
 		for (let i = startIndex; i < startIndex + count; i++) {
-			const derivationSuffix = toBase64Suffix(i)
-			const keyID = `${derivationPrefix} ${derivationSuffix}`
+			const derivationSuffix = String(i)
+			const keyID = `${prefix} ${derivationSuffix}`
 
 			const { publicKey } = await ctx.wallet.getPublicKey({
 				protocolID: P1SAT_PROTOCOL,
@@ -101,7 +83,7 @@ export const deriveDepositAddresses: Action<
 			derivations.push({
 				address: PublicKey.fromString(publicKey).toAddress(),
 				index: i,
-				derivationPrefix,
+				derivationPrefix: prefix,
 				derivationSuffix,
 				senderIdentityKey,
 				publicKey,
@@ -117,7 +99,6 @@ export const deriveDepositAddresses: Action<
 // ============================================================================
 
 export { type AddressDerivation, P1SAT_PROTOCOL }
-export { toBase64Prefix, toBase64Suffix }
 
 /** All address actions for registry */
 export const addressesActions = [deriveDepositAddresses]

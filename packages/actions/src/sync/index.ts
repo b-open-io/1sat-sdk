@@ -8,7 +8,7 @@
 
 import { type AddressDerivation, P1SAT_PROTOCOL } from '@1sat/types'
 import type { SyncOutput, SyncProgress } from '@1sat/types'
-import { PublicKey, Utils } from '@bsv/sdk'
+import { PublicKey } from '@bsv/sdk'
 import type { Action, OneSatContext } from '../types'
 import {
 	type OutputDerivation,
@@ -24,29 +24,12 @@ import { syncMessages } from './syncMessages'
 const REORG_SAFE_DEPTH = 6
 
 // ============================================================================
-// Address derivation helpers (shared with deriveDepositAddresses action)
-// ============================================================================
-
-function toBase64Prefix(prefix: string): string {
-	return Utils.toBase64(Array.from(new TextEncoder().encode(prefix)))
-}
-
-function toBase64Suffix(index: number): string {
-	return Utils.toBase64([
-		(index >>> 24) & 0xff,
-		(index >>> 16) & 0xff,
-		(index >>> 8) & 0xff,
-		index & 0xff,
-	])
-}
-
-// ============================================================================
 // Types
 // ============================================================================
 
 export interface SyncAddressesInput {
-	/** BRC-29 derivation prefix (default: "1sat", matching `wallet address`). */
-	prefix?: string
+	/** KeyID prefix string (e.g., "yours", "1sat", "mcp") */
+	prefix: string
 	/** First address index to derive (default: 0) */
 	startIndex?: number
 	/** Number of addresses to derive (default: 1) */
@@ -54,8 +37,6 @@ export interface SyncAddressesInput {
 	/** Optional progress callback for UI consumers showing indexing status */
 	onProgress?: (progress: SyncProgress) => void
 }
-
-const DEFAULT_SYNC_PREFIX = '1sat'
 
 export interface SyncAddressesResult {
 	/** Number of transactions successfully internalized */
@@ -103,8 +84,7 @@ export const syncAddresses: Action<SyncAddressesInput, SyncAddressesResult> = {
 			properties: {
 				prefix: {
 					type: 'string',
-					description:
-						'BRC-29 derivation prefix (default: "1sat", matching `wallet address`)',
+					description: 'KeyID prefix string (e.g., "yours", "1sat", "mcp")',
 				},
 				startIndex: {
 					type: 'integer',
@@ -115,17 +95,13 @@ export const syncAddresses: Action<SyncAddressesInput, SyncAddressesResult> = {
 					description: 'Number of addresses to derive (default: 1)',
 				},
 			},
+			required: ['prefix'],
 		},
 		requiresServices: true,
 	},
 
 	async execute(ctx, input) {
-		const {
-			prefix = DEFAULT_SYNC_PREFIX,
-			startIndex = 0,
-			count = 1,
-			onProgress,
-		} = input
+		const { prefix, startIndex = 0, count = 1, onProgress } = input
 		const services = ctx.services
 		if (!services) {
 			throw new Error('syncAddresses requires services in context')
@@ -136,12 +112,11 @@ export const syncAddresses: Action<SyncAddressesInput, SyncAddressesResult> = {
 			identityKey: true,
 		})
 
-		const derivationPrefix = toBase64Prefix(prefix)
 		const derivations: AddressDerivation[] = []
 
 		for (let i = startIndex; i < startIndex + count; i++) {
-			const derivationSuffix = toBase64Suffix(i)
-			const keyID = `${derivationPrefix} ${derivationSuffix}`
+			const derivationSuffix = String(i)
+			const keyID = `${prefix} ${derivationSuffix}`
 
 			const { publicKey } = await ctx.wallet.getPublicKey({
 				protocolID: P1SAT_PROTOCOL,
@@ -152,7 +127,7 @@ export const syncAddresses: Action<SyncAddressesInput, SyncAddressesResult> = {
 			derivations.push({
 				address: PublicKey.fromString(publicKey).toAddress(),
 				index: i,
-				derivationPrefix,
+				derivationPrefix: prefix,
 				derivationSuffix,
 				senderIdentityKey: identityKey,
 				publicKey,

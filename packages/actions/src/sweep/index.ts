@@ -18,8 +18,7 @@ import {
 	Transaction,
 	Utils,
 } from '@bsv/sdk'
-import { toBase64Prefix, toBase64Suffix } from '../addresses'
-import { BSV21_BASKET, BSV21_PROTOCOL, ONESAT_PROTOCOL } from '../constants'
+import { BSV21_BASKET, P1SAT_PROTOCOL } from '../constants'
 import { resolveOrdinalTags } from '../ordinals'
 import type { Action, ActionLogEntry, OneSatContext } from '../types'
 import {
@@ -186,9 +185,18 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 				}
 			}
 
-			// Derive a BRC-29 deposit address from the receiving wallet
-			const derivationPrefix = toBase64Prefix('sweep')
-			const derivationSuffix = toBase64Suffix(Date.now() & 0x7fffffff)
+			// Derive a BRC-29 deposit address from the receiving wallet.
+			// BRC-29 derivation expects base64-encoded prefix/suffix.
+			const suffixIdx = Date.now() & 0x7fffffff
+			const derivationPrefix = Utils.toBase64(
+				Array.from(new TextEncoder().encode('sweep')),
+			)
+			const derivationSuffix = Utils.toBase64([
+				(suffixIdx >>> 24) & 0xff,
+				(suffixIdx >>> 16) & 0xff,
+				(suffixIdx >>> 8) & 0xff,
+				suffixIdx & 0xff,
+			])
 			const keyID = `${derivationPrefix} ${derivationSuffix}`
 
 			const { publicKey: senderIdentityKey } = await ctx.wallet.getPublicKey({
@@ -435,7 +443,7 @@ export const sweepOrdinals: Action<
 				})
 
 				const pubKeyResult = await ctx.wallet.getPublicKey({
-					protocolID: ONESAT_PROTOCOL,
+					protocolID: P1SAT_PROTOCOL,
 					keyID: input.outpoint,
 					forSelf: true,
 				})
@@ -457,7 +465,7 @@ export const sweepOrdinals: Action<
 					basket,
 					tags,
 					customInstructions: JSON.stringify({
-						protocolID: ONESAT_PROTOCOL,
+						protocolID: P1SAT_PROTOCOL,
 						keyID: input.outpoint,
 						...(ordName && { name: ordName }),
 					}),
@@ -530,7 +538,7 @@ export const sweepOrdinals: Action<
 			if (ctx.debug && ctx.log) {
 				const logOutputs: ActionLogEntry['outputs'] = inputs.map((inp, i) => ({
 					index: i,
-					protocolID: ONESAT_PROTOCOL,
+					protocolID: P1SAT_PROTOCOL,
 					keyID: inp.outpoint,
 					satoshis: 1,
 				}))
@@ -714,7 +722,7 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 			// 1. Token output (1 sat) - derive key for this token
 			const keyID = `${tokenId}-${Date.now()}`
 			const pubKeyResult = await ctx.wallet.getPublicKey({
-				protocolID: BSV21_PROTOCOL,
+				protocolID: P1SAT_PROTOCOL,
 				keyID,
 				forSelf: true,
 			})
@@ -747,7 +755,7 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 						: []),
 				],
 				customInstructions: JSON.stringify({
-					protocolID: BSV21_PROTOCOL,
+					protocolID: P1SAT_PROTOCOL,
 					keyID,
 					...(tokenDetails.token.sym && {
 						sym: tokenDetails.token.sym,
@@ -843,7 +851,7 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 					outputs: [
 						{
 							index: 0,
-							protocolID: BSV21_PROTOCOL,
+							protocolID: P1SAT_PROTOCOL,
 							keyID,
 							basket: BSV21_BASKET,
 							satoshis: 1,

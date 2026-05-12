@@ -161,22 +161,11 @@ export const P1SAT_AIP_PLACEHOLDER = '1SATPM:AIP'
 export const P1SAT_AIP_PLACEHOLDER_PREFIX = '1SATPM:AIP:'
 export const P1SAT_SIGMA_PLACEHOLDER_PREFIX = '1SATPM:SIGMA:'
 
-/**
- * @deprecated Use {@link P1SAT_PROTOCOL} directly. Aliased to P1SAT_PROTOCOL
- * so existing call sites continue to function under the unified scheme.
- */
-export const ONESAT_PROTOCOL: [0 | 1 | 2, string] = P1SAT_PROTOCOL
-
 export const MESSAGE_SIGNING_PROTOCOL: [0 | 1 | 2, string] = [
 	1,
 	'message signing',
 ]
 
-/**
- * @deprecated Use {@link P1SAT_PROTOCOL} directly. Aliased to P1SAT_PROTOCOL
- * so existing call sites continue to function under the unified scheme.
- */
-export const BSV21_PROTOCOL: [0 | 1 | 2, string] = P1SAT_PROTOCOL
 export const BAP_PROTOCOL_ID: [0 | 1 | 2, string] = [1, 'sigma']
 export const BAP_KEY_ID = 'identity'
 export const BAP_BITCOM_ADDRESS = '1BAPSuaPnfGnSBM3GLV9yhxUdYe4vGbdMT'

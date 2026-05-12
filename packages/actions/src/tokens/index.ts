@@ -24,7 +24,7 @@ import {
 	BSV21_AUTH_BASKET,
 	BSV21_BASKET,
 	BSV21_DEPLOY_FUNDING_BASKET,
-	BSV21_PROTOCOL,
+	P1SAT_PROTOCOL,
 } from '../constants'
 import type {
 	Action,
@@ -492,7 +492,7 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 			// Build recipient outputs
 			for (const r of resolved) {
 				const recipientResolved = await resolveDestination(ctx, r.destination, {
-					protocolID: BSV21_PROTOCOL,
+					protocolID: P1SAT_PROTOCOL,
 					keyIDPrefix: tokenId,
 				})
 				recipientKeyIDs.push(recipientResolved.customInstructions?.keyID)
@@ -515,7 +515,7 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				tokenOutputCount += 1
 				changeKeyID = `${tokenId}-${Date.now()}`
 				const { publicKey } = await ctx.wallet.getPublicKey({
-					protocolID: BSV21_PROTOCOL,
+					protocolID: P1SAT_PROTOCOL,
 					keyID: changeKeyID,
 					counterparty: 'self',
 					forSelf: true,
@@ -543,7 +543,7 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 							: []),
 					],
 					customInstructions: JSON.stringify({
-						protocolID: BSV21_PROTOCOL,
+						protocolID: P1SAT_PROTOCOL,
 						keyID: changeKeyID,
 						...(tokenDetails.token.sym && {
 							sym: tokenDetails.token.sym,
@@ -632,7 +632,7 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 			if (ctx.debug && ctx.log) {
 				const logOutputs: ActionLogEntry['outputs'] = resolved.map((_r, i) => ({
 					index: i,
-					protocolID: BSV21_PROTOCOL,
+					protocolID: P1SAT_PROTOCOL,
 					keyID: recipientKeyIDs[i],
 					basket: BSV21_BASKET,
 					satoshis: 1,
@@ -640,7 +640,7 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				if (change > 0n) {
 					logOutputs.push({
 						index: resolved.length,
-						protocolID: BSV21_PROTOCOL,
+						protocolID: P1SAT_PROTOCOL,
 						keyID: changeKeyID,
 						basket: BSV21_BASKET,
 						satoshis: 1,
@@ -761,7 +761,7 @@ export const purchaseBsv21: Action<
 
 			const bsv21KeyID = `${tokenId}-${outpoint}`
 			const { publicKey } = await ctx.wallet.getPublicKey({
-				protocolID: BSV21_PROTOCOL,
+				protocolID: P1SAT_PROTOCOL,
 				keyID: bsv21KeyID,
 				counterparty: 'self',
 				forSelf: true,
@@ -797,7 +797,7 @@ export const purchaseBsv21: Action<
 						: []),
 				],
 				customInstructions: JSON.stringify({
-					protocolID: BSV21_PROTOCOL,
+					protocolID: P1SAT_PROTOCOL,
 					keyID: bsv21KeyID,
 					...(tokenDetails.token.sym && {
 						sym: tokenDetails.token.sym,
@@ -900,7 +900,7 @@ export const purchaseBsv21: Action<
 					outputs: [
 						{
 							index: 0,
-							protocolID: BSV21_PROTOCOL,
+							protocolID: P1SAT_PROTOCOL,
 							keyID: bsv21KeyID,
 							basket: BSV21_BASKET,
 							satoshis: 1,
@@ -993,7 +993,7 @@ async function executeBsv21Deploy(args: {
 
 	const fundingKeyID = `bsv21-deploy-fund-${symbol}-${Date.now()}`
 	const { publicKey: fundingPubKey } = await ctx.wallet.getPublicKey({
-		protocolID: BSV21_PROTOCOL,
+		protocolID: P1SAT_PROTOCOL,
 		keyID: fundingKeyID,
 		counterparty: 'self',
 		forSelf: true,
@@ -1010,7 +1010,7 @@ async function executeBsv21Deploy(args: {
 				outputDescription: 'Deploy funding intermediate',
 				basket: BSV21_DEPLOY_FUNDING_BASKET,
 				customInstructions: JSON.stringify({
-					protocolID: BSV21_PROTOCOL,
+					protocolID: P1SAT_PROTOCOL,
 					keyID: fundingKeyID,
 				}),
 			},
@@ -1049,7 +1049,7 @@ async function executeBsv21Deploy(args: {
 		ctx,
 		deployTx,
 		0,
-		BSV21_PROTOCOL,
+		P1SAT_PROTOCOL,
 		fundingKeyID,
 	)
 	if (typeof sigResult !== 'string') {
@@ -1167,7 +1167,7 @@ export const deployBsv21Mint: Action<
 			}
 
 			const resolved = await resolveDestination(ctx, destination, {
-				protocolID: BSV21_PROTOCOL,
+				protocolID: P1SAT_PROTOCOL,
 				keyIDPrefix: `bsv21-deploy-${symbol}`,
 			})
 
@@ -1227,7 +1227,7 @@ export const deployBsv21Mint: Action<
 					outputs: [
 						{
 							index: 0,
-							protocolID: BSV21_PROTOCOL,
+							protocolID: P1SAT_PROTOCOL,
 							keyID: resolved.customInstructions?.keyID,
 							basket: BSV21_BASKET,
 							satoshis: 1,
@@ -1294,7 +1294,7 @@ export const deployBsv21Auth: Action<
 			const { symbol, decimals = 0, icon, destination } = input
 
 			const resolved = await resolveDestination(ctx, destination, {
-				protocolID: BSV21_PROTOCOL,
+				protocolID: P1SAT_PROTOCOL,
 				keyIDPrefix: `bsv21-auth-${symbol}`,
 			})
 
@@ -1340,7 +1340,7 @@ export const deployBsv21Auth: Action<
 					outputs: [
 						{
 							index: 0,
-							protocolID: BSV21_PROTOCOL,
+							protocolID: P1SAT_PROTOCOL,
 							keyID: resolved.customInstructions?.keyID,
 							basket: BSV21_AUTH_BASKET,
 							satoshis: 1,
@@ -1471,7 +1471,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 
 			if (mint) {
 				const mintResolved = await resolveDestination(ctx, mint.destination, {
-					protocolID: BSV21_PROTOCOL,
+					protocolID: P1SAT_PROTOCOL,
 					keyIDPrefix: `bsv21-mint-${tokenId}`,
 				})
 				const mintScript = BSV21.mint(tokenId, mintAmount).lock(
@@ -1511,7 +1511,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 					ctx,
 					auth?.destination,
 					{
-						protocolID: BSV21_PROTOCOL,
+						protocolID: P1SAT_PROTOCOL,
 						keyIDPrefix: `bsv21-auth-${tokenId}`,
 					},
 				)

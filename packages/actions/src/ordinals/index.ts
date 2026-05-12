@@ -26,7 +26,7 @@ import {
 	type WalletOutput,
 } from '@bsv/sdk'
 import {
-	ONESAT_PROTOCOL,
+	P1SAT_PROTOCOL,
 	OPNS_BASKET,
 	ORDINALS_BASKET,
 	ORD_LOCK_PREFIX,
@@ -63,31 +63,47 @@ export async function resolveOrdinalTags(
 		name?: string
 	},
 ): Promise<{ tags: string[]; basket: string }> {
-	// Extract known values from source tags or explicit fields
-	let contentType = source?.contentType
+	// Extract known values from source tags or explicit fields.
+	// `type:` is hierarchical (e.g. both `type:image` and `type:image/png`)
+	// — collect every value so we can re-emit the full set.
+	const contentTypes: string[] = source?.contentType ? [source.contentType] : []
 	let origin = source?.origin
 	let name = source?.name
 
 	if (source?.tags) {
 		for (const tag of source.tags) {
-			if (!contentType && tag.startsWith('type:')) contentType = tag.slice(5)
+			if (tag.startsWith('type:')) {
+				const ct = tag.slice(5)
+				if (!contentTypes.includes(ct)) contentTypes.push(ct)
+			}
 			if (!origin && tag === 'origin') origin = outpoint
 			else if (!origin && tag.startsWith('origin:')) origin = tag.slice(7)
 			if (name === undefined && tag.startsWith('name:')) name = tag.slice(5)
 		}
 	}
+	// Primary content type for downstream branching (basket selection, OPNS,
+	// MAP-name extraction). Most specific value comes last when the indexer
+	// pushes hierarchical `[category, fullType]`, so pick the trailing entry.
+	const contentType =
+		contentTypes.length > 0 ? contentTypes[contentTypes.length - 1] : undefined
 
 	// Fetch missing type/origin from ORDFS metadata (seq -2 = origin resolution)
-	if ((!contentType || !origin) && ctx.services) {
+	let resolvedContentType = contentType
+	if ((!resolvedContentType || !origin) && ctx.services) {
 		try {
 			const metadata = await ctx.services.ordfs.getMetadata(outpoint, -2)
-			contentType = contentType ?? metadata.contentType
+			if (!resolvedContentType && metadata.contentType) {
+				resolvedContentType = metadata.contentType
+				if (!contentTypes.includes(metadata.contentType)) {
+					contentTypes.push(metadata.contentType)
+				}
+			}
 			origin = origin ?? metadata.origin ?? outpoint
 
 			// Non-OPNS: try MAP metadata for name
 			if (
 				name === undefined &&
-				contentType !== 'application/op-ns' &&
+				resolvedContentType !== 'application/op-ns' &&
 				metadata.map
 			) {
 				const mapName = metadata.map.name
@@ -108,7 +124,7 @@ export async function resolveOrdinalTags(
 	// OPNS: name is inscription content
 	if (
 		name === undefined &&
-		contentType === 'application/op-ns' &&
+		resolvedContentType === 'application/op-ns' &&
 		ctx.services
 	) {
 		try {
@@ -120,12 +136,12 @@ export async function resolveOrdinalTags(
 	}
 
 	const tags: string[] = []
-	if (contentType) tags.push(`type:${contentType}`)
+	for (const ct of contentTypes) tags.push(`type:${ct}`)
 	if (origin) tags.push(`origin:${origin}`)
 	if (name) tags.push(`name:${name.slice(0, 64)}`)
 
 	const basket =
-		contentType === 'application/op-ns' ? OPNS_BASKET : ORDINALS_BASKET
+		resolvedContentType === 'application/op-ns' ? OPNS_BASKET : ORDINALS_BASKET
 
 	return { tags, basket }
 }
@@ -206,7 +222,7 @@ async function deriveCancelAddressInternal(
 	outpoint: string,
 ): Promise<string> {
 	const result = await ctx.wallet.getPublicKey({
-		protocolID: ONESAT_PROTOCOL,
+		protocolID: P1SAT_PROTOCOL,
 		keyID: outpoint,
 		forSelf: true,
 	})
@@ -341,7 +357,7 @@ export async function buildTransferOrdinals(
 		let recipientAddress: string
 		if (counterparty) {
 			const { publicKey } = await ctx.wallet.getPublicKey({
-				protocolID: ONESAT_PROTOCOL,
+				protocolID: P1SAT_PROTOCOL,
 				keyID: outpoint,
 				counterparty,
 				forSelf: false,
@@ -399,7 +415,7 @@ export async function buildTransferOrdinals(
 				basket,
 				tags,
 				customInstructions: JSON.stringify({
-					protocolID: ONESAT_PROTOCOL,
+					protocolID: P1SAT_PROTOCOL,
 					keyID: outpoint,
 					counterparty,
 					...(sourceName && { name: sourceName }),
@@ -483,7 +499,7 @@ export async function buildListOrdinal(
 				basket,
 				tags,
 				customInstructions: JSON.stringify({
-					protocolID: ONESAT_PROTOCOL,
+					protocolID: P1SAT_PROTOCOL,
 					keyID: outpoint,
 					...(sourceName && { name: sourceName }),
 				}),
@@ -759,7 +775,7 @@ export const transferOrdinals: Action<
 				const logOutputs: ActionLogEntry['outputs'] = input.transfers.map(
 					(t, i) => ({
 						index: i,
-						protocolID: ONESAT_PROTOCOL,
+						protocolID: P1SAT_PROTOCOL,
 						keyID: t.ordinal.outpoint,
 						basket: ORDINALS_BASKET,
 						satoshis: 1,
@@ -879,7 +895,7 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 						outputs: [
 							{
 								index: 0,
-								protocolID: ONESAT_PROTOCOL,
+								protocolID: P1SAT_PROTOCOL,
 								keyID: input.ordinal.outpoint,
 								basket: ORDINALS_BASKET,
 								satoshis: 1,
@@ -1114,7 +1130,7 @@ export const purchaseOrdinal: Action<
 			}
 
 			const { publicKey } = await ctx.wallet.getPublicKey({
-				protocolID: ONESAT_PROTOCOL,
+				protocolID: P1SAT_PROTOCOL,
 				keyID: outpoint,
 				counterparty: 'self',
 				forSelf: true,
@@ -1137,7 +1153,7 @@ export const purchaseOrdinal: Action<
 				basket,
 				tags,
 				customInstructions: JSON.stringify({
-					protocolID: ONESAT_PROTOCOL,
+					protocolID: P1SAT_PROTOCOL,
 					keyID: outpoint,
 					...(input.name && { name: input.name }),
 				}),
@@ -1208,7 +1224,7 @@ export const purchaseOrdinal: Action<
 					outputs: [
 						{
 							index: 0,
-							protocolID: ONESAT_PROTOCOL,
+							protocolID: P1SAT_PROTOCOL,
 							keyID: outpoint,
 							basket: basket,
 							satoshis: 1,

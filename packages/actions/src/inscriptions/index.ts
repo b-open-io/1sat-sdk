@@ -9,7 +9,7 @@ import type { Destination } from '@1sat/types'
 import { type LockingScript, P2PKH, PublicKey, Script, Utils } from '@bsv/sdk'
 import {
 	MAX_INSCRIPTION_BYTES,
-	ONESAT_PROTOCOL,
+	P1SAT_PROTOCOL,
 	ORDINALS_BASKET,
 	SIGMA_BASKET,
 } from '../constants'
@@ -78,7 +78,7 @@ async function inscribeWithSigma(
 ): Promise<InscribeResponse> {
 	const anchorKeyID = `anchor-${Date.now()}`
 	const { publicKey: anchorPubKey } = await ctx.wallet.getPublicKey({
-		protocolID: ONESAT_PROTOCOL,
+		protocolID: P1SAT_PROTOCOL,
 		keyID: anchorKeyID,
 		counterparty: 'self',
 		forSelf: true,
@@ -98,7 +98,7 @@ async function inscribeWithSigma(
 					outputDescription: 'Sigma anchor',
 					basket: SIGMA_BASKET,
 					customInstructions: JSON.stringify({
-						protocolID: ONESAT_PROTOCOL,
+						protocolID: P1SAT_PROTOCOL,
 						keyID: anchorKeyID,
 					}),
 				},
@@ -168,7 +168,7 @@ async function inscribeWithSigma(
 				ctx,
 				tx,
 				0,
-				ONESAT_PROTOCOL,
+				P1SAT_PROTOCOL,
 				anchorKeyID,
 			)
 			if (typeof unlocking !== 'string') throw new Error(unlocking.error)
@@ -191,7 +191,7 @@ async function inscribeWithSigma(
 			outputs: [
 				{
 					index: 0,
-					protocolID: ONESAT_PROTOCOL,
+					protocolID: P1SAT_PROTOCOL,
 					keyID: outputKeyIDForLog,
 					basket: ORDINALS_BASKET,
 					satoshis: 1,
@@ -254,7 +254,7 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 			}
 
 			const resolved = await resolveDestination(ctx, input.destination, {
-				protocolID: ONESAT_PROTOCOL,
+				protocolID: P1SAT_PROTOCOL,
 				keyIDPrefix: 'inscribe',
 			})
 
@@ -332,7 +332,7 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 					outputs: [
 						{
 							index: 0,
-							protocolID: ONESAT_PROTOCOL,
+							protocolID: P1SAT_PROTOCOL,
 							keyID: resolved.customInstructions?.keyID,
 							basket: ORDINALS_BASKET,
 							satoshis: 1,
