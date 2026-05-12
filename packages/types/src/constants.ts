@@ -139,6 +139,22 @@ export function buildInputAssetLabel(basket: string, id: string): string {
 }
 
 /**
+ * BRC-111 P-label prefix used to tag actions with a BSV21 token id so the
+ * wallet can filter transaction history per token via
+ * `wallet.listActions({ labels: [...] })`. As a `'p 1sat '`-prefixed label
+ * it routes through the 1Sat permission module instead of triggering the
+ * wallet-toolbox's per-label Protocol Permission prompt.
+ */
+export const P1SAT_TOKEN_LABEL_PREFIX = 'p 1sat bsv21 '
+
+/**
+ * Build a BSV21 token label, e.g. `'p 1sat bsv21 <tokenId>'`.
+ */
+export function buildTokenLabel(tokenId: string): string {
+	return `${P1SAT_TOKEN_LABEL_PREFIX}${tokenId}`
+}
+
+/**
  * Read the asset id (the `id:` tag value) off a wallet output's tags.
  * Returns `undefined` when the output predates per-output tracking ids
  * — in which case the caller should not emit an input asset label.

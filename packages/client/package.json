@@ -1,6 +1,6 @@
 {
   "name": "@1sat/client",
-  "version": "0.0.34",
+  "version": "0.0.35",
   "description": "API client for 1Sat Ordinals SDK",
   "type": "module",
   "main": "./dist/index.js",

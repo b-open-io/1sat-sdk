@@ -14,6 +14,7 @@
  */
 
 import { MessageBoxClient } from '@bsv/p2p'
+import { buildTokenLabel } from '@1sat/types'
 import { Utils, type WalletInterface } from '@bsv/sdk'
 import type { Action } from '../types'
 
@@ -230,7 +231,7 @@ export const syncCosignDeliveries: Action<
 						},
 					],
 					description: `Cosign token delivery (${tokenIdShort}…)`.slice(0, 50),
-					labels: [`bsv21:${tokenId}`],
+					labels: [buildTokenLabel(tokenId)],
 				})
 				acknowledgedIds.push(msg.messageId)
 				processed++

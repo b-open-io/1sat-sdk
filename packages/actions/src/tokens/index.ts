@@ -8,6 +8,7 @@ import { BSV21, OrdLock, P2MS } from '@1sat/templates'
 import {
 	type Destination,
 	buildInputAssetLabel,
+	buildTokenLabel,
 	readAssetIdTag,
 } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
@@ -589,7 +590,7 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				ctx.wallet,
 				{
 					description: `Send ${symbol} to ${resolved.length} recipient${resolved.length > 1 ? 's' : ''}`,
-					labels: [`bsv21:${tokenId}`, ...inputLabels],
+					labels: [buildTokenLabel(tokenId), ...inputLabels],
 					inputBEEF,
 					inputs: selected.map((o) => ({
 						outpoint: o.outpoint,
@@ -854,7 +855,7 @@ export const purchaseBsv21: Action<
 				ctx.wallet,
 				{
 					description: `Purchase ${tokenAmount} tokens for ${payoutSatoshis} sats`,
-					labels: [`bsv21:${tokenId}`],
+					labels: [buildTokenLabel(tokenId)],
 					inputBEEF: beefBinary,
 					inputs: [
 						{
@@ -1117,7 +1118,6 @@ async function executeBsv21Deploy(args: {
 			},
 		],
 		description: args.description,
-		labels: ['bsv21:deploy'],
 	})
 
 	return {
@@ -1587,7 +1587,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 						? `Mint ${mintAmount} ${symbol}`
 						: `Re-issue ${symbol} authority`,
 					labels: [
-						`bsv21:${tokenId}`,
+						buildTokenLabel(tokenId),
 						...(authInputId
 							? [buildInputAssetLabel(BSV21_AUTH_BASKET, authInputId)]
 							: []),
