@@ -74,19 +74,26 @@ export async function handleCreateActionRequest(
 }
 
 /**
- * Pre-resolve content URLs for each input asset that has an `origin:`
- * tag, so the UI doesn't need to know how to construct ORDFS URLs.
+ * Pre-resolve content URLs for each asset that carries an `origin:` tag,
+ * so the UI doesn't need to know how to construct ORDFS URLs.
+ *
+ * Map is keyed by origin value. Both labeled inputs (transfer, list,
+ * cancel-listing) and basket-bound outputs (purchase incoming ordinal,
+ * other "asset received into wallet" flows) get resolved.
  */
 function buildContentUrlMap(
 	enriched: ReturnType<typeof enrichIntent> extends Promise<infer T> ? T : never,
 ): Record<string, string> {
 	const out: Record<string, string> = {}
-	for (const asset of enriched.inputs) {
-		const origin = asset.tags.find((t) => t.startsWith('origin:'))
-		if (!origin) continue
-		const value = origin.slice('origin:'.length)
-		out[asset.id] = enriched.contentUrlForOrigin(value)
+	const add = (tags: string[]): void => {
+		const tag = tags.find((t) => t.startsWith('origin:'))
+		if (!tag) return
+		const value = tag.slice('origin:'.length)
+		if (!value || out[value]) return
+		out[value] = enriched.contentUrlForOrigin(value)
 	}
+	for (const asset of enriched.inputs) add(asset.tags)
+	for (const output of enriched.outputs) add(output.tags)
 	return out
 }
 

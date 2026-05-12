@@ -28,7 +28,14 @@ export const promptStyles = `
   flex-direction: column;
   width: 100%;
   max-width: 480px;
+  min-height: 100%;
   overflow: hidden;
+}
+
+.opp-bottom {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .opp-root.opp-dark {

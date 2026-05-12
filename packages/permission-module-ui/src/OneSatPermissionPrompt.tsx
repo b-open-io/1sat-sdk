@@ -137,43 +137,45 @@ export function OneSatPermissionPrompt({
 				</div>
 			)}
 
-			{(summary.network || summary.feeSats !== undefined) && (
-				<div className="opp-meta">
-					{summary.network && (
-						<span>
-							Network <span className="opp-meta-value">{summary.network}</span>
-						</span>
-					)}
-					{summary.feeSats !== undefined && (
-						<span>
-							Estimated Fee{' '}
-							<span className="opp-meta-value">{summary.feeSats} sats</span>
-						</span>
-					)}
+			<div className="opp-bottom">
+				{(summary.network || summary.feeSats !== undefined) && (
+					<div className="opp-meta">
+						{summary.network && (
+							<span>
+								Network <span className="opp-meta-value">{summary.network}</span>
+							</span>
+						)}
+						{summary.feeSats !== undefined && (
+							<span>
+								Estimated Fee{' '}
+								<span className="opp-meta-value">{summary.feeSats} sats</span>
+							</span>
+						)}
+					</div>
+				)}
+
+				<div className="opp-actions">
+					<button
+						type="button"
+						className="opp-button opp-button-reject"
+						onClick={handle('reject')}
+						disabled={busy}
+					>
+						Reject
+					</button>
+					<button
+						type="button"
+						className="opp-button opp-button-approve"
+						onClick={handle('approve')}
+						disabled={busy}
+					>
+						Approve
+					</button>
 				</div>
-			)}
 
-			<div className="opp-actions">
-				<button
-					type="button"
-					className="opp-button opp-button-reject"
-					onClick={handle('reject')}
-					disabled={busy}
-				>
-					Reject
-				</button>
-				<button
-					type="button"
-					className="opp-button opp-button-approve"
-					onClick={handle('approve')}
-					disabled={busy}
-				>
-					Approve
-				</button>
-			</div>
-
-			<div className="opp-footer">
-				<span>Secured by 1Sat Ordinals</span>
+				<div className="opp-footer">
+					<span>Secured by 1Sat Ordinals</span>
+				</div>
 			</div>
 		</div>
 	)
@@ -222,6 +224,12 @@ function summarizeRequest(req: PromptRequest): IntentSummary {
 				return summarizeUnlock(req, intent)
 			case 'inscription':
 				return summarizeInscription(req, intent)
+			case 'listing':
+				return summarizeListing(req, intent)
+			case 'cancel-listing':
+				return summarizeCancelListing(req, intent)
+			case 'purchase':
+				return summarizePurchase(req, intent)
 			case 'social-post':
 				return summarizeSocialPost(req, intent)
 			default:
@@ -241,6 +249,9 @@ interface TransactionIntent {
 		| 'lock'
 		| 'unlock'
 		| 'inscription'
+		| 'listing'
+		| 'cancel-listing'
+		| 'purchase'
 		| 'social-post'
 		| 'opns'
 		| 'unknown'
@@ -269,7 +280,7 @@ function summarizeOrdinalTransfer(
 	const contentType = tagValue(ordinal?.tags, 'type')
 	const collectionId = tagValue(ordinal?.tags, 'collectionId')
 	const recipient = intent.outputs.find((o) => o.recipient)?.recipient
-	const imageUrl = ordinal && intent.contentUrls?.[ordinal.id]
+	const imageUrl = origin ? intent.contentUrls?.[origin] : undefined
 
 	const rows: DetailRow[] = []
 	if (recipient) rows.push({ key: 'Recipient', value: recipient })
@@ -363,13 +374,148 @@ function summarizeInscription(
 	req: PromptRequest,
 	intent: TransactionIntent,
 ): IntentSummary {
-	const recipient = intent.outputs.find((o) => o.recipient)?.recipient
+	// The new inscription output is the first non-empty ordinals-bound output.
+	const inscriptionOutput =
+		intent.outputs.find((o) => o.tags.some((t) => t.startsWith('type:'))) ??
+		intent.outputs[0]
+	const contentType = tagValue(inscriptionOutput?.tags, 'type')
+	const name = tagValue(inscriptionOutput?.tags, 'name')
+	const recipient = inscriptionOutput?.recipient
 	const rows: DetailRow[] = []
+	if (contentType) rows.push({ key: 'Type', value: contentType })
+	if (name) rows.push({ key: 'Name', value: name })
 	if (recipient) rows.push({ key: 'Recipient', value: recipient })
 	return {
 		title: 'Create Inscription',
-		subtitle: `${shortenOriginator(req.originator)} wants to inscribe content`,
+		subtitle: `${shortenOriginator(req.originator)} wants to inscribe content into your wallet`,
 		rows,
+		network: networkLabel(intent.chain),
+	}
+}
+
+function summarizeListing(
+	req: PromptRequest,
+	intent: TransactionIntent,
+): IntentSummary {
+	const ordinal = intent.inputs[0]
+	const origin = tagValue(ordinal?.tags, 'origin')
+	const name = tagValue(ordinal?.tags, 'name')
+	const contentType = tagValue(ordinal?.tags, 'type')
+	const collectionId = tagValue(ordinal?.tags, 'collectionId')
+	const imageUrl = origin ? intent.contentUrls?.[origin] : undefined
+
+	const listingOutput = intent.outputs.find((o) =>
+		o.tags.some((t) => t.startsWith('price:')),
+	)
+	const price = tagValue(listingOutput?.tags, 'price')
+
+	const rows: DetailRow[] = []
+	if (price) rows.push({ key: 'Price', value: `${price} sats` })
+	if (origin) rows.push({ key: 'Origin', value: origin })
+	if (contentType) rows.push({ key: 'Type', value: contentType })
+
+	return {
+		title: 'List Ordinal for Sale',
+		subtitle: `${shortenOriginator(req.originator)} wants to list an ordinal for sale`,
+		rows,
+		featured: imageUrl
+			? {
+					imageUrl,
+					title: name ?? 'Untitled ordinal',
+					subtitle: collectionId ?? contentType,
+				}
+			: undefined,
+		network: networkLabel(intent.chain),
+	}
+}
+
+function summarizeCancelListing(
+	req: PromptRequest,
+	intent: TransactionIntent,
+): IntentSummary {
+	const listing = intent.inputs[0]
+	const origin = tagValue(listing?.tags, 'origin')
+	const name = tagValue(listing?.tags, 'name')
+	const contentType = tagValue(listing?.tags, 'type')
+	const collectionId = tagValue(listing?.tags, 'collectionId')
+	const price = tagValue(listing?.tags, 'price')
+	const imageUrl = origin ? intent.contentUrls?.[origin] : undefined
+
+	const rows: DetailRow[] = []
+	if (price) rows.push({ key: 'Original price', value: `${price} sats` })
+	if (origin) rows.push({ key: 'Origin', value: origin })
+	if (contentType) rows.push({ key: 'Type', value: contentType })
+
+	return {
+		title: 'Cancel Listing',
+		subtitle: `${shortenOriginator(req.originator)} wants to cancel an ordinal listing`,
+		rows,
+		featured: imageUrl
+			? {
+					imageUrl,
+					title: name ?? 'Untitled ordinal',
+					subtitle: collectionId ?? contentType,
+				}
+			: undefined,
+		network: networkLabel(intent.chain),
+	}
+}
+
+function summarizePurchase(
+	req: PromptRequest,
+	intent: TransactionIntent,
+): IntentSummary {
+	// The asset coming into the wallet is the first basket-bound output.
+	const incoming = intent.outputs.find(
+		(o) => o.basket === '1sat' || o.basket === 'bsv21',
+	)
+	const isToken = incoming?.basket === 'bsv21'
+	const origin = tagValue(incoming?.tags, 'origin')
+	const name = tagValue(incoming?.tags, 'name')
+	const contentType = tagValue(incoming?.tags, 'type')
+	const collectionId = tagValue(incoming?.tags, 'collectionId')
+	const sym = tagValue(incoming?.tags, 'sym')
+	const amt = tagValue(incoming?.tags, 'amt')
+	const tokenId = tagValue(incoming?.tags, 'bsv21')
+
+	// Seller payment is the unbasketed P2PKH output with sats > 1.
+	const sellerOutput = intent.outputs.find(
+		(o) => !o.basket && o.recipient && o.satoshis > 1,
+	)
+	const price = sellerOutput?.satoshis
+
+	const rows: DetailRow[] = []
+	if (price !== undefined) rows.push({ key: 'Price', value: `${price} sats` })
+	if (isToken) {
+		if (amt) rows.push({ key: 'Amount', value: amt })
+		if (sym || tokenId) {
+			rows.push({
+				key: 'Token',
+				value: sym && tokenId ? `${sym} — ${shortenId(tokenId)}` : sym ?? shortenId(tokenId ?? ''),
+			})
+		}
+	} else {
+		if (origin) rows.push({ key: 'Origin', value: origin })
+		if (contentType) rows.push({ key: 'Type', value: contentType })
+	}
+
+	const featuredImage =
+		!isToken && origin ? intent.contentUrls?.[origin] : undefined
+
+	return {
+		title: isToken ? 'Purchase Tokens' : 'Purchase Ordinal',
+		subtitle: isToken
+			? `${shortenOriginator(req.originator)} wants to purchase tokens into your wallet`
+			: `${shortenOriginator(req.originator)} wants to purchase an ordinal into your wallet`,
+		rows,
+		featured:
+			!isToken && featuredImage
+				? {
+						imageUrl: featuredImage,
+						title: name ?? 'Untitled ordinal',
+						subtitle: collectionId ?? contentType,
+					}
+				: undefined,
 		network: networkLabel(intent.chain),
 	}
 }

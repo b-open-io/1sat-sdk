@@ -86,7 +86,11 @@ async function inscribeWithSigma(
 	const anchorAddress = PublicKey.fromString(anchorPubKey).toAddress()
 	const anchorLockingScript = new P2PKH().lock(anchorAddress)
 
-	// Step 1: Create anchor tx (signed, not broadcast)
+	// Step 1: Create anchor tx (signed, not broadcast). The anchor is a
+	// 2-sat lock-in UTXO that exists only so the inscription tx in step 2
+	// can spend it to produce a Sigma signature — it is NOT a P1SAT
+	// operation. Bypass the P1SAT label/tracking so the permission module
+	// does not dispatch a preview popup for this internal plumbing step.
 	const anchorResult = await executeTrackedAction(
 		ctx.wallet,
 		{
@@ -110,6 +114,9 @@ async function inscribeWithSigma(
 			},
 		},
 		input.fundingProvider,
+		undefined,
+		undefined,
+		{ bypassP1Sat: true },
 	)
 
 	if (!anchorResult.txid) {
@@ -128,7 +135,9 @@ async function inscribeWithSigma(
 		0, // refVin — anchor input is vin 0
 	)
 
-	// Step 2: Create inscription tx, spending the anchor and broadcasting both
+	// Step 2: Create inscription tx, spending the anchor and broadcasting both.
+	// The anchor is an internal plumbing output — not surfaced to the user
+	// as an asset input. Preview renders from the inscription output's tags.
 	const result = await executeTrackedAction(
 		ctx.wallet,
 		{

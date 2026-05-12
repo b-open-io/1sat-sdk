@@ -4,7 +4,7 @@
  * Actions for time-locking BSV.
  */
 
-import { P1SAT_PROTOCOL } from '@1sat/types'
+import { P1SAT_PROTOCOL, buildInputAssetLabel, readAssetIdTag } from '@1sat/types'
 import { Lock } from '@1sat/templates'
 import {
 	type CreateActionOutput,
@@ -308,11 +308,16 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 				inputBEEF = beef.toBinary()
 			}
 
+			const inputLabels = maturedLocks
+				.map((l) => readAssetIdTag(l.output.tags))
+				.filter((id): id is string => Boolean(id))
+				.map((id) => buildInputAssetLabel(LOCK_BASKET, id))
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				{
 					description: `Unlock ${maturedLocks.length} lock(s)`,
 					inputBEEF,
+					...(inputLabels.length > 0 && { labels: inputLabels }),
 					inputs: maturedLocks.map((l) => ({
 						outpoint: l.output.outpoint,
 						inputDescription: 'Locked BSV',

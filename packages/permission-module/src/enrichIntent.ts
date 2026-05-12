@@ -20,12 +20,15 @@
  */
 
 import {
+	BAP_BASKET,
 	BSOCIAL_BASKET,
+	BSV21_AUTH_BASKET,
 	BSV21_BASKET,
 	LOCK_BASKET,
 	OPNS_BASKET,
 	ORDINALS_BASKET,
 	P1SAT_INPUT_LABEL_PREFIX,
+	SIGMA_BASKET,
 } from '@1sat/types'
 import { parseAddress } from '@1sat/wallet'
 import type {
@@ -42,6 +45,9 @@ export type EnrichedIntentKind =
 	| 'lock'
 	| 'unlock'
 	| 'inscription'
+	| 'listing'
+	| 'cancel-listing'
+	| 'purchase'
 	| 'social-post'
 	| 'opns'
 	| 'unknown'
@@ -81,9 +87,12 @@ export interface EnrichedIntent {
 const ASSET_BASKETS = [
 	ORDINALS_BASKET,
 	BSV21_BASKET,
+	BSV21_AUTH_BASKET,
 	LOCK_BASKET,
 	OPNS_BASKET,
 	BSOCIAL_BASKET,
+	SIGMA_BASKET,
+	BAP_BASKET,
 ]
 
 interface EnrichOptions {
@@ -102,7 +111,7 @@ export async function enrichIntent(
 
 	const inputRefs = parseAssetLabels(labels, P1SAT_INPUT_LABEL_PREFIX)
 	const inputs = (await Promise.all(
-		inputRefs.map((ref) => lookupAsset(wallet, ref.basket, ref.outpoint)),
+		inputRefs.map((ref) => lookupAsset(wallet, ref.basket, ref.id)),
 	)).filter((a): a is EnrichedAsset => a !== null)
 
 	const outputs = (args.outputs ?? []).map((out, i) =>
@@ -124,12 +133,12 @@ export async function enrichIntent(
 }
 
 // ---------------------------------------------------------------------------
-// Label parsing — `'p 1sat input <basket> <outpoint>'`
+// Label parsing — `'p 1sat input <basket> <id>'`
 // ---------------------------------------------------------------------------
 
 interface AssetLabelRef {
 	basket: string
-	outpoint: string
+	id: string
 }
 
 function parseAssetLabels(labels: string[], prefix: string): AssetLabelRef[] {
@@ -140,21 +149,21 @@ function parseAssetLabels(labels: string[], prefix: string): AssetLabelRef[] {
 		const sep = payload.indexOf(' ')
 		if (sep <= 0) continue
 		const basket = payload.slice(0, sep)
-		const outpoint = payload.slice(sep + 1).trim()
-		if (!basket || !outpoint) continue
-		refs.push({ basket, outpoint })
+		const id = payload.slice(sep + 1).trim()
+		if (!basket || !id) continue
+		refs.push({ basket, id })
 	}
 	return refs
 }
 
 // ---------------------------------------------------------------------------
-// Asset lookup — list outputs in the basket and find by outpoint match.
+// Asset lookup — indexed `listOutputs` query by `id:<id>` tag.
 // ---------------------------------------------------------------------------
 
 async function lookupAsset(
 	wallet: WalletInterface,
 	basket: string,
-	outpoint: string,
+	id: string,
 ): Promise<EnrichedAsset | null> {
 	// Only query baskets the module knows about — guards against malicious
 	// labels pointing at unrelated baskets.
@@ -162,16 +171,17 @@ async function lookupAsset(
 	try {
 		const result = await wallet.listOutputs({
 			basket,
+			tags: [`id:${id}`],
+			tagQueryMode: 'all',
 			includeTags: true,
 			includeCustomInstructions: true,
-			limit: 1000,
+			limit: 1,
 		})
-		const match = result.outputs.find((o) => o.outpoint === outpoint)
+		const match = result.outputs[0]
 		if (!match) return null
-		const idTag = match.tags?.find((t) => t.startsWith('id:'))
 		return {
 			basket,
-			id: idTag ? idTag.slice(3) : outpoint,
+			id,
 			outpoint: match.outpoint,
 			satoshis: match.satoshis,
 			tags: match.tags ?? [],
@@ -229,6 +239,28 @@ function detectKind(
 	inputs: EnrichedAsset[],
 	outputs: EnrichedOutput[],
 ): EnrichedIntentKind {
+	// Cancel listing: spending an ordlock-tagged input back to a P2PKH owner.
+	if (
+		inputs.some(
+			(i) =>
+				i.basket === ORDINALS_BASKET &&
+				i.tags.some((t) => t === 'ordlock' || t.startsWith('price:')),
+		)
+	) {
+		return 'cancel-listing'
+	}
+
+	// New listing: ordinal input + output carrying the ordlock/price tags.
+	if (
+		outputs.some(
+			(o) =>
+				o.basket === ORDINALS_BASKET &&
+				o.tags.some((t) => t === 'ordlock' || t.startsWith('price:')),
+		)
+	) {
+		return 'listing'
+	}
+
 	if (inputs.some((i) => i.basket === ORDINALS_BASKET)) return 'ordinal-transfer'
 	if (inputs.some((i) => i.basket === BSV21_BASKET)) return 'token-transfer'
 	if (inputs.some((i) => i.basket === LOCK_BASKET)) return 'unlock'
@@ -236,7 +268,22 @@ function detectKind(
 
 	if (outputs.some((o) => o.basket === LOCK_BASKET)) return 'lock'
 	if (outputs.some((o) => o.basket === BSOCIAL_BASKET)) return 'social-post'
+
+	// Purchase: an asset is landing in our basket AND there's a non-trivial
+	// payment going to an unbasketed recipient (the seller). No labeled
+	// wallet inputs — the listing being spent is external.
+	const hasAssetIncoming = outputs.some(
+		(o) => o.basket === ORDINALS_BASKET || o.basket === BSV21_BASKET,
+	)
+	const hasSellerPayment = outputs.some(
+		(o) => !o.basket && o.recipient && o.satoshis > 1,
+	)
+	if (inputs.length === 0 && hasAssetIncoming && hasSellerPayment) {
+		return 'purchase'
+	}
+
 	if (outputs.some((o) => o.basket === ORDINALS_BASKET)) return 'inscription'
+	if (outputs.some((o) => o.basket === BSV21_BASKET)) return 'token-transfer'
 
 	return 'unknown'
 }
@@ -262,8 +309,24 @@ function buildSummary(
 			return `Lock funds`
 		case 'unlock':
 			return `Unlock matured locks`
-		case 'inscription':
-			return `Create inscription`
+		case 'inscription': {
+			const ct = tagValue(outputs[0]?.tags, 'type')
+			return ct ? `Inscribe ${ct}` : `Create inscription`
+		}
+		case 'listing': {
+			const out = outputs.find((o) =>
+				o.tags.some((t) => t.startsWith('price:')),
+			)
+			const price = tagValue(out?.tags, 'price')
+			const name = tagValue(inputs[0]?.tags, 'name')
+			const what = name ? `“${name}”` : 'an ordinal'
+			return price ? `List ${what} for ${price} sats` : `List ${what} for sale`
+		}
+		case 'cancel-listing': {
+			const name = tagValue(inputs[0]?.tags, 'name')
+			const what = name ? `“${name}”` : 'an ordinal'
+			return `Cancel listing of ${what}`
+		}
 		case 'social-post':
 			return `Create social post`
 		case 'opns':

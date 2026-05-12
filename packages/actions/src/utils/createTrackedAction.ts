@@ -54,24 +54,42 @@ function applyOneSatLabel(args: CreateActionArgs): void {
 }
 
 /**
- * Wrapper around wallet.createAction that injects an `id:<hex>` tag
- * into every output that has a basket. All outputs in the same action
- * share the same ID, allowing targeted lookups via listOutputs tag filter.
+ * Options shared by `createTrackedAction` / `executeTrackedAction`.
+ */
+export interface TrackedActionOptions {
+	/**
+	 * When true, skip the `'p 1sat action'` dispatch label and the
+	 * per-output `id:` tracking tags. Use for internal plumbing actions
+	 * that should not surface through the 1Sat permission module
+	 * (e.g. the Sigma anchor output created inside the inscribe flow —
+	 * a 2-sat lock-in that exists only so the inscription tx can spend
+	 * it to produce a Sigma signature).
+	 */
+	bypassP1Sat?: boolean
+}
+
+/**
+ * Wrapper around wallet.createAction that injects per-output `id:` tags
+ * and the `'p 1sat action'` dispatch label for the 1Sat permission module.
  *
  * Only calls createAction(signAndProcess: false). Does NOT call signAction.
  * All signAction calls go through completeSignedAction for abort protection.
  *
  * @param wallet - BRC-100 wallet
  * @param args - Standard createAction args
+ * @param opts - Tracked-action options (e.g. `bypassP1Sat`)
  * @returns The createAction result with signableTransaction, plus the generated actionId
  */
 export async function createTrackedAction(
 	wallet: WalletInterface,
 	args: CreateActionArgs,
+	opts: TrackedActionOptions = {},
 ): Promise<CreateActionResult & { actionId: string }> {
 	const actionId = randomActionId()
-	applyTrackingTags(args, actionId)
-	applyOneSatLabel(args)
+	if (!opts.bypassP1Sat) {
+		applyTrackingTags(args, actionId)
+		applyOneSatLabel(args)
+	}
 
 	const { options, ...rest } = args
 	const createResult = await wallet.createAction({
@@ -110,11 +128,14 @@ export async function executeTrackedAction(
 	fundingProvider?: FundingProvider,
 	inputBEEF?: number[],
 	sign?: SigningCallback,
+	opts: TrackedActionOptions = {},
 ): Promise<CompleteSignedActionResult & { actionId: string }> {
 	if (fundingProvider) {
 		const actionId = randomActionId()
-		applyTrackingTags(args, actionId)
-		applyOneSatLabel(args)
+		if (!opts.bypassP1Sat) {
+			applyTrackingTags(args, actionId)
+			applyOneSatLabel(args)
+		}
 
 		const funded = await fundingProvider.fund(args)
 
@@ -138,7 +159,7 @@ export async function executeTrackedAction(
 		return { txid: funded.txid, actionId }
 	}
 
-	const createResult = await createTrackedAction(wallet, args)
+	const createResult = await createTrackedAction(wallet, args, opts)
 
 	if (!createResult.signableTransaction) {
 		return {

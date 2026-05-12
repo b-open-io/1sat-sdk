@@ -107,8 +107,8 @@ export const P1SAT_LABEL = 'p 1sat action'
 
 /**
  * Label prefix recognized by the 1Sat permission module. Carries the
- * `'p 1sat'` dispatch trigger; payload is `'<basket> <outpoint>'` —
- * a lookup key for the input asset's record in the wallet's storage.
+ * `'p 1sat'` dispatch trigger; payload is `'<basket> <id>'` — a lookup
+ * key for the input asset's record in the wallet's storage.
  *
  * Outputs don't need a label: the SDK sets tags directly on
  * `args.outputs[i].tags` (unencrypted, visible to the module), and
@@ -119,23 +119,36 @@ export const P1SAT_INPUT_LABEL_PREFIX = 'p 1sat input '
 
 /**
  * Build a label that points the 1Sat permission module at a specific
- * input asset record in the wallet's storage. The module looks the
- * record up by outpoint and reads the indexer-written tags (origin,
- * name, sym, amt, etc.) directly from wallet storage — not anything
- * the calling dApp could fabricate in args.
+ * input asset record in the wallet's storage.
  *
- * Outpoint is the natural unique key for an output. Earlier iterations
- * used the per-action `id:<hex>` tag, but that tag was shared across
- * outputs of a multi-output action, so the lookup was ambiguous.
+ * `id` is the per-output asset id assigned by `createTrackedAction`
+ * (`id:<actionId>_<vout>`) — the value stored on the input's `id:` tag,
+ * without the `id:` prefix. The module resolves the record via
+ * `listOutputs({ basket, tags: [id:<id>], tagQueryMode: 'all' })` — a
+ * single indexed lookup, not a basket scan.
  *
- * @param basket   - Basket the source output sits in (e.g. `'1sat'`).
- * @param outpoint - The input outpoint as `'txid.vout'`.
+ * Inputs without an `id:` tag (e.g. created before tracked-action ids
+ * existed) can't be enriched; callers should skip emitting the label
+ * for those rather than scanning by outpoint.
+ *
+ * @param basket - Basket the source output sits in (e.g. `'1sat'`).
+ * @param id     - The asset id, i.e. the `id:` tag value on the input.
  */
-export function buildInputAssetLabel(
-	basket: string,
-	outpoint: string,
-): string {
-	return `${P1SAT_INPUT_LABEL_PREFIX}${basket} ${outpoint}`
+export function buildInputAssetLabel(basket: string, id: string): string {
+	return `${P1SAT_INPUT_LABEL_PREFIX}${basket} ${id}`
+}
+
+/**
+ * Read the asset id (the `id:` tag value) off a wallet output's tags.
+ * Returns `undefined` when the output predates per-output tracking ids
+ * — in which case the caller should not emit an input asset label.
+ */
+export function readAssetIdTag(tags: string[] | undefined): string | undefined {
+	if (!tags) return undefined
+	for (const t of tags) {
+		if (t.startsWith('id:')) return t.slice(3)
+	}
+	return undefined
 }
 
 /**

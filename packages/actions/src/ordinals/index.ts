@@ -8,7 +8,7 @@
 import { MAP as MAPTemplate } from '@1sat/templates'
 import { OrdLock } from '@1sat/templates'
 import { parseOutpoint } from '@1sat/utils'
-import { buildInputAssetLabel } from '@1sat/types'
+import { buildInputAssetLabel, readAssetIdTag } from '@1sat/types'
 import {
 	type BEEF,
 	Beef,
@@ -380,11 +380,11 @@ export async function buildTransferOrdinals(
 			unlockingScriptLength: 108,
 		})
 
-		// Emit a per-ordinal input label for the 1Sat permission module.
-		// Module looks up the source output by outpoint in wallet storage
-		// to render trusted metadata in the prompt (origin / contentType /
-		// name from indexer-written tags).
-		labels.push(buildInputAssetLabel(ORDINALS_BASKET, outpoint))
+		// Emit a per-ordinal input label so the 1Sat permission module can
+		// resolve the source output's id-tagged record in wallet storage and
+		// render trusted metadata (origin / contentType / name).
+		const inputId = readAssetIdTag(ordinal.tags)
+		if (inputId) labels.push(buildInputAssetLabel(ORDINALS_BASKET, inputId))
 
 		// Build locking script — append MAP metadata when provided
 		const p2pkhScript = new P2PKH().lock(recipientAddress)
@@ -481,9 +481,15 @@ export async function buildListOrdinal(
 		request.inputBEEF ??
 		(await resolveBeef(ctx.wallet, ORDINALS_BASKET, ordinal))
 
+	const inputId = readAssetIdTag(ordinal.tags)
+	const labels = inputId
+		? [buildInputAssetLabel(ORDINALS_BASKET, inputId)]
+		: undefined
+
 	return {
 		description: `List ordinal for ${price} sats`,
 		inputBEEF,
+		...(labels && { labels }),
 		inputs: [
 			{
 				outpoint,
@@ -541,12 +547,18 @@ export async function buildBurnOrdinals(
 		.writeOpCode(OP.OP_FALSE)
 		.writeScript(mapScript)
 
+	const labels = ordinals
+		.map((o) => readAssetIdTag(o.tags))
+		.filter((id): id is string => Boolean(id))
+		.map((id) => buildInputAssetLabel(ORDINALS_BASKET, id))
+
 	return {
 		description:
 			ordinals.length === 1
 				? 'Burn ordinal'
 				: `Burn ${ordinals.length} ordinals`,
 		inputBEEF,
+		...(labels.length > 0 && { labels }),
 		inputs,
 		outputs: [
 			{
@@ -985,11 +997,15 @@ export const cancelListing: Action<
 				keyID,
 			)
 
+			const inputId = readAssetIdTag(listing.tags)
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				{
 					description: 'Cancel ordinal listing',
 					inputBEEF,
+					...(inputId && {
+						labels: [buildInputAssetLabel(ORDINALS_BASKET, inputId)],
+					}),
 					inputs: [
 						{
 							outpoint,
