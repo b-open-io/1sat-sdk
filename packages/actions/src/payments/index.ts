@@ -5,10 +5,41 @@
  */
 
 import { Inscription } from '@1sat/templates'
-import { type CreateActionOutput, P2PKH, Script, Utils } from '@bsv/sdk'
+import {
+	type CreateActionArgs,
+	type CreateActionOutput,
+	P2PKH,
+	Script,
+	Utils,
+} from '@bsv/sdk'
 import { getP2pPaymentDestination, sendBeefP2P } from '../paymail'
+import type { FundingProvider } from '../funding'
 import type { Action, ActionOptions } from '../types'
-import { executeTrackedAction } from '../utils/createTrackedAction'
+
+/**
+ * Plain BSV sends don't carry any P1Sat semantics — no asset inputs,
+ * no basketed outputs, no two-phase signing. They should not surface
+ * through the 1Sat permission module. We bypass `executeTrackedAction`
+ * (which would add the `'p 1sat action'` dispatch label) and call
+ * `wallet.createAction` directly, preserving `fundingProvider` support
+ * for callers that fund payments externally.
+ */
+async function dispatchPlainPayment(
+	wallet: import('@bsv/sdk').WalletInterface,
+	args: CreateActionArgs,
+	fundingProvider?: FundingProvider,
+): Promise<{ txid?: string; tx?: number[] }> {
+	const toArray = (b?: number[] | Uint8Array): number[] | undefined => {
+		if (b === undefined) return undefined
+		return Array.isArray(b) ? b : Array.from(b)
+	}
+	if (fundingProvider) {
+		const funded = await fundingProvider.fund(args)
+		return { txid: funded.txid, tx: toArray(funded.tx) }
+	}
+	const result = await wallet.createAction(args)
+	return { txid: result.txid, tx: toArray(result.tx) }
+}
 
 /**
  * Magic constant that tells the wallet to send all available funds minus fees.
@@ -192,7 +223,7 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 				})
 			}
 
-			const result = await executeTrackedAction(
+			const result = await dispatchPlainPayment(
 				ctx.wallet,
 				{
 					description: `Send ${requests.length} payment(s)`,
@@ -276,7 +307,7 @@ export const sendAllBsv: Action<SendAllBsvInput, SendBsvResponse> = {
 				}
 			}
 
-			const result = await executeTrackedAction(
+			const result = await dispatchPlainPayment(
 				ctx.wallet,
 				{
 					description: 'Send all BSV',
