@@ -12,6 +12,7 @@
  */
 
 import { Cosign } from '@1sat/templates'
+import { buildTokenLabel } from '@1sat/types'
 import { type SignActionSpend, Utils } from '@bsv/sdk'
 import {
 	COSIGN_DEFAULT_SIGHASH,
@@ -152,7 +153,7 @@ export async function finalizeCosignBsv21Transfer(
 					},
 				})),
 				description: `Cosign-multisig outputs (${multisigDests.length})`,
-				labels: [`bsv21:${session.tokenId}`],
+				labels: [buildTokenLabel(session.tokenId)],
 			})
 		} catch (err) {
 			console.warn(

@@ -29,7 +29,8 @@ export const promptStyles = `
   width: 100%;
   max-width: 480px;
   min-height: 100%;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .opp-bottom {
@@ -161,8 +162,12 @@ export const promptStyles = `
   font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
   font-size: 13px;
   font-weight: 500;
-  word-break: break-all;
   text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  max-width: 60%;
 }
 
 .opp-meta {

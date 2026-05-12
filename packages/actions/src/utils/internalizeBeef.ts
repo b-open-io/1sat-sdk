@@ -10,7 +10,7 @@
 
 import type { OneSatServices } from '@1sat/client'
 import type { Indexer, ParseContext, Txo } from '@1sat/types'
-import { DEPOSIT_BASKET } from '@1sat/types'
+import { DEPOSIT_BASKET, buildTokenLabel } from '@1sat/types'
 import {
 	Bsv21Indexer,
 	CosignIndexer,
@@ -365,7 +365,7 @@ function buildLabels(ownedTxos: Txo[]): string[] {
 	for (const txo of ownedTxos) {
 		const bsv21 = txo.data.bsv21?.data as { id?: string } | undefined
 		if (bsv21?.id) {
-			labels.add(`bsv21:${bsv21.id}`)
+			labels.add(buildTokenLabel(bsv21.id))
 		}
 	}
 	return [...labels]

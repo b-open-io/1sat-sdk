@@ -283,8 +283,8 @@ function summarizeOrdinalTransfer(
 	const imageUrl = origin ? intent.contentUrls?.[origin] : undefined
 
 	const rows: DetailRow[] = []
-	if (recipient) rows.push({ key: 'Recipient', value: recipient })
-	if (origin) rows.push({ key: 'Origin', value: origin })
+	if (recipient) rows.push({ key: 'Recipient', value: shortenValue(recipient) })
+	if (origin) rows.push({ key: 'Origin', value: shortenValue(origin) })
 	if (contentType) rows.push({ key: 'Type', value: contentType })
 
 	return {
@@ -328,7 +328,7 @@ function summarizeTokenTransfer(
 		rows.push({ key: 'Amount', value: info.amt.toString() })
 	}
 	const recipient = intent.outputs.find((o) => o.recipient)?.recipient
-	if (recipient) rows.push({ key: 'Recipient', value: recipient })
+	if (recipient) rows.push({ key: 'Recipient', value: shortenValue(recipient) })
 
 	return {
 		title: 'Token Transfer',
@@ -342,11 +342,15 @@ function summarizeLock(
 	req: PromptRequest,
 	intent: TransactionIntent,
 ): IntentSummary {
-	const sats = intent.outputs.reduce((s, o) => s + o.satoshis, 0)
-	const until = intent.outputs
+	const lockOutputs = intent.outputs.filter((o) => o.basket === 'lock')
+	const sats = (lockOutputs.length > 0 ? lockOutputs : intent.outputs).reduce(
+		(s, o) => s + o.satoshis,
+		0,
+	)
+	const until = (lockOutputs.length > 0 ? lockOutputs : intent.outputs)
 		.flatMap((o) => o.tags)
-		.find((t) => t.startsWith('lock:until:'))
-		?.slice('lock:until:'.length)
+		.find((t) => t.startsWith('until:'))
+		?.slice('until:'.length)
 	const rows: DetailRow[] = [{ key: 'Amount', value: `${sats} sats` }]
 	if (until) rows.push({ key: 'Lock until block', value: until })
 	return {
@@ -384,7 +388,7 @@ function summarizeInscription(
 	const rows: DetailRow[] = []
 	if (contentType) rows.push({ key: 'Type', value: contentType })
 	if (name) rows.push({ key: 'Name', value: name })
-	if (recipient) rows.push({ key: 'Recipient', value: recipient })
+	if (recipient) rows.push({ key: 'Recipient', value: shortenValue(recipient) })
 	return {
 		title: 'Create Inscription',
 		subtitle: `${shortenOriginator(req.originator)} wants to inscribe content into your wallet`,
@@ -411,7 +415,7 @@ function summarizeListing(
 
 	const rows: DetailRow[] = []
 	if (price) rows.push({ key: 'Price', value: `${price} sats` })
-	if (origin) rows.push({ key: 'Origin', value: origin })
+	if (origin) rows.push({ key: 'Origin', value: shortenValue(origin) })
 	if (contentType) rows.push({ key: 'Type', value: contentType })
 
 	return {
@@ -443,7 +447,7 @@ function summarizeCancelListing(
 
 	const rows: DetailRow[] = []
 	if (price) rows.push({ key: 'Original price', value: `${price} sats` })
-	if (origin) rows.push({ key: 'Origin', value: origin })
+	if (origin) rows.push({ key: 'Origin', value: shortenValue(origin) })
 	if (contentType) rows.push({ key: 'Type', value: contentType })
 
 	return {
@@ -495,7 +499,7 @@ function summarizePurchase(
 			})
 		}
 	} else {
-		if (origin) rows.push({ key: 'Origin', value: origin })
+		if (origin) rows.push({ key: 'Origin', value: shortenValue(origin) })
 		if (contentType) rows.push({ key: 'Type', value: contentType })
 	}
 
@@ -553,6 +557,16 @@ function networkLabel(chain?: string): string {
 function shortenId(id: string, max = 24): string {
 	if (id.length <= max) return id
 	return `${id.slice(0, 8)}…${id.slice(-6)}`
+}
+
+/**
+ * Middle-truncate a long value (address, outpoint, hex id) so the user can
+ * still recognise it without it wrapping over multiple lines. Returns the
+ * original when it already fits.
+ */
+function shortenValue(value: string, head = 12, tail = 10): string {
+	if (value.length <= head + tail + 1) return value
+	return `${value.slice(0, head)}…${value.slice(-tail)}`
 }
 
 function summarizeProtocol(req: PromptRequest): IntentSummary {
