@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@1sat/actions": "0.0.149",
+    "@1sat/actions": "0.0.150",
     "@1sat/client": "0.0.35",
     "@1sat/connect": "0.0.61",
     "@1sat/react": "^0.0.57",

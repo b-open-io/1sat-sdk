@@ -5,7 +5,7 @@
     "": {
       "name": "test-sdk-app",
       "dependencies": {
-        "@1sat/actions": "0.0.149",
+        "@1sat/actions": "0.0.150",
         "@1sat/client": "0.0.35",
         "@1sat/connect": "0.0.61",
         "@1sat/react": "^0.0.57",
@@ -24,7 +24,7 @@
     },
   },
   "packages": {
-    "@1sat/actions": ["@1sat/actions@0.0.149", "", { "dependencies": { "@1sat/client": "0.0.35", "@1sat/templates": "0.0.19", "@1sat/types": "0.0.28", "@1sat/utils": "0.0.23", "@1sat/wallet": "0.0.78", "@bsv/p2p": "^1.1.6" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-oEphGW9zu3RHCrfGFz5DOoLIxvLqEdUZTqne/ZU6nkw8pDaqNbhNFcYPEgykZbaVkEtAOjGyj36oUiN6w7T7jA=="],
+    "@1sat/actions": ["@1sat/actions@0.0.150", "", { "dependencies": { "@1sat/client": "0.0.35", "@1sat/templates": "0.0.19", "@1sat/types": "0.0.28", "@1sat/utils": "0.0.23", "@1sat/wallet": "0.0.78", "@bsv/p2p": "^1.1.6" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-GlL8qSLvuDHKZ9mRoJPz6K6GHqIlsqRPyqMMeasFnooeRSnp9RkpBmwWvheDBBUlvJPZqi+5k5Oi86YMGoDanw=="],
 
     "@1sat/client": ["@1sat/client@0.0.35", "", { "dependencies": { "@1sat/types": "0.0.28", "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.21-parity-fix.2" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-aqqavRJcrXWw/EQKjhX8JvYfS/SseaAyhyfcc1dImP09ULWmMM12MAF/7PnOefoHOh2sGCVikDmIg3G2su53Mw=="],
 
