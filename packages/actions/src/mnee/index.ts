@@ -668,23 +668,15 @@ export const sendMnee: Action<SendMneeInput, SendMneeResult> = {
 				}
 			}
 
-			// 6. Fetch source transactions and build the tx
+			// 6. Fetch source transactions via MNEE API and build the tx
 			const tx = new Transaction(1, [], [], 0)
 
 			for (const utxo of selectedUtxos) {
-				// Fetch source transaction from MNEE API or 1Sat services
-				let sourceTx: Transaction | undefined
-				try {
-					const beef = await ctx.services!.getBeefForTxid(utxo.txid)
-					const beefTx = beef.findTxid(utxo.txid)
-					if (beefTx?.tx) sourceTx = beefTx.tx
-				} catch {
-					// Fallback: try raw tx fetch
-				}
-
-				if (!sourceTx) {
+				const rawHex = await ctx.services!.mnee.fetchRawTx(utxo.txid)
+				if (!rawHex) {
 					return { error: `failed-to-fetch-source-tx: ${utxo.txid}` }
 				}
+				const sourceTx = Transaction.fromHex(rawHex)
 
 				tx.addInput({
 					sourceTXID: utxo.txid,
