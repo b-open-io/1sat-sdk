@@ -708,11 +708,9 @@ export const sendMnee: Action<SendMneeInput, SendMneeResult> = {
 				const changeAddr =
 					changeAddress ??
 					extractAddressFromCosignScript(
-						selectedUtxos[0]
-							? Script.fromHex(selectedUtxos[0].script)
-							: tx.inputs[0].sourceTransaction!.outputs[
-									tx.inputs[0].sourceOutputIndex
-								].lockingScript,
+						tx.inputs[0].sourceTransaction!.outputs[
+							tx.inputs[0].sourceOutputIndex
+						].lockingScript,
 					) ??
 					addresses[0]
 				tx.addOutput(createInscriptionOutput(changeAddr, change, config))

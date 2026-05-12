@@ -288,6 +288,7 @@ export class MneeClient extends BaseClient {
 		}
 	}
 
+
 	// ===== History =====
 
 	async getTxHistory(
