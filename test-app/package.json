@@ -9,11 +9,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@1sat/actions": "0.0.145",
-    "@1sat/client": "0.0.32",
-    "@1sat/connect": "0.0.58",
-    "@1sat/react": "^0.0.54",
-    "@1sat/types": "0.0.25",
+    "@1sat/actions": "0.0.146",
+    "@1sat/client": "0.0.33",
+    "@1sat/connect": "0.0.59",
+    "@1sat/react": "^0.0.55",
+    "@1sat/types": "0.0.26",
     "@bsv/sdk": "latest",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
