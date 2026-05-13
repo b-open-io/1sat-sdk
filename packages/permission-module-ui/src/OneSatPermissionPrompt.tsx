@@ -306,17 +306,29 @@ function summarizeTokenTransfer(
 	req: PromptRequest,
 	intent: TransactionIntent,
 ): IntentSummary {
-	// Token inputs of the same id are consolidated for display.
-	const totals = new Map<string, { sym?: string; amt: bigint }>()
+	// Per-token totals: inputs spent, change returned to sender.
+	// Net amount sent = inputs - change.
+	const totals = new Map<
+		string,
+		{ sym?: string; inAmt: bigint; changeAmt: bigint }
+	>()
 	for (const input of intent.inputs) {
 		const tokenId = tagValue(input.tags, 'bsv21')
 		if (!tokenId) continue
 		const sym = tagValue(input.tags, 'sym')
 		const amt = BigInt(tagValue(input.tags, 'amt') ?? '0')
-		const cur = totals.get(tokenId) ?? { sym, amt: 0n }
-		cur.amt += amt
+		const cur = totals.get(tokenId) ?? { sym, inAmt: 0n, changeAmt: 0n }
+		cur.inAmt += amt
 		if (!cur.sym && sym) cur.sym = sym
 		totals.set(tokenId, cur)
+	}
+	for (const output of intent.outputs) {
+		if (output.basket !== 'bsv21') continue
+		const tokenId = tagValue(output.tags, 'bsv21')
+		if (!tokenId) continue
+		const amt = BigInt(tagValue(output.tags, 'amt') ?? '0')
+		const cur = totals.get(tokenId)
+		if (cur) cur.changeAmt += amt
 	}
 
 	const rows: DetailRow[] = []
@@ -325,9 +337,12 @@ function summarizeTokenTransfer(
 			key: 'Token',
 			value: info.sym ? `${info.sym} — ${shortenId(tokenId)}` : shortenId(tokenId),
 		})
-		rows.push({ key: 'Amount', value: info.amt.toString() })
+		const sent = info.inAmt - info.changeAmt
+		rows.push({ key: 'Amount', value: sent.toString() })
 	}
-	const recipient = intent.outputs.find((o) => o.recipient)?.recipient
+	const recipient = intent.outputs.find(
+		(o) => o.recipient && o.basket !== 'bsv21',
+	)?.recipient
 	if (recipient) rows.push({ key: 'Recipient', value: shortenValue(recipient) })
 
 	return {
