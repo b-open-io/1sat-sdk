@@ -5,10 +5,10 @@
     "": {
       "name": "test-sdk-app",
       "dependencies": {
-        "@1sat/actions": "0.0.150",
-        "@1sat/client": "0.0.35",
-        "@1sat/connect": "0.0.61",
-        "@1sat/react": "^0.0.57",
+        "@1sat/actions": "0.0.151",
+        "@1sat/client": "0.0.36",
+        "@1sat/connect": "0.0.62",
+        "@1sat/react": "^0.0.58",
         "@1sat/types": "0.0.28",
         "@bsv/sdk": "latest",
         "react": "^19.2.5",
@@ -24,13 +24,13 @@
     },
   },
   "packages": {
-    "@1sat/actions": ["@1sat/actions@0.0.150", "", { "dependencies": { "@1sat/client": "0.0.35", "@1sat/templates": "0.0.19", "@1sat/types": "0.0.28", "@1sat/utils": "0.0.23", "@1sat/wallet": "0.0.78", "@bsv/p2p": "^1.1.6" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-GlL8qSLvuDHKZ9mRoJPz6K6GHqIlsqRPyqMMeasFnooeRSnp9RkpBmwWvheDBBUlvJPZqi+5k5Oi86YMGoDanw=="],
+    "@1sat/actions": ["@1sat/actions@0.0.151", "", { "dependencies": { "@1sat/client": "0.0.36", "@1sat/templates": "0.0.19", "@1sat/types": "0.0.28", "@1sat/utils": "0.0.23", "@1sat/wallet": "0.0.79", "@bsv/p2p": "^1.1.6" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-LbWJ+ETDfzxruQ8NM1UOpvZRY8xiFw3uDDOI5WwtbuU8MO9Mrc1KFJNdtz4u4fUi3BAO6hIEkC0qafOG7LXUIg=="],
 
-    "@1sat/client": ["@1sat/client@0.0.35", "", { "dependencies": { "@1sat/types": "0.0.28", "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.21-parity-fix.2" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-aqqavRJcrXWw/EQKjhX8JvYfS/SseaAyhyfcc1dImP09ULWmMM12MAF/7PnOefoHOh2sGCVikDmIg3G2su53Mw=="],
+    "@1sat/client": ["@1sat/client@0.0.36", "", { "dependencies": { "@1sat/types": "0.0.28", "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.21-parity-fix.2" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-U3Hq4Xb0SQt8NXRN9vuePY6auLiPim5ohYYPiiFU/wsMWmL+niqixph0OR2x+jvbi/qvMAmjJERGb4u53Xy7OA=="],
 
-    "@1sat/connect": ["@1sat/connect@0.0.61", "", { "dependencies": { "@1sat/wallet": "0.0.78", "@sigma-auth/better-auth-plugin": "^0.0.84", "better-auth": "^1.5.4", "eventemitter3": "^5.0.1" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-9K/TLNYVEu/WRH7tUPWfFIa2JdnuRbp8fH+C/cQANN+Do7nGsiNc14XT6uEqozecyJdUnDJ0dWYa6skQOItaLw=="],
+    "@1sat/connect": ["@1sat/connect@0.0.62", "", { "dependencies": { "@1sat/wallet": "0.0.79", "@sigma-auth/better-auth-plugin": "^0.0.84", "better-auth": "^1.5.4", "eventemitter3": "^5.0.1" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-HMxJEnyXGfj39dnuiZ6MC/sQ4p5HupFAP1oKcfIyBOT6iAnAqyNreDOBOC0f6XdxGj5qvF6Hib0WvYY6VZwPog=="],
 
-    "@1sat/react": ["@1sat/react@0.0.57", "", { "dependencies": { "@1sat/connect": "0.0.61" }, "peerDependencies": { "@bsv/sdk": "^2.0.13", "react": "^18.0.0 || ^19.0.0" } }, "sha512-riEdX9aQF63/BDtVKDikyhAqDrPZbSkW0PngWjeFZXEk7JzdzqfQp4EiXkhvUN2eHfe9FpkAI4wpDKVtVzoh+g=="],
+    "@1sat/react": ["@1sat/react@0.0.58", "", { "dependencies": { "@1sat/connect": "0.0.62" }, "peerDependencies": { "@bsv/sdk": "^2.0.13", "react": "^18.0.0 || ^19.0.0" } }, "sha512-+GoMQiD2Sg+KMojmoY5X+0nc7mbPNpOWQ9CSmEADCqWGfqKVFpo8P0I5V/pzCUqWYOtiwmrKEKWXHGBJBVKwlg=="],
 
     "@1sat/templates": ["@1sat/templates@0.0.19", "", { "dependencies": { "@1sat/types": "0.0.28" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-Am68WoijpdXenQ+CCGDPcvaEuTWPCOskSupU3RgmMvX6dVyRzW7OtLDQlKr7e2Q0NFDm5UECdpPc8nmAYoMHEA=="],
 
@@ -38,7 +38,7 @@
 
     "@1sat/utils": ["@1sat/utils@0.0.23", "", { "dependencies": { "@1sat/types": "0.0.28", "image-meta": "^0.2.2" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-nWUIjCFFOeAvZa6HSebfe7XD1N8TI/Y8S4TjaPC+nwgUyLN7Jx9tYsmdppY5w28jCM3MsoSAr5MMIOIp7zpoZA=="],
 
-    "@1sat/wallet": ["@1sat/wallet@0.0.78", "", { "dependencies": { "@1sat/client": "0.0.35", "@1sat/templates": "0.0.19", "@1sat/types": "0.0.28", "@bopen-io/templates": "^1.2.3", "@msgpack/msgpack": "^3.1.3", "fflate": "^0.8.2" }, "peerDependencies": { "@bsv/sdk": "^2.0.13", "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.21-parity-fix.2" } }, "sha512-U5+5eDEdxJ4JR/Im8GdMAiX4lFrKYtEhrmv+Pl3PBBL53NijJApvB8zGHtNjTu4T2BV1nLLXB8vXqwrzb7PmjQ=="],
+    "@1sat/wallet": ["@1sat/wallet@0.0.79", "", { "dependencies": { "@1sat/client": "0.0.36", "@1sat/templates": "0.0.19", "@1sat/types": "0.0.28", "@bopen-io/templates": "^1.2.3", "@msgpack/msgpack": "^3.1.3", "fflate": "^0.8.2" }, "peerDependencies": { "@bsv/sdk": "^2.0.13", "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.21-parity-fix.2" } }, "sha512-K2anmyjSJR9gL5ViuWuBNA7JeQjzNOChKeDz5AGNvBfMJ1H6LmpmAxIm2BUVllx4Qco1EehytBCdGAtWRfPdRw=="],
 
     "@better-auth/core": ["@better-auth/core@1.6.11", "", { "dependencies": { "@opentelemetry/semantic-conventions": "^1.39.0", "@standard-schema/spec": "^1.1.0", "zod": "^4.3.6" }, "peerDependencies": { "@better-auth/utils": "0.4.0", "@better-fetch/fetch": "1.1.21", "@cloudflare/workers-types": ">=4", "@opentelemetry/api": "^1.9.0", "better-call": "1.3.5", "jose": "^6.1.0", "kysely": "^0.28.5", "nanostores": "^1.0.1" }, "optionalPeers": ["@cloudflare/workers-types", "@opentelemetry/api"] }, "sha512-LrwidLCV8azdMGjvtwp30nj9tIv1BwI3VhtC0UaGSjQkAVWw4bN42I8qwbxRziPeSQoj+zUVkOpxZzAWBDARtQ=="],
 
