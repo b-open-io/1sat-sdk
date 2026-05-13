@@ -3,7 +3,8 @@
  *
  * Actions for querying and transferring MNEE stablecoin.
  * Uses the MNEE API for balance/UTXO queries and transaction submission.
- * Addresses are derived from the wallet's BRC-29 "yours" prefix (indices 0-4).
+ * Addresses are derived from the wallet's default P1SAT deposit prefix
+ * (`DEFAULT_DEPOSIT_PREFIX = "1sat"`, indices 0-4).
  */
 
 import type {

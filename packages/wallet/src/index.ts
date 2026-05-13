@@ -59,7 +59,6 @@ export {
 export {
 	AddressManager,
 	BRC29_PROTOCOL_ID,
-	YOURS_PREFIX,
 	type AddressDerivation,
 } from './address-sync'
 

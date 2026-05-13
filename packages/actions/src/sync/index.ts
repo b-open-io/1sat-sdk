@@ -14,6 +14,7 @@ import {
 	type OutputDerivation,
 	internalizeBeef,
 } from '../utils/internalizeBeef'
+import { DEFAULT_DEPOSIT_PREFIX } from '../addresses'
 import { sweepDeposit } from '../sweep/sweepDeposit'
 import type { ProcessedTxStore } from './ProcessedTxStore'
 import { ProcessedTxStoreIdb } from './ProcessedTxStoreIdb'
@@ -28,8 +29,14 @@ const REORG_SAFE_DEPTH = 6
 // ============================================================================
 
 export interface SyncAddressesInput {
-	/** KeyID prefix string (e.g., "yours", "1sat", "mcp") */
-	prefix: string
+	/**
+	 * KeyID prefix string. Defaults to {@link DEFAULT_DEPOSIT_PREFIX}
+	 * (`"1sat"`) when omitted — same default as
+	 * `deriveDepositAddresses` so the same identity key produces the
+	 * same address set across wallets. Supply a custom prefix only for
+	 * a distinct address set.
+	 */
+	prefix?: string
 	/** First address index to derive (default: 0) */
 	startIndex?: number
 	/** Number of addresses to derive (default: 1) */
@@ -84,7 +91,8 @@ export const syncAddresses: Action<SyncAddressesInput, SyncAddressesResult> = {
 			properties: {
 				prefix: {
 					type: 'string',
-					description: 'KeyID prefix string (e.g., "yours", "1sat", "mcp")',
+					description:
+						'KeyID prefix string. Defaults to "1sat" so any wallet binding the same identity key syncs the same default addresses; pass a custom value only for a distinct address set.',
 				},
 				startIndex: {
 					type: 'integer',
@@ -95,13 +103,18 @@ export const syncAddresses: Action<SyncAddressesInput, SyncAddressesResult> = {
 					description: 'Number of addresses to derive (default: 1)',
 				},
 			},
-			required: ['prefix'],
+			required: [],
 		},
 		requiresServices: true,
 	},
 
 	async execute(ctx, input) {
-		const { prefix, startIndex = 0, count = 1, onProgress } = input
+		const {
+			prefix = DEFAULT_DEPOSIT_PREFIX,
+			startIndex = 0,
+			count = 1,
+			onProgress,
+		} = input
 		const services = ctx.services
 		if (!services) {
 			throw new Error('syncAddresses requires services in context')
