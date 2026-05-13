@@ -38,9 +38,29 @@ import type {
 	ActionOptions,
 	OneSatContext,
 } from '../types'
+import { DEFAULT_DEPOSIT_PREFIX, deriveDepositAddresses } from '../addresses'
 import { executeTrackedAction } from '../utils/createTrackedAction'
 import { resolveBeef } from '../utils/resolveBeef'
 import { signP2PKHInput } from '../utils/signP2PKH'
+
+/**
+ * Fixed keyID for the cancel/recovered-listing slot. OrdLock listings embed
+ * the seller's pubkey hash as `cancelPkh`; deriving that under the same
+ * keyID as the primary deposit address (suffix 0) means the listing — and
+ * any cancel-recovered ordinal — lands on a P2PKH address that owner-sync
+ * already watches.
+ */
+const CANCEL_KEY_ID = `${DEFAULT_DEPOSIT_PREFIX} 0`
+
+/**
+ * Resolve the wallet's cancel/recovered-listing address — the primary
+ * deposit address (suffix 0). Used to embed `cancelPkh` in new OrdLock
+ * listings and to send the recovered ordinal back to the seller on cancel.
+ */
+async function resolveCancelAddress(ctx: OneSatContext): Promise<string> {
+	const { derivations } = await deriveDepositAddresses.execute(ctx, { count: 1 })
+	return derivations[0].address
+}
 
 // ============================================================================
 // Helpers
@@ -216,18 +236,6 @@ export interface OrdinalOperationResponse {
 // ============================================================================
 // Internal helpers
 // ============================================================================
-
-async function deriveCancelAddressInternal(
-	ctx: OneSatContext,
-	outpoint: string,
-): Promise<string> {
-	const result = await ctx.wallet.getPublicKey({
-		protocolID: P1SAT_PROTOCOL,
-		keyID: outpoint,
-		forSelf: true,
-	})
-	return PublicKey.fromString(result.publicKey).toAddress()
-}
 
 function buildOrdLockScript(
 	ordAddress: string,
@@ -451,7 +459,7 @@ export async function buildListOrdinal(
 
 	const outpoint = ordinal.outpoint
 
-	const cancelAddress = await deriveCancelAddressInternal(ctx, outpoint)
+	const cancelAddress = await resolveCancelAddress(ctx)
 	const lockingScript = buildOrdLockScript(cancelAddress, payAddress, price)
 
 	const { tags, basket } = await resolveOrdinalTags(ctx, outpoint, {
@@ -495,7 +503,7 @@ export async function buildListOrdinal(
 				tags,
 				customInstructions: JSON.stringify({
 					protocolID: P1SAT_PROTOCOL,
-					keyID: outpoint,
+					keyID: CANCEL_KEY_ID,
 					...(sourceName && { name: sourceName }),
 				}),
 			},
@@ -613,36 +621,6 @@ export const getOrdinals: Action<GetOrdinalsInput, GetOrdinalsResult> = {
 			outputs: result.outputs,
 			BEEF: result.BEEF,
 		}
-	},
-}
-
-/** Input for deriveCancelAddress action */
-export interface DeriveCancelAddressInput {
-	/** Outpoint of the ordinal listing */
-	outpoint: string
-}
-
-/**
- * Derive a cancel address for an ordinal listing.
- */
-export const deriveCancelAddress: Action<DeriveCancelAddressInput, string> = {
-	meta: {
-		name: 'deriveCancelAddress',
-		description: 'Derive the cancel address for an ordinal listing',
-		category: 'ordinals',
-		inputSchema: {
-			type: 'object',
-			properties: {
-				outpoint: {
-					type: 'string',
-					description: 'Outpoint of the ordinal listing',
-				},
-			},
-			required: ['outpoint'],
-		},
-	},
-	async execute(ctx, input) {
-		return deriveCancelAddressInternal(ctx, input.outpoint)
 	},
 }
 
@@ -981,12 +959,11 @@ export const cancelListing: Action<
 				counterparty: signCounterparty,
 			} = JSON.parse(listing.customInstructions)
 
-			// Fresh derivation for the new cancelled-output: tied to the
-			// listing's outpoint (this output's parent), under the current
-			// P1SAT protocol. customInstructions below describes exactly this
-			// derivation so the next spend reproduces the same key.
-			const newKeyID = outpoint
-			const cancelAddress = await deriveCancelAddressInternal(ctx, newKeyID)
+			// Recovered ordinal lands at the wallet's fixed cancel slot
+			// (primary deposit address). The customInstructions on the new
+			// output reflect that derivation so the next spend reproduces
+			// the same key.
+			const cancelAddress = await resolveCancelAddress(ctx)
 
 			const { tags, basket } = await resolveOrdinalTags(ctx, outpoint, {
 				tags: listing.tags,
@@ -1024,7 +1001,7 @@ export const cancelListing: Action<
 							tags,
 							customInstructions: JSON.stringify({
 								protocolID: P1SAT_PROTOCOL,
-								keyID: newKeyID,
+								keyID: CANCEL_KEY_ID,
 							}),
 						},
 					],
@@ -1049,7 +1026,7 @@ export const cancelListing: Action<
 						{
 							index: 0,
 							protocolID: P1SAT_PROTOCOL,
-							keyID: newKeyID,
+							keyID: CANCEL_KEY_ID,
 							satoshis: 1,
 						},
 					],
@@ -1401,7 +1378,6 @@ export const burnOrdinals: Action<
 /** All ordinals actions for registry */
 export const ordinalsActions = [
 	getOrdinals,
-	deriveCancelAddress,
 	transferOrdinals,
 	listOrdinal,
 	cancelListing,

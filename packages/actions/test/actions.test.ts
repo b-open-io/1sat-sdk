@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import {
 	cancelListing,
-	deriveCancelAddress,
 	getBsv21Balances,
 	getLockData,
 	getOrdinals,
@@ -49,22 +48,6 @@ describe('Phase 1 — Read-only', () => {
 		const result = await getOrdinals.execute(primary.ctx, {})
 		expect(result).toHaveProperty('outputs')
 		expect(Array.isArray(result.outputs)).toBe(true)
-	})
-
-	test('deriveCancelAddress — derives a deterministic cancel address', async () => {
-		const fakeOutpoint =
-			'0000000000000000000000000000000000000000000000000000000000000000_0'
-		const address = await deriveCancelAddress.execute(primary.ctx, {
-			outpoint: fakeOutpoint,
-		})
-		expect(typeof address).toBe('string')
-		expect(address.length).toBeGreaterThan(25)
-
-		// Same input should produce the same address (deterministic)
-		const address2 = await deriveCancelAddress.execute(primary.ctx, {
-			outpoint: fakeOutpoint,
-		})
-		expect(address2).toBe(address)
 	})
 
 	test('listTokens — lists BSV21 tokens owned by wallet', async () => {
