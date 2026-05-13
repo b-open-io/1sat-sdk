@@ -407,28 +407,17 @@ export async function buildTransferOrdinals(
 			} catch {}
 		}
 
-		if (counterparty) {
-			outputs?.push({
-				lockingScript,
-				satoshis: 1,
-				outputDescription: 'Ordinal transfer',
-				basket,
-				tags,
-				customInstructions: JSON.stringify({
-					protocolID: P1SAT_PROTOCOL,
-					keyID: outpoint,
-					counterparty,
-					...(sourceName && { name: sourceName }),
-				}),
-			})
-		} else {
-			outputs?.push({
-				lockingScript,
-				satoshis: 1,
-				outputDescription: 'Ordinal transfer to external address',
-				tags: [],
-			})
-		}
+		// Counterparty and address transfers both send the ordinal OUT of our
+		// wallet — the recipient owns and internalizes the resulting output.
+		// We don't basket it on our side or record customInstructions for it.
+		outputs?.push({
+			lockingScript,
+			satoshis: 1,
+			outputDescription: counterparty
+				? 'Ordinal transfer'
+				: 'Ordinal transfer to external address',
+			tags: [],
+		})
 	}
 
 	const inputBEEF =
@@ -981,11 +970,23 @@ export const cancelListing: Action<
 			if (!listing.customInstructions) {
 				return { error: 'missing-custom-instructions' }
 			}
-			const { protocolID, keyID, counterparty } = JSON.parse(
-				listing.customInstructions,
-			)
+			// listing.customInstructions describes the SIGNING-side derivation
+			// for the OrdLock cancel path. Use those values to sign the unlock,
+			// but DO NOT carry them into the new output's customInstructions —
+			// the cancelled output is a fresh derivation and must record its
+			// own derivation properties.
+			const {
+				protocolID: signProtocolID,
+				keyID: signKeyID,
+				counterparty: signCounterparty,
+			} = JSON.parse(listing.customInstructions)
 
-			const cancelAddress = await deriveCancelAddressInternal(ctx, keyID)
+			// Fresh derivation for the new cancelled-output: tied to the
+			// listing's outpoint (this output's parent), under the current
+			// P1SAT protocol. customInstructions below describes exactly this
+			// derivation so the next spend reproduces the same key.
+			const newKeyID = outpoint
+			const cancelAddress = await deriveCancelAddressInternal(ctx, newKeyID)
 
 			const { tags, basket } = await resolveOrdinalTags(ctx, outpoint, {
 				tags: listing.tags,
@@ -993,8 +994,9 @@ export const cancelListing: Action<
 
 			const cancelUnlock = OrdLock.cancelWithWallet(
 				ctx.wallet,
-				protocolID,
-				keyID,
+				signProtocolID,
+				signKeyID,
+				signCounterparty,
 			)
 
 			const inputId = readAssetIdTag(listing.tags)
@@ -1021,9 +1023,8 @@ export const cancelListing: Action<
 							basket,
 							tags,
 							customInstructions: JSON.stringify({
-								protocolID,
-								keyID,
-								...(counterparty !== undefined && { counterparty }),
+								protocolID: P1SAT_PROTOCOL,
+								keyID: newKeyID,
 							}),
 						},
 					],
@@ -1041,15 +1042,14 @@ export const cancelListing: Action<
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'cancelListing',
-					input: { outpoint, keyID },
+					input: { outpoint, signKeyID },
 					txid: result.txid,
 					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 					outputs: [
 						{
 							index: 0,
-							protocolID,
-							keyID,
-							customInstructions: listing.customInstructions,
+							protocolID: P1SAT_PROTOCOL,
+							keyID: newKeyID,
 							satoshis: 1,
 						},
 					],
