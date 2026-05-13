@@ -14,13 +14,7 @@
  * ordinary spending under the wallet's standard funding protocol.
  */
 
-import {
-	BRC29_PROTOCOL_ID,
-	DEPOSIT_BASKET,
-	FUNDING_BASKET,
-	P1SAT_PROTOCOL,
-} from '@1sat/types'
-import { P2PKH, PublicKey, Utils } from '@bsv/sdk'
+import { DEPOSIT_BASKET, P1SAT_PROTOCOL } from '@1sat/types'
 import type { Action, ActionOptions } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
 import { signP2PKHInput } from '../utils/signP2PKH'
@@ -48,22 +42,6 @@ interface DepositInputInfo {
 	outpoint: string
 	keyID: string
 	satoshis: number
-}
-
-/**
- * Generate a unique keyID for the sweep destination output. The funds
- * land at a self-derived address under BRC-29 — the keyID just needs to
- * be unique and recoverable from the on-chain output's customInstructions.
- * BRC-29 keyID convention is `${derivationPrefix} ${derivationSuffix}`
- * (space-separated base64); we follow that shape with random bytes so any
- * BRC-29-aware tooling can parse the parts.
- */
-function generateSweepKeyID(): string {
-	const prefixBytes = new Uint8Array(4)
-	const suffixBytes = new Uint8Array(8)
-	crypto.getRandomValues(prefixBytes)
-	crypto.getRandomValues(suffixBytes)
-	return `${Utils.toBase64(Array.from(prefixBytes))} ${Utils.toBase64(Array.from(suffixBytes))}`
 }
 
 // ============================================================================
@@ -126,22 +104,13 @@ export const sweepDeposit: Action<SweepDepositInput, SweepDepositResult> = {
 			return { swept: 0 }
 		}
 
-		// 2. Derive a fresh destination address under BRC-29 — sweep target
-		//    is the wallet's standard funding protocol, so spending the
-		//    output later goes through the normal BRC-29 funding path.
-		const destKeyID = generateSweepKeyID()
-		const { publicKey: destPubHex } = await ctx.wallet.getPublicKey({
-			protocolID: BRC29_PROTOCOL_ID,
-			keyID: destKeyID,
-			forSelf: true,
-		})
-		const destAddress = PublicKey.fromString(destPubHex).toAddress()
-		const destLockingScript = new P2PKH().lock(destAddress).toHex()
-
-		// 3. Build the sweep tx via createAction. Total satoshis less the
-		//    wallet-allocated fee land at the destination output.
-		const totalIn = inputs.reduce((s, i) => s + i.satoshis, 0)
-
+		// 2. Build the sweep tx via createAction with NO explicit outputs.
+		//    The wallet's own change handler creates a single BRC-29-derived
+		//    change output for the full input value (less fee), recording
+		//    proper derivationPrefix/derivationSuffix/senderIdentityKey
+		//    columns and depositing it into the standard funding basket.
+		//    That is exactly how every other BRC-29 funding output in the
+		//    wallet is created — sweep just rides the same path.
 		const result = await executeTrackedAction(
 			ctx.wallet,
 			{
@@ -152,18 +121,7 @@ export const sweepDeposit: Action<SweepDepositInput, SweepDepositResult> = {
 					inputDescription: 'Deposit sweep',
 					unlockingScriptLength: 108,
 				})),
-				outputs: [
-					{
-						lockingScript: destLockingScript,
-						satoshis: totalIn,
-						outputDescription: 'Swept funding',
-						basket: FUNDING_BASKET,
-						customInstructions: JSON.stringify({
-							protocolID: BRC29_PROTOCOL_ID,
-							keyID: destKeyID,
-						}),
-					},
-				],
+				outputs: [],
 				options: {
 					randomizeOutputs: false,
 					acceptDelayedBroadcast: false,
