@@ -2,12 +2,12 @@ import { deriveDepositAddresses, type AddressDerivation } from '@1sat/actions'
 import { useEffect, useState } from 'react'
 import { useOneSatContext } from './useActions'
 
-const YOURS_PREFIX = 'yours'
-const YOURS_ADDRESS_COUNT = 5
+const DEPOSIT_ADDRESS_COUNT = 5
 
 /**
- * Derives the 5 yours wallet BRC-29 addresses for MNEE operations.
- * Returns both the address strings and full derivations (for signing).
+ * Derives the default 1sat deposit addresses for MNEE operations.
+ * Uses the SDK's default prefix so the wallet and the dApp resolve to
+ * the same address set under a shared identity key.
  */
 export function useMneeAddresses() {
   const ctx = useOneSatContext()
@@ -18,9 +18,8 @@ export function useMneeAddresses() {
     if (!ctx) return
     deriveDepositAddresses
       .execute(ctx, {
-        prefix: YOURS_PREFIX,
         startIndex: 0,
-        count: YOURS_ADDRESS_COUNT,
+        count: DEPOSIT_ADDRESS_COUNT,
       })
       .then((res) => {
         setDerivations(res.derivations)

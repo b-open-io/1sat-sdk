@@ -27,7 +27,7 @@ export function WalletInfo() {
     }).catch(err => log('error', `listOutputs failed: ${err.message}`))
 
     // Derive deposit addresses (index 0 = payment, index 1 = ordinal)
-    deriveDepositAddresses.execute(ctx, { prefix: 'yours', startIndex: 0, count: 2 }).then(res => {
+    deriveDepositAddresses.execute(ctx, { startIndex: 0, count: 2 }).then(res => {
       const payAddress = res.derivations[0]?.address
       const ordAddress = res.derivations[1]?.address
       setPayAddr(payAddress ?? null)
