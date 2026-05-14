@@ -48,7 +48,7 @@ function OrdinalCard({
 						src={ordinal.contentUrl}
 						title={ordinal.name || 'Ordinal'}
 						className="w-full h-full border-0 pointer-events-none"
-						sandbox="allow-scripts"
+						sandbox=""
 						loading="lazy"
 					/>
 				)}
