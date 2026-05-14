@@ -94,7 +94,7 @@ async function transferWithLegacyFunding(
 
 	// Broadcast
 	const rawTx = tx.toBinary()
-	const result = await ctx.services.arcade.submitTransaction(rawTx)
+	const result = await ctx.services.submitToStack(rawTx)
 
 	return {
 		txid: result.txid,

@@ -7,7 +7,7 @@
 import { BSV21, OrdLock } from '@1sat/templates'
 import type { IndexedOutput } from '@1sat/types'
 import type { OrdfsMetadata } from '@1sat/types'
-import { BRC29_PROTOCOL_ID, buildTokenLabel } from '@1sat/types'
+import { buildTokenLabel } from '@1sat/types'
 import { formatOutpoint, parseOutpoint } from '@1sat/utils'
 import {
 	type CreateActionOutput,
@@ -167,48 +167,14 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 		}
 
 		try {
-			const { inputs, keys, amount } = request
+			const { inputs, keys } = request
 
 			if (!inputs || inputs.length === 0) {
 				return { error: 'no-inputs' }
 			}
 
-			const sourceAddress = keys[0].toPublicKey().toAddress()
-			const inputTotal = inputs.reduce((sum, i) => sum + i.satoshis, 0)
-
-			if (amount !== undefined) {
-				if (amount <= 0) {
-					return { error: 'invalid-amount' }
-				}
-				if (amount > inputTotal) {
-					return { error: 'insufficient-funds' }
-				}
-			}
-
-			// Derive a BRC-29 deposit address from the receiving wallet.
-			// BRC-29 derivation expects base64-encoded prefix/suffix.
-			const suffixIdx = Date.now() & 0x7fffffff
-			const derivationPrefix = Utils.toBase64(
-				Array.from(new TextEncoder().encode('sweep')),
-			)
-			const derivationSuffix = Utils.toBase64([
-				(suffixIdx >>> 24) & 0xff,
-				(suffixIdx >>> 16) & 0xff,
-				(suffixIdx >>> 8) & 0xff,
-				suffixIdx & 0xff,
-			])
-			const keyID = `${derivationPrefix} ${derivationSuffix}`
-
-			const { publicKey: senderIdentityKey } = await ctx.wallet.getPublicKey({
-				identityKey: true,
-			})
-
-			const { publicKey: depositPubKey } = await ctx.wallet.getPublicKey({
-				protocolID: BRC29_PROTOCOL_ID,
-				keyID,
-				forSelf: true,
-			})
-			const depositAddress = PublicKey.fromString(depositPubKey).toAddress()
+			const keyMap = buildKeyMap(inputs, keys)
+			const sourceMap = buildSourceMap(inputs)
 
 			// Fetch BEEF for all input transactions (carries full proof chain)
 			const txids = [
@@ -218,83 +184,89 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 			for (let i = 1; i < txids.length; i++) {
 				mergedBeef.mergeBeef(await ctx.services.getBeefForTxid(txids[i]))
 			}
+			const beefData = mergedBeef.toBinary()
 
-			// Build a raw transaction — source wallet funds everything
-			const tx = new Transaction()
-			const p2pkh = new P2PKH()
-			const keyMap = buildKeyMap(inputs, keys)
-
-			for (const input of inputs) {
+			// Describe each external input. wallet-toolbox uses the BEEF to
+			// validate proofs and replaces the unlockingScriptLength placeholder
+			// with the script returned from the signing callback below.
+			const inputDescriptors = inputs.map((input) => {
 				const { txid, vout } = parseOutpoint(input.outpoint)
-				const key = keyMap.get(formatOutpoint(txid, vout))
-				if (!key) throw new Error(`No key for input ${input.outpoint}`)
-
-				const beefTx = mergedBeef.findTxid(txid)
-				if (!beefTx?.tx)
-					throw new Error(`Transaction ${txid} not found in BEEF`)
-
-				tx.addInput({
-					sourceTXID: txid,
-					sourceOutputIndex: vout,
-					sourceTransaction: beefTx.tx,
-					unlockingScriptTemplate: p2pkh.unlock(key),
-					sequence: 0xffffffff,
-				})
-			}
-
-			// Deposit output to the receiving wallet
-			const sweepAmount = amount ?? inputTotal
-			tx.addOutput({
-				lockingScript: p2pkh.lock(depositAddress),
-				satoshis: sweepAmount,
-			})
-			const depositOutputIndex = 0
-
-			// Change back to source (for partial sweeps, or fee remainder for full sweeps)
-			tx.addOutput({
-				lockingScript: p2pkh.lock(sourceAddress),
-				change: true,
+				return {
+					outpoint: formatOutpoint(txid, vout),
+					inputDescription: `Legacy BSV ${input.outpoint}`,
+					unlockingScriptLength: 108,
+					sequenceNumber: 0xffffffff,
+				}
 			})
 
-			await tx.fee()
-			await tx.sign()
+			// No explicit outputs — wallet adds a single change output for the
+			// full input value (minus fee) into its default basket. That change
+			// IS the deposit. The `amount` field on SweepBsvRequest is preserved
+			// in the type for backward compat but is no longer honored at this
+			// layer; the UI pre-filters inputs based on the requested amount.
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				{
+					description: `Sweep ${inputs.length} legacy BSV UTXO${inputs.length !== 1 ? 's' : ''}`,
+					inputBEEF: beefData,
+					inputs: inputDescriptors,
+					outputs: [],
+					options: { randomizeOutputs: false },
+				},
+				undefined,
+				beefData as number[],
+				async (tx) => {
+					for (let i = 0; i < tx.inputs.length; i++) {
+						const txInput = tx.inputs[i]
+						const inputOutpoint = formatOutpoint(
+							txInput.sourceTXID!,
+							txInput.sourceOutputIndex,
+						)
+						const key = keyMap.get(inputOutpoint)
+						const source = sourceMap.get(inputOutpoint)
+						if (key) {
+							txInput.unlockingScriptTemplate = new P2PKH().unlock(
+								key,
+								'all',
+								true,
+								source?.satoshis,
+								source?.script,
+							)
+						}
+					}
 
-			// Broadcast
-			const rawTx = tx.toBinary()
-			const arcResult = await ctx.services.arcade.submitTransaction(rawTx)
+					await tx.sign()
 
-			// Build AtomicBEEF: merge signed tx into the proof chain
-			mergedBeef.mergeRawTx(rawTx)
-			const atomicBeef = mergedBeef.toBinaryAtomic(tx.id('hex'))
-			await ctx.wallet.internalizeAction({
-				tx: atomicBeef,
-				outputs: [
-					{
-						outputIndex: depositOutputIndex,
-						protocol: 'wallet payment',
-						paymentRemittance: {
-							derivationPrefix,
-							derivationSuffix,
-							senderIdentityKey,
-						},
-					},
-				],
-				description: `Sweep ${sweepAmount} sats`,
-			})
+					const spends: Record<number, { unlockingScript: string }> = {}
+					for (let i = 0; i < tx.inputs.length; i++) {
+						const txInput = tx.inputs[i]
+						const inputOutpoint = formatOutpoint(
+							txInput.sourceTXID!,
+							txInput.sourceOutputIndex,
+						)
+						if (keyMap.has(inputOutpoint)) {
+							spends[i] = {
+								unlockingScript: txInput.unlockingScript?.toHex() ?? '',
+							}
+						}
+					}
+					return spends
+				},
+			)
 
 			if (ctx.debug && ctx.log) {
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'sweepBsv',
-					input: { inputCount: inputs.length, amount },
-					txid: arcResult.txid,
-					rawtx: Utils.toHex(rawTx),
+					input: { inputCount: inputs.length },
+					txid: result.txid,
+					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 				})
 			}
 
 			return {
-				txid: arcResult.txid,
-				beef: Array.from(atomicBeef),
+				txid: result.txid ?? '',
+				beef: result.tx,
 			}
 		} catch (error) {
 			console.error('[sweepBsv]', error)

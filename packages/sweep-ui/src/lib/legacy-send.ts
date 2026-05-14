@@ -96,7 +96,7 @@ export async function legacySendBsv(params: {
 	await tx.sign()
 
 	const rawTx = tx.toBinary()
-	const result = await getServices().arcade.submitTransaction(rawTx)
+	const result = await getServices().submitToStack(rawTx)
 
 	return {
 		txid: result.txid,
@@ -161,7 +161,7 @@ export async function legacySendOrdinals(params: {
 	await tx.sign()
 
 	const rawTx = tx.toBinary()
-	const result = await getServices().arcade.submitTransaction(rawTx)
+	const result = await getServices().submitToStack(rawTx)
 
 	return {
 		txid: result.txid,
@@ -229,7 +229,7 @@ export async function legacyBurnOrdinals(params: {
 	await tx.sign()
 
 	const rawTx = tx.toBinary()
-	const result = await getServices().arcade.submitTransaction(rawTx)
+	const result = await getServices().submitToStack(rawTx)
 
 	return {
 		txid: result.txid,
