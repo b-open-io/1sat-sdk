@@ -29,7 +29,7 @@ import {
 } from './queries'
 import type {
 	AccountStatusResponse,
-	AccountsConfig,
+	AccountsConfigProvider,
 	IdentityKey,
 } from './types'
 
@@ -39,7 +39,7 @@ interface StorageWithMeter {
 }
 
 export interface PaymentRouteDeps {
-	config: AccountsConfig
+	getConfig: AccountsConfigProvider
 	wallet: WalletInterface
 	walletStorage: StorageWithMeter
 	serverIdentityKey: IdentityKey
@@ -58,9 +58,10 @@ async function computeQuote(
 	deps: PaymentRouteDeps,
 	identityKey: IdentityKey,
 ): Promise<QuoteInfo | undefined> {
-	if (!deps.config.enabled) return undefined
+	const config = deps.getConfig()
+	if (!config.enabled) return undefined
 	if (deps.serverIdentityKey === identityKey) return undefined
-	if (deps.config.freeIdentityKeys?.includes(identityKey)) return undefined
+	if (config.freeIdentityKeys?.includes(identityKey)) return undefined
 
 	const userResult = await deps.walletStorage.findOrInsertUser(identityKey)
 	const userId = userResult?.user?.userId
@@ -75,7 +76,7 @@ async function computeQuote(
 		usedBytes,
 		currentPayment,
 		currentBlock,
-		config: deps.config,
+		config,
 	})
 	if (!quote) return undefined
 	return {
@@ -89,13 +90,14 @@ async function buildAccountStatus(
 	deps: PaymentRouteDeps,
 	identityKey: IdentityKey,
 ): Promise<AccountStatusResponse> {
+	const config = deps.getConfig()
 	const currentBlock = await deps.currentBlock()
 	const userResult = await deps.walletStorage.findOrInsertUser(identityKey)
 	const userId = userResult?.user?.userId
 	const usedBytes =
 		userId == null ? 0 : await deps.walletStorage.measureUsedBytes(userId)
 
-	if (!deps.config.enabled) {
+	if (!config.enabled) {
 		return {
 			identityKey,
 			serverIdentityKey: deps.serverIdentityKey,
@@ -111,7 +113,7 @@ async function buildAccountStatus(
 		currentBlock,
 	)
 	const paidBytes = currentPayment?.bytesCovered ?? 0
-	const capacityBytes = deps.config.baselineBytes + paidBytes
+	const capacityBytes = config.baselineBytes + paidBytes
 	const deficitBytes = Math.max(0, usedBytes - capacityBytes)
 	const nextPayment = await nextPaymentDerivation(identityKey, deps.wallet)
 
@@ -121,15 +123,15 @@ async function buildAccountStatus(
 		accountsEnabled: true,
 		currentBlock,
 		usedBytes,
-		baselineBytes: deps.config.baselineBytes,
+		baselineBytes: config.baselineBytes,
 		paidBytes,
 		capacityBytes,
 		deficitBytes,
 		paidThroughBlock: currentPayment?.paidThroughBlock ?? null,
 		pricing: {
-			purchaseUnitBytes: deps.config.purchaseUnitBytes,
-			satsPerUnit: deps.config.satsPerUnit,
-			durationBlocks: deps.config.durationBlocks,
+			purchaseUnitBytes: config.purchaseUnitBytes,
+			satsPerUnit: config.satsPerUnit,
+			durationBlocks: config.durationBlocks,
 		},
 		nextPayment,
 	}

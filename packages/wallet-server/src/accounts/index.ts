@@ -1,6 +1,7 @@
 export type {
 	AccountStatusResponse,
 	AccountsConfig,
+	AccountsConfigProvider,
 	IdentityKey,
 	NextPaymentDerivation,
 } from './types'

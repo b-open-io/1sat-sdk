@@ -23,6 +23,13 @@ export interface AccountsConfig {
 }
 
 /**
+ * Pricing/capacity contract for the accounts layer. Wallet-server reads
+ * config through this function on every billing check so deployments can
+ * provide live values (e.g. file-watched, TTL-cached, or static).
+ */
+export type AccountsConfigProvider = () => AccountsConfig
+
+/**
  * BRC-29 derivation the server expects on the next incoming payment. The
  * prefix is a constant; the suffix is the monotonic payment count for this
  * identity. Clients use these verbatim so the server can re-derive any

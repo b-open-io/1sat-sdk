@@ -27,7 +27,7 @@ import {
 	payerLabel,
 } from './queries'
 import type {
-	AccountsConfig,
+	AccountsConfigProvider,
 	IdentityKey,
 	NextPaymentDerivation,
 } from './types'
@@ -117,7 +117,7 @@ export async function nextPaymentDerivation(
 }
 
 export interface AccountsMiddlewareDeps {
-	config: AccountsConfig
+	getConfig: AccountsConfigProvider
 	walletStorage: WalletStorageProvider
 	wallet: WalletInterface
 	serverIdentityKey: IdentityKey
@@ -339,14 +339,15 @@ async function autoInternalizeSelfPayment(
  * auto-internalize so the payment is recorded in the server's wallet.
  */
 export function accountsCapacityGate(deps: AccountsMiddlewareDeps) {
-	const freeKeys = new Set<IdentityKey>([
-		deps.serverIdentityKey,
-		...(deps.config.freeIdentityKeys ?? []),
-	])
-
 	return async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			if (!deps.config.enabled) return next()
+			const config = deps.getConfig()
+			if (!config.enabled) return next()
+
+			const freeKeys = new Set<IdentityKey>([
+				deps.serverIdentityKey,
+				...(config.freeIdentityKeys ?? []),
+			])
 
 			const method = extractJsonRpcMethod(req)
 			if (method == null || !isBillableMethod(method)) return next()
@@ -369,7 +370,7 @@ export function accountsCapacityGate(deps: AccountsMiddlewareDeps) {
 				usedBytes,
 				currentPayment,
 				currentBlock,
-				config: deps.config,
+				config,
 			})
 			if (!quote) return next()
 
@@ -446,10 +447,10 @@ export function accountsCapacityGate(deps: AccountsMiddlewareDeps) {
 					message: 'insufficient storage capacity',
 					data: {
 						usedBytes,
-						baselineBytes: deps.config.baselineBytes,
+						baselineBytes: config.baselineBytes,
 						paidBytes: currentPayment?.bytesCovered ?? 0,
 						capacityBytes:
-							deps.config.baselineBytes + (currentPayment?.bytesCovered ?? 0),
+							config.baselineBytes + (currentPayment?.bytesCovered ?? 0),
 						deficitBytes: quote.bytesCovered,
 						satsRequired: quote.chargeSats,
 						fullSats: quote.fullSats,
@@ -457,9 +458,9 @@ export function accountsCapacityGate(deps: AccountsMiddlewareDeps) {
 						paidThroughBlock: quote.paidThroughBlock,
 						currentBlock,
 						pricing: {
-							purchaseUnitBytes: deps.config.purchaseUnitBytes,
-							satsPerUnit: deps.config.satsPerUnit,
-							durationBlocks: deps.config.durationBlocks,
+							purchaseUnitBytes: config.purchaseUnitBytes,
+							satsPerUnit: config.satsPerUnit,
+							durationBlocks: config.durationBlocks,
 						},
 						serverIdentityKey: deps.serverIdentityKey,
 						nextPayment,

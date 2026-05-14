@@ -16,7 +16,7 @@ import {
 	mountPaymentRoute,
 	nextPaymentDerivation,
 } from './accounts'
-import type { AccountsConfig } from './accounts/types'
+import type { AccountsConfigProvider } from './accounts/types'
 import { createWalletRpcHandler } from './createWalletRpcHandler'
 import { dispatch } from './dispatch'
 import { bearerResolver } from './resolvers/bearer'
@@ -27,7 +27,7 @@ import type {
 } from './types'
 
 export interface WalletServerAccounts {
-	config: AccountsConfig
+	getConfig: AccountsConfigProvider
 	currentBlock: () => Promise<number>
 }
 
@@ -86,7 +86,7 @@ export function createWalletServer(
 
 	const accountsDeps: AccountsMiddlewareDeps | undefined = config.accounts
 		? {
-				config: config.accounts.config,
+				getConfig: config.accounts.getConfig,
 				walletStorage: config.storage,
 				wallet,
 				serverIdentityKey,
@@ -99,7 +99,7 @@ export function createWalletServer(
 		mountStatusRoute(app, publicPath, config, serverIdentityKey, wallet)
 		if (accountsDeps) {
 			mountPaymentRoute(app, publicPath, {
-				config: accountsDeps.config,
+				getConfig: accountsDeps.getConfig,
 				wallet: accountsDeps.wallet,
 				walletStorage: accountsDeps.walletStorage as unknown as {
 					findOrInsertUser(identityKey: string): Promise<{
@@ -287,6 +287,7 @@ function mountStatusRoute(
 				})
 			}
 
+			const accountsConfig = accounts.getConfig()
 			const currentBlock = await accounts.currentBlock()
 			const userResult = await config.storage.findOrInsertUser(identityKey)
 			const userId = userResult?.user?.userId
@@ -299,7 +300,7 @@ function mountStatusRoute(
 							}
 						).measureUsedBytes(userId)
 
-			if (!accounts.config.enabled) {
+			if (!accountsConfig.enabled) {
 				return res.status(200).json({
 					identityKey,
 					serverIdentityKey,
@@ -315,7 +316,7 @@ function mountStatusRoute(
 				currentBlock,
 			)
 			const paidBytes = currentPayment?.bytesCovered ?? 0
-			const capacityBytes = accounts.config.baselineBytes + paidBytes
+			const capacityBytes = accountsConfig.baselineBytes + paidBytes
 			const deficitBytes = Math.max(0, usedBytes - capacityBytes)
 
 			const nextPayment = await nextPaymentDerivation(identityKey, serverWallet)
@@ -326,15 +327,15 @@ function mountStatusRoute(
 				accountsEnabled: true,
 				currentBlock,
 				usedBytes,
-				baselineBytes: accounts.config.baselineBytes,
+				baselineBytes: accountsConfig.baselineBytes,
 				paidBytes,
 				capacityBytes,
 				deficitBytes,
 				paidThroughBlock: currentPayment?.paidThroughBlock ?? null,
 				pricing: {
-					purchaseUnitBytes: accounts.config.purchaseUnitBytes,
-					satsPerUnit: accounts.config.satsPerUnit,
-					durationBlocks: accounts.config.durationBlocks,
+					purchaseUnitBytes: accountsConfig.purchaseUnitBytes,
+					satsPerUnit: accountsConfig.satsPerUnit,
+					durationBlocks: accountsConfig.durationBlocks,
 				},
 				nextPayment,
 			})
