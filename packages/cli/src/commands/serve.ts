@@ -31,12 +31,18 @@ import {
 	type ServerAccountsConfig,
 	type ServerStorageConfig,
 	loadConfig,
+	setConfigPath,
 } from '../config'
 import { ensureDataDir } from '../config'
 import { printCommandHelp } from '../help'
 import { loadKey } from '../keys'
 import { clearMonitorPid, writeMonitorPid } from '../monitor-lock'
 import { fatal } from '../output'
+import {
+	buildPriceUpdateTask,
+	createAccountsConfigLoader,
+	resolveRateProvider,
+} from '../repricer'
 import { startMessagebox } from './serve-messagebox'
 
 const DEFAULT_HOST = '127.0.0.1'
@@ -72,6 +78,14 @@ interface ResolvedAccounts {
 	satsPerUnit: number
 	durationBlocks: number
 	freeIdentityKeys: string[]
+	repricer?: {
+		enabled?: boolean
+		targetUsd?: number
+		intervalMs?: number
+		provider?: string
+		maxMovePct?: number
+		minSats?: number
+	}
 }
 
 export async function handleServeCommand(
@@ -217,6 +231,7 @@ function resolveAccounts(accounts?: ServerAccountsConfig): ResolvedAccounts {
 		satsPerUnit: accounts?.satsPerUnit ?? DEFAULT_SATS_PER_UNIT,
 		durationBlocks: accounts?.durationBlocks ?? DEFAULT_DURATION_BLOCKS,
 		freeIdentityKeys: accounts?.freeIdentityKeys ?? [],
+		repricer: accounts?.repricer,
 	}
 }
 
@@ -258,6 +273,42 @@ async function runWithStorage(
 		mode === 'monitor'
 			? undefined
 			: await startWalletServer(resolved, walletResult, accounts)
+
+	if (mode !== 'wallet' && accounts) {
+		const accountsCfg = resolved.accounts
+		const r = accountsCfg.repricer
+		if (
+			accountsCfg.enabled &&
+			r?.enabled &&
+			typeof r.targetUsd === 'number' &&
+			r.targetUsd > 0
+		) {
+			walletResult.monitor.addTask(
+				buildPriceUpdateTask({
+					monitor: walletResult.monitor,
+					rateProvider: resolveRateProvider(r.provider ?? 'whatsonchain', {
+						chain: resolved.chain,
+					}),
+					intervalMs: r.intervalMs ?? 15 * 60 * 1000,
+					targetUsd: r.targetUsd,
+					bounds: {
+						maxMovePct: r.maxMovePct ?? 25,
+						minSats: r.minSats ?? 1,
+					},
+					readCurrentSats: () =>
+						loadConfig().server?.accounts?.satsPerUnit ?? DEFAULT_SATS_PER_UNIT,
+					onPersist: async (sats) => {
+						setConfigPath('server.accounts.satsPerUnit', sats)
+					},
+				}),
+			)
+			console.log(
+				`[repricer] enabled — $${r.targetUsd}/unit every ${Math.round(
+					(r.intervalMs ?? 900_000) / 1000,
+				)}s via ${r.provider ?? 'whatsonchain'}`,
+			)
+		}
+	}
 
 	if (mode !== 'wallet') {
 		// startTasks loops until stopTasks flips its flag. Fire without
@@ -318,16 +369,25 @@ async function buildAccountsForServer(
 	// storage; accounts semantics don't apply.
 	if (resolved.activeRemote) return undefined
 
+	const getConfig = createAccountsConfigLoader({
+		ttlMs: 60_000,
+		read: () => {
+			const fresh = loadConfig()
+			const a = fresh.server?.accounts
+			return {
+				enabled: a?.enabled ?? false,
+				baselineBytes: a?.baselineBytes ?? DEFAULT_BASELINE_BYTES,
+				purchaseUnitBytes: a?.purchaseUnitBytes ?? DEFAULT_PURCHASE_UNIT_BYTES,
+				satsPerUnit: a?.satsPerUnit ?? DEFAULT_SATS_PER_UNIT,
+				durationBlocks: a?.durationBlocks ?? DEFAULT_DURATION_BLOCKS,
+				freeIdentityKeys: a?.freeIdentityKeys ?? [],
+			}
+		},
+	})
+
 	return {
 		walletServerAccounts: {
-			config: {
-				enabled: resolved.accounts.enabled,
-				baselineBytes: resolved.accounts.baselineBytes,
-				purchaseUnitBytes: resolved.accounts.purchaseUnitBytes,
-				satsPerUnit: resolved.accounts.satsPerUnit,
-				durationBlocks: resolved.accounts.durationBlocks,
-				freeIdentityKeys: resolved.accounts.freeIdentityKeys,
-			},
+			getConfig,
 			currentBlock: () => walletResult.services.chaintracks.currentHeight(),
 		},
 	}
