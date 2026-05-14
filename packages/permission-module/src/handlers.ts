@@ -5,6 +5,8 @@ import type {
 	CreateActionResult,
 	CreateSignatureArgs,
 	GetPublicKeyArgs,
+	InternalizeActionArgs,
+	ListOutputsArgs,
 	WalletInterface,
 } from '@bsv/sdk'
 import { Beef, Transaction } from '@bsv/sdk'
@@ -13,13 +15,14 @@ import { enrichIntent } from './enrichIntent'
 import { computeHashOutputs } from './hashOutputs'
 import { substitutePlaceholders } from './placeholder'
 import { MIN_BIP143_PREIMAGE_BYTES, parsePreimage } from './sighashParser'
-import type { PromptHandler } from './types'
+import type { BasketGrantStore, PromptHandler } from './types'
 
 interface HandlerDeps {
 	wallet: WalletInterface
 	promptHandler: PromptHandler
 	cache: CommitmentCache
 	adminOriginator?: string
+	permissionStore?: BasketGrantStore
 }
 
 /**
@@ -244,4 +247,122 @@ function summarizeIntent(args: CreateActionArgs): string {
 	const ins = args.inputs?.length ?? 0
 	const outs = args.outputs?.length ?? 0
 	return `Transaction with ${ins} input(s) and ${outs} output(s)`
+}
+
+// ---------------------------------------------------------------------------
+// Basket-access gating
+// ---------------------------------------------------------------------------
+
+const P_BASKET_PREFIX = 'p 1sat '
+
+/**
+ * Decide whether the originator has access to every P-prefixed `1Sat` basket
+ * touched by this request. Used by both `listOutputs` and `internalizeAction`
+ * — they're the two methods WPM delegates to the 1Sat module for P-baskets.
+ *
+ * Admin originator bypasses (same convention as
+ * `WalletPermissionsManager.isAdminOriginator` → `ensureBasketAccess`
+ * short-circuit).
+ *
+ * Baskets that already have a stored grant pass silently. Any remaining
+ * baskets are surfaced as a single `'basketAccess'` prompt with the full
+ * un-granted list; on approval the module persists each grant.
+ *
+ * Without a `permissionStore` configured we prompt every time — caching only
+ * happens when the caller wired in the store.
+ */
+export async function ensureBasketAccess(
+	deps: HandlerDeps,
+	originator: string,
+	baskets: Iterable<string>,
+): Promise<void> {
+	if (deps.adminOriginator && originator === deps.adminOriginator) return
+
+	const unique = new Set<string>()
+	for (const b of baskets) {
+		if (typeof b === 'string' && b.startsWith(P_BASKET_PREFIX)) unique.add(b)
+	}
+	if (unique.size === 0) return
+
+	const toPrompt: string[] = []
+	if (deps.permissionStore) {
+		for (const basket of unique) {
+			const grant = await deps.permissionStore.findGrant({
+				type: 'basket',
+				originator,
+				basket,
+			})
+			if (!grant || isGrantExpired(grant.expiry)) {
+				toPrompt.push(basket)
+			}
+		}
+	} else {
+		toPrompt.push(...unique)
+	}
+
+	if (toPrompt.length === 0) return
+
+	const approved = await deps.promptHandler({
+		kind: 'basketAccess',
+		originator,
+		intent: {
+			baskets: toPrompt.map((basket) => ({ basket })),
+		},
+		summary:
+			toPrompt.length === 1
+				? `Grant access to ${toPrompt[0]}`
+				: `Grant access to ${toPrompt.length} baskets`,
+	})
+	if (!approved) {
+		throw new Error(
+			`1Sat permission module: user denied basket access (${toPrompt.join(', ')}).`,
+		)
+	}
+
+	if (deps.permissionStore) {
+		const now = Date.now()
+		for (const basket of toPrompt) {
+			await deps.permissionStore.putGrant({
+				key: { type: 'basket', originator, basket },
+				expiry: 0,
+				grantedAt: now,
+			})
+		}
+	}
+}
+
+function isGrantExpired(expiry: number): boolean {
+	if (!expiry) return false
+	return expiry < Math.floor(Date.now() / 1000)
+}
+
+/**
+ * listOutputs onRequest: gate basket access then pass args through unchanged.
+ */
+export async function handleListOutputsRequest(
+	deps: HandlerDeps,
+	args: ListOutputsArgs,
+	originator: string,
+): Promise<ListOutputsArgs> {
+	await ensureBasketAccess(deps, originator, args.basket ? [args.basket] : [])
+	return args
+}
+
+/**
+ * internalizeAction onRequest: gate basket access for every output's
+ * insertionRemittance basket then pass args through unchanged.
+ */
+export async function handleInternalizeActionRequest(
+	deps: HandlerDeps,
+	args: InternalizeActionArgs,
+	originator: string,
+): Promise<InternalizeActionArgs> {
+	const baskets: string[] = []
+	for (const out of args.outputs ?? []) {
+		if (out.protocol === 'basket insertion' && out.insertionRemittance?.basket) {
+			baskets.push(out.insertionRemittance.basket)
+		}
+	}
+	await ensureBasketAccess(deps, originator, baskets)
+	return args
 }

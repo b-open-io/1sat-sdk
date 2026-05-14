@@ -14,7 +14,7 @@
  */
 
 import { MessageBoxClient } from '@bsv/p2p'
-import { buildTokenLabel } from '@1sat/types'
+import { BSV21_BASKET, buildTokenLabel } from '@1sat/types'
 import { Utils, type WalletInterface } from '@bsv/sdk'
 import type { Action } from '../types'
 
@@ -224,7 +224,7 @@ export const syncCosignDeliveries: Action<
 							outputIndex: vout,
 							protocol: 'basket insertion',
 							insertionRemittance: {
-								basket: 'bsv21',
+								basket: BSV21_BASKET,
 								tags,
 								customInstructions,
 							},

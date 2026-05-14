@@ -17,14 +17,24 @@ export const ORD_PREFIX = 'ord'
 // ============================================================================
 
 export const FUNDING_BASKET = 'default'
-export const ORDINALS_BASKET = '1sat'
-export const BSV21_BASKET = 'bsv21'
-export const BSV21_AUTH_BASKET = 'bsv21-auth'
-export const BSV21_DEPLOY_FUNDING_BASKET = 'bsv21-deploy-funding'
-export const OPNS_BASKET = 'opns'
-export const LOCK_BASKET = 'lock'
-export const SIGMA_BASKET = 'sigma'
-export const BSOCIAL_BASKET = 'bsocial'
+// 1Sat asset baskets are P-prefixed so WalletPermissionsManager routes
+// listOutputs / internalizeAction / etc. for them through the 1Sat
+// permission module rather than through the generic basket-access flow.
+// This:
+//   - lets the 1Sat module gate access with its own UX
+//   - avoids the double-encryption bug WPM has when a non-P basket is
+//     internalized alongside a P-label
+export const ORDINALS_BASKET = 'p 1sat ordinals'
+export const BSV21_BASKET = 'p 1sat bsv21'
+export const BSV21_AUTH_BASKET = 'p 1sat bsv21-auth'
+export const BSV21_DEPLOY_FUNDING_BASKET = 'p 1sat bsv21-deploy-funding'
+export const OPNS_BASKET = 'p 1sat opns'
+export const LOCK_BASKET = 'p 1sat lock'
+export const SIGMA_BASKET = 'p 1sat sigma'
+export const BSOCIAL_BASKET = 'p 1sat bsocial'
+// BAP records are 0-sat data outputs (identity registry), never externally
+// spendable. They don't interact with the WPM double-encryption path so
+// they stay non-P.
 export const BAP_BASKET = 'bap'
 
 /**

@@ -2,6 +2,7 @@ import { HttpError, type OneSatServices } from '@1sat/client'
 import {
 	type IndexSummary,
 	Indexer,
+	ORDINALS_BASKET,
 	type ParseContext,
 	type ParseResult,
 	type Txo,
@@ -71,7 +72,7 @@ export class OriginIndexer extends Indexer {
 			data: origin,
 			tags: [], // Tags will be added in summarize() once origin is determined
 			owner: address,
-			basket: '1sat',
+			basket: ORDINALS_BASKET,
 		}
 	}
 

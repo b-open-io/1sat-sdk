@@ -1,6 +1,6 @@
 {
   "name": "@1sat/wallet",
-  "version": "0.0.80",
+  "version": "0.0.81",
   "description": "BRC-100 wallet engine for 1Sat Ordinals SDK",
   "type": "module",
   "main": "./dist/index.js",

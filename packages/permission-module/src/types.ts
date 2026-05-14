@@ -23,7 +23,7 @@ export interface CapturedCommitment {
 }
 
 /** Kinds of prompts the module asks the host wallet to show. */
-export type PromptKind = 'transaction' | 'signature' | 'protocol'
+export type PromptKind = 'transaction' | 'signature' | 'protocol' | 'basketAccess'
 
 /**
  * Structured request handed to the wallet's promptHandler.
@@ -39,6 +39,8 @@ export interface PromptRequest {
 	 * Free-form context payload describing the operation. Shape is
 	 * intentionally permissive so the SDK actions can ride additional
 	 * detail through to the prompt without locking the schema.
+	 *
+	 * For `kind: 'basketAccess'`, contains `{ baskets: BasketAccessRequest[] }`.
 	 */
 	intent: Record<string, unknown>
 	/** Short human-readable summary line. Filled in by the module. */
@@ -46,10 +48,46 @@ export interface PromptRequest {
 }
 
 /**
+ * One basket the dApp wants access to, surfaced inside the
+ * `kind: 'basketAccess'` prompt intent.
+ */
+export interface BasketAccessRequest {
+	basket: string
+	description?: string
+}
+
+/**
  * Callback the host wallet provides for showing prompts and awaiting
  * the user's decision.
  */
 export type PromptHandler = (request: PromptRequest) => Promise<boolean>
+
+/**
+ * Persistent grant store interface the 1Sat module uses for basket-access
+ * decisions. The shape matches `@1sat/wallet`'s `IPermissionStore` (so a
+ * `LocalWalletPermissionsManager` can be passed in directly) but the
+ * permission module declares it independently to avoid a wallet-package
+ * dependency.
+ */
+export interface BasketGrantStore {
+	findGrant(key: BasketGrantKey): Promise<BasketStoredGrant | null>
+	putGrant(grant: BasketStoredGrant): Promise<void>
+}
+
+export interface BasketGrantKey {
+	type: 'basket'
+	originator: string
+	basket: string
+}
+
+export interface BasketStoredGrant {
+	key: BasketGrantKey
+	/** UNIX seconds, 0 for never expires. */
+	expiry: number
+	/** UNIX milliseconds when this grant was created. */
+	grantedAt: number
+	reason?: string
+}
 
 /** Args accepted by `createOneSatPermissionModule`. */
 export interface CreateOneSatPermissionModuleArgs {
@@ -61,6 +99,15 @@ export interface CreateOneSatPermissionModuleArgs {
 	wallet: WalletInterface
 	/** UI callback for prompting the user. */
 	promptHandler: PromptHandler
+	/**
+	 * Optional persistent grant store consulted before prompting for
+	 * basket-access on P-baskets. When omitted, the module prompts on
+	 * every basket-touching call. When provided, grants persist and
+	 * future calls hit the store-backed cache. This is the same store
+	 * `LocalWalletPermissionsManager` writes to from its grouped-permission
+	 * grant flow, so manifest-declared grants are picked up here too.
+	 */
+	permissionStore?: BasketGrantStore
 	/** Optional override for commitment cache TTL (seconds). */
 	commitmentTtlSeconds?: number
 	/**

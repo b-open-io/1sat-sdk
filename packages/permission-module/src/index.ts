@@ -17,6 +17,10 @@ export {
 } from './sighashParser'
 export {
 	DEFAULT_COMMITMENT_TTL_SECONDS,
+	type BasketAccessRequest,
+	type BasketGrantKey,
+	type BasketGrantStore,
+	type BasketStoredGrant,
 	type CapturedCommitment,
 	type CreateOneSatPermissionModuleArgs,
 	type PromptHandler,

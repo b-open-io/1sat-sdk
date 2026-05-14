@@ -16,27 +16,27 @@
       ],
       "basketAccess": [
         {
-          "basket": "1sat",
+          "basket": "p 1sat ordinals",
           "description": "Read and write ordinal outputs",
           "operations": ["insert", "remove", "list"]
         },
         {
-          "basket": "bsv21",
+          "basket": "p 1sat bsv21",
           "description": "Read and write BSV21 token outputs",
           "operations": ["insert", "remove", "list"]
         },
         {
-          "basket": "lock",
+          "basket": "p 1sat lock",
           "description": "Read and write timelocked outputs",
           "operations": ["insert", "remove", "list"]
         },
         {
-          "basket": "opns",
+          "basket": "p 1sat opns",
           "description": "Read and write OpNS name outputs",
           "operations": ["insert", "remove", "list"]
         },
         {
-          "basket": "bsocial",
+          "basket": "p 1sat bsocial",
           "description": "Read and write BSocial post outputs",
           "operations": ["insert", "remove", "list"]
         }

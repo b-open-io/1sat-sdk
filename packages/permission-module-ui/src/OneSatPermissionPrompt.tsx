@@ -239,7 +239,30 @@ function summarizeRequest(req: PromptRequest): IntentSummary {
 	if (req.kind === 'protocol') {
 		return summarizeProtocol(req)
 	}
+	if (req.kind === 'basketAccess') {
+		return summarizeBasketAccess(req)
+	}
 	return summarizeSignature(req)
+}
+
+interface BasketAccessIntent {
+	baskets: Array<{ basket: string; description?: string }>
+}
+
+function summarizeBasketAccess(req: PromptRequest): IntentSummary {
+	const intent = req.intent as unknown as BasketAccessIntent
+	const baskets = intent.baskets ?? []
+	return {
+		title:
+			baskets.length === 1
+				? 'Grant Basket Access'
+				: `Grant Access to ${baskets.length} Baskets`,
+		subtitle: `${shortenOriginator(req.originator)} wants to read and write 1Sat baskets`,
+		rows: baskets.map((b) => ({
+			key: b.basket,
+			value: b.description ?? 'List, insert, and remove outputs',
+		})),
+	}
 }
 
 interface TransactionIntent {

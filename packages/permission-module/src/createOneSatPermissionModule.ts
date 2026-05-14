@@ -3,6 +3,8 @@ import type {
 	CreateActionResult,
 	CreateSignatureArgs,
 	GetPublicKeyArgs,
+	InternalizeActionArgs,
+	ListOutputsArgs,
 } from '@bsv/sdk'
 import { CommitmentCache } from './commitmentCache'
 import {
@@ -10,6 +12,8 @@ import {
 	handleCreateActionResponse,
 	handleCreateSignatureRequest,
 	handleGetPublicKeyRequest,
+	handleInternalizeActionRequest,
+	handleListOutputsRequest,
 } from './handlers'
 import {
 	type CreateOneSatPermissionModuleArgs,
@@ -64,6 +68,7 @@ export function createOneSatPermissionModule(
 		promptHandler: args.promptHandler,
 		cache,
 		adminOriginator: args.adminOriginator,
+		permissionStore: args.permissionStore,
 	}
 
 	return {
@@ -89,6 +94,22 @@ export function createOneSatPermissionModule(
 					const next = await handleGetPublicKeyRequest(
 						deps,
 						req.args as GetPublicKeyArgs,
+						req.originator,
+					)
+					return { args: next }
+				}
+				case 'listOutputs': {
+					const next = await handleListOutputsRequest(
+						deps,
+						req.args as ListOutputsArgs,
+						req.originator,
+					)
+					return { args: next }
+				}
+				case 'internalizeAction': {
+					const next = await handleInternalizeActionRequest(
+						deps,
+						req.args as InternalizeActionArgs,
 						req.originator,
 					)
 					return { args: next }

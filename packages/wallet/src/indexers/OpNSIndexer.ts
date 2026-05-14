@@ -1,4 +1,4 @@
-import { Indexer, type ParseResult, type Txo } from '@1sat/types'
+import { Indexer, OPNS_BASKET, type ParseResult, type Txo } from '@1sat/types'
 import { Utils } from '@bsv/sdk'
 import type { Inscription } from './InscriptionIndexer'
 
@@ -37,7 +37,7 @@ export class OpNSIndexer extends Indexer {
 		return {
 			data: insc,
 			tags,
-			basket: 'opns',
+			basket: OPNS_BASKET,
 		}
 	}
 }

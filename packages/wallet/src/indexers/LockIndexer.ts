@@ -2,6 +2,7 @@ import { Lock } from '@1sat/templates'
 import {
 	type IndexSummary,
 	Indexer,
+	LOCK_BASKET,
 	type ParseContext,
 	type ParseResult,
 	type Txo,
@@ -30,7 +31,7 @@ export class LockIndexer extends Indexer {
 			data: { until: decoded.until } as LockData,
 			tags,
 			owner: decoded.address,
-			basket: 'lock',
+			basket: LOCK_BASKET,
 			protocol: 'basket insertion', // Custom Lock script requires manual unlock
 		}
 	}
