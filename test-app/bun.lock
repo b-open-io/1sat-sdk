@@ -5,11 +5,11 @@
     "": {
       "name": "test-sdk-app",
       "dependencies": {
-        "@1sat/actions": "0.0.155",
-        "@1sat/client": "0.0.36",
-        "@1sat/connect": "0.0.63",
-        "@1sat/react": "^0.0.59",
-        "@1sat/types": "0.0.28",
+        "@1sat/actions": "0.0.158",
+        "@1sat/client": "0.0.37",
+        "@1sat/connect": "0.0.65",
+        "@1sat/react": "0.0.61",
+        "@1sat/types": "0.0.29",
         "@bsv/sdk": "latest",
         "react": "^19.2.5",
         "react-dom": "^19.2.5",
@@ -24,21 +24,21 @@
     },
   },
   "packages": {
-    "@1sat/actions": ["@1sat/actions@0.0.155", "", { "dependencies": { "@1sat/client": "0.0.36", "@1sat/templates": "0.0.19", "@1sat/types": "0.0.28", "@1sat/utils": "0.0.23", "@1sat/wallet": "0.0.80", "@bsv/p2p": "^1.1.6" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-JLrwX87LOwesbxaUTJJ5yaiFq99AYmXsXX3ykmtWtjUVbKbRPNjudva/y9u8i7iOPEtCY5CqD1CvyoV1Letopg=="],
+    "@1sat/actions": ["@1sat/actions@0.0.158", "", { "dependencies": { "@1sat/client": "0.0.37", "@1sat/templates": "0.0.20", "@1sat/types": "0.0.29", "@1sat/utils": "0.0.24", "@1sat/wallet": "0.0.82", "@bsv/p2p": "^1.1.6" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-kF+EYaEuq1J4/B4pVMyEsZEX3SBOu2oCUY4V/S8DvHd6YGFszxh6QHYtK66tLaqkERssM6LOElnECS2JsLgLjw=="],
 
-    "@1sat/client": ["@1sat/client@0.0.36", "", { "dependencies": { "@1sat/types": "0.0.28", "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.21-parity-fix.2" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-U3Hq4Xb0SQt8NXRN9vuePY6auLiPim5ohYYPiiFU/wsMWmL+niqixph0OR2x+jvbi/qvMAmjJERGb4u53Xy7OA=="],
+    "@1sat/client": ["@1sat/client@0.0.37", "", { "dependencies": { "@1sat/types": "0.0.29", "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.21-parity-fix.2" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-//peZkn3jRfeDfU/71hwq8LXrNa+cK76kk3RdC0Wk5E3f+zZJYZnrJeHZ3H9R8kHKM7uGTm7Pv8sZhkJkN2MXQ=="],
 
-    "@1sat/connect": ["@1sat/connect@0.0.63", "", { "dependencies": { "@1sat/wallet": "0.0.80", "@sigma-auth/better-auth-plugin": "^0.0.84", "better-auth": "^1.5.4", "eventemitter3": "^5.0.1" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-t1XrcoiRcSdeyQci2wFcS/F5YSVbuvMhPAuryPaSsNCMuackaic0rC4K0mdgWNrjkIlDOGphdE9glMV0zAGwtA=="],
+    "@1sat/connect": ["@1sat/connect@0.0.65", "", { "dependencies": { "@1sat/wallet": "0.0.82", "@sigma-auth/better-auth-plugin": "^0.0.84", "better-auth": "^1.5.4", "eventemitter3": "^5.0.1" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-4afdQyKfmEjF7KZzI9oglNIngfJUspUmLq8y6qHUIYumJdUsZQDAHJUPuhSWbApRmNwrwVnw93DgF/ihitaFeQ=="],
 
-    "@1sat/react": ["@1sat/react@0.0.59", "", { "dependencies": { "@1sat/connect": "0.0.63" }, "peerDependencies": { "@bsv/sdk": "^2.0.13", "react": "^18.0.0 || ^19.0.0" } }, "sha512-ICpRWsrThMGY5DqhcQkJhmsqz9I+yrQnFq6d76n3y1UgezVl4G3np5+/thBATVb95AsRLNu8rY8AOC/d/n109g=="],
+    "@1sat/react": ["@1sat/react@0.0.61", "", { "dependencies": { "@1sat/connect": "0.0.65" }, "peerDependencies": { "@bsv/sdk": "^2.0.13", "react": "^18.0.0 || ^19.0.0" } }, "sha512-n3+dOD7dxeCQU5bo1oTM2063SFwhkAOWscvRRsL2JmCkTqPROQ9BpW0IyVaedaVZSHtTkZikZ0QqcNyoEohGHA=="],
 
-    "@1sat/templates": ["@1sat/templates@0.0.19", "", { "dependencies": { "@1sat/types": "0.0.28" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-Am68WoijpdXenQ+CCGDPcvaEuTWPCOskSupU3RgmMvX6dVyRzW7OtLDQlKr7e2Q0NFDm5UECdpPc8nmAYoMHEA=="],
+    "@1sat/templates": ["@1sat/templates@0.0.20", "", { "dependencies": { "@1sat/types": "0.0.29" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-bwLisOL9uOhvXIKlAq7Otb77E5Yt0Vw1av3ngPOaes66lXK6xtfT8YsTsyNwKsnvbvfI6BemiLOqJ5HfTdlTUw=="],
 
-    "@1sat/types": ["@1sat/types@0.0.28", "", { "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-33m4Yo8mGjq9wKJHq+QuqhPKvPLwm4ND9gZyJyLf2xBN4PAPKZ6j4ZH2KDZP43I0ZdgL/YNLvYSm0ReQisdBnw=="],
+    "@1sat/types": ["@1sat/types@0.0.29", "", { "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-pRz3wNFNB+aZw7juqDwJAsUVZaysG57wufIIr7goeYv1rYyhUKUgSrfjKgbbbbdiIl7D6/qtIa26isAg/m6fGA=="],
 
-    "@1sat/utils": ["@1sat/utils@0.0.23", "", { "dependencies": { "@1sat/types": "0.0.28", "image-meta": "^0.2.2" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-nWUIjCFFOeAvZa6HSebfe7XD1N8TI/Y8S4TjaPC+nwgUyLN7Jx9tYsmdppY5w28jCM3MsoSAr5MMIOIp7zpoZA=="],
+    "@1sat/utils": ["@1sat/utils@0.0.24", "", { "dependencies": { "@1sat/types": "0.0.29", "image-meta": "^0.2.2" }, "peerDependencies": { "@bsv/sdk": "^2.0.13" } }, "sha512-96KM8Mf4I5iOI6v2ij7SVAB6OuBusOcnggutdrTVMgNPmx146a0HjWfoCIjAlu3/n06Js5uKVVFDLx/Co3v1kQ=="],
 
-    "@1sat/wallet": ["@1sat/wallet@0.0.80", "", { "dependencies": { "@1sat/client": "0.0.36", "@1sat/templates": "0.0.19", "@1sat/types": "0.0.28", "@bopen-io/templates": "^1.2.3", "@msgpack/msgpack": "^3.1.3", "fflate": "^0.8.2" }, "peerDependencies": { "@bsv/sdk": "^2.0.13", "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.21-parity-fix.2" } }, "sha512-M4PWMKXutVV2KuwNH0pOgnUW2vFkJOp0jbwPHxQUKiKa76ELfsw3WO3cwNoPAHRi9e9j3AqGQUrKbAK2Nr9sRA=="],
+    "@1sat/wallet": ["@1sat/wallet@0.0.82", "", { "dependencies": { "@1sat/client": "0.0.37", "@1sat/templates": "0.0.20", "@1sat/types": "0.0.29", "@bopen-io/templates": "^1.2.3", "@msgpack/msgpack": "^3.1.3", "fflate": "^0.8.2" }, "peerDependencies": { "@bsv/sdk": "^2.0.13", "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.21-parity-fix.2" } }, "sha512-+DJsAw27rl8MWHe87MHcTsme7rsKMTJ5M83t/52vAGF4a+0aj+vlCHONx4IaAsGxG5/bfxNgP41+PEnuzQ640w=="],
 
     "@better-auth/core": ["@better-auth/core@1.6.11", "", { "dependencies": { "@opentelemetry/semantic-conventions": "^1.39.0", "@standard-schema/spec": "^1.1.0", "zod": "^4.3.6" }, "peerDependencies": { "@better-auth/utils": "0.4.0", "@better-fetch/fetch": "1.1.21", "@cloudflare/workers-types": ">=4", "@opentelemetry/api": "^1.9.0", "better-call": "1.3.5", "jose": "^6.1.0", "kysely": "^0.28.5", "nanostores": "^1.0.1" }, "optionalPeers": ["@cloudflare/workers-types", "@opentelemetry/api"] }, "sha512-LrwidLCV8azdMGjvtwp30nj9tIv1BwI3VhtC0UaGSjQkAVWw4bN42I8qwbxRziPeSQoj+zUVkOpxZzAWBDARtQ=="],
 
