@@ -25,6 +25,21 @@ export type ServerStorageConfig =
 	| ServerStorageBunSqliteConfig
 	| ServerStoragePgConfig
 
+export interface RepricerConfig {
+	/** Master toggle. Defaults to false. */
+	enabled?: boolean
+	/** Target price per `purchaseUnitBytes` chunk, in USD. */
+	targetUsd?: number
+	/** Interval between rate checks in ms. Defaults to 900000 (15 min). */
+	intervalMs?: number
+	/** Rate provider name. Defaults to "whatsonchain". */
+	provider?: string
+	/** Max percent change allowed per update. Larger moves are skipped. Defaults to 25. */
+	maxMovePct?: number
+	/** Lower bound for `satsPerUnit`. Defaults to 1. */
+	minSats?: number
+}
+
 export interface ServerAccountsConfig {
 	/** Master toggle. Defaults to false when omitted. */
 	enabled?: boolean
@@ -38,6 +53,8 @@ export interface ServerAccountsConfig {
 	durationBlocks?: number
 	/** Identity keys that bypass metering (server's own key is auto-added). */
 	freeIdentityKeys?: string[]
+	/** Optional auto-repricer. When enabled, updates `satsPerUnit` from a live BSV/USD rate. */
+	repricer?: RepricerConfig
 }
 
 export interface ServerMessageboxConfig {
