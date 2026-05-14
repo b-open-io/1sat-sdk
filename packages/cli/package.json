@@ -15,7 +15,8 @@
     "preinstall": "node scripts/check-bun.cjs",
     "build": "bun build ./src/cli.ts --compile --outfile=bin/1sat --external pg --external pg-native --external pg-query-stream --external tedious --external oracledb --external mysql",
     "dev": "bun run src/cli.ts",
-    "lint": "biome check src"
+    "lint": "biome check src",
+    "test": "bun test"
   },
   "keywords": [
     "1sat",
