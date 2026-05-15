@@ -1,5 +1,6 @@
 import './preload'
 import { inscribe } from '@1sat/actions'
+import { SIGMA_BASKET } from '@1sat/types'
 import { Utils } from '@bsv/sdk'
 import { createTestContext, destroyTestContext } from './setup'
 
@@ -14,7 +15,7 @@ try {
 }
 
 // Also abort any other nosend txs
-const outputs = await ctx.wallet.listOutputs({ basket: 'sigma' })
+const outputs = await ctx.wallet.listOutputs({ basket: SIGMA_BASKET })
 console.log('Sigma basket:', outputs.totalOutputs, 'outputs')
 
 const defaultOutputs = await ctx.wallet.listOutputs({ basket: 'default' })

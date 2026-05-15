@@ -34,7 +34,7 @@ export interface Bsv21 {
  *
  * Data structure: Bsv21 with id, op, amt, dec, status, etc.
  *
- * Basket: 'bsv21'
+ * Basket: BSV21_BASKET ('p 1sat bsv21')
  * Events: id, id:status, bsv21:amt
  */
 export class Bsv21Indexer extends Indexer {

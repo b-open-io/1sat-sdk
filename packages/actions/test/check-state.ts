@@ -1,4 +1,5 @@
 import './preload'
+import { SIGMA_BASKET } from '@1sat/types'
 import { createTestContext, destroyTestContext } from './setup'
 
 const ctx = await createTestContext('primary')
@@ -15,7 +16,7 @@ for (const o of outputs.outputs)
 	)
 
 // Check sigma basket too
-const sigma = await ctx.wallet.listOutputs({ basket: 'sigma', limit: 100 })
+const sigma = await ctx.wallet.listOutputs({ basket: SIGMA_BASKET, limit: 100 })
 console.log('\nSigma basket:', sigma.totalOutputs, 'outputs')
 for (const o of sigma.outputs)
 	console.log(

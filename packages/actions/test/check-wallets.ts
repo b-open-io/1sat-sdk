@@ -1,3 +1,4 @@
+import { ORDINALS_BASKET } from '@1sat/types'
 import {
 	createTestContext,
 	deriveDepositAddress,
@@ -27,7 +28,7 @@ async function main() {
 
 		// Check 1sat basket (ordinals)
 		const ordinals = await ctx.wallet.listOutputs({
-			basket: '1sat',
+			basket: ORDINALS_BASKET,
 			limit: 100,
 		})
 		console.log(`  1sat basket:    ${ordinals.totalOutputs} outputs`)

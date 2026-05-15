@@ -1,6 +1,7 @@
 'use client'
 
 import type { PromptRequest } from '@1sat/permission-module'
+import { BSV21_BASKET, LOCK_BASKET, ORDINALS_BASKET } from '@1sat/types'
 import { useEffect, useState } from 'react'
 import { promptStyles } from './styles'
 
@@ -346,7 +347,7 @@ function summarizeTokenTransfer(
 		totals.set(tokenId, cur)
 	}
 	for (const output of intent.outputs) {
-		if (output.basket !== 'bsv21') continue
+		if (output.basket !== BSV21_BASKET) continue
 		const tokenId = tagValue(output.tags, 'bsv21')
 		if (!tokenId) continue
 		const amt = BigInt(tagValue(output.tags, 'amt') ?? '0')
@@ -364,7 +365,7 @@ function summarizeTokenTransfer(
 		rows.push({ key: 'Amount', value: sent.toString() })
 	}
 	const recipient = intent.outputs.find(
-		(o) => o.recipient && o.basket !== 'bsv21',
+		(o) => o.recipient && o.basket !== BSV21_BASKET,
 	)?.recipient
 	if (recipient) rows.push({ key: 'Recipient', value: shortenValue(recipient) })
 
@@ -380,7 +381,7 @@ function summarizeLock(
 	req: PromptRequest,
 	intent: TransactionIntent,
 ): IntentSummary {
-	const lockOutputs = intent.outputs.filter((o) => o.basket === 'lock')
+	const lockOutputs = intent.outputs.filter((o) => o.basket === LOCK_BASKET)
 	const sats = (lockOutputs.length > 0 ? lockOutputs : intent.outputs).reduce(
 		(s, o) => s + o.satoshis,
 		0,
@@ -509,9 +510,9 @@ function summarizePurchase(
 ): IntentSummary {
 	// The asset coming into the wallet is the first basket-bound output.
 	const incoming = intent.outputs.find(
-		(o) => o.basket === '1sat' || o.basket === 'bsv21',
+		(o) => o.basket === ORDINALS_BASKET || o.basket === BSV21_BASKET,
 	)
-	const isToken = incoming?.basket === 'bsv21'
+	const isToken = incoming?.basket === BSV21_BASKET
 	const origin = tagValue(incoming?.tags, 'origin')
 	const name = tagValue(incoming?.tags, 'name')
 	const contentType = tagValue(incoming?.tags, 'type')

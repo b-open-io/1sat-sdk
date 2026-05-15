@@ -14,6 +14,7 @@ import type { Indexer, ParseContext, Txo } from '@1sat/types'
 import {
 	BSV21_BASKET,
 	DEPOSIT_BASKET,
+	OPNS_BASKET,
 	ORDINALS_BASKET,
 	buildTokenLabel,
 } from '@1sat/types'
@@ -414,9 +415,9 @@ function buildDescription(ownedTxos: Txo[]): string {
 			const sym = token.sym || 'tokens'
 			const amt = Number(token.amt) / 10 ** token.dec
 			parts.push(`${amt} ${sym}`)
-		} else if (txo.basket === '1sat') {
+		} else if (txo.basket === ORDINALS_BASKET) {
 			parts.push('ordinal')
-		} else if (txo.basket === 'opns') {
+		} else if (txo.basket === OPNS_BASKET) {
 			parts.push('OPNS name')
 		} else if (txo.basket === 'fund') {
 			sats += Number(txo.output.satoshis || 0)

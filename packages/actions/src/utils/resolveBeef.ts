@@ -17,7 +17,7 @@ export function extractIdTag(
  * and returns the BEEF bytes.
  *
  * @param wallet - BRC-100 wallet
- * @param basket - Basket name the output lives in (e.g. '1sat', 'lock', 'default')
+ * @param basket - Basket name the output lives in (e.g. {@link ORDINALS_BASKET}, {@link LOCK_BASKET}, {@link FUNDING_BASKET})
  * @param output - The output whose BEEF we need (must have an `id:` tag)
  * @returns BEEF byte array
  * @throws If the output has no ID tag or the lookup returns no results

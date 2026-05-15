@@ -1,4 +1,5 @@
 import './preload'
+import { BSV21_BASKET, ORDINALS_BASKET, SIGMA_BASKET } from '@1sat/types'
 import { P2PKH, PublicKey } from '@bsv/sdk'
 import { createTestContext, destroyTestContext, syncFunding } from './setup'
 
@@ -21,7 +22,7 @@ for (const out of outputs.outputs) {
 }
 
 // Check other baskets
-for (const basket of ['sigma', 'ordinals', 'bsv21']) {
+for (const basket of [SIGMA_BASKET, ORDINALS_BASKET, BSV21_BASKET]) {
 	try {
 		const b = await ctx.wallet.listOutputs({ basket })
 		if (b.totalOutputs > 0) {

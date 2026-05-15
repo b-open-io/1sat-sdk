@@ -1,4 +1,5 @@
 import './preload'
+import { ORDINALS_BASKET, SIGMA_BASKET } from '@1sat/types'
 import { P2PKH, PublicKey } from '@bsv/sdk'
 import { createTestContext, destroyTestContext } from './setup'
 
@@ -25,7 +26,7 @@ try {
 				lockingScript: anchorLockingScript.toHex(),
 				satoshis: 2,
 				outputDescription: 'Sigma anchor',
-				basket: 'sigma',
+				basket: SIGMA_BASKET,
 				customInstructions: JSON.stringify({
 					protocolID: [1, 'onesat'],
 					keyID: `anchor-${keyID}`,
@@ -68,7 +69,7 @@ try {
 					lockingScript: lockingScript.toHex(),
 					satoshis: 1,
 					outputDescription: 'Inscription',
-					basket: 'ordinals',
+					basket: ORDINALS_BASKET,
 				},
 			],
 			options: {

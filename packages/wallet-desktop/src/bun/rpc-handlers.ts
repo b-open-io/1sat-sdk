@@ -26,7 +26,7 @@ import {
 	updateProfile,
 } from '@1sat/actions'
 import { OPNS_BASKET } from '@1sat/actions'
-import { BRC29_PROTOCOL_ID } from '@1sat/types'
+import { BRC29_PROTOCOL_ID, ORDINALS_BASKET } from '@1sat/types'
 import { generateMnemonic, isValidMnemonic } from '@1sat/utils'
 import { PrivateKey, PublicKey, Utils as SdkUtils, Transaction } from '@bsv/sdk'
 import { Utils } from 'electrobun/bun'
@@ -910,7 +910,7 @@ export function createRpcHandlers(scopedAccountId?: string) {
 			})
 			const { listOrdinal } = await import('@1sat/actions')
 			const listResult = await w.wallet.listOutputs({
-				basket: 'ordinals',
+				basket: ORDINALS_BASKET,
 				includeCustomInstructions: true,
 				include: 'entire transactions',
 				limit: 1000,
@@ -933,7 +933,7 @@ export function createRpcHandlers(scopedAccountId?: string) {
 			})
 			const { cancelListing } = await import('@1sat/actions')
 			const listResult = await w.wallet.listOutputs({
-				basket: 'ordinals',
+				basket: ORDINALS_BASKET,
 				includeCustomInstructions: true,
 				include: 'entire transactions',
 				limit: 1000,
