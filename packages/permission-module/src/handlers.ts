@@ -11,19 +11,20 @@ import type {
 } from '@bsv/sdk'
 import { Beef, Transaction } from '@bsv/sdk'
 import { P1SAT_BASKET_PREFIX } from '@1sat/types'
+import type { IPermissionStore } from '@1sat/wallet'
 import { CommitmentCache } from './commitmentCache'
 import { enrichIntent } from './enrichIntent'
 import { computeHashOutputs } from './hashOutputs'
 import { substitutePlaceholders } from './placeholder'
 import { MIN_BIP143_PREIMAGE_BYTES, parsePreimage } from './sighashParser'
-import type { BasketGrantStore, PromptHandler } from './types'
+import type { PromptHandler } from './types'
 
 interface HandlerDeps {
 	wallet: WalletInterface
 	promptHandler: PromptHandler
 	cache: CommitmentCache
 	adminOriginator?: string
-	permissionStore?: BasketGrantStore
+	permissionStore?: IPermissionStore
 }
 
 /**
