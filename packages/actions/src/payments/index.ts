@@ -10,6 +10,7 @@ import {
 	type CreateActionOutput,
 	P2PKH,
 	Script,
+	Transaction,
 	Utils,
 } from '@bsv/sdk'
 import { getP2pPaymentDestination, sendBeefP2P } from '../paymail'
@@ -238,7 +239,12 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 			}
 
 			if (paymailRefs.length > 0 && result.tx) {
-				await deliverP2P(paymailRefs, Utils.toHex(result.tx))
+				// createAction returns AtomicBEEF (BRC-95) but BRC-70 `receive-beef`
+				// expects plain BEEF (BRC-62). Strip the atomic wrapper.
+				const beefHex = Utils.toHex(
+					Transaction.fromAtomicBEEF(result.tx).toBEEF(),
+				)
+				await deliverP2P(paymailRefs, beefHex)
 			}
 
 			if (ctx.debug && ctx.log) {
