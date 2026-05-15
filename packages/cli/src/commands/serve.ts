@@ -274,7 +274,7 @@ async function runWithStorage(
 			? undefined
 			: await startWalletServer(resolved, walletResult, accounts)
 
-	if (mode !== 'wallet' && accounts) {
+	if (mode !== 'wallet') {
 		const accountsCfg = resolved.accounts
 		const r = accountsCfg.repricer
 		if (

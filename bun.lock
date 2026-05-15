@@ -48,7 +48,7 @@
     },
     "packages/cli": {
       "name": "@1sat/cli",
-      "version": "0.0.64",
+      "version": "0.0.65",
       "bin": {
         "1sat": "./src/cli.ts",
       },
@@ -999,9 +999,9 @@
 
     "@radix-ui/rect": ["@radix-ui/rect@1.1.1", "", {}, "sha512-HPwpGIzkl28mWyZqG52jiqDJ12waP11Pa1lGoiyUkIEuMLBP0oeK/C89esbXrxsky5we7dfd8U58nm0SgAWpVw=="],
 
-    "@rive-app/react-webgl2": ["@rive-app/react-webgl2@4.28.4", "", { "dependencies": { "@rive-app/webgl2": "2.37.6" }, "peerDependencies": { "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0" } }, "sha512-OeUAmHQjhqYza2zcpd7wctF3JxBNLCPQORYRIlZkGN1Tzcy7XF4ctyy7d0SAObW2vfS7+NWcTf9owoCzx5uehQ=="],
+    "@rive-app/react-webgl2": ["@rive-app/react-webgl2@4.28.5", "", { "dependencies": { "@rive-app/webgl2": "2.37.7" }, "peerDependencies": { "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0" } }, "sha512-ieNHpANoaHD6R6m33jtJfjIQB37PpDo9RkbjlkpaZbvHSn9c2ZpKsD3vUlndKOpwl+6cA97JXJuPfs0LbkZ9AA=="],
 
-    "@rive-app/webgl2": ["@rive-app/webgl2@2.37.6", "", {}, "sha512-ZvUgD8yleilzqu0DuQF2r9bFOk+id1cmgSE/4QayyNGlqUTgANcKs2Ft78F27qeGLO06SE589ugrdgZLtL4kbw=="],
+    "@rive-app/webgl2": ["@rive-app/webgl2@2.37.7", "", {}, "sha512-UBhiWn9Ujjsl7H98pv5WKvUvhh79xd2IkFhT6BvK0Z3rFC6ikqDZ9odUokwhmQa8xoaJT3rDL9t5aq4wlqBrsQ=="],
 
     "@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.0-beta.27", "", {}, "sha512-+d0F4MKMCbeVUJwG96uQ4SgAznZNSq93I3V+9NHA4OpvqG8mRCpGdKmK8l/dl02h2CCDHwW2FqilnTyDcAnqjA=="],
 
