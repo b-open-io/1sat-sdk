@@ -27,6 +27,7 @@ import {
 	LOCK_BASKET,
 	OPNS_BASKET,
 	ORDINALS_BASKET,
+	P1SAT_BASKET_PREFIX,
 	P1SAT_INPUT_LABEL_PREFIX,
 	SIGMA_BASKET,
 } from '@1sat/types'
@@ -148,10 +149,10 @@ function parseAssetLabels(labels: string[], prefix: string): AssetLabelRef[] {
 		const payload = label.slice(prefix.length).trim()
 		const sep = payload.indexOf(' ')
 		if (sep <= 0) continue
-		const basket = payload.slice(0, sep)
+		const suffix = payload.slice(0, sep)
 		const id = payload.slice(sep + 1).trim()
-		if (!basket || !id) continue
-		refs.push({ basket, id })
+		if (!suffix || !id) continue
+		refs.push({ basket: `${P1SAT_BASKET_PREFIX}${suffix}`, id })
 	}
 	return refs
 }

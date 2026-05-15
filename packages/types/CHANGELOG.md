@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.30] - 2026-05-15
+
+### Added
+- `P1SAT_BASKET_PREFIX = 'p 1sat '` constant.
+
+### Fixed
+- `buildInputAssetLabel` strips `P1SAT_BASKET_PREFIX` from the basket suffix in the label payload. The P-basket rename gave basket names embedded spaces (`'p 1sat ordinals'`), which broke the space-delimited basket↔id split in the consumer parser. Non-P1Sat baskets pass through unstripped and drop cleanly from enrichment downstream.
+
 ## [0.0.8] - 2026-03-03
 
 ### Added

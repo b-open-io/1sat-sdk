@@ -116,9 +116,19 @@ export const P1SAT_PROTOCOL: [0 | 1 | 2, string] = [0, 'p 1sat']
 export const P1SAT_LABEL = 'p 1sat action'
 
 /**
+ * Shared `'p 1sat '` prefix on every 1Sat asset basket. Used by the
+ * WalletPermissionsManager to route basket-scoped calls (listOutputs,
+ * internalizeAction, etc.) through the 1Sat permission module.
+ */
+export const P1SAT_BASKET_PREFIX = 'p 1sat '
+
+/**
  * Label prefix recognized by the 1Sat permission module. Carries the
- * `'p 1sat'` dispatch trigger; payload is `'<basket> <id>'` — a lookup
- * key for the input asset's record in the wallet's storage.
+ * `'p 1sat'` dispatch trigger; payload is `'<basket-suffix> <id>'`
+ * where `<basket-suffix>` is the asset basket name with the shared
+ * `'p 1sat '` prefix stripped (e.g. `'ordinals'`, `'bsv21'`). Encoding
+ * only the suffix keeps the payload space-free so the parser can split
+ * cleanly on the boundary between basket and id.
  *
  * Outputs don't need a label: the SDK sets tags directly on
  * `args.outputs[i].tags` (unencrypted, visible to the module), and
@@ -141,11 +151,21 @@ export const P1SAT_INPUT_LABEL_PREFIX = 'p 1sat input '
  * existed) can't be enriched; callers should skip emitting the label
  * for those rather than scanning by outpoint.
  *
- * @param basket - Basket the source output sits in (e.g. `'1sat'`).
+ * The shared {@link P1SAT_BASKET_PREFIX} is stripped from the basket
+ * before encoding so basket names with embedded spaces don't collide
+ * with the basket↔id space delimiter. Non-P1Sat baskets pass through
+ * unstripped — those won't resolve in the permission module and the
+ * input simply drops from enrichment (graceful degradation to the
+ * generic transaction approval UI).
+ *
+ * @param basket - Asset basket (typically a P1Sat basket constant).
  * @param id     - The asset id, i.e. the `id:` tag value on the input.
  */
 export function buildInputAssetLabel(basket: string, id: string): string {
-	return `${P1SAT_INPUT_LABEL_PREFIX}${basket} ${id}`
+	const suffix = basket.startsWith(P1SAT_BASKET_PREFIX)
+		? basket.slice(P1SAT_BASKET_PREFIX.length)
+		: basket
+	return `${P1SAT_INPUT_LABEL_PREFIX}${suffix} ${id}`
 }
 
 /**

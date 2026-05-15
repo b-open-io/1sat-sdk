@@ -10,6 +10,7 @@ import type {
 	WalletInterface,
 } from '@bsv/sdk'
 import { Beef, Transaction } from '@bsv/sdk'
+import { P1SAT_BASKET_PREFIX } from '@1sat/types'
 import { CommitmentCache } from './commitmentCache'
 import { enrichIntent } from './enrichIntent'
 import { computeHashOutputs } from './hashOutputs'
@@ -253,8 +254,6 @@ function summarizeIntent(args: CreateActionArgs): string {
 // Basket-access gating
 // ---------------------------------------------------------------------------
 
-const P_BASKET_PREFIX = 'p 1sat '
-
 /**
  * Decide whether the originator has access to every P-prefixed `1Sat` basket
  * touched by this request. Used by both `listOutputs` and `internalizeAction`
@@ -280,7 +279,7 @@ export async function ensureBasketAccess(
 
 	const unique = new Set<string>()
 	for (const b of baskets) {
-		if (typeof b === 'string' && b.startsWith(P_BASKET_PREFIX)) unique.add(b)
+		if (typeof b === 'string' && b.startsWith(P1SAT_BASKET_PREFIX)) unique.add(b)
 	}
 	if (unique.size === 0) return
 

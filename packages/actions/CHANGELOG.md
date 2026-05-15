@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.160
+
+### Changed
+- Republish to bundle `@1sat/types@0.0.30` (`buildInputAssetLabel` payload now strips `P1SAT_BASKET_PREFIX` so basket↔id parsing in the 1Sat permission module works for the P-prefixed asset baskets).
+
 ## 0.0.129
 
 ### Fixed
