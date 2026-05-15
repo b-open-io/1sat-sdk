@@ -343,10 +343,15 @@ export default class Lock {
 
 				const sighash = Hash.sha256(Hash.sha256(preimage))
 
+				// Pass the full BIP-143 preimage as `data` so the 1Sat permission
+				// module can extract hashOutputs + outpoint and auto-grant against
+				// the commitment captured at createAction time. `hashToDirectlySign`
+				// remains the 32-byte input the wallet actually signs.
 				const { signature } = await wallet.createSignature({
 					protocolID,
 					keyID,
 					counterparty,
+					data: Array.from(preimage),
 					hashToDirectlySign: Array.from(sighash),
 				})
 
