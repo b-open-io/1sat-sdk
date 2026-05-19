@@ -167,10 +167,22 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 		}
 
 		try {
-			const { inputs, keys } = request
+			const { inputs, keys, amount } = request
 
 			if (!inputs || inputs.length === 0) {
 				return { error: 'no-inputs' }
+			}
+
+			const inputTotal = inputs.reduce((sum, i) => sum + i.satoshis, 0)
+			const isPartial = amount !== undefined && amount < inputTotal
+
+			if (amount !== undefined) {
+				if (amount <= 0) {
+					return { error: 'invalid-amount' }
+				}
+				if (amount > inputTotal) {
+					return { error: 'insufficient-funds' }
+				}
 			}
 
 			const keyMap = buildKeyMap(inputs, keys)
@@ -199,18 +211,32 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 				}
 			})
 
-			// No explicit outputs — wallet adds a single change output for the
-			// full input value (minus fee) into its default basket. That change
-			// IS the deposit. The `amount` field on SweepBsvRequest is preserved
-			// in the type for backward compat but is no longer honored at this
-			// layer; the UI pre-filters inputs based on the requested amount.
+			// Full sweep: no explicit outputs; the wallet's change output absorbs
+			// all input value (minus fee) into the default basket with BRC-29
+			// derivation — that change is the deposit.
+			//
+			// Partial sweep: one explicit return-to-source output sized
+			// inputTotal - amount. The wallet's change output then receives
+			// amount - fee into the default basket.
+			const outputs: CreateActionOutput[] = []
+			if (isPartial) {
+				const sourceAddress = keys[0].toPublicKey().toAddress()
+				outputs.push({
+					lockingScript: new P2PKH().lock(sourceAddress).toHex(),
+					satoshis: inputTotal - amount,
+					outputDescription: 'Return to legacy address',
+				})
+			}
+
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				{
-					description: `Sweep ${inputs.length} legacy BSV UTXO${inputs.length !== 1 ? 's' : ''}`,
+					description: isPartial
+						? `Sweep ${amount} sats from ${inputs.length} legacy BSV UTXO${inputs.length !== 1 ? 's' : ''}`
+						: `Sweep ${inputs.length} legacy BSV UTXO${inputs.length !== 1 ? 's' : ''}`,
 					inputBEEF: beefData,
 					inputs: inputDescriptors,
-					outputs: [],
+					outputs,
 					options: { randomizeOutputs: false },
 				},
 				undefined,

@@ -188,7 +188,7 @@ export function FundingSection({
 							walletConnected ? undefined : 'Connect BRC-100 wallet to sweep'
 						}
 					>
-						Sweep to Wallet
+						{isMax ? 'Sweep All' : `Sweep ${displayAmount} sats`}
 					</Button>
 				</div>
 			</div>
