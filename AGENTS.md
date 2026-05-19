@@ -1,133 +1,160 @@
-# AGENTS
+# CLAUDE.md
 
-Agent instructions for the `1sat-sdk` monorepo.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Goals
-- Keep package boundaries clean and dependency direction stable.
-- Preserve browser/node runtime compatibility.
-- Prefer small, focused changes with validation.
+`CLAUDE.md` is a symlink to `AGENTS.md` — edits to either go to the same file, so AI tooling that looks for `AGENTS.md` and tooling that looks for `CLAUDE.md` stay in sync.
 
 ## Tooling and Commands
-Always use Bun and workspace scripts.
 
-- `bun dev` run watch/dev scripts across workspaces
-- `bun run build` build all packages/examples
-- `bun run lint` Biome check
+Always use Bun and workspace scripts — never `npm`/`yarn`/`pnpm`. The repo is a Bun workspace declared in the root `package.json` with `workspaces: ["packages/*", "examples/*"]`.
+
+- `bun install` install all workspace deps
+- `bun run build` build every package (via `--filter '*' build`)
+- `bun dev` watch/dev across workspaces
+- `bun run lint` Biome check (tab indent, width 2 — see `biome.json`)
 - `bun run lint:fix` Biome auto-fix
-- `bun test` run tests
-- `bun run --filter '@1sat/<package>' build` build one package
-- `bun run --filter '@1sat/<package>' dev` watch one package
+- `bun test` run all Bun tests (tests live in `packages/*/test/*.test.ts`)
+- `bun run clean` `rm -rf packages/*/dist`
+- `bun run --filter '@1sat/<pkg>' build` build one package
+- `bun run --filter '@1sat/<pkg>' dev` watch one package
+- `bun test packages/<pkg>/test/<file>.test.ts` run a single test file
+- `bun test --test-name-pattern '<regex>'` filter by test name
+
+The root `package.json` pins `@bsv/sdk` to `2.0.13` via `overrides` — don't bump that casually; it affects every package.
 
 ## Monorepo Layout
-- `packages/types` shared type definitions and constants
-- `packages/utils` shared helpers (encoding/validation/metadata)
-- `packages/client` API clients and network services
-- `packages/core` transaction building, protocol implementations (MAP, Sigma, OrdLock, ordinals), and high-level core flows
-- `packages/actions` wallet actions
-- `packages/wallet` wallet runtime and indexers
-- `packages/connect` browser connection layer
-- `packages/extension` extension toolkit
-- `packages/react` React bindings
-- `packages/sdk` aggregate SDK exports
-- `examples` usage samples
 
-## Dependency Order (High Level)
-Follow this direction for new code:
+Packages under `packages/*` (all published as `@1sat/<name>` unless marked private). Current set:
 
-`types` → `utils` → `client` → `core` → `actions/wallet` → `sdk` → `examples`
+**Foundations**
+- `types` — type definitions and protocol constants (`API_HOST`, `ORDFS_HOST`, `ONESAT_MAINNET_URL`, etc.)
+- `utils` — encoding, validation, key derivation helpers
 
-Additional constraints:
-- `connect` is browser-focused and should remain independent from core wallet logic.
-- `react` depends on `connect` only.
-- `sdk` is an export aggregator; avoid adding business logic there.
+**Network / data**
+- `client` — API clients: indexer (Gorilla Pool), broadcast (`ArcadeClient`), ORDFS
+- `engine` — WASM parser for BEEF/transactions (ships protobuf bindings under `src/*_pb.{js,d.ts}`)
+- `knex-bun-sqlite` — Knex dialect backed by `bun:sqlite`
+
+**Protocol / building**
+- `templates` — Bitcoin script templates (Inscription, OrdLock, Lock, BSV20, BSV21, AIP, BAP, MAP, Sigma, BSocial). Subpath export `@1sat/templates/sigma`.
+- `actions` — self-describing wallet actions for agents and tooling (`createOrdinals`, `transferOrdTokens`, …)
+- `permission-module` — `WalletPermissionsManager` gate (BRC-0098 `hashOutputs` commitments captured at `createAction` time)
+- `permission-module-ui` — React UI for permission prompts
+
+**Wallet engine + runtimes**
+- `wallet` — BRC-100 wallet engine, indexers, sync, backup, CWI
+- `wallet-browser` — `createWebWallet()` (IndexedDB storage)
+- `wallet-node` — `createNodeWallet()` (SQLite storage)
+- `wallet-remote` — remote-only factory (no local storage)
+- `wallet-server` — BRC-100 storage RPC server (carries most of the server-side tests)
+- `wallet-mac` — macOS Secure Enclave + native UI (ships Swift via `swift/build.sh`)
+- `wallet-desktop` (private) — Electrobun + Vite + Bun desktop app
+
+**Browser dApp integration**
+- `connect` — popup-based provider (`createOneSat`), postMessage protocol, session mgmt
+- `extension` — toolkit for building `window.onesat` browser extensions (subpath exports `./popup`, `./storage`, `./keys`)
+- `react` — `OneSatProvider`, `ConnectButton`, hooks (`useOneSatContext`, `useBalance`, …). Depends on `connect` only.
+- `sweep-ui` — React UI for sweeping/migrating legacy BSV assets
+
+**Vault / secrets**
+- `vault` — platform-agnostic vault interface (used by `wallet-mac`, `wallet-desktop`)
+
+**CLI**
+- `cli` — `1sat` binary, built via `bun build --compile`. Resolves keys from `PRIVATE_KEY_WIF` env or `~/.1sat/keys.bep`.
+
+**Note:** older docs referenced `@1sat/core` and `@1sat/sdk` aggregate packages — neither exists. Transaction-building primitives live in `templates` + `actions`; there is no aggregate re-export package.
+
+Other top-level dirs:
+- `examples/` — `browser`, `react`, `minimal-wallet`, plus `verify-docs.ts`
+- `test-app/` — Vite React app used as a manual QA harness (see `test-app/QA-CHECKLIST.md`)
+- `agents/ordinals.md` — long-form 1Sat Ordinals protocol notes
+- `skills/<name>/SKILL.md` — 16 skill packs for AI tools (`1sat-cli`, `1sat-stack`, `dapp-connect`, `ordinals-marketplace`, `token-operations`, `transaction-building`, `wallet-setup`, `wallet-create-ordinals`, `timelock`, `sweep-import`, `opns-names`, `extract-blockchain-media`, `pow20-mining`, `sdk-publish`, `wallet-desktop-mcp`, …). Read the relevant skill before touching that area — they contain task-specific recipes that aren't duplicated here.
+- `docs/` — architecture, protocols, research, plans
 
 ## Protocol Context
-Primary domain: 1Sat + BSV protocols (ordinals, BSV21 tokens, MAP, Sigma, OrdLock listings, ORDFS content).
 
-## Coding Conventions
-- Use Bun for all scripts and package operations.
-- Use Biome for linting/formatting.
-- Do not use `Buffer` or browser polyfills for conversions; use `@bsv/sdk` utils.
-- Do not use star imports (`import * as ...`).
-- Keep runtime-specific entrypoints separate (`browser` vs `node`) where applicable.
-- Prefer explicit named exports from package entrypoints.
+Primary domain: 1Sat + BSV protocols — ordinals, BSV20 (tick), BSV21 (origin), MAP (Magic Attribute Protocol), Sigma (data attestation), OrdLock (trustless listings), ORDFS (inscription content).
 
-## Action Conventions (packages/actions)
-- **All actions** must use `createTrackedAction` instead of raw `wallet.createAction`. This adds ID tags to basketed outputs for targeted lookups.
-- **Actions spending wallet-owned inputs** must make `inputBEEF` optional with `resolveBeef` fallback. The helper looks up BEEF via the output's ID tag.
-- **Actions spending external inputs** (e.g. purchasing a listing from another user) require `inputBEEF` — the caller's wallet has no BEEF for outputs it doesn't own.
-- **All two-phase actions** (signAndProcess: false) must use `completeSignedAction` for signing. It handles BEEF merge, script verification, signAction, and abort on failure.
-- **Template methods** (`OrdLock.cancelWithWallet`, `Lock.unlockWithWallet`) must be used for contract unlocking instead of manual signature construction. They handle sighash byte appending correctly.
+## Dependency Direction
 
-## Working Rules for Agents
+Keep this direction stable:
+
+`types` → `utils` → `client`/`engine` → `templates` → `actions` → `wallet` → `wallet-{browser,node,remote,server,mac,desktop}` → `examples`
+
+Cross-cutting constraints:
+- `connect` is browser-only and must NOT pull in core wallet logic.
+- `react` may only depend on `connect` (plus `types`/`utils`).
+- `extension` is independent of `wallet`/`actions` — it implements the provider surface.
+- `vault` is below `wallet-mac` and `wallet-desktop`; do not let it depend upward.
+- No deep imports across packages — import through the package entrypoint (`src/index.ts`).
+- No star imports (`import * as X`).
+- No `Buffer` or browser polyfills for conversions — use `@bsv/sdk` `Utils` (`toArray`, `toBase64`, `toHex`, …).
+- Keep `browser` vs `node` entrypoints separate where applicable.
+
+## Action Conventions (`packages/actions`)
+
+These are non-obvious and easy to break:
+
+- All actions use `createTrackedAction` (not raw `wallet.createAction`). It tags basketed outputs with IDs so they can be looked up later.
+- Actions that spend **wallet-owned** inputs: `inputBEEF` is optional — fall back to `resolveBeef`, which looks up BEEF via the output's ID tag.
+- Actions that spend **external** inputs (e.g. buying another user's listing): `inputBEEF` is required — the caller's wallet has no BEEF for outputs it doesn't own.
+- Two-phase actions (`signAndProcess: false`) must sign via `completeSignedAction`. It merges BEEF, verifies the script, calls `signAction`, and aborts on failure.
+- Contract unlocks use the template's `*WithWallet` method (`OrdLock.cancelWithWallet`, `Lock.unlockWithWallet`, …) — they handle sighash byte appending. Don't construct signatures manually.
+
+## Working Rules
+
 - Edit the smallest set of files required.
-- Avoid cross-package deep imports; import through package entrypoints.
-- If you add a public API:
-  - update the package `src/index.ts`
-  - update `package.json` `exports` when needed
-  - update README/examples if behavior changed
-- Keep temporary artifacts out of commits (`dist`, scratch files, debug scripts).
+- When you add a public API:
+  - update the package's `src/index.ts`
+  - update the `exports` field in its `package.json` if you're adding a subpath
+  - update relevant README/examples or `skills/<name>/SKILL.md`
+- Keep `dist/`, scratch scripts, and debug files out of commits.
 
 ## Publishing Packages
 
-When bumping a package version and publishing to npm:
+The `sdk-publish` skill has the full procedure. Short version:
 
-1. **Bump the version** in `package.json`
-2. **Delete `bun.lock`** and run `bun install` to regenerate it. `workspace:*` references resolve from the lockfile — if the lockfile is stale, `bun publish` will resolve to the old version even though `package.json` has the new one.
-3. **Clean `dist/`** before building (`rm -rf packages/<pkg>/dist`). Old `.d.ts` files from previous builds persist and get included in the published tarball.
-4. **Build** the package (`bun run --filter '@1sat/<pkg>' build`)
-5. **Verify the lockfile** has the correct version: `grep -A3 '"name": "@1sat/<pkg>"' bun.lock`
-6. **Commit and push** before publishing
-7. **Publish connect before react** — react depends on connect via `workspace:*`. The resolved version at publish time comes from the lockfile.
-8. **After publishing**, verify the dependency chain: `npm view @1sat/react@<ver> dependencies`
+1. Bump `version` in the package's `package.json`.
+2. Delete `bun.lock` and run `bun install` to regenerate it. `workspace:*` references resolve from the lockfile — a stale lockfile means `bun publish` ships the old version even with a new `package.json`.
+3. `rm -rf packages/<pkg>/dist` before building (old `.d.ts` files persist otherwise).
+4. `bun run --filter '@1sat/<pkg>' build`.
+5. Verify the lockfile: `grep -A3 '"name": "@1sat/<pkg>"' bun.lock`.
+6. Commit + push before publishing.
+7. **Publish `connect` before `react`** — `react` depends on `connect` via `workspace:*`; the publish-time version comes from the lockfile.
+8. Verify the dependency chain: `npm view @1sat/react@<ver> dependencies`.
 
-## wallet-desktop Logging
+## wallet-desktop Logging (specific)
 
-`src/bun/log.ts` is a side-effect module that calls `initLogger` with a composite drain. The drain fans out to three destinations:
+`packages/wallet-desktop/src/bun/log.ts` is a side-effect module that calls `initLogger` with a composite drain. The drain fans out to:
 
-1. **File** (`~/.1sat-wallet/logs/*.jsonl`) — NDJSON with date rotation (`2026-03-24.jsonl`), 7-day max retention. Uses `createFsDrain` from `evlog/fs` wrapped in `createDrainPipeline` from `evlog/pipeline` (batches 25 events or 2s).
-2. **MCP ring buffer** — queryable via `wallet_logs` MCP tool (last 500 events). Pushed inline in the composite drain.
+1. **File** (`~/.1sat-wallet/logs/*.jsonl`) — NDJSON, date-rotated, 7-day max retention. Uses `createFsDrain` from `evlog/fs` wrapped in `createDrainPipeline` from `evlog/pipeline` (batches 25 events or 2s).
+2. **MCP ring buffer** — queryable via the `wallet_logs` MCP tool (last 500 events). Pushed inline in the composite drain.
 3. **stdout** — standard evlog structured output.
 
-The `initLogger` call sets `env: { service: '1sat-wallet' }` — evlog auto-detects environment, version, etc.
+`initLogger` sets `env: { service: '1sat-wallet' }`; evlog auto-detects environment, version, etc.
 
-### How it's wired
+Wiring rules:
+- `src/bun/log.ts` is imported as a side effect in `index.ts` (`import './log'`) before any logging.
+- `flushLogs()` is called on app quit.
+- `index.ts` is the **only** file that imports from `./log` (for side-effect init + `flushLogs`).
+- All other bun modules import from `evlog` directly: `createLogger({ context: 'startup' })`, `createRequestLogger({ method, path })`, `log.set()`, `log.emit()`.
 
-- `src/bun/log.ts` is imported as a side effect in `index.ts` (`import './log'`) before any logging calls.
-- `flushLogs()` is called on app quit to flush buffered events to disk.
-- `index.ts` is the **only** file that imports from `./log` (for side-effect init and `flushLogs`).
-
-### Adding logging in wallet-desktop bun modules
-
-Import directly from `evlog` — **not** from `./log`:
-
-- `createLogger({ context: 'startup' })` — non-request logging
-- `createRequestLogger({ method, path })` — HTTP request logging
-- `log.set()` — accumulate context fields on the wide event
-- `log.emit()` — flush the wide event
-
-### Debugging the installed app
-
-When the signed/notarized build fails (window doesn't open, skeletons forever):
+Debugging a signed/notarized build that hangs:
 
 ```bash
 tail -30 ~/.1sat-wallet/logs/$(date +%Y-%m-%d).jsonl
 ```
 
-Startup events in order: `url_resolved` → `window_created` → `dom_ready` → `http_listening` → `mcp_listening` → `setup_complete`. Whichever is missing tells you where it stopped.
+Startup event sequence: `url_resolved` → `window_created` → `dom_ready` → `http_listening` → `mcp_listening` → `setup_complete`. The missing one tells you where it stopped.
 
-### Debugging for other users
-
-Have them send `~/.1sat-wallet/logs/`. Key things to check:
+Debugging other users (have them send `~/.1sat-wallet/logs/`):
 - `dom_ready` with `hasKey: false` → no wallet created, should see onboarding
 - `dom_ready` with `hasKey: true` → wallet exists, should see unlock screen
 - `start_failed` in stack context → 1sat-stack sidecar didn't start (data won't load)
 - `onboarding_required` → stack needs setup wizard completed
 - No events at all → bun process crashed before `initLogger` (missing dependency)
 
-### MCP Server
-
-The wallet-desktop runs three local services:
+### wallet-desktop local services
 
 | Service | Port | Auth | Purpose |
 |---------|------|------|---------|
@@ -135,15 +162,13 @@ The wallet-desktop runs three local services:
 | BRC-100 HTTPS | 2121 | BRC-31 + TLS | Same, with self-signed cert |
 | MCP Server | 3322 | BRC-103/104 | Agent tools (26 tools: browser, tabs, data, wallet, logs) |
 
-The `1sat mcp-proxy` CLI command bridges stdio to the MCP server with authenticated BRC-31 handshake. The 1sat plugin ships `.mcp.json` that runs this automatically.
-
-Agent identity keys: `~/.1sat-wallet/mcp-agent.key` (client), `~/.1sat-wallet/mcp-identity.key` (server).
+`1sat mcp-proxy` bridges stdio to the MCP server with an authenticated BRC-31 handshake. The 1sat plugin ships `.mcp.json` that runs this automatically. Agent identity keys: `~/.1sat-wallet/mcp-agent.key` (client), `~/.1sat-wallet/mcp-identity.key` (server).
 
 ## Validation Checklist
-Run after meaningful changes:
+
+After meaningful changes:
 
 1. `bun run lint`
-2. `bun run build`
-3. `bun test` (when tests exist or behavior changed)
-
-For package-scoped changes, run targeted builds first, then run full repo checks before finalizing.
+2. `bun run --filter '@1sat/<pkg>' build` for packages you touched
+3. `bun run build` before finalizing cross-package changes
+4. `bun test` (or scoped `bun test packages/<pkg>/...`) when tests exist or behavior changed
