@@ -133,10 +133,15 @@ export function getAvailableProviders(
  *
  * If the last successful provider is known, it's attempted first
  * before falling back to the full race.
+ *
+ * Returns null when the race completes with no successful connection
+ * (no wallet installed, configured providers can't auto-connect).
+ * Callers should treat null as "show the provider picker." Genuine
+ * misuse — e.g. autoDetect disabled with no providers — still throws.
  */
 export async function connectWallet(
 	config?: ConnectWalletConfig,
-): Promise<ConnectWalletResult> {
+): Promise<ConnectWalletResult | null> {
 	const autoDetect = config?.autoDetect ?? true
 	const providers = config?.providers ?? []
 
@@ -169,7 +174,11 @@ export async function connectWallet(
 		throw new Error('No wallet providers configured and autoDetect is disabled')
 	}
 
-	const result = await Promise.any(attempts)
-	saveLastProvider(result.provider)
-	return result
+	try {
+		const result = await Promise.any(attempts)
+		saveLastProvider(result.provider)
+		return result
+	} catch {
+		return null
+	}
 }

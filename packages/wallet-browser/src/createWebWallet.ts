@@ -38,6 +38,12 @@ export interface WebWalletConfig {
 	 * `@1sat/wallet-browser` for the standard implementation.
 	 */
 	taskStateStore?: TaskStateStore
+	/**
+	 * Optional override for the OneSatServices base URL (where transaction
+	 * broadcasts go). Defaults to ONESAT_MAINNET_URL / ONESAT_TESTNET_URL.
+	 * Set this to point a browser build at a non-production 1sat-stack.
+	 */
+	servicesBaseUrl?: string
 }
 
 export interface WebWalletResult {

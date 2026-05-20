@@ -77,6 +77,14 @@ export interface WalletCoreConfig {
 	 * task on first invocation.
 	 */
 	taskStateStore?: TaskStateStore
+	/**
+	 * Optional override for the OneSatServices base URL. Falls through to
+	 * ONESAT_MAINNET_URL / ONESAT_TESTNET_URL when undefined. Used by
+	 * runtime wrappers (e.g. wallet-node) to surface an env-var override
+	 * so a test deployment can point a CLI at a non-production 1sat-stack
+	 * without recompiling.
+	 */
+	servicesBaseUrl?: string
 }
 
 export interface WalletCoreResult {
@@ -155,7 +163,11 @@ export async function createWalletCore(
 
 	// 1. Create services
 	const fallbackServices = new toolbox.Services(chain)
-	const oneSatServices = new OneSatServices(chain, undefined, fallbackServices)
+	const oneSatServices = new OneSatServices(
+		chain,
+		config.servicesBaseUrl,
+		fallbackServices,
+	)
 
 	// 2. Create storage manager — empty initially
 	const storage = new toolbox.WalletStorageManager(identityPubKey)

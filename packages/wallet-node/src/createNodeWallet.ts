@@ -63,6 +63,14 @@ export interface NodeWalletConfig {
 	 * persistence is wanted.
 	 */
 	taskStateStore?: TaskStateStore
+	/**
+	 * Optional override for the OneSatServices base URL (where transaction
+	 * broadcasts go). Defaults to ONESAT_MAINNET_URL / ONESAT_TESTNET_URL.
+	 * The factory also honors the ONESAT_API_URL environment variable when
+	 * this field is left unset, so test deployments can redirect a CLI to
+	 * a non-production 1sat-stack without a code change.
+	 */
+	servicesBaseUrl?: string
 }
 
 export interface NodeWalletResult {
@@ -105,8 +113,11 @@ export async function createNodeWallet(
 				)
 			: undefined)
 
+	const servicesBaseUrl =
+		config.servicesBaseUrl ?? process.env.ONESAT_API_URL ?? undefined
+
 	const core = await createWalletCore(
-		{ ...config, taskStateStore },
+		{ ...config, taskStateStore, servicesBaseUrl },
 		localStorage,
 		{
 			Services,

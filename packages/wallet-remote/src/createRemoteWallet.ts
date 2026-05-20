@@ -16,6 +16,12 @@ export interface RemoteWalletConfig {
 	activeRemote: string
 	backups?: string[]
 	connectionTimeout?: number
+	/**
+	 * Optional override for the OneSatServices base URL (where transaction
+	 * broadcasts go). Defaults to ONESAT_MAINNET_URL / ONESAT_TESTNET_URL.
+	 * Set this to point a build at a non-production 1sat-stack.
+	 */
+	servicesBaseUrl?: string
 }
 
 export interface RemoteWalletResult {
