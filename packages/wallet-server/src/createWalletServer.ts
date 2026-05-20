@@ -381,7 +381,7 @@ interface AuthenticatedRequest extends ExpressRequest {
 }
 
 function corsMiddleware(
-	_req: ExpressRequest,
+	req: ExpressRequest,
 	res: ExpressResponse,
 	next: NextFunction,
 ): void {
@@ -389,6 +389,10 @@ function corsMiddleware(
 	res.header('Access-Control-Allow-Headers', '*')
 	res.header('Access-Control-Allow-Methods', '*')
 	res.header('Access-Control-Expose-Headers', '*')
+	if (req.method === 'OPTIONS') {
+		res.sendStatus(200)
+		return
+	}
 	next()
 }
 
