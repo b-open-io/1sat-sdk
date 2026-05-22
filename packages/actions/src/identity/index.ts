@@ -334,10 +334,17 @@ export const rotateIdentity: Action<ActionOptions, IdentityResponse> = {
 			if (!result.txid) return { error: 'no-txid-returned' }
 
 			for (const old of existingIds.outputs) {
-				await ctx.wallet.relinquishOutput({
-					basket: BAP_BASKET,
-					output: old.outpoint,
-				})
+				try {
+					await ctx.wallet.relinquishOutput({
+						basket: BAP_BASKET,
+						output: old.outpoint,
+					})
+				} catch (err) {
+					console.warn(
+						`[rotateIdentity] relinquishOutput failed for ${old.outpoint}; leaving stale entry`,
+						err,
+					)
+				}
 			}
 
 			return {
@@ -558,10 +565,17 @@ export const updateProfile: Action<UpdateProfileRequest, IdentityResponse> = {
 			if (!result.txid) return { error: 'no-txid-returned' }
 
 			for (const old of existingAliases.outputs) {
-				await ctx.wallet.relinquishOutput({
-					basket: BAP_BASKET,
-					output: old.outpoint,
-				})
+				try {
+					await ctx.wallet.relinquishOutput({
+						basket: BAP_BASKET,
+						output: old.outpoint,
+					})
+				} catch (err) {
+					console.warn(
+						`[updateProfile] relinquishOutput failed for ${old.outpoint}; leaving stale entry`,
+						err,
+					)
+				}
 			}
 
 			return {
@@ -654,10 +668,17 @@ export const getProfile: Action<Record<string, never>, ProfileResponse> = {
 			const profile = bap.profile as Record<string, unknown>
 
 			for (const loser of picked.losers) {
-				await ctx.wallet.relinquishOutput({
-					basket: BAP_BASKET,
-					output: loser.outpoint,
-				})
+				try {
+					await ctx.wallet.relinquishOutput({
+						basket: BAP_BASKET,
+						output: loser.outpoint,
+					})
+				} catch (err) {
+					console.warn(
+						`[getProfile] relinquishOutput failed for ${loser.outpoint}; leaving stale entry`,
+						err,
+					)
+				}
 			}
 
 			return { bapId, profile }
