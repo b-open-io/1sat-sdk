@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.65
+
+### Added
+- `autoDetect` prop on `WalletProvider` (default `true`). Set `autoDetect={false}` to skip the BRC-100 auto-detect race in `connectWallet`, useful for apps that want a single configured provider (e.g. Sigma-only login).
+
 ## 0.0.21
 
 ### Changed

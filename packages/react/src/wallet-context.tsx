@@ -38,6 +38,7 @@ export interface WalletContextValue {
 
 export interface WalletProviderProps {
 	autoReconnect?: boolean
+	autoDetect?: boolean
 	providers?: WalletProviderConfig[]
 	children: ReactNode
 }
@@ -87,6 +88,7 @@ const WalletContext = createContext<WalletContextValue | null>(null)
 
 export function WalletProvider({
 	autoReconnect = false,
+	autoDetect = true,
 	providers,
 	children,
 }: WalletProviderProps) {
@@ -146,7 +148,7 @@ export function WalletProvider({
 			// No specific type — run full detection
 			setStatus('detecting')
 			const result = await connectWallet({
-				autoDetect: true,
+				autoDetect,
 				providers,
 			})
 			if (result) {
@@ -155,7 +157,7 @@ export function WalletProvider({
 				setStatus('selecting')
 			}
 		},
-		[availableProviders, providers, applyResult],
+		[availableProviders, providers, applyResult, autoDetect],
 	)
 
 	// Capture current callbacks in a ref so the mount effect has no deps
