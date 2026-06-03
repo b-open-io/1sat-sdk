@@ -67,8 +67,8 @@ export type PromptHandler = (request: PromptRequest) => Promise<boolean>
 export interface CreateOneSatPermissionModuleArgs {
 	/**
 	 * The underlying wallet (NOT the WalletPermissionsManager wrapper).
-	 * The module uses this for placeholder substitution and any internal
-	 * derivations that should bypass the permission flow.
+	 * The module uses this for any internal derivations that should bypass
+	 * the permission flow.
 	 */
 	wallet: WalletInterface
 	/** UI callback for prompting the user. */

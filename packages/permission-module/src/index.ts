@@ -6,11 +6,6 @@ export {
 export { CommitmentCache } from './commitmentCache'
 export { computeHashOutputs } from './hashOutputs'
 export {
-	aipPlaceholderBytes,
-	sigmaPlaceholderBytes,
-	substitutePlaceholders,
-} from './placeholder'
-export {
 	MIN_BIP143_PREIMAGE_BYTES,
 	parsePreimage,
 	type ParsedPreimage,

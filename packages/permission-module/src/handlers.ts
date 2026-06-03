@@ -9,13 +9,12 @@ import type {
 	ListOutputsArgs,
 	WalletInterface,
 } from '@bsv/sdk'
-import { Beef, Transaction } from '@bsv/sdk'
+import { Transaction } from '@bsv/sdk'
 import { P1SAT_BASKET_PREFIX } from '@1sat/types'
 import type { IPermissionStore } from '@1sat/wallet'
 import { CommitmentCache } from './commitmentCache'
 import { enrichIntent } from './enrichIntent'
 import { computeHashOutputs } from './hashOutputs'
-import { substitutePlaceholders } from './placeholder'
 import { MIN_BIP143_PREIMAGE_BYTES, parsePreimage } from './sighashParser'
 import type { PromptHandler } from './types'
 
@@ -30,10 +29,9 @@ interface HandlerDeps {
 /**
  * createAction onRequest:
  *   1. Admin originator → return args unchanged.
- *   2. Substitute placeholder markers in outputs (AIP/Sigma).
- *   3. Enrich the intent — look up input assets in the wallet by their
+ *   2. Enrich the intent — look up input assets in the wallet by their
  *      `'p 1sat input <basket> <id>'` labels (trusted records, not dApp-supplied).
- *   4. Prompt user with the structured intent. Reject throws.
+ *   3. Prompt user with the structured intent. Reject throws.
  */
 export async function handleCreateActionRequest(
 	deps: HandlerDeps,
@@ -42,16 +40,7 @@ export async function handleCreateActionRequest(
 ): Promise<CreateActionArgs> {
 	if (isAdmin(deps, originator)) return args
 
-	let outputs = args.outputs ?? []
-	if (outputs.length > 0) {
-		outputs = await substitutePlaceholders(
-			outputs,
-			deps.wallet,
-			(refVin) => resolveInputOutpoint(args.inputs ?? [], refVin),
-		)
-	}
-
-	const enriched = await enrichIntent(deps.wallet, { ...args, outputs })
+	const enriched = await enrichIntent(deps.wallet, args)
 
 	const approved = await deps.promptHandler({
 		kind: 'transaction',
@@ -75,7 +64,7 @@ export async function handleCreateActionRequest(
 		throw new Error('1Sat permission module: user rejected the transaction.')
 	}
 
-	return { ...args, outputs }
+	return args
 }
 
 /**
@@ -214,18 +203,6 @@ export async function handleGetPublicKeyRequest(
 
 function isAdmin(deps: HandlerDeps, originator: string): boolean {
 	return !!deps.adminOriginator && originator === deps.adminOriginator
-}
-
-function resolveInputOutpoint(
-	inputs: CreateActionInput[],
-	refVin: number,
-): { txid: string; vout: number } | null {
-	const inp = inputs[refVin]
-	if (!inp?.outpoint) return null
-	const [txid, voutStr] = inp.outpoint.split('.')
-	const vout = Number.parseInt(voutStr, 10)
-	if (!txid || Number.isNaN(vout)) return null
-	return { txid, vout }
 }
 
 function stripInputForPrompt(input: CreateActionInput) {

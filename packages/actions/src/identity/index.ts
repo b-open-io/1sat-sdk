@@ -24,10 +24,9 @@ import {
 	BAP_KEY_ID,
 	BAP_PROTOCOL_ID,
 } from '../constants'
-import { resolveCurrentKeyId } from '../signing/aip'
+import { applyBapAip, resolveCurrentKeyId } from '../signing/aip'
 import type { Action, ActionOptions, OneSatContext } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
-import { appendAipPlaceholder } from '../utils/placeholders'
 import { pickNewestAlias } from './pickNewestAlias'
 
 const { toArray, toBase58, toHex } = Utils
@@ -138,14 +137,10 @@ async function buildIdOutput(
 	script.writeBin(toArray(bapId))
 	script.writeBin(toArray(declareAddress))
 
-	// Append AIP placeholder with the explicit signer keyID. The 1Sat
-	// permission module fills in the BAP-AIP signature during the wrapping
-	// createAction's onRequest, so the user sees one prompt per identity
-	// operation rather than separate prompts for the BAP signing step.
-	const placeholderScript = appendAipPlaceholder(script, params.signerKeyId)
+	const signedScript = await applyBapAip(ctx, script, params.signerKeyId)
 
 	return {
-		lockingScript: placeholderScript.toHex(),
+		lockingScript: signedScript.toHex(),
 		tags: ['type:id', `bapId:${bapId}`, `seq:${params.seq}`],
 		customInstructions: JSON.stringify({
 			protocolID: BAP_PROTOCOL_ID,
@@ -403,9 +398,7 @@ export const attest: Action<AttestRequest, IdentityResponse> = {
 			script.writeBin(toArray(input.attestationHash))
 			script.writeBin(toArray(input.counter ?? '0'))
 
-			// Append AIP placeholder; module signs with the current BAP key
-			// during the wrapping createAction onRequest.
-			const placeholderScript = appendAipPlaceholder(script)
+			const signedScript = await applyBapAip(ctx, script)
 
 			const result = await executeTrackedAction(
 				ctx.wallet,
@@ -413,7 +406,7 @@ export const attest: Action<AttestRequest, IdentityResponse> = {
 					description: 'BAP attestation',
 					outputs: [
 						{
-							lockingScript: placeholderScript.toHex(),
+							lockingScript: signedScript.toHex(),
 							satoshis: 0,
 							outputDescription: 'BAP ATTEST',
 							basket: BAP_BASKET,
@@ -523,23 +516,23 @@ export const updateProfile: Action<UpdateProfileRequest, IdentityResponse> = {
 				})
 
 				// ALIAS signed by the newly declared signing key (identity-1).
-				// Module fills in the AIP suffix during createAction onRequest.
-				const aliasPlaceholderScript = appendAipPlaceholder(
+				const signedAliasScript = await applyBapAip(
+					ctx,
 					aliasScript,
 					firstSigningKeyId,
 				)
 				outputs.push({
-					lockingScript: aliasPlaceholderScript.toHex(),
+					lockingScript: signedAliasScript.toHex(),
 					satoshis: 0,
 					outputDescription: 'BAP ALIAS',
 					basket: BAP_BASKET,
 					tags: ['type:alias', `bapId:${bapId}`, publishedAtTag],
 				})
 			} else {
-				// Existing identity: ALIAS signed by current key (resolved by module).
-				const aliasPlaceholderScript = appendAipPlaceholder(aliasScript)
+				// Existing identity: ALIAS signed by current key.
+				const signedAliasScript = await applyBapAip(ctx, aliasScript)
 				outputs.push({
-					lockingScript: aliasPlaceholderScript.toHex(),
+					lockingScript: signedAliasScript.toHex(),
 					satoshis: 0,
 					outputDescription: 'BAP ALIAS',
 					basket: BAP_BASKET,

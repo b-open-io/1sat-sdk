@@ -13,9 +13,9 @@ import {
 	type BSocialVideo,
 } from '@1sat/templates'
 import { BSOCIAL_BASKET } from '../constants'
+import { applyBapAip } from '../signing/aip'
 import type { Action, ActionOptions } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
-import { appendAipPlaceholder } from '../utils/placeholders'
 
 // ============================================================================
 // Types
@@ -126,14 +126,8 @@ export const createSocialPost: Action<CreateSocialPostRequest, SocialResponse> =
 					encoding: 'utf-8',
 				}
 
-				// Build the post script WITHOUT an AIP signature, then append
-				// the AIP placeholder marker. The 1Sat permission module
-				// substitutes the real BAP-keyed AIP suffix at createAction
-				// onRequest time, so the user sees one prompt covering the
-				// full post intent (not a separate prompt for the BAP signing).
-				const lockingScript = appendAipPlaceholder(
-					await BSocial.createPost(post, input.tags),
-				)
+				const postScript = await BSocial.createPost(post, input.tags)
+				const lockingScript = await applyBapAip(ctx, postScript)
 
 				const result = await executeTrackedAction(
 					ctx.wallet,

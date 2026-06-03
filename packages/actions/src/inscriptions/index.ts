@@ -9,13 +9,13 @@ import type { Destination } from '@1sat/types'
 import { type LockingScript, P2PKH, PublicKey, Script, Utils } from '@bsv/sdk'
 import {
 	MAX_INSCRIPTION_BYTES,
-	P1SAT_PROTOCOL,
 	ORDINALS_BASKET,
+	P1SAT_PROTOCOL,
 	SIGMA_BASKET,
 } from '../constants'
+import { applySigma } from '../signing/sigma'
 import type { Action, ActionOptions, OneSatContext } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
-import { appendSigmaPlaceholder } from '../utils/placeholders'
 import { resolveDestination } from '../utils/resolveDestination'
 import { signP2PKHInput } from '../utils/signP2PKH'
 
@@ -123,14 +123,13 @@ async function inscribeWithSigma(
 		return { error: 'anchor-no-txid' }
 	}
 
-	// Append the Sigma placeholder marker. The 1Sat permission module
-	// recognizes it during the inscription createAction's onRequest,
-	// resolves the input outpoint from args.inputs[0], computes the Sigma
-	// signature via the underlying wallet, and substitutes the real suffix
-	// before the wallet builds the tx. User sees one prompt per createAction,
-	// not a separate prompt for the BAP signing step.
-	const sigmaScript = appendSigmaPlaceholder(
+	// Compute the Sigma signature using the anchor outpoint. The signature
+	// binds to (anchorTxid, vout=0) so it can only be valid in this tx,
+	// which is committed to spending that exact input.
+	const sigmaScript = await applySigma(
+		ctx,
 		new Script(lockingScript.chunks),
+		{ txid: anchorResult.txid, vout: 0 },
 		0, // targetVout — inscription is output 0
 		0, // refVin — anchor input is vin 0
 	)

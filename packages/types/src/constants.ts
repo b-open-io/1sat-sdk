@@ -197,29 +197,6 @@ export function readAssetIdTag(tags: string[] | undefined): string | undefined {
 	return undefined
 }
 
-/**
- * Placeholder marker prefix. SDK actions that need an AIP or Sigma
- * signature embedded in an output script append a single data push
- * containing one of:
- *
- *   '1SATPM:AIP'                          — needs AIP signature, current BAP key
- *   '1SATPM:AIP:<keyID>'                  — needs AIP signature, specific keyID
- *   '1SATPM:SIGMA:<targetVout>:<refVin>'  — needs Sigma signature, current BAP key
- *
- * The 1Sat permission module recognizes these markers in the output
- * script tail, removes them, and computes the real signature pushes via
- * the underlying wallet (bypassing the permission manager so no re-prompt).
- *
- * The explicit-keyID variant is needed for BAP chain operations:
- *   - publishIdentity uses keyID `identity-0` (root, predates current key)
- *   - rotateIdentity passes the outgoing keyID explicitly
- *   - attest / updateProfile (existing) omit keyID and resolve current
- */
-export const P1SAT_PLACEHOLDER_PREFIX = '1SATPM:'
-export const P1SAT_AIP_PLACEHOLDER = '1SATPM:AIP'
-export const P1SAT_AIP_PLACEHOLDER_PREFIX = '1SATPM:AIP:'
-export const P1SAT_SIGMA_PLACEHOLDER_PREFIX = '1SATPM:SIGMA:'
-
 export const MESSAGE_SIGNING_PROTOCOL: [0 | 1 | 2, string] = [
 	1,
 	'message signing',
