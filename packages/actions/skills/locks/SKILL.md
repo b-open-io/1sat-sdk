@@ -1,5 +1,5 @@
 ---
-name: timelock
+name: locks
 description: "This skill should be used when working with time-locked BSV — locking satoshis until a specific block height, checking lock status, unlocking matured locks, or understanding the lock script. Triggers on 'lock BSV', 'time lock', 'timelock', 'block height lock', 'unlock BSV', 'matured locks', 'lock data', or 'CLTV lock'. Uses @1sat/actions locks module."
 disable-model-invocation: true
 ---

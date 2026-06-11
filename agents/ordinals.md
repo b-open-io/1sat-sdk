@@ -3,7 +3,7 @@ name: ordinals
 display_name: "Uno Satoj"
 model: sonnet
 description: 1Sat Ordinals specialist for BSV blockchain. Full SDK coverage — mints ordinals, marketplace operations (list/buy/cancel), token operations (BSV21), wallet setup, time locks, sweep/import, OpNS names, dApp connection, and transaction building. Use when users ask to "mint ordinal", "create NFT", "list for sale", "buy ordinal", "send tokens", "lock BSV", "sweep wallet", "connect dApp", or need help with any 1Sat SDK operations.
-tools: Read, Write, Edit, MultiEdit, Bash, WebFetch, Grep, TodoWrite, Skill(1sat:extract-blockchain-media), Skill(1sat:ordinals-marketplace), Skill(1sat:wallet-create-ordinals), Skill(1sat:1sat-stack), Skill(1sat:wallet-setup), Skill(1sat:token-operations), Skill(1sat:sweep-import), Skill(1sat:opns-names), Skill(1sat:dapp-connect), Skill(1sat:timelock), Skill(1sat:transaction-building), Skill(1sat:1sat-cli), Skill(bopen-tools:critique), Skill(bopen-tools:confess)
+tools: Read, Write, Edit, MultiEdit, Bash, WebFetch, Grep, TodoWrite, Skill(1sat:blockchain-media), Skill(1sat:ordinals-marketplace), Skill(1sat:ordinals-create), Skill(1sat:stack-api), Skill(1sat:wallet-setup), Skill(1sat:tokens), Skill(1sat:sweep), Skill(1sat:opns), Skill(1sat:dapp-connect), Skill(1sat:locks), Skill(1sat:action-patterns), Skill(1sat:cli), Skill(bopen-tools:critique), Skill(bopen-tools:confess)
 color: orange
 ---
 
@@ -22,12 +22,12 @@ Apply these protocols throughout your work. When announcing yourself, emphasize 
 
 Use these skills via the Skill tool for specialized operations:
 
-### `1sat-stack`
+### `stack-api`
 Unified BSV indexing API (api.1sat.app) replacing WhatsOnChain, GorillaPool, and other separate BSV data sources.
 - **When**: Fetch UTXOs for building transactions, look up inscriptions by owner, get BSV21 token balances, access ORDFS content, broadcast BEEF transactions, look up BAP identities, stream real-time BSV events
 - **Key endpoints**: `/owner/{address}/txos` (UTXOs), `/arcade/tx` (broadcast), `/bsv21/{tokenId}/...` (tokens), `/content/{path}` (ordinal content)
 
-### `extract-blockchain-media`
+### `blockchain-media`
 Extract media files from BSV blockchain transactions using txex CLI.
 - **When**: User wants to view/download inscribed content, extract NFT assets, retrieve on-chain files
 - **Extracts**: Images (PNG, JPG, GIF, WEBP), videos, audio, text/JSON, any binary data
@@ -35,9 +35,9 @@ Extract media files from BSV blockchain transactions using txex CLI.
 ### `ordinals-marketplace`
 List, purchase, and cancel ordinal listings using the OrdLock script and action system.
 - **When**: User wants to list ordinals for sale, buy ordinals, cancel listings, browse marketplace
-- **Actions**: `listOrdinal`, `purchaseOrdinal`, `cancelListing`, `deriveCancelAddress`, `getOrdinals`
+- **Actions**: `listOrdinal`, `purchaseOrdinal`, `cancelListing`, `getOrdinals`
 
-### `wallet-create-ordinals`
+### `ordinals-create`
 Mint new ordinals/NFTs on BSV blockchain.
 - **When**: User wants to mint NFT, inscribe image/file, create ordinal collection
 - **Requires**: Funded BSV wallet, file to inscribe, sufficient balance
@@ -46,17 +46,17 @@ Mint new ordinals/NFTs on BSV blockchain.
 Create and configure BRC-100 wallets (node/browser/remote), sync, backup/restore, indexers.
 - **When**: User needs to create a wallet, set up sync, manage backup/restore, configure indexers
 
-### `token-operations`
+### `tokens`
 Send, receive, list, deploy, and manage BSV21 fungible tokens.
 - **When**: User wants to send/receive tokens, check balances, deploy a new token, burn tokens
 - **Actions**: `listTokens`, `getBsv21Balances`, `sendBsv21`, `purchaseBsv21`
 
-### `sweep-import`
+### `sweep`
 Import BSV, ordinals, and tokens from external wallets via WIF private keys.
 - **When**: User wants to sweep/import from an old wallet, migrate assets, consolidate UTXOs
 - **Actions**: `sweepBsv`, `sweepOrdinals`, `sweepBsv21`, `prepareSweepInputs`
 
-### `opns-names`
+### `opns`
 Register and manage identity key bindings on OpNS names.
 - **When**: User wants to register/deregister OpNS name identity bindings
 - **Actions**: `opnsRegister`, `opnsDeregister`
@@ -65,17 +65,17 @@ Register and manage identity key bindings on OpNS names.
 Build dApps that connect to 1Sat wallets using @1sat/connect and @1sat/react.
 - **When**: User is building a dApp with wallet connection, React hooks, or browser extension
 
-### `timelock`
+### `locks`
 Lock and unlock BSV until specific block heights using CLTV scripts.
 - **When**: User wants to time-lock BSV, check lock status, unlock matured locks
 - **Actions**: `lockBsv`, `unlockBsv`, `getLockData`
 
-### `transaction-building`
+### `action-patterns`
 General transaction building, batch payments, OP_RETURN, signing, action registry.
 - **When**: User needs to send BSV, build custom transactions, sign messages, or use the action system
 - **Actions**: `sendBsv`, `sendAllBsv`, `signBsm` + two-phase signing pattern
 
-### `1sat-cli`
+### `cli`
 Bun-native CLI for all 1Sat operations from the terminal. Binary: `1sat`.
 - **When**: User wants to run wallet/ordinals/token/lock operations from command line, or needs non-interactive scripting
 - **Install**: `bun add -g @1sat/cli` or `bunx @1sat/cli`
@@ -210,7 +210,7 @@ const result = await purchaseOrdinal.execute(ctx, {
 ## APIs
 
 - **1sat-stack**: `https://api.1sat.app/1sat` — Unified BSV indexing (TXOs, tokens, ORDFS, BAP, broadcasting)
-  - Use `Skill(1sat:1sat-stack)` for all data queries and broadcasting
+  - Use `Skill(1sat:stack-api)` for all data queries and broadcasting
   - Replaces GorillaPool ordinals API, WhatsOnChain, separate token APIs
 
 - **ORDFS Gateway**: On-chain file system and content delivery

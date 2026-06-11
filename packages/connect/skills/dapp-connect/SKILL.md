@@ -5,26 +5,30 @@ description: "This skill should be used when building a dApp that connects to a 
 
 # dApp Connect
 
-Build dApps that connect to 1Sat wallets using `@1sat/connect` (vanilla JS) and `@1sat/react` (React).
+Connect a dApp to an **existing** BRC-100 wallet (browser extension, desktop wallet, or Sigma Identity) using `@1sat/connect` (vanilla JS) and `@1sat/react` (React).
+
+This skill is about *connecting to* a wallet a user already has. To *create and run* a wallet programmatically (local/remote storage, address sync, backups), see `../../../wallet/skills/wallet-setup`.
 
 ## Architecture
 
 ```
 @1sat/react (React components + hooks)
-  └── @1sat/connect (Core connection logic)
-        ├── BRC-100 auto-detection (extensions, Cicada, localhost, XDM)
-        ├── Sigma OAuth (browser redirect flow)
-        └── OneSat popup (iframe/redirect transport)
+  └── @1sat/connect (connection core: connectWallet)
+        ├── BRC-100 auto-detect — WalletClient('auto'): extensions, desktop (localhost), XDM, React Native
+        ├── Sigma OAuth — browser redirect flow + CWI iframe
+        └── Custom providers — CWI iframe bridge (url) or a custom connect() fn
 ```
+
+`connectWallet` races auto-detect and every configured provider with `Promise.any`; first to authenticate wins, and its `provider` type is saved to `localStorage` for warm reconnects.
 
 ## Quick Start (React)
 
 ```tsx
-import { WalletProvider, ConnectButton } from '@1sat/react'
+import { WalletProvider, ConnectButton, useWallet } from '@1sat/react'
 
 function App() {
   return (
-    <WalletProvider appName="My dApp">
+    <WalletProvider autoReconnect>
       <ConnectButton />
       <Dashboard />
     </WalletProvider>
@@ -44,17 +48,19 @@ All components from `@1sat/react` are **deliberately unstyled** — they provide
 
 ### WalletProvider
 
-App-level context provider. Wrap the application root.
+App-level context provider. Wrap the application root. Props (`WalletProviderProps`):
 
 ```tsx
 <WalletProvider
-  appName="My dApp"               // Shown in wallet approval
-  autoReconnect={true}             // Auto-reconnect on mount
-  providers={customProviders}      // Custom wallet providers (optional)
+  autoReconnect={false}            // re-run last successful connection on mount (default false)
+  autoDetect={true}               // include WalletClient('auto') in the connect race (default true)
+  providers={customProviders}      // WalletProviderConfig[] — custom/Sigma providers (optional)
 >
   {children}
 </WalletProvider>
 ```
+
+There is **no** `appName` prop on `WalletProvider`. With `autoReconnect`, mount reads the stored provider type: `brc100` re-runs auto-detect; a custom type must be present in `providers`; `sigma` is guarded against redirect loops via a sessionStorage flag.
 
 ### ConnectButton
 
@@ -63,43 +69,58 @@ Unstyled button that triggers wallet connection. Supports render-prop children f
 ```tsx
 <ConnectButton
   className="my-button"
-  connectLabel="Connect"
-  connectingLabel="Connecting..."
-  connectedLabel={(key) => `${key.slice(0,6)}...${key.slice(-4)}`}
-  onConnect={(result) => console.log(result)}
+  style={{ /* inline styles */ }}
+  connectLabel="Connect"                       // default 'Connect Wallet'
+  connectingLabel="Connecting..."              // default 'Connecting...'
+  connectedLabel={(key) => `${key.slice(0,6)}...${key.slice(-4)}`}  // ReactNode | (identityKey) => ReactNode; defaults to a truncated key
+  onConnect={() => console.log('connected')}   // no args
   onDisconnect={() => console.log('disconnected')}
-  disconnectOnClick={true}          // Click to disconnect when connected
+  onError={(err) => console.error(err)}        // connect/disconnect errors
+  disconnectOnClick={true}                     // click to disconnect when connected (default true)
 />
 ```
 
+Render-prop form receives `{ isConnected, isConnecting, identityKey, connect, disconnect }`. `isConnecting` is true while status is `detecting` or `connecting`. When connected and no specific provider is configured, clicking calls the plain `connect()` which re-runs detection — there is no built-in provider picker on the button; pair it with `ConnectDialogProvider` (below) for selection.
+
 ### ConnectDialog
 
-Controlled dialog for wallet provider selection. Requires `open` and `onOpenChange` props.
+Controlled dialog (native `<dialog>`) for wallet provider selection. Requires `open` and `onOpenChange`. Render-prop `children` is **optional** — omit it for a basic unstyled provider list.
 
 ```tsx
 <ConnectDialog
   open={isOpen}
   onOpenChange={setIsOpen}
 >
-  {({ providers, connect }) => (
+  {({ providers, error, close }) => (
     <div>
       {providers.map(p => (
-        <button key={p.type} onClick={() => connect(p.type)}>
-          {p.name} {p.detected ? '(detected)' : ''}
+        <button
+          key={p.type}
+          disabled={p.isConnecting}
+          onClick={p.connect}          // each provider carries its own bound connect()
+        >
+          {p.icon && <img src={p.icon} alt="" />}
+          {p.name}{p.isConnecting && ' ...'}
         </button>
       ))}
+      {error && <p>{error.message}</p>}
+      <button onClick={close}>Cancel</button>
     </div>
   )}
 </ConnectDialog>
 ```
 
+Render props are `{ providers, error, close }`. Each provider is `{ type, name, icon?, isConnecting, connect }` — `connect` takes no arguments (it's pre-bound to that provider's type). There is no `detected` flag; the dialog lists the providers configured on `WalletProvider`.
+
 ### ConnectDialogProvider + useConnectDialog
 
-App-level provider that auto-opens the dialog when status becomes 'selecting'.
+App-level provider that mounts a `ConnectDialog` and auto-opens it when status becomes `'selecting'` (auto-detect found nothing). Place it **inside** `WalletProvider`. Pass `renderDialog` to customize the dialog content (same render props as `ConnectDialog`).
 
 ```tsx
-<WalletProvider appName="My dApp">
-  <ConnectDialogProvider>
+<WalletProvider autoReconnect>
+  <ConnectDialogProvider
+    renderDialog={({ providers, error, close }) => (/* custom UI */ null)}  // optional
+  >
     <App />
   </ConnectDialogProvider>
 </WalletProvider>
@@ -111,29 +132,53 @@ function ConnectTrigger() {
 }
 ```
 
+`useConnectDialog()` returns `{ openConnectDialog }` and throws if used outside `ConnectDialogProvider`.
+
 ### WalletSelector
 
-Render-prop only component (no default UI). Lists providers with detection status.
+Headless, render-prop-only component (no default UI at all — `children` is required). Reads `availableProviders`, `connect`, and `error` from context; tracks a per-provider connecting state; calls `onClose` after a provider connects. Use it to build a bespoke selector when `ConnectDialog`'s `<dialog>` shell doesn't fit.
+
+```tsx
+<WalletSelector onClose={() => setOpen(false)}>
+  {({ providers, error }) => (
+    <ul>
+      {providers.map(p => (
+        <li key={p.type}>
+          <button disabled={p.isConnecting} onClick={p.connect}>
+            {p.icon && <img src={p.icon} alt="" />}
+            {p.name}{p.isConnecting && ' (connecting...)'}
+          </button>
+        </li>
+      ))}
+      {error && <p>{error.message}</p>}
+    </ul>
+  )}
+</WalletSelector>
+```
+
+Render props: `{ providers, error }`. Each provider is `{ type, name, icon?, isConnecting, connect }` with `connect` pre-bound (no args). Unlike `ConnectDialog`, `WalletSelector` renders nothing but what `children` returns — no `<dialog>`, no `open`/`onOpenChange`.
 
 ### SigmaCallback
 
-Page component for Sigma OAuth redirect. Place at the OAuth callback route.
+Page component for the Sigma OAuth redirect. Place it at the OAuth callback route. It runs `completeSigmaOAuth` → `connectSigmaWallet`, applies the result to the wallet context, then redirects (or calls `onComplete`).
 
 ```tsx
-// app/auth/callback/page.tsx
+// app/auth/sigma/callback/page.tsx
 import { SigmaCallback } from '@1sat/react'
 
 export default function AuthCallback() {
   return (
     <SigmaCallback
-      redirectTo="/"
-      onComplete={(result) => console.log('Connected:', result)}
+      redirectTo="/"                                   // default '/'
+      onComplete={() => router.push('/')}              // no args; use for SPA nav instead of hard redirect
       loadingContent={<p>Completing authentication...</p>}
-      renderError={(error) => <p>Error: {error.message}</p>}
+      renderError={(error, goBack) => <p>{error} <button onClick={goBack}>Back</button></p>}
     />
   )
 }
 ```
+
+`onComplete` takes **no arguments** (the connected wallet is already applied to context). `renderError` receives `(error: string, goBack: () => void)`.
 
 ## useWallet Hook
 
@@ -144,7 +189,7 @@ interface WalletContextValue {
   wallet: WalletInterface | null          // @bsv/sdk WalletInterface
   status: WalletStatus                    // 'disconnected'|'detecting'|'selecting'|'connecting'|'connected'
   identityKey: string | null              // Identity pubkey
-  providerType: string | null             // 'brc100'|'onesat'|'sigma'|custom
+  providerType: string | null             // 'brc100' (auto-detect) | 'sigma' | a custom provider's type
   availableProviders: AvailableProvider[]
   connect: (providerType?: string) => Promise<void>
   applyResult: (result: ConnectWalletResult) => void
@@ -155,95 +200,89 @@ interface WalletContextValue {
 
 ## Vanilla JS
 
+The public entry point is `connectWallet(config)`. It races BRC-100 auto-detect and every configured provider, and returns a `ConnectWalletResult` — or `null` when nothing connected (treat `null` as "show the provider picker").
+
 ```typescript
-import { createOneSat } from '@1sat/connect'
+import { connectWallet } from '@1sat/connect'
 
-const onesat = createOneSat({ appName: 'My dApp' })
+const result = await connectWallet({
+  autoDetect: true,                 // include WalletClient('auto') in the race (default true)
+  providers: [                      // optional custom/Sigma providers
+    { type: 'my-wallet', name: 'My Wallet', url: 'https://wallet.example.com' },
+  ],
+})
 
-// Connect (auto-detects extension or opens popup)
-const { paymentAddress, ordinalAddress, identityPubKey } = await onesat.connect()
-
-// Operations
-const { satoshis } = await onesat.getBalance()
-const { signature } = await onesat.signMessage('Hello world')
-const { rawtx, txid } = await onesat.signTransaction({ rawtx, description: 'Payment' })
-
-await onesat.disconnect()
+if (!result) {
+  // no wallet connected — render your own provider picker
+} else {
+  const { wallet, provider, identityKey, disconnect } = result
+  // `wallet` is a @bsv/sdk WalletInterface — drive BRC-100 ops directly:
+  const { publicKey } = await wallet.getPublicKey({ identityKey: true })
+  // ...wallet.createAction(...), wallet.createSignature(...), etc.
+  disconnect()                      // tear down the connection
+}
 ```
+
+`ConnectWalletResult` is `{ wallet: WalletInterface, provider: string, identityKey: string, disconnect: () => void }`. All wallet operations go through the standard `@bsv/sdk` `WalletInterface` on `result.wallet` — `@1sat/connect` does not wrap them in its own method surface.
+
+### Provider config
+
+Each entry in `providers` is a `WalletProviderConfig`:
+
+```typescript
+{
+  type: string,                     // unique id, also the saved-reconnect key
+  name: string,                     // display name
+  icon?: string,                    // icon URL / data URI
+  url?: string,                     // CWI iframe-bridge host (postMessage)
+  connect?: () => Promise<ConnectWalletResult>,  // custom connector; overrides url
+}
+```
+
+Resolution order per provider: custom `connect` → `url` (CWI iframe bridge via `createWebCWI`) → error.
+
+### Helpers
+
+```typescript
+import { connectWallet, getAvailableProviders, loadLastProvider } from '@1sat/connect'
+
+// Build the provider list (each entry gets a bound connect()), sorted so the
+// last successful provider is tried first.
+const providers = getAvailableProviders({ providers: myProviders })
+await providers[0].connect()
+
+// The provider type saved on the last successful connectWallet() (localStorage).
+const last = loadLastProvider()  // string | null
+```
+
+`connectWallet` saves the winning `provider` type to `localStorage` and, on the next call, attempts that last provider first before the full race. There is **no** `createOneSat` factory, `isOneSatInjected`, `waitForOneSat`, `saveConnection`/`loadConnection`, or event emitter on the public `@1sat/connect` surface — those are internal to the popup `OneSatBrowserProvider` and not exported. `OneSatProvider` is exported as a **type** only.
 
 ## Connection Flow
 
-`WalletProvider` uses a two-tier detection flow:
+`WalletProvider` drives status transitions:
 
-1. **BRC-100 auto-detect** — scans for extensions, Cicada, localhost wallets, XDM
-2. **Manual selection** — if nothing detected, status becomes `'selecting'` and `ConnectDialogProvider` auto-opens the provider selector
-3. **Sigma OAuth** — redirect-based flow for Sigma Identity wallets, completed by `SigmaCallback`
+1. **`detecting`** — `connectWallet` races BRC-100 auto-detect (`WalletClient('auto')`: extensions, desktop/localhost, XDM, React Native) and all configured providers.
+2. **`selecting`** — nothing auto-connected; `connectWallet` returned `null`. `ConnectDialogProvider` auto-opens the provider selector.
+3. **`connecting` → `connected`** — a specific provider was chosen (or won the race); on success the result is applied to context.
+4. **Sigma OAuth** — redirect-based; completed by `SigmaCallback`, which calls `connectSigmaWallet` and applies the result.
 
-## Provider Detection
+## Sigma OAuth (vanilla)
 
-```typescript
-import { isOneSatInjected, waitForOneSat, createOneSat } from '@1sat/connect'
-
-if (isOneSatInjected()) { /* Extension present */ }
-
-// Wait up to 3s for extension
-const provider = await waitForOneSat(3000)
-
-// Or let createOneSat handle detection
-const onesat = createOneSat()
-```
-
-## OneSatProvider Interface
-
-Full provider interface for dApp operations:
+For non-React apps, the Sigma flow is three exported functions:
 
 ```typescript
-interface OneSatProvider {
-  connect(): Promise<ConnectResult>
-  disconnect(): Promise<void>
-  isConnected(): boolean
-  signTransaction(request: SignTransactionRequest): Promise<SignTransactionResult>
-  signMessage(message: string): Promise<SignMessageResult>
-  inscribe(request: InscribeRequest): Promise<InscribeResult>
-  sendOrdinals(request: SendOrdinalsRequest): Promise<SendResult>
-  createListing(request: CreateListingRequest): Promise<ListingResult>
-  purchaseListing(request: PurchaseListingRequest): Promise<SendResult>
-  cancelListing(request: CancelListingRequest): Promise<SendResult>
-  transferToken(request: TransferTokenRequest): Promise<SendResult>
-  getBalance(): Promise<BalanceResult>
-  getOrdinals(options?: ListOptions): Promise<OrdinalOutput[]>
-  getTokens(options?: ListOptions): Promise<TokenOutput[]>
-  getUtxos(): Promise<Utxo[]>
-  on(event: OneSatEvent, handler: EventHandler): void
-  off(event: OneSatEvent, handler: EventHandler): void
-  getAddresses(): { paymentAddress: string; ordinalAddress: string } | null
-  getIdentityPubKey(): string | null
-}
-```
+import { initiateSigmaOAuth, completeSigmaOAuth, connectSigmaWallet } from '@1sat/connect'
 
-## Events
+// 1. Kick off the redirect (never resolves — the page navigates away)
+await initiateSigmaOAuth({ clientId: 'my-client', callbackURL: '/auth/sigma/callback' })
 
-```typescript
-onesat.on('connect', (result) => console.log('Connected:', result.paymentAddress))
-onesat.on('disconnect', () => console.log('Disconnected'))
-onesat.on('accountChange', (result) => console.log('Account:', result.paymentAddress))
-```
+// 2. On the callback route, exchange the code
+const { bapId, pubkey, user, accessToken } = await completeSigmaOAuth(
+  new URLSearchParams(window.location.search),
+)
 
-## Persistent Connection
-
-```typescript
-import { saveConnection, loadConnection, clearConnection, hasStoredConnection } from '@1sat/connect'
-
-const result = await onesat.connect()
-saveConnection({ paymentAddress: result.paymentAddress, ordinalAddress: result.ordinalAddress, identityPubKey: result.identityPubKey, timestamp: Date.now() })
-
-// On page load
-if (hasStoredConnection()) {
-  const stored = loadConnection()
-  // Auto-reconnect using stored.providerType
-}
-
-clearConnection() // On disconnect
+// 3. Open the CWI iframe and connect
+const { wallet, identityKey, disconnect } = await connectSigmaWallet(bapId)
 ```
 
 ## BigBlocks Registry Integration

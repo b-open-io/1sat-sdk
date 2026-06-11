@@ -17,7 +17,7 @@ List, purchase, and cancel ordinal listings using `@1sat/actions` and the OrdLoc
 | `listOrdinal` | List an ordinal for sale at a price |
 | `cancelListing` | Cancel an active listing |
 | `purchaseOrdinal` | Purchase a listed ordinal |
-| `deriveCancelAddress` | Get the cancel address for a listing |
+| `burnOrdinals` | Burn one or more ordinals (send to OP_RETURN) |
 
 ## inputBEEF: When Required vs Optional
 
@@ -160,26 +160,16 @@ if (result.txid) {
 }
 ```
 
+`CancelListingInput` is `{ listing: WalletOutput; inputBEEF?: number[] }`. `cancelListing` returns `OrdinalOperationResponse` (`{ txid?, tx?, error? }`).
+
 ### How Cancel Works
 
-1. Derives the cancel key using the listing's custom instructions
+1. Reads the signing-side derivation (protocolID/keyID/counterparty) from the listing's `customInstructions`
 2. Signs the OrdLock input using `OrdLock.cancelWithWallet` from `@1sat/templates`
-3. Transfers the ordinal back to the wallet (removes `ordlock` tag)
-4. Submits to overlay to clear the listing
+3. Builds a fresh derivation for the returned output (keyID = the listing's outpoint) — the cancelled output records its own derivation, not the signing one
+4. Transfers the ordinal back to the wallet under the resolved basket/tags
 
-## Derive Cancel Address
-
-```typescript
-import { deriveCancelAddress, createContext } from '@1sat/actions'
-
-const ctx = createContext(wallet)
-
-const result = await deriveCancelAddress.execute(ctx, {
-  ordinal: listedOrdinal,
-})
-
-console.log('Cancel address:', result.address)
-```
+> Cancel derivation is internal. There is no exported `deriveCancelAddress` action — the cancel address is derived inside `cancelListing` from the listing output. Just pass the listing `WalletOutput`.
 
 ## OrdLock Script
 
@@ -191,7 +181,26 @@ The OrdLock script encodes a marketplace listing:
 
 - The script is satisfied by either:
   - **Purchase**: Transaction includes an output paying the seller at `payAddress` for `price` satoshis
-  - **Cancel**: Signed by the cancel key (derived from the ordinal's custom instructions)
+  - **Cancel**: Signed by the cancel key, derived from the listing output's `customInstructions`
+
+## Burn Ordinals
+
+```typescript
+import { burnOrdinals, getOrdinals, createContext } from '@1sat/actions'
+
+const ctx = createContext(wallet, { services })
+
+const { outputs } = await getOrdinals.execute(ctx, {})
+
+// Sends the ordinal(s) to an OP_FALSE OP_RETURN with MAP { type: 'ord', op: 'burn' }
+const result = await burnOrdinals.execute(ctx, {
+  ordinals: [outputs[0]],
+  // inputBEEF optional — auto-resolved from wallet via ID tag
+  // app: 'myapp'  // optional MAP app name, default '1sat'
+})
+```
+
+`BurnOrdinalsRequest` is `{ ordinals: WalletOutput[]; inputBEEF?: number[]; app?: string }`. Returns `OrdinalOperationResponse`. Burning is irreversible.
 
 ## Browsing Marketplace via API
 

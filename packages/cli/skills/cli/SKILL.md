@@ -1,5 +1,5 @@
 ---
-name: 1sat-cli
+name: cli
 description: "This skill should be used when working with the 1Sat CLI tool for BSV operations from the terminal -- running wallet commands, minting ordinals, managing tokens, creating listings, locking BSV, sweeping assets, managing identity, OR running the wallet-storage RPC server (`1sat serve`) from the same binary. Triggers on '1sat CLI', 'command line wallet', '1sat init', '1sat wallet', '1sat ordinals', '1sat tokens', '1sat lock', '1sat sweep', '1sat action', '1sat serve', '1sat serve wallet', '1sat serve monitor', 'wallet server', 'BRC-100 storage server', 'bunx @1sat/cli', or 'terminal BSV operations'. Uses @1sat/cli and @1sat/wallet-server packages."
 ---
 
@@ -105,9 +105,26 @@ bunx @1sat/cli wallet send --to 1A... --sats 5000                 # Send BSV to 
 bunx @1sat/cli wallet send --script <hex> --sats 5000              # Send to custom locking script
 bunx @1sat/cli wallet send --data-asm "deadbeef cafe"              # Publish OP_RETURN (0 sats)
 bunx @1sat/cli wallet send-all --to 1A...                          # Send entire balance
+bunx @1sat/cli wallet sync --prefix mcp --count 5                  # Sync inbound payments at BRC-29 addresses
+bunx @1sat/cli wallet info                                         # Address, identity key, balance, network
 ```
 
 `wallet send` modes are mutually exclusive: `--to` (P2PKH), `--script` (custom hex), or `--data-asm` (OP_RETURN, 0 sats — rejects `--sats`). The ASM string is passed straight to `Script.fromASM('OP_0 OP_RETURN ' + asm)`, so multiple space-separated hex pushes are supported in one output.
+
+#### BRC-100 interface
+
+Lower-level BRC-100 wallet operations are also exposed:
+
+```bash
+bunx @1sat/cli wallet list-outputs --basket <name> [--tags <t1,t2>] [--limit <n>] [--include-tags]
+bunx @1sat/cli wallet relinquish-output --basket <name> --output <txid.vout>
+bunx @1sat/cli wallet list-actions [--labels <l1,l2>] [--limit <n>]
+bunx @1sat/cli wallet create-action '<json>'
+bunx @1sat/cli wallet sign-action '<json>'
+bunx @1sat/cli wallet abort-action --reference <ref>
+bunx @1sat/cli wallet list-certificates [--certifiers <c1,c2>] [--types <t1,t2>] [--limit <n>]
+bunx @1sat/cli wallet relinquish-certificate --type <t> --serialNumber <s> --certifier <c>
+```
 
 ### Remote Storage
 
@@ -135,27 +152,32 @@ bunx @1sat/cli ordinals transfer --outpoint <op> --to <addr>                # Tr
 ### Marketplace (OrdLock)
 
 ```bash
-bunx @1sat/cli ordinals list-for-sale      # List ordinal for sale
-bunx @1sat/cli ordinals cancel-listing     # Cancel an active listing
-bunx @1sat/cli ordinals purchase           # Purchase a listed ordinal
+bunx @1sat/cli ordinals sell --outpoint <txid.vout> --price <sats>   # List ordinal for sale (OrdLock)
+bunx @1sat/cli ordinals cancel --outpoint <txid.vout>               # Cancel an active listing
+bunx @1sat/cli ordinals buy --outpoint <txid.vout>                  # Purchase a listed ordinal
+bunx @1sat/cli ordinals burn --outpoints <op1,op2,...>             # Burn ordinals permanently
 ```
 
 ### Tokens (BSV21)
 
 ```bash
-bunx @1sat/cli tokens balances             # Show all token balances
-bunx @1sat/cli tokens list                 # List token UTXOs
-bunx @1sat/cli tokens send                 # Send tokens to address or counterparty
+bunx @1sat/cli tokens balances                                                  # Show token balances by token ID
+bunx @1sat/cli tokens list [--token-id <id>]                                    # List owned token UTXOs
+bunx @1sat/cli tokens send --token-id <id> --amount <n> --to <addr>             # Transfer tokens
+bunx @1sat/cli tokens deploy-mint --symbol <ticker> --amount <total-supply>     # Deploy fixed-supply token
+bunx @1sat/cli tokens deploy-auth --symbol <ticker>                             # Deploy mintable token (auth UTXOs)
+bunx @1sat/cli tokens mint --token-id <id> --amount <n>                         # Mint supply / re-issue or burn auth
+bunx @1sat/cli tokens buy --outpoint <txid.vout> --token-id <id> --amount <n>   # Purchase listed tokens
 ```
 
-Paymail recipients are not supported for BSV21 transfers — there is no ecosystem spec for paymail-delivered token outputs. Use `--to <address>` instead.
+`tokens send` destination is one of `--to <address>`, `--counterparty <pubkey-hex>`, or `--locking-script <hex>`. Paymail recipients are not supported for BSV21 transfers — there is no ecosystem spec for paymail-delivered token outputs. Use `--to <address>` instead. `deploy-mint`/`deploy-auth`/`mint` accept `--decimals <0-18>`, `--icon <url-or-data-uri>`, and the same destination flags; `mint` also takes `--auth-to`/`--auth-counterparty`/`--auth-locking-script` and `--end-minting`.
 
 ### Locks (Timelock)
 
 ```bash
-bunx @1sat/cli locks status                # Show lock summary
-bunx @1sat/cli locks create                # Lock BSV until block height
-bunx @1sat/cli locks unlock                # Unlock all matured locks
+bunx @1sat/cli locks info                                  # Show locked totals and maturity status
+bunx @1sat/cli locks lock --sats <amount> --blocks <n>     # Time-lock BSV until a block height
+bunx @1sat/cli locks unlock                                # Unlock all matured locks
 ```
 
 ### Identity (BAP)
@@ -168,7 +190,7 @@ bunx @1sat/cli identity sign --message "hello"                           # BSM s
 bunx @1sat/cli identity sign --message 68656c6c6f --encoding hex         # Sign hex-encoded bytes
 ```
 
-`identity sign` uses BSM (Bitcoin Signed Message) compact format. `--encoding` accepts `utf8` (default), `hex`, or `base64` — it only controls how `--message` is decoded to bytes; the same bytes always produce the same signature.
+`identity sign` uses BSM (Bitcoin Signed Message) compact format. `--encoding` accepts `utf8` (default), `hex`, or `base64` — it only controls how `--message` is decoded to bytes; the same bytes always produce the same signature. `identity verify` exists in the command tree but is marked unavailable (not yet implemented).
 
 ### Social (BSocial)
 
@@ -184,16 +206,24 @@ Tags (`--tags a,b,c`) land on the on-chain post's MAP payload and on the wallet 
 ### OpNS Names
 
 ```bash
-bunx @1sat/cli opns register               # Register identity on OpNS name
-bunx @1sat/cli opns deregister             # Remove identity binding
+bunx @1sat/cli opns register --outpoint <txid.vout>     # Register identity on an OpNS name
+bunx @1sat/cli opns deregister --outpoint <txid.vout>   # Deregister identity from an OpNS name
+bunx @1sat/cli opns lookup                              # List OpNS names from wallet
 ```
 
 ### Sweep / Import
 
 ```bash
-bunx @1sat/cli sweep bsv                   # Sweep BSV from external WIF
-bunx @1sat/cli sweep ordinals              # Sweep ordinals from external WIF
-bunx @1sat/cli sweep tokens                # Sweep BSV21 tokens from external WIF
+bunx @1sat/cli sweep scan --wif <key>      # Scan an address for sweepable UTXOs (BSV, ordinals, BSV21)
+bunx @1sat/cli sweep import --wif <key>    # Sweep all UTXOs from a WIF into the wallet
+```
+
+`sweep import` branches internally by asset type — it sweeps funding (BSV), ordinals, and each active BSV21 token in separate transactions. RUN token outputs are detected and excluded (not sweepable).
+
+### Transaction Utilities
+
+```bash
+bunx @1sat/cli tx decode <hex>             # Decode a raw transaction hex
 ```
 
 ### Serve (Wallet Storage RPC Server)
@@ -202,8 +232,9 @@ The same binary can run a BRC-100 wallet storage RPC server backed by the **same
 
 ```bash
 1sat serve              # Wallet server + monitor daemon (single process)
-1sat serve wallet       # Wallet server only (no monitor loop)
+1sat serve wallet       # Wallet server only (BRC-100 HTTP, no monitor loop)
 1sat serve monitor      # Monitor daemon only (no HTTP)
+1sat serve messagebox   # BSV message-box server (port 8771 default; uses wallet identity)
 ```
 
 Key properties:
@@ -297,10 +328,10 @@ When working with ordinal outputs from `ordinals list --json`, the `tags` array 
 bunx @1sat/cli wallet balance --json
 
 # Quiet mode (minimal output)
-bunx @1sat/cli wallet send --to 1A... --amount 5000 --quiet
+bunx @1sat/cli wallet send --to 1A... --sats 5000 --quiet
 
 # Auto-confirm prompts (non-interactive)
-bunx @1sat/cli wallet send --to 1A... --amount 5000 --yes
+bunx @1sat/cli wallet send --to 1A... --sats 5000 --yes
 ```
 
 ## Init Flow

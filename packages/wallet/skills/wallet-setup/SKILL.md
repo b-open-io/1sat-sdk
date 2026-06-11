@@ -22,7 +22,7 @@ Pick `wallet-remote` only when you explicitly do not want a local store. For eve
 
 ## Core config
 
-All three factories take the same shape (minus the local-storage fields that don't apply to `wallet-remote`).
+All factories share a common core (`WalletCoreConfig` in `@1sat/wallet`). The fields below apply everywhere; each wrapper adds its own local-storage and runtime fields (see below).
 
 ```typescript
 {
@@ -33,15 +33,33 @@ All three factories take the same shape (minus the local-storage fields that don
   // Storage topology
   activeRemote?: string,                 // URL of the active remote, or undefined for local-active
   backups?: string[],                    // Additional remote URLs registered as backups
-  storageIdentityKey: string,            // Unique identifier for the local store on this install
 
   // Transaction lifecycle callbacks (only fire while Monitor runs)
   onTransactionBroadcasted?: (txid: string) => void,
   onTransactionProven?: (txid: string, blockHeight: number) => void,
 
   connectionTimeout?: number,            // Remote connection timeout in ms, default 5000
+
+  // Periodic local→backup sync interval (ms). Default 5 min; 0 disables.
+  // Ignored when activeRemote is set (remote is canonical).
+  backupSyncIntervalMs?: number,
+
+  // 507 Insufficient Storage auto-retry consent hook (active-remote only).
+  // Default behavior when omitted is auto-fund.
+  onStoragePaymentRequired?: StoragePaymentHook,
+
+  // Cross-process Monitor task-state persistence (lastRunMsecsSinceEpoch
+  // + TaskNewHeader queued chain-tip). Wrappers default this for you.
+  taskStateStore?: TaskStateStore,
+
+  // Override OneSatServices base URL (broadcast target). Falls through to
+  // ONESAT_MAINNET_URL / ONESAT_TESTNET_URL. wallet-node also honors the
+  // ONESAT_API_URL env var when unset.
+  servicesBaseUrl?: string,
 }
 ```
+
+`storageIdentityKey` is **not** a core field — it belongs to the local-storage wrappers (`wallet-node`, `wallet-browser`) because it names the local store. `wallet-remote` has no local store and no `storageIdentityKey`.
 
 ### `storageIdentityKey`
 
@@ -57,6 +75,8 @@ Pick something like a UUID or `<app>-<random-hex>` at install time and persist i
 
 ## Node.js wallet
 
+Local storage is selected via the `storage` field — `bun-sqlite` (default) or `pg`. The `pg` driver is a dynamic import (optional peer dep), so bun-sqlite-only consumers don't pay for it.
+
 ```typescript
 import { createNodeWallet } from '@1sat/wallet-node'
 
@@ -64,10 +84,15 @@ const result = await createNodeWallet({
   privateKey: 'L1...',
   chain: 'main',
   storageIdentityKey: 'my-agent-abc123',
-  filename: '~/.myapp/wallet.db',        // default: './wallet.db'
+
+  // Local storage backend. Defaults to { provider: 'bun-sqlite', filename: './wallet.db' }.
+  storage: { provider: 'bun-sqlite', filename: '~/.myapp/wallet.db' },
+  // or: storage: { provider: 'pg', dbUrl: 'postgres://user:pass@host/db', pool: { min: 1, max: 10 } }
 
   activeRemote: 'https://storage.example.com',   // optional
   backups: ['https://backup.example.com'],        // optional
+
+  skipInitialMonitor: false,             // skip boot runOnce() when another monitor process owns this DB
 
   onTransactionBroadcasted: (txid) => console.log('Broadcast:', txid),
   onTransactionProven: (txid, blockHeight) => console.log('Proven:', txid, blockHeight),
@@ -75,8 +100,10 @@ const result = await createNodeWallet({
 
 // ...use result.wallet for BRC-100 operations
 
-await result.destroy()  // stops monitor, destroys wallet, closes DB
+await result.destroy()  // awaits any in-flight boot runOnce, stops monitor, destroys wallet, closes DB
 ```
+
+`NodeWalletConfig` adds these over the core config: `storageIdentityKey` (required), `storage?: { provider: 'bun-sqlite', filename? } | { provider: 'pg', dbUrl, pool? }`, and `skipInitialMonitor?`. For bun-sqlite, `taskStateStore` defaults to a JSON sidecar next to the DB file (`<filename>.tasks.json`); for Postgres no default is constructed.
 
 ### `NodeWalletResult`
 
@@ -89,12 +116,13 @@ await result.destroy()  // stops monitor, destroys wallet, closes DB
 | `remoteStorage` | `StorageClient?` | Convenience handle to the first configured remote, if any |
 | `setActiveStorage` | `(target: 'local' \| string) => Promise<void>` | Switch the active store |
 | `addRemote` | `(url: string) => Promise<void>` | Register a remote as a non-active backup |
+| `getActiveStorage` | `() => sdk.WalletStorageProvider` | Live getter for the active raw provider. Use this (not `storage`) when wiring a multi-tenant RPC server — the manager is single-tenant. Node-only. |
 | `destroy` | `() => Promise<void>` | Cleanup: stops monitor, destroys wallet, closes DB |
 
 ## Browser wallet
 
 ```typescript
-import { createWebWallet } from '@1sat/wallet-browser'
+import { createWebWallet, createIndexedDbTaskStateStore } from '@1sat/wallet-browser'
 
 const result = await createWebWallet({
   privateKey: keys.identityWif,
@@ -103,10 +131,16 @@ const result = await createWebWallet({
 
   activeRemote: undefined,               // undefined = local-active
   backups: ['https://api.1sat.app/1sat/wallet'],
+
+  // Persist Monitor task state across service-worker wakes so wakes within a
+  // task's interval are effectively no-ops. Use the standard IndexedDB store.
+  taskStateStore: createIndexedDbTaskStateStore(),
+
+  onMonitorEvent: (event) => console.log('monitor:', event),  // MonitorEvent stream
 })
 ```
 
-Shape of the result matches `NodeWalletResult` minus Node-specific fields. Local storage is an IndexedDB (`StorageIdb`).
+`WebWalletConfig` adds `storageIdentityKey` (required), `taskStateStore?`, `onMonitorEvent?: (event: MonitorEvent) => void`, and `servicesBaseUrl?` over the core config. `WebWalletResult` matches `NodeWalletResult` minus the Node-only `getActiveStorage`. Local storage is an IndexedDB (`StorageIdb`).
 
 ## Remote wallet (thin client)
 
@@ -123,7 +157,7 @@ const result = await createRemoteWallet({
 })
 ```
 
-`RemoteWalletResult` has no `monitor` (the server runs its own) and no `remoteStorage` convenience handle. `setActiveStorage('local')` throws because there is no local store.
+`RemoteWalletConfig` has no `storageIdentityKey`, `taskStateStore`, or `onTransaction*` fields — it's the core config with `activeRemote` made required. `RemoteWalletResult` is `{ wallet, services, storage, feeModel, setActiveStorage, addRemote, destroy }`: no `monitor` (the server runs its own), no `remoteStorage` handle, no `getActiveStorage`. `setActiveStorage('local')` throws because there is no local store.
 
 ## Storage topology operations
 
@@ -159,33 +193,51 @@ Consumer responsibility:
 - **Short-lived processes (CLI, scripts):** every invocation creates a new wallet, which fires a `runOnce()` via the factory. No extra work.
 - **Long-running processes:** the initial `runOnce()` is fired on creation. Call `result.monitor.runOnce()` again on meaningful wake events (service worker wake, foreground focus) to service any pending tasks. Do **not** call `result.monitor.startTasks()` in a browser/extension — that's a `while` loop that never returns.
 
-**Do not configure "monitor interval" at the application layer** — the tasks already self-throttle. There is no `monitorIntervalMinutes` knob; it was removed.
+**Do not configure a "monitor interval" at the application layer** — the default tasks already self-throttle. There is no `monitorIntervalMinutes` knob.
+
+The one schedule the factory does expose is `backupSyncIntervalMs` (core config, default 5 min, `0` to disable). This drives the `BackupSync` task that pushes local→backups and retries failed backup registrations. It only fires when local is the active store; when a remote is active the remote is canonical and no scheduled push runs.
 
 ## Address sync
 
-Address sync uses a fetcher/processor split for Chrome extension compatibility (SSE doesn't work in service workers). Use `AddressSyncManager` in unified environments.
+Syncing external payments to BRC-29 deposit addresses is not done by `@1sat/wallet` — it is the `syncAddresses` **action** in `@1sat/actions`, run against the wallet you created here. `@1sat/wallet` only exports the passive `AddressManager` helper (a lookup map of pre-derived addresses) and `BRC29_PROTOCOL_ID` / `AddressDerivation` from `./address-sync`. There is no `AddressSyncManager`, `AddressSyncQueueIdb`, `AddressSyncFetcher`, or `AddressSyncProcessor`.
+
+`syncAddresses` derives deposit addresses under the `P1SAT` protocol, pulls new outputs from the 1sat-stack indexer (triggering lazy indexing), classifies them through the indexer pipeline, and internalizes them into the wallet.
 
 ```typescript
-import { AddressSyncManager, AddressSyncQueueIdb } from '@1sat/wallet'
+import { syncAddresses, createContext } from '@1sat/actions'
 
-const syncManager = new AddressSyncManager({
-  wallet: result.wallet,
-  services: result.services,
-  syncQueue: new AddressSyncQueueIdb(),        // or AddressSyncQueueSqlite
-  addressManager,                               // AddressManager instance
-  network: 'mainnet',
-  batchSize: 20,
+const ctx = createContext(result.wallet, { services: result.services })
+
+const sync = await syncAddresses.execute(ctx, {
+  prefix: '1sat',          // KeyID prefix; default '1sat' (DEFAULT_DEPOSIT_PREFIX)
+  startIndex: 0,           // first address index (default 0)
+  count: 1,                // number of addresses to derive (default 1)
+  onProgress: (p) => console.log('indexing:', p),  // SyncProgress
 })
 
-syncManager.on('sync:progress', ({ pending, done, failed }) => {
-  console.log(`Pending: ${pending}, Done: ${done}, Failed: ${failed}`)
-})
-
-await syncManager.sync()   // opens SSE stream + processes queue
-syncManager.stop()
+// sync.processed  — txs internalized
+// sync.failed     — txs that failed to internalize
+// sync.lastScore  — reorg-safe score; pass as fromScore on the next call
+// sync.addresses  — addresses that were synced
 ```
 
-For Chrome extensions, use `AddressSyncFetcher` (popup context) and `AddressSyncProcessor` (service worker) separately.
+To derive addresses without syncing, use the `deriveDepositAddresses` action (same `prefix` / `startIndex` / `count` inputs), which returns `{ derivations: AddressDerivation[] }`.
+
+`ProcessedTxStoreIdb` (browser) and `ProcessedTxStoreSqlite` (Node/Bun) are selected automatically by `syncAddresses` based on the runtime — no fetcher/processor split is required.
+
+### AddressManager (lookup helper)
+
+`AddressManager` from `@1sat/wallet` is a passive map over pre-derived `AddressDerivation`s. It does no derivation or network I/O — feed it the `derivations` from `deriveDepositAddresses`.
+
+```typescript
+import { AddressManager } from '@1sat/wallet'
+
+const mgr = new AddressManager(derivations)
+mgr.isOurAddress(addr)            // boolean
+mgr.getDerivation(addr)           // AddressDerivation | undefined
+mgr.getPrimaryAddress()           // index-0 address
+mgr.getMaxKeyIndex()              // persist this to grow the set later
+```
 
 ## Derivation paths
 
@@ -319,4 +371,4 @@ bunx @1sat/cli init          # run without install
 bun add -g @1sat/cli         # install globally for frequent use
 ```
 
-See the `1sat-cli` skill for full CLI documentation.
+See `../../../cli/skills/cli` for full CLI documentation.

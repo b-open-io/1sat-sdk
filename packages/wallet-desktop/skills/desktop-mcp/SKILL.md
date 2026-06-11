@@ -1,11 +1,11 @@
 ---
-name: wallet-desktop-mcp
+name: desktop-mcp
 description: Control the running 1Sat desktop wallet via MCP. Use this proactively whenever the user mentions their wallet, BSV balance, ordinals, inscriptions, tokens, sending BSV, browsing the 1Sat app, or any blockchain task that could be done through the wallet UI. The 1sat plugin ships .mcp.json automatically — if the plugin is installed and the wallet app is running, tools are available immediately with no manual setup. Requires the 1Sat wallet-desktop app to be running.
 ---
 
 # 1Sat Wallet Desktop — MCP Server
 
-The 1Sat desktop wallet exposes an MCP server on `127.0.0.1:3322` when running. It provides 25 tools for browser automation, blockchain data queries, and wallet operations. Authentication is handled automatically by `1sat mcp-proxy`.
+The 1Sat desktop wallet exposes an MCP server on `127.0.0.1:3322` when running. It provides 28 tools for browser automation, main-wallet WebView control, blockchain data queries, wallet operations, and log inspection. Authentication is handled automatically by `1sat mcp-proxy`.
 
 ## Zero-Config Setup (Plugin Users)
 
@@ -90,6 +90,12 @@ For manual testing: `1sat mcp-proxy`
 | `tab_go_back` | Go back in a tab's history |
 | `tab_reload` | Reload a tab |
 
+### Main WebView Control
+| Tool | Description |
+|------|-------------|
+| `mainview_eval` | Execute JavaScript in the main wallet WebView and return the result (code is wrapped in a function; use `return`) |
+| `mainview_url` | Get the current URL loaded in the main WebView |
+
 ### Blockchain Data
 | Tool | Description |
 |------|-------------|
@@ -107,6 +113,11 @@ For manual testing: `1sat mcp-proxy`
 | `wallet_ordinals` | List owned ordinals/inscriptions |
 | `wallet_tokens` | List owned BSV-21 tokens |
 | `wallet_send_bsv` | Send BSV to an address |
+
+### Logs
+| Tool | Description |
+|------|-------------|
+| `wallet_logs` | Query recent application log events (filter by context — startup, auth, mcp, rpc, stack, tls, shutdown — or event name; newest first) |
 
 ## Internal URLs
 

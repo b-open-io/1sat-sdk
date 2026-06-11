@@ -1,5 +1,5 @@
 ---
-name: opns-names
+name: opns
 description: "This skill should be used when working with OpNS (Op = operation, NS = like DNS) names — registering identity keys on names, deregistering identity bindings, looking up OpNS names, or managing on-chain name resolution. Triggers on 'OpNS', 'register name', 'name service', 'on-chain DNS', 'identity binding', 'name resolution', 'deregister name', or 'opns.idKey'. Uses @1sat/actions opns module."
 ---
 

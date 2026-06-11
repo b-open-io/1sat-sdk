@@ -1,5 +1,5 @@
 ---
-name: 1sat-stack
+name: stack-api
 description: "This skill should be used when working with the 1sat-stack unified BSV indexing API — whenever an agent needs to fetch UTXOs, look up inscriptions or ordinals, get BSV21 token balances, access ORDFS on-chain content, broadcast transactions, look up BAP identities, or stream real-time BSV events. Use this when replacing WhatsOnChain, GorillaPool ordinals API, or other separate BSV indexers. Also use when the user asks about 'api.1sat.app', 'unified BSV indexer', 'BSV21 token lookup', 'ORDFS content', 'overlay engine', or 'broadcasting BEEF transactions'."
 version: 1.0.1
 user-invocable: false
