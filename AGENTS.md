@@ -44,6 +44,37 @@ Additional constraints:
 ## Protocol Context
 Primary domain: 1Sat + BSV protocols (ordinals, BSV21 tokens, MAP, Sigma, OrdLock listings, ORDFS content).
 
+## Skills Catalog
+
+Agent skills are colocated with the code they document (`packages/<pkg>/skills/<name>/SKILL.md`)
+so they stay current with the code. Claude Code discovers them via the `skills` globs in
+`.claude-plugin/plugin.json`; other harnesses can read this catalog. Start with
+`action-patterns` to understand the action/context pattern, then use the domain skill for
+the task. The full generated list of all actions lives in `action-patterns` (regenerate
+with `bun run scripts/gen-action-index.ts`).
+
+| Skill | Path | Use when |
+|-------|------|----------|
+| action-patterns | `packages/actions/skills/action-patterns` | Understanding the action/context pattern, two-phase signing, BEEF, the registry, baskets/tags (the generated action index) |
+| payments | `packages/actions/skills/payments` | Sending BSV, batch payments, OP_RETURN, deriving deposit addresses |
+| tokens | `packages/actions/skills/tokens` | BSV21 tokens — balances, send, deploy (mint/auth), mint, purchase |
+| ordinals-create | `packages/actions/skills/ordinals-create` | Creating inscriptions and ordinal collections |
+| ordinals-marketplace | `packages/actions/skills/ordinals-marketplace` | Browsing, transferring, listing, buying, cancelling, burning ordinals |
+| locks | `packages/actions/skills/locks` | Time-locking BSV to a block height and unlocking |
+| opns | `packages/actions/skills/opns` | OpNS name registration / deregistration |
+| sweep | `packages/actions/skills/sweep` | Sweeping/importing BSV, ordinals, tokens; claiming deposits |
+| mnee | `packages/actions/skills/mnee` | MNEE stablecoin — config, balance, utxos, history, send |
+| identity | `packages/actions/skills/identity` | BAP identity (publish/rotate/profile) and social posts |
+| signing | `packages/actions/skills/signing` | BSM signing, BRC-77 auth tokens, counterparty encrypt/decrypt, friend pubkeys |
+| sync-cosign | `packages/actions/skills/sync-cosign` | Multi-device address/message sync and cosigner attestation |
+| wallet-setup | `packages/wallet/skills/wallet-setup` | Creating a BRC-100 wallet (node / browser / remote) |
+| dapp-connect | `packages/connect/skills/dapp-connect` | Connecting a dApp to an existing wallet (extension / desktop / Sigma) |
+| cli | `packages/cli/skills/cli` | The `@1sat/cli` terminal commands |
+| stack-api | `packages/client/skills/stack-api` | The api.1sat.app unified indexer API |
+| blockchain-media | `packages/client/skills/blockchain-media` | ORDFS content access (service-level; no SDK action) |
+| desktop-mcp | `packages/wallet-desktop/skills/desktop-mcp` | wallet-desktop MCP browser-automation tools |
+| sdk-publish | `skills/sdk-publish` | Maintainer: publishing packages from this monorepo |
+
 ## Coding Conventions
 - Use Bun for all scripts and package operations.
 - Use Biome for linting/formatting.
@@ -133,7 +164,7 @@ The wallet-desktop runs three local services:
 |---------|------|------|---------|
 | BRC-100 HTTP | 3321 | BRC-31 | dApp wallet connectivity |
 | BRC-100 HTTPS | 2121 | BRC-31 + TLS | Same, with self-signed cert |
-| MCP Server | 3322 | BRC-103/104 | Agent tools (26 tools: browser, tabs, data, wallet, logs) |
+| MCP Server | 3322 | BRC-103/104 | Agent tools (28 tools: browser, tabs, mainview, data, wallet, logs) |
 
 The `1sat mcp-proxy` CLI command bridges stdio to the MCP server with authenticated BRC-31 handshake. The 1sat plugin ships `.mcp.json` that runs this automatically.
 
