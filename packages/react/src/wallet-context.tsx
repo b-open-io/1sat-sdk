@@ -4,6 +4,7 @@ import {
 	type WalletProviderConfig,
 	connectWallet,
 	getAvailableProviders,
+	reconnectSigmaWallet,
 } from '@1sat/connect'
 import type { WalletInterface } from '@bsv/sdk'
 import {
@@ -67,17 +68,10 @@ function clearStored(): void {
 	localStorage.removeItem(STORAGE_KEY)
 }
 
+// Retained for backwards compatibility: SigmaCallback clears this on completion.
+// autoReconnect no longer sets it — Sigma reconnect now restores the session
+// directly instead of redirecting, so there is no redirect loop to guard against.
 const SIGMA_GUARD_KEY = 'onesat_sigma_reconnecting'
-
-function setSigmaGuard(): void {
-	if (typeof window === 'undefined') return
-	sessionStorage.setItem(SIGMA_GUARD_KEY, 'true')
-}
-
-function hasSigmaGuard(): boolean {
-	if (typeof window === 'undefined') return false
-	return sessionStorage.getItem(SIGMA_GUARD_KEY) === 'true'
-}
 
 export function clearSigmaGuard(): void {
 	if (typeof window === 'undefined') return
@@ -180,6 +174,7 @@ export function WalletProvider({
 			autoReconnect: shouldReconnect,
 			availableProviders: configured,
 			connect: doConnect,
+			applyResult: doApply,
 		} = mountRef.current
 
 		if (!shouldReconnect) {
@@ -210,22 +205,33 @@ export function WalletProvider({
 			return
 		}
 
-		// Sigma redirect guard — if we already tried and failed, don't loop
-		if (stored === 'sigma' && hasSigmaGuard()) {
-			clearStored()
-			clearSigmaGuard()
-			setStatus('disconnected')
-			return
-		}
-
-		// Set guard before sigma redirect (it navigates away)
+		// Sigma: RESTORE the existing session via the CWI iframe using the stored
+		// identity — never re-run the OAuth redirect here. Reconnecting by redirect
+		// triggers a full-page navigation on every mount (including the callback
+		// page, racing the callback's own wallet connect), which caused an infinite
+		// auth loop the sessionStorage guard couldn't reliably stop. If there is no
+		// stored identity, or the restore fails, stay disconnected and let the user
+		// log in explicitly.
 		if (stored === 'sigma') {
-			setSigmaGuard()
+			setStatus('connecting')
+			reconnectSigmaWallet()
+				.then((result) => {
+					if (result) {
+						doApply(result)
+					} else {
+						clearStored()
+						setStatus('disconnected')
+					}
+				})
+				.catch(() => {
+					clearStored()
+					setStatus('disconnected')
+				})
+			return
 		}
 
 		doConnect(stored).catch(() => {
 			clearStored()
-			if (stored === 'sigma') clearSigmaGuard()
 			setStatus('disconnected')
 		})
 	}, [])

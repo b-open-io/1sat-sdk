@@ -122,3 +122,27 @@ export async function connectSigmaWallet(
 		disconnect: destroy,
 	}
 }
+
+/**
+ * Return the persisted Sigma identity (bapId) from a prior login, or null.
+ * Pure storage read — no network, no redirect.
+ */
+export function getStoredSigmaBapId(): string | null {
+	return sigmaAuthClient.sigma.getIdentity()
+}
+
+/**
+ * Restore a Sigma wallet session non-interactively from the persisted bapId.
+ *
+ * Use this for auto-reconnect: it re-opens the CWI iframe for an
+ * already-authenticated identity WITHOUT triggering a new OAuth redirect.
+ * Returns null when there is no stored identity to restore — callers should
+ * stay disconnected in that case rather than forcing a redirect (redirecting
+ * to "reconnect" rewrites the PKCE state on every load and causes an infinite
+ * auth loop).
+ */
+export async function reconnectSigmaWallet(): Promise<ConnectWalletResult | null> {
+	const bapId = sigmaAuthClient.sigma.getIdentity()
+	if (!bapId) return null
+	return connectSigmaWallet(bapId)
+}

@@ -16,7 +16,9 @@ export {
 export {
 	completeSigmaOAuth,
 	connectSigmaWallet,
+	getStoredSigmaBapId,
 	initiateSigmaOAuth,
+	reconnectSigmaWallet,
 	setSigmaIdentity,
 	sigmaAuthClient,
 	SIGMA_URL,
