@@ -15,7 +15,7 @@
  * key-agnostic, and the transaction/Sigma concerns confined to the action.
  */
 
-import { P2PKH, PublicKey, Script } from '@bsv/sdk'
+import { P2PKH, PublicKey, Script, Utils } from '@bsv/sdk'
 import { ORDINALS_BASKET, P1SAT_PROTOCOL, SIGMA_BASKET } from '../constants'
 import { applyBapAip } from '../signing/aip'
 import { applySigma } from '../signing/sigma'
@@ -56,12 +56,28 @@ export type {
  */
 export type OrdfsDirSignMode = 'sigma' | 'aip' | 'none'
 
+/**
+ * A file to publish, as accepted by the {@link inscribeOrdfsDir} action.
+ *
+ * Content is base64 so the action's input is JSON/MCP-serializable (the lower
+ * level {@link buildOrdFsDirOutputs} works with raw `Uint8Array` bytes; this
+ * action decodes `base64Content` for callers).
+ */
+export interface InscribeOrdfsDirFile {
+	/** Relative path; use `/` for subdirectories (e.g. `"refs/api.md"`). */
+	path: string
+	/** Base64-encoded file bytes. */
+	base64Content: string
+	/** MIME content type for the file inscription. */
+	contentType: string
+}
+
 export interface InscribeOrdfsDirRequest extends ActionOptions {
 	/**
 	 * Files to publish, in the order their inscriptions are created. Paths use
 	 * `/` for subdirectories (e.g. `"SKILL.md"`, `"refs/api.md"`).
 	 */
-	files: OrdfsDirFile[]
+	files: InscribeOrdfsDirFile[]
 	/**
 	 * Optional MAP `SET` fields written to the root manifest only. Caller owns
 	 * field semantics; the action attaches them verbatim.
@@ -139,14 +155,18 @@ export const inscribeOrdfsDir: Action<
 				files: {
 					type: 'array',
 					description:
-						'Files to publish. Each has { path, content (bytes), contentType }. Paths may contain "/" for subdirectories.',
+						'Files to publish. Each has { path, base64Content, contentType }. Paths may contain "/" for subdirectories.',
 					items: {
 						type: 'object',
 						properties: {
 							path: { type: 'string', description: 'Relative file path' },
+							base64Content: {
+								type: 'string',
+								description: 'Base64-encoded file bytes',
+							},
 							contentType: { type: 'string', description: 'MIME content type' },
 						},
-						required: ['path', 'content', 'contentType'],
+						required: ['path', 'base64Content', 'contentType'],
 					},
 				},
 				map: {
@@ -172,6 +192,28 @@ export const inscribeOrdfsDir: Action<
 			}
 
 			const signMode: OrdfsDirSignMode = input.sign ?? 'sigma'
+			// Reject unknown sign modes rather than silently falling through to
+			// unsigned — that would bypass the default authorship protection.
+			if (signMode !== 'sigma' && signMode !== 'aip' && signMode !== 'none') {
+				return { error: `invalid-sign-mode: ${String(input.sign)}` }
+			}
+			// Sigma binds authorship to a wallet-signed anchor input. An external
+			// funding provider builds/broadcasts the tx itself and does not run the
+			// caller's anchor-signing callback, so the anchor would be left
+			// unsigned. Fail informatively instead of broadcasting a broken tx.
+			if (signMode === 'sigma' && input.fundingProvider) {
+				return {
+					error:
+						'sigma-incompatible-with-funding-provider: use sign:"aip" or "none" with an external funding provider',
+				}
+			}
+
+			// Decode base64 content into the raw bytes the output builder expects.
+			const files: OrdfsDirFile[] = input.files.map((f) => ({
+				path: f.path,
+				content: new Uint8Array(Utils.toArray(f.base64Content, 'base64')),
+				contentType: f.contentType,
+			}))
 
 			// Derive a wallet self address to lock every output to. Using a
 			// single resolved address (rather than the raw key) keeps the output
@@ -189,7 +231,7 @@ export const inscribeOrdfsDir: Action<
 			// fold it in here when requested. Sigma needs the spending input and
 			// is applied to the manifest after the anchor exists (below).
 			const built = await buildOrdFsDirOutputs(
-				input.files,
+				files,
 				{
 					locking: { resolve: () => lockingScript },
 					map: input.map,

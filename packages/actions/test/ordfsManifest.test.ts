@@ -23,6 +23,24 @@ describe('buildOrdfsDirManifest', () => {
 		expect(tree.manifestContentType).toBe('ord-fs/json')
 	})
 
+	it('throws on a duplicate root-level path (would orphan an output)', () => {
+		expect(() =>
+			buildOrdfsDirManifest([{ path: 'a.md' }, { path: 'a.md' }]),
+		).toThrow(/path collision/)
+	})
+
+	it('throws when a root file collides with a subdirectory name', () => {
+		expect(() =>
+			buildOrdfsDirManifest([{ path: 'a' }, { path: 'a/b.md' }]),
+		).toThrow(/path collision/)
+	})
+
+	it('throws on a duplicate nested path within a subdirectory', () => {
+		expect(() =>
+			buildOrdfsDirManifest([{ path: 'refs/api.md' }, { path: 'refs/api.md' }]),
+		).toThrow(/path collision/)
+	})
+
 	it('builds a subdirectory manifest for nested files', () => {
 		const tree = buildOrdfsDirManifest([
 			{ path: 'SKILL.md' }, // vout 0

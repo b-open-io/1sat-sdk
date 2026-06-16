@@ -125,6 +125,23 @@ export function buildOrdfsDirManifest(
 		}
 	}
 
+	// Assign a manifest entry, refusing to overwrite an existing name. Silent
+	// overwrites would orphan an already-created inscription output (it would be
+	// unreachable from the directory tree), so a collision is a hard error.
+	const assignUnique = (
+		obj: Record<string, string>,
+		key: string,
+		value: string,
+		scope: string,
+	): void => {
+		if (Object.hasOwn(obj, key)) {
+			throw new Error(
+				`ord-fs directory path collision: "${key}" appears more than once in ${scope}`,
+			)
+		}
+		obj[key] = value
+	}
+
 	// Assign each subdirectory manifest an output index, immediately after the
 	// file inscriptions, in first-seen order. Build its manifest object mapping
 	// child name → `_N` reference.
@@ -133,7 +150,12 @@ export function buildOrdfsDirManifest(
 	for (const [name, entries] of subdirEntries) {
 		const manifest: Record<string, string> = {}
 		for (const entry of entries) {
-			manifest[entry.name] = `_${entry.vout}`
+			assignUnique(
+				manifest,
+				entry.name,
+				`_${entry.vout}`,
+				`directory "${name}/"`,
+			)
 		}
 		subdirs.push({ name, manifest, vout: nextVout })
 		nextVout += 1
@@ -141,12 +163,14 @@ export function buildOrdfsDirManifest(
 
 	// The root manifest references root-level files and the per-subdirectory
 	// manifests. Files first (preserving input order), then subdirectories.
+	// `assignUnique` also catches a root file colliding with a subdirectory name
+	// (e.g. both `"a"` and `"a/b"` supplied).
 	const root: Record<string, string> = {}
 	for (const entry of rootFiles) {
-		root[entry.name] = `_${entry.vout}`
+		assignUnique(root, entry.name, `_${entry.vout}`, 'the root directory')
 	}
 	for (const subdir of subdirs) {
-		root[subdir.name] = `_${subdir.vout}`
+		assignUnique(root, subdir.name, `_${subdir.vout}`, 'the root directory')
 	}
 
 	// Root manifest is always the final output.
