@@ -31,6 +31,16 @@ function createMockContext(): OneSatContext {
 			getPublicKey: async () => ({
 				publicKey: testPubKey.toString(),
 			}),
+			// applySigma resolves the BAP signing key via resolveCurrentKeyId,
+			// which reads the highest-seq `type:id` output from the BAP basket.
+			listOutputs: async () => ({
+				outputs: [
+					{
+						tags: ['type:id', 'seq:1'],
+						customInstructions: JSON.stringify({ keyID: 'test-bap-key' }),
+					},
+				],
+			}),
 		} as unknown as OneSatContext['wallet'],
 		chain: 'main' as const,
 	}
