@@ -1,25 +1,17 @@
 /**
- * ord-fs/json directory inscription output builder.
+ * Builds the inscription outputs for an ord-fs/json directory: one per file,
+ * one per subdirectory manifest, and the root manifest last. The root manifest
+ * is the directory token and the only output that carries MAP or an AIP
+ * signature.
  *
- * Turns an ord-fs directory tree (see `buildOrdfsDirManifest`) into the set of
- * inscription outputs that publish it on-chain: one inscription per file, one
- * per subdirectory manifest, and a final root-manifest inscription. The root
- * manifest is the tradeable directory token and is the only output that may
- * carry MAP metadata and an AIP signature.
- *
- * This layer is locking-strategy agnostic (it accepts an address or a
- * per-vout locking-script resolver, so it works with a wallet-derived address
- * or a private-key address with no raw key required) and MAP agnostic (it
- * attaches whatever MAP suffix the caller supplies, without inventing fields).
- *
- * It deliberately does NOT attempt Sigma. Sigma binds a signature to a spent
- * input and therefore needs the spending transaction context, which only
- * exists inside the publishing action — see `inscribeOrdfsDir`.
+ * Locking is pluggable (an address or a per-vout resolver), so this never
+ * touches a raw private key, and MAP is whatever the caller passes. Sigma isn't
+ * applied here — it needs the spending input, which only exists in the
+ * publishing action (`inscribeOrdfsDir`).
  */
 
 import { Inscription, MAP } from '@1sat/templates'
 import { type LockingScript, P2PKH, Script, Utils } from '@bsv/sdk'
-import { applyBapAip } from '../signing/aip'
 import type { OneSatContext } from '../types'
 import { type OrdfsDirManifest, buildOrdfsDirManifest } from './manifest'
 
@@ -39,13 +31,9 @@ export interface OrdfsDirFile {
 }
 
 /**
- * Locking strategy for the inscription outputs.
- *
- * Either a single address applied to every output, or a resolver invoked once
- * per output index that returns the locking script for that vout. The resolver
- * form lets callers vary the lock per output (e.g. lock the root manifest to a
- * different key than the file inscriptions) without this module ever handling
- * a raw private key.
+ * An address applied to every output, or a resolver that returns the locking
+ * script per vout. The resolver lets callers vary the lock per output without
+ * exposing a raw private key here.
  */
 export type OrdfsLocking =
 	| { address: string }
@@ -55,40 +43,18 @@ export type OrdfsLocking =
  * Options for {@link buildOrdFsDirOutputs}.
  */
 export interface BuildOrdFsDirOutputsOptions {
-	/**
-	 * Per-output locking strategy. Applied to file inscriptions, subdirectory
-	 * manifests, and the root manifest alike. Required — there is no default,
-	 * so the caller always controls who can spend the resulting outputs.
-	 */
+	/** Locking applied to every output. Required, so the caller controls who can spend them. */
 	locking: OrdfsLocking
 	/**
-	 * Optional MAP `SET` fields to attach to the ROOT manifest only. The fields
-	 * are serialized with `MAP.set(map)` from `@1sat/templates` and appended to
-	 * the manifest as a script suffix. This module stays MAP agnostic about
-	 * which fields mean what: it writes whatever key-value pairs are supplied
-	 * and never adds, drops, or rewrites them. File and subdirectory
-	 * inscriptions never receive MAP.
+	 * MAP fields for the root manifest only, serialized with `MAP.set` and
+	 * appended as a suffix. Written as given — nothing added or rewritten.
 	 */
 	map?: Record<string, string>
 	/**
-	 * Optional pre-built suffix script to append to the root manifest AFTER the
-	 * inscription envelope and AFTER {@link BuildOrdFsDirOutputsOptions.map},
-	 * if any. Use this to attach already-composed BitCom protocol data (e.g. a
-	 * MAP+AIP suffix produced elsewhere). Mutually informative with `map`/`aip`
-	 * — all supplied suffixes are concatenated in the order map → suffix → aip.
-	 */
-	manifestSuffix?: Script
-	/**
-	 * Optional AIP signer for the ROOT manifest only. AIP signatures are
-	 * transaction-independent (they sign the OP_RETURN data, not a spent
-	 * input), so they can be applied here at output-build time. When set, the
-	 * signer receives the root manifest's locking script (with any MAP suffix
-	 * already attached) and must return it with an AIP suffix appended.
-	 *
-	 * NOTE: AIP is NOT bound to any input or transaction and is therefore
-	 * replay-able — an attacker can copy the MAP+AIP data into an unrelated
-	 * inscription. Prefer Sigma (applied in the publishing action, where the
-	 * spending input is known) when authorship must be tamper-evident.
+	 * AIP signer for the root manifest. Receives the manifest script (with any
+	 * MAP suffix) and returns it with an AIP suffix. AIP signs the OP_RETURN
+	 * data rather than a spent input, so it's replay-able — prefer Sigma (in the
+	 * action) when authorship needs to be tamper-evident.
 	 */
 	aip?: (ctx: OneSatContext, manifestScript: Script) => Promise<Script>
 }
@@ -118,6 +84,8 @@ export interface BuildOrdFsDirOutputsResult {
 	outputs: OrdfsDirOutput[]
 	/** Output index of the root manifest — equals `outputs.length - 1`. */
 	manifestVout: number
+	/** The root manifest's locking script (with MAP/AIP suffix), for signing. */
+	manifestScript: Script
 	/** The computed directory tree layout, for callers that need the `_N` map. */
 	tree: OrdfsDirManifest
 }
@@ -140,18 +108,12 @@ function lockFor(locking: OrdfsLocking, vout: number): LockingScript {
  *   [F..F+D-1] one 1-sat inscription per subdirectory manifest
  *   [F+D]      the root manifest inscription (MAP + AIP suffix, if supplied)
  *
- * The root manifest is the last output and the only one that receives MAP
- * metadata or an AIP signature. Sigma is intentionally NOT applied here; bind
- * authorship to a spent input in the publishing action instead.
- *
  * @param files - Files to inscribe, in the order their outputs are created.
  *   Paths use `/` for subdirectories (e.g. `"refs/api.md"`).
- * @param opts - Locking strategy plus optional MAP suffix, extra manifest
- *   suffix, and AIP signer for the root manifest.
- * @param ctx - Action context, forwarded to the AIP signer when one is given.
- *   May be omitted when no AIP signer is supplied.
- * @returns The ordered outputs, the root manifest's vout, and the computed
- *   directory tree.
+ * @param opts - Locking strategy plus optional MAP and AIP signer for the root
+ *   manifest.
+ * @param ctx - Forwarded to the AIP signer; may be omitted when none is given.
+ * @returns The outputs, the root manifest's vout and script, and the tree.
  */
 export async function buildOrdFsDirOutputs(
 	files: OrdfsDirFile[],
@@ -207,17 +169,8 @@ export async function buildOrdFsDirOutputs(
 		Utils.toArray(JSON.stringify(tree.root), 'utf8'),
 	)
 
-	const hasMap = opts.map && Object.keys(opts.map).length > 0
-	let suffix: Script | undefined
-	if (hasMap || opts.manifestSuffix) {
-		suffix = new Script()
-		if (hasMap && opts.map) {
-			for (const chunk of MAP.set(opts.map).chunks) suffix.chunks.push(chunk)
-		}
-		if (opts.manifestSuffix) {
-			for (const chunk of opts.manifestSuffix.chunks) suffix.chunks.push(chunk)
-		}
-	}
+	const suffix =
+		opts.map && Object.keys(opts.map).length > 0 ? MAP.set(opts.map) : undefined
 
 	const manifestInscription = Inscription.create(
 		manifestBytes,
@@ -248,18 +201,7 @@ export async function buildOrdFsDirOutputs(
 	return {
 		outputs,
 		manifestVout: tree.manifestVout,
+		manifestScript,
 		tree,
 	}
-}
-
-/**
- * Convenience AIP signer that signs the root manifest with the wallet's
- * current BAP key, for use as {@link BuildOrdFsDirOutputsOptions.aip}.
- *
- * Replay caveat applies — see the `aip` option's note.
- */
-export function bapAipSigner(
-	keyID?: string,
-): (ctx: OneSatContext, manifestScript: Script) => Promise<Script> {
-	return (ctx, manifestScript) => applyBapAip(ctx, manifestScript, keyID)
 }

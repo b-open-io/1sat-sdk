@@ -15,7 +15,7 @@
  * key-agnostic, and the transaction/Sigma concerns confined to the action.
  */
 
-import { P2PKH, PublicKey, Script, Utils } from '@bsv/sdk'
+import { P2PKH, PublicKey, Utils } from '@bsv/sdk'
 import { ORDINALS_BASKET, P1SAT_PROTOCOL, SIGMA_BASKET } from '../constants'
 import { applyBapAip } from '../signing/aip'
 import { applySigma } from '../signing/sigma'
@@ -31,7 +31,7 @@ export type {
 	OrdfsDirManifest,
 	OrdfsSubdirManifest,
 } from './manifest'
-export { buildOrdFsDirOutputs, bapAipSigner } from './outputs'
+export { buildOrdFsDirOutputs } from './outputs'
 export type {
 	BuildOrdFsDirOutputsOptions,
 	BuildOrdFsDirOutputsResult,
@@ -119,20 +119,8 @@ export interface InscribeOrdfsDirResponse {
  *
  * Every output is locked to a wallet-derived self address (via
  * {@link resolveDestination}). The root manifest carries the optional MAP and
- * the chosen authorship signature; file and subdirectory inscriptions are
- * unsigned plumbing.
- *
- * Signing modes (see {@link OrdfsDirSignMode}):
- *   - `'sigma'` (default): a 2-sat anchor output is created and immediately
- *     spent by the publish tx. The root manifest's SIGMA signature is bound to
- *     that anchor outpoint, so it is only valid in this transaction — an
- *     attacker cannot replay the signed manifest into a different tx. This
- *     mirrors the single-inscription Sigma anchor flow.
- *   - `'aip'`: the root manifest's MAP data is AIP-signed with the wallet's
- *     current BAP key. Simpler and tx-independent, but the MAP+AIP bytes can be
- *     copied into an unrelated inscription, so authorship is replay-able. This
- *     is why Sigma is the default.
- *   - `'none'`: published unsigned.
+ * the authorship signature set by `sign` (see {@link OrdfsDirSignMode}); the
+ * file and subdirectory inscriptions are unsigned plumbing.
  *
  * @param ctx - Action context carrying the BRC-100 wallet.
  * @param input - Files, optional MAP fields, optional signing mode, and
@@ -235,12 +223,7 @@ export const inscribeOrdfsDir: Action<
 				{
 					locking: { resolve: () => lockingScript },
 					map: input.map,
-					...(signMode === 'aip'
-						? {
-								aip: (c: OneSatContext, manifestScript: Script) =>
-									applyBapAip(c, manifestScript),
-							}
-						: {}),
+					...(signMode === 'aip' ? { aip: applyBapAip } : {}),
 				},
 				ctx,
 			)
@@ -295,23 +278,16 @@ interface PublishOutput {
 
 /**
  * Convert the built outputs into createAction output specs. Only the root
- * manifest is basketed/tracked as the tradeable ordinal; file and subdirectory
- * inscriptions are plumbing and carry no basket.
- *
- * When `manifestScriptOverride` is supplied (the Sigma-signed script), it
- * replaces the root manifest's locking script.
+ * manifest is basketed and tracked as the tradeable ordinal; file and
+ * subdirectory inscriptions are plumbing and carry no basket.
  */
 function toActionOutputs(
 	built: BuiltOutputs,
 	manifestCustomInstructions?: string,
-	manifestScriptOverride?: string,
 ): PublishOutput[] {
 	return built.outputs.map((o) => {
 		const out: PublishOutput = {
-			lockingScript:
-				o.isManifest && manifestScriptOverride
-					? manifestScriptOverride
-					: o.lockingScriptHex,
+			lockingScript: o.lockingScriptHex,
 			satoshis: o.satoshis,
 			outputDescription: o.description.slice(0, 50),
 		}
@@ -411,27 +387,21 @@ async function publishWithSigma(
 
 	if (!anchorResult.txid) return { error: 'anchor-no-txid' }
 
-	// Bind the SIGMA signature to (anchorTxid, 0). The signature commits to the
-	// root manifest's locking script AND that exact input, so it is only valid
-	// in a tx that spends the anchor — replay-resistant. The manifest sits at
-	// the LAST output, so targetVout = manifestVout; the anchor is vin 0.
-	const manifestScript = Script.fromHex(
-		built.outputs[built.manifestVout].lockingScriptHex,
-	)
+	// Bind the SIGMA signature to (anchorTxid, 0). It commits to the root
+	// manifest script and that exact input, so it only validates in a tx that
+	// spends the anchor. The manifest is the last output (vout = manifestVout);
+	// the anchor is vin 0.
 	const sigmaScript = await applySigma(
 		ctx,
-		manifestScript,
+		built.manifestScript,
 		{ txid: anchorResult.txid, vout: 0 },
 		built.manifestVout,
 		0,
 	)
 
-	// Replace the manifest output's script with the Sigma-signed version.
-	const outputs = toActionOutputs(
-		built,
-		manifestCustomInstructions,
-		sigmaScript.toHex(),
-	)
+	// Swap in the Sigma-signed manifest script, then emit the outputs.
+	built.outputs[built.manifestVout].lockingScriptHex = sigmaScript.toHex()
+	const outputs = toActionOutputs(built, manifestCustomInstructions)
 
 	// Step 2: publish tx, spending the anchor and broadcasting both.
 	const result = await executeTrackedAction(
