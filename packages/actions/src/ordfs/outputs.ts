@@ -160,10 +160,8 @@ export async function buildOrdFsDirOutputs(
 	}
 
 	// -------------------------------------------------------------------
-	// 3. Root manifest inscription (last output)
-	//    Compose the suffix: MAP (if any) → caller suffix (if any).
-	//    AIP is applied to the finished locking script afterward, since it
-	//    must sign over the MAP data already present.
+	// 3. Root manifest inscription (last output). MAP goes on as a suffix;
+	//    AIP is applied afterward, since it signs over the MAP data.
 	// -------------------------------------------------------------------
 	const manifestBytes = new Uint8Array(
 		Utils.toArray(JSON.stringify(tree.root), 'utf8'),
