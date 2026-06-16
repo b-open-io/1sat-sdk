@@ -2,8 +2,7 @@
  * Registry Module
  *
  * Shared infrastructure for building on-chain registry packages.
- * Used by clawnet (skills, agents), theme-token (fonts, themes),
- * and any publisher creating ord-fs/json registry items.
+ * Used by any publisher creating ord-fs/json registry items.
  */
 
 export { buildPackageOutputs, detectContentType } from './package-tx'

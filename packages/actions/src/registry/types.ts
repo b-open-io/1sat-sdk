@@ -17,7 +17,7 @@ export interface PackageFile {
  * All fields become MAP SET key-value pairs on the manifest inscription.
  */
 export interface PackageMapMetadata {
-	/** Registry identifier -- consumer-provided (e.g. "clawnet", "theme-token") */
+	/** Registry identifier -- consumer-provided application namespace */
 	app: string
 	/** Registry type with registry: prefix */
 	type: RegistryType
