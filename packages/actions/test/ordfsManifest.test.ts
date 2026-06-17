@@ -53,7 +53,7 @@ describe('buildOrdfsDirManifest', () => {
 		// One subdirectory ("refs"), inscribed immediately after the files.
 		expect(tree.subdirs).toHaveLength(1)
 		const refs = tree.subdirs[0]
-		expect(refs.name).toBe('refs')
+		expect(refs.path).toBe('refs')
 		expect(refs.vout).toBe(3) // 3 files => first subdir at vout 3
 		expect(refs.manifest).toEqual({ 'api.md': '_1', 'cli.md': '_2' })
 
@@ -64,22 +64,25 @@ describe('buildOrdfsDirManifest', () => {
 		expect(tree.manifestVout).toBe(4)
 	})
 
-	it('flattens deeply nested paths under the top-level subdirectory', () => {
+	it('builds a manifest per level for deeply nested paths', () => {
 		const tree = buildOrdfsDirManifest([
 			{ path: 'docs/v1/api.md' }, // vout 0
 			{ path: 'docs/v2/api.md' }, // vout 1
 		])
 
-		expect(tree.subdirs).toHaveLength(1)
-		const docs = tree.subdirs[0]
-		expect(docs.name).toBe('docs')
-		// Remaining path after the top segment is kept verbatim.
-		expect(docs.manifest).toEqual({
-			'v1/api.md': '_0',
-			'v2/api.md': '_1',
-		})
+		// One manifest per directory: docs, docs/v1, docs/v2 (DFS order),
+		// inscribed after the 2 files; root last.
+		expect(tree.subdirs.map((s) => [s.path, s.vout])).toEqual([
+			['docs', 2],
+			['docs/v1', 3],
+			['docs/v2', 4],
+		])
+		// Keys are single-segment at every level — no slashes.
+		expect(tree.subdirs[0].manifest).toEqual({ v1: '_3', v2: '_4' })
+		expect(tree.subdirs[1].manifest).toEqual({ 'api.md': '_0' })
+		expect(tree.subdirs[2].manifest).toEqual({ 'api.md': '_1' })
 		expect(tree.root).toEqual({ docs: '_2' })
-		expect(tree.manifestVout).toBe(3)
+		expect(tree.manifestVout).toBe(5)
 	})
 
 	it('assigns subdirectory vouts in first-seen order', () => {
@@ -90,7 +93,7 @@ describe('buildOrdfsDirManifest', () => {
 		])
 
 		// "a" seen first => vout 3, "b" => vout 4.
-		expect(tree.subdirs.map((s) => [s.name, s.vout])).toEqual([
+		expect(tree.subdirs.map((s) => [s.path, s.vout])).toEqual([
 			['a', 3],
 			['b', 4],
 		])

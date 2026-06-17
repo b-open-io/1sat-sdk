@@ -24,25 +24,25 @@
 import { MANIFEST_CONTENT_TYPE } from '../registry/constants'
 
 /**
- * A single subdirectory manifest in the ord-fs tree.
+ * A subdirectory manifest in the ord-fs tree — one per directory at any depth.
  */
 export interface OrdfsSubdirManifest {
 	/**
-	 * Directory name as it appears in the parent manifest (the first path
-	 * segment, e.g. `"refs"` for files under `refs/`).
+	 * Full directory path from the root (e.g. `"refs"` or `"refs/v1"`). The
+	 * parent manifest references this directory by its last segment.
 	 */
-	name: string
+	path: string
 	/**
-	 * The subdirectory manifest object: maps each child file name (with the
-	 * leading directory segment stripped) to its `_N` relative-vout reference.
-	 * Nested children keep their remaining path (e.g. `"api.md"` or
-	 * `"v1/api.md"`) so a single subdirectory manifest can flatten an entire
-	 * branch.
+	 * The manifest object: maps each child's single-segment name to its `_N`
+	 * relative-vout reference — a file's inscription vout, or a nested
+	 * subdirectory manifest's vout. Keys never contain `/`; each directory level
+	 * is its own manifest, matching how the ordfs server resolves a path one
+	 * segment at a time.
 	 */
 	manifest: Record<string, string>
 	/**
 	 * The output index this subdirectory manifest's inscription occupies in
-	 * the transaction. Referenced from the root manifest as `_<vout>`.
+	 * the transaction. Referenced from the parent manifest as `_<vout>`.
 	 */
 	vout: number
 }
@@ -58,8 +58,9 @@ export interface OrdfsDirManifest {
 	 */
 	root: Record<string, string>
 	/**
-	 * One entry per top-level subdirectory, in first-seen order. Each carries
-	 * its own manifest object and the vout its inscription occupies.
+	 * One entry per subdirectory at any depth, each with its own manifest and
+	 * vout. A nested directory `a/b` produces two entries (`a` and `a/b`), with
+	 * `a`'s manifest pointing at `a/b`'s vout.
 	 */
 	subdirs: OrdfsSubdirManifest[]
 	/**
@@ -83,101 +84,105 @@ export interface OrdfsDirManifest {
 /**
  * Build the ord-fs/json directory tree for a set of relative file paths.
  *
- * Each input path may contain `/` to denote subdirectories. Root-level files
- * are referenced directly from the root manifest; files inside a subdirectory
- * are grouped under a single manifest inscription for that subdirectory so
- * ORDFS can traverse nested directories and unchanged branches can be
- * re-referenced in version updates.
+ * Each input path may contain `/` to denote subdirectories. Every directory
+ * level — root and each nested directory — gets its own manifest, and a parent
+ * references a child directory by the child's single-segment name. This matches
+ * how the ordfs server resolves a path: one segment at a time, recursing into a
+ * child manifest when the segment points at another `ord-fs/json` inscription.
  *
- * This is pure layout computation: no keys, scripts, or inscriptions are
- * involved. The returned `vout` indices assume the file inscriptions occupy
- * outputs `0..F-1` in the same order as `files`, followed by subdirectory
- * manifests, followed by the root manifest.
+ * Pure layout computation — no keys, scripts, or inscriptions. The returned
+ * `vout` indices assume file inscriptions occupy outputs `0..F-1` in `files`
+ * order, then the subdirectory manifests, then the root manifest last.
  *
  * @param files - Relative file paths in the order their inscriptions will be
  *   created. Paths use `/` as the directory separator (e.g. `"SKILL.md"`,
  *   `"refs/api.md"`). Order is significant: file `i` is assigned vout `i`.
- * @returns The directory tree layout — root manifest, subdirectory manifests,
- *   per-file vout assignments, the root manifest's vout, and the manifest
- *   content type.
+ * @returns The directory tree layout — root manifest, the per-directory
+ *   subdirectory manifests, per-file vout assignments, the root manifest's
+ *   vout, and the manifest content type.
  */
 export function buildOrdfsDirManifest(
 	files: Array<{ path: string }>,
 ): OrdfsDirManifest {
-	// Per-file vout assignment: file i occupies output i.
 	const fileLayout = files.map((file, i) => ({ path: file.path, vout: i }))
 
-	// Group files by their top-level directory segment. Root-level files
-	// (no `/`) are referenced directly from the root manifest; everything
-	// else is grouped under its first path segment.
-	const rootFiles: Array<{ name: string; vout: number }> = []
-	const subdirEntries = new Map<string, Array<{ name: string; vout: number }>>()
+	// A directory node: each child name maps to a file's vout (number) or a
+	// nested directory node. Built by walking each path segment by segment.
+	type DirNode = Map<string, number | DirNode>
+	const rootNode: DirNode = new Map()
 
-	for (const file of fileLayout) {
-		const parts = file.path.split('/')
-		if (parts.length === 1) {
-			rootFiles.push({ name: parts[0], vout: file.vout })
-		} else {
-			const dir = parts[0]
-			const rest = parts.slice(1).join('/')
-			if (!subdirEntries.has(dir)) subdirEntries.set(dir, [])
-			subdirEntries.get(dir)?.push({ name: rest, vout: file.vout })
-		}
+	const collide = (key: string, scope: string): never => {
+		throw new Error(
+			`ord-fs directory path collision: "${key}" conflicts with an existing entry in ${scope}`,
+		)
 	}
 
-	// Assign a manifest entry, refusing to overwrite an existing name. Silent
-	// overwrites would orphan an already-created inscription output (it would be
-	// unreachable from the directory tree), so a collision is a hard error.
-	const assignUnique = (
-		obj: Record<string, string>,
-		key: string,
-		value: string,
-		scope: string,
-	): void => {
-		if (Object.hasOwn(obj, key)) {
-			throw new Error(
-				`ord-fs directory path collision: "${key}" appears more than once in ${scope}`,
-			)
+	for (const { path, vout } of fileLayout) {
+		const parts = path.split('/')
+		let node = rootNode
+		let walked = ''
+		for (let i = 0; i < parts.length - 1; i++) {
+			const seg = parts[i]
+			const existing = node.get(seg)
+			if (existing === undefined) {
+				const child: DirNode = new Map()
+				node.set(seg, child)
+				node = child
+			} else if (existing instanceof Map) {
+				node = existing
+			} else {
+				collide(seg, walked ? `directory "${walked}/"` : 'the root directory')
+			}
+			walked = walked ? `${walked}/${seg}` : seg
 		}
-		obj[key] = value
+		const name = parts[parts.length - 1]
+		if (node.has(name)) {
+			collide(name, walked ? `directory "${walked}/"` : 'the root directory')
+		}
+		node.set(name, vout)
 	}
 
-	// Assign each subdirectory manifest an output index, immediately after the
-	// file inscriptions, in first-seen order. Build its manifest object mapping
-	// child name → `_N` reference.
-	const subdirs: OrdfsSubdirManifest[] = []
+	// Assign each subdirectory manifest a vout after the file inscriptions, in
+	// depth-first order; the root manifest is always last.
+	const dirPaths: Array<{ path: string; node: DirNode }> = []
+	const collect = (node: DirNode, path: string): void => {
+		for (const [name, child] of node) {
+			if (child instanceof Map) {
+				const childPath = path ? `${path}/${name}` : name
+				dirPaths.push({ path: childPath, node: child })
+				collect(child, childPath)
+			}
+		}
+	}
+	collect(rootNode, '')
+
+	const voutByPath = new Map<string, number>()
 	let nextVout = files.length
-	for (const [name, entries] of subdirEntries) {
+	for (const { path } of dirPaths) voutByPath.set(path, nextVout++)
+	const manifestVout = nextVout // root manifest last
+
+	// Build a manifest object: file children → their vout, directory children →
+	// the child manifest's vout. Keys stay single-segment.
+	const manifestFor = (node: DirNode, path: string): Record<string, string> => {
 		const manifest: Record<string, string> = {}
-		for (const entry of entries) {
-			assignUnique(
-				manifest,
-				entry.name,
-				`_${entry.vout}`,
-				`directory "${name}/"`,
-			)
+		for (const [name, child] of node) {
+			const vout =
+				child instanceof Map
+					? (voutByPath.get(path ? `${path}/${name}` : name) as number)
+					: child
+			manifest[name] = `_${vout}`
 		}
-		subdirs.push({ name, manifest, vout: nextVout })
-		nextVout += 1
+		return manifest
 	}
 
-	// The root manifest references root-level files and the per-subdirectory
-	// manifests. Files first (preserving input order), then subdirectories.
-	// `assignUnique` also catches a root file colliding with a subdirectory name
-	// (e.g. both `"a"` and `"a/b"` supplied).
-	const root: Record<string, string> = {}
-	for (const entry of rootFiles) {
-		assignUnique(root, entry.name, `_${entry.vout}`, 'the root directory')
-	}
-	for (const subdir of subdirs) {
-		assignUnique(root, subdir.name, `_${subdir.vout}`, 'the root directory')
-	}
-
-	// Root manifest is always the final output.
-	const manifestVout = nextVout
+	const subdirs: OrdfsSubdirManifest[] = dirPaths.map(({ path, node }) => ({
+		path,
+		manifest: manifestFor(node, path),
+		vout: voutByPath.get(path) as number,
+	}))
 
 	return {
-		root,
+		root: manifestFor(rootNode, ''),
 		subdirs,
 		files: fileLayout,
 		manifestVout,

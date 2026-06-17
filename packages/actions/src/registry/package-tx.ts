@@ -105,7 +105,7 @@ export async function buildPackageOutputs(
 		outputs.push({
 			lockingScriptHex: Utils.toHex(subdirInscription.lock().toBinary()),
 			satoshis: 1,
-			description: `dir: ${subdir.name}/`,
+			description: `dir: ${subdir.path}/`,
 			isManifest: false,
 		})
 	}

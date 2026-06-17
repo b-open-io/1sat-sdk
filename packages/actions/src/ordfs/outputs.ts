@@ -154,7 +154,7 @@ export async function buildOrdFsDirOutputs(
 		outputs.push({
 			lockingScriptHex: Utils.toHex(inscription.lock().toBinary()),
 			satoshis: 1,
-			description: `dir: ${subdir.name}/`,
+			description: `dir: ${subdir.path}/`,
 			isManifest: false,
 		})
 	}
