@@ -68,9 +68,12 @@ export class SecureEnclaveProvider implements VaultProvider {
 
 	private getEnclavePath(): string {
 		const candidates = [
+			// npm-installed: enclave lives in this package's swift/ dir.
+			// This is also where the postinstall and auto-compile fallback build it.
+			resolve(__dirname, '..', 'swift', 'enclave'),
 			// Signed/stable build: postBuild copies enclave to MacOS/
 			resolve(process.argv0, '..', 'enclave'),
-			// Dev build: enclave binary in the source tree
+			// Dev build: enclave binary in a sibling source tree
 			// process.cwd() in Electrobun dev is the wallet-desktop package root
 			resolve(process.cwd(), '..', 'wallet-mac', 'swift', 'enclave'),
 		]
@@ -79,10 +82,9 @@ export class SecureEnclaveProvider implements VaultProvider {
 			if (existsSync(path)) return path
 		}
 
-		throw new Error(
-			`Secure Enclave binary not found. Checked:\n${candidates.map((p) => `  ${p}`).join('\n')}\n` +
-				'Compile with: cd packages/wallet-mac/swift && sh build.sh',
-		)
+		// Not built yet — return the canonical package location so callEnclave's
+		// auto-compile step can build it there.
+		return candidates[0]
 	}
 
 	private async callEnclave(
