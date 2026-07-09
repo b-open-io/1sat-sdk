@@ -6,6 +6,16 @@ export type { Signer } from './signer.js'
 export { default as Inscription } from './inscription/inscription.js'
 export { default as BSV20 } from './bsv20/bsv20.js'
 export { default as BSV21 } from './bsv21/bsv21.js'
+export { default as Shrug, SHRUG_TAG_HEX } from './shrug/shrug.js'
+export type { ShrugData } from './shrug/shrug.js'
+export {
+	SHRUG_METADATA_CONTENT_TYPE,
+	decodeShrugMetadata,
+	encodeShrugMetadata,
+	outpointFromBytes,
+	outpointToBytes,
+} from './shrug/metadata.js'
+export type { ShrugMetadata } from './shrug/metadata.js'
 export { default as OrdLock } from './ordlock/ordlock.js'
 export { default as Lock } from './lock/lock.js'
 export { default as Cosign } from './cosign/cosign.js'
