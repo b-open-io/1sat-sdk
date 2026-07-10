@@ -1,5 +1,6 @@
 ---
 name: sdk-publish
+visibility: internal
 description: "Publish @1sat/* packages from the 1sat-sdk monorepo. Use when publishing any package, bumping versions, or releasing. Triggers on 'publish', 'release', 'bump version', 'deploy package', 'npm publish', 'bun publish'. Enforces workspace:* resolution, dependency ordering, lockfile regeneration, and pre-1.0 semver rules."
 ---
 
