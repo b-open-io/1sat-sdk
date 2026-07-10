@@ -73,7 +73,7 @@ with `bun run scripts/gen-action-index.ts`).
 | stack-api | `packages/client/skills/stack-api` | The api.1sat.app unified indexer API |
 | blockchain-media | `packages/client/skills/blockchain-media` | ORDFS content access (service-level; no SDK action) |
 | desktop-mcp | `packages/wallet-desktop/skills/desktop-mcp` | wallet-desktop MCP browser-automation tools |
-| sdk-publish | `skills/sdk-publish` | Maintainer: publishing packages from this monorepo |
+| sdk-publish | `.claude/skills/sdk-publish` | Internal maintainer workflow; not distributed by the public plugin |
 
 ## Coding Conventions
 - Use Bun for all scripts and package operations.

@@ -18,6 +18,20 @@ bunx @1sat/cli
 claude plugin install 1sat@b-open-io
 ```
 
+**Add Agent Skills for Codex:**
+
+Install the `1sat` Codex plugin from the b-open-io marketplace to expose the
+public package skills. The root `skills/` directory contains deterministic,
+publishable copies generated from the colocated package skill sources; run
+`python3 scripts/codex-agents/materialize_skills.py --check` to detect drift.
+The internal `sdk-publish` maintainer workflow stays under `.claude/skills/`
+and is not part of either public plugin. Uno Satoj is an optional custom agent
+and is not installed by the plugin automatically. After an explicit request,
+run the `codex-agent-setup` skill to install Uno into the current project's
+`.codex/agents/` directory, then start a new Codex session and invoke
+`onesat_ordinals`. Use `--user` only when you intentionally want a user-wide
+install.
+
 <details>
 <summary>Individual skills (for any AI coding tool)</summary>
 

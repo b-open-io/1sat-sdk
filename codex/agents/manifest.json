@@ -1,0 +1,17 @@
+{
+	"schema_version": "1",
+	"generator_schema_version": "1",
+	"manager": "1sat",
+	"agents": [
+		{
+			"source_name": "ordinals",
+			"source_path": "agents/ordinals.md",
+			"source_version": "0.2.3",
+			"source_hash": "sha256:01d627a778fedcac6f86d051c7eeed834b2d9a9ef7937e49425e1addaa2c5a6c",
+			"generated_file": "1sat-ordinals.toml",
+			"generated_hash": "sha256:a3b37b7aa9884b56e1699e9b78620456084aa0da12b6ef0572bba2b3f34ebbbc",
+			"agent_name": "onesat_ordinals",
+			"default_install": true
+		}
+	]
+}

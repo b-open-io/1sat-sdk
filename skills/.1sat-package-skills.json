@@ -1,0 +1,133 @@
+{
+	"schema_version": "1",
+	"manager": "1sat-package-skills",
+	"transform": "codex-disable-model-invocation-v1",
+	"skills": [
+		{
+			"name": "action-patterns",
+			"source": "packages/actions/skills/action-patterns",
+			"destination": "skills/action-patterns",
+			"source_hash": "sha256:c1090f5ec0e937fc7813266929a90b9cb304696faa769d67fb2904f4ee3be0ee",
+			"generated_hash": "sha256:c1090f5ec0e937fc7813266929a90b9cb304696faa769d67fb2904f4ee3be0ee"
+		},
+		{
+			"name": "identity",
+			"source": "packages/actions/skills/identity",
+			"destination": "skills/identity",
+			"source_hash": "sha256:3304682b064f5f415c71317087c8c95c151f9c3daad1fec516150cb9d8a04409",
+			"generated_hash": "sha256:3304682b064f5f415c71317087c8c95c151f9c3daad1fec516150cb9d8a04409"
+		},
+		{
+			"name": "locks",
+			"source": "packages/actions/skills/locks",
+			"destination": "skills/locks",
+			"source_hash": "sha256:f97463846d2c9ba650adca93606195719757b66b26a4d52eca85c2f6604c43d8",
+			"generated_hash": "sha256:fbf5d18035e016c96c0426f545fa47c1e70238ba0553387eccfb7fb7e6b7285a"
+		},
+		{
+			"name": "mnee",
+			"source": "packages/actions/skills/mnee",
+			"destination": "skills/mnee",
+			"source_hash": "sha256:da8fcbffa9caff104c66eec10854c91949e5939bd6ac0742ad814c6dbbd2a2f2",
+			"generated_hash": "sha256:da8fcbffa9caff104c66eec10854c91949e5939bd6ac0742ad814c6dbbd2a2f2"
+		},
+		{
+			"name": "opns",
+			"source": "packages/actions/skills/opns",
+			"destination": "skills/opns",
+			"source_hash": "sha256:d2268fd7925cb06812ac8058c224ce2ee20ddf8a29182ca5fdec52fb403651ac",
+			"generated_hash": "sha256:d2268fd7925cb06812ac8058c224ce2ee20ddf8a29182ca5fdec52fb403651ac"
+		},
+		{
+			"name": "ordinals-create",
+			"source": "packages/actions/skills/ordinals-create",
+			"destination": "skills/ordinals-create",
+			"source_hash": "sha256:cb6c609cf229253a0fd86dfbddfaeb89ff94ba3aeeba95f9fa6f5e2aabf05811",
+			"generated_hash": "sha256:12368519a2216efaad58087fdc1251d3596a6fadfba6bb3ae5bc9a929d181b20"
+		},
+		{
+			"name": "ordinals-marketplace",
+			"source": "packages/actions/skills/ordinals-marketplace",
+			"destination": "skills/ordinals-marketplace",
+			"source_hash": "sha256:e52231515cbcc6b0cd00c37d1ca1ff30814b00f1ea78ef66df871b57c1881a00",
+			"generated_hash": "sha256:39c80b503f58e089489576f6d709a4a20c94ce515a27f0318dfa89de023b7edc"
+		},
+		{
+			"name": "payments",
+			"source": "packages/actions/skills/payments",
+			"destination": "skills/payments",
+			"source_hash": "sha256:cb07f5abc02f5b51303dc41af0890512a19336a2548ab41d6c84f79194438bf0",
+			"generated_hash": "sha256:cb07f5abc02f5b51303dc41af0890512a19336a2548ab41d6c84f79194438bf0"
+		},
+		{
+			"name": "signing",
+			"source": "packages/actions/skills/signing",
+			"destination": "skills/signing",
+			"source_hash": "sha256:38c0802e56734d6d52130f361c5e458e45f0f08b924f9569384cdf6501026ddd",
+			"generated_hash": "sha256:38c0802e56734d6d52130f361c5e458e45f0f08b924f9569384cdf6501026ddd"
+		},
+		{
+			"name": "sweep",
+			"source": "packages/actions/skills/sweep",
+			"destination": "skills/sweep",
+			"source_hash": "sha256:25f052f7120ac8d60bc3cb14e6ccafacbbf7b42e80bf606683e3ac886a216165",
+			"generated_hash": "sha256:8e6f4041493dcaddea9aa8e44881fe66999f2994fd4767bdd744fba2a8dcfe5f"
+		},
+		{
+			"name": "sync-cosign",
+			"source": "packages/actions/skills/sync-cosign",
+			"destination": "skills/sync-cosign",
+			"source_hash": "sha256:97906b55e3c8c57347e1f7f77bb4ed372b8f499fd5cc2c7c786c001f8c372d4c",
+			"generated_hash": "sha256:97906b55e3c8c57347e1f7f77bb4ed372b8f499fd5cc2c7c786c001f8c372d4c"
+		},
+		{
+			"name": "tokens",
+			"source": "packages/actions/skills/tokens",
+			"destination": "skills/tokens",
+			"source_hash": "sha256:d776f99037550e58366ff9c56fcabedceb44b47fb0efa1a43e33bd4caee4f6d3",
+			"generated_hash": "sha256:9dbdc180f25c233d6ce1a7ea4104a2635dac5850f8e0eef093ebeb4c397fcafe"
+		},
+		{
+			"name": "cli",
+			"source": "packages/cli/skills/cli",
+			"destination": "skills/cli",
+			"source_hash": "sha256:020a3614a8064899a18fd0a0987a038a0601699c77917dda19252971ac85bf29",
+			"generated_hash": "sha256:020a3614a8064899a18fd0a0987a038a0601699c77917dda19252971ac85bf29"
+		},
+		{
+			"name": "blockchain-media",
+			"source": "packages/client/skills/blockchain-media",
+			"destination": "skills/blockchain-media",
+			"source_hash": "sha256:2bfbc8c38577e2c69b2ac169017939edce4cd468148ece456b92c7c868563e55",
+			"generated_hash": "sha256:2bfbc8c38577e2c69b2ac169017939edce4cd468148ece456b92c7c868563e55"
+		},
+		{
+			"name": "stack-api",
+			"source": "packages/client/skills/stack-api",
+			"destination": "skills/stack-api",
+			"source_hash": "sha256:e546f8efece2d699a60c60c0b3fc86b7514a51875c8f49d72cd52f8f9c52a55e",
+			"generated_hash": "sha256:e546f8efece2d699a60c60c0b3fc86b7514a51875c8f49d72cd52f8f9c52a55e"
+		},
+		{
+			"name": "dapp-connect",
+			"source": "packages/connect/skills/dapp-connect",
+			"destination": "skills/dapp-connect",
+			"source_hash": "sha256:22eeea4d3ca1ea10692226a554a8911d9df0626c71d64b1e87309100e6cc2bb4",
+			"generated_hash": "sha256:22eeea4d3ca1ea10692226a554a8911d9df0626c71d64b1e87309100e6cc2bb4"
+		},
+		{
+			"name": "wallet-setup",
+			"source": "packages/wallet/skills/wallet-setup",
+			"destination": "skills/wallet-setup",
+			"source_hash": "sha256:508e1c3a70e30e51d24871939f4bf7495cd90e78fcb099dbf1bcc1c988600712",
+			"generated_hash": "sha256:508e1c3a70e30e51d24871939f4bf7495cd90e78fcb099dbf1bcc1c988600712"
+		},
+		{
+			"name": "desktop-mcp",
+			"source": "packages/wallet-desktop/skills/desktop-mcp",
+			"destination": "skills/desktop-mcp",
+			"source_hash": "sha256:9877a246929edf8514d48f600bf79c424b3e5483008360196664391af5252617",
+			"generated_hash": "sha256:9877a246929edf8514d48f600bf79c424b3e5483008360196664391af5252617"
+		}
+	]
+}
