@@ -308,5 +308,22 @@ export const opnsDeregister: Action<
 // Module exports
 // ============================================================================
 
+export {
+	opnsMine,
+	opnsMineStatus,
+	type OpnsMineRequest,
+	type OpnsMineResponse,
+	type OpnsMineStatusRequest,
+	type OpnsMineJob,
+} from './mine'
+
+import { opnsMine, opnsMineStatus } from './mine'
+
 /** All OpNS actions for registry */
-export const opnsActions = [getOpnsNames, opnsRegister, opnsDeregister]
+export const opnsActions = [
+	getOpnsNames,
+	opnsRegister,
+	opnsDeregister,
+	opnsMine,
+	opnsMineStatus,
+]
