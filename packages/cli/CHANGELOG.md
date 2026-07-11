@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.70
+
+### Fixed
+- `1sat init` crashed with `Error: text is not defined` when choosing "Import existing key" — the `text` prompt was never imported from `@clack/prompts`. The generate-key path was unaffected.
+
 ## 0.0.52
 
 ### Added

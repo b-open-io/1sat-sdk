@@ -32,7 +32,8 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@1sat/types": "workspace:*"
+    "@1sat/types": "workspace:*",
+    "cbor2": "^2.3.0"
   },
   "peerDependencies": {
     "@bsv/sdk": "^2.0.13"

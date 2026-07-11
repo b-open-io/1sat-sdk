@@ -18,6 +18,7 @@ import {
 	outro,
 	password,
 	select,
+	text,
 } from '@clack/prompts'
 import type { GlobalFlags } from '../args'
 import { ensureConfigDir, loadConfig, saveConfig } from '../config'

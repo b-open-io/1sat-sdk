@@ -2,6 +2,7 @@ import { HttpError, type OneSatServices } from '@1sat/client'
 import {
 	type IndexSummary,
 	Indexer,
+	OPNS_BASKET,
 	ORDINALS_BASKET,
 	type ParseContext,
 	type ParseResult,
@@ -72,7 +73,10 @@ export class OriginIndexer extends Indexer {
 			data: origin,
 			tags: [], // Tags will be added in summarize() once origin is determined
 			owner: address,
-			basket: ORDINALS_BASKET,
+			basket:
+				insc?.file?.type === 'application/op-ns'
+					? OPNS_BASKET
+					: ORDINALS_BASKET,
 		}
 	}
 
@@ -231,6 +235,12 @@ export class OriginIndexer extends Indexer {
 			} else {
 				// New origin
 				origin.outpoint = txo.outpoint.toString()
+			}
+
+			// Transfers reveal their content type only here, after ORDFS
+			// resolution — too late for parse()-time basket routing.
+			if (origin.insc?.file?.type === 'application/op-ns') {
+				txo.basket = OPNS_BASKET
 			}
 
 			// Validate parent if inscription claims one
