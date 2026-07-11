@@ -261,7 +261,7 @@ describe('prepareCosignBsv21Transfer', () => {
 				senderIdentityKey: 'aa',
 				sessionStore,
 			}),
-		).rejects.toThrow('at least one destination or burn')
+		).rejects.toThrow('at least one destination, multisigDestination, or burn')
 	})
 
 	test('rejects when no token inputs', async () => {
@@ -513,7 +513,7 @@ describe('finalizeCosignBsv21Transfer', () => {
 		expect(finalized.recipients[0].vout).toBe(0)
 
 		const ci = JSON.parse(finalized.recipients[0].customInstructions)
-		expect(ci.protocolID).toEqual([2, 'cosign'])
+		expect(ci.protocolID).toEqual([0, 'p 1sat'])
 		expect(ci.keyID).toBe(prepared.sessionId)
 		expect(ci.counterparty).toBe(cosignerPubHex)
 		expect(ci.tokenId).toBe(TOKEN_ID)

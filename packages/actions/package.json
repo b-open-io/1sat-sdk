@@ -1,6 +1,6 @@
 {
   "name": "@1sat/actions",
-  "version": "0.0.166",
+  "version": "0.0.167",
   "description": "Action definitions for the 1Sat SDK",
   "type": "module",
   "main": "./dist/index.js",
@@ -41,6 +41,7 @@
   },
   "devDependencies": {
     "@bsv/sdk": "^2.0.13",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "@1sat/wallet-remote": "workspace:*"
   }
 }
