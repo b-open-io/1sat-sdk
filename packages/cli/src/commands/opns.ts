@@ -1,13 +1,16 @@
 /**
- * OpNS commands - register, deregister, lookup.
+ * OpNS commands - register, deregister, lookup, mine.
  *
- * Manage OpNS name identity bindings.
+ * Manage OpNS name identity bindings and paid mining jobs.
  */
 
 import {
 	getDisplayValue,
 	getOpnsNames,
 	opnsDeregister as opnsDeregisterAction,
+	opnsMine as opnsMineAction,
+	opnsMineRefund as opnsMineRefundAction,
+	opnsMineStatus as opnsMineStatusAction,
 	opnsRegister as opnsRegisterAction,
 } from '@1sat/actions'
 import { confirm, isCancel } from '@clack/prompts'
@@ -31,6 +34,12 @@ export async function handleOpnsCommand(
 			return opnsDeregister(rest, opts)
 		case 'lookup':
 			return opnsLookup(rest, opts)
+		case 'mine':
+			return opnsMine(rest, opts)
+		case 'mine-status':
+			return opnsMineStatus(rest, opts)
+		case 'mine-refund':
+			return opnsMineRefund(rest, opts)
 		default:
 			printCommandHelp('opns', opts.json)
 			if (subcommand && subcommand !== 'help') {
@@ -121,6 +130,113 @@ async function opnsDeregister(
 		}
 
 		output(opts.json ? result : { txid: result.txid }, opts)
+	} finally {
+		await destroy()
+	}
+}
+
+async function opnsMine(args: string[], opts: GlobalFlags): Promise<void> {
+	const name = extractFlag(args, '--name')
+	const serviceUrl = extractFlag(args, '--service')
+	const receiveAddress = extractFlag(args, '--receive-address')
+	const timeout = extractFlag(args, '--timeout')
+
+	if (!name) fatal('Missing --name <name>')
+	if (!serviceUrl) fatal('Missing --service <url>')
+
+	if (!opts.yes) {
+		const ok = await confirm({
+			message: `Pay ${serviceUrl} to mine "${name}"? The full price is charged upfront.`,
+		})
+		if (isCancel(ok) || !ok) {
+			fatal('Mine cancelled.')
+		}
+	}
+
+	const privateKey = await loadKey()
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const result = await opnsMineAction.execute(ctx, {
+			name,
+			serviceUrl,
+			receiveAddress: receiveAddress ?? undefined,
+			timeoutMs: timeout ? Number.parseInt(timeout, 10) : undefined,
+		})
+		if (result.error && !result.jobId) {
+			fatal(result.error)
+		}
+		output(
+			opts.json
+				? result
+				: {
+						jobId: result.jobId,
+						state: result.state,
+						txid: result.txid,
+						...(result.error ? { error: result.error } : {}),
+					},
+			opts,
+		)
+	} finally {
+		await destroy()
+	}
+}
+
+async function opnsMineStatus(
+	args: string[],
+	opts: GlobalFlags,
+): Promise<void> {
+	const jobId = extractFlag(args, '--job')
+	const serviceUrl = extractFlag(args, '--service')
+
+	if (!jobId) fatal('Missing --job <paymentTxid>')
+	if (!serviceUrl) fatal('Missing --service <url>')
+
+	const privateKey = await loadKey()
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const result = await opnsMineStatusAction.execute(ctx, {
+			jobId,
+			serviceUrl,
+		})
+		if (result.error && !result.state) {
+			fatal(result.error)
+		}
+		output(result, opts)
+	} finally {
+		await destroy()
+	}
+}
+
+async function opnsMineRefund(
+	args: string[],
+	opts: GlobalFlags,
+): Promise<void> {
+	const jobId = extractFlag(args, '--job')
+	const serviceUrl = extractFlag(args, '--service')
+
+	if (!jobId) fatal('Missing --job <paymentTxid>')
+	if (!serviceUrl) fatal('Missing --service <url>')
+
+	const privateKey = await loadKey()
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const result = await opnsMineRefundAction.execute(ctx, {
+			jobId,
+			serviceUrl,
+		})
+		if (result.error) {
+			fatal(result.error)
+		}
+		output(result, opts)
 	} finally {
 		await destroy()
 	}

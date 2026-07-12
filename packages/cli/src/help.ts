@@ -503,6 +503,32 @@ export const COMMANDS: CommandSpec[] = [
 				args: [{ flag: '--outpoint', values: '<txid.vout>', required: true }],
 			},
 			{ name: 'lookup', description: 'List OpNS names from wallet' },
+			{
+				name: 'mine',
+				description: 'Pay a mine service to mine a name into this wallet',
+				args: [
+					{ flag: '--name', values: '<name>', required: true },
+					{ flag: '--service', values: '<url>', required: true },
+					{ flag: '--receive-address', values: '<addr>' },
+					{ flag: '--timeout', values: '<ms>' },
+				],
+			},
+			{
+				name: 'mine-status',
+				description: 'Check a mine job; internalize the name if complete',
+				args: [
+					{ flag: '--job', values: '<paymentTxid>', required: true },
+					{ flag: '--service', values: '<url>', required: true },
+				],
+			},
+			{
+				name: 'mine-refund',
+				description: 'Claim the remaining funds of a failed mine job',
+				args: [
+					{ flag: '--job', values: '<paymentTxid>', required: true },
+					{ flag: '--service', values: '<url>', required: true },
+				],
+			},
 		],
 	},
 
