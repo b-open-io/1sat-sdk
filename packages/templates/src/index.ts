@@ -17,6 +17,12 @@ export {
 } from './shrug/metadata.js'
 export type { ShrugMetadata } from './shrug/metadata.js'
 export { default as OrdLock } from './ordlock/ordlock.js'
+export {
+	default as OpNS,
+	OPNS_CONTRACT_BYTES,
+	OPNS_GENESIS_BYTES,
+} from './opns/opns.js'
+export type { OpNSData } from './opns/opns.js'
 export { default as Lock } from './lock/lock.js'
 export { default as Cosign } from './cosign/cosign.js'
 export type { CosignData } from './cosign/cosign.js'
