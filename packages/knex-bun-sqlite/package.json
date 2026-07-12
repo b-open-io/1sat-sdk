@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/knex-bun-sqlite",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"description": "Knex dialect backed by Bun's built-in bun:sqlite",
 	"type": "module",
 	"main": "./dist/index.js",
