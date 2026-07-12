@@ -311,13 +311,16 @@ export const opnsDeregister: Action<
 export {
 	opnsMine,
 	opnsMineStatus,
+	opnsMineRefund,
 	type OpnsMineRequest,
 	type OpnsMineResponse,
 	type OpnsMineStatusRequest,
+	type OpnsMineRefundRequest,
+	type OpnsMineRefundResponse,
 	type OpnsMineJob,
 } from './mine'
 
-import { opnsMine, opnsMineStatus } from './mine'
+import { opnsMine, opnsMineRefund, opnsMineStatus } from './mine'
 
 /** All OpNS actions for registry */
 export const opnsActions = [
@@ -326,4 +329,5 @@ export const opnsActions = [
 	opnsDeregister,
 	opnsMine,
 	opnsMineStatus,
+	opnsMineRefund,
 ]

@@ -1,29 +1,25 @@
 /**
  * OpNS paid mining via a mine service (go-opns-mint).
  *
- * Payment is atomic with delivery: the buyer signs a noSend payment
- * transaction (P) paying the service's BRC-29 derived output; the service
- * spends P's output as a funding input of the final mint transaction (M)
- * and broadcasts the pair together. P only reaches the network when the
- * name does. The name inscription is delivered to the buyer's P1SAT
- * deposit address, so standard ordinals ingestion recovers it even if the
- * response is lost; internalizing M here is the fast path.
+ * The buyer prepays the full price at job creation: POST /jobs answers 402
+ * and AuthFetch pays it automatically via BRC-105. The payment txid is the
+ * job ID. The service mines every character funded by that payment, delivers
+ * the name inscription to the buyer's receive address, and — if the name is
+ * lost to another miner — refunds the remaining job funds on request.
  */
 
 import { P1SAT_PROTOCOL } from '@1sat/types'
-import { P2PKH, PublicKey, Utils, type WalletInterface } from '@bsv/sdk'
+import { PublicKey, Utils, type WalletInterface } from '@bsv/sdk'
 import { AuthFetch } from '@bsv/sdk/auth'
 import { OPNS_BASKET } from '../constants'
 import type { Action, ActionOptions } from '../types'
-import { completeSignedAction } from '../utils/completeSignedAction'
-import { createTrackedAction } from '../utils/createTrackedAction'
 
 // ============================================================================
 // Types
 // ============================================================================
 
 export interface OpnsMineRequest extends ActionOptions {
-	/** Name to mine (lowercase a-z, 0-9, hyphen) */
+	/** Name to mine */
 	name: string
 	/** Base URL of the mine service, e.g. https://mine.example.com */
 	serviceUrl: string
@@ -36,21 +32,28 @@ export interface OpnsMineRequest extends ActionOptions {
 	timeoutMs?: number
 }
 
+/** GET /jobs/:id payload */
 export interface OpnsMineJob {
-	id: string
-	name: string
-	state: string
-	priceSats: number
-	derivationPrefix: string
-	derivationSuffix: string
-	serverIdentityKey: string
+	jobId: string
+	name?: string
+	state: 'mining' | 'failed' | 'complete' | 'refunded'
+	satoshisRemaining?: number
+	charsRemaining?: number
 	mintTxid?: string
 	mintBeef?: string
+	refund?: {
+		txid: string
+		satoshis: number
+		derivationPrefix: string
+		derivationSuffix: string
+		senderIdentityKey: string
+		beef?: string
+	}
 	error?: string
 }
 
 export interface OpnsMineResponse {
-	/** Job id — use opnsMineStatus to recover if state is not complete */
+	/** Job id (= payment txid) — recover later with opnsMineStatus */
 	jobId?: string
 	state?: string
 	/** Txid of the mint transaction delivering the name */
@@ -61,8 +64,19 @@ export interface OpnsMineResponse {
 export interface OpnsMineStatusRequest extends ActionOptions {
 	jobId: string
 	serviceUrl: string
-	/** Receive address the job was created with (for internalize custom instructions) */
-	receiveAddress?: string
+}
+
+export interface OpnsMineRefundRequest extends ActionOptions {
+	jobId: string
+	serviceUrl: string
+}
+
+export interface OpnsMineRefundResponse {
+	jobId?: string
+	/** Txid of the refund payment */
+	txid?: string
+	satoshis?: number
+	error?: string
 }
 
 // ============================================================================
@@ -80,19 +94,6 @@ async function defaultReceive(wallet: WalletInterface): Promise<string> {
 	return PublicKey.fromString(publicKey).toAddress()
 }
 
-async function postJSON(
-	authFetch: AuthFetch,
-	url: string,
-	body: unknown,
-): Promise<{ status: number; json: Record<string, unknown> }> {
-	const response = await authFetch.fetch(url, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(body),
-	})
-	return { status: response.status, json: await response.json() }
-}
-
 /**
  * Internalize the mint transaction: the name inscription (output 2) enters
  * the opns basket with custom instructions matching the deposit derivation
@@ -100,9 +101,9 @@ async function postJSON(
  */
 async function internalizeMint(
 	wallet: WalletInterface,
-	job: { mintBeef?: string; name?: string },
-): Promise<string | undefined> {
-	if (!job.mintBeef) return undefined
+	job: OpnsMineJob,
+): Promise<void> {
+	if (!job.mintBeef) return
 	await wallet.internalizeAction({
 		tx: Utils.toArray(job.mintBeef, 'base64'),
 		outputs: [
@@ -122,7 +123,46 @@ async function internalizeMint(
 		],
 		description: `opns name ${job.name ?? ''}`.trim(),
 	})
-	return undefined
+}
+
+/**
+ * Internalize a refund as a BRC-29 wallet payment (the refund output is
+ * always index 0).
+ */
+async function internalizeRefund(
+	wallet: WalletInterface,
+	job: OpnsMineJob,
+): Promise<void> {
+	if (!job.refund?.beef) return
+	await wallet.internalizeAction({
+		tx: Utils.toArray(job.refund.beef, 'base64'),
+		outputs: [
+			{
+				outputIndex: 0,
+				protocol: 'wallet payment',
+				paymentRemittance: {
+					derivationPrefix: job.refund.derivationPrefix,
+					derivationSuffix: job.refund.derivationSuffix,
+					senderIdentityKey: job.refund.senderIdentityKey,
+				},
+			},
+		],
+		description: `opns mine refund ${job.name ?? job.jobId}`.trim(),
+	})
+}
+
+async function getJob(
+	authFetch: AuthFetch,
+	serviceUrl: string,
+	jobId: string,
+): Promise<{ status: number; job: OpnsMineJob }> {
+	const response = await authFetch.fetch(`${serviceUrl}/jobs/${jobId}`, {
+		method: 'GET',
+	})
+	return {
+		status: response.status,
+		job: (await response.json()) as OpnsMineJob,
+	}
 }
 
 // ============================================================================
@@ -130,10 +170,9 @@ async function internalizeMint(
 // ============================================================================
 
 /**
- * Have the mine service mine an OpNS name for this wallet, paid atomically:
- * create job → sign noSend payment to the service's derived output → the
- * service mines and broadcasts payment + mint together → internalize the
- * name.
+ * Have the mine service mine an OpNS name to this wallet's receive address.
+ * The full price is paid upfront via the BRC-105 payment flow (AuthFetch
+ * handles the 402 automatically); the payment txid is the job ID.
  */
 export const opnsMine: Action<OpnsMineRequest, OpnsMineResponse> = {
 	meta: {
@@ -145,7 +184,7 @@ export const opnsMine: Action<OpnsMineRequest, OpnsMineResponse> = {
 			properties: {
 				name: {
 					type: 'string',
-					description: 'Name to mine (lowercase a-z, 0-9, hyphen)',
+					description: 'Name to mine',
 				},
 				serviceUrl: {
 					type: 'string',
@@ -171,115 +210,52 @@ export const opnsMine: Action<OpnsMineRequest, OpnsMineResponse> = {
 			const receiveAddress =
 				input.receiveAddress ?? (await defaultReceive(ctx.wallet))
 
-			// Create (or resume, idempotently) the job.
-			const created = await postJSON(authFetch, `${serviceUrl}/jobs`, {
-				name: input.name,
-				receiveAddress,
+			// AuthFetch pays the 402 challenge and retries automatically.
+			const created = await authFetch.fetch(`${serviceUrl}/jobs`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ name: input.name, receiveAddress }),
 			})
+			const createdJson = (await created.json()) as Record<string, unknown>
 			if (created.status !== 200 && created.status !== 201) {
 				return {
 					error:
-						(created.json.error as string) ??
+						(createdJson.error as string) ??
 						`job creation failed (${created.status})`,
 				}
 			}
-			const job = created.json as unknown as OpnsMineJob
+			const jobId = createdJson.jobId as string
 
-			// Build the noSend payment to the service's BRC-29 derived output.
-			const { publicKey: derivedPublicKey } = await ctx.wallet.getPublicKey({
-				protocolID: [2, '3241645161d8'],
-				keyID: `${job.derivationPrefix} ${job.derivationSuffix}`,
-				counterparty: job.serverIdentityKey,
-			})
-			const lockingScript = new P2PKH()
-				.lock(PublicKey.fromString(derivedPublicKey).toAddress())
-				.toHex()
-
-			const createResult = await createTrackedAction(ctx.wallet, {
-				description: `opns mine ${input.name}`,
-				outputs: [
-					{
-						satoshis: job.priceSats,
-						lockingScript,
-						customInstructions: JSON.stringify({
-							derivationPrefix: job.derivationPrefix,
-							derivationSuffix: job.derivationSuffix,
-							payee: job.serverIdentityKey,
-						}),
-						outputDescription: `opns mine payment ${input.name}`,
-					},
-				],
-				options: { randomizeOutputs: false },
-			})
-
-			const reference = createResult.signableTransaction?.reference
-			const signed = await completeSignedAction(
-				ctx.wallet,
-				createResult,
-				undefined,
-				async () => ({}),
-				{ noSend: true },
-			)
-			if (!signed.tx) {
-				return { error: 'payment signing returned no transaction' }
-			}
-
-			// Submit the payment; the service mines the final char and
-			// broadcasts payment + mint together.
-			const paid = await postJSON(
-				authFetch,
-				`${serviceUrl}/jobs/${job.id}/pay`,
-				{ beef: Utils.toBase64(signed.tx) },
-			)
-
-			if (paid.status === 400 || paid.status === 409) {
-				// Payment rejected or job dead pre-broadcast — release the
-				// allocated payment inputs.
-				if (reference) {
-					await ctx.wallet.abortAction({ reference }).catch(() => {})
-				}
-				return {
-					jobId: job.id,
-					state: paid.json.state as string,
-					error:
-						(paid.json.error as string) ?? `payment rejected (${paid.status})`,
-				}
-			}
-
-			let current = paid.json as unknown as OpnsMineJob
-
-			// Poll until complete or timeout. On timeout the payment stays
-			// intact: the service may still deliver, and opnsMineStatus
-			// recovers the result.
+			// Poll until the job resolves or we time out. On timeout the job
+			// keeps mining server-side; opnsMineStatus recovers the result.
 			const deadline = Date.now() + (input.timeoutMs ?? 300000)
-			while (current.state !== 'complete' && Date.now() < deadline) {
-				if (current.state === 'failed') {
-					if (reference) {
-						await ctx.wallet.abortAction({ reference }).catch(() => {})
-					}
-					return { jobId: job.id, state: current.state, error: current.error }
-				}
-				if (current.state === 'refund_due') {
-					// Payment broadcast but the name was lost — do NOT abort.
-					return { jobId: job.id, state: current.state, error: current.error }
-				}
+			while (Date.now() < deadline) {
 				await new Promise((resolve) => setTimeout(resolve, 2000))
-				const polled = await authFetch.fetch(`${serviceUrl}/jobs/${job.id}`, {
-					method: 'GET',
-				})
-				current = (await polled.json()) as OpnsMineJob
-			}
-
-			if (current.state !== 'complete') {
-				return {
-					jobId: job.id,
-					state: current.state,
-					error: 'timed out waiting for mining; recover with opnsMineStatus',
+				const { status, job } = await getJob(authFetch, serviceUrl, jobId)
+				if (status !== 200) continue
+				if (job.state === 'complete') {
+					await internalizeMint(ctx.wallet, job)
+					return { jobId, state: job.state, txid: job.mintTxid }
+				}
+				if (job.state === 'failed') {
+					return {
+						jobId,
+						state: job.state,
+						error:
+							job.error ??
+							'mining failed; remaining funds recoverable with opnsMineRefund',
+					}
+				}
+				if (job.state === 'refunded') {
+					await internalizeRefund(ctx.wallet, job)
+					return { jobId, state: job.state, error: job.error }
 				}
 			}
-
-			await internalizeMint(ctx.wallet, current)
-			return { jobId: job.id, state: current.state, txid: current.mintTxid }
+			return {
+				jobId,
+				state: 'mining',
+				error: 'timed out waiting for mining; recover with opnsMineStatus',
+			}
 		} catch (error) {
 			console.error('[opnsMine]', error)
 			return {
@@ -290,8 +266,8 @@ export const opnsMine: Action<OpnsMineRequest, OpnsMineResponse> = {
 }
 
 /**
- * Recover a mine job: fetch its state and internalize the name if the
- * original response was lost.
+ * Recover a mine job: fetch its state, internalizing the name (or an issued
+ * refund) if the original response was lost.
  */
 export const opnsMineStatus: Action<OpnsMineStatusRequest, OpnsMineResponse> = {
 	meta: {
@@ -301,7 +277,62 @@ export const opnsMineStatus: Action<OpnsMineStatusRequest, OpnsMineResponse> = {
 		inputSchema: {
 			type: 'object',
 			properties: {
-				jobId: { type: 'string', description: 'Job id from opnsMine' },
+				jobId: {
+					type: 'string',
+					description: 'Job id (payment txid) from opnsMine',
+				},
+				serviceUrl: {
+					type: 'string',
+					description: 'Base URL of the mine service',
+				},
+			},
+			required: ['jobId', 'serviceUrl'],
+		},
+	},
+	async execute(ctx, input) {
+		try {
+			const serviceUrl = input.serviceUrl.replace(/\/+$/, '')
+			const authFetch = new AuthFetch(ctx.wallet)
+			const { status, job } = await getJob(authFetch, serviceUrl, input.jobId)
+			if (status !== 200) {
+				return { error: job.error ?? `status ${status}` }
+			}
+			if (job.state === 'complete') {
+				await internalizeMint(ctx.wallet, job)
+				return { jobId: job.jobId, state: job.state, txid: job.mintTxid }
+			}
+			if (job.state === 'refunded') {
+				await internalizeRefund(ctx.wallet, job)
+			}
+			return { jobId: job.jobId, state: job.state, error: job.error }
+		} catch (error) {
+			console.error('[opnsMineStatus]', error)
+			return {
+				error: error instanceof Error ? error.message : 'unknown-error',
+			}
+		}
+	},
+}
+
+/**
+ * Claim the remaining funds of a failed mine job. The service spends the
+ * job's UTXO back to this wallet as a BRC-29 payment, internalized here.
+ */
+export const opnsMineRefund: Action<
+	OpnsMineRefundRequest,
+	OpnsMineRefundResponse
+> = {
+	meta: {
+		name: 'opnsMineRefund',
+		description: 'Claim the remaining funds of a failed mine job',
+		category: 'opns',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				jobId: {
+					type: 'string',
+					description: 'Job id (payment txid) from opnsMine',
+				},
 				serviceUrl: {
 					type: 'string',
 					description: 'Base URL of the mine service',
@@ -315,21 +346,32 @@ export const opnsMineStatus: Action<OpnsMineStatusRequest, OpnsMineResponse> = {
 			const serviceUrl = input.serviceUrl.replace(/\/+$/, '')
 			const authFetch = new AuthFetch(ctx.wallet)
 			const response = await authFetch.fetch(
-				`${serviceUrl}/jobs/${input.jobId}`,
-				{ method: 'GET' },
+				`${serviceUrl}/jobs/${input.jobId}/refund`,
+				{ method: 'POST' },
 			)
-			const job = (await response.json()) as OpnsMineJob
-			if (response.status !== 200) {
-				return { error: job.error ?? `status ${response.status}` }
+			const refund = (await response.json()) as OpnsMineJob['refund'] & {
+				error?: string
 			}
-			if (job.state === 'complete') {
-				await internalizeMint(ctx.wallet, job)
-				return { jobId: job.id, state: job.state, txid: job.mintTxid }
+			if (response.status !== 200 || !refund?.beef) {
+				return {
+					jobId: input.jobId,
+					error: refund?.error ?? `refund failed (${response.status})`,
+				}
 			}
-			return { jobId: job.id, state: job.state, error: job.error }
-		} catch (error) {
-			console.error('[opnsMineStatus]', error)
+			await internalizeRefund(ctx.wallet, {
+				jobId: input.jobId,
+				state: 'refunded',
+				refund,
+			})
 			return {
+				jobId: input.jobId,
+				txid: refund.txid,
+				satoshis: refund.satoshis,
+			}
+		} catch (error) {
+			console.error('[opnsMineRefund]', error)
+			return {
+				jobId: input.jobId,
 				error: error instanceof Error ? error.message : 'unknown-error',
 			}
 		}
