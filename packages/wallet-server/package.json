@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/wallet-server",
-	"version": "0.0.25",
+	"version": "0.0.26",
 	"description": "BRC-100 wallet storage RPC server for 1Sat Ordinals SDK",
 	"type": "module",
 	"main": "./dist/index.js",

@@ -206,11 +206,15 @@ export class OriginIndexer extends Indexer {
 							},
 						}
 
-						// Fetch text content if it qualifies
-						const contentType = metadata.contentType.toLowerCase()
+						// Fetch small text-like content for later indexers (e.g. OpNS name).
+						const contentType = metadata.contentType
+							.split(';')[0]
+							.trim()
+							.toLowerCase()
 						const isTextContent =
 							contentType.startsWith('text/') ||
-							contentType === 'application/json'
+							contentType === 'application/json' ||
+							contentType === 'application/op-ns'
 						if (isTextContent && metadata.contentLength <= 1000) {
 							try {
 								const { data } = await this.services.ordfs.getContent(

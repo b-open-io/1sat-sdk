@@ -304,30 +304,5 @@ export const opnsDeregister: Action<
 	},
 }
 
-// ============================================================================
-// Module exports
-// ============================================================================
-
-export {
-	opnsMine,
-	opnsMineStatus,
-	opnsMineRefund,
-	type OpnsMineRequest,
-	type OpnsMineResponse,
-	type OpnsMineStatusRequest,
-	type OpnsMineRefundRequest,
-	type OpnsMineRefundResponse,
-	type OpnsMineJob,
-} from './mine'
-
-import { opnsMine, opnsMineRefund, opnsMineStatus } from './mine'
-
-/** All OpNS actions for registry */
-export const opnsActions = [
-	getOpnsNames,
-	opnsRegister,
-	opnsDeregister,
-	opnsMine,
-	opnsMineStatus,
-	opnsMineRefund,
-]
+/** All OpNS actions for registry (paid mine lives on 1sat.name / orchestrator). */
+export const opnsActions = [getOpnsNames, opnsRegister, opnsDeregister]

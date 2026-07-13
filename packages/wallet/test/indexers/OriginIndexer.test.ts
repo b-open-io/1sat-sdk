@@ -30,16 +30,23 @@ const withInscription = (txo: Txo, type: string): Txo => {
 	return txo
 }
 
-const stubServices = (contentType?: string) =>
+const stubServices = (
+	contentType?: string,
+	body = new Uint8Array(),
+	onGetContent?: () => void,
+) =>
 	({
 		ordfs: {
 			getMetadata: async () => ({
 				origin: `${sourceTxid}_0`,
 				sequence: 0,
 				contentType,
-				contentLength: 20,
+				contentLength: body.length || 20,
 			}),
-			getContent: async () => ({ data: new Uint8Array() }),
+			getContent: async () => {
+				onGetContent?.()
+				return { data: body }
+			},
 		},
 	}) as unknown as OneSatServices
 
@@ -76,11 +83,15 @@ describe('OriginIndexer basket routing', () => {
 		expect(await indexer.parse(txo)).toBeUndefined()
 	})
 
-	const summarizeTransfer = async (contentType: string): Promise<Txo> => {
+	const summarizeTransfer = async (
+		contentType: string,
+		body = new Uint8Array(),
+		onGetContent?: () => void,
+	): Promise<Txo> => {
 		const indexer = new OriginIndexer(
 			new Set([address]),
 			'mainnet',
-			stubServices(contentType),
+			stubServices(contentType, body, onGetContent),
 		)
 
 		// A transferred name is a bare 1-sat P2PKH output — no inscription in
@@ -88,7 +99,11 @@ describe('OriginIndexer basket routing', () => {
 		const txo = makeTxo(txid, 0, 1)
 		const result = await indexer.parse(txo)
 		if (!result) throw new Error('parse did not claim the output')
-		txo.data[indexer.tag] = { data: result.data, tags: result.tags }
+		txo.data[indexer.tag] = {
+			data: result.data,
+			tags: result.tags,
+			content: result.content,
+		}
 		txo.owner = result.owner
 		txo.basket = result.basket
 
@@ -109,8 +124,20 @@ describe('OriginIndexer basket routing', () => {
 		expect(txo.basket).toBe(OPNS_BASKET)
 	})
 
+	it('summarize fetches content for transferred op-ns outputs', async () => {
+		let fetched = false
+		const name = 'shruggr12345'
+		const body = new TextEncoder().encode(name)
+		const txo = await summarizeTransfer('application/op-ns', body, () => {
+			fetched = true
+		})
+		expect(fetched).toBe(true)
+		expect(txo.data.origin?.content).toBe(name)
+	})
+
 	it('summarize keeps transferred inscriptions in ORDINALS_BASKET', async () => {
 		const txo = await summarizeTransfer('image/png')
 		expect(txo.basket).toBe(ORDINALS_BASKET)
 	})
 })
+
