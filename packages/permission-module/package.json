@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/permission-module",
-	"version": "0.0.32",
+	"version": "0.0.34",
 	"description": "1Sat permission module for WalletPermissionsManager — gates createSignature with hashOutputs commitments captured at createAction time",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -35,7 +35,7 @@
 	},
 	"peerDependencies": {
 		"@bsv/sdk": "^2.0.13",
-		"@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.21-parity-fix.2"
+		"@bsv/wallet-toolbox": "2.1.24"
 	},
 	"devDependencies": {
 		"@bsv/sdk": "^2.0.13",

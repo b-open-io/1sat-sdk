@@ -1,41 +1,41 @@
 {
-  "name": "@1sat/client",
-  "version": "0.0.40",
-  "description": "API client for 1Sat Ordinals SDK",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "clean": "rm -rf dist"
-  },
-  "keywords": [
-    "1sat",
-    "bsv",
-    "ordinals",
-    "client",
-    "api"
-  ],
-  "license": "MIT",
-  "dependencies": {
-    "@1sat/types": "workspace:*",
-    "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.21-parity-fix.2"
-  },
-  "peerDependencies": {
-    "@bsv/sdk": "^2.0.13"
-  },
-  "devDependencies": {
-    "@bsv/sdk": "^2.0.13",
-    "typescript": "^5.9.3"
-  }
+	"name": "@1sat/client",
+	"version": "0.0.42",
+	"description": "API client for 1Sat Ordinals SDK",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"clean": "rm -rf dist"
+	},
+	"keywords": [
+		"1sat",
+		"bsv",
+		"ordinals",
+		"client",
+		"api"
+	],
+	"license": "MIT",
+	"dependencies": {
+		"@1sat/types": "workspace:*",
+		"@bsv/wallet-toolbox": "2.1.24"
+	},
+	"peerDependencies": {
+		"@bsv/sdk": "^2.0.13"
+	},
+	"devDependencies": {
+		"@bsv/sdk": "^2.0.13",
+		"typescript": "^5.9.3"
+	}
 }

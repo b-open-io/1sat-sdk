@@ -131,6 +131,15 @@ async function internalizeMint(
 	job: OpnsMineJob,
 ): Promise<void> {
 	const tx = await resolveMintAtomicBeef(job)
+	const name = job.name?.slice(0, 64)
+	// Name in both tags (list/filter) and customInstructions (merge path
+	// always updates instructions; older wallets may not re-apply tags).
+	const customInstructions = JSON.stringify({
+		protocolID: P1SAT_PROTOCOL,
+		keyID: DEPOSIT_KEY_ID,
+		counterparty: 'self',
+		...(name ? { name } : {}),
+	})
 	await wallet.internalizeAction({
 		tx,
 		outputs: [
@@ -139,15 +148,8 @@ async function internalizeMint(
 				protocol: 'basket insertion',
 				insertionRemittance: {
 					basket: OPNS_BASKET,
-					customInstructions: JSON.stringify({
-						protocolID: P1SAT_PROTOCOL,
-						keyID: DEPOSIT_KEY_ID,
-						counterparty: 'self',
-					}),
-					tags: [
-						'opns',
-						...(job.name ? [`name:${job.name.slice(0, 64)}`] : []),
-					],
+					customInstructions,
+					tags: ['opns', ...(name ? [`name:${name}`] : [])],
 				},
 			},
 		],

@@ -1,45 +1,45 @@
 {
-  "name": "@1sat/wallet-browser",
-  "version": "0.0.73",
-  "description": "Browser wallet factory for 1Sat Ordinals SDK",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "clean": "rm -rf dist"
-  },
-  "keywords": [
-    "1sat",
-    "bsv",
-    "ordinals",
-    "wallet",
-    "browser"
-  ],
-  "license": "MIT",
-  "dependencies": {
-    "@1sat/wallet": "workspace:*"
-  },
-  "peerDependencies": {
-    "@1sat/client": "workspace:*",
-    "@bsv/sdk": "^2.0.13",
-    "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.21-parity-fix.2",
-    "@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@2.1.21-parity-fix.2"
-  },
-  "devDependencies": {
-    "@bsv/sdk": "^2.0.13",
-    "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.1.21-parity-fix.2",
-    "@bsv/wallet-toolbox-mobile": "npm:@bopen-io/wallet-toolbox-mobile@2.1.21-parity-fix.2",
-    "typescript": "^5.9.3"
-  }
+	"name": "@1sat/wallet-browser",
+	"version": "0.0.75",
+	"description": "Browser wallet factory for 1Sat Ordinals SDK",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"clean": "rm -rf dist"
+	},
+	"keywords": [
+		"1sat",
+		"bsv",
+		"ordinals",
+		"wallet",
+		"browser"
+	],
+	"license": "MIT",
+	"dependencies": {
+		"@1sat/wallet": "workspace:*"
+	},
+	"peerDependencies": {
+		"@1sat/client": "workspace:*",
+		"@bsv/sdk": "^2.0.13",
+		"@bsv/wallet-toolbox": "2.1.24",
+		"@bsv/wallet-toolbox-mobile": "2.1.24"
+	},
+	"devDependencies": {
+		"@bsv/sdk": "^2.0.13",
+		"@bsv/wallet-toolbox": "2.1.24",
+		"@bsv/wallet-toolbox-mobile": "2.1.24",
+		"typescript": "^5.9.3"
+	}
 }

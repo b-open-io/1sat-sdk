@@ -1,42 +1,42 @@
 {
-  "name": "@1sat/permission-module-ui",
-  "version": "0.0.28",
-  "description": "React component for the 1Sat permission module's prompt UX",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "bun run build.ts && tsc --emitDeclarationOnly",
-    "dev": "tsc --watch",
-    "clean": "rm -rf dist"
-  },
-  "keywords": [
-    "1sat",
-    "bsv",
-    "wallet",
-    "permissions",
-    "react"
-  ],
-  "license": "MIT",
-  "dependencies": {
-    "@1sat/permission-module": "workspace:*",
-    "@1sat/types": "workspace:*"
-  },
-  "peerDependencies": {
-    "react": "^18.0.0 || ^19.0.0"
-  },
-  "devDependencies": {
-    "@types/react": "^19.0.0",
-    "react": "^19.0.0",
-    "typescript": "^5.9.3"
-  }
+	"name": "@1sat/permission-module-ui",
+	"version": "0.0.30",
+	"description": "React component for the 1Sat permission module's prompt UX",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "bun run build.ts && tsc --emitDeclarationOnly",
+		"dev": "tsc --watch",
+		"clean": "rm -rf dist"
+	},
+	"keywords": [
+		"1sat",
+		"bsv",
+		"wallet",
+		"permissions",
+		"react"
+	],
+	"license": "MIT",
+	"dependencies": {
+		"@1sat/permission-module": "workspace:*",
+		"@1sat/types": "workspace:*"
+	},
+	"peerDependencies": {
+		"react": "^18.0.0 || ^19.0.0"
+	},
+	"devDependencies": {
+		"@types/react": "^19.0.0",
+		"react": "^19.0.0",
+		"typescript": "^5.9.3"
+	}
 }
