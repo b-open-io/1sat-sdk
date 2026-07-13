@@ -199,6 +199,18 @@
         "react": "^18.0.0 || ^19.0.0",
       },
     },
+    "packages/serve": {
+      "name": "@1sat/serve",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@bsv/sdk": "^2.0.13",
+        "@types/bun": "latest",
+        "typescript": "^5.9.3",
+      },
+      "peerDependencies": {
+        "@bsv/sdk": "^2.0.13",
+      },
+    },
     "packages/sweep-ui": {
       "name": "@1sat/sweep-ui",
       "version": "0.0.67",
@@ -498,6 +510,8 @@
     "@1sat/permission-module-ui": ["@1sat/permission-module-ui@workspace:packages/permission-module-ui"],
 
     "@1sat/react": ["@1sat/react@workspace:packages/react"],
+
+    "@1sat/serve": ["@1sat/serve@workspace:packages/serve"],
 
     "@1sat/sweep-ui": ["@1sat/sweep-ui@workspace:packages/sweep-ui"],
 
