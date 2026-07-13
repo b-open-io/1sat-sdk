@@ -117,7 +117,10 @@ async function internalizeMint(
 						keyID: DEPOSIT_KEY_ID,
 						counterparty: 'self',
 					}),
-					tags: ['opns'],
+					tags: [
+						'opns',
+						...(job.name ? [`name:${job.name.slice(0, 64)}`] : []),
+					],
 				},
 			},
 		],
