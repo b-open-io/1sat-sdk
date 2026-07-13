@@ -8,8 +8,8 @@
  * lost to another miner — refunds the remaining job funds on request.
  */
 
-import { P1SAT_PROTOCOL } from '@1sat/types'
-import { PublicKey, Utils, type WalletInterface } from '@bsv/sdk'
+import { ONESAT_MAINNET_URL, P1SAT_PROTOCOL } from '@1sat/types'
+import { Beef, PublicKey, Transaction, Utils, type WalletInterface } from '@bsv/sdk'
 import { AuthFetch } from '@bsv/sdk/auth'
 import { OPNS_BASKET } from '../constants'
 import type { Action, ActionOptions } from '../types'
@@ -95,6 +95,33 @@ async function defaultReceive(wallet: WalletInterface): Promise<string> {
 }
 
 /**
+ * Wallet internalizeAction requires AtomicBEEF (Beef.atomicTxid set).
+ * Accepts service mintBeef (base64) or falls back to the public stack beef
+ * endpoint using mintTxid — AuthFetch job payloads sometimes omit large beef.
+ */
+async function resolveMintAtomicBeef(job: OpnsMineJob): Promise<number[]> {
+	if (job.mintBeef) {
+		const bytes = Utils.toArray(job.mintBeef, 'base64')
+		if (Beef.fromBinary(bytes).atomicTxid) return bytes
+		return Transaction.fromBEEF(bytes).toAtomicBEEF()
+	}
+	if (!job.mintTxid) {
+		throw new Error(
+			'mint complete but service returned neither mintBeef nor mintTxid',
+		)
+	}
+	const res = await fetch(`${ONESAT_MAINNET_URL}/1sat/beef/${job.mintTxid}`)
+	if (!res.ok) {
+		throw new Error(
+			`failed to fetch mint AtomicBEEF for ${job.mintTxid} (${res.status})`,
+		)
+	}
+	const bytes = [...new Uint8Array(await res.arrayBuffer())]
+	if (Beef.fromBinary(bytes).atomicTxid) return bytes
+	return Transaction.fromBEEF(bytes).toAtomicBEEF()
+}
+
+/**
  * Internalize the mint transaction: the name inscription (output 2) enters
  * the opns basket with custom instructions matching the deposit derivation
  * so opnsRegister/transfer can sign later.
@@ -103,9 +130,9 @@ async function internalizeMint(
 	wallet: WalletInterface,
 	job: OpnsMineJob,
 ): Promise<void> {
-	if (!job.mintBeef) return
+	const tx = await resolveMintAtomicBeef(job)
 	await wallet.internalizeAction({
-		tx: Utils.toArray(job.mintBeef, 'base64'),
+		tx,
 		outputs: [
 			{
 				outputIndex: 2,
