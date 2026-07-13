@@ -20,6 +20,8 @@ const PAYMENT_VERSION = '1.0'
 export interface VerifiedPayment {
 	/** The payment transaction as AtomicBEEF bytes. */
 	tx: number[]
+	/** The payment transaction id. */
+	txid: string
 	/** Index of the output that pays the server. */
 	outputIndex: number
 	/** Satoshis on that output. */
@@ -39,13 +41,15 @@ export type PaidHandler = (ctx: PaidContext) => Promise<Response> | Response
 
 /**
  * Decides how the verified payment is recorded. Receives the default
- * 'wallet payment' internalize args (general balance) and returns the args to
- * actually use — e.g. a 'basket insertion' with tags. Defaults to the wallet
- * payment when omitted.
+ * 'wallet payment' internalize args (general balance), the request context
+ * (to read the body / identity for custom tags and instructions), and returns
+ * the args to actually use — e.g. a 'basket insertion' with tags. Defaults to
+ * the wallet payment when omitted.
  */
 export type OnInternalize = (
 	payment: VerifiedPayment,
 	defaults: InternalizeActionArgs,
+	ctx: AuthContext,
 ) => InternalizeActionArgs | Promise<InternalizeActionArgs>
 
 export interface WithPaymentOptions {
@@ -163,7 +167,7 @@ export function withPayment(
 		}
 		try {
 			await wallet.internalizeAction(
-				onInternalize ? await onInternalize(verified, defaults) : defaults,
+				onInternalize ? await onInternalize(verified, defaults, ctx) : defaults,
 			)
 		} catch (err) {
 			return json(400, {
@@ -205,6 +209,7 @@ async function verifyPayment(
 
 	const txBytes = Utils.toArray(pay.transaction, 'base64')
 	const tx = Transaction.fromAtomicBEEF(txBytes)
+	const txid = tx.id('hex') as string
 	for (let i = 0; i < tx.outputs.length; i++) {
 		const out = tx.outputs[i]
 		if (
@@ -213,6 +218,7 @@ async function verifyPayment(
 		) {
 			return {
 				tx: txBytes,
+				txid,
 				outputIndex: i,
 				satoshis: out.satoshis ?? 0,
 				derivationPrefix: pay.derivationPrefix,
