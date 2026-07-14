@@ -15,6 +15,8 @@ export default {
 				'pg',
 				'pg-native',
 				'pg-query-stream',
+				'mariadb',
+				'mariadb/callback',
 				'mysql',
 				'mysql2',
 				'oracledb',

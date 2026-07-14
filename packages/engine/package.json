@@ -29,10 +29,10 @@
 	],
 	"license": "MIT",
 	"peerDependencies": {
-		"@bsv/sdk": "^2.0.13"
+		"@bsv/sdk": "^2.1.6"
 	},
 	"devDependencies": {
-		"@bsv/sdk": "^2.0.13",
+		"@bsv/sdk": "^2.1.6",
 		"@types/node": "^22.0.0",
 		"protobufjs-cli": "^2.0.0",
 		"typescript": "^5.9.3"

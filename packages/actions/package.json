@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/actions",
-	"version": "0.0.176",
+	"version": "0.0.177",
 	"description": "Action definitions for the 1Sat SDK",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -34,13 +34,13 @@
 		"@1sat/utils": "workspace:*",
 		"@1sat/wallet": "workspace:*",
 		"@1sat/templates": "workspace:*",
-		"@bsv/p2p": "^1.1.6"
+		"@bsv/message-box-client": "^2.2.1"
 	},
 	"peerDependencies": {
-		"@bsv/sdk": "^2.0.13"
+		"@bsv/sdk": "^2.1.6"
 	},
 	"devDependencies": {
-		"@bsv/sdk": "^2.0.13",
+		"@bsv/sdk": "^2.1.6",
 		"typescript": "^5.9.3",
 		"@1sat/wallet-remote": "workspace:*"
 	}

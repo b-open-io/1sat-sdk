@@ -6,9 +6,9 @@
  * and acknowledges only after successful internalization.
  */
 
-import { Utils } from '@bsv/sdk'
-import { AuthFetch } from '@bsv/sdk/auth'
 import { P1SAT_PROTOCOL } from '@1sat/types'
+import { MessageBoxClient } from '@bsv/message-box-client'
+import { Utils } from '@bsv/sdk'
 import type { Action } from '../types'
 import {
 	type OutputDerivation,
@@ -42,20 +42,6 @@ interface PaymailMessage {
 	senderIdentityKey: string
 	satoshis: number
 	alias: string
-}
-
-/** Shape of a single message from the listMessages response */
-interface MessageOut {
-	messageId: string
-	body: string
-	sender: string
-	createdAt: string
-	updatedAt: string
-}
-
-interface ListMessagesResponse {
-	status: string
-	messages: MessageOut[]
 }
 
 // ============================================================================
@@ -95,27 +81,19 @@ export const syncMessages: Action<SyncMessagesInput, SyncMessagesResult> = {
 		const messageboxUrl =
 			input.messageboxUrl?.replace(/\/+$/, '') || 'https://messagebox.1sat.app'
 
-		const authFetch = new AuthFetch(ctx.wallet)
+		// The client unwraps the server's {message, payment} envelope and
+		// decrypts encrypted bodies; plaintext bodies come back parsed.
+		const client = new MessageBoxClient({
+			walletClient: ctx.wallet,
+			host: messageboxUrl,
+		})
 
-		// 1. List pending messages
-		const listResponse = await authFetch.fetch(
-			`${messageboxUrl}/listMessages`,
-			{
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ messageBox }),
-			},
-		)
+		const messages = await client.listMessages({
+			messageBox,
+			host: messageboxUrl,
+		})
 
-		if (!listResponse.ok) {
-			throw new Error(
-				`Failed to list messages: ${listResponse.status} ${listResponse.statusText}`,
-			)
-		}
-
-		const { messages } = (await listResponse.json()) as ListMessagesResponse
-
-		if (!messages || messages.length === 0) {
+		if (messages.length === 0) {
 			return { processed: 0, failed: 0 }
 		}
 
@@ -126,7 +104,8 @@ export const syncMessages: Action<SyncMessagesInput, SyncMessagesResult> = {
 
 		for (const msg of messages) {
 			try {
-				const payment: PaymailMessage = JSON.parse(msg.body)
+				const payment: PaymailMessage =
+					typeof msg.body === 'string' ? JSON.parse(msg.body) : msg.body
 
 				const beefBytes = new Uint8Array(Utils.toArray(payment.beef, 'hex'))
 
@@ -164,18 +143,15 @@ export const syncMessages: Action<SyncMessagesInput, SyncMessagesResult> = {
 
 		// 3. Acknowledge successfully internalized messages
 		if (acknowledgedIds.length > 0) {
-			const ackResponse = await authFetch.fetch(
-				`${messageboxUrl}/acknowledgeMessage`,
-				{
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ messageIds: acknowledgedIds }),
-				},
-			)
-
-			if (!ackResponse.ok) {
+			try {
+				await client.acknowledgeMessage({
+					messageIds: acknowledgedIds,
+					host: messageboxUrl,
+				})
+			} catch (error) {
 				console.error(
-					`[syncMessages] Failed to acknowledge messages: ${ackResponse.status}`,
+					'[syncMessages] Failed to acknowledge messages:',
+					error instanceof Error ? error.message : String(error),
 				)
 			}
 		}
