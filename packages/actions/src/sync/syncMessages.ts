@@ -1,19 +1,15 @@
 /**
  * Message Box Sync Action
  *
- * Polls the message box for incoming paymail payments,
- * internalizes each one via the shared BEEF pipeline,
- * and acknowledges only after successful internalization.
+ * Polls the message box for incoming paymail payments, internalizes each
+ * one directly as a BRC-29 wallet payment (straight into the spendable
+ * balance — no deposit basket or sweep), and acknowledges only after
+ * successful internalization.
  */
 
-import { P1SAT_PROTOCOL } from '@1sat/types'
 import { MessageBoxClient } from '@bsv/message-box-client'
-import { Utils } from '@bsv/sdk'
+import { Beef, Utils } from '@bsv/sdk'
 import type { Action } from '../types'
-import {
-	type OutputDerivation,
-	internalizeBeef,
-} from '../utils/internalizeBeef'
 
 // ============================================================================
 // Types
@@ -68,15 +64,10 @@ export const syncMessages: Action<SyncMessagesInput, SyncMessagesResult> = {
 				},
 			},
 		},
-		requiresServices: true,
+		requiresServices: false,
 	},
 
 	async execute(ctx, input) {
-		const services = ctx.services
-		if (!services) {
-			throw new Error('syncMessages requires services in context')
-		}
-
 		const messageBox = input.messageBox || 'payment_inbox'
 		const messageboxUrl =
 			input.messageboxUrl?.replace(/\/+$/, '') || 'https://messagebox.1sat.app'
@@ -107,27 +98,32 @@ export const syncMessages: Action<SyncMessagesInput, SyncMessagesResult> = {
 				const payment: PaymailMessage =
 					typeof msg.body === 'string' ? JSON.parse(msg.body) : msg.body
 
-				const beefBytes = new Uint8Array(Utils.toArray(payment.beef, 'hex'))
+				// The transport carries plain BEEF; internalizeAction requires
+				// Atomic BEEF (BRC-95) with the subject txid.
+				const beef = Beef.fromBinary(Utils.toArray(payment.beef, 'hex'))
+				const txids = beef.txs
+					.filter((btx) => btx.tx != null)
+					.map((btx) => btx.tx!.id('hex'))
+				const subjectTxid = txids[txids.length - 1]
 
-				// Paymail-style messagebox payments are BRC-29 sends from a
-				// known counterparty — sender provides their identity, our
-				// wallet derives the spend key under P1SAT_PROTOCOL with the
-				// sender as counterparty.
-				const outputDerivation: OutputDerivation = {
-					outputIndex: payment.outputIndex,
-					derivationPrefix: payment.derivationPrefix,
-					derivationSuffix: payment.derivationSuffix,
-					senderIdentityKey: payment.senderIdentityKey,
-					protocolID: P1SAT_PROTOCOL,
-					counterparty: payment.senderIdentityKey,
-				}
-
-				await internalizeBeef({
-					beef: beefBytes,
-					outputs: [outputDerivation],
-					wallet: ctx.wallet,
-					services,
-					chain: ctx.chain,
+				// Paymail destinations are standard BRC-29 sends: internalize
+				// as a wallet payment so funds land directly in the spendable
+				// balance. The wallet derives the key from the remittance
+				// fields (senderIdentityKey is the server's anyone deriver).
+				await ctx.wallet.internalizeAction({
+					tx: beef.toBinaryAtomic(subjectTxid),
+					outputs: [
+						{
+							outputIndex: payment.outputIndex,
+							protocol: 'wallet payment',
+							paymentRemittance: {
+								derivationPrefix: payment.derivationPrefix,
+								derivationSuffix: payment.derivationSuffix,
+								senderIdentityKey: payment.senderIdentityKey,
+							},
+						},
+					],
+					description: `Paymail payment to ${payment.alias}`.slice(0, 50),
 				})
 
 				acknowledgedIds.push(msg.messageId)
