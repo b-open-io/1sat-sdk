@@ -202,8 +202,10 @@ export async function internalizeBeef(
 
 	const labels = buildLabels(ownedTxos)
 
+	// internalizeAction requires Atomic BEEF (BRC-95) with the subject txid,
+	// not the plain BEEF the sender/messagebox carries.
 	const args: InternalizeActionArgs = {
-		tx: Array.from(beef),
+		tx: beefObj.toBinaryAtomic(mainTxid),
 		outputs: internalizeOutputs,
 		description: buildDescription(ownedTxos),
 		...(labels.length > 0 && { labels }),
