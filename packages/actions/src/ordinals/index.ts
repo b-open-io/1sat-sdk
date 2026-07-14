@@ -338,6 +338,7 @@ export async function buildTransferOrdinals(
 	const inputs: CreateActionArgs['inputs'] = []
 	const outputs: CreateActionArgs['outputs'] = []
 	const labels: string[] = []
+	let resolvedBasket = ORDINALS_BASKET
 
 	for (const { ordinal, counterparty, address, map, extraTags } of transfers) {
 		if (!counterparty && !address) {
@@ -354,13 +355,15 @@ export async function buildTransferOrdinals(
 			}
 		}
 
+		const isSelf = counterparty === 'self'
+
 		let recipientAddress: string
 		if (counterparty) {
 			const { publicKey } = await ctx.wallet.getPublicKey({
 				protocolID: P1SAT_PROTOCOL,
 				keyID: outpoint,
 				counterparty,
-				forSelf: false,
+				forSelf: isSelf,
 			})
 			recipientAddress = PublicKey.fromString(publicKey).toAddress()
 		} else if (address) {
@@ -373,6 +376,7 @@ export async function buildTransferOrdinals(
 			tags: ordinal.tags,
 		})
 		if (extraTags) tags.push(...extraTags)
+		resolvedBasket = basket
 
 		inputs?.push({
 			outpoint,
@@ -384,7 +388,7 @@ export async function buildTransferOrdinals(
 		// resolve the source output's id-tagged record in wallet storage and
 		// render trusted metadata (origin / contentType / name).
 		const inputId = readAssetIdTag(ordinal.tags)
-		if (inputId) labels.push(buildInputAssetLabel(ORDINALS_BASKET, inputId))
+		if (inputId) labels.push(buildInputAssetLabel(basket, inputId))
 
 		// Build locking script — append MAP metadata when provided
 		const p2pkhScript = new P2PKH().lock(recipientAddress)
@@ -399,30 +403,47 @@ export async function buildTransferOrdinals(
 			lockingScript = p2pkhScript.toHex()
 		}
 
-		// Carry forward the name from the source output's customInstructions
+		// Carry forward the name from CI, else from resolved tags.
 		let sourceName: string | undefined
 		if (ordinal.customInstructions) {
 			try {
 				sourceName = JSON.parse(ordinal.customInstructions).name
 			} catch {}
 		}
+		if (!sourceName) {
+			sourceName = tags.find((t) => t.startsWith('name:'))?.slice(5)
+		}
 
-		// Counterparty and address transfers both send the ordinal OUT of our
-		// wallet — the recipient owns and internalizes the resulting output.
-		// We don't basket it on our side or record customInstructions for it.
-		outputs?.push({
-			lockingScript,
-			satoshis: 1,
-			outputDescription: counterparty
-				? 'Ordinal transfer'
-				: 'Ordinal transfer to external address',
-			tags: [],
-		})
+		if (isSelf) {
+			// Keep the ordinal in our wallet with full labeling (register/deregister,
+			// self-retags). External sends must not basket on the sender side.
+			outputs?.push({
+				lockingScript,
+				satoshis: 1,
+				outputDescription: 'Ordinal self-transfer',
+				basket,
+				tags,
+				customInstructions: JSON.stringify({
+					protocolID: P1SAT_PROTOCOL,
+					keyID: outpoint,
+					...(sourceName && { name: sourceName }),
+				}),
+			})
+		} else {
+			outputs?.push({
+				lockingScript,
+				satoshis: 1,
+				outputDescription: address
+					? 'Ordinal transfer to external address'
+					: 'Ordinal transfer',
+				tags: [],
+			})
+		}
 	}
 
 	const inputBEEF =
 		request.inputBEEF ??
-		(await resolveBeef(ctx.wallet, ORDINALS_BASKET, transfers[0].ordinal))
+		(await resolveBeef(ctx.wallet, resolvedBasket, transfers[0].ordinal))
 
 	return {
 		description:
