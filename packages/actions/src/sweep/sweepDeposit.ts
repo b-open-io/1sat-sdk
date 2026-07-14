@@ -15,6 +15,7 @@
  */
 
 import { DEPOSIT_BASKET, P1SAT_PROTOCOL } from '@1sat/types'
+import type { WalletCounterparty, WalletProtocol } from '@bsv/sdk'
 import type { Action, ActionOptions } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
 import { signP2PKHInput } from '../utils/signP2PKH'
@@ -42,6 +43,8 @@ interface DepositInputInfo {
 	outpoint: string
 	keyID: string
 	satoshis: number
+	protocolID: WalletProtocol
+	counterparty: WalletCounterparty
 }
 
 // ============================================================================
@@ -87,7 +90,11 @@ export const sweepDeposit: Action<SweepDepositInput, SweepDepositResult> = {
 		const inputs: DepositInputInfo[] = []
 		for (const out of list.outputs) {
 			if (!out.customInstructions) continue
-			let parsed: { keyID?: string }
+			let parsed: {
+				keyID?: string
+				protocolID?: WalletProtocol
+				counterparty?: WalletCounterparty
+			}
 			try {
 				parsed = JSON.parse(out.customInstructions)
 			} catch {
@@ -98,6 +105,10 @@ export const sweepDeposit: Action<SweepDepositInput, SweepDepositResult> = {
 				outpoint: out.outpoint,
 				keyID: parsed.keyID,
 				satoshis: out.satoshis,
+				// Legacy records predate protocol/counterparty in
+				// customInstructions; they were all P1SAT/self.
+				protocolID: parsed.protocolID ?? P1SAT_PROTOCOL,
+				counterparty: parsed.counterparty ?? 'self',
 			})
 		}
 		if (inputs.length === 0) {
@@ -136,8 +147,9 @@ export const sweepDeposit: Action<SweepDepositInput, SweepDepositResult> = {
 						ctx,
 						tx,
 						i,
-						P1SAT_PROTOCOL,
+						inputs[i].protocolID,
 						inputs[i].keyID,
+						inputs[i].counterparty,
 					)
 					if (typeof unlock !== 'string') {
 						throw new Error(
