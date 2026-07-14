@@ -22,6 +22,8 @@ import {
 export interface SyncMessagesInput {
 	/** Message box name to poll (default: "payment_inbox") */
 	messageBox?: string
+	/** MessageBox server URL (default: "https://messagebox.1sat.app") */
+	messageboxUrl?: string
 }
 
 export interface SyncMessagesResult {
@@ -73,6 +75,11 @@ export const syncMessages: Action<SyncMessagesInput, SyncMessagesResult> = {
 					type: 'string',
 					description: 'Message box name to poll (default: "payment_inbox")',
 				},
+				messageboxUrl: {
+					type: 'string',
+					description:
+						'MessageBox server URL (default: "https://messagebox.1sat.app")',
+				},
 			},
 		},
 		requiresServices: true,
@@ -85,7 +92,8 @@ export const syncMessages: Action<SyncMessagesInput, SyncMessagesResult> = {
 		}
 
 		const messageBox = input.messageBox || 'payment_inbox'
-		const messageboxUrl = `${services.baseUrl}/1sat/messagebox`
+		const messageboxUrl =
+			input.messageboxUrl?.replace(/\/+$/, '') || 'https://messagebox.1sat.app'
 
 		const authFetch = new AuthFetch(ctx.wallet)
 
