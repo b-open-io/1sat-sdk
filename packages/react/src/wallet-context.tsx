@@ -24,7 +24,6 @@ export type WalletStatus =
 	| 'selecting'
 	| 'connecting'
 	| 'connected'
-	| 'locked'
 
 export interface WalletContextValue {
 	wallet: WalletInterface | null
@@ -42,8 +41,6 @@ export interface WalletProviderProps {
 	autoReconnect?: boolean
 	autoDetect?: boolean
 	providers?: WalletProviderConfig[]
-	/** Interval (ms) for polling wallet auth state after connect. 0 disables. */
-	healthCheckMs?: number
 	children: ReactNode
 }
 
@@ -87,7 +84,6 @@ export function WalletProvider({
 	autoReconnect = false,
 	autoDetect = true,
 	providers,
-	healthCheckMs = 10_000,
 	children,
 }: WalletProviderProps) {
 	const [wallet, setWallet] = useState<WalletInterface | null>(null)
@@ -239,56 +235,6 @@ export function WalletProvider({
 			setStatus('disconnected')
 		})
 	}, [])
-
-	// Wallet substrates answer isAuthenticated without prompting and report
-	// false while locked, whereas signing calls against a locked wallet hang
-	// indefinitely. Poll auth state so a lock surfaces as status 'locked'
-	// (and recovers to 'connected' on unlock) instead of hanging the app.
-	useEffect(() => {
-		if (
-			!wallet ||
-			(status !== 'connected' && status !== 'locked') ||
-			healthCheckMs <= 0
-		) {
-			return
-		}
-		let cancelled = false
-		let inFlight = false
-		const check = async () => {
-			if (inFlight) return
-			inFlight = true
-			try {
-				const result = await Promise.race([
-					wallet.isAuthenticated({}),
-					new Promise<never>((_, reject) =>
-						setTimeout(
-							() => reject(new Error('isAuthenticated timed out')),
-							5_000,
-						),
-					),
-				])
-				if (!cancelled) {
-					setStatus(result.authenticated ? 'connected' : 'locked')
-				}
-			} catch {
-				if (!cancelled) setStatus('locked')
-			} finally {
-				inFlight = false
-			}
-		}
-		const interval = setInterval(check, healthCheckMs)
-		const onVisible = () => {
-			if (document.visibilityState === 'visible') void check()
-		}
-		window.addEventListener('focus', onVisible)
-		document.addEventListener('visibilitychange', onVisible)
-		return () => {
-			cancelled = true
-			clearInterval(interval)
-			window.removeEventListener('focus', onVisible)
-			document.removeEventListener('visibilitychange', onVisible)
-		}
-	}, [wallet, status, healthCheckMs])
 
 	const value = useMemo<WalletContextValue>(
 		() => ({

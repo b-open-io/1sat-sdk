@@ -9,7 +9,6 @@ export interface ConnectButtonProps {
 	connectLabel?: ReactNode
 	connectingLabel?: ReactNode
 	connectedLabel?: ReactNode | ((identityKey: string) => ReactNode)
-	lockedLabel?: ReactNode
 	onConnect?: () => void
 	onDisconnect?: () => void
 	onError?: (error: Error) => void
@@ -17,7 +16,6 @@ export interface ConnectButtonProps {
 	children?: (props: {
 		isConnected: boolean
 		isConnecting: boolean
-		isLocked: boolean
 		identityKey: string | null
 		connect: () => Promise<void>
 		disconnect: () => void
@@ -35,7 +33,6 @@ export function ConnectButton({
 	connectLabel = 'Connect Wallet',
 	connectingLabel = 'Connecting...',
 	connectedLabel,
-	lockedLabel = 'Wallet Locked',
 	onConnect,
 	onDisconnect,
 	onError,
@@ -51,7 +48,6 @@ export function ConnectButton({
 
 	const isConnected = status === 'connected'
 	const isConnecting = status === 'detecting' || status === 'connecting'
-	const isLocked = status === 'locked'
 
 	const connect = async () => {
 		try {
@@ -77,7 +73,6 @@ export function ConnectButton({
 				{children({
 					isConnected,
 					isConnecting,
-					isLocked,
 					identityKey,
 					connect,
 					disconnect,
@@ -90,19 +85,6 @@ export function ConnectButton({
 		return (
 			<button className={className} style={style} disabled type="button">
 				{connectingLabel}
-			</button>
-		)
-	}
-
-	if (isLocked) {
-		return (
-			<button
-				className={className}
-				style={style}
-				onClick={connect}
-				type="button"
-			>
-				{lockedLabel}
 			</button>
 		)
 	}
