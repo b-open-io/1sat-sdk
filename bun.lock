@@ -184,7 +184,7 @@
     },
     "packages/react": {
       "name": "@1sat/react",
-      "version": "0.0.72",
+      "version": "0.0.73",
       "dependencies": {
         "@1sat/connect": "workspace:*",
       },
