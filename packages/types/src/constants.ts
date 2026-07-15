@@ -301,5 +301,23 @@ export interface AddressDerivation {
 // Limits and caching
 // ============================================================================
 
-export const MAX_INSCRIPTION_BYTES = 100_000
+/**
+ * Maximum content body size (bytes) for a single-transaction inscription
+ * (non-stream path). Above this, callers must opt into OrdFS streaming.
+ */
+export const MAX_INSCRIPTION_BYTES = 50 * 1024 * 1024
 export const EXCHANGE_RATE_CACHE_TTL = 5 * 60 * 1000
+
+// ============================================================================
+// OrdFS streaming (multi-tx inscription chains)
+// ============================================================================
+
+/**
+ * Default size of each stream chunk body (bytes), not including script overhead.
+ * 1 MiB balances tx count vs size. Override via streamChunkSize when streaming.
+ */
+export const DEFAULT_STREAM_CHUNK_SIZE = 1024 * 1024
+/** Content type for stream chunks after the origin */
+export const ORDFS_STREAM_CONTENT_TYPE = 'ordfs/stream'
+/** Media-type parameter on the origin chunk (e.g. `video/mp4; stream=ordfs`) */
+export const ORDFS_STREAM_PARAM = 'stream=ordfs'
