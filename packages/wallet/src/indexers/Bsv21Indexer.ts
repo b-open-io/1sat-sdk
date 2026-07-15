@@ -296,8 +296,8 @@ function resolveIcon(
 export function deriveFundAddress(idOrOutpoint: string | number[]): string {
 	const hash = Hash.sha256(idOrOutpoint)
 	const reader = new Utils.Reader(hash)
-	let path = `m/21/${reader.readUInt32BE() >> 1}`
+	let path = `m/21/${reader.readUInt32BE() >>> 1}`
 	reader.pos = 24
-	path += `/${reader.readUInt32BE() >> 1}`
+	path += `/${reader.readUInt32BE() >>> 1}`
 	return hdKey.derive(path).pubKey.toAddress()
 }
