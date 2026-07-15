@@ -7,7 +7,11 @@
 
 import type { BEEF, WalletOutput } from '@bsv/sdk'
 import { OPNS_BASKET } from '../constants'
-import { buildTransferOrdinals } from '../ordinals'
+import {
+	buildTransferOrdinals,
+	listOrdinal,
+	transferOrdinals,
+} from '../ordinals'
 import type { Action, ActionOptions } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
 import { resolveBeef } from '../utils/resolveBeef'
@@ -304,5 +308,125 @@ export const opnsDeregister: Action<
 	},
 }
 
+export interface OpnsListRequest extends ActionOptions {
+	/** The OpNS ordinal output to list (from listOutputs) */
+	ordinal: WalletOutput
+	/** BEEF — resolved automatically via ID tag if omitted */
+	inputBEEF?: number[]
+	/** Price in satoshis */
+	price: number
+	/** Address that receives payment on purchase */
+	payAddress: string
+}
+
+/**
+ * List an OpNS name for sale.
+ * Clears the identity binding (opns.idKey) in the same transaction so the
+ * name stops resolving to the seller's identity the moment it is listed.
+ */
+export const opnsList: Action<OpnsListRequest, OpnsOperationResponse> = {
+	meta: {
+		name: 'opnsList',
+		description:
+			'List an OpNS name for sale, clearing its identity binding in the same transaction',
+		category: 'opns',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				ordinal: {
+					type: 'object',
+					description: 'WalletOutput of the OpNS ordinal from listOutputs',
+				},
+				inputBEEF: {
+					type: 'array',
+					description:
+						"BEEF from listOutputs with include: 'entire transactions'",
+				},
+				price: { type: 'integer', description: 'Price in satoshis' },
+				payAddress: {
+					type: 'string',
+					description: 'Address to receive payment on purchase',
+				},
+			},
+			required: ['ordinal', 'price', 'payAddress'],
+		},
+	},
+	async execute(ctx, input) {
+		return listOrdinal.execute(ctx, {
+			...input,
+			map: { 'opns.idKey': '' },
+		})
+	},
+}
+
+export interface OpnsTransferRequest extends ActionOptions {
+	/** The OpNS ordinal output to transfer (from listOutputs) */
+	ordinal: WalletOutput
+	/** Recipient's identity public key (preferred) */
+	counterparty?: string
+	/** Raw P2PKH address */
+	address?: string
+	/** BEEF — resolved automatically via ID tag if omitted */
+	inputBEEF?: number[]
+}
+
+/**
+ * Transfer an OpNS name to a new owner.
+ * Clears the identity binding (opns.idKey) in the same transaction so the
+ * name stops resolving to the sender's identity once transferred.
+ */
+export const opnsTransfer: Action<OpnsTransferRequest, OpnsOperationResponse> =
+	{
+		meta: {
+			name: 'opnsTransfer',
+			description:
+				'Transfer an OpNS name, clearing its identity binding in the same transaction',
+			category: 'opns',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					ordinal: {
+						type: 'object',
+						description: 'WalletOutput of the OpNS ordinal from listOutputs',
+					},
+					counterparty: {
+						type: 'string',
+						description: 'Recipient identity public key (hex)',
+					},
+					address: {
+						type: 'string',
+						description: 'Recipient P2PKH address',
+					},
+					inputBEEF: {
+						type: 'array',
+						description:
+							"BEEF from listOutputs with include: 'entire transactions'",
+					},
+				},
+				required: ['ordinal'],
+			},
+		},
+		async execute(ctx, input) {
+			return transferOrdinals.execute(ctx, {
+				transfers: [
+					{
+						ordinal: input.ordinal,
+						counterparty: input.counterparty,
+						address: input.address,
+						map: { 'opns.idKey': '' },
+					},
+				],
+				inputBEEF: input.inputBEEF,
+				fundingProvider: input.fundingProvider,
+			})
+		},
+	}
+
 /** All OpNS actions for registry (paid mine lives on 1sat.name / orchestrator). */
-export const opnsActions = [getOpnsNames, opnsRegister, opnsDeregister]
+export const opnsActions = [
+	getOpnsNames,
+	opnsRegister,
+	opnsDeregister,
+	opnsList,
+	opnsTransfer,
+]

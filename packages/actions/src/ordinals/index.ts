@@ -7,8 +7,8 @@
 
 import { MAP as MAPTemplate } from '@1sat/templates'
 import { OrdLock } from '@1sat/templates'
-import { parseOutpoint } from '@1sat/utils'
 import { buildInputAssetLabel, readAssetIdTag } from '@1sat/types'
+import { parseOutpoint } from '@1sat/utils'
 import {
 	type BEEF,
 	Beef,
@@ -26,11 +26,11 @@ import {
 	type WalletOutput,
 } from '@bsv/sdk'
 import {
-	P1SAT_PROTOCOL,
 	OPNS_BASKET,
 	ORDINALS_BASKET,
 	ORD_LOCK_PREFIX,
 	ORD_LOCK_SUFFIX,
+	P1SAT_PROTOCOL,
 } from '../constants'
 import type {
 	Action,
@@ -190,6 +190,8 @@ export interface ListOrdinalRequest extends ActionOptions {
 	price: number
 	/** Address that receives payment on purchase (BRC-29 receive address) */
 	payAddress: string
+	/** Optional MAP metadata to append to the listing output script */
+	map?: Record<string, string>
 }
 
 export interface PurchaseOrdinalRequest extends ActionOptions {
@@ -465,7 +467,7 @@ export async function buildListOrdinal(
 	ctx: OneSatContext,
 	request: ListOrdinalRequest,
 ): Promise<CreateActionArgs | { error: string }> {
-	const { ordinal, price, payAddress } = request
+	const { ordinal, price, payAddress, map } = request
 
 	if (!payAddress) return { error: 'missing-pay-address' }
 	if (price <= 0) return { error: 'invalid-price' }
@@ -473,7 +475,20 @@ export async function buildListOrdinal(
 	const outpoint = ordinal.outpoint
 
 	const cancelAddress = await deriveCancelAddressInternal(ctx, outpoint)
-	const lockingScript = buildOrdLockScript(cancelAddress, payAddress, price)
+	const ordLockScript = buildOrdLockScript(cancelAddress, payAddress, price)
+
+	// Append MAP metadata when provided — OP_RETURN terminates before the
+	// MAP data, so the OrdLock spend paths are unaffected.
+	let lockingScript: string
+	if (map && Object.keys(map).length > 0) {
+		const mapScript = MAPTemplate.set(map)
+		const combined = new Script()
+		for (const chunk of ordLockScript.chunks) combined.chunks.push(chunk)
+		for (const chunk of mapScript.chunks) combined.chunks.push(chunk)
+		lockingScript = new LockingScript(combined.chunks).toHex()
+	} else {
+		lockingScript = ordLockScript.toHex()
+	}
 
 	const { tags, basket } = await resolveOrdinalTags(ctx, outpoint, {
 		tags: ordinal.tags,
@@ -488,13 +503,10 @@ export async function buildListOrdinal(
 	}
 
 	const inputBEEF =
-		request.inputBEEF ??
-		(await resolveBeef(ctx.wallet, ORDINALS_BASKET, ordinal))
+		request.inputBEEF ?? (await resolveBeef(ctx.wallet, basket, ordinal))
 
 	const inputId = readAssetIdTag(ordinal.tags)
-	const labels = inputId
-		? [buildInputAssetLabel(ORDINALS_BASKET, inputId)]
-		: undefined
+	const labels = inputId ? [buildInputAssetLabel(basket, inputId)] : undefined
 
 	return {
 		description: `List ordinal for ${price} sats`,
@@ -509,7 +521,7 @@ export async function buildListOrdinal(
 		],
 		outputs: [
 			{
-				lockingScript: lockingScript.toHex(),
+				lockingScript,
 				satoshis: 1,
 				outputDescription: `List ordinal for ${price} sats`,
 				basket,
@@ -837,6 +849,11 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 						type: 'string',
 						description: 'Address to receive payment on purchase',
 					},
+					map: {
+						type: 'object',
+						description:
+							'Optional MAP metadata to append to the listing output script',
+					},
 				},
 				required: ['ordinal', 'inputBEEF', 'price', 'payAddress'],
 			},
@@ -953,9 +970,6 @@ export const cancelListing: Action<
 	async execute(ctx, input) {
 		try {
 			const { listing } = input
-			const inputBEEF =
-				input.inputBEEF ??
-				(await resolveBeef(ctx.wallet, ORDINALS_BASKET, listing))
 			const outpoint = listing.outpoint
 
 			if (!listing.customInstructions) {
@@ -983,6 +997,17 @@ export const cancelListing: Action<
 				tags: listing.tags,
 			})
 
+			const inputBEEF =
+				input.inputBEEF ?? (await resolveBeef(ctx.wallet, basket, listing))
+
+			let sourceName: string | undefined
+			try {
+				sourceName = JSON.parse(listing.customInstructions).name
+			} catch {}
+			if (!sourceName) {
+				sourceName = tags.find((t) => t.startsWith('name:'))?.slice(5)
+			}
+
 			const cancelUnlock = OrdLock.cancelWithWallet(
 				ctx.wallet,
 				signProtocolID,
@@ -997,7 +1022,7 @@ export const cancelListing: Action<
 					description: 'Cancel ordinal listing',
 					inputBEEF,
 					...(inputId && {
-						labels: [buildInputAssetLabel(ORDINALS_BASKET, inputId)],
+						labels: [buildInputAssetLabel(basket, inputId)],
 					}),
 					inputs: [
 						{
@@ -1016,6 +1041,7 @@ export const cancelListing: Action<
 							customInstructions: JSON.stringify({
 								protocolID: P1SAT_PROTOCOL,
 								keyID: newKeyID,
+								...(sourceName && { name: sourceName }),
 							}),
 						},
 					],
