@@ -5,7 +5,7 @@
  * Registers/deregisters identity public keys on OpNS tokens via MAP metadata.
  */
 
-import type { BEEF, WalletOutput } from '@bsv/sdk'
+import { P2PKH, type BEEF, type WalletOutput } from '@bsv/sdk'
 import { OPNS_BASKET } from '../constants'
 import {
 	buildTransferOrdinals,
@@ -26,6 +26,11 @@ export interface OpnsRegisterRequest extends ActionOptions {
 	ordinal: WalletOutput
 	/** BEEF — resolved automatically via ID tag if omitted */
 	inputBEEF?: number[]
+	/**
+	 * Legacy: Base58Check P2PKH address to bind instead of the wallet identity
+	 * key. Written to opns.idKey as-is. Omit for BRC-100 identity (default).
+	 */
+	address?: string
 }
 
 export interface OpnsDeregisterRequest extends ActionOptions {
@@ -98,15 +103,16 @@ export const getOpnsNames: Action<GetOpnsNamesInput, GetOpnsNamesResult> = {
 }
 
 /**
- * Register an identity key on an OpNS name.
- * Transfers the OpNS ordinal to self with MAP metadata binding the wallet's
- * identity public key, then submits to the OpNS overlay.
+ * Register a payment binding on an OpNS name (MAP opns.idKey).
+ * Default: wallet BRC-100 identity public key (BRC-29 paymail path).
+ * Optional address: legacy Base58Check P2PKH binding (static destination).
  */
 export const opnsRegister: Action<OpnsRegisterRequest, OpnsOperationResponse> =
 	{
 		meta: {
 			name: 'opnsRegister',
-			description: 'Register identity key on an OpNS name via MAP metadata',
+			description:
+				'Register identity key or legacy address on an OpNS name via MAP',
 			category: 'opns',
 			requiresServices: true,
 			inputSchema: {
@@ -120,6 +126,11 @@ export const opnsRegister: Action<OpnsRegisterRequest, OpnsOperationResponse> =
 						type: 'array',
 						description:
 							"BEEF from listOutputs with include: 'entire transactions'",
+					},
+					address: {
+						type: 'string',
+						description:
+							'Optional Base58Check P2PKH address for legacy binding; omit for identity key',
 					},
 				},
 				required: ['ordinal'],
@@ -136,19 +147,29 @@ export const opnsRegister: Action<OpnsRegisterRequest, OpnsOperationResponse> =
 					input.inputBEEF ??
 					(await resolveBeef(ctx.wallet, OPNS_BASKET, ordinal))
 
-				// Get wallet's identity public key
-				const { publicKey: identityPubKey } = await ctx.wallet.getPublicKey({
-					identityKey: true,
-				})
+				let binding: string
+				if (input.address) {
+					try {
+						new P2PKH().lock(input.address)
+					} catch {
+						return { error: 'invalid-address' }
+					}
+					binding = input.address
+				} else {
+					const { publicKey: identityPubKey } = await ctx.wallet.getPublicKey({
+						identityKey: true,
+					})
+					binding = identityPubKey
+				}
 
-				// Transfer to self with MAP identity binding
+				// Transfer to self with MAP binding
 				const params = await buildTransferOrdinals(ctx, {
 					transfers: [
 						{
 							ordinal,
 							counterparty: 'self',
 							map: {
-								'opns.idKey': identityPubKey,
+								'opns.idKey': binding,
 							},
 							extraTags: ['opns:published'],
 						},
