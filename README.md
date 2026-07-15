@@ -66,8 +66,8 @@ npx skills add b-open-io/1sat-sdk --skill timelock
 # Sweep/import from external WIF
 npx skills add b-open-io/1sat-sdk --skill sweep-import
 
-# OpNS on-chain name registration
-npx skills add b-open-io/1sat-sdk --skill opns-names
+# Claim names at 1sat.name; publish and manage them from the wallet
+npx skills add b-open-io/1sat-sdk --skill opns
 
 # Extract inscribed media from blockchain
 npx skills add b-open-io/1sat-sdk --skill extract-blockchain-media

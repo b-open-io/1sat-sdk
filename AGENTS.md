@@ -61,7 +61,7 @@ with `bun run scripts/gen-action-index.ts`).
 | ordinals-create | `packages/actions/skills/ordinals-create` | Creating inscriptions and ordinal collections |
 | ordinals-marketplace | `packages/actions/skills/ordinals-marketplace` | Browsing, transferring, listing, buying, cancelling, burning ordinals |
 | locks | `packages/actions/skills/locks` | Time-locking BSV to a block height and unlocking |
-| opns | `packages/actions/skills/opns` | OpNS name registration / deregistration |
+| opns | `packages/actions/skills/opns` | Claiming or buying OpNS names at 1sat.name; publishing, listing, transferring, or deregistering owned names |
 | sweep | `packages/actions/skills/sweep` | Sweeping/importing BSV, ordinals, tokens; claiming deposits |
 | mnee | `packages/actions/skills/mnee` | MNEE stablecoin — config, balance, utxos, history, send |
 | identity | `packages/actions/skills/identity` | BAP identity (publish/rotate/profile) and social posts |

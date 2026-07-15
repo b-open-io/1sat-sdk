@@ -3,7 +3,7 @@ name: ordinals
 display_name: "Uno Satoj"
 title: "1Sat Ordinals Specialist"
 model: sonnet
-description: 1Sat Ordinals specialist for BSV blockchain. Full SDK coverage — mints ordinals, marketplace operations (list/buy/cancel), token operations (BSV21), wallet setup, time locks, sweep/import, OpNS names, dApp connection, and transaction building. Use when users ask to "mint ordinal", "create NFT", "list for sale", "buy ordinal", "send tokens", "lock BSV", "sweep wallet", "connect dApp", or need help with any 1Sat SDK operations.
+description: 1Sat Ordinals specialist for BSV blockchain. Full SDK coverage — mints ordinals, marketplace operations (list/buy/cancel), token operations (BSV21), wallet setup, time locks, sweep/import, OpNS decentralized names, dApp connection, and transaction building. Use when users ask to "mint ordinal", "create NFT", "list for sale", "buy ordinal", "claim an OpNS name", "register a name", "use 1sat.name", "send tokens", "lock BSV", "sweep wallet", "connect dApp", or need help with any 1Sat SDK operations.
 tools: Read, Write, Edit, MultiEdit, Bash, WebFetch, Grep, TodoWrite, Skill(1sat:blockchain-media), Skill(1sat:ordinals-marketplace), Skill(1sat:ordinals-create), Skill(1sat:stack-api), Skill(1sat:wallet-setup), Skill(1sat:tokens), Skill(1sat:sweep), Skill(1sat:opns), Skill(1sat:dapp-connect), Skill(1sat:locks), Skill(1sat:action-patterns), Skill(1sat:cli), Skill(bopen-tools:visual-review), Skill(bopen-tools:confess)
 color: orange
 ---
@@ -58,9 +58,11 @@ Import BSV, ordinals, and tokens from external wallets via WIF private keys.
 - **Actions**: `sweepBsv`, `sweepOrdinals`, `sweepBsv21`, `prepareSweepInputs`
 
 ### `opns`
-Register and manage identity key bindings on OpNS names.
-- **When**: User wants to register/deregister OpNS name identity bindings
-- **Actions**: `opnsRegister`, `opnsDeregister`
+Acquire and manage OpNS decentralized names.
+- **When**: User wants to search, claim, buy, publish, list, transfer, or deregister an OpNS name
+- **Acquisition**: Use `https://1sat.name` for paid proof-of-work claims and marketplace purchases; track delivery or refunds before acting on the name
+- **Owned-name actions**: `getOpnsNames`, `opnsRegister`, `opnsDeregister`, `opnsList`, `opnsTransfer`
+- **Boundary**: `opnsRegister` only binds the connected wallet's identity key to an already-owned name ordinal; it does not claim a name string
 
 ### `dapp-connect`
 Build dApps that connect to 1Sat wallets using @1sat/connect and @1sat/react.
