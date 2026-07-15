@@ -3,10 +3,9 @@
  * and a long-running `1sat serve` process.
  *
  * - `1sat serve` (modes that run the monitor) writes the pid on startup and
- *   removes it on clean shutdown.
- * - CLI invocations read the file and, if the pid is alive, skip firing
- *   their own `monitor.runOnce()` to avoid duplicate work against the same
- *   SQLite file.
+ *   removes it on clean shutdown (only if still the owner).
+ * - Detached `__monitor-once` children claim the same lock while they run.
+ * - CLI parents skip spawning another once-run when a live owner is present.
  */
 
 import { readFileSync, unlinkSync, writeFileSync } from 'node:fs'
@@ -25,9 +24,23 @@ export function writeMonitorPid(
 	writeFileSync(monitorPidPath(dataDir), `${pid}\n`, 'utf8')
 }
 
-export function clearMonitorPid(dataDir: string): void {
+/**
+ * Remove the pid file. When `onlyPid` is set, only unlink if the file still
+ * contains that pid (avoids a short once-run clearing a serve owner that
+ * started while the once-run was shutting down).
+ */
+export function clearMonitorPid(
+	dataDir: string,
+	onlyPid?: number,
+): void {
+	const path = monitorPidPath(dataDir)
 	try {
-		unlinkSync(monitorPidPath(dataDir))
+		if (onlyPid !== undefined) {
+			const raw = readFileSync(path, 'utf8')
+			const pid = Number.parseInt(raw.trim(), 10)
+			if (pid !== onlyPid) return
+		}
+		unlinkSync(path)
 	} catch {}
 }
 

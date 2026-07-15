@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.78
+
+### Changed
+- CLI wallet commands no longer run the toolbox monitor in-process. After the wallet closes, a detached `__monitor-once` child runs housekeeping; its stdout/stderr go to `<dataDir>/monitor.log` (default `~/.1sat/cli/data/monitor.log`). Skipped when `1sat serve` already owns the monitor or when a remote is the active store.
+- Entry sets `DOTENV_CONFIG_QUIET` before loading wallet-toolbox so import-time dotenv tip lines no longer print on every command.
+
 ## 0.0.77
 
 ### Added

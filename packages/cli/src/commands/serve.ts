@@ -325,7 +325,7 @@ async function runWithStorage(
 		async stop() {
 			if (mode !== 'wallet') {
 				walletResult.monitor.stopTasks()
-				clearMonitorPid(resolved.dataDir)
+				clearMonitorPid(resolved.dataDir, process.pid)
 			}
 			if (serverHandle) await serverHandle.stop()
 			// Accounts shares the wallet's connection — walletResult.destroy

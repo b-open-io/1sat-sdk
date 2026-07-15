@@ -49,7 +49,7 @@
     },
     "packages/cli": {
       "name": "@1sat/cli",
-      "version": "0.0.77",
+      "version": "0.0.78",
       "bin": {
         "1sat": "./src/cli.ts",
       },
