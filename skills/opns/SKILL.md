@@ -113,9 +113,37 @@ if (result.txid) {
 4. Signs and broadcasts the transaction
 5. The overlay picks up the transaction via the mine tree — no client-side overlay submission needed
 
-`opnsRegister` always publishes the connected wallet's identity key. It does
-not accept an arbitrary identity key. Older wallet entries may lack a `name:`
-tag; when needed, match the exact name from `customInstructions.name`.
+`opnsRegister` publishes the connected wallet's identity key. It does not
+accept an arbitrary identity key — the only alternative binding is the legacy
+`address` below. Older wallet entries may lack a `name:` tag; when needed,
+match the exact name from `customInstructions.name`.
+
+### Legacy: Bind an Address Instead of an Identity Key
+
+`opns.idKey` holds either a hex identity public key (the default above) or a
+Base58Check P2PKH address. Pass `address` to bind the latter:
+
+```typescript
+await opnsRegister.execute(ctx, {
+  ordinal: opnsOrdinal,
+  address: '1opNSUJVbBc2Vf8LFNSoywGGK4jMcGVrC',
+})
+```
+
+The address is validated first; an invalid one returns
+`{ error: 'invalid-address' }`.
+
+The two bindings resolve differently in paymail (1sat-stack `pkg/paymail`):
+
+| Binding | Destination | Delivery |
+|---------|-------------|----------|
+| Identity key (default) | Fresh BRC-29 derivation per payment | Messagebox `payment_inbox` remittance |
+| Address (legacy) | The same fixed P2PKH script every time | None — on-chain only |
+
+An address binding therefore reuses one destination for every payment and
+sends no remittance, so the holder must discover funds by watching that
+address (`syncAddresses`). Prefer the identity key unless the holder's wallet
+cannot do BRC-29.
 
 ## List or Transfer an Owned Name
 
