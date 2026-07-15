@@ -72,8 +72,8 @@ export interface InscribeResponse {
 	/** True when content was written as an OrdFS multi-tx stream */
 	streamed?: boolean
 	/**
-	 * SHA-256 hex of the full content body when streaming. Also applied as
-	 * output tag `stream:<hash>` on each chunk for wallet record-keeping.
+	 * SHA-256 hex of the full content body. Also applied as output tag
+	 * `sha256:<hash>` for wallet record-keeping (single and stream).
 	 */
 	contentHash?: string
 	/**
@@ -266,9 +266,8 @@ async function inscribeStream(
 	const allNoSendChange: string[] = []
 	let accumulatedBEEF: number[] | undefined
 
-	// Full-content hash for wallet tags / caller bookkeeping (not a resume API).
-	const contentHash = Utils.toHex(Hash.sha256(Array.from(content)))
-	const streamJobTag = `stream:${contentHash}`
+		const contentHash = Utils.toHex(Hash.sha256(Array.from(content)))
+	const shaTag = `sha256:${contentHash}`
 
 	const fail = (error: string): InscribeResponse => ({
 		error,
@@ -281,7 +280,7 @@ async function inscribeStream(
 	const originContentType = `${input.contentType}; ${ORDFS_STREAM_PARAM}`
 	const streamTags = (index: number, extra: string[] = []) => [
 		...extra,
-		streamJobTag,
+		shaTag,
 		`stream-i:${index}`,
 	]
 
@@ -558,6 +557,8 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 			const content = new Uint8Array(
 				Utils.toArray(input.base64Content, 'base64'),
 			)
+			const contentHash = Utils.toHex(Hash.sha256(Array.from(content)))
+			const shaTag = `sha256:${contentHash}`
 
 			if (
 				input.streamChunkSize !== undefined &&
@@ -621,13 +622,13 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 				input.map,
 			)
 
-			const tags = [`type:${input.contentType}`, 'origin']
+			const tags = [`type:${input.contentType}`, 'origin', shaTag]
 			if (input.map?.name) {
 				tags.push(`name:${input.map.name}`)
 			}
 
 			if (input.signWithBAP) {
-				return await inscribeWithSigma(
+				const sigmaResult = await inscribeWithSigma(
 					ctx,
 					lockingScript,
 					tags,
@@ -635,6 +636,7 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 					customInstructions,
 					resolved.customInstructions?.keyID,
 				)
+				return { ...sigmaResult, contentHash }
 			}
 
 			const result = await executeTrackedAction(
@@ -660,7 +662,7 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 			)
 
 			if (!result.txid) {
-				return { error: 'no-txid-returned' }
+				return { error: 'no-txid-returned', contentHash }
 			}
 
 			if (ctx.debug && ctx.log) {
@@ -689,6 +691,7 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 			return {
 				txid: result.txid,
 				tx: result.tx,
+				contentHash,
 			}
 		} catch (error) {
 			console.error('[inscribe]', error)
