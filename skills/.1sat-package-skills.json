@@ -35,8 +35,8 @@
 			"name": "opns",
 			"source": "packages/actions/skills/opns",
 			"destination": "skills/opns",
-			"source_hash": "sha256:d2268fd7925cb06812ac8058c224ce2ee20ddf8a29182ca5fdec52fb403651ac",
-			"generated_hash": "sha256:d2268fd7925cb06812ac8058c224ce2ee20ddf8a29182ca5fdec52fb403651ac"
+			"source_hash": "sha256:59a45405fc4fce1395f3a3a4c177b2bd561ce9f9ab7dab1637aa9adcb087db8c",
+			"generated_hash": "sha256:59a45405fc4fce1395f3a3a4c177b2bd561ce9f9ab7dab1637aa9adcb087db8c"
 		},
 		{
 			"name": "ordinals-create",

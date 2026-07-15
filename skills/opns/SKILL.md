@@ -1,11 +1,24 @@
 ---
 name: opns
-description: "This skill should be used when working with OpNS (Op = operation, NS = like DNS) names — registering identity keys on names, deregistering identity bindings, looking up OpNS names, or managing on-chain name resolution. Triggers on 'OpNS', 'register name', 'name service', 'on-chain DNS', 'identity binding', 'name resolution', 'deregister name', or 'opns.idKey'. Uses @1sat/actions opns module."
+description: "This skill should be used when working with OpNS decentralized names on BSV — claiming or buying a name at 1sat.name, publishing or removing its wallet identity binding, listing or transferring an owned name, looking up resolution, or managing the OpNS wallet basket. Triggers on 'OpNS', '1sat.name', 'claim name', 'buy name', 'register name', 'decentralized domain', 'name service', 'on-chain DNS', 'identity binding', 'name resolution', 'list name', 'transfer name', 'deregister name', or 'opns.idKey'. Uses 1sat.name for acquisition and @1sat/actions for the owned-name lifecycle."
 ---
 
 # OpNS Names
 
-Register and manage identity key bindings on OpNS names using `@1sat/actions`.
+Claim OpNS names through [1sat.name](https://1sat.name), then publish and manage
+the owned name with `@1sat/actions`.
+
+## Distinguish Acquisition from Identity Registration
+
+The word "register" is ambiguous in OpNS:
+
+- **Claim or acquire a name**: obtain the OpNS ordinal by mining an available
+  name or buying a listed name at [1sat.name](https://1sat.name).
+- **Publish an identity binding**: call `opnsRegister` on an OpNS ordinal already
+  owned by the connected wallet. This binds the wallet's own identity key.
+
+Never pass a name string to `opnsRegister` and imply that it creates the name.
+If the requested name is not in the wallet's `opns` basket, acquire it first.
 
 ## What is OpNS?
 
@@ -28,33 +41,58 @@ OpNS (Op = "operation", a key field in the original Ordinals protocol; NS = like
 
 | Action | Description |
 |--------|-------------|
+| `getOpnsNames` | List owned OpNS names with BEEF for spending |
 | `opnsRegister` | Bind wallet's identity key to an OpNS name |
 | `opnsDeregister` | Remove identity binding from an OpNS name |
+| `opnsList` | List a name for sale and clear its identity binding |
+| `opnsTransfer` | Transfer a name and clear its identity binding |
+
+## Claim or Buy a Name at 1sat.name
+
+Use the hosted [1sat.name](https://1sat.name) flow when the wallet does not yet
+own the requested name:
+
+1. Connect and authorize a funded BRC-100 wallet.
+2. Search the normalized name. Names use 1-64 letters, digits, or hyphens.
+3. If the name is available, review the current flat price shown by the site and
+   start the paid proof-of-work claim. The BRC-105 payment transaction is the
+   job identifier.
+4. Track the job until the minted name is delivered and internalized into the
+   wallet's `opns` basket. If another miner wins the name, use the job refund
+   flow for the remaining funds.
+5. If the name is already listed, buy the listing through the site. A claimed,
+   unlisted name is unavailable from the current owner.
+6. Open **My Names** to publish or remove the identity binding, list or unlist
+   the name, or transfer it.
+
+Do not hardcode a claim price: the site's `GET /price` response is display data,
+and the BRC-105 response on `POST /jobs` is the authoritative charge. Do not
+reimplement the paid mining orchestrator in a client integration; use the
+hosted service contract.
 
 ## Register Identity on a Name
 
 ```typescript
-import { opnsRegister, createContext } from '@1sat/actions'
+import { createContext, getOpnsNames, opnsRegister } from '@1sat/actions'
 
 const ctx = createContext(wallet, { services })
 
-// 1. List OpNS ordinals from the wallet (uses 'opns' basket, not 'ordinals')
-const result = await ctx.wallet.listOutputs({
-  basket: 'opns',
-  includeTags: true,
-  includeCustomInstructions: true,
-  include: 'entire transactions',
+// 1. List OpNS ordinals from the wallet with their spending BEEF
+const { outputs } = await getOpnsNames.execute(ctx, {})
+
+// 2. Find the exact OpNS name to publish; never take the first name blindly
+const requestedName = 'alice'
+const opnsOrdinal = outputs.find((output) => {
+  if (output.tags?.includes(`name:${requestedName}`)) return true
+  try {
+    return JSON.parse(output.customInstructions ?? '{}').name === requestedName
+  } catch {
+    return false
+  }
 })
-const outputs = result.outputs
-const BEEF = result.BEEF
 
-// 2. Find the OpNS name to register
-const opnsOrdinal = outputs.find(o =>
-  o.tags?.some(t => t === 'type:application/op-ns')
-)
-
-if (!opnsOrdinal || !BEEF) {
-  throw new Error('No OpNS name found in wallet')
+if (!opnsOrdinal) {
+  throw new Error(`OpNS name ${requestedName} is not owned by this wallet`)
 }
 
 // 3. Register identity key — inputBEEF is optional (auto-resolved from wallet)
@@ -74,6 +112,20 @@ if (result.txid) {
 3. Adds the `opns:published` tag to the output
 4. Signs and broadcasts the transaction
 5. The overlay picks up the transaction via the mine tree — no client-side overlay submission needed
+
+`opnsRegister` always publishes the connected wallet's identity key. It does
+not accept an arbitrary identity key. Older wallet entries may lack a `name:`
+tag; when needed, match the exact name from `customInstructions.name`.
+
+## List or Transfer an Owned Name
+
+- Use `opnsList` with the exact owned `WalletOutput`, price in satoshis, and a
+  payment address. Listing clears `opns.idKey` so the seller's identity stops
+  resolving immediately.
+- Use `opnsTransfer` with either a recipient identity public key
+  (`counterparty`) or P2PKH address. Transfer also clears `opns.idKey`.
+- Use the ordinary `cancelListing` action to unlist a name. Refresh the wallet
+  output before the next operation because every lifecycle action spends it.
 
 ## Deregister Identity from a Name
 
@@ -105,23 +157,24 @@ const result = await opnsDeregister.execute(ctx, {
 2. Removes the `opns:published` tag
 3. The overlay detects the cleared binding via the mine tree — no client-side overlay submission needed
 
-## Looking Up OpNS Names
+## Looking Up OpNS Names and Identity Bindings
 
-Use the 1sat-stack API to resolve names:
+Use `OpnsClient` to find the immutable name origin, then resolve its latest MAP
+metadata through ORDFS:
 
 ```typescript
-// Lookup by name
-const res = await fetch('https://api.1sat.app/1sat/overlay/lookup', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    service: 'ls_opns',
-    query: { name: 'alice' },
-  }),
-})
-const result = await res.json()
-// Returns identity public key bound to the name
+import { OpnsClient, OrdfsClient } from '@1sat/client'
+
+const baseUrl = 'https://api.1sat.app'
+const name = 'alice'
+const origin = await new OpnsClient(baseUrl).getOrigin(name)
+const latest = await new OrdfsClient(baseUrl).getMetadata(origin.outpoint, -1)
+const identityKey = latest.map?.['opns.idKey']
 ```
+
+For paymail, follow the target domain's `/.well-known/bsvalias` capability
+document and call its PKI URL for `name@domain`. The paymail host performs the
+same OpNS-origin plus latest-ORDFS resolution before returning the public key.
 
 ## OpNS Baskets and Tags
 
