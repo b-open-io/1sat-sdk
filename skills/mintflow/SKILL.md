@@ -78,6 +78,26 @@ JPEG data URI in the proposal to keep inscription bytes small.
 - **Hosted:** $10 Stripe checkout, custodial mint via Droplit (server needs
   `SIGMA_MEMBER_PRIVATE_KEY`). No wallet required from the buyer.
 
+## Item content: ord-fs/json references, not embedded bytes
+
+Mint each item as an **`ord-fs/json` directory** that references the shared tier
+image via the `.` default-entry — inscribe the image once, then every item is
+`{ ".": "_0" }` (`ord-fs/json`), resolved in place by OrdFS. Do NOT re-inscribe
+the image per item, and do NOT use the old `x-ordfs=alias` trick or a
+`ref=ordfs` content-type parameter (dropped — a pointer disguised under
+`image/png` mis-renders). Use the SDK's `mintCollectionItem({ ref })` where
+available.
+
+- **Fungible / tradeable members** (album tracks, access passes, license seats)
+  may instead be **BSV-21 token members**: a `bsv-20` deploy carrying a standard
+  `collectionItem` MAP suffix. The member is the deploy outpoint; holding a unit
+  is access. Pick per SKU by whether units are distinct (NFT item) or
+  interchangeable (token).
+- **Authorship uses SIGMA** (not AIP): its prefix commits to a tx input, so a
+  member's signature is replay-resistant and provably matches the collection
+  root. The collection root is an owned, `{root}:-1`-updatable ordinal; authority
+  to update metadata and vouch members follows its current owner.
+
 ## Prerequisites (self path)
 
 - A 1Sat wallet connected in the browser, **funded with BSV** for the inscription
