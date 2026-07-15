@@ -331,22 +331,59 @@ export class OneSatServices implements WalletServices {
 						status: 'success',
 						txidResults: [{ txid: status.txid || txid, status: 'success' }],
 					})
+				} else if (status.txStatus === 'REJECTED') {
+					// Definitive verdict: the network validated and refused this tx.
+					// An unflagged error aggregates to invalidTx, failing the tx.
+					results.push({
+						name: '1sat-api',
+						status: 'error',
+						error: new WalletError(
+							status.txStatus,
+							status.extraInfo || `Broadcast rejected: ${status.txStatus}`,
+						),
+						txidResults: [{ txid, status: 'error', data: status }],
+					})
+				} else if (status.txStatus === 'DOUBLE_SPEND_ATTEMPTED') {
+					// doubleSpend routes into the monitor's double-spend review,
+					// which re-checks the chain and unfails false positives.
+					results.push({
+						name: '1sat-api',
+						status: 'error',
+						error: new WalletError(
+							status.txStatus,
+							status.extraInfo || `Broadcast failed: ${status.txStatus}`,
+						),
+						txidResults: [
+							{
+								txid,
+								status: 'error',
+								doubleSpend: true,
+								competingTxs: status.competingTxs,
+								data: status,
+							},
+						],
+					})
 				} else {
-					// Anything else (REJECTED, DOUBLE_SPEND_ATTEMPTED, SERVICE_ERROR,
-					// SEEN_IN_ORPHAN_MEMPOOL, UNKNOWN, typo'd statuses) is a failure —
-					// do not silently claim success.
+					// No final accepted/rejected verdict (broadcast window timed out,
+					// SEEN_IN_ORPHAN_MEMPOOL, empty/unknown status). serviceError keeps
+					// the req in 'sending' for retry instead of failing a tx that may
+					// still be accepted.
 					results.push({
 						name: '1sat-api',
 						status: 'error',
 						error: new WalletError(
 							status.txStatus || 'UNKNOWN',
-							status.extraInfo || `Broadcast failed: ${status.txStatus}`,
+							status.extraInfo || `No broadcast verdict: ${status.txStatus}`,
 						),
-						txidResults: [{ txid, status: 'error', data: status }],
+						txidResults: [
+							{ txid, status: 'error', serviceError: true, data: status },
+						],
 					})
 				}
 			} catch (error) {
 				console.error('[OneSatServices] postBeef error:', error)
+				// The service was unreachable or errored — says nothing about the
+				// validity of the tx, so retry rather than fail it.
 				results.push({
 					name: '1sat-api',
 					status: 'error',
@@ -354,7 +391,7 @@ export class OneSatServices implements WalletServices {
 						'NETWORK_ERROR',
 						error instanceof Error ? error.message : 'Unknown error',
 					),
-					txidResults: [{ txid, status: 'error' }],
+					txidResults: [{ txid, status: 'error', serviceError: true }],
 				})
 			}
 		}
