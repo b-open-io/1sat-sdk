@@ -8,6 +8,7 @@ import { Inscription, MAP as MAPTemplate } from '@1sat/templates'
 import type { Destination } from '@1sat/types'
 import {
 	Beef,
+	Hash,
 	type LockingScript,
 	P2PKH,
 	PublicKey,
@@ -70,6 +71,11 @@ export interface InscribeResponse {
 	txids?: string[]
 	/** True when content was written as an OrdFS multi-tx stream */
 	streamed?: boolean
+	/**
+	 * SHA-256 hex of the full content body when streaming. Also applied as
+	 * output tag `stream:<hash>` on each chunk for wallet record-keeping.
+	 */
+	contentHash?: string
 	/**
 	 * When a stream fails after one or more noSend txs were created, the
 	 * origin/chunk txids completed so far (not broadcast as a batch).
@@ -260,18 +266,24 @@ async function inscribeStream(
 	const allNoSendChange: string[] = []
 	let accumulatedBEEF: number[] | undefined
 
+	// Full-content hash for wallet tags / caller bookkeeping (not a resume API).
+	const contentHash = Utils.toHex(Hash.sha256(Array.from(content)))
+	const streamJobTag = `stream:${contentHash}`
+
 	const fail = (error: string): InscribeResponse => ({
 		error,
+		contentHash,
 		partialTxids: txids.length > 0 ? [...txids] : undefined,
 		// Incomplete chains stay noSend — not batch-broadcast.
 		streamed: true,
 	})
 
 	const originContentType = `${input.contentType}; ${ORDFS_STREAM_PARAM}`
-	const originTags = [`type:${input.contentType}`, 'origin', 'stream']
-	if (input.map?.name) {
-		originTags.push(`name:${input.map.name}`)
-	}
+	const streamTags = (index: number, extra: string[] = []) => [
+		...extra,
+		streamJobTag,
+		`stream-i:${index}`,
+	]
 
 	// One chunk: normal broadcast with stream origin content-type (no noSend chain).
 	if (totalChunks === 1) {
@@ -281,6 +293,11 @@ async function inscribeStream(
 			originContentType,
 			input.map,
 		)
+		const originTags = streamTags(0, [
+			`type:${input.contentType}`,
+			'origin',
+			...(input.map?.name ? [`name:${input.map.name}`] : []),
+		])
 		try {
 			const result = await executeTrackedAction(ctx.wallet, {
 				description: 'Stream origin inscription',
@@ -300,18 +317,20 @@ async function inscribeStream(
 				},
 			})
 			if (!result.txid) {
-				return { error: 'origin-no-txid', streamed: true }
+				return { error: 'origin-no-txid', streamed: true, contentHash }
 			}
 			return {
 				txid: result.txid,
 				tx: result.tx,
 				txids: [result.txid],
 				streamed: true,
+				contentHash,
 			}
 		} catch (e) {
 			return {
 				error: e instanceof Error ? e.message : 'stream-origin-failed',
 				streamed: true,
+				contentHash,
 			}
 		}
 	}
@@ -324,6 +343,12 @@ async function inscribeStream(
 		input.map,
 	)
 
+	const multiOriginTags = streamTags(0, [
+		`type:${input.contentType}`,
+		'origin',
+		...(input.map?.name ? [`name:${input.map.name}`] : []),
+	])
+
 	let originResult: Awaited<ReturnType<typeof executeTrackedAction>>
 	try {
 		originResult = await executeTrackedAction(ctx.wallet, {
@@ -334,7 +359,7 @@ async function inscribeStream(
 					satoshis: 1,
 					outputDescription: 'Stream origin',
 					basket: ORDINALS_BASKET,
-					tags: originTags,
+					tags: multiOriginTags,
 					customInstructions,
 				},
 			],
@@ -388,7 +413,9 @@ async function inscribeStream(
 							satoshis: 1,
 							outputDescription: `Stream chunk ${i}`,
 							basket: ORDINALS_BASKET,
-							tags: [`type:${ORDFS_STREAM_CONTENT_TYPE}`, 'stream'],
+							tags: streamTags(i, [
+								`type:${ORDFS_STREAM_CONTENT_TYPE}`,
+							]),
 							customInstructions,
 						},
 					],
@@ -466,6 +493,7 @@ async function inscribeStream(
 		tx: accumulatedBEEF,
 		txids,
 		streamed: true,
+		contentHash,
 	}
 }
 
