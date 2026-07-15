@@ -24,19 +24,14 @@ export function splitStreamChunks(
 }
 
 /**
- * Whether inscribe should use an OrdFS stream chain.
- * - Explicit streamChunkSize: stream when content does not fit in one chunk.
- * - Default: stream when content exceeds the single-tx soft cap.
+ * Explicit stream opt-in: `stream: true` and/or a positive `streamChunkSize`.
+ * Never auto-streams from content size alone.
  */
-export function shouldStreamInscription(
-	contentLength: number,
-	opts: {
-		streamChunkSize?: number
-		maxSingleBytes: number
-	},
-): boolean {
-	if (opts.streamChunkSize !== undefined) {
-		return contentLength > opts.streamChunkSize
-	}
-	return contentLength > opts.maxSingleBytes
+export function wantsStreamInscription(opts: {
+	stream?: boolean
+	streamChunkSize?: number
+}): boolean {
+	if (opts.stream === true) return true
+	if (opts.streamChunkSize !== undefined) return true
+	return false
 }

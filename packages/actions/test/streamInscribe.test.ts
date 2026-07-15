@@ -6,8 +6,8 @@ import {
 	ORDFS_STREAM_PARAM,
 } from '../src/constants'
 import {
-	shouldStreamInscription,
 	splitStreamChunks,
+	wantsStreamInscription,
 } from '../src/inscriptions/stream'
 
 describe('splitStreamChunks', () => {
@@ -35,42 +35,26 @@ describe('splitStreamChunks', () => {
 	})
 })
 
-describe('shouldStreamInscription', () => {
-	it('auto-streams above the single-tx soft cap', () => {
-		expect(
-			shouldStreamInscription(MAX_INSCRIPTION_BYTES + 1, {
-				maxSingleBytes: MAX_INSCRIPTION_BYTES,
-			}),
-		).toBe(true)
-		expect(
-			shouldStreamInscription(MAX_INSCRIPTION_BYTES, {
-				maxSingleBytes: MAX_INSCRIPTION_BYTES,
-			}),
-		).toBe(false)
+describe('wantsStreamInscription', () => {
+	it('is false by default (no auto-stream)', () => {
+		expect(wantsStreamInscription({})).toBe(false)
+		expect(wantsStreamInscription({ stream: false })).toBe(false)
 	})
 
-	it('uses explicit streamChunkSize as the fit threshold', () => {
-		expect(
-			shouldStreamInscription(500, {
-				streamChunkSize: 400,
-				maxSingleBytes: MAX_INSCRIPTION_BYTES,
-			}),
-		).toBe(true)
-		expect(
-			shouldStreamInscription(300, {
-				streamChunkSize: 400,
-				maxSingleBytes: MAX_INSCRIPTION_BYTES,
-			}),
-		).toBe(false)
+	it('opts in with stream: true', () => {
+		expect(wantsStreamInscription({ stream: true })).toBe(true)
+	})
+
+	it('opts in when streamChunkSize is set', () => {
+		expect(wantsStreamInscription({ streamChunkSize: 1024 })).toBe(true)
 	})
 })
 
 describe('OrdFS stream constants', () => {
-	it('matches the documented content-type markers', () => {
+	it('matches the documented markers and defaults', () => {
 		expect(ORDFS_STREAM_CONTENT_TYPE).toBe('ordfs/stream')
 		expect(ORDFS_STREAM_PARAM).toBe('stream=ordfs')
 		expect(DEFAULT_STREAM_CHUNK_SIZE).toBe(1024 * 1024)
-		// Auto-stream aligns with single-tx soft cap (no dead zone).
 		expect(MAX_INSCRIPTION_BYTES).toBe(50 * 1024 * 1024)
 	})
 })

@@ -31,7 +31,7 @@ import {
 	resolveDestination,
 } from '../utils/resolveDestination'
 import { signP2PKHInput } from '../utils/signP2PKH'
-import { shouldStreamInscription, splitStreamChunks } from './stream'
+import { splitStreamChunks, wantsStreamInscription } from './stream'
 
 // ============================================================================
 // Types
@@ -49,10 +49,14 @@ export interface InscribeRequest extends ActionOptions {
 	/** Where to lock the inscription output. Defaults to self. */
 	destination?: Destination
 	/**
-	 * Body size (bytes) for each OrdFS stream chunk when streaming.
-	 * When set, content larger than this size is inscribed as a stream chain.
-	 * When omitted, streaming starts only if content exceeds
-	 * {@link MAX_INSCRIPTION_BYTES}, using {@link DEFAULT_STREAM_CHUNK_SIZE}.
+	 * Opt into OrdFS multi-tx streaming with the default chunk size
+	 * ({@link DEFAULT_STREAM_CHUNK_SIZE}, 1 MiB). Prefer this for large files.
+	 */
+	stream?: boolean
+	/**
+	 * Opt into OrdFS streaming with this body size (bytes) per chunk.
+	 * Implies streaming even if `stream` is omitted. Overrides the default
+	 * chunk size when `stream` is also true.
 	 */
 	streamChunkSize?: number
 }
@@ -472,15 +476,15 @@ async function inscribeStream(
 /**
  * Create an inscription.
  *
- * Content larger than {@link MAX_INSCRIPTION_BYTES} is automatically inscribed
- * as an OrdFS stream chain (see protocol docs). Pass `streamChunkSize` to
- * control chunk size or to force streaming when content exceeds that size.
+ * Single-tx by default (up to {@link MAX_INSCRIPTION_BYTES}). For larger
+ * content or multi-tx OrdFS streams, pass `stream: true` (1 MiB chunks) or
+ * `streamChunkSize`.
  */
 export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 	meta: {
 		name: 'inscribe',
 		description:
-			'Create a new inscription (single tx or OrdFS multi-tx stream for large content)',
+			'Create a new inscription (single tx, or OrdFS multi-tx stream when stream/streamChunkSize is set)',
 		category: 'inscriptions',
 		inputSchema: {
 			type: 'object',
@@ -507,10 +511,15 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 					description:
 						'Where to lock the inscription output. One of lockingScript (hex), counterparty (pubkey), or address. Defaults to self. Streams require a wallet-derived destination (not a bare address).',
 				},
+				stream: {
+					type: 'boolean',
+					description:
+						'Opt into OrdFS multi-tx streaming with the default 1 MiB chunk size',
+				},
 				streamChunkSize: {
 					type: 'integer',
 					description:
-						'OrdFS stream chunk body size in bytes. When set, content larger than this is streamed in chunks of this size. When omitted, content above MAX_INSCRIPTION_BYTES is streamed using DEFAULT_STREAM_CHUNK_SIZE.',
+						'Opt into OrdFS streaming with this chunk body size in bytes (implies stream)',
 				},
 			},
 			required: ['base64Content', 'contentType'],
@@ -530,15 +539,21 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 				return { error: 'invalid-stream-chunk-size' }
 			}
 
-			const needsStreaming = shouldStreamInscription(content.length, {
+			const wantsStream = wantsStreamInscription({
+				stream: input.stream,
 				streamChunkSize: input.streamChunkSize,
-				maxSingleBytes: MAX_INSCRIPTION_BYTES,
 			})
 
-			if (needsStreaming && input.signWithBAP) {
+			if (!wantsStream && content.length > MAX_INSCRIPTION_BYTES) {
+				return {
+					error: `Inscription data too large: ${content.length} bytes (max ${MAX_INSCRIPTION_BYTES} without streaming). Pass stream: true (1 MiB chunks) or streamChunkSize.`,
+				}
+			}
+
+			if (wantsStream && input.signWithBAP) {
 				return { error: 'streaming-with-sigma-not-supported' }
 			}
-			if (needsStreaming && input.fundingProvider) {
+			if (wantsStream && input.fundingProvider) {
 				return { error: 'streaming-with-funding-provider-not-supported' }
 			}
 
@@ -558,7 +573,7 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 					})
 				: undefined
 
-			if (needsStreaming) {
+			if (wantsStream) {
 				const effectiveChunkSize =
 					input.streamChunkSize ?? DEFAULT_STREAM_CHUNK_SIZE
 				return await inscribeStream(
