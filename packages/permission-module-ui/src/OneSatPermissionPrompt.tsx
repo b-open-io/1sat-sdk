@@ -1,7 +1,12 @@
 'use client'
 
 import type { PromptRequest } from '@1sat/permission-module'
-import { BSV21_BASKET, LOCK_BASKET, ORDINALS_BASKET } from '@1sat/types'
+import {
+	BSV21_BASKET,
+	LOCK_BASKET,
+	OPNS_BASKET,
+	ORDINALS_BASKET,
+} from '@1sat/types'
 import { useEffect, useState } from 'react'
 import { promptStyles } from './styles'
 
@@ -98,7 +103,11 @@ export function OneSatPermissionPrompt({
 			<style>{promptStyles}</style>
 
 			<div className="opp-body">
-				<svg className="opp-coin" viewBox="0 0 100 100" aria-label="1Sat Ordinals">
+				<svg
+					className="opp-coin"
+					viewBox="0 0 100 100"
+					aria-label="1Sat Ordinals"
+				>
 					<circle cx="50" cy="50" r="50" fill="#222" />
 					<circle cx="50" cy="50" r="40" fill="#fff" />
 					<circle cx="50" cy="50" r="32" fill="#E5A920" />
@@ -143,7 +152,8 @@ export function OneSatPermissionPrompt({
 					<div className="opp-meta">
 						{summary.network && (
 							<span>
-								Network <span className="opp-meta-value">{summary.network}</span>
+								Network{' '}
+								<span className="opp-meta-value">{summary.network}</span>
 							</span>
 						)}
 						{summary.feeSats !== undefined && (
@@ -233,6 +243,8 @@ function summarizeRequest(req: PromptRequest): IntentSummary {
 				return summarizePurchase(req, intent)
 			case 'social-post':
 				return summarizeSocialPost(req, intent)
+			case 'opns':
+				return summarizeOpns(req, intent)
 			default:
 				return summarizeUnknownTx(req, intent)
 		}
@@ -359,7 +371,9 @@ function summarizeTokenTransfer(
 	for (const [tokenId, info] of totals) {
 		rows.push({
 			key: 'Token',
-			value: info.sym ? `${info.sym} — ${shortenId(tokenId)}` : shortenId(tokenId),
+			value: info.sym
+				? `${info.sym} — ${shortenId(tokenId)}`
+				: shortenId(tokenId),
 		})
 		const sent = info.inAmt - info.changeAmt
 		rows.push({ key: 'Amount', value: sent.toString() })
@@ -440,26 +454,32 @@ function summarizeListing(
 	req: PromptRequest,
 	intent: TransactionIntent,
 ): IntentSummary {
-	const ordinal = intent.inputs[0]
-	const origin = tagValue(ordinal?.tags, 'origin')
-	const name = tagValue(ordinal?.tags, 'name')
-	const contentType = tagValue(ordinal?.tags, 'type')
-	const collectionId = tagValue(ordinal?.tags, 'collectionId')
-	const imageUrl = origin ? intent.contentUrls?.[origin] : undefined
-
+	// Prefer the enriched input asset; the listing output carries the same
+	// name/origin/type tags when no input label resolved.
 	const listingOutput = intent.outputs.find((o) =>
 		o.tags.some((t) => t.startsWith('price:')),
 	)
+	const ordinal = intent.inputs[0]
+	const origin =
+		tagValue(ordinal?.tags, 'origin') ?? tagValue(listingOutput?.tags, 'origin')
+	const name =
+		tagValue(ordinal?.tags, 'name') ?? tagValue(listingOutput?.tags, 'name')
+	const contentType =
+		tagValue(ordinal?.tags, 'type') ?? tagValue(listingOutput?.tags, 'type')
+	const collectionId = tagValue(ordinal?.tags, 'collectionId')
+	const imageUrl = origin ? intent.contentUrls?.[origin] : undefined
+
 	const price = tagValue(listingOutput?.tags, 'price')
 
 	const rows: DetailRow[] = []
+	if (name) rows.push({ key: 'Name', value: name })
 	if (price) rows.push({ key: 'Price', value: `${price} sats` })
 	if (origin) rows.push({ key: 'Origin', value: shortenValue(origin) })
 	if (contentType) rows.push({ key: 'Type', value: contentType })
 
 	return {
 		title: 'List Ordinal for Sale',
-		subtitle: `${shortenOriginator(req.originator)} wants to list an ordinal for sale`,
+		subtitle: `${shortenOriginator(req.originator)} wants to list ${name ? `“${name}”` : 'an ordinal'} for sale`,
 		rows,
 		featured: imageUrl
 			? {
@@ -476,22 +496,29 @@ function summarizeCancelListing(
 	req: PromptRequest,
 	intent: TransactionIntent,
 ): IntentSummary {
+	// Prefer the enriched listing input; the reclaimed output carries the
+	// same name/origin/type tags when no input label resolved.
 	const listing = intent.inputs[0]
-	const origin = tagValue(listing?.tags, 'origin')
-	const name = tagValue(listing?.tags, 'name')
-	const contentType = tagValue(listing?.tags, 'type')
+	const reclaimed = intent.outputs[0]
+	const origin =
+		tagValue(listing?.tags, 'origin') ?? tagValue(reclaimed?.tags, 'origin')
+	const name =
+		tagValue(listing?.tags, 'name') ?? tagValue(reclaimed?.tags, 'name')
+	const contentType =
+		tagValue(listing?.tags, 'type') ?? tagValue(reclaimed?.tags, 'type')
 	const collectionId = tagValue(listing?.tags, 'collectionId')
 	const price = tagValue(listing?.tags, 'price')
 	const imageUrl = origin ? intent.contentUrls?.[origin] : undefined
 
 	const rows: DetailRow[] = []
+	if (name) rows.push({ key: 'Name', value: name })
 	if (price) rows.push({ key: 'Original price', value: `${price} sats` })
 	if (origin) rows.push({ key: 'Origin', value: shortenValue(origin) })
 	if (contentType) rows.push({ key: 'Type', value: contentType })
 
 	return {
 		title: 'Cancel Listing',
-		subtitle: `${shortenOriginator(req.originator)} wants to cancel an ordinal listing`,
+		subtitle: `${shortenOriginator(req.originator)} wants to cancel ${name ? `the listing of “${name}”` : 'an ordinal listing'}`,
 		rows,
 		featured: imageUrl
 			? {
@@ -534,7 +561,10 @@ function summarizePurchase(
 		if (sym || tokenId) {
 			rows.push({
 				key: 'Token',
-				value: sym && tokenId ? `${sym} — ${shortenId(tokenId)}` : sym ?? shortenId(tokenId ?? ''),
+				value:
+					sym && tokenId
+						? `${sym} — ${shortenId(tokenId)}`
+						: (sym ?? shortenId(tokenId ?? '')),
 			})
 		}
 	} else {
@@ -571,6 +601,38 @@ function summarizeSocialPost(
 		title: 'Social Post',
 		subtitle: `${shortenOriginator(req.originator)} wants to publish a post`,
 		rows: [],
+		network: networkLabel(intent.chain),
+	}
+}
+
+function summarizeOpns(
+	req: PromptRequest,
+	intent: TransactionIntent,
+): IntentSummary {
+	// Register/deregister keep the name in the opns basket; a transfer sends
+	// it to an external recipient with no basketed output.
+	const input = intent.inputs[0]
+	const opnsOutput = intent.outputs.find((o) => o.basket === OPNS_BASKET)
+	const recipient = intent.outputs.find(
+		(o) => !o.basket && o.recipient,
+	)?.recipient
+	const name =
+		tagValue(input?.tags, 'name') ?? tagValue(opnsOutput?.tags, 'name')
+	const origin =
+		tagValue(input?.tags, 'origin') ?? tagValue(opnsOutput?.tags, 'origin')
+
+	const rows: DetailRow[] = []
+	if (name) rows.push({ key: 'Name', value: name })
+	if (recipient) rows.push({ key: 'Recipient', value: shortenValue(recipient) })
+	if (origin) rows.push({ key: 'Origin', value: shortenValue(origin) })
+
+	const isTransfer = Boolean(recipient)
+	return {
+		title: isTransfer ? 'Transfer OpNS Name' : 'Update OpNS Name',
+		subtitle: `${shortenOriginator(req.originator)} wants to ${
+			isTransfer ? 'transfer' : 'update'
+		} ${name ? `“${name}”` : 'an OpNS name'}`,
+		rows,
 		network: networkLabel(intent.chain),
 	}
 }

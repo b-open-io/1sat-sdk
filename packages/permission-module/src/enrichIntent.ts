@@ -111,9 +111,11 @@ export async function enrichIntent(
 	const labels = args.labels ?? []
 
 	const inputRefs = parseAssetLabels(labels, P1SAT_INPUT_LABEL_PREFIX)
-	const inputs = (await Promise.all(
-		inputRefs.map((ref) => lookupAsset(wallet, ref.basket, ref.id)),
-	)).filter((a): a is EnrichedAsset => a !== null)
+	const inputs = (
+		await Promise.all(
+			inputRefs.map((ref) => lookupAsset(wallet, ref.basket, ref.id)),
+		)
+	).filter((a): a is EnrichedAsset => a !== null)
 
 	const outputs = (args.outputs ?? []).map((out, i) =>
 		decodeOutput(out, i, chain),
@@ -186,9 +188,9 @@ async function lookupAsset(
 			outpoint: match.outpoint,
 			satoshis: match.satoshis,
 			tags: match.tags ?? [],
-			customInstructions:
-				(match as WalletOutput & { customInstructions?: string })
-					.customInstructions,
+			customInstructions: (
+				match as WalletOutput & { customInstructions?: string }
+			).customInstructions,
 		}
 	} catch {
 		return null
@@ -236,39 +238,42 @@ function decodeOutput(
 // Intent classification — driven by input asset basket membership.
 // ---------------------------------------------------------------------------
 
+function hasListingTags(tags: string[]): boolean {
+	return tags.some((t) => t === 'ordlock' || t.startsWith('price:'))
+}
+
 function detectKind(
 	inputs: EnrichedAsset[],
 	outputs: EnrichedOutput[],
 ): EnrichedIntentKind {
 	// Cancel listing: spending an ordlock-tagged input back to a P2PKH owner.
-	if (
-		inputs.some(
-			(i) =>
-				i.basket === ORDINALS_BASKET &&
-				i.tags.some((t) => t === 'ordlock' || t.startsWith('price:')),
-		)
-	) {
+	// Listings live in the basket of the listed asset (ordinals, opns, …),
+	// so the ordlock/price tags are the marker, not the basket.
+	if (inputs.some((i) => hasListingTags(i.tags))) {
 		return 'cancel-listing'
 	}
 
-	// New listing: ordinal input + output carrying the ordlock/price tags.
+	// New listing: output carrying the ordlock/price tags into an asset basket.
 	if (
 		outputs.some(
 			(o) =>
-				o.basket === ORDINALS_BASKET &&
-				o.tags.some((t) => t === 'ordlock' || t.startsWith('price:')),
+				o.basket && ASSET_BASKETS.includes(o.basket) && hasListingTags(o.tags),
 		)
 	) {
 		return 'listing'
 	}
 
-	if (inputs.some((i) => i.basket === ORDINALS_BASKET)) return 'ordinal-transfer'
+	if (inputs.some((i) => i.basket === ORDINALS_BASKET))
+		return 'ordinal-transfer'
 	if (inputs.some((i) => i.basket === BSV21_BASKET)) return 'token-transfer'
 	if (inputs.some((i) => i.basket === LOCK_BASKET)) return 'unlock'
 	if (inputs.some((i) => i.basket === OPNS_BASKET)) return 'opns'
 
 	if (outputs.some((o) => o.basket === LOCK_BASKET)) return 'lock'
 	if (outputs.some((o) => o.basket === BSOCIAL_BASKET)) return 'social-post'
+	// OpNS self-transfers (register/deregister) when the input label didn't
+	// resolve — the output still lands in the opns basket.
+	if (outputs.some((o) => o.basket === OPNS_BASKET)) return 'opns'
 
 	// Purchase: an asset is landing in our basket AND there's a non-trivial
 	// payment going to an unbasketed recipient (the seller). No labeled
@@ -299,12 +304,16 @@ function buildSummary(
 			const recipient = outputs.find((o) => o.recipient)?.recipient
 			const name = tagValue(inputs[0]?.tags, 'name')
 			const what = name ? `“${name}”` : 'an ordinal'
-			return recipient ? `Send ${what} to ${truncate(recipient, 18)}` : `Send ${what}`
+			return recipient
+				? `Send ${what} to ${truncate(recipient, 18)}`
+				: `Send ${what}`
 		}
 		case 'token-transfer': {
 			const sym = tagValue(inputs[0]?.tags, 'sym') ?? 'tokens'
 			const recipient = outputs.find((o) => o.recipient)?.recipient
-			return recipient ? `Send ${sym} to ${truncate(recipient, 18)}` : `Send ${sym}`
+			return recipient
+				? `Send ${sym} to ${truncate(recipient, 18)}`
+				: `Send ${sym}`
 		}
 		case 'lock':
 			return `Lock funds`
@@ -319,7 +328,10 @@ function buildSummary(
 				o.tags.some((t) => t.startsWith('price:')),
 			)
 			const price = tagValue(out?.tags, 'price')
-			const name = tagValue(inputs[0]?.tags, 'name')
+			// The listing output carries name/origin tags too — fall back to
+			// them when no input label resolved.
+			const name =
+				tagValue(inputs[0]?.tags, 'name') ?? tagValue(out?.tags, 'name')
 			const what = name ? `“${name}”` : 'an ordinal'
 			return price ? `List ${what} for ${price} sats` : `List ${what} for sale`
 		}
@@ -330,8 +342,12 @@ function buildSummary(
 		}
 		case 'social-post':
 			return `Create social post`
-		case 'opns':
-			return `OpNS operation`
+		case 'opns': {
+			const name =
+				tagValue(inputs[0]?.tags, 'name') ??
+				tagValue(outputs.find((o) => o.basket === OPNS_BASKET)?.tags, 'name')
+			return name ? `Update OpNS name “${name}”` : 'OpNS operation'
+		}
 		default:
 			return `Approve transaction`
 	}
