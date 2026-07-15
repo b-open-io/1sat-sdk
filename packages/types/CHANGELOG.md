@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.34] - 2026-07-15
+
+### Added
+- OrdFS stream constants: `DEFAULT_STREAM_CHUNK_SIZE`, `ORDFS_STREAM_CONTENT_TYPE`, `ORDFS_STREAM_PARAM`.
+
+### Changed
+- `MAX_INSCRIPTION_BYTES` raised to 50 MiB (single-tx non-stream cap).
+
 ## [0.0.30] - 2026-05-15
 
 ### Added

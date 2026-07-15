@@ -6,6 +6,9 @@
  * Pure Bun CLI with manual arg parsing. No frameworks.
  */
 
+import { existsSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { config as loadEnv } from 'dotenv'
 import { parseGlobalFlags } from './args'
 import { handleActionCommand } from './commands/action'
 import { handleConfigCommand } from './commands/config'
@@ -27,8 +30,25 @@ import { formatError } from './output'
 
 const rawArgs = process.argv.slice(2)
 
+/** Load `--env-file` paths into process.env. File values win over existing env. */
+function applyEnvFiles(paths: string[]): void {
+	for (const p of paths) {
+		const abs = resolve(p)
+		if (!existsSync(abs)) {
+			throw new Error(`Env file not found: ${p}`)
+		}
+		const result = loadEnv({ path: abs, quiet: true, override: true })
+		if (result.error) {
+			throw result.error
+		}
+	}
+}
+
 async function main(): Promise<void> {
 	const flags = parseGlobalFlags(rawArgs)
+	if (flags.envFiles.length > 0) {
+		applyEnvFiles(flags.envFiles)
+	}
 
 	if (flags.version) {
 		printVersion()

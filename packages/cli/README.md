@@ -72,6 +72,12 @@ export PRIVATE_KEY_WIF="<your WIF key>"
 1sat wallet balance
 ```
 
+**Env file** (same keys as above; file values override the process environment for this run):
+
+```bash
+1sat --env-file mint.env wallet balance
+```
+
 **Encrypted keyfile (interactive use):**
 
 ```bash

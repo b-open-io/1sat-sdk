@@ -9,6 +9,8 @@ export interface GlobalFlags {
 	quiet: boolean
 	yes: boolean
 	chain: 'main' | 'test'
+	/** Paths from `--env-file` / `--env-file=path` (may be empty). */
+	envFiles: string[]
 	help: boolean
 	version: boolean
 	rest: string[]
@@ -24,6 +26,7 @@ export function parseGlobalFlags(args: string[]): GlobalFlags {
 	let chain: 'main' | 'test' = 'main'
 	let help = false
 	let version = false
+	const envFiles: string[] = []
 	const rest: string[] = []
 	const skip = new Set<number>()
 
@@ -56,6 +59,15 @@ export function parseGlobalFlags(args: string[]): GlobalFlags {
 				}
 				break
 			}
+			case '--env-file': {
+				const value = args[i + 1]
+				if (!value || value.startsWith('-')) {
+					throw new Error('--env-file requires a path')
+				}
+				envFiles.push(value)
+				skip.add(i + 1)
+				break
+			}
 			case '--help':
 			case '-h':
 				help = true
@@ -65,11 +77,19 @@ export function parseGlobalFlags(args: string[]): GlobalFlags {
 				version = true
 				break
 			default:
-				rest.push(arg)
+				if (arg.startsWith('--env-file=')) {
+					const value = arg.slice('--env-file='.length)
+					if (!value) {
+						throw new Error('--env-file requires a path')
+					}
+					envFiles.push(value)
+				} else {
+					rest.push(arg)
+				}
 		}
 	}
 
-	return { json, quiet, yes, chain, help, version, rest }
+	return { json, quiet, yes, chain, envFiles, help, version, rest }
 }
 
 /**

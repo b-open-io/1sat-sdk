@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.77
+
+### Added
+- Global `--env-file <path>` (and `--env-file=path`) loads env vars for the run; file values override existing env. Repeatable.
+
 ## 0.0.70
 
 ### Fixed

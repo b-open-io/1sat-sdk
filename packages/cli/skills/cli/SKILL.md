@@ -85,6 +85,9 @@ Keys can be provided in three ways:
 # Using env var
 PRIVATE_KEY_WIF=L1abc... bunx @1sat/cli wallet balance
 
+# Using an env file (file values override existing env for this run)
+bunx @1sat/cli --env-file mint.env wallet balance
+
 # Using encrypted keystore (created by init)
 bunx @1sat/cli init
 bunx @1sat/cli wallet balance

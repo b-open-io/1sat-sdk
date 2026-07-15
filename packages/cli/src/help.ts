@@ -62,6 +62,12 @@ export const GLOBAL_OPTIONS: ArgSpec[] = [
 		values: '<main|test>',
 		description: 'Network (default: main)',
 	},
+	{
+		flag: '--env-file',
+		values: '<path>',
+		description:
+			'Load env vars from a file (repeatable; file values override existing env)',
+	},
 	{ flag: '--help', description: 'Show help (also -h)' },
 	{ flag: '--version', description: 'Show version (also -v)' },
 ]

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.184
+
+### Added
+- OrdFS multi-tx stream inscription path (`stream` / `streamChunkSize` on inscribe).
+- Stream and inscription outputs tagged with content hash (`sha256:<hash>`).
+
+### Changed
+- Single-tx inscription cap follows `@1sat/types` `MAX_INSCRIPTION_BYTES` (50 MiB); larger content requires stream opt-in.
+
 ## 0.0.160
 
 ### Changed
