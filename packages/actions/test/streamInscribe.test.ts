@@ -71,6 +71,6 @@ describe('OrdFS stream constants', () => {
 		expect(ORDFS_STREAM_PARAM).toBe('stream=ordfs')
 		expect(DEFAULT_STREAM_CHUNK_SIZE).toBe(1024 * 1024)
 		// Auto-stream aligns with single-tx soft cap (no dead zone).
-		expect(MAX_INSCRIPTION_BYTES).toBe(100_000)
+		expect(MAX_INSCRIPTION_BYTES).toBe(50 * 1024 * 1024)
 	})
 })

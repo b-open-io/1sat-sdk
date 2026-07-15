@@ -302,10 +302,10 @@ export interface AddressDerivation {
 // ============================================================================
 
 /**
- * Soft cap for a **single-transaction** inscription on the non-stream path.
- * Larger content is split into an OrdFS stream chain (see DEFAULT_STREAM_CHUNK_SIZE).
+ * Maximum content body size (bytes) for a single-transaction inscription
+ * (non-stream path). Above this, callers must opt into OrdFS streaming.
  */
-export const MAX_INSCRIPTION_BYTES = 100_000
+export const MAX_INSCRIPTION_BYTES = 50 * 1024 * 1024
 export const EXCHANGE_RATE_CACHE_TTL = 5 * 60 * 1000
 
 // ============================================================================
@@ -314,8 +314,7 @@ export const EXCHANGE_RATE_CACHE_TTL = 5 * 60 * 1000
 
 /**
  * Default size of each stream chunk body (bytes), not including script overhead.
- * 1 MiB keeps transaction count manageable for multi‑MB files while staying
- * well under typical BSV practical script/tx sizes. Override via streamChunkSize.
+ * 1 MiB balances tx count vs size. Override via streamChunkSize when streaming.
  */
 export const DEFAULT_STREAM_CHUNK_SIZE = 1024 * 1024
 /** Content type for stream chunks after the origin */
