@@ -19,9 +19,24 @@
  *
  * This module computes the layout only. It does not build scripts, derive
  * keys, or create inscriptions — see `buildOrdFsDirOutputs` for that.
+ *
+ * Nesting is bounded by the ordfs server's own traversal limit: 1sat-stack's
+ * `resolveDirectoryPath` (pkg/ordfs/routes.go) recurses into a child manifest
+ * one path segment at a time and rejects requests past `maxDirectoryDepth`
+ * (8). {@link MAX_ORDFS_DIRECTORY_DEPTH} mirrors that limit so a too-deep
+ * tree fails here, at build time, instead of producing a manifest tree the
+ * server will refuse to resolve.
  */
 
 import { MANIFEST_CONTENT_TYPE } from '../registry/constants'
+
+/**
+ * Maximum number of directory levels a file path may nest under, mirroring
+ * 1sat-stack's `maxDirectoryDepth` (pkg/ordfs/routes.go). A path with more
+ * directory segments than this would require more manifest hops than the
+ * ordfs server's `resolveDirectoryPath` will traverse.
+ */
+export const MAX_ORDFS_DIRECTORY_DEPTH = 8
 
 /**
  * A subdirectory manifest in the ord-fs tree — one per directory at any depth.
@@ -119,6 +134,12 @@ export function buildOrdfsDirManifest(
 
 	for (const { path, vout } of fileLayout) {
 		const parts = path.split('/')
+		const depth = parts.length - 1 // directory levels above this file
+		if (depth >= MAX_ORDFS_DIRECTORY_DEPTH) {
+			throw new Error(
+				`ord-fs directory path too deep: "${path}" nests ${depth} directory levels; the ordfs server resolves at most ${MAX_ORDFS_DIRECTORY_DEPTH} (see 1sat-stack pkg/ordfs/routes.go maxDirectoryDepth)`,
+			)
+		}
 		let node = rootNode
 		let walked = ''
 		for (let i = 0; i < parts.length - 1; i++) {

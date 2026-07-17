@@ -1,16 +1,37 @@
 /**
- * Builds the inscription outputs for an ord-fs/json directory: one per file,
- * one per subdirectory manifest, and the root manifest last. The root manifest
- * is the directory token and the only output that carries MAP or an AIP
- * signature.
+ * Builds the outputs for an ord-fs/json directory: one per file, one per
+ * subdirectory manifest, and the root manifest last. The root manifest is the
+ * directory's identity and the only output that carries MAP or a signature.
  *
- * Locking is pluggable (an address or a per-vout resolver), so this never
- * touches a raw private key, and MAP is whatever the caller passes. Sigma isn't
- * applied here — it needs the spending input, which only exists in the
- * publishing action (`inscribeOrdfsDir`).
+ * Every output is written in one of two on-chain forms, chosen by
+ * `writeMode` (see {@link OrdfsDirWriteMode}):
+ *   - `'inscription'` — a 1-sat ord envelope, built on the shared
+ *     `Inscription` template. Ownable/transferable/updatable; holds a UTXO.
+ *   - `'b'` — a 0-sat B protocol (bitcom `B://`) output, built on the shared
+ *     `B` template (composed with `MAP` via `BitCom` when metadata is
+ *     supplied, rather than reimplementing multi-protocol script layout).
+ *     Plain on-chain data; nothing is owned or held as a UTXO.
+ *
+ * Locking is pluggable (an address or a per-vout resolver) and only applies
+ * to `'inscription'` outputs — `'b'` outputs are OP_RETURN and provably
+ * unspendable, so there is nothing to lock. MAP is whatever the caller
+ * passes. Signing is deliberately NOT policy-enforced here: this builder
+ * accepts any `aip` signer regardless of `writeMode` (it is the pure, "dumb"
+ * primitive). It's `deployOrdfsDir` (the publishing action) that enforces the
+ * real policy — SIGMA for `'inscription'`, AIP for `'b'` — since SIGMA needs
+ * a spending input that only exists once a transaction is being built.
  */
 
-import { Inscription, MAP } from '@1sat/templates'
+import {
+	B,
+	B_PREFIX,
+	BitCom,
+	Encoding,
+	Inscription,
+	MAP,
+	MAP_PREFIX,
+} from '@1sat/templates'
+import type { Protocol } from '@1sat/templates'
 import { type LockingScript, P2PKH, Script, Utils } from '@bsv/sdk'
 import type { OneSatContext } from '../types'
 import { type OrdfsDirManifest, buildOrdfsDirManifest } from './manifest'
@@ -31,9 +52,22 @@ export interface OrdfsDirFile {
 }
 
 /**
+ * How every output in an ord-fs directory publish is written on-chain.
+ *
+ * - `'inscription'` (default) — a 1-sat ord envelope per output. Ownable,
+ *   transferable, and updatable; holds a UTXO on chain until explicitly
+ *   spent. `locking` controls who can spend it.
+ * - `'b'` — a 0-sat B protocol (bitcom `B://`) output per output. Plain
+ *   on-chain data, not an ordinal: no UTXO is held, nothing is
+ *   ownable/transferable, and `locking` is ignored — OP_RETURN outputs are
+ *   provably unspendable.
+ */
+export type OrdfsDirWriteMode = 'inscription' | 'b'
+
+/**
  * An address applied to every output, or a resolver that returns the locking
  * script per vout. The resolver lets callers vary the lock per output without
- * exposing a raw private key here.
+ * exposing a raw private key here. Only used for `writeMode: 'inscription'`.
  */
 export type OrdfsLocking =
 	| { address: string }
@@ -43,29 +77,38 @@ export type OrdfsLocking =
  * Options for {@link buildOrdFsDirOutputs}.
  */
 export interface BuildOrdFsDirOutputsOptions {
-	/** Locking applied to every output. Required, so the caller controls who can spend them. */
-	locking: OrdfsLocking
 	/**
-	 * MAP fields for the root manifest only, serialized with `MAP.set` and
-	 * appended as a suffix. Written as given — nothing added or rewritten.
+	 * How every output is written on-chain. Defaults to `'inscription'`.
+	 */
+	writeMode?: OrdfsDirWriteMode
+	/**
+	 * Locking applied to every output, so the caller controls who can spend
+	 * them. Required when `writeMode` is `'inscription'`; ignored (and may be
+	 * omitted) for `'b'`, since OP_RETURN outputs hold no UTXO to lock.
+	 */
+	locking?: OrdfsLocking
+	/**
+	 * MAP fields for the root manifest only, composed with the manifest's
+	 * content via the shared `MAP`/`BitCom` templates. Written as given —
+	 * nothing added or rewritten.
 	 */
 	map?: Record<string, string>
 	/**
 	 * AIP signer for the root manifest. Receives the manifest script (with any
-	 * MAP suffix) and returns it with an AIP suffix. AIP signs the OP_RETURN
-	 * data rather than a spent input, so it's replay-able — prefer Sigma (in the
-	 * action) when authorship needs to be tamper-evident.
+	 * MAP suffix) and returns it with an AIP suffix. This builder does not
+	 * tie `aip` to a particular `writeMode` — see the module doc comment for
+	 * why that policy lives in the publishing action instead.
 	 */
 	aip?: (ctx: OneSatContext, manifestScript: Script) => Promise<Script>
 }
 
 /**
- * A single inscription output in an ord-fs directory publish transaction.
+ * A single output in an ord-fs directory publish transaction.
  */
 export interface OrdfsDirOutput {
-	/** Hex-encoded locking script (inscription envelope + any suffix). */
+	/** Hex-encoded locking script (inscription envelope or B protocol, plus any suffix). */
 	lockingScriptHex: string
-	/** Satoshi amount — always 1 for inscriptions. */
+	/** Satoshi amount: 1 for `'inscription'` outputs, 0 for `'b'` outputs. */
 	satoshis: number
 	/** Human-readable description of what this output carries. */
 	description: string
@@ -101,17 +144,106 @@ function lockFor(locking: OrdfsLocking, vout: number): LockingScript {
 }
 
 /**
- * Build the inscription outputs that publish an ord-fs/json directory.
+ * Slice a single-protocol BitCom-locked script (e.g. from `B.lock()`,
+ * `MAP.set()`) down to its bare protocol descriptor — stripping the leading
+ * OP_RETURN and protocol-prefix pushdata chunks — so it can be recomposed
+ * with other protocols into one combined OP_RETURN via {@link BitCom}. This
+ * reuses the same multi-protocol layout `BitCom.lock()` already implements,
+ * rather than hand-assembling pipe-delimited OP_RETURN chunks again.
+ */
+function toProtocol(prefix: string, locked: LockingScript): Protocol {
+	return {
+		protocol: prefix,
+		script: new Script(locked.chunks.slice(2)).toBinary(),
+		pos: 0,
+	}
+}
+
+/**
+ * Build a single output's content script for the given write mode.
+ *
+ * `'inscription'` requires `locking` (there's a UTXO to protect); `'b'` never
+ * touches `locking` (there's nothing to own).
+ */
+function buildLeafScript(
+	writeMode: OrdfsDirWriteMode,
+	content: Uint8Array,
+	contentType: string,
+	locking: OrdfsLocking | undefined,
+	vout: number,
+): Script {
+	if (writeMode === 'b') {
+		return new Script(B.lock(content, contentType, Encoding.Binary).chunks)
+	}
+	if (!locking) {
+		throw new Error(
+			"buildOrdFsDirOutputs: 'locking' is required for writeMode 'inscription' — it controls who can spend the ordinal UTXO",
+		)
+	}
+	const inscription = Inscription.create(content, contentType, {
+		scriptPrefix: lockFor(locking, vout),
+	})
+	return new Script(inscription.lock().chunks)
+}
+
+/**
+ * Build the root manifest's content script, with the optional MAP suffix
+ * composed for the given write mode.
+ *
+ * `'inscription'`: MAP is appended as a scriptSuffix after the ord envelope
+ * (the envelope itself carries no OP_RETURN, so MAP's own is the first and
+ * only one). `'b'`: the manifest's B protocol output already contains an
+ * OP_RETURN, so MAP must be recomposed into the *same* OP_RETURN via
+ * {@link BitCom} — appending a second OP_RETURN-prefixed script would produce
+ * a malformed BitCom multi-protocol layout.
+ */
+function buildManifestScript(
+	writeMode: OrdfsDirWriteMode,
+	manifestBytes: Uint8Array,
+	contentType: string,
+	locking: OrdfsLocking | undefined,
+	vout: number,
+	map?: Record<string, string>,
+): Script {
+	const hasMap = map != null && Object.keys(map).length > 0
+
+	if (writeMode === 'b') {
+		const protocols: Protocol[] = [
+			toProtocol(B_PREFIX, B.lock(manifestBytes, contentType, Encoding.Binary)),
+		]
+		if (hasMap) {
+			protocols.push(
+				toProtocol(MAP_PREFIX, MAP.set(map as Record<string, string>)),
+			)
+		}
+		return new Script(new BitCom(protocols).lock().chunks)
+	}
+
+	if (!locking) {
+		throw new Error(
+			"buildOrdFsDirOutputs: 'locking' is required for writeMode 'inscription' — it controls who can spend the ordinal UTXO",
+		)
+	}
+	const suffix = hasMap ? MAP.set(map as Record<string, string>) : undefined
+	const manifestInscription = Inscription.create(manifestBytes, contentType, {
+		scriptPrefix: lockFor(locking, vout),
+		...(suffix ? { scriptSuffix: suffix } : {}),
+	})
+	return new Script(manifestInscription.lock().chunks)
+}
+
+/**
+ * Build the outputs that publish an ord-fs/json directory.
  *
  * Layout (matching {@link buildOrdfsDirManifest}):
- *   [0..F-1]   one 1-sat inscription per file, in `files` order
- *   [F..F+D-1] one 1-sat inscription per subdirectory manifest
- *   [F+D]      the root manifest inscription (MAP + AIP suffix, if supplied)
+ *   [0..F-1]   one output per file, in `files` order
+ *   [F..F+D-1] one output per subdirectory manifest
+ *   [F+D]      the root manifest output (MAP + AIP suffix, if supplied)
  *
- * @param files - Files to inscribe, in the order their outputs are created.
+ * @param files - Files to publish, in the order their outputs are created.
  *   Paths use `/` for subdirectories (e.g. `"refs/api.md"`).
- * @param opts - Locking strategy plus optional MAP and AIP signer for the root
- *   manifest.
+ * @param opts - Write mode, locking strategy (for `'inscription'`), plus
+ *   optional MAP and AIP signer for the root manifest.
  * @param ctx - Forwarded to the AIP signer; may be omitted when none is given.
  * @returns The outputs, the root manifest's vout and script, and the tree.
  */
@@ -120,65 +252,70 @@ export async function buildOrdFsDirOutputs(
 	opts: BuildOrdFsDirOutputsOptions,
 	ctx?: OneSatContext,
 ): Promise<BuildOrdFsDirOutputsResult> {
+	const writeMode: OrdfsDirWriteMode = opts.writeMode ?? 'inscription'
+	const satoshis = writeMode === 'b' ? 0 : 1
+
 	const tree = buildOrdfsDirManifest(files)
 	const outputs: OrdfsDirOutput[] = []
 
 	// -------------------------------------------------------------------
-	// 1. File inscription outputs (vouts 0..F-1)
+	// 1. File outputs (vouts 0..F-1)
 	// -------------------------------------------------------------------
 	for (let i = 0; i < files.length; i++) {
 		const file = files[i]
-		const inscription = Inscription.create(file.content, file.contentType, {
-			scriptPrefix: lockFor(opts.locking, i),
-		})
+		const script = buildLeafScript(
+			writeMode,
+			file.content,
+			file.contentType,
+			opts.locking,
+			i,
+		)
 		outputs.push({
-			lockingScriptHex: Utils.toHex(inscription.lock().toBinary()),
-			satoshis: 1,
+			lockingScriptHex: Utils.toHex(script.toBinary()),
+			satoshis,
 			description: `file: ${file.path}`,
 			isManifest: false,
 		})
 	}
 
 	// -------------------------------------------------------------------
-	// 2. Subdirectory manifest inscriptions (vouts F..F+D-1)
+	// 2. Subdirectory manifest outputs (vouts F..F+D-1)
 	// -------------------------------------------------------------------
 	for (const subdir of tree.subdirs) {
 		const subdirBytes = new Uint8Array(
 			Utils.toArray(JSON.stringify(subdir.manifest), 'utf8'),
 		)
-		const inscription = Inscription.create(
+		const script = buildLeafScript(
+			writeMode,
 			subdirBytes,
 			tree.manifestContentType,
-			{ scriptPrefix: lockFor(opts.locking, subdir.vout) },
+			opts.locking,
+			subdir.vout,
 		)
 		outputs.push({
-			lockingScriptHex: Utils.toHex(inscription.lock().toBinary()),
-			satoshis: 1,
+			lockingScriptHex: Utils.toHex(script.toBinary()),
+			satoshis,
 			description: `dir: ${subdir.path}/`,
 			isManifest: false,
 		})
 	}
 
 	// -------------------------------------------------------------------
-	// 3. Root manifest inscription (last output). MAP goes on as a suffix;
-	//    AIP is applied afterward, since it signs over the MAP data.
+	// 3. Root manifest output (last). MAP is composed into it; AIP is
+	//    applied afterward, since it signs over the MAP data too.
 	// -------------------------------------------------------------------
 	const manifestBytes = new Uint8Array(
 		Utils.toArray(JSON.stringify(tree.root), 'utf8'),
 	)
 
-	const suffix =
-		opts.map && Object.keys(opts.map).length > 0 ? MAP.set(opts.map) : undefined
-
-	const manifestInscription = Inscription.create(
+	let manifestScript = buildManifestScript(
+		writeMode,
 		manifestBytes,
 		tree.manifestContentType,
-		{
-			scriptPrefix: lockFor(opts.locking, tree.manifestVout),
-			...(suffix ? { scriptSuffix: suffix } : {}),
-		},
+		opts.locking,
+		tree.manifestVout,
+		opts.map,
 	)
-	let manifestScript = new Script(manifestInscription.lock().chunks)
 
 	if (opts.aip) {
 		if (!ctx) {
@@ -191,7 +328,7 @@ export async function buildOrdFsDirOutputs(
 
 	outputs.push({
 		lockingScriptHex: Utils.toHex(manifestScript.toBinary()),
-		satoshis: 1,
+		satoshis,
 		description: 'manifest (ord-fs/json)',
 		isManifest: true,
 	})

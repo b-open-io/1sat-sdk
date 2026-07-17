@@ -41,6 +41,12 @@ describe('buildOrdfsDirManifest', () => {
 		).toThrow(/path collision/)
 	})
 
+	it('throws when a path nests deeper than the ordfs server will traverse', () => {
+		// 8 directory levels — one past MAX_ORDFS_DIRECTORY_DEPTH (8).
+		const path = `${Array.from({ length: 8 }, (_, i) => `d${i}`).join('/')}/leaf.md`
+		expect(() => buildOrdfsDirManifest([{ path }])).toThrow(/too deep/)
+	})
+
 	it('builds a subdirectory manifest for nested files', () => {
 		const tree = buildOrdfsDirManifest([
 			{ path: 'SKILL.md' }, // vout 0

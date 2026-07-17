@@ -5,14 +5,29 @@
  * on-chain ord-fs/json tree:
  *
  *   1. `buildOrdfsDirManifest` — pure `_N` relative-vout tree layout.
- *   2. `buildOrdFsDirOutputs`  — inscription outputs on top of (1), with a
- *      pluggable locking strategy, optional MAP, and optional AIP.
- *   3. `inscribeOrdfsDir`      — the wallet-based publishing action, which adds
- *      Sigma authorship (the default) by binding the manifest tx to a spent
- *      anchor input.
+ *   2. `buildOrdFsDirOutputs`  — outputs on top of (1), for either write mode
+ *      (see below), with a pluggable locking strategy and optional MAP/AIP.
+ *   3. `deployOrdfsDir`        — the wallet-based publishing action.
  *
  * Layering keeps the pure tree logic testable and reusable, the output builder
  * key-agnostic, and the transaction/Sigma concerns confined to the action.
+ *
+ * Every publish picks one write mode for the whole tree — there is no
+ * per-file mode in this action (see {@link OrdfsDirWriteMode}):
+ *   - `'inscription'` (default) — every output is a 1-sat ord envelope.
+ *     Ownable, transferable, updatable; holds a UTXO. Authorship, when
+ *     signed, uses SIGMA: it binds the root manifest to a spent anchor input
+ *     so the signature only validates in this exact transaction.
+ *   - `'b'` — every output is a 0-sat B protocol output. Plain on-chain data,
+ *     not an ordinal: nothing is owned, no UTXO is held. Authorship, when
+ *     signed, uses AIP: it signs the manifest's OP_RETURN data directly
+ *     (replay-able — the signed bytes could be copied into an unrelated
+ *     output — but there's no spendable UTXO to bind a SIGMA anchor to).
+ *
+ * The signing PROTOCOL is not an independent choice: it is determined by
+ * `writeMode`. Callers only choose whether to sign at all (`sign`), matching
+ * how these two protocols actually work — SIGMA requires a UTXO to spend,
+ * AIP does not.
  */
 
 import { P2PKH, PublicKey, Utils } from '@bsv/sdk'
@@ -24,9 +39,9 @@ import { executeTrackedAction } from '../utils/createTrackedAction'
 import { resolveDestination } from '../utils/resolveDestination'
 import { signP2PKHInput } from '../utils/signP2PKH'
 import { buildOrdFsDirOutputs } from './outputs'
-import type { OrdfsDirFile } from './outputs'
+import type { OrdfsDirFile, OrdfsDirWriteMode } from './outputs'
 
-export { buildOrdfsDirManifest } from './manifest'
+export { buildOrdfsDirManifest, MAX_ORDFS_DIRECTORY_DEPTH } from './manifest'
 export type {
 	OrdfsDirManifest,
 	OrdfsSubdirManifest,
@@ -37,6 +52,7 @@ export type {
 	BuildOrdFsDirOutputsResult,
 	OrdfsDirFile,
 	OrdfsDirOutput,
+	OrdfsDirWriteMode,
 	OrdfsLocking,
 } from './outputs'
 
@@ -45,25 +61,13 @@ export type {
 // ============================================================================
 
 /**
- * Authorship signing mode for the published directory's root manifest.
- *
- * - `'sigma'` (default) — bind a SIGMA signature to a spent anchor input so the
- *   signature is only valid in this exact transaction (replay-resistant).
- * - `'aip'` — sign the root manifest's MAP data with AIP. Simpler, but NOT
- *   bound to the transaction: the MAP+AIP data can be copied verbatim into an
- *   unrelated inscription, so AIP authorship is replay-able.
- * - `'none'` — publish unsigned.
- */
-export type OrdfsDirSignMode = 'sigma' | 'aip' | 'none'
-
-/**
- * A file to publish, as accepted by the {@link inscribeOrdfsDir} action.
+ * A file to publish, as accepted by the {@link deployOrdfsDir} action.
  *
  * Content is base64 so the action's input is JSON/MCP-serializable (the lower
  * level {@link buildOrdFsDirOutputs} works with raw `Uint8Array` bytes; this
  * action decodes `base64Content` for callers).
  */
-export interface InscribeOrdfsDirFile {
+export interface DeployOrdfsDirFile {
 	/** Relative path; use `/` for subdirectories (e.g. `"refs/api.md"`). */
 	path: string
 	/** Base64-encoded file bytes. */
@@ -72,37 +76,58 @@ export interface InscribeOrdfsDirFile {
 	contentType: string
 }
 
-export interface InscribeOrdfsDirRequest extends ActionOptions {
+/** @deprecated Use {@link DeployOrdfsDirFile}. */
+export type InscribeOrdfsDirFile = DeployOrdfsDirFile
+
+export interface DeployOrdfsDirRequest extends ActionOptions {
 	/**
-	 * Files to publish, in the order their inscriptions are created. Paths use
+	 * Files to publish, in the order their outputs are created. Paths use
 	 * `/` for subdirectories (e.g. `"SKILL.md"`, `"refs/api.md"`).
 	 */
-	files: InscribeOrdfsDirFile[]
+	files: DeployOrdfsDirFile[]
 	/**
 	 * Optional MAP `SET` fields written to the root manifest only. Caller owns
 	 * field semantics; the action attaches them verbatim.
 	 */
 	map?: Record<string, string>
 	/**
-	 * Authorship signing mode for the root manifest. Defaults to `'sigma'`.
+	 * How every output in the tree is written on-chain. Defaults to
+	 * `'inscription'`. See the module doc comment for the ownership and
+	 * signing implications of each mode.
 	 */
-	sign?: OrdfsDirSignMode
+	writeMode?: OrdfsDirWriteMode
+	/**
+	 * Sign the root manifest's authorship. Defaults to `true`. The signing
+	 * PROTOCOL is derived from `writeMode` — not independently selectable —
+	 * SIGMA for `'inscription'`, AIP for `'b'`.
+	 */
+	sign?: boolean
 }
 
-export interface InscribeOrdfsDirResponse {
+/** @deprecated Use {@link DeployOrdfsDirRequest}. */
+export type InscribeOrdfsDirRequest = DeployOrdfsDirRequest
+
+export interface DeployOrdfsDirResponse {
 	/** Transaction ID of the publish transaction, when broadcast succeeded. */
 	txid?: string
 	/** Output index of the root manifest within the transaction. */
 	manifestVout?: number
 	/**
-	 * Origins for every inscription output, as `"{txid}_{vout}"`. Parallel to
-	 * the output layout: files first, then subdirectory manifests, then the
-	 * root manifest (last). The root manifest origin is `origins[manifestVout]`.
+	 * Origins for every output, as `"{txid}_{vout}"`. Parallel to the output
+	 * layout: files first, then subdirectory manifests, then the root
+	 * manifest (last). The root manifest origin is `origins[manifestVout]`.
+	 * For `writeMode: 'b'` these are on-chain locations for reference only —
+	 * nothing at them is a spendable/ownable ordinal.
 	 */
 	origins?: string[]
+	/** The write mode actually used, echoed back for convenience. */
+	writeMode?: OrdfsDirWriteMode
 	/** Error message when the publish failed. */
 	error?: string
 }
+
+/** @deprecated Use {@link DeployOrdfsDirResponse}. */
+export type InscribeOrdfsDirResponse = DeployOrdfsDirResponse
 
 // ============================================================================
 // Action
@@ -113,29 +138,31 @@ export interface InscribeOrdfsDirResponse {
  * BRC-100 wallet.
  *
  * Output layout (see {@link buildOrdfsDirManifest}):
- *   [0..F-1]   one inscription per file
- *   [F..F+D-1] one inscription per subdirectory manifest
- *   [F+D]      the root manifest (the tradeable directory token)
+ *   [0..F-1]   one output per file
+ *   [F..F+D-1] one output per subdirectory manifest
+ *   [F+D]      the root manifest (the directory's identity)
  *
- * Every output is locked to a wallet-derived self address (via
- * {@link resolveDestination}). The root manifest carries the optional MAP and
- * the authorship signature set by `sign` (see {@link OrdfsDirSignMode}); the
- * file and subdirectory inscriptions are unsigned plumbing.
+ * For `writeMode: 'inscription'` (default), every output is locked to a
+ * wallet-derived self address (via {@link resolveDestination}) and holds a
+ * UTXO. For `writeMode: 'b'`, every output is a 0-sat OP_RETURN and nothing
+ * is locked or held. The root manifest carries the optional MAP and, when
+ * `sign` is true, the mode-derived authorship signature; file and
+ * subdirectory outputs are unsigned plumbing either way.
  *
  * @param ctx - Action context carrying the BRC-100 wallet.
- * @param input - Files, optional MAP fields, optional signing mode, and
+ * @param input - Files, optional MAP fields, write mode, sign flag, and
  *   optional funding provider.
- * @returns The publish txid, the root manifest vout, and the per-output
- *   origins — or an `error` string on failure.
+ * @returns The publish txid, the root manifest vout, the per-output origins,
+ *   and the write mode used — or an `error` string on failure.
  */
-export const inscribeOrdfsDir: Action<
-	InscribeOrdfsDirRequest,
-	InscribeOrdfsDirResponse
+export const deployOrdfsDir: Action<
+	DeployOrdfsDirRequest,
+	DeployOrdfsDirResponse
 > = {
 	meta: {
-		name: 'inscribeOrdfsDir',
+		name: 'deployOrdfsDir',
 		description:
-			'Publish a directory of files as a single on-chain ord-fs/json tree (Sigma-signed by default)',
+			'Publish a directory of files as a single on-chain ord-fs/json tree, as either 1-sat inscriptions (ownable) or 0-sat B uploads (plain data)',
 		category: 'inscriptions',
 		inputSchema: {
 			type: 'object',
@@ -162,12 +189,18 @@ export const inscribeOrdfsDir: Action<
 					description: 'Optional MAP SET fields for the root manifest',
 					properties: {},
 				},
-				sign: {
+				writeMode: {
 					type: 'string',
 					description:
-						'Authorship signing mode for the root manifest. Sigma is replay-resistant; AIP is replay-able.',
-					enum: ['sigma', 'aip', 'none'],
-					default: 'sigma',
+						"How every output is written on-chain: '1sat' inscriptions (ownable, hold a UTXO) or 0-sat B uploads (plain data, nothing owned).",
+					enum: ['inscription', 'b'],
+					default: 'inscription',
+				},
+				sign: {
+					type: 'boolean',
+					description:
+						'Sign the root manifest. Protocol is derived from writeMode: SIGMA for inscription, AIP for b.',
+					default: true,
 				},
 			},
 			required: ['files'],
@@ -179,20 +212,23 @@ export const inscribeOrdfsDir: Action<
 				return { error: 'no-files' }
 			}
 
-			const signMode: OrdfsDirSignMode = input.sign ?? 'sigma'
-			// Reject unknown sign modes rather than silently falling through to
-			// unsigned — that would bypass the default authorship protection.
-			if (signMode !== 'sigma' && signMode !== 'aip' && signMode !== 'none') {
-				return { error: `invalid-sign-mode: ${String(input.sign)}` }
+			const writeMode: OrdfsDirWriteMode = input.writeMode ?? 'inscription'
+			if (writeMode !== 'inscription' && writeMode !== 'b') {
+				return { error: `invalid-write-mode: ${String(input.writeMode)}` }
 			}
-			// Sigma binds authorship to a wallet-signed anchor input. An external
+
+			const sign = input.sign ?? true
+
+			// SIGMA binds authorship to a wallet-signed anchor input. An external
 			// funding provider builds/broadcasts the tx itself and does not run the
 			// caller's anchor-signing callback, so the anchor would be left
 			// unsigned. Fail informatively instead of broadcasting a broken tx.
-			if (signMode === 'sigma' && input.fundingProvider) {
+			// This only applies to signed 'inscription' publishes — AIP (used for
+			// 'b') signs at build time and has no anchor to co-sign.
+			if (writeMode === 'inscription' && sign && input.fundingProvider) {
 				return {
 					error:
-						'sigma-incompatible-with-funding-provider: use sign:"aip" or "none" with an external funding provider',
+						'sigma-incompatible-with-funding-provider: use sign:false or writeMode:"b" with an external funding provider',
 				}
 			}
 
@@ -203,49 +239,65 @@ export const inscribeOrdfsDir: Action<
 				contentType: f.contentType,
 			}))
 
-			// Derive a wallet self address to lock every output to. Using a
-			// single resolved address (rather than the raw key) keeps the output
-			// builder key-agnostic while remaining wallet-controlled.
-			const resolved = await resolveDestination(ctx, undefined, {
-				protocolID: P1SAT_PROTOCOL,
-				keyIDPrefix: 'ordfs-dir',
-			})
+			// 'inscription' outputs hold a UTXO and need a spendable lock, derived
+			// from the wallet. 'b' outputs are 0-sat OP_RETURN data with nothing to
+			// own, so there's no destination to resolve.
+			const resolved =
+				writeMode === 'inscription'
+					? await resolveDestination(ctx, undefined, {
+							protocolID: P1SAT_PROTOCOL,
+							keyIDPrefix: 'ordfs-dir',
+						})
+					: undefined
 			// resolveDestination returns a wallet-derived self P2PKH locking
 			// script; reuse it verbatim for every output via the resolver
 			// strategy, which keeps the output builder key-agnostic.
-			const lockingScript = resolved.lockingScript
+			const lockingScript = resolved?.lockingScript
 
 			// AIP can be applied at output-build time (it is tx-independent), so
-			// fold it in here when requested. Sigma needs the spending input and
-			// is applied to the manifest after the anchor exists (below).
+			// fold it in here for a signed 'b' publish. SIGMA needs the spending
+			// input and is applied to the manifest after the anchor exists (below).
 			const built = await buildOrdFsDirOutputs(
 				files,
 				{
-					locking: { resolve: () => lockingScript },
+					writeMode,
+					...(lockingScript
+						? { locking: { resolve: () => lockingScript } }
+						: {}),
 					map: input.map,
-					...(signMode === 'aip' ? { aip: applyBapAip } : {}),
+					...(writeMode === 'b' && sign ? { aip: applyBapAip } : {}),
 				},
 				ctx,
 			)
 
-			const customInstructions = resolved.customInstructions
+			const customInstructions = resolved?.customInstructions
 				? JSON.stringify({
 						protocolID: resolved.customInstructions.protocolID,
 						keyID: resolved.customInstructions.keyID,
 					})
 				: undefined
 
-			if (signMode === 'sigma') {
+			if (writeMode === 'inscription' && sign) {
 				return await publishWithSigma(ctx, built, input, customInstructions)
 			}
 
-			return await publishOutputs(ctx, built, input, customInstructions)
+			return await publishOutputs(
+				ctx,
+				built,
+				input,
+				writeMode,
+				customInstructions,
+			)
 		} catch (error) {
 			if (ctx.debug && ctx.log) {
 				ctx.log({
 					timestamp: new Date().toISOString(),
-					action: 'inscribeOrdfsDir',
-					input: { fileCount: input.files?.length, sign: input.sign },
+					action: 'deployOrdfsDir',
+					input: {
+						fileCount: input.files?.length,
+						writeMode: input.writeMode,
+						sign: input.sign,
+					},
 					error: error instanceof Error ? error.message : 'unknown-error',
 				})
 			}
@@ -253,6 +305,12 @@ export const inscribeOrdfsDir: Action<
 		}
 	},
 }
+
+/** @deprecated Use {@link deployOrdfsDir}. */
+export const inscribeOrdfsDir = deployOrdfsDir
+
+/** @deprecated Use {@link deployOrdfsDir}. */
+export const uploadOrdfsDir = deployOrdfsDir
 
 // ============================================================================
 // Internal publish helpers
@@ -278,11 +336,13 @@ interface PublishOutput {
 
 /**
  * Convert the built outputs into createAction output specs. Only the root
- * manifest is basketed and tracked as the tradeable ordinal; file and
- * subdirectory inscriptions are plumbing and carry no basket.
+ * manifest carries tags; it's basketed as the tradeable ordinal only for
+ * `writeMode: 'inscription'` — a `'b'` manifest owns nothing, so it isn't
+ * tracked as an asset. File and subdirectory outputs are plumbing either way.
  */
 function toActionOutputs(
 	built: BuiltOutputs,
+	writeMode: OrdfsDirWriteMode,
 	manifestCustomInstructions?: string,
 ): PublishOutput[] {
 	return built.outputs.map((o) => {
@@ -292,24 +352,29 @@ function toActionOutputs(
 			outputDescription: o.description.slice(0, 50),
 		}
 		if (o.isManifest) {
-			out.basket = ORDINALS_BASKET
 			out.tags = ['type:ord-fs/json', 'origin']
-			out.customInstructions = manifestCustomInstructions
+			if (writeMode === 'inscription') {
+				out.basket = ORDINALS_BASKET
+				out.customInstructions = manifestCustomInstructions
+			}
 		}
 		return out
 	})
 }
 
 /**
- * Publish the outputs directly (AIP or unsigned modes) — no anchor input.
+ * Publish the outputs directly — used for unsigned publishes (either write
+ * mode) and for signed `writeMode: 'b'` publishes (AIP is already folded into
+ * `built` by the caller; there's no anchor to spend).
  */
 async function publishOutputs(
 	ctx: OneSatContext,
 	built: BuiltOutputs,
-	input: InscribeOrdfsDirRequest,
+	input: DeployOrdfsDirRequest,
+	writeMode: OrdfsDirWriteMode,
 	manifestCustomInstructions?: string,
-): Promise<InscribeOrdfsDirResponse> {
-	const outputs = toActionOutputs(built, manifestCustomInstructions)
+): Promise<DeployOrdfsDirResponse> {
+	const outputs = toActionOutputs(built, writeMode, manifestCustomInstructions)
 
 	const result = await executeTrackedAction(
 		ctx.wallet,
@@ -330,20 +395,22 @@ async function publishOutputs(
 		txid: result.txid,
 		manifestVout: built.manifestVout,
 		origins: originsFor(result.txid, built.outputs.length),
+		writeMode,
 	}
 }
 
 /**
- * Publish with Sigma authorship: create a 2-sat anchor, bind the root
+ * Publish with SIGMA authorship: create a 2-sat anchor, bind the root
  * manifest's SIGMA signature to the anchor outpoint, then spend the anchor in
- * the publish transaction so the signature is only valid here.
+ * the publish transaction so the signature is only valid here. Only called
+ * for signed `writeMode: 'inscription'` publishes.
  */
 async function publishWithSigma(
 	ctx: OneSatContext,
 	built: BuiltOutputs,
-	input: InscribeOrdfsDirRequest,
+	input: DeployOrdfsDirRequest,
 	manifestCustomInstructions?: string,
-): Promise<InscribeOrdfsDirResponse> {
+): Promise<DeployOrdfsDirResponse> {
 	const anchorKeyID = `anchor-${Date.now()}`
 	const { publicKey: anchorPubKey } = await ctx.wallet.getPublicKey({
 		protocolID: P1SAT_PROTOCOL,
@@ -401,7 +468,11 @@ async function publishWithSigma(
 
 	// Swap in the Sigma-signed manifest script, then emit the outputs.
 	built.outputs[built.manifestVout].lockingScriptHex = sigmaScript.toHex()
-	const outputs = toActionOutputs(built, manifestCustomInstructions)
+	const outputs = toActionOutputs(
+		built,
+		'inscription',
+		manifestCustomInstructions,
+	)
 
 	// Step 2: publish tx, spending the anchor and broadcasting both.
 	const result = await executeTrackedAction(
@@ -448,6 +519,7 @@ async function publishWithSigma(
 		txid: result.txid,
 		manifestVout: built.manifestVout,
 		origins: originsFor(result.txid, built.outputs.length),
+		writeMode: 'inscription',
 	}
 }
 
@@ -456,4 +528,4 @@ async function publishWithSigma(
 // ============================================================================
 
 /** All ordfs directory-writing actions for the registry. */
-export const ordfsActions = [inscribeOrdfsDir]
+export const ordfsActions = [deployOrdfsDir]
