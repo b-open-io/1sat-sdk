@@ -80,19 +80,10 @@ export async function createWebWallet(
 	// its own monitor when remote is active, so firing ours would duplicate
 	// (and race with) its work. Tasks self-throttle internally via their
 	// per-task intervals, so repeated runOnce calls during rapid activity
-	// are cheap timestamp comparisons.
-	//
-	// Defer the run until initial backup registration has settled. Each
-	// `addWalletStorageProvider` call inside a registering backup briefly
-	// flips `WalletStorageManager._isAvailable` to false; concurrent
-	// `getActive()` from monitor tasks throws WERR_INVALID_OPERATION during
-	// that window. Awaiting `backupsSettled` removes the predictable race
-	// window for the monitor's automatic boot pass.
+	// are cheap timestamp comparisons. All stores register synchronously
+	// during createWalletCore, so the topology is settled by this point.
 	if (!config.activeRemote) {
-		;(async () => {
-			await core.backupsSettled
-			await core.monitor.runOnce()
-		})().catch((err: unknown) => {
+		core.monitor.runOnce().catch((err: unknown) => {
 			console.error('[wallet-core] initial monitor run failed:', err)
 		})
 	}

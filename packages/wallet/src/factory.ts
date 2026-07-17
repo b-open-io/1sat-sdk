@@ -1,7 +1,6 @@
 import { OneSatServices } from '@1sat/client'
 import { KeyDeriver, type PrivateKey, type WalletInterface } from '@bsv/sdk'
 import type { sdk as toolboxSdk } from '@bsv/wallet-toolbox'
-import { BackupRegistration } from './backupRegistration'
 import { parsePrivateKey } from './parsePrivateKey'
 import {
 	type StoragePaymentHook,
@@ -121,18 +120,6 @@ export interface WalletCoreResult {
 	 */
 	getActiveStorage: () => WalletStorageProvider
 	feeModel: { model: 'sat/kb'; value: number }
-	/**
-	 * Resolves once initial backup-remote registration has settled (each
-	 * configured backup URL has either succeeded or errored). Resolves
-	 * immediately when no backups are configured.
-	 *
-	 * Callers that initiate concurrent storage operations (notably an
-	 * automatic `monitor.runOnce()` on boot) should await this to avoid
-	 * racing against `WalletStorageManager.addWalletStorageProvider`, which
-	 * briefly flips `_isAvailable=false` on each registration and causes
-	 * concurrent `getActive()` calls to throw `WERR_INVALID_OPERATION`.
-	 */
-	backupsSettled: Promise<void>
 }
 
 export async function createWalletCore(
@@ -209,73 +196,85 @@ export async function createWalletCore(
 		return client
 	}
 
-	// `intendedActiveKey` is the store the factory considers canonical for
-	// this wallet. Set after the initial active store lands, updated by
-	// `setActiveStorage` later. Used by `reconcileActive` to resolve the
-	// conflict-active state that arises when a newly-added backup's user
-	// row defaults `activeStorage` to its own key.
-	let intendedActiveKey: string | undefined
+	// `intendedActiveKey` is the store config names as active for this
+	// wallet. Set as the stores register, updated by `setActiveStorage`
+	// later. Every (re)assertion of it goes straight through
+	// `storage.setActive`: a no-op when the stores already agree, and
+	// wallet-toolbox's merge-and-flip when they don't — a divergent store's
+	// data is copied into the chosen active BEFORE the pointer settles.
+	let intendedActiveKey!: string
 
-	if (config.activeRemote) {
-		// Remote-primary: connect remote first, set active, then add local as backup
-		const activeClient = await connectRemote(config.activeRemote)
-		const settings = activeClient.getSettings()
-		if (settings?.storageIdentityKey) {
-			intendedActiveKey = settings.storageIdentityKey
-			await storage.setActive(intendedActiveKey)
+	/**
+	 * Sync the active store to one registered backup, isolated: a failure
+	 * is logged and never propagates — one bad backup must not affect the
+	 * wallet or the other backups. A billed remote writer that answers 507
+	 * is topped up out-of-band and re-synced by the payment auto-retry
+	 * layer installed at connection, so no payment ever runs under the
+	 * storage lock.
+	 */
+	const syncBackup = async (writer: unknown, name: string): Promise<void> => {
+		try {
+			const w = writer as {
+				getSettings?: () => { storageIdentityKey?: string } | undefined
+			}
+			if (w.getSettings?.()?.storageIdentityKey === storage.getActiveStore())
+				return
+			await storage.syncToWriter(await storage.getAuth(), writer)
+		} catch (e) {
+			console.warn(`[wallet-core] backup sync failed for ${name}:`, e)
 		}
-		if (localStorage) {
-			await localStorage.makeAvailable()
-			const { user } = await localStorage.findOrInsertUser(identityPubKey)
-			await (localStorage as any).setActive(
-				{ identityKey: identityPubKey, userId: user.userId },
-				settings.storageIdentityKey,
+	}
+
+	/** Sync the active store to every registered backup, each isolated. */
+	const syncBackups = async (): Promise<void> => {
+		if (!storage.isActiveEnabled) return
+		if (localStorage) await syncBackup(localStorage, 'local')
+		for (const client of remoteClients) {
+			await syncBackup(
+				client,
+				(client as { endpointUrl?: string }).endpointUrl ?? 'remote',
 			)
-			await storage.addWalletStorageProvider(localStorage)
 		}
-	} else if (localStorage) {
-		// Local-primary: no remote, local is the active store
+	}
+
+	// Register every store, name the intended active from config, then
+	// settle. Local registers as it is — its user row is the record of what
+	// this wallet last believed, and when it carries data the remote never
+	// received, that row is what drives the merge in `setActive`. A backup
+	// that fails to connect is logged and skipped for the session (it's a
+	// backup — its absence is degradation, not failure); it reconnects on
+	// the next boot. Only the active store failing is fatal.
+	if (localStorage) {
 		await storage.addWalletStorageProvider(localStorage)
 		intendedActiveKey = (await localStorage.makeAvailable()).storageIdentityKey
 	}
-
-	/**
-	 * Re-assert the intended active store when adding a provider has put the
-	 * manager into a conflict-active state. A fresh user row on a newly-
-	 * connected backup defaults `activeStorage` to that backup's own key,
-	 * which `WalletStorageManager` treats as a conflict against our chosen
-	 * active. `storage.setActive` resolves via wallet-toolbox's merge-and-
-	 * flip dance — record-level data is additive (no loss), only pointers
-	 * and reconcilable status fields change.
-	 */
-	const reconcileActive = async (): Promise<void> => {
-		if (!intendedActiveKey) return
-		if (storage.isActiveEnabled) return
-		await storage.setActive(intendedActiveKey)
+	if (config.activeRemote) {
+		const activeClient = await connectRemote(config.activeRemote)
+		intendedActiveKey =
+			activeClient.getSettings()?.storageIdentityKey ?? intendedActiveKey
+	}
+	for (const url of config.backups ?? []) {
+		try {
+			await connectRemote(url)
+		} catch (e) {
+			console.warn(`[wallet-core] backup unreachable, skipped: ${url}`, e)
+		}
 	}
 
-	// Backup remotes register asynchronously so boot doesn't block on a
-	// down or slow backup. Each URL gets one attempt; no in-process retry.
-	// Long-lived processes recover via the periodic BackupSync monitor
-	// task; transient processes (CLI invocations, service worker wakes)
-	// retry on the next process boot.
-	const backupRegistration =
-		config.backups && config.backups.length > 0
-			? new BackupRegistration({
-					urls: config.backups,
-					register: async (url) => {
-						await connectRemote(url)
-						await reconcileActive()
-					},
-					onError: (url, err) => {
-						console.warn(
-							`[wallet-core] backup registration failed for ${url}:`,
-							err,
-						)
-					},
-				})
-			: undefined
-	backupRegistration?.start()
+	// Settle or refresh — never both. When any store's user row disagrees
+	// with config, `setActive` merges the divergent store's data into the
+	// chosen active and propagates the settled state to every store — the
+	// sync IS the settling. When all rows already agree, `setActive` would
+	// no-op, so instead refresh every backup from the active store —
+	// fire-and-forget, backup freshness never blocks or fails boot.
+	if (
+		storage.getActiveStore() === intendedActiveKey &&
+		storage.isActiveEnabled
+	) {
+		void syncBackups()
+	} else {
+		await storage.setActive(intendedActiveKey)
+	}
 
 	// Install 507 auto-retry on billable methods. Only meaningful when an
 	// active remote is (or may later become) in play; the hook bails early
@@ -323,27 +322,16 @@ export async function createWalletCore(
 		})
 		monitor.addDefaultTasks()
 
-		// Periodic backup sync task. Fires only when local is the active store;
-		// with a remote active, pushing local-to-remote on a schedule would be
-		// unnecessary (remote is canonical) and the auto-retry payment path can
-		// deadlock against the manager's locks if it fires inside a scheduled
-		// backup task. Interval defaults to 5 min.
+		// Periodic automatic backup sync. Unlike the explicit updateBackups()
+		// (loud, all-or-nothing by design), the automatic path isolates each
+		// backup so one failing store never starves the rest. Billing 507s
+		// are settled out-of-band by the payment auto-retry layer, never
+		// under the storage lock. Interval defaults to 5 min.
 		const backupSyncIntervalMs = config.backupSyncIntervalMs ?? 5 * 60 * 1000
 		if (backupSyncIntervalMs > 0) {
 			monitor.addTask(
 				buildBackupSyncTask(monitor, backupSyncIntervalMs, storage, {
-					unregisteredBackupUrls: () => {
-						const configured = config.backups ?? []
-						if (configured.length === 0) return []
-						const registered = new Set(
-							remoteClients.map((c: { endpointUrl?: string }) => c.endpointUrl),
-						)
-						return configured.filter((url) => !registered.has(url))
-					},
-					registerBackup: async (url) => {
-						await connectRemote(url)
-						await reconcileActive()
-					},
+					syncBackups,
 				}),
 			)
 		}
@@ -478,12 +466,11 @@ export async function createWalletCore(
 		const existing = remoteClients.find((c) => c.endpointUrl === url)
 		if (existing) return
 		await connectRemote(url)
-		await reconcileActive()
+		await storage.setActive(intendedActiveKey)
 	}
 
 	// 7. Destroy
 	const destroy = async (): Promise<void> => {
-		backupRegistration?.stop()
 		if (monitor) {
 			try {
 				monitor.stopTasks()
@@ -507,32 +494,24 @@ export async function createWalletCore(
 		addRemote,
 		getActiveStorage: () => storage.getActive(),
 		feeModel,
-		backupsSettled: backupRegistration
-			? backupRegistration.whenSettled()
-			: Promise.resolve(),
 	}
 }
 
 interface BackupSyncTaskOptions {
-	/** Returns configured backup URLs that are not yet registered. */
-	unregisteredBackupUrls: () => string[]
-	/** Attempts to register a backup URL (handshake + reconcile). */
-	registerBackup: (url: string) => Promise<void>
+	/** Syncs the active store to every registered backup, each isolated. */
+	syncBackups: () => Promise<void>
 }
 
 /**
- * Builds a plain-object Monitor task that drives ongoing backup
- * reconciliation. On each tick (when local is the active store):
- * 1. Re-attempt registration for any configured URLs not yet registered
- *    (recovers from initial handshake failures).
- * 2. Call `storage.updateBackups()` to push pending state to all
- *    successfully-registered backups.
+ * Builds a plain-object Monitor task that periodically syncs the active
+ * store to every registered backup, one at a time, each isolated so one
+ * failing backup doesn't block the rest. Billed remote writers that
+ * answer 507 are handled out-of-band by the payment auto-retry layer —
+ * no payment runs under the storage lock.
  *
  * Shape-compatible with `WalletMonitorTask` so the factory doesn't import
  * the abstract class from whichever wallet-toolbox variant the caller
- * uses. Only fires when local is the active store — with a remote active,
- * pushing local-to-remote on a schedule is unnecessary and the auto-retry
- * payment path can deadlock against the manager's locks.
+ * uses.
  */
 function buildBackupSyncTask(
 	monitor: any,
@@ -550,39 +529,14 @@ function buildBackupSyncTask(
 			if (nowMsecsSinceEpoch - this.lastRunMsecsSinceEpoch < triggerMsecs) {
 				return { run: false }
 			}
-			const hasRegistered = storage.getBackupStores().length > 0
-			const hasUnregistered = options.unregisteredBackupUrls().length > 0
-			if (!hasRegistered && !hasUnregistered) return { run: false }
-			try {
-				const active = storage.getActive() as any
-				if (!active?.isStorageProvider?.()) return { run: false }
-			} catch {
-				return { run: false }
-			}
+			if (storage.getBackupStores().length === 0) return { run: false }
 			return { run: true }
 		},
 		async runTask(): Promise<string> {
-			const unregistered = options.unregisteredBackupUrls()
 			const messages: string[] = []
-			if (unregistered.length > 0) {
-				const results = await Promise.allSettled(
-					unregistered.map((url) => options.registerBackup(url)),
-				)
-				for (let i = 0; i < results.length; i++) {
-					const r = results[i]
-					if (r.status === 'rejected') {
-						console.warn(
-							`[BackupSync] registration retry failed for ${unregistered[i]}:`,
-							r.reason,
-						)
-					}
-				}
-				const recovered = results.filter((r) => r.status === 'fulfilled').length
-				if (recovered > 0) messages.push(`registered ${recovered}`)
-			}
 			if (storage.getBackupStores().length > 0) {
 				try {
-					await storage.updateBackups()
+					await options.syncBackups()
 					messages.push('sync complete')
 				} catch (err) {
 					messages.push(`sync failed: ${(err as Error).message}`)
