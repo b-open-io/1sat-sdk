@@ -89,10 +89,12 @@ the image per item, and do NOT use the old `x-ordfs=alias` trick or a
 available.
 
 - **Fungible / tradeable members** (album tracks, access passes, license seats)
-  may instead be **BSV-21 token members**: a `bsv-20` deploy carrying a standard
-  `collectionItem` MAP suffix. The member is the deploy outpoint; holding a unit
-  is access. Pick per SKU by whether units are distinct (NFT item) or
-  interchangeable (token).
+  may instead be **BSV-21 token members**: mint one with `mintBsv21CollectionItem`
+  (collections layer), which builds the `collectionItem` MAP and deploys it through
+  the generic `deployBsv21Mint` via its `map` + `signWithBAP` options — BSV-21 itself
+  stays collection-agnostic. The member is the deploy outpoint; holding a unit is
+  access. Pick per SKU by whether units are distinct (NFT item) or interchangeable
+  (token).
 - **Authorship uses SIGMA** (not AIP): its prefix commits to a tx input, so a
   member's signature is replay-resistant and provably matches the collection
   root. The collection root is an owned, `{root}:-1`-updatable ordinal; authority
