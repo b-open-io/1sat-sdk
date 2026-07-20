@@ -1,8 +1,11 @@
 import {
 	type AvailableProvider,
 	type ConnectWalletResult,
+	type DisconnectReason,
 	type WalletProviderConfig,
+	type WalletSession,
 	connectWallet,
+	createWalletSession,
 	getAvailableProviders,
 	reconnectSigmaWallet,
 } from '@1sat/connect'
@@ -31,6 +34,8 @@ export interface WalletContextValue {
 	identityKey: string | null
 	providerType: string | null
 	availableProviders: AvailableProvider[]
+	/** Why the last session ended, if any (null after a successful connect). */
+	disconnectReason: DisconnectReason | null
 	connect: (providerType?: string) => Promise<void>
 	applyResult: (result: ConnectWalletResult) => void
 	disconnect: () => void
@@ -40,6 +45,8 @@ export interface WalletContextValue {
 export interface WalletProviderProps {
 	autoReconnect?: boolean
 	autoDetect?: boolean
+	/** Identity/auth poll interval in ms (default 4000). */
+	pollIntervalMs?: number
 	providers?: WalletProviderConfig[]
 	children: ReactNode
 }
@@ -83,6 +90,7 @@ const WalletContext = createContext<WalletContextValue | null>(null)
 export function WalletProvider({
 	autoReconnect = false,
 	autoDetect = true,
+	pollIntervalMs,
 	providers,
 	children,
 }: WalletProviderProps) {
@@ -90,34 +98,77 @@ export function WalletProvider({
 	const [status, setStatus] = useState<WalletStatus>('disconnected')
 	const [identityKey, setIdentityKey] = useState<string | null>(null)
 	const [providerType, setProviderType] = useState<string | null>(null)
+	const [disconnectReason, setDisconnectReason] =
+		useState<DisconnectReason | null>(null)
 	const [error, setError] = useState<Error | null>(null)
-	const disconnectRef = useRef<(() => void) | null>(null)
+	const sessionRef = useRef<WalletSession | null>(null)
 
 	const availableProviders = useMemo(
 		() => getAvailableProviders({ providers }),
 		[providers],
 	)
 
-	const applyResult = useCallback((result: ConnectWalletResult) => {
-		setWallet(result.wallet)
-		setIdentityKey(result.identityKey)
-		setProviderType(result.provider)
-		setStatus('connected')
-		setError(null)
-		disconnectRef.current = result.disconnect
-		saveStored(result.provider)
-	}, [])
-
-	const disconnect = useCallback(() => {
-		disconnectRef.current?.()
-		disconnectRef.current = null
+	const clearSessionState = useCallback((reason: DisconnectReason | null) => {
 		setWallet(null)
 		setIdentityKey(null)
 		setProviderType(null)
 		setStatus('disconnected')
+		setDisconnectReason(reason)
 		setError(null)
 		clearStored()
 	}, [])
+
+	const bindSession = useCallback(
+		(result: ConnectWalletResult) => {
+			const previous = sessionRef.current
+			sessionRef.current = null
+			// Tear down any prior session without treating it as the active disconnect.
+			previous?.stop()
+			if (previous?.status === 'connected') {
+				previous.disconnect('manual')
+			}
+
+			const session = createWalletSession(result, { pollIntervalMs })
+			sessionRef.current = session
+
+			session.on('identityChange', ({ next }) => {
+				if (sessionRef.current !== session) return
+				setIdentityKey(next)
+			})
+
+			session.on('disconnected', ({ reason }) => {
+				if (sessionRef.current !== session) return
+				sessionRef.current = null
+				clearSessionState(reason)
+			})
+
+			setWallet(result.wallet)
+			setIdentityKey(result.identityKey)
+			setProviderType(result.provider)
+			setStatus('connected')
+			setDisconnectReason(null)
+			setError(null)
+			saveStored(result.provider)
+			session.start()
+		},
+		[pollIntervalMs, clearSessionState],
+	)
+
+	const applyResult = useCallback(
+		(result: ConnectWalletResult) => {
+			bindSession(result)
+		},
+		[bindSession],
+	)
+
+	const disconnect = useCallback(() => {
+		const session = sessionRef.current
+		sessionRef.current = null
+		if (session && session.status === 'connected') {
+			session.disconnect('manual')
+		}
+		clearSessionState('manual')
+	}, [clearSessionState])
 
 	const connect = useCallback(
 		async (selectedType?: string) => {
@@ -236,6 +287,13 @@ export function WalletProvider({
 		})
 	}, [])
 
+	// Stop polling on unmount; leave disconnect to navigation teardown / GC.
+	useEffect(() => {
+		return () => {
+			sessionRef.current?.stop()
+		}
+	}, [])
+
 	const value = useMemo<WalletContextValue>(
 		() => ({
 			wallet,
@@ -243,6 +301,7 @@ export function WalletProvider({
 			identityKey,
 			providerType,
 			availableProviders,
+			disconnectReason,
 			connect,
 			applyResult,
 			disconnect,
@@ -254,6 +313,7 @@ export function WalletProvider({
 			identityKey,
 			providerType,
 			availableProviders,
+			disconnectReason,
 			connect,
 			applyResult,
 			disconnect,

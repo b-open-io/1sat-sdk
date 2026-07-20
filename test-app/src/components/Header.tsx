@@ -1,41 +1,37 @@
 import { ConnectButton, useWallet } from '@1sat/react'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { button as btnStyle } from './styles'
 import { useLog } from './LogContext'
 
 export function Header() {
-  const { status, providerType, disconnect, connect } = useWallet()
+  const { status, providerType, identityKey, disconnectReason } = useWallet()
   const { log } = useLog()
+  const prevIdentity = useRef<string | null>(null)
 
-  // Listen for Yours Wallet state changes (sign-out, account switch)
+  // Session poll surfaces identity/auth changes via context (no Yours tab events).
   useEffect(() => {
-    const onWalletEvent = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { action?: string } | undefined
-      if (!detail?.action) return
-
-      if (detail.action === 'signedOut') {
-        log('error', 'Wallet event: signedOut — disconnecting')
-        disconnect()
-      }
-      if (detail.action === 'switchAccount') {
-        log('info', 'Wallet event: switchAccount — reconnecting')
-        disconnect()
-        // Short delay to let the wallet finish switching before reconnecting
-        setTimeout(() => connect(), 500)
-      }
+    if (identityKey && prevIdentity.current && identityKey !== prevIdentity.current) {
+      log(
+        'info',
+        `Identity changed: ${prevIdentity.current.slice(0, 8)}… → ${identityKey.slice(0, 8)}…`,
+      )
     }
-
-    window.addEventListener('YoursEmitEvent', onWalletEvent)
-    return () => window.removeEventListener('YoursEmitEvent', onWalletEvent)
-  }, [log, disconnect, connect])
+    if (!identityKey && prevIdentity.current && disconnectReason) {
+      log('error', `Session ended (${disconnectReason})`)
+    }
+    prevIdentity.current = identityKey
+  }, [identityKey, disconnectReason, log])
 
   return (
     <header style={headerStyle}>
       <div>
         <h1 style={{ fontSize: '1.25rem', fontWeight: 700 }}>1Sat SDK Test App</h1>
         <span style={{ fontSize: '0.75rem', color: '#666' }}>
-          Status: {status}{providerType ? ` (${providerType})` : ''}
-          {' | @1sat/connect + @1sat/react'}
+          Status: {status}
+          {providerType ? ` (${providerType})` : ''}
+          {identityKey ? ` | ${identityKey.slice(0, 8)}…${identityKey.slice(-4)}` : ''}
+          {disconnectReason ? ` | last: ${disconnectReason}` : ''}
+          {' | local packages'}
         </span>
       </div>
       <ConnectButton

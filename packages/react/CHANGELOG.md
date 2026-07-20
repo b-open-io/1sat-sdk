@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.76
+
+### Added
+- `WalletProvider` starts a `@1sat/connect` wallet session while connected: polls for identity changes and auth loss, updates `identityKey` / clears session via context.
+- `pollIntervalMs` prop on `WalletProvider` (default 4000).
+- `disconnectReason` on `useWallet()` — last session end reason (`unauthenticated` | `unavailable` | `manual`), or null after a successful connect.
+
+### Changed
+- Depends on `@1sat/connect@0.0.79` (wallet session).
+
 ## 0.0.65
 
 ### Added

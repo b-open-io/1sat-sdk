@@ -11,6 +11,18 @@ export {
 	type WalletProviderConfig,
 } from './connectWallet'
 
+// --- Connected session lifecycle (identity / auth polling) ---
+
+export {
+	createWalletSession,
+	type DisconnectReason,
+	type DisconnectedEvent,
+	type IdentityChangeEvent,
+	type WalletSession,
+	type WalletSessionOptions,
+	type WalletSessionStatus,
+} from './walletSession'
+
 // --- Sigma: OAuth flow + CWI wallet connection ---
 
 export {

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.79] - 2026-07-20
+
+### Added
+- `createWalletSession()` — poll-based session watcher for identity changes and auth loss after connect. Gates identity reads on `isAuthenticated` so a locked wallet does not spam unlock popups. Emits `identityChange` / `disconnected` / `status`.
+
 ## [0.0.45] - 2026-04-22
 
 ### Changed

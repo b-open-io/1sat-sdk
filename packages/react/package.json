@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/react",
-	"version": "0.0.75",
+	"version": "0.0.76",
 	"description": "React hooks and components for 1Sat wallet integration",
 	"type": "module",
 	"main": "./dist/index.js",
