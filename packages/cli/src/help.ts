@@ -552,6 +552,28 @@ export const COMMANDS: CommandSpec[] = [
 			},
 		],
 	},
+	{
+		group: 'Server',
+		name: 'storage',
+		description:
+			'Serve-wallet storage maintenance (config under server.storage in config.json)',
+		subcommands: [
+			{
+				name: 'unfail',
+				description:
+					'Nominate invalid proven_tx_reqs for chain re-check; the running monitor restores any that actually mined',
+				args: [
+					{
+						flag: '--window',
+						values: "<all|30d|12h|90m>",
+						required: true,
+						description:
+							"Only reqs created within the window; 'all' for every invalid record",
+					},
+				],
+			},
+		],
+	},
 
 	// MCP
 	{

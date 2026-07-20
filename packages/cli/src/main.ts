@@ -21,6 +21,7 @@ import { handleOpnsCommand } from './commands/opns'
 import { handleOrdinalsCommand } from './commands/ordinals'
 import { handleRemoteCommand } from './commands/remote'
 import { handleServeCommand } from './commands/serve'
+import { handleStorageCommand } from './commands/storage'
 import { handleSocialCommand } from './commands/social'
 import { handleSweepCommand } from './commands/sweep'
 import { handleTokensCommand } from './commands/tokens'
@@ -132,6 +133,10 @@ async function main(): Promise<void> {
 
 		case 'serve':
 			await handleServeCommand(rest, flags)
+			break
+
+		case 'storage':
+			await handleStorageCommand(rest, flags)
 			break
 
 		// Hidden: parent CLI spawns this after wallet destroy so monitor

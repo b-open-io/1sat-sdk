@@ -1,6 +1,6 @@
 {
 	"name": "@1sat/permission-module",
-	"version": "0.0.38",
+	"version": "0.0.39",
 	"description": "1Sat permission module for WalletPermissionsManager \u2014 gates createSignature with hashOutputs commitments captured at createAction time",
 	"type": "module",
 	"main": "./dist/index.js",

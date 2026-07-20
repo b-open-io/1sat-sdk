@@ -125,6 +125,15 @@ export {
 	type StoragePaymentRequiredInfo,
 } from './storagePaymentAutoRetry'
 
+// Invalid-req recovery nomination for TaskUnFail
+export {
+	buildReviewInvalidTask,
+	nominateInvalidReqs,
+	type NominatedReq,
+	type NominateInvalidResult,
+	type ReviewInvalidTaskOptions,
+} from './reviewInvalidTask'
+
 // Permissions — local-storage-backed WalletPermissionsManager
 export {
 	filterGroupedByMissing,
