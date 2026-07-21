@@ -225,6 +225,7 @@ async function opnsCancelListing(
 async function opnsSell(args: string[], opts: GlobalFlags): Promise<void> {
 	const outpoint = extractFlag(args, '--outpoint')
 	const priceStr = extractFlag(args, '--price')
+	const payAddressFlag = extractFlag(args, '--pay-address')
 
 	if (!outpoint) fatal('Missing --outpoint <txid.vout>')
 	if (!priceStr) fatal('Missing --price <satoshis>')
@@ -255,13 +256,16 @@ async function opnsSell(args: string[], opts: GlobalFlags): Promise<void> {
 			fatal(`OpNS name not found in wallet: ${outpoint}`)
 		}
 
-		const addressResult = await deriveDepositAddresses.execute(ctx, {
-			prefix: '1sat',
-			count: 1,
-		})
-		const payAddress = addressResult.derivations[0]?.address
+		let payAddress = payAddressFlag
 		if (!payAddress) {
-			fatal('Failed to derive pay address')
+			const addressResult = await deriveDepositAddresses.execute(ctx, {
+				prefix: '1sat',
+				count: 1,
+			})
+			payAddress = addressResult.derivations[0]?.address
+			if (!payAddress) {
+				fatal('Failed to derive pay address')
+			}
 		}
 
 		const result = await listOrdinal.execute(ctx, {

@@ -515,6 +515,11 @@ export const COMMANDS: CommandSpec[] = [
 				args: [
 					{ flag: '--outpoint', values: '<txid.vout>', required: true },
 					{ flag: '--price', values: '<satoshis>', required: true },
+					{
+						flag: '--pay-address',
+						values: '<address>',
+						required: false,
+					},
 				],
 			},
 			{
