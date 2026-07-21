@@ -496,19 +496,37 @@ export const COMMANDS: CommandSpec[] = [
 	{
 		group: 'OpNS',
 		name: 'opns',
-		description: 'Ordinals Name System — bind BAP identity to a name',
+		description: 'Ordinals Name System — on-chain names',
 		subcommands: [
 			{
 				name: 'register',
-				description: 'Register identity on an OpNS name',
+				description: 'Register a payment identity key on an OpNS name',
 				args: [{ flag: '--outpoint', values: '<txid.vout>', required: true }],
 			},
 			{
 				name: 'deregister',
-				description: 'Deregister identity from an OpNS name',
+				description: 'Deregister the payment identity from an OpNS name',
 				args: [{ flag: '--outpoint', values: '<txid.vout>', required: true }],
 			},
 			{ name: 'lookup', description: 'List OpNS names from wallet' },
+			{
+				name: 'sell',
+				description: 'List an OpNS name for sale',
+				args: [
+					{ flag: '--outpoint', values: '<txid.vout>', required: true },
+					{ flag: '--price', values: '<satoshis>', required: true },
+				],
+			},
+			{
+				name: 'buy',
+				description: 'Purchase an OpNS name listing',
+				args: [{ flag: '--outpoint', values: '<txid.vout>', required: true }],
+			},
+			{
+				name: 'cancel-listing',
+				description: 'Cancel a market listing on an OpNS name',
+				args: [{ flag: '--outpoint', values: '<txid.vout>', required: true }],
+			},
 		],
 	},
 
