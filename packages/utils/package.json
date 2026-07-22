@@ -1,6 +1,6 @@
 {
   "name": "@1sat/utils",
-  "version": "0.0.27",
+  "version": "0.0.29",
   "description": "Utility functions for 1Sat Ordinals SDK",
   "type": "module",
   "main": "./dist/index.js",

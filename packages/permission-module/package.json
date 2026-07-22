@@ -1,44 +1,44 @@
 {
-	"name": "@1sat/permission-module",
-	"version": "0.0.39",
-	"description": "1Sat permission module for WalletPermissionsManager \u2014 gates createSignature with hashOutputs commitments captured at createAction time",
-	"type": "module",
-	"main": "./dist/index.js",
-	"types": "./dist/index.d.ts",
-	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js"
-		}
-	},
-	"files": [
-		"dist"
-	],
-	"scripts": {
-		"build": "tsc",
-		"dev": "tsc --watch",
-		"clean": "rm -rf dist",
-		"test": "bun test"
-	},
-	"keywords": [
-		"1sat",
-		"bsv",
-		"wallet",
-		"permissions",
-		"brc-0098"
-	],
-	"license": "MIT",
-	"dependencies": {
-		"@1sat/types": "workspace:*",
-		"@1sat/actions": "workspace:*",
-		"@1sat/wallet": "workspace:*"
-	},
-	"peerDependencies": {
-		"@bsv/sdk": "^2.1.6",
-		"@bsv/wallet-toolbox": "2.1.24"
-	},
-	"devDependencies": {
-		"@bsv/sdk": "^2.1.6",
-		"typescript": "^5.9.3"
-	}
+  "name": "@1sat/permission-module",
+  "version": "0.0.41",
+  "description": "1Sat permission module for WalletPermissionsManager — gates createSignature with hashOutputs commitments captured at createAction time",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "bun test"
+  },
+  "keywords": [
+    "1sat",
+    "bsv",
+    "wallet",
+    "permissions",
+    "brc-0098"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@1sat/types": "workspace:*",
+    "@1sat/actions": "workspace:*",
+    "@1sat/wallet": "workspace:*"
+  },
+  "peerDependencies": {
+    "@bsv/sdk": "^2.1.6",
+    "@bsv/wallet-toolbox": "2.1.24"
+  },
+  "devDependencies": {
+    "@bsv/sdk": "^2.1.6",
+    "typescript": "^5.9.3"
+  }
 }
