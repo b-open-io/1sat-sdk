@@ -50,7 +50,11 @@ export {
 	type TokenBalance,
 	type ScanProgress,
 } from './lib/scanner'
-export { executeSweep, type SweepResult } from './lib/sweeper'
+export {
+	executeSweep,
+	SWEEP_BATCH_SIZE,
+	type SweepResult,
+} from './lib/sweeper'
 export {
 	legacySendBsv,
 	legacySendOrdinals,

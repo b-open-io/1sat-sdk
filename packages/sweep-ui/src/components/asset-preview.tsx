@@ -1,12 +1,11 @@
 import type { IndexedOutput } from '@1sat/types'
 import { useState } from 'react'
 import type { EnrichedOrdinal, TokenBalance } from '../lib/scanner'
+import { SWEEP_BATCH_SIZE } from '../lib/sweeper'
 import { formatSats, formatTokenAmount } from '../lib/utils'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
-
-const ORDINALS_PER_PAGE = 20
 
 function isImageType(ct: string): boolean {
 	return ct.startsWith('image/') && ct !== 'image/svg+xml'
@@ -200,9 +199,10 @@ export function OrdinalsSection({
 	ordinals,
 	selectedOrdinals,
 	onToggle,
-	onSelectAll,
+	onSelectPage,
 	onDeselectAll,
 	onSweep,
+	onSweepAll,
 	onSend,
 	onBurn,
 	walletConnected,
@@ -210,9 +210,10 @@ export function OrdinalsSection({
 	ordinals: EnrichedOrdinal[]
 	selectedOrdinals: Set<string>
 	onToggle: (outpoint: string) => void
-	onSelectAll: () => void
+	onSelectPage: (outpoints: string[]) => void
 	onDeselectAll: () => void
 	onSweep: () => void
+	onSweepAll: () => void
 	onSend?: (destination: string) => void
 	onBurn?: () => void
 	walletConnected: boolean
@@ -220,9 +221,13 @@ export function OrdinalsSection({
 	const [page, setPage] = useState(0)
 	const [address, setAddress] = useState('')
 	if (ordinals.length === 0) return null
-	const totalPages = Math.ceil(ordinals.length / ORDINALS_PER_PAGE)
-	const start = page * ORDINALS_PER_PAGE
-	const pageItems = ordinals.slice(start, start + ORDINALS_PER_PAGE)
+	const totalPages = Math.ceil(ordinals.length / SWEEP_BATCH_SIZE)
+	const safePage = Math.min(page, totalPages - 1)
+	const start = safePage * SWEEP_BATCH_SIZE
+	const pageItems = ordinals.slice(start, start + SWEEP_BATCH_SIZE)
+	const pageOutpoints = pageItems.map((o) => o.outpoint)
+	const selectedCount = selectedOrdinals.size
+	const batchCount = Math.ceil(ordinals.length / SWEEP_BATCH_SIZE)
 
 	return (
 		<div className="border border-blue-500/20 bg-blue-500/5 p-4 rounded-lg">
@@ -236,11 +241,14 @@ export function OrdinalsSection({
 					</div>
 					<div className="text-xs text-muted-foreground">
 						{ordinals.length} inscription{ordinals.length !== 1 ? 's' : ''}
-						{selectedOrdinals.size > 0 && (
+						{selectedCount > 0 && (
 							<span className="text-blue-400 ml-1">
-								({selectedOrdinals.size} selected)
+								({selectedCount} selected)
 							</span>
 						)}
+						<span className="ml-1 text-muted-foreground/80">
+							· {SWEEP_BATCH_SIZE}/page
+						</span>
 					</div>
 				</div>
 				<div className="flex gap-2">
@@ -248,16 +256,16 @@ export function OrdinalsSection({
 						variant="outline"
 						size="sm"
 						className="h-7 text-[11px]"
-						onClick={onSelectAll}
+						onClick={() => onSelectPage(pageOutpoints)}
 					>
-						Select All
+						Select page
 					</Button>
 					<Button
 						variant="outline"
 						size="sm"
 						className="h-7 text-[11px]"
 						onClick={onDeselectAll}
-						disabled={selectedOrdinals.size === 0}
+						disabled={selectedCount === 0}
 					>
 						Deselect
 					</Button>
@@ -279,79 +287,94 @@ export function OrdinalsSection({
 						variant="ghost"
 						size="sm"
 						className="text-xs"
-						onClick={() => setPage(page - 1)}
-						disabled={page === 0}
+						onClick={() => setPage(safePage - 1)}
+						disabled={safePage === 0}
 					>
 						Prev
 					</Button>
 					<span className="text-xs text-muted-foreground">
-						Page {page + 1} of {totalPages}
+						Page {safePage + 1} of {totalPages}
 					</span>
 					<Button
 						variant="ghost"
 						size="sm"
 						className="text-xs"
-						onClick={() => setPage(page + 1)}
-						disabled={page >= totalPages - 1}
+						onClick={() => setPage(safePage + 1)}
+						disabled={safePage >= totalPages - 1}
 					>
 						Next
 					</Button>
 				</div>
 			)}
-			{selectedOrdinals.size > 0 && (
-				<div className="mt-3 space-y-2">
-					{onSend && (
-						<Input
-							type="text"
-							placeholder="Destination address..."
-							value={address}
-							onChange={(e) => setAddress(e.target.value)}
-							className="font-mono text-xs"
-						/>
+			<div className="mt-3 space-y-2">
+				{selectedCount > 0 && onSend && (
+					<Input
+						type="text"
+						placeholder="Destination address..."
+						value={address}
+						onChange={(e) => setAddress(e.target.value)}
+						className="font-mono text-xs"
+					/>
+				)}
+				<div className="flex flex-wrap gap-2">
+					{selectedCount > 0 && onSend && (
+						<Button
+							variant="outline"
+							size="sm"
+							className="flex-1 min-w-[6rem]"
+							disabled={!address.trim()}
+							onClick={() => onSend(address.trim())}
+						>
+							Send {selectedCount}
+						</Button>
 					)}
-					<div className="flex gap-2">
-						{onSend && (
-							<Button
-								variant="outline"
-								size="sm"
-								className="flex-1"
-								disabled={!address.trim()}
-								onClick={() => onSend(address.trim())}
-							>
-								Send {selectedOrdinals.size} Ordinal
-								{selectedOrdinals.size !== 1 ? 's' : ''}
-							</Button>
-						)}
+					{selectedCount > 0 && (
 						<Button
 							size="sm"
-							className="flex-1"
+							className="flex-1 min-w-[6rem]"
 							onClick={onSweep}
 							disabled={!walletConnected}
 							title={
 								walletConnected ? undefined : 'Connect BRC-100 wallet to sweep'
 							}
 						>
-							Sweep to Wallet
+							Sweep {selectedCount}
+							{selectedCount > SWEEP_BATCH_SIZE
+								? ` (${Math.ceil(selectedCount / SWEEP_BATCH_SIZE)} batches)`
+								: ''}
 						</Button>
-						{onBurn && (
-							<Button
-								size="sm"
-								className="bg-red-600 hover:bg-red-700 text-white"
-								onClick={() => {
-									if (
-										window.confirm(
-											`Permanently burn ${selectedOrdinals.size} ordinal${selectedOrdinals.size !== 1 ? 's' : ''}? This cannot be undone.`,
-										)
+					)}
+					<Button
+						variant={selectedCount > 0 ? 'outline' : 'default'}
+						size="sm"
+						className="flex-1 min-w-[6rem]"
+						onClick={onSweepAll}
+						disabled={!walletConnected}
+						title={
+							walletConnected ? undefined : 'Connect BRC-100 wallet to sweep'
+						}
+					>
+						Sweep all
+						{batchCount > 1 ? ` (${batchCount} batches)` : ''}
+					</Button>
+					{selectedCount > 0 && onBurn && (
+						<Button
+							size="sm"
+							className="bg-red-600 hover:bg-red-700 text-white"
+							onClick={() => {
+								if (
+									window.confirm(
+										`Permanently burn ${selectedCount} ordinal${selectedCount !== 1 ? 's' : ''}? This cannot be undone.`,
 									)
-										onBurn()
-								}}
-							>
-								Burn
-							</Button>
-						)}
-					</div>
+								)
+									onBurn()
+							}}
+						>
+							Burn
+						</Button>
+					)}
 				</div>
-			)}
+			</div>
 		</div>
 	)
 }

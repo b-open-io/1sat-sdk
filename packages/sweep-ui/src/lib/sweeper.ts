@@ -10,11 +10,16 @@ import type { PrivateKey, WalletInterface } from '@bsv/sdk'
 import type { TokenBalance } from './scanner'
 import { getServices } from './services'
 
+/** Page size, select-page size, and createAction batch size for ordinal/OpNS sweeps. */
+export const SWEEP_BATCH_SIZE = 25
+
 export interface SweepResult {
 	bsvTxid?: string
 	ordinalTxids: string[]
 	bsv21Txids: string[]
 	errors: string[]
+	/** Outpoints successfully swept (ordinals/OpNS). */
+	sweptOutpoints: string[]
 }
 
 function getOwner(output: IndexedOutput): string | undefined {
@@ -34,8 +39,17 @@ function buildKeys(
 	})
 }
 
+function chunk<T>(items: T[], size: number): T[][] {
+	const batches: T[][] = []
+	for (let i = 0; i < items.length; i += size) {
+		batches.push(items.slice(i, i + size))
+	}
+	return batches
+}
+
 /**
  * Sweep BSV funding and ordinals into the connected wallet.
+ * Ordinals are processed in batches of {@link SWEEP_BATCH_SIZE}; stops on first batch error.
  */
 export async function executeSweep(params: {
 	wallet: WalletInterface
@@ -52,6 +66,7 @@ export async function executeSweep(params: {
 		ordinalTxids: [],
 		bsv21Txids: [],
 		errors: [],
+		sweptOutpoints: [],
 	}
 
 	if (funding.length > 0) {
@@ -71,23 +86,42 @@ export async function executeSweep(params: {
 	}
 
 	if (ordinals.length > 0) {
-		onProgress(`Sweeping ${ordinals.length} ordinals...`)
-		try {
-			const inputs = await prepareSweepInputs(ctx, ordinals)
-			const ordResult = await sweepOrdinals.execute(ctx, {
-				inputs,
-				keys: buildKeys(ordinals, keys),
-			})
-			if (ordResult.error) result.errors.push(`Ordinals: ${ordResult.error}`)
-			else if (ordResult.txid) result.ordinalTxids.push(ordResult.txid)
-		} catch (e) {
-			result.errors.push(
-				`Ordinals: ${e instanceof Error ? e.message : String(e)}`,
+		const batches = chunk(ordinals, SWEEP_BATCH_SIZE)
+		for (let b = 0; b < batches.length; b++) {
+			const batch = batches[b]
+			const from = b * SWEEP_BATCH_SIZE + 1
+			const to = b * SWEEP_BATCH_SIZE + batch.length
+			onProgress(
+				batches.length === 1
+					? `Sweeping ${batch.length} ordinal${batch.length !== 1 ? 's' : ''}...`
+					: `Sweeping ordinals ${from}–${to} of ${ordinals.length} (batch ${b + 1}/${batches.length})...`,
 			)
+			try {
+				const inputs = await prepareSweepInputs(ctx, batch)
+				const ordResult = await sweepOrdinals.execute(ctx, {
+					inputs,
+					keys: buildKeys(batch, keys),
+				})
+				if (ordResult.error) {
+					result.errors.push(
+						`Ordinals batch ${b + 1}/${batches.length}: ${ordResult.error}`,
+					)
+					break
+				}
+				if (ordResult.txid) result.ordinalTxids.push(ordResult.txid)
+				result.sweptOutpoints.push(...batch.map((o) => o.outpoint))
+			} catch (e) {
+				result.errors.push(
+					`Ordinals batch ${b + 1}/${batches.length}: ${e instanceof Error ? e.message : String(e)}`,
+				)
+				break
+			}
 		}
 	}
 
-	onProgress('Sweep complete')
+	onProgress(
+		result.errors.length > 0 ? 'Sweep stopped with errors' : 'Sweep complete',
+	)
 	return result
 }
 

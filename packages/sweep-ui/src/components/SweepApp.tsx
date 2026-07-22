@@ -7,6 +7,7 @@ import {
 	legacySendOrdinals,
 } from '../lib/legacy-send'
 import {
+	type EnrichedOrdinal,
 	type ScannedAssets,
 	deriveAddress,
 	scanAddresses,
@@ -122,10 +123,9 @@ export function SweepApp({
 			return next
 		})
 	}, [])
-	const handleSelectAllOrdinals = useCallback(() => {
-		if (assets)
-			setSelectedOrdinals(new Set(assets.ordinals.map((o) => o.outpoint)))
-	}, [assets])
+	const handleSelectOrdinalPage = useCallback((outpoints: string[]) => {
+		setSelectedOrdinals(new Set(outpoints))
+	}, [])
 	const handleDeselectAllOrdinals = useCallback(
 		() => setSelectedOrdinals(new Set()),
 		[],
@@ -139,10 +139,9 @@ export function SweepApp({
 			return next
 		})
 	}, [])
-	const handleSelectAllOpns = useCallback(() => {
-		if (assets)
-			setSelectedOpns(new Set(assets.opnsNames.map((o) => o.outpoint)))
-	}, [assets])
+	const handleSelectOpnsPage = useCallback((outpoints: string[]) => {
+		setSelectedOpns(new Set(outpoints))
+	}, [])
 	const handleDeselectAllOpns = useCallback(
 		() => setSelectedOpns(new Set()),
 		[],
@@ -287,28 +286,58 @@ export function SweepApp({
 		[legacyKeys, assets, sweepAmount, getSelectedFunding, runOperation],
 	)
 
-	const handleSweepOrdinals = useCallback(async () => {
-		const wallet = resolveWallet()
-		if (!wallet || !legacyKeys || !assets) return
-		const selected = assets.ordinals.filter((o) =>
-			selectedOrdinals.has(o.outpoint),
-		)
-		if (selected.length === 0) return
-		await runOperation(
-			`Sweep ${selected.length} ordinal${selected.length !== 1 ? 's' : ''}`,
-			async () => {
+	const sweepOrdinalList = useCallback(
+		async (list: EnrichedOrdinal[], label: string) => {
+			const wallet = resolveWallet()
+			if (!wallet || !legacyKeys || list.length === 0) return
+			await runOperation(label, async () => {
 				const result = await executeSweep({
 					wallet,
 					keys: keyMap,
 					funding: [],
-					ordinals: selected,
+					ordinals: list,
 					onProgress: setSweepProgress,
 				})
-				if (result.errors.length > 0) throw new Error(result.errors[0])
-				return result.ordinalTxids[0] ?? ''
-			},
+				if (result.sweptOutpoints.length > 0) {
+					setSelectedOrdinals((prev) => {
+						const next = new Set(prev)
+						for (const op of result.sweptOutpoints) next.delete(op)
+						return next
+					})
+				}
+				if (result.errors.length > 0) {
+					for (const txid of result.ordinalTxids) addTx(label, txid)
+					if (result.sweptOutpoints.length > 0) await refreshAssets()
+					throw new Error(result.errors[0])
+				}
+				for (let i = 0; i < result.ordinalTxids.length - 1; i++) {
+					addTx(label, result.ordinalTxids[i])
+				}
+				return result.ordinalTxids[result.ordinalTxids.length - 1] ?? ''
+			})
+		},
+		[resolveWallet, legacyKeys, keyMap, runOperation, addTx, refreshAssets],
+	)
+
+	const handleSweepOrdinals = useCallback(async () => {
+		if (!assets) return
+		const selected = assets.ordinals.filter((o) =>
+			selectedOrdinals.has(o.outpoint),
 		)
-	}, [resolveWallet, legacyKeys, assets, selectedOrdinals, runOperation])
+		if (selected.length === 0) return
+		await sweepOrdinalList(
+			selected,
+			`Sweep ${selected.length} ordinal${selected.length !== 1 ? 's' : ''}`,
+		)
+	}, [assets, selectedOrdinals, sweepOrdinalList])
+
+	const handleSweepAllOrdinals = useCallback(async () => {
+		if (!assets || assets.ordinals.length === 0) return
+		await sweepOrdinalList(
+			assets.ordinals,
+			`Sweep all ${assets.ordinals.length} ordinal${assets.ordinals.length !== 1 ? 's' : ''}`,
+		)
+	}, [assets, sweepOrdinalList])
 
 	const handleSendOrdinals = useCallback(
 		async (destination: string) => {
@@ -352,28 +381,58 @@ export function SweepApp({
 		)
 	}, [legacyKeys, assets, selectedOrdinals, runOperation])
 
-	const handleSweepOpns = useCallback(async () => {
-		const wallet = resolveWallet()
-		if (!wallet || !legacyKeys || !assets) return
-		const selected = assets.opnsNames.filter((o) =>
-			selectedOpns.has(o.outpoint),
-		)
-		if (selected.length === 0) return
-		await runOperation(
-			`Sweep ${selected.length} domain${selected.length !== 1 ? 's' : ''}`,
-			async () => {
+	const sweepOpnsList = useCallback(
+		async (list: EnrichedOrdinal[], label: string) => {
+			const wallet = resolveWallet()
+			if (!wallet || !legacyKeys || list.length === 0) return
+			await runOperation(label, async () => {
 				const result = await executeSweep({
 					wallet,
 					keys: keyMap,
 					funding: [],
-					ordinals: selected,
+					ordinals: list,
 					onProgress: setSweepProgress,
 				})
-				if (result.errors.length > 0) throw new Error(result.errors[0])
-				return result.ordinalTxids[0] ?? ''
-			},
+				if (result.sweptOutpoints.length > 0) {
+					setSelectedOpns((prev) => {
+						const next = new Set(prev)
+						for (const op of result.sweptOutpoints) next.delete(op)
+						return next
+					})
+				}
+				if (result.errors.length > 0) {
+					for (const txid of result.ordinalTxids) addTx(label, txid)
+					if (result.sweptOutpoints.length > 0) await refreshAssets()
+					throw new Error(result.errors[0])
+				}
+				for (let i = 0; i < result.ordinalTxids.length - 1; i++) {
+					addTx(label, result.ordinalTxids[i])
+				}
+				return result.ordinalTxids[result.ordinalTxids.length - 1] ?? ''
+			})
+		},
+		[resolveWallet, legacyKeys, keyMap, runOperation, addTx, refreshAssets],
+	)
+
+	const handleSweepOpns = useCallback(async () => {
+		if (!assets) return
+		const selected = assets.opnsNames.filter((o) =>
+			selectedOpns.has(o.outpoint),
 		)
-	}, [resolveWallet, legacyKeys, assets, selectedOpns, runOperation])
+		if (selected.length === 0) return
+		await sweepOpnsList(
+			selected,
+			`Sweep ${selected.length} domain${selected.length !== 1 ? 's' : ''}`,
+		)
+	}, [assets, selectedOpns, sweepOpnsList])
+
+	const handleSweepAllOpns = useCallback(async () => {
+		if (!assets || assets.opnsNames.length === 0) return
+		await sweepOpnsList(
+			assets.opnsNames,
+			`Sweep all ${assets.opnsNames.length} domain${assets.opnsNames.length !== 1 ? 's' : ''}`,
+		)
+	}, [assets, sweepOpnsList])
 
 	const handleSendOpns = useCallback(
 		async (destination: string) => {
@@ -512,9 +571,10 @@ export function SweepApp({
 										ordinals={assets.ordinals}
 										selectedOrdinals={selectedOrdinals}
 										onToggle={handleToggleOrdinal}
-										onSelectAll={handleSelectAllOrdinals}
+										onSelectPage={handleSelectOrdinalPage}
 										onDeselectAll={handleDeselectAllOrdinals}
 										onSweep={handleSweepOrdinals}
+										onSweepAll={handleSweepAllOrdinals}
 										onSend={sweepOnly ? undefined : handleSendOrdinals}
 										onBurn={sweepOnly ? undefined : handleBurnOrdinals}
 										walletConnected={walletConnected}
@@ -525,9 +585,10 @@ export function SweepApp({
 										opnsNames={assets.opnsNames}
 										selectedOpns={selectedOpns}
 										onToggle={handleToggleOpns}
-										onSelectAll={handleSelectAllOpns}
+										onSelectPage={handleSelectOpnsPage}
 										onDeselectAll={handleDeselectAllOpns}
 										onSweep={handleSweepOpns}
+										onSweepAll={handleSweepAllOpns}
 										onSend={sweepOnly ? undefined : handleSendOpns}
 										onBurn={sweepOnly ? undefined : handleBurnOpns}
 										walletConnected={walletConnected}

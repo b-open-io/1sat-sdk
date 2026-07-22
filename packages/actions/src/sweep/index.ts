@@ -376,19 +376,21 @@ export const sweepOrdinals: Action<
 			const keyMap = buildKeyMap(inputs, keys)
 			const sourceMap = buildSourceMap(inputs)
 
-			// Resolve metadata for all inputs from ORDFS
+			// Resolve metadata for all inputs from ORDFS (API max 100/request)
 			const outpoints = inputs.map((i) => i.outpoint)
 			console.log(
 				`[sweepOrdinals] Resolving metadata for ${outpoints.length} outpoints`,
 			)
-			const metadataMap = await ctx.services.ordfs.bulkMetadata(
-				outpoints.map((op) => `${op}:-2`),
-			)
-
-			// Build a lookup by outpoint (strip :-2 suffix from response keys)
 			const metadata = new Map<string, OrdfsMetadata>()
-			for (const [op, meta] of Object.entries(metadataMap)) {
-				if (meta) metadata.set(op.replace(/:-2$/, ''), meta)
+			const BULK_METADATA_LIMIT = 100
+			for (let i = 0; i < outpoints.length; i += BULK_METADATA_LIMIT) {
+				const chunk = outpoints.slice(i, i + BULK_METADATA_LIMIT)
+				const metadataMap = await ctx.services.ordfs.bulkMetadata(
+					chunk.map((op) => `${op}:-2`),
+				)
+				for (const [op, meta] of Object.entries(metadataMap)) {
+					if (meta) metadata.set(op.replace(/:-2$/, ''), meta)
+				}
 			}
 
 			// Fetch BEEF for all input transactions and merge them
