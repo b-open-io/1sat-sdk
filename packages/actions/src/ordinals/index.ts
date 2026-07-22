@@ -40,7 +40,10 @@ import type {
 } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
 import { resolveBeef } from '../utils/resolveBeef'
-import { signP2PKHInput } from '../utils/signP2PKH'
+import {
+	signOrdinalInput,
+	unlockingScriptLengthForInstructions,
+} from '../utils/signOrdinalInput'
 
 // ============================================================================
 // Helpers
@@ -383,7 +386,9 @@ export async function buildTransferOrdinals(
 		inputs?.push({
 			outpoint,
 			inputDescription: 'Ordinal to transfer',
-			unlockingScriptLength: 108,
+			unlockingScriptLength: unlockingScriptLengthForInstructions(
+				ordinal.customInstructions,
+			),
 		})
 
 		// Emit a per-ordinal input label so the 1Sat permission module can
@@ -516,7 +521,9 @@ export async function buildListOrdinal(
 			{
 				outpoint,
 				inputDescription: 'Ordinal to list',
-				unlockingScriptLength: 108,
+				unlockingScriptLength: unlockingScriptLengthForInstructions(
+					ordinal.customInstructions,
+				),
 			},
 		],
 		outputs: [
@@ -553,7 +560,9 @@ export async function buildBurnOrdinals(
 	const inputs: CreateActionArgs['inputs'] = ordinals.map((ordinal) => ({
 		outpoint: ordinal.outpoint,
 		inputDescription: 'Ordinal to burn',
-		unlockingScriptLength: 108,
+		unlockingScriptLength: unlockingScriptLengthForInstructions(
+			ordinal.customInstructions,
+		),
 	}))
 
 	const inputBEEF =
@@ -757,16 +766,11 @@ export const transferOrdinals: Action<
 								`missing-custom-instructions-for-${ordinal.outpoint}`,
 							)
 						}
-						const { protocolID, keyID, counterparty } = JSON.parse(
-							ordinal.customInstructions,
-						)
-						const unlocking = await signP2PKHInput(
+						const unlocking = await signOrdinalInput(
 							ctx,
 							tx,
 							i,
-							protocolID,
-							keyID,
-							counterparty,
+							ordinal.customInstructions,
 						)
 						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
 						spends[i] = { unlockingScript: unlocking }
@@ -868,9 +872,6 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 				if (!input.ordinal.customInstructions) {
 					return { error: 'missing-custom-instructions' }
 				}
-				const { protocolID, keyID, counterparty } = JSON.parse(
-					input.ordinal.customInstructions,
-				)
 
 				const result = await executeTrackedAction(
 					ctx.wallet,
@@ -881,13 +882,11 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 					input.fundingProvider,
 					params.inputBEEF as number[],
 					async (tx) => {
-						const unlocking = await signP2PKHInput(
+						const unlocking = await signOrdinalInput(
 							ctx,
 							tx,
 							0,
-							protocolID,
-							keyID,
-							counterparty,
+							input.ordinal.customInstructions as string,
 						)
 						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
 						return { 0: { unlockingScript: unlocking } }
@@ -1357,16 +1356,11 @@ export const burnOrdinals: Action<
 								`missing-custom-instructions-for-${ordinal.outpoint}`,
 							)
 						}
-						const { protocolID, keyID, counterparty } = JSON.parse(
-							ordinal.customInstructions,
-						)
-						const unlocking = await signP2PKHInput(
+						const unlocking = await signOrdinalInput(
 							ctx,
 							tx,
 							i,
-							protocolID,
-							keyID,
-							counterparty,
+							ordinal.customInstructions,
 						)
 						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
 						spends[i] = { unlockingScript: unlocking }

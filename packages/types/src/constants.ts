@@ -29,6 +29,11 @@ export const BSV21_BASKET = 'p 1sat bsv21'
 export const BSV21_AUTH_BASKET = 'p 1sat bsv21-auth'
 export const BSV21_DEPLOY_FUNDING_BASKET = 'p 1sat bsv21-deploy-funding'
 export const OPNS_BASKET = 'p 1sat opns'
+/**
+ * Host-wallet basket for subscription receipt dust (1 sat to host).
+ * Customer identity is **not** in the locking script — only wallet-local tags.
+ */
+export const HOSTING_BASKET = 'p 1sat hosting'
 export const LOCK_BASKET = 'p 1sat lock'
 export const SIGMA_BASKET = 'p 1sat sigma'
 export const BSOCIAL_BASKET = 'p 1sat bsocial'
@@ -101,6 +106,66 @@ export const ONESAT_TESTNET_CONTENT_URL = 'https://testnet.api.1sat.app/content'
  * module per BRC-0098.
  */
 export const P1SAT_PROTOCOL: [0 | 1 | 2, string] = [0, 'p 1sat']
+
+// ============================================================================
+// OpNS identity bind (PushDrop on name UTXO)
+// ============================================================================
+
+/** customInstructions.template when the name is locked with signed PushDrop */
+export const OPNS_PUSHDROP_TEMPLATE = 'pushdrop'
+
+/** keyID prefix: full id is `opns:{txid}_{vout}` of the input spent to create the bind */
+export const OPNS_REGISTER_KEY_PREFIX = 'opns:'
+
+/** Counterparty for bind lock + field-sig */
+export const OPNS_REGISTER_COUNTERPARTY = 'anyone' as const
+
+/** Wallet tag on a published (bound) OpNS name */
+export const OPNS_PUBLISHED_TAG = 'opns:published'
+
+/** PushDrop keyID from spent input outpoint (`txid.vout` → `opns:{txid}_{vout}`) */
+export function opnsRegisterKeyId(outpoint: string): string {
+	const [txid, vout] = outpoint.split('.')
+	return `${OPNS_REGISTER_KEY_PREFIX}${txid}_${vout}`
+}
+
+// ============================================================================
+// Host subscription receipts (wallet-local tags only — not on-chain identity)
+// ============================================================================
+
+/** Tag: `payer:{identityKeyHex}` on host receipt outputs (storage only). */
+export const HOSTING_PAYER_TAG_PREFIX = 'payer:'
+
+/** Tag: `exp:{unixSeconds}` on host receipt outputs (storage only). */
+export const HOSTING_EXP_TAG_PREFIX = 'exp:'
+
+export function hostingPayerTag(identityKeyHex: string): string {
+	return `${HOSTING_PAYER_TAG_PREFIX}${identityKeyHex}`
+}
+
+export function hostingExpTag(expiresAtUnix: number): string {
+	return `${HOSTING_EXP_TAG_PREFIX}${Math.floor(expiresAtUnix)}`
+}
+
+export function readHostingPayer(tags: string[] | undefined): string | undefined {
+	if (!tags) return undefined
+	for (const t of tags) {
+		if (t.startsWith(HOSTING_PAYER_TAG_PREFIX)) {
+			return t.slice(HOSTING_PAYER_TAG_PREFIX.length)
+		}
+	}
+	return undefined
+}
+
+export function readHostingExp(tags: string[] | undefined): number | undefined {
+	if (!tags) return undefined
+	for (const t of tags) {
+		if (!t.startsWith(HOSTING_EXP_TAG_PREFIX)) continue
+		const n = Number(t.slice(HOSTING_EXP_TAG_PREFIX.length))
+		if (Number.isFinite(n)) return n
+	}
+	return undefined
+}
 
 /**
  * Generic dispatch-trigger label. Added by `createTrackedAction` when no

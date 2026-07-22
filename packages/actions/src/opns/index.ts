@@ -1,21 +1,35 @@
 /**
  * OpNS Module
  *
- * Actions for managing OpNS name identity bindings.
- * Registers/deregisters identity public keys on OpNS tokens via MAP metadata.
+ * Actions for managing OpNS names. Identity bind is a signed PushDrop on the
+ * name UTXO (field0 = BRC-100 identity key). Moving the name spends that
+ * script and re-locks under the normal ordinal formats (P2PKH / OrdLock).
  */
 
-import { P2PKH, type BEEF, type WalletOutput } from '@bsv/sdk'
-import { OPNS_BASKET } from '../constants'
 import {
-	buildTransferOrdinals,
-	listOrdinal,
-	transferOrdinals,
-} from '../ordinals'
-import type { Action, ActionOptions } from '../types'
+	OPNS_BASKET,
+	OPNS_PUBLISHED_TAG,
+	OPNS_PUSHDROP_TEMPLATE,
+	OPNS_REGISTER_COUNTERPARTY,
+	P1SAT_PROTOCOL,
+	opnsRegisterKeyId,
+} from '@1sat/types'
+import {
+	PushDrop,
+	Utils,
+	type BEEF,
+	type WalletOutput,
+} from '@bsv/sdk'
+import { buildTransferOrdinals, listOrdinal, transferOrdinals } from '../ordinals'
+import type { Action, ActionOptions, OneSatContext } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
 import { resolveBeef } from '../utils/resolveBeef'
-import { signP2PKHInput } from '../utils/signP2PKH'
+import {
+	signOrdinalInput,
+	unlockingScriptLengthForInstructions,
+} from '../utils/signOrdinalInput'
+
+export { opnsRegisterKeyId } from '@1sat/types'
 
 // ============================================================================
 // Types
@@ -26,11 +40,6 @@ export interface OpnsRegisterRequest extends ActionOptions {
 	ordinal: WalletOutput
 	/** BEEF — resolved automatically via ID tag if omitted */
 	inputBEEF?: number[]
-	/**
-	 * Legacy: Base58Check P2PKH address to bind instead of the wallet identity
-	 * key. Written to opns.idKey as-is. Omit for BRC-100 identity (default).
-	 */
-	address?: string
 }
 
 export interface OpnsDeregisterRequest extends ActionOptions {
@@ -46,10 +55,6 @@ export interface OpnsOperationResponse {
 	error?: string
 }
 
-// ============================================================================
-// Actions
-// ============================================================================
-
 /** Input for getOpnsNames action */
 export interface GetOpnsNamesInput {
 	/** Max number of names to return */
@@ -63,6 +68,45 @@ export interface GetOpnsNamesResult {
 	outputs: WalletOutput[]
 	BEEF?: BEEF
 }
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+function sourceNameFromOrdinal(ordinal: WalletOutput): string | undefined {
+	if (ordinal.customInstructions) {
+		try {
+			const name = JSON.parse(ordinal.customInstructions).name
+			if (typeof name === 'string' && name) return name
+		} catch {}
+	}
+	return ordinal.tags?.find((t) => t.startsWith('name:'))?.slice(5)
+}
+
+async function signSingleOrdinalInput(
+	ctx: OneSatContext,
+	ordinal: WalletOutput,
+) {
+	if (!ordinal.customInstructions) {
+		return { error: 'missing-custom-instructions' as const }
+	}
+	return {
+		sign: async (tx: Parameters<typeof signOrdinalInput>[1]) => {
+			const unlocking = await signOrdinalInput(
+				ctx,
+				tx,
+				0,
+				ordinal.customInstructions as string,
+			)
+			if (typeof unlocking !== 'string') throw new Error(unlocking.error)
+			return { 0: { unlockingScript: unlocking } }
+		},
+	}
+}
+
+// ============================================================================
+// Actions
+// ============================================================================
 
 /**
  * Get OpNS names from the wallet with BEEF for spending.
@@ -103,18 +147,18 @@ export const getOpnsNames: Action<GetOpnsNamesInput, GetOpnsNamesResult> = {
 }
 
 /**
- * Register a payment binding on an OpNS name (MAP opns.idKey).
- * Default: wallet BRC-100 identity public key (BRC-29 paymail path).
- * Optional address: legacy Base58Check P2PKH binding (static destination).
+ * Bind the wallet identity key to an OpNS name via signed PushDrop.
+ *
+ * Lock: PushDrop under [0,'p 1sat'] / opns:{inputOutpoint} / anyone, forSelf.
+ * fields[0] = identity pubkey bytes; field-sig included (same derivation).
  */
 export const opnsRegister: Action<OpnsRegisterRequest, OpnsOperationResponse> =
 	{
 		meta: {
 			name: 'opnsRegister',
 			description:
-				'Register identity key or legacy address on an OpNS name via MAP',
+				'Bind BRC-100 identity key to an OpNS name via signed PushDrop',
 			category: 'opns',
-			requiresServices: true,
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -127,83 +171,82 @@ export const opnsRegister: Action<OpnsRegisterRequest, OpnsOperationResponse> =
 						description:
 							"BEEF from listOutputs with include: 'entire transactions'",
 					},
-					address: {
-						type: 'string',
-						description:
-							'Optional Base58Check P2PKH address for legacy binding; omit for identity key',
-					},
 				},
 				required: ['ordinal'],
 			},
 		},
 		async execute(ctx, input) {
 			try {
-				if (!ctx.services) {
-					return { error: 'services-required' }
+				const { ordinal } = input
+				if (!ordinal.customInstructions) {
+					return { error: 'missing-custom-instructions' }
 				}
 
-				const { ordinal } = input
 				const inputBEEF =
 					input.inputBEEF ??
 					(await resolveBeef(ctx.wallet, OPNS_BASKET, ordinal))
 
-				let binding: string
-				if (input.address) {
-					try {
-						new P2PKH().lock(input.address)
-					} catch {
-						return { error: 'invalid-address' }
-					}
-					binding = input.address
-				} else {
-					const { publicKey: identityPubKey } = await ctx.wallet.getPublicKey({
-						identityKey: true,
-					})
-					binding = identityPubKey
-				}
-
-				// Transfer to self with MAP binding
-				const params = await buildTransferOrdinals(ctx, {
-					transfers: [
-						{
-							ordinal,
-							counterparty: 'self',
-							map: {
-								'opns.idKey': binding,
-							},
-							extraTags: ['opns:published'],
-						},
-					],
-					inputBEEF,
+				const { publicKey: identityPubKey } = await ctx.wallet.getPublicKey({
+					identityKey: true,
 				})
-
-				if ('error' in params) {
-					return params
-				}
-
-				if (!ordinal.customInstructions) {
-					return { error: 'missing-custom-instructions' }
-				}
-				const { protocolID, keyID, counterparty } = JSON.parse(
-					ordinal.customInstructions,
+				const keyID = opnsRegisterKeyId(ordinal.outpoint)
+				const lockingScript = await new PushDrop(ctx.wallet).lock(
+					[Utils.toArray(identityPubKey, 'hex')],
+					P1SAT_PROTOCOL,
+					keyID,
+					OPNS_REGISTER_COUNTERPARTY,
+					true,
+					true,
 				)
+
+				const tags = [
+					...(ordinal.tags ?? []).filter(
+						(t) => t !== OPNS_PUBLISHED_TAG && !t.startsWith('ordlock'),
+					),
+					OPNS_PUBLISHED_TAG,
+				]
+				const name = sourceNameFromOrdinal(ordinal)
 
 				const result = await executeTrackedAction(
 					ctx.wallet,
 					{
-						...params,
+						description: 'Register OpNS identity bind',
+						inputBEEF,
+						inputs: [
+							{
+								outpoint: ordinal.outpoint,
+								inputDescription: 'OpNS name to register',
+								unlockingScriptLength: unlockingScriptLengthForInstructions(
+									ordinal.customInstructions,
+								),
+							},
+						],
+						outputs: [
+							{
+								lockingScript: lockingScript.toHex(),
+								satoshis: 1,
+								outputDescription: 'OpNS identity bind',
+								basket: OPNS_BASKET,
+								tags,
+								customInstructions: JSON.stringify({
+									protocolID: P1SAT_PROTOCOL,
+									keyID,
+									counterparty: OPNS_REGISTER_COUNTERPARTY,
+									template: OPNS_PUSHDROP_TEMPLATE,
+									...(name && { name }),
+								}),
+							},
+						],
 						options: { randomizeOutputs: false },
 					},
 					input.fundingProvider,
 					inputBEEF,
 					async (tx) => {
-						const unlocking = await signP2PKHInput(
+						const unlocking = await signOrdinalInput(
 							ctx,
 							tx,
 							0,
-							protocolID,
-							keyID,
-							counterparty,
+							ordinal.customInstructions as string,
 						)
 						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
 						return { 0: { unlockingScript: unlocking } }
@@ -229,9 +272,8 @@ export const opnsRegister: Action<OpnsRegisterRequest, OpnsOperationResponse> =
 	}
 
 /**
- * Deregister an identity key from an OpNS name.
- * Transfers the OpNS ordinal to self with MAP metadata containing an empty
- * idKey field, explicitly clearing the identity binding on-chain.
+ * Remove an identity bind by self-transferring to plain P2PKH.
+ * Spending the PushDrop clears the on-chain bind.
  */
 export const opnsDeregister: Action<
 	OpnsDeregisterRequest,
@@ -239,7 +281,7 @@ export const opnsDeregister: Action<
 > = {
 	meta: {
 		name: 'opnsDeregister',
-		description: 'Remove identity key binding from an OpNS name',
+		description: 'Remove identity bind from an OpNS name (self-transfer to P2PKH)',
 		category: 'opns',
 		inputSchema: {
 			type: 'object',
@@ -263,15 +305,11 @@ export const opnsDeregister: Action<
 			const inputBEEF =
 				input.inputBEEF ?? (await resolveBeef(ctx.wallet, OPNS_BASKET, ordinal))
 
-			// Transfer to self with empty idKey — explicitly clears identity binding
 			const params = await buildTransferOrdinals(ctx, {
 				transfers: [
 					{
 						ordinal,
 						counterparty: 'self',
-						map: {
-							'opns.idKey': '',
-						},
 						extraTags: [],
 					},
 				],
@@ -282,36 +320,27 @@ export const opnsDeregister: Action<
 				return params
 			}
 
-			if (!ordinal.customInstructions) {
-				return { error: 'missing-custom-instructions' }
+			// Drop published tag on the plain self-transfer output
+			if (params.outputs?.[0]?.tags) {
+				params.outputs[0].tags = params.outputs[0].tags.filter(
+					(t) => t !== OPNS_PUBLISHED_TAG,
+				)
 			}
-			const { protocolID, keyID, counterparty } = JSON.parse(
-				ordinal.customInstructions,
-			)
 
-			const result = await executeTrackedAction(
+			const signer = await signSingleOrdinalInput(ctx, ordinal)
+			if ('error' in signer) return signer
+
+			return await executeTrackedAction(
 				ctx.wallet,
 				{
 					...params,
+					description: 'Deregister OpNS identity bind',
 					options: { randomizeOutputs: false },
 				},
 				input.fundingProvider,
 				inputBEEF,
-				async (tx) => {
-					const unlocking = await signP2PKHInput(
-						ctx,
-						tx,
-						0,
-						protocolID,
-						keyID,
-						counterparty,
-					)
-					if (typeof unlocking !== 'string') throw new Error(unlocking.error)
-					return { 0: { unlockingScript: unlocking } }
-				},
+				signer.sign,
 			)
-
-			return result
 		} catch (error) {
 			console.error('[opnsDeregister]', error)
 			if (ctx.debug && ctx.log) {
@@ -342,14 +371,12 @@ export interface OpnsListRequest extends ActionOptions {
 
 /**
  * List an OpNS name for sale.
- * Clears the identity binding (opns.idKey) in the same transaction so the
- * name stops resolving to the seller's identity the moment it is listed.
+ * Spends the current lock (PushDrop or P2PKH); OrdLock output has no identity bind.
  */
 export const opnsList: Action<OpnsListRequest, OpnsOperationResponse> = {
 	meta: {
 		name: 'opnsList',
-		description:
-			'List an OpNS name for sale, clearing its identity binding in the same transaction',
+		description: 'List an OpNS name for sale',
 		category: 'opns',
 		inputSchema: {
 			type: 'object',
@@ -373,10 +400,7 @@ export const opnsList: Action<OpnsListRequest, OpnsOperationResponse> = {
 		},
 	},
 	async execute(ctx, input) {
-		return listOrdinal.execute(ctx, {
-			...input,
-			map: { 'opns.idKey': '' },
-		})
+		return listOrdinal.execute(ctx, input)
 	},
 }
 
@@ -393,15 +417,13 @@ export interface OpnsTransferRequest extends ActionOptions {
 
 /**
  * Transfer an OpNS name to a new owner.
- * Clears the identity binding (opns.idKey) in the same transaction so the
- * name stops resolving to the sender's identity once transferred.
+ * Spends the current lock; recipient gets plain P2PKH (bind does not carry forward).
  */
 export const opnsTransfer: Action<OpnsTransferRequest, OpnsOperationResponse> =
 	{
 		meta: {
 			name: 'opnsTransfer',
-			description:
-				'Transfer an OpNS name, clearing its identity binding in the same transaction',
+			description: 'Transfer an OpNS name to a new owner',
 			category: 'opns',
 			inputSchema: {
 				type: 'object',
@@ -434,7 +456,6 @@ export const opnsTransfer: Action<OpnsTransferRequest, OpnsOperationResponse> =
 						ordinal: input.ordinal,
 						counterparty: input.counterparty,
 						address: input.address,
-						map: { 'opns.idKey': '' },
 					},
 				],
 				inputBEEF: input.inputBEEF,
