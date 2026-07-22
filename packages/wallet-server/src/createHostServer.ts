@@ -18,7 +18,7 @@ import {
 import { createAuthMiddleware } from '@bsv/auth-express-middleware'
 import type { WalletInterface } from '@bsv/sdk'
 import { createLogger } from 'evlog'
-import { evlog, useLogger } from 'evlog/express'
+import { evlog } from 'evlog/express'
 import express, { type Express } from 'express'
 import {
 	type AccountsMiddlewareDeps,
@@ -34,6 +34,7 @@ import {
 	type WalletServerConfig,
 } from './createWalletServer'
 import { mountHostingRoutes, type HostingConfigProvider } from './hosting/routes'
+import { checkHostingEntitlement } from './paymail/entitlement'
 import { mountPaymailRoutes } from './paymail/routes'
 import type { PaymailDeps } from './paymail/types'
 
@@ -141,6 +142,34 @@ export async function createHostServer(
 
 	// --- messagebox (auth on its own router) ----------------------------------
 	if (config.messagebox) {
+		// Host pack gate: when hosting is enabled, recipients must hold an
+		// active receipt before this server stores messages for them.
+		if (config.hosting?.getConfig().enabled) {
+			app.post('/sendMessage', async (req, res, next) => {
+				try {
+					const message = (req.body as { message?: Record<string, unknown> })
+						?.message
+					const raw = message?.recipients ?? message?.recipient
+					const recipients = Array.isArray(raw) ? raw : raw != null ? [raw] : []
+					for (const recipient of recipients) {
+						if (typeof recipient !== 'string') continue
+						const ent = await checkHostingEntitlement(wallet, recipient)
+						if (!ent.active) {
+							return res.status(403).json({
+								status: 'error',
+								code: 'ERR_HOSTING_REQUIRED',
+								description:
+									'Recipient does not have an active hosting subscription',
+							})
+						}
+					}
+					next()
+				} catch (err) {
+					next(err)
+				}
+			})
+		}
+
 		const ctx = createMessageBoxContext({
 			wallet,
 			knex: config.messagebox.knex,
@@ -187,7 +216,9 @@ function listenWithLog(
 ): Promise<number> {
 	return new Promise<number>((resolve, reject) => {
 		server.on('error', (err: Error) => {
-			useLogger().error(err)
+			const log = createLogger({ context: 'host-server' })
+			log.set({ event: 'server_start_failed' })
+			log.error(err)
 			reject(err)
 		})
 		server.listen(config.listen.port, config.listen.host ?? '0.0.0.0', () => {
