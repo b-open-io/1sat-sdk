@@ -39,7 +39,7 @@
     "dotenv": "^17.0.0",
     "evlog": "^2.10.0",
     "knex": "^3.1.0",
-    "@bopen-io/messagebox-server": "^1.2.3",
+    "@bopen-io/messagebox-server": "^1.3.2",
     "pg": "^8.11.3",
     "sqlite3": "^6.0.1"
   },

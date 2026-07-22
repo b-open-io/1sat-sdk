@@ -12,14 +12,15 @@ import { createServer } from 'node:http'
 import {
 	attachMessageBoxWebSockets,
 	createMessageBoxContext,
-	mountMessageBoxRoutes,
+	registerMessageBoxPostAuthRoutes,
+	registerMessageBoxPreAuthRoutes,
 	type MessageBoxContext,
 } from '@bopen-io/messagebox-server'
 import { createAuthMiddleware } from '@bsv/auth-express-middleware'
 import type { WalletInterface } from '@bsv/sdk'
 import { createLogger } from 'evlog'
 import { evlog } from 'evlog/express'
-import express, { type Express } from 'express'
+import express, { type Express, Router } from 'express'
 import {
 	type AccountsMiddlewareDeps,
 	accountsCapacityGate,
@@ -73,6 +74,9 @@ export async function createHostServer(
 	app.use(corsMiddleware)
 
 	const { wallet } = config
+	// One authMiddleware instance for every authed surface (storage, account,
+	// hosting, messagebox), so a single /.well-known/auth handshake authenticates
+	// a client everywhere.
 	const authMiddleware = createAuthMiddleware({ wallet })
 
 	// --- public surface -------------------------------------------------------
@@ -113,6 +117,12 @@ export async function createHostServer(
 	)
 	app.post('/', authMiddleware as never, ...(postHandlers as never[]))
 
+	// BRC-104 handshake endpoint. The middleware keys on
+	// `req.path === '/.well-known/auth'`, so mount it route-level — an
+	// `app.use('/.well-known/auth', …)` would strip the path and break the
+	// check. Same authMiddleware instance as POST / → shared peer session.
+	app.post('/.well-known/auth', authMiddleware)
+
 	// Account routes need auth; scope it to /account/*
 	app.use('/account', authMiddleware)
 	mountStatusRoute(
@@ -140,12 +150,22 @@ export async function createHostServer(
 		})
 	}
 
-	// --- messagebox (auth on its own router) ----------------------------------
+	// --- messagebox (own router; host owns the auth) --------------------------
 	if (config.messagebox) {
-		// Host pack gate: when hosting is enabled, recipients must hold an
-		// active receipt before this server stores messages for them.
+		const ctx = createMessageBoxContext({
+			wallet,
+			knex: config.messagebox.knex,
+			enableWebSockets: config.messagebox.websockets ?? true,
+		})
+
+		const mbRouter = Router()
+		registerMessageBoxPreAuthRoutes(mbRouter)
+
+		// Host pack gate: when hosting is enabled, recipients must hold an active
+		// receipt before this server stores messages for them. Runs before auth —
+		// it only inspects the request body.
 		if (config.hosting?.getConfig().enabled) {
-			app.post('/sendMessage', async (req, res, next) => {
+			mbRouter.post('/sendMessage', async (req, res, next) => {
 				try {
 					const message = (req.body as { message?: Record<string, unknown> })
 						?.message
@@ -170,12 +190,12 @@ export async function createHostServer(
 			})
 		}
 
-		const ctx = createMessageBoxContext({
-			wallet,
-			knex: config.messagebox.knex,
-			enableWebSockets: config.messagebox.websockets ?? true,
-		})
-		mountMessageBoxRoutes(app, ctx)
+		// Host owns auth: the same authMiddleware as the wallet-storage RPC, so a
+		// client authenticated at /.well-known/auth is recognized here without a
+		// second handshake.
+		mbRouter.use(authMiddleware)
+		registerMessageBoxPostAuthRoutes(mbRouter, ctx)
+		app.use(mbRouter)
 
 		const server = createServer(app)
 		const io = attachMessageBoxWebSockets(server, ctx)

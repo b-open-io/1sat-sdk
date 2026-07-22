@@ -15,7 +15,7 @@
  *   1sat config set server.accounts.enabled true
  *   1sat config set server.hosting.enabled true
  *   1sat config set server.paymail.baseUrl https://1sat.app
- *   1sat config set server.messagebox.enabled true
+ *   1sat config set server.monitor.enabled false
  */
 
 import { join } from 'node:path'
@@ -74,6 +74,7 @@ interface ResolvedServe {
 	activeRemote?: string
 	backups?: string[]
 	accounts: ResolvedAccounts
+	monitorEnabled: boolean
 	privateKey: PrivateKey
 }
 
@@ -178,6 +179,7 @@ async function resolveServe(opts: GlobalFlags): Promise<ResolvedServe> {
 		activeRemote: config.activeRemote,
 		backups: config.backups,
 		accounts: resolveAccounts(server.accounts),
+		monitorEnabled: server.monitor?.enabled !== false,
 		privateKey,
 	}
 }
@@ -249,11 +251,16 @@ async function runWithStorage(
 		storage,
 		activeRemote: resolved.activeRemote,
 		backups: resolved.backups,
-		// Every serve mode manages monitor work explicitly: wallet mode
-		// does none, monitor/all modes run startTasks. The factory's
-		// initial runOnce is redundant in all three cases.
+		// Each serve mode manages monitor work explicitly (see runMonitor
+		// below); the factory's initial runOnce is redundant in every case.
 		skipInitialMonitor: true,
 	})
+
+	// One active monitor per deployment: wallet mode never runs it, monitor
+	// mode always does, all mode runs it unless server.monitor.enabled=false
+	// (set on redundant host instances that share a dedicated serve monitor).
+	const runMonitor =
+		mode === 'monitor' || (mode === 'all' && resolved.monitorEnabled)
 
 	const accounts =
 		mode === 'monitor'
@@ -265,7 +272,7 @@ async function runWithStorage(
 			? undefined
 			: await startWalletServer(resolved, walletResult, accounts, mode)
 
-	if (mode !== 'wallet') {
+	if (runMonitor) {
 		const accountsCfg = resolved.accounts
 		const r = accountsCfg.repricer
 		if (
@@ -301,7 +308,7 @@ async function runWithStorage(
 		}
 	}
 
-	if (mode !== 'wallet') {
+	if (runMonitor) {
 		// startTasks loops until stopTasks flips its flag. Fire without
 		// awaiting so the caller can install shutdown handlers and write
 		// the monitor pid file.
@@ -314,7 +321,7 @@ async function runWithStorage(
 
 	return {
 		async stop() {
-			if (mode !== 'wallet') {
+			if (runMonitor) {
 				walletResult.monitor.stopTasks()
 				clearMonitorPid(resolved.dataDir, process.pid)
 			}
@@ -372,22 +379,18 @@ async function startWalletServer(
 		return { stop: () => handle.stop() }
 	}
 
-	// Unified host: storage + hosting + paymail (when baseUrl set) + messagebox (when enabled)
+	// Unified host: storage + messagebox + paymail + hosting
 	const serverCfg = config.server ?? {}
 	const paymailCfg = serverCfg.paymail
 	const messageboxCfg = serverCfg.messagebox
-	const messageboxEnabled = messageboxCfg?.enabled === true
-	const paymailEnabled = typeof paymailCfg?.baseUrl === 'string' && paymailCfg.baseUrl.length > 0
 
-	const knex = messageboxEnabled || paymailEnabled
-		? createMessageboxKnex(serverCfg.storage ?? { provider: 'bun-sqlite' }, messageboxCfg, resolved)
-		: undefined
-
-	let pendingStore: KnexPendingStore | undefined
-	if (paymailEnabled && knex) {
-		pendingStore = new KnexPendingStore(knex)
-		await pendingStore.init()
-	}
+	const knex = createMessageboxKnex(
+		serverCfg.storage ?? { provider: 'bun-sqlite' },
+		messageboxCfg,
+		resolved,
+	)
+	const pendingStore = new KnexPendingStore(knex)
+	await pendingStore.init()
 
 	const handle = await createHostServer({
 		wallet: walletResult.wallet,
@@ -396,35 +399,24 @@ async function startWalletServer(
 		listen: { port: resolved.port, host: resolved.host },
 		accounts: accounts?.walletServerAccounts,
 		hosting,
-		paymail: paymailEnabled
-			? {
-					baseUrl: paymailCfg!.baseUrl!,
-					stackUrl: paymailCfg!.stackUrl ?? 'https://api.1sat.app',
-					pendingStore: pendingStore!,
-					hostWallet: hostingEnabled ? walletResult.wallet : undefined,
-					requireEntitlement: hostingEnabled,
-					messageboxUrl: messageboxEnabled
-						? `http://127.0.0.1:${resolved.port}/`
-						: paymailCfg!.messageboxUrl,
-					hostPrivateKey:
-						messageboxEnabled || paymailCfg!.messageboxUrl
-							? resolved.privateKey
-							: undefined,
-				}
-			: undefined,
-		messagebox: messageboxEnabled && knex
-			? {
-					knex,
-					websockets: messageboxCfg?.websockets !== false,
-				}
-			: undefined,
+		paymail: {
+			baseUrl: paymailCfg?.baseUrl ?? `http://${resolved.host}:${resolved.port}`,
+			stackUrl: paymailCfg?.stackUrl ?? 'https://api.1sat.app',
+			pendingStore,
+			hostWallet: hostingEnabled ? walletResult.wallet : undefined,
+			requireEntitlement: hostingEnabled,
+			messageboxUrl: `http://127.0.0.1:${resolved.port}/`,
+			hostPrivateKey: resolved.privateKey,
+		},
+		messagebox: {
+			knex,
+			websockets: messageboxCfg?.websockets !== false,
+		},
 	})
 	const port = await handle.start()
 	const notes = [
 		resolved.accounts.enabled ? 'accounts: on' : '',
 		hostingEnabled ? 'hosting: on' : '',
-		paymailEnabled ? 'paymail: on' : '',
-		messageboxEnabled ? 'messagebox: on' : '',
 	]
 		.filter(Boolean)
 		.join(', ')

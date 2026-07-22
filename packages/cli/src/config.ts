@@ -58,8 +58,6 @@ export interface ServerAccountsConfig {
 }
 
 export interface ServerMessageboxConfig {
-	/** Enable messagebox in the unified `1sat serve` host. Defaults to false. */
-	enabled?: boolean
 	/** Port to bind. Defaults to `8101`. */
 	port?: number
 	/** Enable WebSocket delivery. Defaults to `true`. */
@@ -129,6 +127,17 @@ export interface ServerHostingConfig {
 	periodSeconds?: number
 }
 
+export interface ServerMonitorConfig {
+	/**
+	 * Run the background monitor task loop (post waiting txs, check for
+	 * proofs, account repricing). Defaults to true. Set false on redundant
+	 * host instances that run alongside a dedicated `serve monitor`, so a
+	 * single active monitor runs per deployment. `serve monitor` always runs
+	 * the loop regardless of this flag.
+	 */
+	enabled?: boolean
+}
+
 export interface ServerConfig {
 	/** Hostname to bind. Defaults to `127.0.0.1`. */
 	host?: string
@@ -144,6 +153,8 @@ export interface ServerConfig {
 	paymail?: ServerPaymailConfig
 	/** Hosted paymail subscription (wallet serve /hosting/*). */
 	hosting?: ServerHostingConfig
+	/** Background monitor task loop. Defaults to enabled. */
+	monitor?: ServerMonitorConfig
 }
 
 export interface OneSatCliConfig {

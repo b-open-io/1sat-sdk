@@ -49,7 +49,8 @@ Protocol note: `docs/protocols/opns-paymail-bind.md` (bind only).
 | CLI `server.hosting.*`, `server.paymail.baseUrl`, `server.messagebox.enabled` | Done |
 | Types + protocol doc | Done |
 | Smoke test (well-known, price, 401s, monitor) | Done |
-| **Messagebox host-pack gate in composable package** | **Gap — not ported** (paymail-side gate works; direct `sendMessage` to non-entitled recipients currently allowed) |
+| Messagebox host-pack gate | **Done** — recipient-entitlement middleware in `createHostServer` before messagebox mount (verified 403 vs auth fallthrough) |
+| ts-stack embed hardening | **Draft PR #299** (WS compile, logger cwd, module-load env throw) — awaiting review/merge |
 | E2E subscribe via real funded wallet | Not tested (402 challenge verified structurally only) |
 
 ### `1sat-name`
