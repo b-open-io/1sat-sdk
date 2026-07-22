@@ -58,6 +58,8 @@ export interface ServerAccountsConfig {
 }
 
 export interface ServerMessageboxConfig {
+	/** Enable messagebox in the unified `1sat serve` host. Defaults to false. */
+	enabled?: boolean
 	/** Port to bind. Defaults to `8101`. */
 	port?: number
 	/** Enable WebSocket delivery. Defaults to `true`. */
@@ -85,6 +87,48 @@ export interface ServerMessageboxConfig {
 	walletStorageUrl?: string
 }
 
+export interface ServerPaymailConfig {
+	/** Port to bind. Defaults to `8466` or ONESAT_PAYMAIL_PORT. */
+	port?: number
+	/**
+	 * Public base URL used in /.well-known/bsvalias capability links
+	 * (e.g. https://1sat.app). Required for serve paymail.
+	 */
+	baseUrl?: string
+	/** Stack API root (OpNS, beef, tx). Defaults to https://api.1sat.app */
+	stackUrl?: string
+	/**
+	 * SQLite path for in-flight P2P payment references (Go paymail port).
+	 * Defaults to `<dataDir>/paymail-pending-{chain}.db`.
+	 */
+	pendingDbPath?: string
+	/**
+	 * Messagebox URL for payment_inbox delivery after receive.
+	 * Defaults to https://messagebox.1sat.app when unset is OK to skip —
+	 * set explicitly to enable (same as Go messagebox_url).
+	 */
+	messageboxUrl?: string
+	/**
+	 * When true, open host wallet storage and require active HOSTING_BASKET
+	 * receipt for the bound identity. Default false until subscribe path ships.
+	 */
+	requireEntitlement?: boolean
+	/**
+	 * Wallet storage URL for entitlement listOutputs (and optional later
+	 * subscribe). Defaults to local wallet serve URL like messagebox.
+	 */
+	walletStorageUrl?: string
+}
+
+export interface ServerHostingConfig {
+	/** Master toggle. Defaults to false. */
+	enabled?: boolean
+	/** Sats per subscription period. */
+	priceSats?: number
+	/** Period length in seconds (e.g. 2592000 ≈ 30 days). */
+	periodSeconds?: number
+}
+
 export interface ServerConfig {
 	/** Hostname to bind. Defaults to `127.0.0.1`. */
 	host?: string
@@ -96,6 +140,10 @@ export interface ServerConfig {
 	accounts?: ServerAccountsConfig
 	/** Messagebox subcommand settings. */
 	messagebox?: ServerMessageboxConfig
+	/** Paymail subcommand settings. */
+	paymail?: ServerPaymailConfig
+	/** Hosted paymail subscription (wallet serve /hosting/*). */
+	hosting?: ServerHostingConfig
 }
 
 export interface OneSatCliConfig {

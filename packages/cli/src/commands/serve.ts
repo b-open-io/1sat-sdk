@@ -1,10 +1,9 @@
 /**
- * `1sat serve` command — launch wallet server and/or monitor.
+ * `1sat serve` command — launch the unified host server and/or monitor.
  *
- *   1sat serve              Wallet server + monitor daemon
- *   1sat serve wallet       Wallet server only
+ *   1sat serve              Host server (storage + hosting + paymail + messagebox) + monitor
+ *   1sat serve wallet       Wallet storage server only
  *   1sat serve monitor      Monitor daemon only
- *   1sat serve messagebox   BSV message-box server
  *
  * The server wraps the same wallet instance the CLI uses. Storage, active
  * remote, and backups all come from `~/.1sat/cli/config.json` via the same
@@ -14,7 +13,9 @@
  *   1sat config set server.port 8100
  *   1sat config set server.host 0.0.0.0
  *   1sat config set server.accounts.enabled true
- *   1sat config set server.messagebox.port 8771
+ *   1sat config set server.hosting.enabled true
+ *   1sat config set server.paymail.baseUrl https://1sat.app
+ *   1sat config set server.messagebox.enabled true
  */
 
 import { join } from 'node:path'
@@ -23,12 +24,18 @@ import {
 	type NodeWalletStorageConfig,
 	createNodeWallet,
 } from '@1sat/wallet-node'
-import { createWalletServer } from '@1sat/wallet-server'
+import {
+	KnexPendingStore,
+	createHostServer,
+	createWalletServer,
+} from '@1sat/wallet-server'
 import type { PrivateKey } from '@bsv/sdk'
 import { initLogger } from 'evlog'
+import knexLib from 'knex'
 import type { GlobalFlags } from '../args'
 import {
 	type ServerAccountsConfig,
+	type ServerMessageboxConfig,
 	type ServerStorageConfig,
 	loadConfig,
 	setConfigPath,
@@ -43,7 +50,6 @@ import {
 	createAccountsConfigLoader,
 	resolveRateProvider,
 } from '../repricer'
-import { startMessagebox } from './serve-messagebox'
 
 const DEFAULT_HOST = '127.0.0.1'
 const DEFAULT_PORT = 8100
@@ -54,7 +60,7 @@ const DEFAULT_SATS_PER_UNIT = 1_000_000
 const DEFAULT_DURATION_BLOCKS = 4383
 const DEFAULT_STORAGE_IDENTITY_KEY = '1sat-cli-default'
 
-type ServeMode = 'all' | 'wallet' | 'monitor' | 'messagebox'
+type ServeMode = 'all' | 'wallet' | 'monitor'
 
 interface ResolvedServe {
 	chain: 'main' | 'test'
@@ -103,20 +109,6 @@ export async function handleServeCommand(
 
 	initLogger({ env: { service: `1sat-cli-serve-${mode}` } })
 
-	if (mode === 'messagebox') {
-		const handle = await startMessagebox(opts)
-		try {
-			await waitForShutdown()
-		} finally {
-			try {
-				await handle.stop()
-			} catch (err) {
-				console.error(`Error during shutdown: ${(err as Error).message}`)
-			}
-		}
-		return
-	}
-
 	const resolved = await resolveServe(opts)
 	const handles: Stoppable[] = []
 
@@ -139,7 +131,6 @@ function resolveMode(subcommand: string | undefined): ServeMode | null {
 	switch (subcommand) {
 		case 'wallet':
 		case 'monitor':
-		case 'messagebox':
 			return subcommand
 		default:
 			return null
@@ -272,7 +263,7 @@ async function runWithStorage(
 	const serverHandle =
 		mode === 'monitor'
 			? undefined
-			: await startWalletServer(resolved, walletResult, accounts)
+			: await startWalletServer(resolved, walletResult, accounts, mode)
 
 	if (mode !== 'wallet') {
 		const accountsCfg = resolved.accounts
@@ -339,20 +330,148 @@ async function startWalletServer(
 	resolved: ResolvedServe,
 	walletResult: NodeWalletResult,
 	accounts: AccountsRuntime | undefined,
+	mode: ServeMode,
 ): Promise<{ stop(): Promise<void> }> {
-	const handle = createWalletServer({
+	const config = loadConfig()
+	const hostingCfg = config.server?.hosting
+	const hostingEnabled = hostingCfg?.enabled === true
+	const hosting = hostingEnabled
+		? {
+				getConfig: () => {
+					const h = loadConfig().server?.hosting
+					return {
+						enabled: h?.enabled === true,
+						priceSats: h?.priceSats ?? 10_000,
+						periodSeconds: h?.periodSeconds ?? 2_592_000,
+					}
+				},
+			}
+		: undefined
+
+	if (mode === 'wallet') {
+		const handle = createWalletServer({
+			wallet: walletResult.wallet,
+			storage: walletResult.getActiveStorage(),
+			serverIdentityKey: walletResult.wallet.identityKey,
+			listen: { port: resolved.port, host: resolved.host },
+			publicPath: '/',
+			internalPath: null,
+			accounts: accounts?.walletServerAccounts,
+			hosting,
+		})
+		const port = await handle.start()
+		const notes = [
+			resolved.accounts.enabled ? 'accounts: on' : '',
+			hostingEnabled ? 'hosting: on' : '',
+		]
+			.filter(Boolean)
+			.join(', ')
+		console.log(
+			`[wallet] listening on ${resolved.host}:${port}${notes ? ` (${notes})` : ''}`,
+		)
+		return { stop: () => handle.stop() }
+	}
+
+	// Unified host: storage + hosting + paymail (when baseUrl set) + messagebox (when enabled)
+	const serverCfg = config.server ?? {}
+	const paymailCfg = serverCfg.paymail
+	const messageboxCfg = serverCfg.messagebox
+	const messageboxEnabled = messageboxCfg?.enabled === true
+	const paymailEnabled = typeof paymailCfg?.baseUrl === 'string' && paymailCfg.baseUrl.length > 0
+
+	const knex = messageboxEnabled || paymailEnabled
+		? createMessageboxKnex(serverCfg.storage ?? { provider: 'bun-sqlite' }, messageboxCfg, resolved)
+		: undefined
+
+	let pendingStore: KnexPendingStore | undefined
+	if (paymailEnabled && knex) {
+		pendingStore = new KnexPendingStore(knex)
+		await pendingStore.init()
+	}
+
+	const handle = await createHostServer({
 		wallet: walletResult.wallet,
 		storage: walletResult.getActiveStorage(),
 		serverIdentityKey: walletResult.wallet.identityKey,
 		listen: { port: resolved.port, host: resolved.host },
-		publicPath: '/',
-		internalPath: null,
 		accounts: accounts?.walletServerAccounts,
+		hosting,
+		paymail: paymailEnabled
+			? {
+					baseUrl: paymailCfg!.baseUrl!,
+					stackUrl: paymailCfg!.stackUrl ?? 'https://api.1sat.app',
+					pendingStore: pendingStore!,
+					hostWallet: hostingEnabled ? walletResult.wallet : undefined,
+					requireEntitlement: hostingEnabled,
+					messageboxUrl: messageboxEnabled
+						? `http://127.0.0.1:${resolved.port}/`
+						: paymailCfg!.messageboxUrl,
+					hostPrivateKey:
+						messageboxEnabled || paymailCfg!.messageboxUrl
+							? resolved.privateKey
+							: undefined,
+				}
+			: undefined,
+		messagebox: messageboxEnabled && knex
+			? {
+					knex,
+					websockets: messageboxCfg?.websockets !== false,
+				}
+			: undefined,
 	})
 	const port = await handle.start()
-	const accountsNote = resolved.accounts.enabled ? ' (accounts: on)' : ''
-	console.log(`[wallet] listening on ${resolved.host}:${port}${accountsNote}`)
-	return { stop: () => handle.stop() }
+	const notes = [
+		resolved.accounts.enabled ? 'accounts: on' : '',
+		hostingEnabled ? 'hosting: on' : '',
+		paymailEnabled ? 'paymail: on' : '',
+		messageboxEnabled ? 'messagebox: on' : '',
+	]
+		.filter(Boolean)
+		.join(', ')
+	console.log(
+		`[host] listening on ${resolved.host}:${port}${notes ? ` (${notes})` : ''}`,
+	)
+	return {
+		stop: async () => {
+			await handle.stop()
+			if (knex) await knex.destroy()
+		},
+	}
+}
+
+const DEFAULT_PG_SCHEMA = 'messagebox'
+
+function createMessageboxKnex(
+	storage: ServerStorageConfig,
+	messagebox: ServerMessageboxConfig | undefined,
+	resolved: ResolvedServe,
+) {
+	if (storage.provider === 'bun-sqlite') {
+		const filename =
+			messagebox?.dbPath ?? join(resolved.dataDir, `messagebox-${resolved.chain}.db`)
+		return (knexLib as any)({
+			client: 'sqlite3',
+			connection: { filename },
+			useNullAsDefault: true,
+		})
+	}
+	if (storage.provider === 'pg') {
+		if (messagebox?.dbUrl) {
+			return (knexLib as any)({
+				client: 'pg',
+				connection: { connectionString: messagebox.dbUrl },
+			})
+		}
+		const schema = messagebox?.pgSchema ?? DEFAULT_PG_SCHEMA
+		return (knexLib as any)({
+			client: 'pg',
+			connection: { connectionString: storage.dbUrl },
+			searchPath: [schema],
+		})
+	}
+	fatal(
+		`server.storage.provider '${(storage as { provider: string }).provider}' is not supported for messagebox storage.`,
+	)
 }
 
 interface AccountsRuntime {

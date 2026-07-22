@@ -25,6 +25,10 @@ import type {
 	PreDispatchHook,
 	WalletStorageProvider,
 } from './types'
+import {
+	type HostingConfigProvider,
+	mountHostingRoutes,
+} from './hosting/routes'
 
 export interface WalletServerAccounts {
 	getConfig: AccountsConfigProvider
@@ -53,6 +57,8 @@ export interface WalletServerConfig {
 	makeLogger?: MakeWalletLogger
 	bodyLimit?: string
 	accounts?: WalletServerAccounts
+	/** Hosted paymail subscription (price/status/subscribe). */
+	hosting?: { getConfig: HostingConfigProvider }
 }
 
 export interface WalletServerHandle {
@@ -95,7 +101,22 @@ export function createWalletServer(
 		: undefined
 
 	if (publicPath) {
-		mountPublicRoute(app, publicPath, config, wallet, accountsDeps)
+		const authMiddleware = createAuthMiddleware({ wallet })
+		// Public hosting price before blanket auth on publicPath.
+		if (config.hosting) {
+			const root = publicPath === '/' ? '' : publicPath.replace(/\/$/, '')
+			app.get(`${root}/hosting/price`, (_req, res) => {
+				const cfg = config.hosting!.getConfig()
+				if (!cfg.enabled) {
+					return res.status(404).json({ error: 'hosting disabled' })
+				}
+				return res.json({
+					priceSats: cfg.priceSats,
+					periodSeconds: cfg.periodSeconds,
+				})
+			})
+		}
+		mountPublicRoute(app, publicPath, config, wallet, accountsDeps, authMiddleware)
 		mountStatusRoute(app, publicPath, config, serverIdentityKey, wallet)
 		if (accountsDeps) {
 			mountPaymentRoute(app, publicPath, {
@@ -109,6 +130,13 @@ export function createWalletServer(
 				},
 				serverIdentityKey: accountsDeps.serverIdentityKey,
 				currentBlock: accountsDeps.currentBlock,
+			})
+		}
+		if (config.hosting) {
+			mountHostingRoutes(app, publicPath, {
+				wallet,
+				getConfig: config.hosting.getConfig,
+				authMiddleware,
 			})
 		}
 	}
@@ -182,8 +210,12 @@ function mountPublicRoute(
 	config: WalletServerConfig,
 	wallet: WalletInterface,
 	accountsDeps: AccountsMiddlewareDeps | undefined,
+	authMiddleware: (
+		req: ExpressRequest,
+		res: ExpressResponse,
+		next: NextFunction,
+	) => unknown,
 ): void {
-	const authMiddleware = createAuthMiddleware({ wallet })
 	app.use(path, authMiddleware)
 
 	// JSON-RPC endpoint. The capacity gate sits between auth and dispatch:
@@ -200,7 +232,7 @@ function mountPublicRoute(
 	app.post(path, ...postHandlers)
 }
 
-function dispatchHandler(config: WalletServerConfig) {
+export function dispatchHandler(config: WalletServerConfig) {
 	return async (req: AuthenticatedRequest, res: ExpressResponse) => {
 		const log = useLogger()
 		log.set({ context: 'wallet-server', route: 'rpc' })
@@ -257,7 +289,7 @@ function dispatchHandler(config: WalletServerConfig) {
 	}
 }
 
-function mountStatusRoute(
+export function mountStatusRoute(
 	app: Express,
 	basePath: string,
 	config: WalletServerConfig,
@@ -380,7 +412,7 @@ interface AuthenticatedRequest extends ExpressRequest {
 	auth?: { identityKey: string }
 }
 
-function corsMiddleware(
+export function corsMiddleware(
 	req: ExpressRequest,
 	res: ExpressResponse,
 	next: NextFunction,

@@ -44,3 +44,29 @@ export type {
 } from './types'
 
 export type { WalletServerAccounts } from './createWalletServer'
+export { createHostServer } from './createHostServer'
+export type {
+	HostServerConfig,
+	HostServerHandle,
+	HostServerMessageboxConfig,
+} from './createHostServer'
+export { mountPaymailRoutes } from './paymail/routes'
+export { KnexPendingStore, DEFAULT_TTL_MS } from './paymail/pending'
+export { checkHostingEntitlement } from './paymail/entitlement'
+export type {
+	PaymailDeps,
+	PendingPayment,
+	PendingStore,
+	ResolvedBind,
+} from './paymail/types'
+export {
+	mountHostingRoutes,
+	type HostingConfig,
+	type HostingConfigProvider,
+} from './hosting/routes'
+export {
+	HostingClient,
+	type HostingPrice,
+	type HostingStatus,
+	type HostingSubscribeResult,
+} from './hosting/client'

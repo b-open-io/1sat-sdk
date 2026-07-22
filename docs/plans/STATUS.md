@@ -2,6 +2,7 @@
 
 | Plan | Status | Description |
 |------|--------|-------------|
+| [Host pack / Paymail](./2026-07-21-hosted-paymail.md) | **In Progress** | Design locked; multi-process impl in trees; ts-stack #297; unify + cutover left |
 | [MAP Templates Migration](./2026-03-02-map-templates-migration.md) | **COMPLETE** | SDK-side changes done, Go deferred |
 | [CWI Unification](./CWI_UNIFICATION.md) | **COMPLETE** | Method names unified, EmbedTransport removed |
 | [CWI/OneSat Separation](./2026-03-06-cwi-onesat-separation.md) | **COMPLETE** | Superseded by CWI Unification |

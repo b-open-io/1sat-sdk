@@ -560,19 +560,14 @@ export const COMMANDS: CommandSpec[] = [
 		group: 'Server',
 		name: 'serve',
 		description:
-			'Run wallet HTTP server and/or monitor daemon (config under server.* in config.json)',
+			'Run unified host server (storage + hosting + paymail + messagebox) and/or monitor (config under server.* in config.json)',
 		subcommands: [
 			{
 				name: '(no subcommand)',
-				description: 'Wallet server + monitor daemon',
+				description: 'Host server + monitor daemon',
 			},
-			{ name: 'wallet', description: 'Wallet server only (BRC-100 HTTP)' },
+			{ name: 'wallet', description: 'Wallet storage server only (BRC-100 HTTP)' },
 			{ name: 'monitor', description: 'Monitor daemon only' },
-			{
-				name: 'messagebox',
-				description:
-					'BSV message-box server (port 8771 default; uses wallet identity)',
-			},
 		],
 	},
 	{
