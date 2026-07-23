@@ -25,19 +25,23 @@ function parseOutpoint(outpoint: string): { txid: string; vout: number } {
 
 /**
  * Load tip locking script for alias, verify PushDrop bind, return identity key.
+ *
+ * The OpNS lookup returns the name's ORIGIN outpoint; the current tip is
+ * resolved by following the origin's spend chain via ORDFS (`:-1` = latest).
  */
 export async function resolvePaymailBind(
 	services: OneSatServices,
 	alias: string,
 ): Promise<ResolvedBind> {
-	const { outpoint } = await services.opns.getOrigin(alias)
-	const { txid, vout } = parseOutpoint(outpoint)
+	const { outpoint: originOutpoint } = await services.opns.getOrigin(alias)
+	const latest = await services.ordfs.getMetadata(originOutpoint, -1)
+	const { txid, vout } = parseOutpoint(latest.outpoint)
 
 	const beefBytes = await services.beef.getBeef(txid)
 	const tx = Transaction.fromBEEF(Array.from(beefBytes))
 	const output = tx.outputs[vout]
 	if (!output?.lockingScript) {
-		throw new Error(`no output at ${outpoint}`)
+		throw new Error(`no output at ${txid}.${vout}`)
 	}
 
 	const identityKey = await verifyPushDropBind(tx, vout, output.lockingScript)
@@ -72,11 +76,13 @@ export async function verifyPushDropBind(
 	const keyID = opnsRegisterKeyId(`${sourceTxid}.${sourceVout}`)
 
 	const anyone = new ProtoWallet('anyone')
+	// forSelf: false = the identity's derived key for counterparty 'anyone',
+	// which is the key PushDrop.lock derives on the owner's wallet.
 	const { publicKey: expectedLockPub } = await anyone.getPublicKey({
 		protocolID: P1SAT_PROTOCOL,
 		keyID,
 		counterparty: identityKey,
-		forSelf: true,
+		forSelf: false,
 	})
 	if (expectedLockPub !== decoded.lockingPublicKey.toString()) {
 		throw new Error('lock pubkey does not match bind derivation')
