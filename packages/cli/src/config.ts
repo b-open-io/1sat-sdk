@@ -25,18 +25,23 @@ export type ServerStorageConfig =
 	| ServerStorageBunSqliteConfig
 	| ServerStoragePgConfig
 
+/**
+ * Shared repricer engine (`server.repricer`). When enabled, a monitor task
+ * fetches the BSV/USD rate on the interval and rewrites each service's sats
+ * price toward its own `targetUsd` (`server.accounts.targetUsd` →
+ * `satsPerUnit`, `server.hosting.targetUsd` → `priceSats`). Services with no
+ * `targetUsd` set are left alone.
+ */
 export interface RepricerConfig {
 	/** Master toggle. Defaults to false. */
 	enabled?: boolean
-	/** Target price per `purchaseUnitBytes` chunk, in USD. */
-	targetUsd?: number
 	/** Interval between rate checks in ms. Defaults to 900000 (15 min). */
 	intervalMs?: number
 	/** Rate provider name. Defaults to "whatsonchain". */
 	provider?: string
 	/** Max percent change allowed per update. Larger moves are skipped. Defaults to 25. */
 	maxMovePct?: number
-	/** Lower bound for `satsPerUnit`. Defaults to 1. */
+	/** Lower bound for repriced sats values. Defaults to 1. */
 	minSats?: number
 }
 
@@ -49,12 +54,12 @@ export interface ServerAccountsConfig {
 	purchaseUnitBytes?: number
 	/** Sats charged per purchase unit. */
 	satsPerUnit?: number
+	/** USD target per purchase unit, maintained by `server.repricer`. */
+	targetUsd?: number
 	/** Block window a payment remains valid for. */
 	durationBlocks?: number
 	/** Identity keys that bypass metering (server's own key is auto-added). */
 	freeIdentityKeys?: string[]
-	/** Optional auto-repricer. When enabled, updates `satsPerUnit` from a live BSV/USD rate. */
-	repricer?: RepricerConfig
 }
 
 export interface ServerMessageboxConfig {
@@ -124,8 +129,9 @@ export interface ServerHostingConfig {
 	/** Sats per subscription period. */
 	priceSats?: number
 	/**
-	 * USD price per subscription period, returned as `priceUsd` on the
-	 * pricing API for display. Informational only — charging uses `priceSats`.
+	 * USD price per subscription period. Returned as `priceUsd` on the
+	 * pricing API for display, and maintained as the repricing target for
+	 * `priceSats` when `server.repricer` is enabled.
 	 */
 	targetUsd?: number
 	/** Period length in seconds (e.g. 2592000 ≈ 30 days). */
@@ -158,6 +164,8 @@ export interface ServerConfig {
 	paymail?: ServerPaymailConfig
 	/** Hosted paymail subscription (wallet serve /hosting/*). */
 	hosting?: ServerHostingConfig
+	/** Shared BSV/USD repricer engine for accounts + hosting prices. */
+	repricer?: RepricerConfig
 	/** Background monitor task loop. Defaults to enabled. */
 	monitor?: ServerMonitorConfig
 }

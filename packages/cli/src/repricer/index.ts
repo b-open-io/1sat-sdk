@@ -1,5 +1,8 @@
 export { buildPriceUpdateTask } from './buildPriceUpdateTask'
-export type { PriceUpdateTaskOptions } from './buildPriceUpdateTask'
+export type {
+	PriceUpdateTaskOptions,
+	RepriceTarget,
+} from './buildPriceUpdateTask'
 export { computeReprice } from './computeReprice'
 export { createAccountsConfigLoader } from './configLoader'
 export type { AccountsConfigLoaderOptions } from './configLoader'

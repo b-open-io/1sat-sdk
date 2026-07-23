@@ -34,6 +34,7 @@ import { initLogger } from 'evlog'
 import knexLib from 'knex'
 import type { GlobalFlags } from '../args'
 import {
+	type RepricerConfig,
 	type ServerAccountsConfig,
 	type ServerMessageboxConfig,
 	type ServerStorageConfig,
@@ -46,6 +47,7 @@ import { loadKey } from '../keys'
 import { clearMonitorPid, writeMonitorPid } from '../monitor-lock'
 import { fatal } from '../output'
 import {
+	type RepriceTarget,
 	buildPriceUpdateTask,
 	createAccountsConfigLoader,
 	resolveRateProvider,
@@ -57,6 +59,7 @@ const DEFAULT_ONESAT_URL = 'https://api.1sat.app/1sat'
 const DEFAULT_BASELINE_BYTES = 1024 * 1024 * 1024 // 1 GB
 const DEFAULT_PURCHASE_UNIT_BYTES = 1_073_741_824 // 1 GB chunks for production
 const DEFAULT_SATS_PER_UNIT = 1_000_000
+const DEFAULT_HOSTING_PRICE_SATS = 10_000
 const DEFAULT_DURATION_BLOCKS = 4383
 const DEFAULT_STORAGE_IDENTITY_KEY = '1sat-cli-default'
 
@@ -74,6 +77,7 @@ interface ResolvedServe {
 	activeRemote?: string
 	backups?: string[]
 	accounts: ResolvedAccounts
+	repricer?: RepricerConfig
 	monitorEnabled: boolean
 	privateKey: PrivateKey
 }
@@ -85,14 +89,7 @@ interface ResolvedAccounts {
 	satsPerUnit: number
 	durationBlocks: number
 	freeIdentityKeys: string[]
-	repricer?: {
-		enabled?: boolean
-		targetUsd?: number
-		intervalMs?: number
-		provider?: string
-		maxMovePct?: number
-		minSats?: number
-	}
+	targetUsd?: number
 }
 
 export async function handleServeCommand(
@@ -179,6 +176,7 @@ async function resolveServe(opts: GlobalFlags): Promise<ResolvedServe> {
 		activeRemote: config.activeRemote,
 		backups: config.backups,
 		accounts: resolveAccounts(server.accounts),
+		repricer: server.repricer,
 		monitorEnabled: resolveMonitorEnabled(server.monitor?.enabled),
 		privateKey,
 	}
@@ -237,7 +235,7 @@ function resolveAccounts(accounts?: ServerAccountsConfig): ResolvedAccounts {
 		satsPerUnit: accounts?.satsPerUnit ?? DEFAULT_SATS_PER_UNIT,
 		durationBlocks: accounts?.durationBlocks ?? DEFAULT_DURATION_BLOCKS,
 		freeIdentityKeys: accounts?.freeIdentityKeys ?? [],
-		repricer: accounts?.repricer,
+		targetUsd: accounts?.targetUsd,
 	}
 }
 
@@ -286,14 +284,32 @@ async function runWithStorage(
 			: await startWalletServer(resolved, walletResult, accounts, mode)
 
 	if (runMonitor) {
-		const accountsCfg = resolved.accounts
-		const r = accountsCfg.repricer
-		if (
-			accountsCfg.enabled &&
-			r?.enabled &&
-			typeof r.targetUsd === 'number' &&
-			r.targetUsd > 0
-		) {
+		const r = resolved.repricer
+		const targets: RepriceTarget[] = []
+		if (resolved.accounts.enabled && (resolved.accounts.targetUsd ?? 0) > 0) {
+			targets.push({
+				name: 'accounts',
+				targetUsd: resolved.accounts.targetUsd!,
+				readCurrentSats: () =>
+					loadConfig().server?.accounts?.satsPerUnit ?? DEFAULT_SATS_PER_UNIT,
+				onPersist: async (sats) => {
+					setConfigPath('server.accounts.satsPerUnit', sats)
+				},
+			})
+		}
+		const hostingCfg = loadConfig().server?.hosting
+		if (hostingCfg?.enabled === true && (hostingCfg.targetUsd ?? 0) > 0) {
+			targets.push({
+				name: 'hosting',
+				targetUsd: hostingCfg.targetUsd!,
+				readCurrentSats: () =>
+					loadConfig().server?.hosting?.priceSats ?? DEFAULT_HOSTING_PRICE_SATS,
+				onPersist: async (sats) => {
+					setConfigPath('server.hosting.priceSats', sats)
+				},
+			})
+		}
+		if (r?.enabled && targets.length > 0) {
 			walletResult.monitor.addTask(
 				buildPriceUpdateTask({
 					monitor: walletResult.monitor,
@@ -301,20 +317,17 @@ async function runWithStorage(
 						chain: resolved.chain,
 					}),
 					intervalMs: r.intervalMs ?? 15 * 60 * 1000,
-					targetUsd: r.targetUsd,
 					bounds: {
 						maxMovePct: r.maxMovePct ?? 25,
 						minSats: r.minSats ?? 1,
 					},
-					readCurrentSats: () =>
-						loadConfig().server?.accounts?.satsPerUnit ?? DEFAULT_SATS_PER_UNIT,
-					onPersist: async (sats) => {
-						setConfigPath('server.accounts.satsPerUnit', sats)
-					},
+					targets,
 				}),
 			)
 			console.log(
-				`[repricer] enabled — $${r.targetUsd}/unit every ${Math.round(
+				`[repricer] enabled — ${targets
+					.map((t) => `${t.name} $${t.targetUsd}`)
+					.join(', ')} every ${Math.round(
 					(r.intervalMs ?? 900_000) / 1000,
 				)}s via ${r.provider ?? 'whatsonchain'}`,
 			)
@@ -361,7 +374,7 @@ async function startWalletServer(
 					const h = loadConfig().server?.hosting
 					return {
 						enabled: h?.enabled === true,
-						priceSats: h?.priceSats ?? 10_000,
+						priceSats: h?.priceSats ?? DEFAULT_HOSTING_PRICE_SATS,
 						priceUsd: h?.targetUsd,
 						periodSeconds: h?.periodSeconds ?? 2_592_000,
 					}
@@ -414,7 +427,8 @@ async function startWalletServer(
 		accounts: accounts?.walletServerAccounts,
 		hosting,
 		paymail: {
-			baseUrl: paymailCfg?.baseUrl ?? `http://${resolved.host}:${resolved.port}`,
+			baseUrl:
+				paymailCfg?.baseUrl ?? `http://${resolved.host}:${resolved.port}`,
 			stackUrl: paymailCfg?.stackUrl ?? 'https://api.1sat.app',
 			pendingStore,
 			hostWallet: hostingEnabled ? walletResult.wallet : undefined,
@@ -454,7 +468,8 @@ function createMessageboxKnex(
 ) {
 	if (storage.provider === 'bun-sqlite') {
 		const filename =
-			messagebox?.dbPath ?? join(resolved.dataDir, `messagebox-${resolved.chain}.db`)
+			messagebox?.dbPath ??
+			join(resolved.dataDir, `messagebox-${resolved.chain}.db`)
 		return (knexLib as any)({
 			client: 'sqlite3',
 			connection: { filename },

@@ -1,18 +1,25 @@
 import { computeReprice } from './computeReprice'
 import type { RateProvider, RepricerBounds } from './types'
 
+/** One price the repricer maintains from the shared BSV/USD quote. */
+export interface RepriceTarget {
+	/** Label for task result logs, e.g. 'accounts' or 'hosting'. */
+	name: string
+	/** USD target for this price. Targets with 0 or negative are ignored. */
+	targetUsd: number
+	/** Read the current sats value (typically from disk via the same loader the servers use). */
+	readCurrentSats: () => number
+	/** Persist the new sats value (wraps `setConfigPath`). */
+	onPersist: (newSats: number) => Promise<void>
+}
+
 export interface PriceUpdateTaskOptions {
 	monitor: unknown
 	rateProvider: RateProvider
 	/** Interval between successful tick attempts. */
 	intervalMs: number
-	/** USD target per purchase unit. Task no-ops when this is 0. */
-	targetUsd: number
 	bounds: RepricerBounds
-	/** Read current `satsPerUnit` (typically from disk via the same loader the servers use). */
-	readCurrentSats: () => number
-	/** Persist the new `satsPerUnit` value. Wraps `setConfigPath('server.accounts.satsPerUnit', sats)`. */
-	onPersist: (newSats: number) => Promise<void>
+	targets: RepriceTarget[]
 }
 
 export interface PriceUpdateTask {
@@ -28,15 +35,8 @@ export interface PriceUpdateTask {
 export function buildPriceUpdateTask(
 	options: PriceUpdateTaskOptions,
 ): PriceUpdateTask {
-	const {
-		monitor,
-		rateProvider,
-		intervalMs,
-		targetUsd,
-		bounds,
-		readCurrentSats,
-		onPersist,
-	} = options
+	const { monitor, rateProvider, intervalMs, bounds } = options
+	const targets = options.targets.filter((t) => t.targetUsd > 0)
 
 	const storage = (monitor as { storage?: unknown } | null | undefined)?.storage
 
@@ -47,7 +47,7 @@ export function buildPriceUpdateTask(
 		lastRunMsecsSinceEpoch: 0,
 		async asyncSetup() {},
 		trigger(now: number): { run: boolean } {
-			if (!(targetUsd > 0)) return { run: false }
+			if (targets.length === 0) return { run: false }
 			if (now - this.lastRunMsecsSinceEpoch < intervalMs) return { run: false }
 			return { run: true }
 		},
@@ -59,22 +59,32 @@ export function buildPriceUpdateTask(
 				return `rate fetch failed: ${(err as Error).message}`
 			}
 
-			const currentSats = readCurrentSats()
-			const result = computeReprice({
-				targetUsd,
-				bsvUsd: quote.bsvUsd,
-				currentSats,
-				bounds,
-			})
+			const parts: string[] = []
+			for (const target of targets) {
+				const currentSats = target.readCurrentSats()
+				const result = computeReprice({
+					targetUsd: target.targetUsd,
+					bsvUsd: quote.bsvUsd,
+					currentSats,
+					bounds,
+				})
 
-			if (result.status === 'skipped') return `skipped: ${result.reason}`
+				if (result.status === 'skipped') {
+					parts.push(`${target.name}: skipped: ${result.reason}`)
+					continue
+				}
 
-			try {
-				await onPersist(result.newSats)
-			} catch (err) {
-				return `persist failed: ${(err as Error).message}`
+				try {
+					await target.onPersist(result.newSats)
+				} catch (err) {
+					parts.push(
+						`${target.name}: persist failed: ${(err as Error).message}`,
+					)
+					continue
+				}
+				parts.push(`${target.name}: ${currentSats} → ${result.newSats} sats`)
 			}
-			return `${currentSats} → ${result.newSats} sats/unit @ $${quote.bsvUsd}/BSV`
+			return `${parts.join('; ')} @ $${quote.bsvUsd}/BSV`
 		},
 	}
 }
