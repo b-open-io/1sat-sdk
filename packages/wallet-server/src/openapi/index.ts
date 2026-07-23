@@ -113,6 +113,8 @@ export function mountOpenApiRoutes(
 		res.json(buildOpenApiSpec(options))
 	})
 	app.get('/', (_req, res) => {
-		res.type('html').send(docsShellHtml(options.title ?? '1sat Wallet Host Server'))
+		res
+			.type('html')
+			.send(docsShellHtml(options.title ?? '1sat Wallet Host Server'))
 	})
 }

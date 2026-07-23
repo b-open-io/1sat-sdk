@@ -18,17 +18,18 @@ import {
 import type { AccountsConfigProvider } from './accounts/types'
 import { createWalletRpcHandler } from './createWalletRpcHandler'
 import { dispatch } from './dispatch'
+import { mountTerminalErrorHandler } from './errorHandler'
+import {
+	type HostingConfigProvider,
+	mountHostingRoutes,
+} from './hosting/routes'
 import { bearerResolver } from './resolvers/bearer'
+import { buildAuthMiddleware } from './sessions/redisSessionManager'
 import type {
 	MakeWalletLogger,
 	PreDispatchHook,
 	WalletStorageProvider,
 } from './types'
-import {
-	type HostingConfigProvider,
-	mountHostingRoutes,
-} from './hosting/routes'
-import { buildAuthMiddleware } from './sessions/redisSessionManager'
 
 export interface WalletServerAccounts {
 	getConfig: AccountsConfigProvider
@@ -122,7 +123,14 @@ export function createWalletServer(
 				})
 			})
 		}
-		mountPublicRoute(app, publicPath, config, wallet, accountsDeps, authMiddleware)
+		mountPublicRoute(
+			app,
+			publicPath,
+			config,
+			wallet,
+			accountsDeps,
+			authMiddleware,
+		)
 		mountStatusRoute(app, publicPath, config, serverIdentityKey, wallet)
 		if (accountsDeps) {
 			mountPaymentRoute(app, publicPath, {
@@ -149,6 +157,7 @@ export function createWalletServer(
 	if (internalPath) {
 		mountInternalRoute(app, internalPath, config)
 	}
+	mountTerminalErrorHandler(app)
 
 	let server: Server | undefined
 

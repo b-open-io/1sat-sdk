@@ -32,15 +32,16 @@ import {
 	dispatchHandler,
 	mountStatusRoute,
 } from './createWalletServer'
+import { mountTerminalErrorHandler } from './errorHandler'
 import {
 	type HostingConfigProvider,
 	mountHostingRoutes,
 } from './hosting/routes'
 import { mountOpenApiRoutes } from './openapi'
 import { checkHostingEntitlement } from './paymail/entitlement'
-import { buildAuthMiddleware } from './sessions/redisSessionManager'
 import { mountPaymailRoutes } from './paymail/routes'
 import type { PaymailDeps } from './paymail/types'
+import { buildAuthMiddleware } from './sessions/redisSessionManager'
 
 export interface HostServerMessageboxConfig {
 	/** Knex instance for message tables */
@@ -223,6 +224,7 @@ export async function createHostServer(
 		app.use('/messagebox', mbRouter)
 		app.use(mbRouter)
 
+		mountTerminalErrorHandler(app)
 		const server = createServer(app)
 		const io = attachMessageBoxWebSockets(server, ctx)
 
@@ -240,6 +242,7 @@ export async function createHostServer(
 		}
 	}
 
+	mountTerminalErrorHandler(app)
 	const server = createServer(app)
 	return {
 		app,

@@ -3,11 +3,7 @@
  * Identity is only in tags (not on-chain script).
  */
 
-import {
-	HOSTING_BASKET,
-	hostingPayerTag,
-	readHostingExp,
-} from '@1sat/types'
+import { HOSTING_BASKET, hostingPayerTag, readHostingExp } from '@1sat/types'
 import type { WalletInterface } from '@bsv/sdk'
 
 export interface EntitlementStatus {

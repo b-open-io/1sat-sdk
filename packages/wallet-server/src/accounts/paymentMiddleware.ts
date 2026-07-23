@@ -18,9 +18,9 @@
 import {
 	type AtomicBEEF,
 	type InternalizeActionArgs,
+	Utils,
 	type WalletInterface,
 	createNonce,
-	Utils,
 	verifyNonce,
 } from '@bsv/sdk'
 import type { NextFunction, Request, Response } from 'express'
@@ -69,7 +69,9 @@ export function createAccountsPaymentMiddleware(
 		throw new Error('calculateRequestPrice must be a function.')
 	}
 	if (wallet === undefined || typeof wallet !== 'object') {
-		throw new Error('A valid wallet must be supplied to the payment middleware.')
+		throw new Error(
+			'A valid wallet must be supplied to the payment middleware.',
+		)
 	}
 
 	return async (req: Request, res: Response, next: NextFunction) => {
@@ -130,6 +132,9 @@ export function createAccountsPaymentMiddleware(
 		try {
 			paymentData = JSON.parse(String(bsvPaymentHeader))
 		} catch {
+			console.warn(
+				`[accounts-payment] malformed x-bsv-payment header from ${authedReq.auth.identityKey}`,
+			)
 			res.status(400).json({
 				status: 'error',
 				code: 'ERR_MALFORMED_PAYMENT',
@@ -141,6 +146,9 @@ export function createAccountsPaymentMiddleware(
 			const valid = await verifyNonce(paymentData.derivationPrefix, wallet)
 			if (!valid) throw new Error('invalid nonce')
 		} catch {
+			console.warn(
+				`[accounts-payment] invalid derivation prefix from ${authedReq.auth.identityKey}`,
+			)
 			res.status(400).json({
 				status: 'error',
 				code: 'ERR_INVALID_DERIVATION_PREFIX',
@@ -182,6 +190,9 @@ export function createAccountsPaymentMiddleware(
 			const code = (err as { code?: string })?.code ?? 'ERR_PAYMENT_FAILED'
 			const description =
 				(err as { message?: string })?.message ?? 'Payment failed.'
+			console.error(
+				`[accounts-payment] internalize failed for ${authedReq.auth.identityKey}: ${code} ${description}`,
+			)
 			res.status(400).json({ status: 'error', code, description })
 		}
 	}

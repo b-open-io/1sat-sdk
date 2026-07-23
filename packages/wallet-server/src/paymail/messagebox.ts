@@ -2,7 +2,12 @@
  * Authenticated send to messagebox — port of Go MessageBoxClient.
  */
 
-import { AuthFetch, CompletedProtoWallet, PrivateKey, type WalletInterface } from '@bsv/sdk'
+import {
+	AuthFetch,
+	CompletedProtoWallet,
+	PrivateKey,
+	type WalletInterface,
+} from '@bsv/sdk'
 import type { PendingPayment } from './types'
 
 export interface PaymailMessageBody {
@@ -29,7 +34,10 @@ export class MessageBoxClient {
 		this.authFetch = new AuthFetch(wallet)
 	}
 
-	static fromPrivateKey(baseUrl: string, privateKey: PrivateKey): MessageBoxClient {
+	static fromPrivateKey(
+		baseUrl: string,
+		privateKey: PrivateKey,
+	): MessageBoxClient {
 		return new MessageBoxClient(baseUrl, new CompletedProtoWallet(privateKey))
 	}
 

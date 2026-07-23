@@ -54,9 +54,7 @@ export class KnexPendingStore implements PendingStore {
 	}
 
 	async get(reference: string): Promise<PendingPayment | null> {
-		const row = await this.db('paymail_pending')
-			.where({ reference })
-			.first()
+		const row = await this.db('paymail_pending').where({ reference }).first()
 		if (!row) return null
 		const expiresAt = new Date(row.expires_at)
 		if (expiresAt.getTime() < Date.now() && !row.txid) {
@@ -79,9 +77,11 @@ export class KnexPendingStore implements PendingStore {
 	}
 
 	async update(p: PendingPayment): Promise<void> {
-		await this.db('paymail_pending').where({ reference: p.reference }).update({
-			txid: p.txid ?? null,
-		})
+		await this.db('paymail_pending')
+			.where({ reference: p.reference })
+			.update({
+				txid: p.txid ?? null,
+			})
 	}
 
 	async delete(reference: string): Promise<void> {

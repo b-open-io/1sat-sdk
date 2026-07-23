@@ -11,7 +11,13 @@
  * client call is enough.
  */
 
-import { Beef, P2PKH, PublicKey, type WalletInterface, Utils } from '@bsv/sdk'
+import {
+	type Beef,
+	P2PKH,
+	PublicKey,
+	Utils,
+	type WalletInterface,
+} from '@bsv/sdk'
 import { createLogger } from 'evlog'
 import { useLogger } from 'evlog/express'
 import type { NextFunction, Request, Response } from 'express'
@@ -198,7 +204,10 @@ async function matchCreateActionPayment(
 			senderIdentityKey,
 			expected,
 		)
-	} catch {
+	} catch (err) {
+		console.warn(
+			`[accounts] payment script derivation failed for ${senderIdentityKey}: ${(err as Error).message}`,
+		)
 		return undefined
 	}
 
@@ -243,17 +252,27 @@ async function matchProcessActionPayment(
 			noRawTx: true,
 		})
 		transactionId = txs[0]?.transactionId
-	} catch {
+	} catch (err) {
+		console.warn(
+			`[accounts] findTransactions failed for payment match: ${(err as Error).message}`,
+		)
 		return undefined
 	}
 	if (transactionId == null) return undefined
 
-	let outputs: Array<{ vout: number; satoshis: number; lockingScript?: number[] }>
+	let outputs: Array<{
+		vout: number
+		satoshis: number
+		lockingScript?: number[]
+	}>
 	try {
 		outputs = await storage.findOutputs({
 			partial: { transactionId, userId },
 		})
-	} catch {
+	} catch (err) {
+		console.warn(
+			`[accounts] findOutputs failed for payment match: ${(err as Error).message}`,
+		)
 		return undefined
 	}
 
@@ -264,7 +283,10 @@ async function matchProcessActionPayment(
 			senderIdentityKey,
 			expected,
 		)
-	} catch {
+	} catch (err) {
+		console.warn(
+			`[accounts] payment script derivation failed for ${senderIdentityKey}: ${(err as Error).message}`,
+		)
 		return undefined
 	}
 

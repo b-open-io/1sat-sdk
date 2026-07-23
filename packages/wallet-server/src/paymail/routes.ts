@@ -5,13 +5,13 @@
 
 import { OneSatServices } from '@1sat/client'
 import {
+	P2pPaymentDestinationRoute,
+	PaymailClient,
 	PaymailRouter,
 	PublicKeyInfrastructureRoute,
 	PublicProfileRoute,
-	P2pPaymentDestinationRoute,
 	ReceiveBeefTransactionRoute,
 	ReceiveTransactionRoute,
-	PaymailClient,
 } from '@bsv/paymail'
 import { Transaction, Utils } from '@bsv/sdk'
 import type { Express } from 'express'
@@ -19,7 +19,7 @@ import { createPaymentDestination, verifyPaymentOutputs } from './destination'
 import { checkHostingEntitlement } from './entitlement'
 import { MessageBoxClient } from './messagebox'
 import { resolvePaymailBind } from './resolve'
-import type { PaymailDeps, PendingPayment } from './types'
+import type { PaymailDeps } from './types'
 
 class NotFoundError extends Error {
 	constructor(message = 'paymail not found') {
@@ -39,7 +39,9 @@ export async function mountPaymailRoutes(
 			? MessageBoxClient.fromPrivateKey(deps.messageboxUrl, deps.hostPrivateKey)
 			: null
 	if (deps.messageboxUrl && !deps.hostPrivateKey) {
-		console.warn('[paymail] messageboxUrl set without hostPrivateKey — inbox delivery disabled')
+		console.warn(
+			'[paymail] messageboxUrl set without hostPrivateKey — inbox delivery disabled',
+		)
 	}
 
 	async function resolveAndAuthorize(alias: string) {
@@ -50,11 +52,19 @@ export async function mountPaymailRoutes(
 					deps.hostWallet,
 					bind.identityKey,
 				)
-				if (!ent.active) throw new NotFoundError()
+				if (!ent.active) {
+					console.warn(
+						`[paymail] ${alias}: identity ${bind.identityKey} has no active hosting subscription`,
+					)
+					throw new NotFoundError()
+				}
 			}
 			return bind
 		} catch (err) {
 			if (err instanceof NotFoundError) throw err
+			console.warn(
+				`[paymail] ${alias}: bind resolution failed: ${err instanceof Error ? err.message : String(err)}`,
+			)
 			throw new NotFoundError()
 		}
 	}
@@ -66,7 +76,8 @@ export async function mountPaymailRoutes(
 		routes: [
 			new PublicKeyInfrastructureRoute({
 				domainLogicHandler: async (params: any) => {
-					const { name, domain } = PublicKeyInfrastructureRoute.getNameAndDomain(params)
+					const { name, domain } =
+						PublicKeyInfrastructureRoute.getNameAndDomain(params)
 					const bind = await resolveAndAuthorize(name)
 					return {
 						bsvalias: '1.0' as const,
@@ -121,10 +132,12 @@ export async function mountPaymailRoutes(
 				},
 			}),
 		],
-		errorHandler: (err, _req, res, next) => {
+		errorHandler: (err, req, res, next) => {
 			if (err instanceof NotFoundError) {
+				console.warn(`[paymail] 404 ${req.method} ${req.path}: ${err.message}`)
 				return res.status(404).json({ error: 'paymail not found' })
 			}
+			// Terminal error middleware logs it with the request context.
 			next(err)
 		},
 	})

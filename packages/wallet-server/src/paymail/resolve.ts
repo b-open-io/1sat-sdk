@@ -2,10 +2,10 @@
  * Resolve OpNS alias → identity via tip UTXO PushDrop bind.
  */
 
-import { OneSatServices } from '@1sat/client'
+import type { OneSatServices } from '@1sat/client'
 import { P1SAT_PROTOCOL, opnsRegisterKeyId } from '@1sat/types'
 import {
-	LockingScript,
+	type LockingScript,
 	ProtoWallet,
 	PushDrop,
 	Transaction,

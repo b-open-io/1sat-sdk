@@ -11,7 +11,7 @@
  * test harness for the payment endpoint independently of the sync path.
  */
 
-import { type WalletInterface } from '@bsv/sdk'
+import type { WalletInterface } from '@bsv/sdk'
 import { AuthFetch } from '@bsv/sdk/auth'
 import type { AccountStatusResponse } from './accounts/types'
 

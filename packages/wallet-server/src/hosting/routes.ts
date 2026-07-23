@@ -50,11 +50,7 @@ export function mountHostingRoutes(
 	deps: {
 		wallet: WalletInterface
 		getConfig: HostingConfigProvider
-		authMiddleware: (
-			req: Request,
-			res: Response,
-			next: NextFunction,
-		) => unknown
+		authMiddleware: (req: Request, res: Response, next: NextFunction) => unknown
 	},
 ): void {
 	const root = basePath === '/' ? '' : basePath.replace(/\/$/, '')
@@ -292,7 +288,8 @@ async function signP2PKH(
 		throw new Error(`missing source locking script for input ${inputIndex}`)
 	}
 	const sourceTXID = txInput.sourceTXID ?? txInput.sourceTransaction?.id('hex')
-	if (!sourceTXID) throw new Error(`missing source txid for input ${inputIndex}`)
+	if (!sourceTXID)
+		throw new Error(`missing source txid for input ${inputIndex}`)
 	const sourceSatoshis =
 		txInput.sourceTransaction?.outputs[txInput.sourceOutputIndex]?.satoshis ?? 1
 
