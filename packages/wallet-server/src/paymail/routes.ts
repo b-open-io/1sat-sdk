@@ -116,9 +116,11 @@ export async function mountPaymailRoutes(
 				verifySignature: false,
 				paymailClient,
 				domainLogicHandler: async (params, body) => {
-					const beefBytes = Utils.toArray(body.beef, 'hex')
-					const tx = Transaction.fromAtomicBEEF(beefBytes)
-					return finishReceive(tx, beefBytes, body.reference)
+					// Senders post plain BEEF per BRC-70; fromBEEF accepts
+					// V1, V2, and Atomic. Normalize to atomic for downstream
+					// internalization by the recipient wallet.
+					const tx = Transaction.fromBEEF(Utils.toArray(body.beef, 'hex'))
+					return finishReceive(tx, tx.toAtomicBEEF(), body.reference)
 				},
 			}),
 			new ReceiveTransactionRoute({
@@ -137,7 +139,13 @@ export async function mountPaymailRoutes(
 				console.warn(`[paymail] 404 ${req.method} ${req.path}: ${err.message}`)
 				return res.status(404).json({ error: 'paymail not found' })
 			}
-			// Terminal error middleware logs it with the request context.
+			// Log here: PaymailRouter appends its own default error handler
+			// after this one, so the error never reaches the app-level
+			// terminal middleware.
+			console.error(
+				`[paymail] ${req.method} ${req.path} failed:`,
+				err instanceof Error ? (err.stack ?? err.message) : err,
+			)
 			next(err)
 		},
 	})
