@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.190
+
+### Added
+- `internalizeOpns` — file a foreign OpNS mint AtomicBEEF into the wallet with basket, `name:`, and `id:` tags.
+- `getOpnsNames` supports listOutputs-shaped filters (`tags`, `tagQueryMode`, `names` sugar, `include*`).
+
+### Changed
+- `getOpnsNames` is metadata-only by default (no BEEF). Pass `include: 'entire transactions'` when batch BEEF is required.
+
 ## 0.0.184
 
 ### Added

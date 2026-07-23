@@ -6,6 +6,7 @@
  * script and re-locks under the normal ordinal formats (P2PKH / OrdLock).
  */
 
+import { OpNS } from '@1sat/templates'
 import {
 	OPNS_BASKET,
 	OPNS_PUBLISHED_TAG,
@@ -16,13 +17,19 @@ import {
 } from '@1sat/types'
 import {
 	PushDrop,
+	Transaction,
 	Utils,
 	type BEEF,
+	type WalletCounterparty,
 	type WalletOutput,
+	type WalletProtocol,
 } from '@bsv/sdk'
 import { buildTransferOrdinals, listOrdinal, transferOrdinals } from '../ordinals'
 import type { Action, ActionOptions, OneSatContext } from '../types'
-import { executeTrackedAction } from '../utils/createTrackedAction'
+import {
+	executeTrackedAction,
+	randomActionId,
+} from '../utils/createTrackedAction'
 import { resolveBeef } from '../utils/resolveBeef'
 import {
 	signOrdinalInput,
@@ -55,11 +62,20 @@ export interface OpnsOperationResponse {
 	error?: string
 }
 
-/** Input for getOpnsNames action */
+/** Input for getOpnsNames — listOutputs-shaped; basket is always OPNS. */
 export interface GetOpnsNamesInput {
-	/** Max number of names to return */
+	/** Output tags to filter (listOutputs tags) */
+	tags?: string[]
+	/** How multiple tags combine (default: any when any tags/names present) */
+	tagQueryMode?: 'all' | 'any'
+	/** Convenience: appended as `name:${n}` tags (same tagQueryMode) */
+	names?: string[]
+	/** Omit for metadata-only (no BEEF). Use entire transactions when batch BEEF is required. */
+	include?: 'locking scripts' | 'entire transactions'
+	includeCustomInstructions?: boolean
+	includeTags?: boolean
+	includeLabels?: boolean
 	limit?: number
-	/** Offset for pagination */
 	offset?: number
 }
 
@@ -67,6 +83,41 @@ export interface GetOpnsNamesInput {
 export interface GetOpnsNamesResult {
 	outputs: WalletOutput[]
 	BEEF?: BEEF
+	totalOutputs?: number
+}
+
+/** Input for internalizeOpns — receive a foreign-created OpNS mint into the wallet. */
+export interface InternalizeOpnsInput {
+	/** Mint tx as AtomicBEEF (BRC-95) — same format internalizeAction requires */
+	tx: number[]
+	/** Spend derivation for the receive lock (same path used to build receiveAddress) */
+	protocolID: WalletProtocol
+	keyID: string
+	counterparty?: WalletCounterparty
+}
+
+/** Result from internalizeOpns */
+export interface InternalizeOpnsResult {
+	txid?: string
+	outpoint?: string
+	name?: string
+	error?: string
+}
+
+/** Locate the name delivery output on an OpNS mint tx (nodes at i,i+1 → name at i+2). */
+function findMintNameDelivery(tx: Transaction): {
+	vout: number
+	name: string
+} | null {
+	for (let i = 0; i + 2 < tx.outputs.length; i++) {
+		const parent = OpNS.decode(tx.outputs[i].lockingScript)
+		const child = OpNS.decode(tx.outputs[i + 1].lockingScript)
+		if (!parent || !child) continue
+		const name = child.domain.trim().slice(0, 64)
+		if (!name) continue
+		return { vout: i + 2, name }
+	}
+	return null
 }
 
 // ============================================================================
@@ -109,16 +160,41 @@ async function signSingleOrdinalInput(
 // ============================================================================
 
 /**
- * Get OpNS names from the wallet with BEEF for spending.
+ * List OpNS names in the wallet. Mirrors listOutputs (fixed OPNS basket).
+ * Metadata-only by default; pass include: 'entire transactions' for batch BEEF.
  */
 export const getOpnsNames: Action<GetOpnsNamesInput, GetOpnsNamesResult> = {
 	meta: {
 		name: 'getOpnsNames',
-		description: 'Get OpNS names from the wallet with BEEF for spending',
+		description:
+			'List OpNS names from the wallet (metadata by default; optional BEEF)',
 		category: 'opns',
 		inputSchema: {
 			type: 'object',
 			properties: {
+				tags: {
+					type: 'array',
+					description: 'Filter tags (listOutputs tags)',
+					items: { type: 'string' },
+				},
+				tagQueryMode: {
+					type: 'string',
+					enum: ['all', 'any'],
+					description: 'How tags combine (default any when filtering)',
+				},
+				names: {
+					type: 'array',
+					description: 'Appended as name:${n} tags',
+					items: { type: 'string' },
+				},
+				include: {
+					type: 'string',
+					enum: ['locking scripts', 'entire transactions'],
+					description: 'Omit for metadata-only (no BEEF)',
+				},
+				includeCustomInstructions: { type: 'boolean' },
+				includeTags: { type: 'boolean' },
+				includeLabels: { type: 'boolean' },
 				limit: {
 					type: 'integer',
 					description: 'Max names to return (default: 100)',
@@ -131,17 +207,111 @@ export const getOpnsNames: Action<GetOpnsNamesInput, GetOpnsNamesResult> = {
 		},
 	},
 	async execute(ctx, input) {
+		const tags = [...(input.tags ?? [])]
+		for (const n of input.names ?? []) {
+			if (n) tags.push(`name:${n}`)
+		}
+		const filtering = tags.length > 0
 		const result = await ctx.wallet.listOutputs({
 			basket: OPNS_BASKET,
-			includeTags: true,
-			includeCustomInstructions: true,
-			include: 'entire transactions',
+			...(filtering && {
+				tags,
+				tagQueryMode: input.tagQueryMode ?? 'any',
+			}),
+			...(input.include && { include: input.include }),
+			includeCustomInstructions: input.includeCustomInstructions ?? true,
+			includeTags: input.includeTags ?? true,
+			...(input.includeLabels != null && {
+				includeLabels: input.includeLabels,
+			}),
 			limit: input.limit ?? 100,
 			offset: input.offset ?? 0,
 		})
 		return {
 			outputs: result.outputs,
 			BEEF: result.BEEF,
+			totalOutputs: result.totalOutputs,
+		}
+	},
+}
+
+/**
+ * Internalize an OpNS mint delivery into the wallet model (basket, name tag, id:).
+ * Caller supplies BEEF + the spend derivation used for the receive lock.
+ */
+export const internalizeOpns: Action<
+	InternalizeOpnsInput,
+	InternalizeOpnsResult
+> = {
+	meta: {
+		name: 'internalizeOpns',
+		description:
+			'Internalize a foreign-created OpNS mint into the wallet with tracking tags',
+		category: 'opns',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				tx: {
+					type: 'array',
+					description: 'Mint AtomicBEEF (BRC-95) bytes',
+					items: { type: 'integer' },
+				},
+				protocolID: {
+					type: 'array',
+					description: 'Wallet protocol for spend derivation',
+				},
+				keyID: {
+					type: 'string',
+					description: 'Key ID for spend derivation',
+				},
+				counterparty: {
+					type: 'string',
+					description: 'Counterparty for spend derivation (default self)',
+				},
+			},
+			required: ['tx', 'protocolID', 'keyID'],
+		},
+	},
+	async execute(_ctx, input) {
+		try {
+			const parsed = Transaction.fromAtomicBEEF(input.tx)
+			const txid = parsed.id('hex')
+			const delivery = findMintNameDelivery(parsed)
+			if (!delivery) {
+				return { error: 'not-an-opns-mint' }
+			}
+			const { vout, name } = delivery
+			const actionId = randomActionId()
+			const counterparty = input.counterparty ?? 'self'
+			await _ctx.wallet.internalizeAction({
+				tx: input.tx,
+				outputs: [
+					{
+						outputIndex: vout,
+						protocol: 'basket insertion',
+						insertionRemittance: {
+							basket: OPNS_BASKET,
+							tags: ['opns', `name:${name}`, `id:${actionId}_${vout}`],
+							customInstructions: JSON.stringify({
+								protocolID: input.protocolID,
+								keyID: input.keyID,
+								counterparty,
+								name,
+							}),
+						},
+					},
+				],
+				description: `opns name ${name}`.slice(0, 50),
+			})
+			return {
+				txid,
+				outpoint: `${txid}.${vout}`,
+				name,
+			}
+		} catch (err) {
+			return {
+				error: err instanceof Error ? err.message : String(err),
+			}
 		}
 	},
 }
@@ -467,6 +637,7 @@ export const opnsTransfer: Action<OpnsTransferRequest, OpnsOperationResponse> =
 /** All OpNS actions for registry (paid mine lives on 1sat.name / orchestrator). */
 export const opnsActions = [
 	getOpnsNames,
+	internalizeOpns,
 	opnsRegister,
 	opnsDeregister,
 	opnsList,

@@ -71,7 +71,10 @@ async function opnsRegister(args: string[], opts: GlobalFlags): Promise<void> {
 
 	try {
 		// Look up the OpNS ordinal from the wallet
-		const namesResult = await getOpnsNames.execute(ctx, { limit: 10000 })
+		const namesResult = await getOpnsNames.execute(ctx, {
+			limit: 10000,
+			include: 'entire transactions',
+		})
 		const ordinal = namesResult.outputs.find((o) => o.outpoint === outpoint)
 		if (!ordinal) {
 			fatal(`OpNS name not found in wallet: ${outpoint}`)
@@ -116,7 +119,10 @@ async function opnsDeregister(
 
 	try {
 		// Look up the OpNS ordinal from the wallet
-		const namesResult = await getOpnsNames.execute(ctx, { limit: 10000 })
+		const namesResult = await getOpnsNames.execute(ctx, {
+			limit: 10000,
+			include: 'entire transactions',
+		})
 		const ordinal = namesResult.outputs.find((o) => o.outpoint === outpoint)
 		if (!ordinal) {
 			fatal(`OpNS name not found in wallet: ${outpoint}`)
@@ -201,7 +207,10 @@ async function opnsCancelListing(
 	})
 
 	try {
-		const namesResult = await getOpnsNames.execute(ctx, { limit: 10000 })
+		const namesResult = await getOpnsNames.execute(ctx, {
+			limit: 10000,
+			include: 'entire transactions',
+		})
 		const listing = namesResult.outputs.find((o) => o.outpoint === outpoint)
 		if (!listing) {
 			fatal(`Listing not found in wallet OpNS basket: ${outpoint}`)
@@ -250,7 +259,10 @@ async function opnsSell(args: string[], opts: GlobalFlags): Promise<void> {
 	})
 
 	try {
-		const namesResult = await getOpnsNames.execute(ctx, { limit: 10000 })
+		const namesResult = await getOpnsNames.execute(ctx, {
+			limit: 10000,
+			include: 'entire transactions',
+		})
 		const ordinal = namesResult.outputs.find((o) => o.outpoint === outpoint)
 		if (!ordinal) {
 			fatal(`OpNS name not found in wallet: ${outpoint}`)

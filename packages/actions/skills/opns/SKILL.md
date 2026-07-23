@@ -41,7 +41,8 @@ OpNS (Op = "operation", a key field in the original Ordinals protocol; NS = like
 
 | Action | Description |
 |--------|-------------|
-| `getOpnsNames` | List owned OpNS names with BEEF for spending |
+| `getOpnsNames` | List owned OpNS names (metadata by default; optional BEEF / tag filters) |
+| `internalizeOpns` | File a foreign mint AtomicBEEF into the wallet (basket, `name:`, `id:`) |
 | `opnsRegister` | Bind wallet's identity key to an OpNS name |
 | `opnsDeregister` | Remove identity binding from an OpNS name |
 | `opnsList` | List a name for sale and clear its identity binding |
@@ -77,8 +78,10 @@ import { createContext, getOpnsNames, opnsRegister } from '@1sat/actions'
 
 const ctx = createContext(wallet, { services })
 
-// 1. List OpNS ordinals from the wallet with their spending BEEF
-const { outputs } = await getOpnsNames.execute(ctx, {})
+// 1. List OpNS ordinals (metadata; filter by name tag when known)
+const { outputs } = await getOpnsNames.execute(ctx, {
+  names: ['alice'],
+})
 
 // 2. Find the exact OpNS name to publish; never take the first name blindly
 const requestedName = 'alice'
@@ -95,7 +98,7 @@ if (!opnsOrdinal) {
   throw new Error(`OpNS name ${requestedName} is not owned by this wallet`)
 }
 
-// 3. Register identity key — inputBEEF is optional (auto-resolved from wallet)
+// 3. Register identity key — inputBEEF optional when output has id: (resolveBeef)
 const result = await opnsRegister.execute(ctx, {
   ordinal: opnsOrdinal,
 })
