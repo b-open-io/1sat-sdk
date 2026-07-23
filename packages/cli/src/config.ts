@@ -123,6 +123,11 @@ export interface ServerHostingConfig {
 	enabled?: boolean
 	/** Sats per subscription period. */
 	priceSats?: number
+	/**
+	 * USD price per subscription period, returned as `priceUsd` on the
+	 * pricing API for display. Informational only — charging uses `priceSats`.
+	 */
+	targetUsd?: number
 	/** Period length in seconds (e.g. 2592000 ≈ 30 days). */
 	periodSeconds?: number
 }

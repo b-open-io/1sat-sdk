@@ -10,11 +10,11 @@
 import type { Server } from 'node:http'
 import { createServer } from 'node:http'
 import {
+	type MessageBoxContext,
 	attachMessageBoxWebSockets,
 	createMessageBoxContext,
 	registerMessageBoxPostAuthRoutes,
 	registerMessageBoxPreAuthRoutes,
-	type MessageBoxContext,
 } from '@bopen-io/messagebox-server'
 import { createAuthMiddleware } from '@bsv/auth-express-middleware'
 import type { WalletInterface } from '@bsv/sdk'
@@ -26,15 +26,18 @@ import {
 	accountsCapacityGate,
 	mountPaymentRoute,
 } from './accounts'
-import type { AccountsConfigProvider } from './accounts/types'
 import {
+	type WalletServerAccounts,
+	type WalletServerConfig,
 	corsMiddleware,
 	dispatchHandler,
 	mountStatusRoute,
-	type WalletServerAccounts,
-	type WalletServerConfig,
 } from './createWalletServer'
-import { mountHostingRoutes, type HostingConfigProvider } from './hosting/routes'
+import {
+	type HostingConfigProvider,
+	mountHostingRoutes,
+} from './hosting/routes'
+import { mountOpenApiRoutes } from './openapi'
 import { checkHostingEntitlement } from './paymail/entitlement'
 import { mountPaymailRoutes } from './paymail/routes'
 import type { PaymailDeps } from './paymail/types'
@@ -86,13 +89,27 @@ export async function createHostServer(
 	if (config.hosting) {
 		app.get('/hosting/price', (_req, res) => {
 			const cfg = config.hosting!.getConfig()
-			if (!cfg.enabled) return res.status(404).json({ error: 'hosting disabled' })
+			if (!cfg.enabled)
+				return res.status(404).json({ error: 'hosting disabled' })
 			return res.json({
 				priceSats: cfg.priceSats,
+				...(cfg.priceUsd !== undefined && { priceUsd: cfg.priceUsd }),
 				periodSeconds: cfg.periodSeconds,
 			})
 		})
 	}
+	mountOpenApiRoutes(app, {
+		serverIdentityKey: config.serverIdentityKey,
+		surfaces: {
+			storage: true,
+			accounts: config.accounts != null,
+			hosting: config.hosting
+				? () => config.hosting!.getConfig().enabled
+				: undefined,
+			paymail: config.paymail != null,
+			messagebox: config.messagebox != null,
+		},
+	})
 
 	// --- auth surface ----------------------------------------------------------
 	const accountsDeps: AccountsMiddlewareDeps | undefined = config.accounts
@@ -106,9 +123,8 @@ export async function createHostServer(
 		: undefined
 
 	// Wallet storage JSON-RPC: auth + optional capacity gate + dispatch
-	const postHandlers: Array<
-		(req: never, res: never, next: never) => unknown
-	> = []
+	const postHandlers: Array<(req: never, res: never, next: never) => unknown> =
+		[]
 	if (accountsDeps) {
 		postHandlers.push(accountsCapacityGate(accountsDeps) as never)
 	}
@@ -195,6 +211,10 @@ export async function createHostServer(
 		// second handshake.
 		mbRouter.use(authMiddleware)
 		registerMessageBoxPostAuthRoutes(mbRouter, ctx)
+		// Canonical mount. The root mount is a deprecated alias kept for
+		// clients that predate the /messagebox prefix (yours-wallet); remove it
+		// once they've migrated.
+		app.use('/messagebox', mbRouter)
 		app.use(mbRouter)
 
 		const server = createServer(app)

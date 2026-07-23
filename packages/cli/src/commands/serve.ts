@@ -179,13 +179,26 @@ async function resolveServe(opts: GlobalFlags): Promise<ResolvedServe> {
 		activeRemote: config.activeRemote,
 		backups: config.backups,
 		accounts: resolveAccounts(server.accounts),
-		monitorEnabled: server.monitor?.enabled !== false,
+		monitorEnabled: resolveMonitorEnabled(server.monitor?.enabled),
 		privateKey,
 	}
 }
 
 function deriveSqliteFilename(dataDir: string, chain: string): string {
 	return join(dataDir, `wallet-${chain}.db`)
+}
+
+/**
+ * Env beats config, default on. ONESAT_MONITOR=false is set per-process by
+ * clustered deployments (PM2 ecosystem) that run a dedicated `serve monitor`;
+ * a plain `1sat serve` runs all-in-one.
+ */
+function resolveMonitorEnabled(configured: boolean | undefined): boolean {
+	const fromEnv = process.env.ONESAT_MONITOR
+	if (fromEnv && fromEnv.trim() !== '') {
+		return !['false', '0', 'off'].includes(fromEnv.trim().toLowerCase())
+	}
+	return configured !== false
 }
 
 function resolvePort(configured: number | undefined): number {
@@ -349,6 +362,7 @@ async function startWalletServer(
 					return {
 						enabled: h?.enabled === true,
 						priceSats: h?.priceSats ?? 10_000,
+						priceUsd: h?.targetUsd,
 						periodSeconds: h?.periodSeconds ?? 2_592_000,
 					}
 				},
@@ -405,7 +419,7 @@ async function startWalletServer(
 			pendingStore,
 			hostWallet: hostingEnabled ? walletResult.wallet : undefined,
 			requireEntitlement: hostingEnabled,
-			messageboxUrl: `http://127.0.0.1:${resolved.port}/`,
+			messageboxUrl: `http://127.0.0.1:${resolved.port}/messagebox`,
 			hostPrivateKey: resolved.privateKey,
 		},
 		messagebox: {

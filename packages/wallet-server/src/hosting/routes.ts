@@ -35,6 +35,8 @@ import { createAccountsPaymentMiddleware } from '../accounts/paymentMiddleware'
 export interface HostingConfig {
 	enabled: boolean
 	priceSats: number
+	/** Operator's USD target price, surfaced verbatim on the pricing API. */
+	priceUsd?: number
 	periodSeconds: number
 }
 
@@ -80,6 +82,7 @@ export function mountHostingRoutes(
 				identityKey,
 				...status,
 				priceSats: cfg.priceSats,
+				...(cfg.priceUsd !== undefined && { priceUsd: cfg.priceUsd }),
 				periodSeconds: cfg.periodSeconds,
 			})
 		},

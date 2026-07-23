@@ -7,6 +7,7 @@ import { AuthFetch } from '@bsv/sdk'
 
 export interface HostingPrice {
 	priceSats: number
+	priceUsd?: number
 	periodSeconds: number
 }
 
@@ -16,6 +17,7 @@ export interface HostingStatus {
 	active: boolean
 	expiresAt?: number
 	priceSats?: number
+	priceUsd?: number
 	periodSeconds?: number
 }
 

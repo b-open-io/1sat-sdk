@@ -112,6 +112,7 @@ export function createWalletServer(
 				}
 				return res.json({
 					priceSats: cfg.priceSats,
+					...(cfg.priceUsd !== undefined && { priceUsd: cfg.priceUsd }),
 					periodSeconds: cfg.periodSeconds,
 				})
 			})

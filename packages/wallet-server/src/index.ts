@@ -70,3 +70,5 @@ export {
 	type HostingStatus,
 	type HostingSubscribeResult,
 } from './hosting/client'
+export { buildOpenApiSpec, mountOpenApiRoutes } from './openapi'
+export type { OpenApiOptions, OpenApiSurfaces } from './openapi'
