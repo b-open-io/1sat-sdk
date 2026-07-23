@@ -382,6 +382,14 @@ async function startWalletServer(
 			}
 		: undefined
 
+	const sessionStoreCfg = config.server?.sessionStore
+	const sessionStore = sessionStoreCfg?.redisUrl
+		? {
+				redisUrl: sessionStoreCfg.redisUrl,
+				ttlSeconds: sessionStoreCfg.ttlSeconds,
+			}
+		: undefined
+
 	if (mode === 'wallet') {
 		const handle = createWalletServer({
 			wallet: walletResult.wallet,
@@ -392,6 +400,7 @@ async function startWalletServer(
 			internalPath: null,
 			accounts: accounts?.walletServerAccounts,
 			hosting,
+			sessionStore,
 		})
 		const port = await handle.start()
 		const notes = [
@@ -421,6 +430,7 @@ async function startWalletServer(
 
 	const handle = await createHostServer({
 		wallet: walletResult.wallet,
+		sessionStore,
 		storage: walletResult.getActiveStorage(),
 		serverIdentityKey: walletResult.wallet.identityKey,
 		listen: { port: resolved.port, host: resolved.host },

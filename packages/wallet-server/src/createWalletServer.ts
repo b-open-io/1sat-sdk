@@ -1,5 +1,4 @@
 import type { Server } from 'node:http'
-import { createAuthMiddleware } from '@bsv/auth-express-middleware'
 import type { WalletInterface } from '@bsv/sdk'
 import { createLogger } from 'evlog'
 import { evlog, useLogger } from 'evlog/express'
@@ -29,6 +28,7 @@ import {
 	type HostingConfigProvider,
 	mountHostingRoutes,
 } from './hosting/routes'
+import { buildAuthMiddleware } from './sessions/redisSessionManager'
 
 export interface WalletServerAccounts {
 	getConfig: AccountsConfigProvider
@@ -59,6 +59,11 @@ export interface WalletServerConfig {
 	accounts?: WalletServerAccounts
 	/** Hosted paymail subscription (price/status/subscribe). */
 	hosting?: { getConfig: HostingConfigProvider }
+	/**
+	 * Redis-shared BRC-104 sessions for multi-instance deployments behind a
+	 * load balancer. Unset = in-memory sessions (single instance).
+	 */
+	sessionStore?: { redisUrl: string; ttlSeconds?: number }
 }
 
 export interface WalletServerHandle {
@@ -101,7 +106,7 @@ export function createWalletServer(
 		: undefined
 
 	if (publicPath) {
-		const authMiddleware = createAuthMiddleware({ wallet })
+		const authMiddleware = buildAuthMiddleware(wallet, config.sessionStore)
 		// Public hosting price before blanket auth on publicPath.
 		if (config.hosting) {
 			const root = publicPath === '/' ? '' : publicPath.replace(/\/$/, '')

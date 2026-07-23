@@ -138,6 +138,13 @@ export interface ServerHostingConfig {
 	periodSeconds?: number
 }
 
+export interface ServerSessionStoreConfig {
+	/** e.g. redis://127.0.0.1:6379 */
+	redisUrl?: string
+	/** Session TTL in Redis, refreshed on writes. Defaults to 86400 (24h). */
+	ttlSeconds?: number
+}
+
 export interface ServerMonitorConfig {
 	/**
 	 * Run the background monitor task loop (post waiting txs, check for
@@ -166,6 +173,11 @@ export interface ServerConfig {
 	hosting?: ServerHostingConfig
 	/** Shared BSV/USD repricer engine for accounts + hosting prices. */
 	repricer?: RepricerConfig
+	/**
+	 * Redis-shared BRC-104 sessions. Required when multiple serve instances
+	 * run behind one load balancer; unset keeps sessions in-memory.
+	 */
+	sessionStore?: ServerSessionStoreConfig
 	/** Background monitor task loop. Defaults to enabled. */
 	monitor?: ServerMonitorConfig
 }

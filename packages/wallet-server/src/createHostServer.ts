@@ -16,7 +16,6 @@ import {
 	registerMessageBoxPostAuthRoutes,
 	registerMessageBoxPreAuthRoutes,
 } from '@bopen-io/messagebox-server'
-import { createAuthMiddleware } from '@bsv/auth-express-middleware'
 import type { WalletInterface } from '@bsv/sdk'
 import { createLogger } from 'evlog'
 import { evlog } from 'evlog/express'
@@ -39,6 +38,7 @@ import {
 } from './hosting/routes'
 import { mountOpenApiRoutes } from './openapi'
 import { checkHostingEntitlement } from './paymail/entitlement'
+import { buildAuthMiddleware } from './sessions/redisSessionManager'
 import { mountPaymailRoutes } from './paymail/routes'
 import type { PaymailDeps } from './paymail/types'
 
@@ -58,6 +58,11 @@ export interface HostServerConfig {
 	hosting?: { getConfig: HostingConfigProvider }
 	paymail?: PaymailDeps
 	messagebox?: HostServerMessageboxConfig
+	/**
+	 * Redis-shared BRC-104 sessions for multi-instance deployments behind a
+	 * load balancer. Unset = in-memory sessions (single instance).
+	 */
+	sessionStore?: { redisUrl: string; ttlSeconds?: number }
 	bodyLimit?: string
 }
 
@@ -79,8 +84,9 @@ export async function createHostServer(
 	const { wallet } = config
 	// One authMiddleware instance for every authed surface (storage, account,
 	// hosting, messagebox), so a single /.well-known/auth handshake authenticates
-	// a client everywhere.
-	const authMiddleware = createAuthMiddleware({ wallet })
+	// a client everywhere. With a session store, sessions are mirrored to
+	// Redis and hydrated on demand so any instance can validate any session.
+	const authMiddleware = buildAuthMiddleware(wallet, config.sessionStore)
 
 	// --- public surface -------------------------------------------------------
 	if (config.paymail) {
