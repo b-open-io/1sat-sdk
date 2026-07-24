@@ -29,13 +29,13 @@
   "license": "MIT",
   "dependencies": {
     "@1sat/types": "workspace:*",
-    "@bsv/wallet-toolbox": "2.1.24"
+    "@bsv/wallet-toolbox": "2.4.3"
   },
   "peerDependencies": {
-    "@bsv/sdk": "^2.1.6"
+    "@bsv/sdk": "^2.1.9"
   },
   "devDependencies": {
-    "@bsv/sdk": "^2.1.6",
+    "@bsv/sdk": "^2.1.9",
     "typescript": "^5.9.3"
   }
 }

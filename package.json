@@ -24,8 +24,5 @@
   "dependencies": {
     "@ai-sdk/mcp": "^1.0.30",
     "@bopen-io/messagebox-server": "^1.3.2"
-  },
-  "overrides": {
-    "@bsv/sdk": "2.0.13"
   }
 }

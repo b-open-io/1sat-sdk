@@ -32,14 +32,14 @@
   },
   "peerDependencies": {
     "@1sat/client": "workspace:*",
-    "@bsv/sdk": "^2.1.6",
-    "@bsv/wallet-toolbox": "2.1.24",
-    "@bsv/wallet-toolbox-mobile": "2.1.24"
+    "@bsv/sdk": "^2.1.9",
+    "@bsv/wallet-toolbox": "2.4.3",
+    "@bsv/wallet-toolbox-mobile": "2.4.3"
   },
   "devDependencies": {
-    "@bsv/sdk": "^2.1.6",
-    "@bsv/wallet-toolbox": "2.1.24",
-    "@bsv/wallet-toolbox-mobile": "2.1.24",
+    "@bsv/sdk": "^2.1.9",
+    "@bsv/wallet-toolbox": "2.4.3",
+    "@bsv/wallet-toolbox-mobile": "2.4.3",
     "typescript": "^5.9.3"
   }
 }

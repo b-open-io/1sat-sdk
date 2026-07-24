@@ -33,8 +33,8 @@
     "@1sat/wallet": "workspace:*"
   },
   "peerDependencies": {
-    "@bsv/sdk": "^2.1.6",
-    "@bsv/wallet-toolbox": "2.1.24",
+    "@bsv/sdk": "^2.1.9",
+    "@bsv/wallet-toolbox": "2.4.3",
     "pg": "^8.11.0"
   },
   "peerDependenciesMeta": {
@@ -47,8 +47,8 @@
   },
   "devDependencies": {
     "@1sat/client": "workspace:*",
-    "@bsv/sdk": "^2.1.6",
-    "@bsv/wallet-toolbox": "2.1.24",
+    "@bsv/sdk": "^2.1.9",
+    "@bsv/wallet-toolbox": "2.4.3",
     "@types/pg": "^8.11.0",
     "pg": "^8.11.0",
     "typescript": "^5.9.3"
