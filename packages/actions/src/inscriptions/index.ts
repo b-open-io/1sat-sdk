@@ -72,8 +72,8 @@ export interface InscribeResponse {
 	/** True when content was written as an OrdFS multi-tx stream */
 	streamed?: boolean
 	/**
-	 * SHA-256 hex of the full content body. Also applied as output tag
-	 * `sha256:<hash>` for wallet record-keeping (single and stream).
+	 * SHA-256 hex of the full content body. Also stamped as `sha256:<hash>` on
+	 * the inscription output (single-shot and stream). Not carried on spends.
 	 */
 	contentHash?: string
 	/**
@@ -189,7 +189,7 @@ async function inscribeWithSigma(
 			],
 			options: {
 				randomizeOutputs: false,
-				noSend: true,
+				// Inscription is the real broadcast; hold only the anchor and pull it in.
 				noSendChange: anchorResult.noSendChange,
 				knownTxids: [anchorResult.txid],
 				acceptDelayedBroadcast: true,
@@ -266,7 +266,7 @@ async function inscribeStream(
 	const allNoSendChange: string[] = []
 	let accumulatedBEEF: number[] | undefined
 
-		const contentHash = Utils.toHex(Hash.sha256(Array.from(content)))
+	const contentHash = Utils.toHex(Hash.sha256(Array.from(content)))
 	const shaTag = `sha256:${contentHash}`
 
 	const fail = (error: string): InscribeResponse => ({
@@ -412,9 +412,7 @@ async function inscribeStream(
 							satoshis: 1,
 							outputDescription: `Stream chunk ${i}`,
 							basket: ORDINALS_BASKET,
-							tags: streamTags(i, [
-								`type:${ORDFS_STREAM_CONTENT_TYPE}`,
-							]),
+							tags: streamTags(i, [`type:${ORDFS_STREAM_CONTENT_TYPE}`]),
 							customInstructions,
 						},
 					],
@@ -445,9 +443,7 @@ async function inscribeStream(
 				},
 			)
 		} catch (e) {
-			return fail(
-				e instanceof Error ? e.message : `stream-chunk-${i}-failed`,
-			)
+			return fail(e instanceof Error ? e.message : `stream-chunk-${i}-failed`)
 		}
 
 		if (!result.txid) {
@@ -562,8 +558,7 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 
 			if (
 				input.streamChunkSize !== undefined &&
-				(!Number.isFinite(input.streamChunkSize) ||
-					input.streamChunkSize < 1)
+				(!Number.isFinite(input.streamChunkSize) || input.streamChunkSize < 1)
 			) {
 				return { error: 'invalid-stream-chunk-size' }
 			}

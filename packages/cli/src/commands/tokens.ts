@@ -1,15 +1,15 @@
 /**
- * Token commands - balances, list, send, deploy, buy.
+ * BSV21 commands (group was `tokens`) — balances, list, send, deploy, buy.
  */
 
 import {
+	buyBsv21,
 	deployBsv21Auth,
 	deployBsv21Mint,
 	getBsv21Balances,
 	getDisplayValue,
-	listTokens,
+	listBsv21,
 	mintBsv21,
-	purchaseBsv21,
 	sendBsv21,
 } from '@1sat/actions'
 import type { Destination } from '@1sat/types'
@@ -21,7 +21,7 @@ import { printCommandHelp } from '../help'
 import { loadKey } from '../keys'
 import { fatal, formatLabel, formatValue, output } from '../output'
 
-export async function handleTokensCommand(
+export async function handleBsv21Command(
 	args: string[],
 	opts: GlobalFlags,
 ): Promise<void> {
@@ -43,12 +43,15 @@ export async function handleTokensCommand(
 		case 'buy':
 			return tokenBuy(rest, opts)
 		default:
-			printCommandHelp('tokens', opts.json)
+			printCommandHelp('bsv21', opts.json)
 			if (subcommand && subcommand !== 'help') {
 				process.exit(1)
 			}
 	}
 }
+
+/** @deprecated Use handleBsv21Command */
+export const handleTokensCommand = handleBsv21Command
 
 async function tokenBalances(
 	_args: string[],
@@ -92,7 +95,7 @@ async function tokenList(args: string[], opts: GlobalFlags): Promise<void> {
 	})
 
 	try {
-		const outputs = await listTokens.execute(ctx, { limit: 10000 })
+		const outputs = await listBsv21.execute(ctx, { limit: 10000 })
 
 		const filtered = tokenId
 			? outputs.filter((o) => {
@@ -417,7 +420,6 @@ async function tokenBuy(args: string[], opts: GlobalFlags): Promise<void> {
 	const outpoint = extractFlag(args, '--outpoint')
 	const tokenId = extractFlag(args, '--token-id')
 	const amountStr = extractFlag(args, '--amount')
-
 	if (!outpoint) fatal('Missing --outpoint <txid.vout>')
 	if (!tokenId) fatal('Missing --token-id <id>')
 	if (!amountStr) fatal('Missing --amount <token-amount>')
@@ -437,7 +439,7 @@ async function tokenBuy(args: string[], opts: GlobalFlags): Promise<void> {
 	})
 
 	try {
-		const result = await purchaseBsv21.execute(ctx, {
+		const result = await buyBsv21.execute(ctx, {
 			tokenId,
 			outpoint,
 			amount: amountStr,

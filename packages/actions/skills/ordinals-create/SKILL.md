@@ -31,8 +31,11 @@ bun run <SKILL_DIR>/scripts/mint.ts <wif> <file-path> <metadata-json>
 | Action | Description |
 |--------|-------------|
 | `inscribe` | Create a single inscription from base64 content |
+| `listOrdinals` | List owned ordinals after mint (metadata/tags; print `id`) |
 | `mintCollection` | Create a collection parent inscription |
 | `mintCollectionItem` | Create an item inscription linked to a parent collection |
+
+CLI: `ordinals inscribe` (was `ordinals mint`). Marketplace send/sell/buy: see `../ordinals-marketplace/SKILL.md`.
 
 ## Calling Pattern
 

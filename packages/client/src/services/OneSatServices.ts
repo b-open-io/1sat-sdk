@@ -233,7 +233,8 @@ export class OneSatServices implements WalletServices {
 		extraInfo?: string
 		competingTxs?: string[]
 	}> {
-		const bytes = payload instanceof Uint8Array ? payload : new Uint8Array(payload)
+		const bytes =
+			payload instanceof Uint8Array ? payload : new Uint8Array(payload)
 		const controller = new AbortController()
 		const timeoutId = setTimeout(() => controller.abort(), 35000)
 		try {
@@ -247,7 +248,9 @@ export class OneSatServices implements WalletServices {
 			if (!resp.ok && resp.status !== 202 && resp.status !== 400) {
 				throw new Error(`/1sat/tx returned ${resp.status}: ${text}`)
 			}
-			return text ? JSON.parse(text) : { txid: '', txStatus: 'UNKNOWN', timestamp: '' }
+			return text
+				? JSON.parse(text)
+				: { txid: '', txStatus: 'UNKNOWN', timestamp: '' }
 		} finally {
 			clearTimeout(timeoutId)
 		}
@@ -446,8 +449,8 @@ export class OneSatServices implements WalletServices {
 	}
 
 	async getFiatExchangeRate(
-		currency: 'USD' | 'GBP' | 'EUR',
-		base?: 'USD' | 'GBP' | 'EUR',
+		currency: toolboxSdk.FiatCurrencyCode,
+		base?: toolboxSdk.FiatCurrencyCode,
 	): Promise<number> {
 		if (!this.fallbackServices) {
 			throw new Error('getFiatExchangeRate not implemented')

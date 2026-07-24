@@ -4,8 +4,12 @@
  * Actions for time-locking BSV.
  */
 
-import { P1SAT_PROTOCOL, buildInputAssetLabel, readAssetIdTag } from '@1sat/types'
 import { Lock } from '@1sat/templates'
+import {
+	P1SAT_PROTOCOL,
+	buildInputAssetLabel,
+	readAssetIdTag,
+} from '@1sat/types'
 import {
 	type CreateActionOutput,
 	PublicKey,
@@ -56,11 +60,83 @@ export interface LockOperationResponse {
 // Actions
 // ============================================================================
 
+/** Input for listLocks action */
+export interface ListLocksInput {
+	tags?: string[]
+	tagQueryMode?: 'all' | 'any'
+	ids?: string[]
+	include?: 'locking scripts' | 'entire transactions'
+	includeCustomInstructions?: boolean
+	includeTags?: boolean
+	includeLabels?: boolean
+	limit?: number
+	offset?: number
+}
+
+export interface ListLocksResult {
+	outputs: WalletOutput[]
+	BEEF?: import('@bsv/sdk').BEEF
+	totalOutputs?: number
+}
+
+/**
+ * List lock UTXOs (metadata by default).
+ */
+export const listLocks: Action<ListLocksInput, ListLocksResult> = {
+	meta: {
+		name: 'listLocks',
+		description: 'List time-locked BSV UTXOs (metadata by default)',
+		category: 'locks',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				tags: { type: 'array', items: { type: 'string' } },
+				tagQueryMode: { type: 'string', enum: ['all', 'any'] },
+				ids: { type: 'array', items: { type: 'string' } },
+				include: {
+					type: 'string',
+					enum: ['locking scripts', 'entire transactions'],
+				},
+				limit: { type: 'integer' },
+				offset: { type: 'integer' },
+			},
+		},
+	},
+	async execute(ctx, input) {
+		const tags = [...(input.tags ?? [])]
+		for (const id of input.ids ?? []) {
+			if (id) tags.push(id.startsWith('id:') ? id : `id:${id}`)
+		}
+		const filtering = tags.length > 0
+		const result = await ctx.wallet.listOutputs({
+			basket: LOCK_BASKET,
+			...(filtering && {
+				tags,
+				tagQueryMode: input.tagQueryMode ?? 'any',
+			}),
+			...(input.include && { include: input.include }),
+			includeTags: input.includeTags ?? true,
+			includeCustomInstructions: input.includeCustomInstructions ?? true,
+			...(input.includeLabels != null && {
+				includeLabels: input.includeLabels,
+			}),
+			limit: input.limit ?? 100,
+			offset: input.offset ?? 0,
+		})
+		return {
+			outputs: result.outputs,
+			BEEF: result.BEEF,
+			totalOutputs: result.totalOutputs,
+		}
+	},
+}
+
 /** Input for getLockData action (no required params) */
 export type GetLockDataInput = Record<string, never>
 
 /**
  * Get lock data summary.
+ * @deprecated Prefer listLocks for per-UTXO ids; kept for summary consumers.
  */
 export const getLockData: Action<GetLockDataInput, LockData> = {
 	meta: {
@@ -231,8 +307,14 @@ export const lockBsv: Action<LockBsvInput, LockOperationResponse> = {
 	},
 }
 
-/** Input for unlockBsv action (no required params) */
-export type UnlockBsvInput = Record<string, never>
+/** Input for unlockBsv action */
+export interface UnlockBsvInput {
+	/**
+	 * When set, only unlock these tracking ids (bare or id: prefix).
+	 * When omitted, unlock all matured locks in the basket.
+	 */
+	ids?: string[]
+}
 
 /**
  * Unlock matured BSV locks.
@@ -240,17 +322,31 @@ export type UnlockBsvInput = Record<string, never>
 export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 	meta: {
 		name: 'unlockBsv',
-		description: 'Unlock all matured time-locked BSV',
+		description:
+			'Unlock matured time-locked BSV (all unlockable, or specific ids)',
 		category: 'locks',
 		inputSchema: {
 			type: 'object',
-			properties: {},
+			properties: {
+				ids: {
+					type: 'array',
+					items: { type: 'string' },
+					description: 'Optional lock ids; omit to unlock all matured',
+				},
+			},
 		},
 	},
-	async execute(ctx) {
+	async execute(ctx, input = {}) {
 		try {
 			if (!ctx.services) return { error: 'services-required' }
 			const currentHeight = await ctx.services.chaintracks.currentHeight()
+
+			const idFilter =
+				input.ids && input.ids.length > 0
+					? new Set(
+							input.ids.map((id) => (id.startsWith('id:') ? id.slice(3) : id)),
+						)
+					: null
 
 			const listResult = await ctx.wallet.listOutputs({
 				basket: LOCK_BASKET,
@@ -258,6 +354,10 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 				includeCustomInstructions: true,
 				include: 'entire transactions',
 				limit: 10000,
+				...(idFilter && {
+					tags: [...idFilter].map((id) => `id:${id}`),
+					tagQueryMode: 'any' as const,
+				}),
 			})
 
 			const maturedLocks: Array<{
@@ -268,6 +368,10 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 			}> = []
 
 			for (const o of listResult.outputs) {
+				if (idFilter) {
+					const rid = readAssetIdTag(o.tags)
+					if (!rid || !idFilter.has(rid)) continue
+				}
 				const untilTag = o.tags?.find((t) => t.startsWith('until:'))
 				if (!untilTag) continue
 
@@ -387,4 +491,4 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 // ============================================================================
 
 /** All lock actions for registry */
-export const locksActions = [getLockData, lockBsv, unlockBsv]
+export const locksActions = [listLocks, getLockData, lockBsv, unlockBsv]

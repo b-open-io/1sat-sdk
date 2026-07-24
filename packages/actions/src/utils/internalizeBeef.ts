@@ -8,11 +8,9 @@
  * Used by both address sync (external deposits) and message box sync (paymail payments).
  */
 
-import { OrdLock } from '@1sat/templates'
 import type { OneSatServices } from '@1sat/client'
 import type { Indexer, ParseContext, Txo } from '@1sat/types'
 import {
-	BSV21_BASKET,
 	DEPOSIT_BASKET,
 	OPNS_BASKET,
 	ORDINALS_BASKET,
@@ -154,27 +152,6 @@ export async function internalizeBeef(
 
 	// Parse transaction with indexers
 	const parseCtx = await parseTransaction(btx.tx, indexers)
-
-	// Relinquish any of our listings that were purchased by this tx. Cancels
-	// are signed by us — wallet.signAction already marked the listing input
-	// spent — so we only act on purchases. Detected by inspecting the input's
-	// unlocking script via OrdLock.isPurchase(); basket is BSV21_BASKET if
-	// the listing wrapped a BSV21 token, ORDINALS_BASKET otherwise.
-	for (let vin = 0; vin < parseCtx.spends.length; vin++) {
-		const spend = parseCtx.spends[vin]
-		if (!spend.data.list) continue
-		const unlockingScript = btx.tx.inputs[vin].unlockingScript
-		if (!unlockingScript || !OrdLock.isPurchase(unlockingScript)) continue
-		const basket = spend.data.bsv21 ? BSV21_BASKET : ORDINALS_BASKET
-		try {
-			await wallet.relinquishOutput({
-				basket,
-				output: spend.outpoint.toString(),
-			})
-		} catch {
-			// Listing not in this wallet (we weren't the seller); nothing to relinquish.
-		}
-	}
 
 	// Build InternalizeOutput entries
 	const internalizeOutputs: InternalizeOutput[] = []

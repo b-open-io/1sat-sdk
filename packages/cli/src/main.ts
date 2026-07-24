@@ -12,17 +12,19 @@ import { resolve } from 'node:path'
 import { config as loadEnv } from 'dotenv'
 import { parseGlobalFlags } from './args'
 import { handleActionCommand } from './commands/action'
+import { handleAuthfetchCommand } from './commands/authfetch'
 import { handleConfigCommand } from './commands/config'
 import { handleIdentityCommand } from './commands/identity'
 import { handleInitCommand } from './commands/init'
 import { handleLocksCommand } from './commands/locks'
 import { handleMcpProxyCommand } from './commands/mcp-proxy'
+import { handleMessageboxCommand } from './commands/messagebox'
 import { handleOpnsCommand } from './commands/opns'
 import { handleOrdinalsCommand } from './commands/ordinals'
 import { handleRemoteCommand } from './commands/remote'
 import { handleServeCommand } from './commands/serve'
-import { handleStorageCommand } from './commands/storage'
 import { handleSocialCommand } from './commands/social'
+import { handleStorageCommand } from './commands/storage'
 import { handleSweepCommand } from './commands/sweep'
 import { handleTokensCommand } from './commands/tokens'
 import { handleTxCommand } from './commands/tx'
@@ -87,6 +89,10 @@ async function main(): Promise<void> {
 			await handleRemoteCommand(rest, flags)
 			break
 
+		case 'authfetch':
+			await handleAuthfetchCommand(rest, flags)
+			break
+
 		case 'wallet':
 			await handleWalletCommand(rest, flags)
 			break
@@ -95,7 +101,8 @@ async function main(): Promise<void> {
 			await handleOrdinalsCommand(rest, flags)
 			break
 
-		case 'tokens':
+		case 'bsv21':
+		case 'tokens': // deprecated alias
 			await handleTokensCommand(rest, flags)
 			break
 
@@ -113,6 +120,10 @@ async function main(): Promise<void> {
 
 		case 'opns':
 			await handleOpnsCommand(rest, flags)
+			break
+
+		case 'messagebox':
+			await handleMessageboxCommand(rest, flags)
 			break
 
 		case 'sweep':

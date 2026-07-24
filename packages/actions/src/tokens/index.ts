@@ -257,9 +257,9 @@ export interface ListTokensInput {
 /**
  * List BSV21 token outputs from the wallet.
  */
-export const listTokens: Action<ListTokensInput, WalletOutput[]> = {
+export const listBsv21: Action<ListTokensInput, WalletOutput[]> = {
 	meta: {
-		name: 'listTokens',
+		name: 'listBsv21',
 		description: 'List BSV21 token outputs from the wallet',
 		category: 'tokens',
 		inputSchema: {
@@ -276,6 +276,9 @@ export const listTokens: Action<ListTokensInput, WalletOutput[]> = {
 		return listTokensInternal(ctx, input.limit)
 	},
 }
+
+/** @deprecated Use listBsv21 */
+export const listTokens = listBsv21
 
 /** Input for getBsv21Balances action (no required params) */
 export type GetBsv21BalancesInput = Record<string, never>
@@ -495,6 +498,12 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 			const recipientKeyIDs: Array<string | undefined> = []
 
 			// Build recipient outputs
+			const tokenTags = [
+				`bsv21:${tokenId}`,
+				`dec:${tokenDetails.token.dec ?? 0}`,
+				...(tokenDetails.token.sym ? [`sym:${tokenDetails.token.sym}`] : []),
+				...(tokenDetails.token.icon ? [`icon:${tokenDetails.token.icon}`] : []),
+			]
 			for (const r of resolved) {
 				const recipientResolved = await resolveDestination(ctx, r.destination, {
 					protocolID: P1SAT_PROTOCOL,
@@ -505,10 +514,28 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				const transferScript = BSV21.transfer(tokenId, r.amount).lock(
 					recipientResolved.lockingScript,
 				)
+				// Self destinations stay in the BSV21 basket with full tags + id:.
+				const isSelf =
+					r.destination.counterparty === 'self' ||
+					recipientResolved.customInstructions?.counterparty === 'self'
 				outputs.push({
 					lockingScript: transferScript.toHex(),
 					satoshis: 1,
 					outputDescription: `Send ${r.amount} tokens`,
+					...(isSelf && {
+						basket: BSV21_BASKET,
+						tags: [...tokenTags, `amt:${r.amount}`],
+						customInstructions: JSON.stringify({
+							protocolID: P1SAT_PROTOCOL,
+							keyID:
+								recipientResolved.customInstructions?.keyID ??
+								`${tokenId}-${Date.now()}`,
+							counterparty: 'self',
+							...(tokenDetails.token.sym && {
+								sym: tokenDetails.token.sym,
+							}),
+						}),
+					}),
 				})
 			}
 
@@ -692,12 +719,9 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 /**
  * Purchase BSV21 tokens from marketplace.
  */
-export const purchaseBsv21: Action<
-	PurchaseBsv21Request,
-	TokenOperationResponse
-> = {
+export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 	meta: {
-		name: 'purchaseBsv21',
+		name: 'buyBsv21',
 		description: 'Purchase BSV21 tokens from the marketplace',
 		category: 'tokens',
 		requiresServices: true,
@@ -951,11 +975,7 @@ function estimateDeployTxSize(deployScriptBytes: number): number {
 	const overhead = 10 // version(4) + locktime(4) + inCount(1) + outCount(1)
 	const input = 148 // P2PKH spend: txid(32)+vout(4)+scriptLen(1)+script(~107)+seq(4)
 	const scriptLenVarint =
-		deployScriptBytes < 0xfd
-			? 1
-			: deployScriptBytes < 0x10000
-				? 3
-				: 5
+		deployScriptBytes < 0xfd ? 1 : deployScriptBytes < 0x10000 ? 3 : 5
 	const output = 8 + scriptLenVarint + deployScriptBytes
 	return overhead + input + output
 }
@@ -990,7 +1010,12 @@ async function executeBsv21Deploy(args: {
 	buildTags: (tokenId: string) => string[]
 	description: string
 	outputDescription: string
-}): Promise<{ txid?: string; tx?: number[]; tokenId?: string; error?: string }> {
+}): Promise<{
+	txid?: string
+	tx?: number[]
+	tokenId?: string
+	error?: string
+}> {
 	const { ctx, symbol, deployScript, basket } = args
 
 	const deployScriptBin = deployScript.toBinary()
@@ -1082,9 +1107,7 @@ async function executeBsv21Deploy(args: {
 	const broadcastResults = await ctx.services.postBeef(fundingBeef, [
 		deployTxid,
 	])
-	const broadcastFailure = broadcastResults.find(
-		(r) => r.status !== 'success',
-	)
+	const broadcastFailure = broadcastResults.find((r) => r.status !== 'success')
 	if (broadcastFailure) {
 		const reason =
 			broadcastFailure.error?.message ??
@@ -1165,8 +1188,13 @@ export const deployBsv21Mint: Action<
 	},
 	async execute(ctx, input) {
 		try {
-			const { symbol, amount: rawAmount, decimals = 0, icon, destination } =
-				input
+			const {
+				symbol,
+				amount: rawAmount,
+				decimals = 0,
+				icon,
+				destination,
+			} = input
 
 			const amount =
 				typeof rawAmount === 'string' ? BigInt(rawAmount) : rawAmount
@@ -1489,9 +1517,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 					`bsv21:${tokenId}`,
 					`amt:${mintAmount}`,
 					`dec:${tokenDetails.token.dec ?? 0}`,
-					...(tokenDetails.token.sym
-						? [`sym:${tokenDetails.token.sym}`]
-						: []),
+					...(tokenDetails.token.sym ? [`sym:${tokenDetails.token.sym}`] : []),
 					...(tokenDetails.token.icon
 						? [`icon:${tokenDetails.token.icon}`]
 						: []),
@@ -1515,21 +1541,15 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 			}
 
 			if (!endMinting) {
-				const authResolved = await resolveDestination(
-					ctx,
-					auth?.destination,
-					{
-						protocolID: P1SAT_PROTOCOL,
-						keyIDPrefix: `bsv21-auth-${tokenId}`,
-					},
-				)
+				const authResolved = await resolveDestination(ctx, auth?.destination, {
+					protocolID: P1SAT_PROTOCOL,
+					keyIDPrefix: `bsv21-auth-${tokenId}`,
+				})
 				const authScript = BSV21.auth(tokenId).lock(authResolved.lockingScript)
 				const authTags = [
 					`bsv21:${tokenId}`,
 					`dec:${tokenDetails.token.dec ?? 0}`,
-					...(tokenDetails.token.sym
-						? [`sym:${tokenDetails.token.sym}`]
-						: []),
+					...(tokenDetails.token.sym ? [`sym:${tokenDetails.token.sym}`] : []),
 					...(tokenDetails.token.icon
 						? [`icon:${tokenDetails.token.icon}`]
 						: []),
@@ -1554,8 +1574,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 			}
 
 			// Optional fee output to overlay fund address (per token output).
-			const tokenOutputCount =
-				(mint ? 1 : 0) + (auth ? 1 : 0)
+			const tokenOutputCount = (mint ? 1 : 0) + (auth ? 1 : 0)
 			if (
 				tokenDetails.status.is_active &&
 				tokenDetails.status.fee_per_output > 0
@@ -1651,10 +1670,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 				try {
 					await ctx.services.overlay.submitBsv21(result.tx, tokenId)
 				} catch (overlayError) {
-					console.warn(
-						'[mintBsv21] Overlay submission failed:',
-						overlayError,
-					)
+					console.warn('[mintBsv21] Overlay submission failed:', overlayError)
 				}
 			}
 
@@ -1700,11 +1716,14 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 // ============================================================================
 
 /** All token actions for registry */
+/** @deprecated Use buyBsv21 */
+export const purchaseBsv21 = buyBsv21
+
 export const tokensActions = [
-	listTokens,
+	listBsv21,
 	getBsv21Balances,
 	sendBsv21,
-	purchaseBsv21,
+	buyBsv21,
 	deployBsv21Mint,
 	deployBsv21Auth,
 	mintBsv21,

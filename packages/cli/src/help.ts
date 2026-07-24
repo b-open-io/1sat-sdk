@@ -276,10 +276,23 @@ export const COMMANDS: CommandSpec[] = [
 		name: 'ordinals',
 		description: '1Sat Ordinal inscriptions',
 		subcommands: [
-			{ name: 'list', description: 'List owned ordinals/inscriptions' },
 			{
-				name: 'mint',
-				description: 'Mint a new ordinal inscription',
+				name: 'list',
+				description: 'List owned ordinals (prints id)',
+				args: [
+					{ flag: '--limit', values: '<n>' },
+					{ flag: '--offset', values: '<n>' },
+					{ flag: '--ids', values: '<id1,id2>' },
+					{ flag: '--tags', values: '<t1,t2>' },
+					{
+						flag: '--include',
+						values: '<locking scripts|entire transactions>',
+					},
+				],
+			},
+			{
+				name: 'inscribe',
+				description: 'Inscribe a file on-chain',
 				args: [
 					{ flag: '--file', values: '<path>', required: true },
 					{
@@ -296,49 +309,53 @@ export const COMMANDS: CommandSpec[] = [
 						flag: '--sign-with-bap',
 						description: 'Sign inscription with BAP identity',
 					},
+					{ flag: '--stream', description: 'Multi-tx stream inscription' },
+					{ flag: '--stream-chunk-size', values: '<bytes>' },
 				],
 			},
 			{
-				name: 'transfer',
-				description: 'Transfer an ordinal',
+				name: 'send',
+				description: 'Send an ordinal by id',
 				args: [
-					{ flag: '--outpoint', values: '<txid.vout>', required: true },
-					{ flag: '--to', values: '<address>', required: true },
+					{ flag: '--id', values: '<tracking-id>', required: true },
+					{ flag: '--to', values: '<address|identityKey>', required: true },
 				],
 			},
 			{
 				name: 'sell',
 				description: 'List an ordinal for sale (OrdLock)',
 				args: [
-					{ flag: '--outpoint', values: '<txid.vout>', required: true },
+					{ flag: '--id', values: '<tracking-id>', required: true },
 					{ flag: '--price', values: '<sats>', required: true },
+					{ flag: '--pay-address', values: '<address>' },
 				],
 			},
 			{
 				name: 'cancel',
 				description: 'Cancel an ordinal listing',
-				args: [{ flag: '--outpoint', values: '<txid.vout>', required: true }],
+				args: [{ flag: '--id', values: '<tracking-id>', required: true }],
 			},
 			{
 				name: 'buy',
 				description: 'Purchase a listed ordinal',
-				args: [{ flag: '--outpoint', values: '<txid.vout>', required: true }],
+				args: [
+					{ flag: '--outpoint', values: '<txid.vout>', required: true },
+					{ flag: '--beef', values: '<file|hex|base64>' },
+				],
 			},
 			{
 				name: 'burn',
 				description: 'Burn ordinals permanently',
-				args: [
-					{ flag: '--outpoints', values: '<op1,op2,...>', required: true },
-				],
+				args: [{ flag: '--ids', values: '<id1,id2,...>', required: true }],
 			},
 		],
 	},
 
-	// Tokens
+	// BSV21
 	{
-		group: 'Tokens (BSV21)',
-		name: 'tokens',
-		description: 'BSV21 fungible tokens',
+		group: 'BSV21',
+		name: 'bsv21',
+		description: 'BSV21 fungible tokens (alias: tokens)',
 		subcommands: [
 			{ name: 'balances', description: 'Show token balances by token ID' },
 			{
@@ -406,6 +423,7 @@ export const COMMANDS: CommandSpec[] = [
 					{ flag: '--outpoint', values: '<txid.vout>', required: true },
 					{ flag: '--token-id', values: '<id>', required: true },
 					{ flag: '--amount', values: '<n>', required: true },
+					{ flag: '--beef', values: '<file|hex|base64>' },
 				],
 			},
 		],
@@ -417,21 +435,25 @@ export const COMMANDS: CommandSpec[] = [
 		name: 'locks',
 		description: 'Time-locked BSV',
 		subcommands: [
-			{ name: 'info', description: 'Show locked totals and maturity status' },
+			{ name: 'list', description: 'List lock UTXOs (prints id)' },
 			{
-				name: 'lock',
+				name: 'bsv',
 				description: 'Time-lock BSV until a block height',
 				args: [
 					{ flag: '--sats', values: '<amount>', required: true },
 					{
-						flag: '--blocks',
-						values: '<n>',
+						flag: '--until',
+						values: '<height>',
 						required: true,
 						description: 'Target unlock block height',
 					},
 				],
 			},
-			{ name: 'unlock', description: 'Unlock all matured locks' },
+			{
+				name: 'unlock',
+				description: 'Unlock matured locks (all or --ids)',
+				args: [{ flag: '--ids', values: '<id1,id2>' }],
+			},
 		],
 	},
 
@@ -499,38 +521,101 @@ export const COMMANDS: CommandSpec[] = [
 		description: 'Ordinals Name System — on-chain names',
 		subcommands: [
 			{
+				name: 'lookup',
+				description: 'List OpNS names (prints id, name, outpoint)',
+				args: [
+					{ flag: '--limit', values: '<n>' },
+					{ flag: '--offset', values: '<n>' },
+					{ flag: '--ids', values: '<id1,id2>' },
+					{ flag: '--names', values: '<n1,n2>' },
+					{ flag: '--tags', values: '<t1,t2>' },
+					{
+						flag: '--include',
+						values: '<locking scripts|entire transactions>',
+					},
+				],
+			},
+			{
 				name: 'register',
-				description: 'Register a payment identity key on an OpNS name',
-				args: [{ flag: '--outpoint', values: '<txid.vout>', required: true }],
+				description: 'Register identity on an owned OpNS name',
+				args: [{ flag: '--id', values: '<tracking-id>', required: true }],
 			},
 			{
 				name: 'deregister',
-				description: 'Deregister the payment identity from an OpNS name',
-				args: [{ flag: '--outpoint', values: '<txid.vout>', required: true }],
+				description: 'Deregister identity from an OpNS name',
+				args: [{ flag: '--id', values: '<tracking-id>', required: true }],
 			},
-			{ name: 'lookup', description: 'List OpNS names from wallet' },
 			{
 				name: 'sell',
 				description: 'List an OpNS name for sale',
 				args: [
-					{ flag: '--outpoint', values: '<txid.vout>', required: true },
+					{ flag: '--id', values: '<tracking-id>', required: true },
 					{ flag: '--price', values: '<satoshis>', required: true },
-					{
-						flag: '--pay-address',
-						values: '<address>',
-						required: false,
-					},
+					{ flag: '--pay-address', values: '<address>' },
+				],
+			},
+			{
+				name: 'send',
+				description: 'Send an OpNS name',
+				args: [
+					{ flag: '--id', values: '<tracking-id>', required: true },
+					{ flag: '--to', values: '<address|identityKey>', required: true },
 				],
 			},
 			{
 				name: 'buy',
 				description: 'Purchase an OpNS name listing',
-				args: [{ flag: '--outpoint', values: '<txid.vout>', required: true }],
+				args: [
+					{ flag: '--outpoint', values: '<txid.vout>', required: true },
+					{ flag: '--beef', values: '<file|hex|base64>' },
+					{ flag: '--name', values: '<name>' },
+					{ flag: '--origin', values: '<outpoint>' },
+				],
 			},
 			{
 				name: 'cancel-listing',
 				description: 'Cancel a market listing on an OpNS name',
-				args: [{ flag: '--outpoint', values: '<txid.vout>', required: true }],
+				args: [{ flag: '--id', values: '<tracking-id>', required: true }],
+			},
+			{
+				name: 'internalize',
+				description: 'Internalize a foreign OpNS mint AtomicBEEF',
+				args: [
+					{ flag: '--beef', values: '<file|hex|base64>', required: true },
+					{
+						flag: '--key-id',
+						values: '<keyID>',
+						description: 'default 1sat 0',
+					},
+				],
+			},
+		],
+	},
+
+	// MessageBox
+	{
+		group: 'Wallet',
+		name: 'messagebox',
+		description:
+			'MessageBox inbox (paymail remittances). Not the same as `wallet sync` (address/owner scan).',
+		subcommands: [
+			{
+				name: 'sync',
+				description:
+					'Pull payment_inbox (default) and internalize paymail payments',
+				args: [
+					{
+						flag: '--url',
+						values: '<host>',
+						description:
+							'MessageBox host (default https://messagebox.1sat.app)',
+					},
+					{
+						flag: '--box',
+						values: '<name>',
+						description: 'Inbox name (default payment_inbox)',
+					},
+				],
 			},
 		],
 	},
@@ -566,7 +651,10 @@ export const COMMANDS: CommandSpec[] = [
 				name: '(no subcommand)',
 				description: 'Host server + monitor daemon',
 			},
-			{ name: 'wallet', description: 'Wallet storage server only (BRC-100 HTTP)' },
+			{
+				name: 'wallet',
+				description: 'Wallet storage server only (BRC-100 HTTP)',
+			},
 			{ name: 'monitor', description: 'Monitor daemon only' },
 		],
 	},
@@ -583,7 +671,7 @@ export const COMMANDS: CommandSpec[] = [
 				args: [
 					{
 						flag: '--window',
-						values: "<all|30d|12h|90m>",
+						values: '<all|30d|12h|90m>',
 						required: true,
 						description:
 							"Only reqs created within the window; 'all' for every invalid record",
@@ -602,6 +690,27 @@ export const COMMANDS: CommandSpec[] = [
 	},
 
 	// Advanced
+	{
+		group: 'Advanced',
+		name: 'authfetch',
+		description:
+			'HTTP request with BRC-104 AuthFetch using CLI wallet keys. On 402, confirms payment unless --yes.',
+		positional: '<method> <url>',
+		args: [
+			{
+				flag: '--body',
+				values: '<json|@file>',
+				description: 'Request body (JSON string or @path)',
+			},
+			{
+				flag: '--header',
+				values: "'Name: value'",
+				description: 'Extra header (repeatable)',
+			},
+		],
+		notes:
+			"Examples:\n  1sat authfetch GET https://wallet.1sat.app/hosting/status\n  1sat authfetch GET https://wallet.1sat.app/hosting/price\n  1sat authfetch POST https://wallet.1sat.app/hosting/subscribe --body '{}' --yes",
+	},
 	{
 		group: 'Advanced',
 		name: 'action',

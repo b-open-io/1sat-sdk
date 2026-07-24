@@ -103,6 +103,10 @@ export function createWalletMonitor(
 					abandonedMsecs: 5 * 60 * 1000,
 					unprovenAttemptsLimitTest: 10,
 					unprovenAttemptsLimitMain: 144,
+					// Required by MonitorOptions. 0 means rebroadcast without limit;
+					// a positive cap marks the req invalid once reached, which strands
+					// transactions whose proof only arrives after the cap.
+					maxRebroadcastAttempts: 0,
 				})
 
 				if (monitor._tasks.length === 0) monitor.addMultiUserTasks()

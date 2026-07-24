@@ -28,7 +28,7 @@ export function randomActionId(): string {
  * output. The original "all outputs share one id" scheme made
  * targeted lookups ambiguous when an action created multiple outputs;
  * per-output ids make `listOutputs(basket, tags:[id:<value>])` resolve
- * to exactly one record. Existing readers (resolveBeef, identity
+ * to exactly one record. Existing readers (loadBasketOutput, identity
  * getProfile, the 1Sat permission module's lookup) all want this.
  */
 function applyTrackingTags(args: CreateActionArgs, actionId: string): void {

@@ -39,7 +39,8 @@ import type {
 	OneSatContext,
 } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
-import { resolveBeef } from '../utils/resolveBeef'
+import { loadBasketOutputBeef } from '../utils/loadBasketOutput'
+import { ordinalSeedTags } from '../utils/ordinalSeedTags'
 import {
 	signOrdinalInput,
 	unlockingScriptLengthForInstructions,
@@ -156,50 +157,47 @@ export async function resolveOrdinalTags(
 type PubKeyHex = string
 
 export interface TransferItem {
-	/** The ordinal output to transfer (from listOutputs) */
-	ordinal: WalletOutput
+	/** Tracking id in the ordinals basket (wallet-owned) */
+	id: string
 	/** Recipient's identity public key (preferred) */
 	counterparty?: PubKeyHex
 	/** Raw P2PKH address */
 	address?: string
 	/** Optional MAP metadata to append to the output script */
 	map?: Record<string, string>
-	/** Additional tags to append to the output (e.g. 'status:published') */
-	extraTags?: string[]
 }
 
 export interface TransferOrdinalsRequest extends ActionOptions {
 	/** Ordinals to transfer with their destinations */
 	transfers: TransferItem[]
-	/** BEEF data — resolved automatically via ID tag if omitted */
-	inputBEEF?: number[]
 }
 
 export interface BurnOrdinalsRequest extends ActionOptions {
-	/** Ordinal outputs to burn */
-	ordinals: WalletOutput[]
-	/** BEEF data — resolved automatically via ID tag if omitted */
-	inputBEEF?: number[]
+	/** Tracking ids in the ordinals basket */
+	ids: string[]
 	/** Application name for MAP metadata (default: "1sat") */
 	app?: string
 }
 
-export interface ListOrdinalRequest extends ActionOptions {
-	/** The ordinal output to list (from listOutputs) */
-	ordinal: WalletOutput
-	/** BEEF data — resolved automatically via ID tag if omitted */
-	inputBEEF?: number[]
+export interface SellOrdinalRequest extends ActionOptions {
+	/** Tracking id in the ordinals basket (wallet-owned) */
+	id: string
 	/** Price in satoshis */
 	price: number
-	/** Address that receives payment on purchase (BRC-29 receive address) */
-	payAddress: string
+	/** Payment receive address; default P1SAT keyID `1sat 0` */
+	payAddress?: string
 	/** Optional MAP metadata to append to the listing output script */
 	map?: Record<string, string>
 }
 
-export interface PurchaseOrdinalRequest extends ActionOptions {
+/** @deprecated Use SellOrdinalRequest */
+export type ListOrdinalRequest = SellOrdinalRequest
+
+export interface BuyOrdinalRequest extends ActionOptions {
 	/** Outpoint of listing to purchase */
 	outpoint: string
+	/** BEEF for the listing tx (hex/bytes); else services fetch */
+	inputBEEF?: number[]
 	/** Marketplace address for fees */
 	marketplaceAddress?: string
 	/** Marketplace fee rate (0-1) */
@@ -210,7 +208,14 @@ export interface PurchaseOrdinalRequest extends ActionOptions {
 	origin?: string
 	/** Optional name from MAP metadata - looked up from ordfs API if not provided */
 	name?: string
+	/** Basket for the purchased output (default: ordinals) */
+	basket?: string
+	/** Tags for the purchased output; default resolveOrdinalTags for ordinals ingress */
+	tags?: string[]
 }
+
+/** @deprecated Use BuyOrdinalRequest */
+export type PurchaseOrdinalRequest = BuyOrdinalRequest
 
 export interface OrdinalOperationResponse {
 	txid?: string
@@ -222,7 +227,8 @@ export interface OrdinalOperationResponse {
 // Internal helpers
 // ============================================================================
 
-async function deriveCancelAddressInternal(
+/** Cancel/list key address for an outpoint (P1SAT self). */
+export async function deriveCancelAddressInternal(
 	ctx: OneSatContext,
 	outpoint: string,
 ): Promise<string> {
@@ -234,7 +240,18 @@ async function deriveCancelAddressInternal(
 	return PublicKey.fromString(result.publicKey).toAddress()
 }
 
-function buildOrdLockScript(
+/** Default OrdLock payment address: P1SAT keyID `1sat 0`, self. */
+export async function defaultPayAddress(ctx: OneSatContext): Promise<string> {
+	const result = await ctx.wallet.getPublicKey({
+		protocolID: P1SAT_PROTOCOL,
+		keyID: '1sat 0',
+		counterparty: 'self',
+		forSelf: true,
+	})
+	return PublicKey.fromString(result.publicKey).toAddress()
+}
+
+export function buildOrdLockScript(
 	ordAddress: string,
 	payAddress: string,
 	price: number,
@@ -326,14 +343,39 @@ async function buildPurchaseUnlockingScript(
 // Builder functions (utilities for advanced use)
 // ============================================================================
 
+async function loadOrdinalSpend(
+	ctx: OneSatContext,
+	id: string,
+): Promise<{ output: WalletOutput; beef: number[] } | { error: string }> {
+	return loadBasketOutputBeef(ctx.wallet, ORDINALS_BASKET, id)
+}
+
+function nameFromOutput(
+	output: WalletOutput,
+	tags?: string[],
+): string | undefined {
+	if (output.customInstructions) {
+		try {
+			const n = JSON.parse(output.customInstructions).name
+			if (typeof n === 'string' && n) return n.slice(0, 64)
+		} catch {}
+	}
+	const fromTags = (tags ?? output.tags)
+		?.find((t) => t.startsWith('name:'))
+		?.slice(5)
+	return fromTags?.slice(0, 64)
+}
+
 /**
  * Build CreateActionArgs for transferring one or more ordinals.
- * Does NOT execute - returns params for createAction.
+ * Loads each id once from the ordinals basket.
  */
 export async function buildTransferOrdinals(
 	ctx: OneSatContext,
 	request: TransferOrdinalsRequest,
-): Promise<CreateActionArgs | { error: string }> {
+): Promise<
+	(CreateActionArgs & { sources: WalletOutput[] }) | { error: string }
+> {
 	const { transfers } = request
 
 	if (!transfers.length) {
@@ -343,12 +385,21 @@ export async function buildTransferOrdinals(
 	const inputs: CreateActionArgs['inputs'] = []
 	const outputs: CreateActionArgs['outputs'] = []
 	const labels: string[] = []
-	let resolvedBasket = ORDINALS_BASKET
+	const sources: WalletOutput[] = []
+	const beefParts: number[][] = []
 
-	for (const { ordinal, counterparty, address, map, extraTags } of transfers) {
+	for (const item of transfers) {
+		const { id, counterparty, address, map } = item
+		if (!id) return { error: 'missing-id' }
 		if (!counterparty && !address) {
 			return { error: 'must-provide-counterparty-or-address' }
 		}
+
+		const loaded = await loadOrdinalSpend(ctx, id)
+		if ('error' in loaded) return loaded
+		const { output: ordinal, beef } = loaded
+		sources.push(ordinal)
+		beefParts.push(beef)
 
 		const outpoint = ordinal.outpoint
 		const sourceType = ordinal.tags
@@ -377,11 +428,8 @@ export async function buildTransferOrdinals(
 			return { error: 'must-provide-counterparty-or-address' }
 		}
 
-		const { tags, basket } = await resolveOrdinalTags(ctx, outpoint, {
-			tags: ordinal.tags,
-		})
-		if (extraTags) tags.push(...extraTags)
-		resolvedBasket = basket
+		const tags = ordinalSeedTags(ordinal)
+		const basket = ORDINALS_BASKET
 
 		inputs?.push({
 			outpoint,
@@ -391,13 +439,9 @@ export async function buildTransferOrdinals(
 			),
 		})
 
-		// Emit a per-ordinal input label so the 1Sat permission module can
-		// resolve the source output's id-tagged record in wallet storage and
-		// render trusted metadata (origin / contentType / name).
 		const inputId = readAssetIdTag(ordinal.tags)
 		if (inputId) labels.push(buildInputAssetLabel(basket, inputId))
 
-		// Build locking script — append MAP metadata when provided
 		const p2pkhScript = new P2PKH().lock(recipientAddress)
 		let lockingScript: string
 		if (map && Object.keys(map).length > 0) {
@@ -410,20 +454,9 @@ export async function buildTransferOrdinals(
 			lockingScript = p2pkhScript.toHex()
 		}
 
-		// Carry forward the name from CI, else from resolved tags.
-		let sourceName: string | undefined
-		if (ordinal.customInstructions) {
-			try {
-				sourceName = JSON.parse(ordinal.customInstructions).name
-			} catch {}
-		}
-		if (!sourceName) {
-			sourceName = tags.find((t) => t.startsWith('name:'))?.slice(5)
-		}
+		const sourceName = nameFromOutput(ordinal, tags)
 
 		if (isSelf) {
-			// Keep the ordinal in our wallet with full labeling (register/deregister,
-			// self-retags). External sends must not basket on the sender side.
 			outputs?.push({
 				lockingScript,
 				satoshis: 1,
@@ -448,9 +481,8 @@ export async function buildTransferOrdinals(
 		}
 	}
 
-	const inputBEEF =
-		request.inputBEEF ??
-		(await resolveBeef(ctx.wallet, resolvedBasket, transfers[0].ordinal))
+	if (!beefParts.length) return { error: 'missing-input-beef' }
+	const inputBEEF = beefParts[0]
 
 	return {
 		description:
@@ -461,22 +493,28 @@ export async function buildTransferOrdinals(
 		inputs,
 		outputs,
 		labels,
+		sources,
 	}
 }
 
 /**
  * Build CreateActionArgs for listing an ordinal for sale.
- * Does NOT execute - returns params for createAction.
+ * Loads id once from the ordinals basket.
  */
 export async function buildListOrdinal(
 	ctx: OneSatContext,
-	request: ListOrdinalRequest,
-): Promise<CreateActionArgs | { error: string }> {
-	const { ordinal, price, payAddress, map } = request
+	request: SellOrdinalRequest,
+): Promise<(CreateActionArgs & { source: WalletOutput }) | { error: string }> {
+	const { id, price, map } = request
 
-	if (!payAddress) return { error: 'missing-pay-address' }
+	if (!id) return { error: 'missing-id' }
 	if (price <= 0) return { error: 'invalid-price' }
 
+	const loaded = await loadOrdinalSpend(ctx, id)
+	if ('error' in loaded) return loaded
+	const { output: ordinal, beef } = loaded
+
+	const payAddress = request.payAddress ?? (await defaultPayAddress(ctx))
 	const outpoint = ordinal.outpoint
 
 	const cancelAddress = await deriveCancelAddressInternal(ctx, outpoint)
@@ -495,27 +533,16 @@ export async function buildListOrdinal(
 		lockingScript = ordLockScript.toHex()
 	}
 
-	const { tags, basket } = await resolveOrdinalTags(ctx, outpoint, {
-		tags: ordinal.tags,
-	})
-	tags.push('ordlock', `price:${price}`)
-
-	let sourceName: string | undefined
-	if (ordinal.customInstructions) {
-		try {
-			sourceName = JSON.parse(ordinal.customInstructions).name
-		} catch {}
-	}
-
-	const inputBEEF =
-		request.inputBEEF ?? (await resolveBeef(ctx.wallet, basket, ordinal))
+	const tags = [...ordinalSeedTags(ordinal), 'ordlock', `price:${price}`]
+	const basket = ORDINALS_BASKET
+	const sourceName = nameFromOutput(ordinal, tags)
 
 	const inputId = readAssetIdTag(ordinal.tags)
 	const labels = inputId ? [buildInputAssetLabel(basket, inputId)] : undefined
 
 	return {
 		description: `List ordinal for ${price} sats`,
-		inputBEEF,
+		inputBEEF: beef,
 		...(labels && { labels }),
 		inputs: [
 			{
@@ -540,6 +567,7 @@ export async function buildListOrdinal(
 				}),
 			},
 		],
+		source: ordinal,
 	}
 }
 
@@ -550,11 +578,20 @@ export async function buildListOrdinal(
 export async function buildBurnOrdinals(
 	ctx: OneSatContext,
 	request: BurnOrdinalsRequest,
-): Promise<CreateActionArgs | { error: string }> {
-	const { ordinals } = request
+): Promise<
+	(CreateActionArgs & { sources: WalletOutput[] }) | { error: string }
+> {
+	const ordinals: WalletOutput[] = []
+	const beefParts: number[][] = []
 
-	if (!ordinals.length) {
+	if (!request.ids?.length) {
 		return { error: 'no-ordinals' }
+	}
+	for (const id of request.ids) {
+		const loaded = await loadOrdinalSpend(ctx, id)
+		if ('error' in loaded) return loaded
+		ordinals.push(loaded.output)
+		beefParts.push(loaded.beef)
 	}
 
 	const inputs: CreateActionArgs['inputs'] = ordinals.map((ordinal) => ({
@@ -564,10 +601,6 @@ export async function buildBurnOrdinals(
 			ordinal.customInstructions,
 		),
 	}))
-
-	const inputBEEF =
-		request.inputBEEF ??
-		(await resolveBeef(ctx.wallet, ORDINALS_BASKET, ordinals[0]))
 
 	const mapScript = MAPTemplate.set({
 		app: request.app ?? '1sat',
@@ -588,7 +621,7 @@ export async function buildBurnOrdinals(
 			ordinals.length === 1
 				? 'Burn ordinal'
 				: `Burn ${ordinals.length} ordinals`,
-		inputBEEF,
+		inputBEEF: beefParts[0],
 		...(labels.length > 0 && { labels }),
 		inputs,
 		outputs: [
@@ -598,6 +631,7 @@ export async function buildBurnOrdinals(
 				outputDescription: 'Burn ordinals',
 			},
 		],
+		sources: ordinals,
 	}
 }
 
@@ -605,32 +639,51 @@ export async function buildBurnOrdinals(
 // Actions
 // ============================================================================
 
-/** Input for getOrdinals action */
-export interface GetOrdinalsInput {
-	/** Max number of ordinals to return */
+/** Input for listOrdinals action */
+export interface ListOrdinalsInput {
+	tags?: string[]
+	tagQueryMode?: 'all' | 'any'
+	ids?: string[]
+	/** Omit for metadata-only (no BEEF). */
+	include?: 'locking scripts' | 'entire transactions'
+	includeCustomInstructions?: boolean
+	includeTags?: boolean
+	includeLabels?: boolean
 	limit?: number
-	/** Offset for pagination */
 	offset?: number
 }
 
-/** Result from getOrdinals action */
-export interface GetOrdinalsResult {
+/** Result from listOrdinals action */
+export interface ListOrdinalsResult {
 	outputs: WalletOutput[]
 	BEEF?: BEEF
+	totalOutputs?: number
 }
 
+/** @deprecated Use ListOrdinalsInput */
+export type GetOrdinalsInput = ListOrdinalsInput
+/** @deprecated Use ListOrdinalsResult */
+export type GetOrdinalsResult = ListOrdinalsResult
+
 /**
- * Get ordinals from the wallet with BEEF for spending.
+ * List ordinals in the wallet. Metadata (tags/CI) by default; BEEF on demand.
  */
-export const getOrdinals: Action<GetOrdinalsInput, GetOrdinalsResult> = {
+export const listOrdinals: Action<ListOrdinalsInput, ListOrdinalsResult> = {
 	meta: {
-		name: 'getOrdinals',
+		name: 'listOrdinals',
 		description:
-			'Get ordinals/inscriptions from the wallet with BEEF for spending',
+			'List ordinals/inscriptions (metadata by default; optional BEEF)',
 		category: 'ordinals',
 		inputSchema: {
 			type: 'object',
 			properties: {
+				tags: { type: 'array', items: { type: 'string' } },
+				tagQueryMode: { type: 'string', enum: ['all', 'any'] },
+				ids: { type: 'array', items: { type: 'string' } },
+				include: {
+					type: 'string',
+					enum: ['locking scripts', 'entire transactions'],
+				},
 				limit: {
 					type: 'integer',
 					description: 'Max ordinals to return (default: 100)',
@@ -643,30 +696,46 @@ export const getOrdinals: Action<GetOrdinalsInput, GetOrdinalsResult> = {
 		},
 	},
 	async execute(ctx, input) {
+		const tags = [...(input.tags ?? [])]
+		for (const id of input.ids ?? []) {
+			if (id) tags.push(id.startsWith('id:') ? id : `id:${id}`)
+		}
+		const filtering = tags.length > 0
 		const result = await ctx.wallet.listOutputs({
 			basket: ORDINALS_BASKET,
-			includeTags: true,
-			includeCustomInstructions: true,
-			include: 'entire transactions',
+			...(filtering && {
+				tags,
+				tagQueryMode: input.tagQueryMode ?? 'any',
+			}),
+			...(input.include && { include: input.include }),
+			includeTags: input.includeTags ?? true,
+			includeCustomInstructions: input.includeCustomInstructions ?? true,
+			...(input.includeLabels != null && {
+				includeLabels: input.includeLabels,
+			}),
 			limit: input.limit ?? 100,
 			offset: input.offset ?? 0,
 		})
 		return {
 			outputs: result.outputs,
 			BEEF: result.BEEF,
+			totalOutputs: result.totalOutputs,
 		}
 	},
 }
 
+/** @deprecated Use listOrdinals */
+export const getOrdinals = listOrdinals
+
 /**
  * Transfer an ordinal to a new owner.
  */
-export const transferOrdinals: Action<
+export const sendOrdinals: Action<
 	TransferOrdinalsRequest,
 	OrdinalOperationResponse
 > = {
 	meta: {
-		name: 'transferOrdinals',
+		name: 'sendOrdinals',
 		description: 'Transfer one or more ordinals to new owners',
 		category: 'ordinals',
 		inputSchema: {
@@ -678,9 +747,9 @@ export const transferOrdinals: Action<
 					items: {
 						type: 'object',
 						properties: {
-							ordinal: {
-								type: 'object',
-								description: 'WalletOutput from listOutputs',
+							id: {
+								type: 'string',
+								description: 'Tracking id in the ordinals basket',
 							},
 							counterparty: {
 								type: 'string',
@@ -696,16 +765,11 @@ export const transferOrdinals: Action<
 									'Optional MAP metadata to append to the output script',
 							},
 						},
-						required: ['ordinal'],
+						required: ['id'],
 					},
 				},
-				inputBEEF: {
-					type: 'array',
-					description:
-						"BEEF from listOutputs with include: 'entire transactions'",
-				},
 			},
-			required: ['transfers', 'inputBEEF'],
+			required: ['transfers'],
 		},
 	},
 	async execute(ctx, input) {
@@ -749,18 +813,19 @@ export const transferOrdinals: Action<
 				console.log('[transferOrdinals] BEEF parse error:', e)
 			}
 
+			const { sources, ...createArgs } = params
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				{
-					...params,
+					...createArgs,
 					options: { randomizeOutputs: false },
 				},
 				input.fundingProvider,
 				params.inputBEEF as number[],
 				async (tx) => {
 					const spends: Record<number, { unlockingScript: string }> = {}
-					for (let i = 0; i < input.transfers.length; i++) {
-						const { ordinal } = input.transfers[i]
+					for (let i = 0; i < sources.length; i++) {
+						const ordinal = sources[i]
 						if (!ordinal.customInstructions) {
 							throw new Error(
 								`missing-custom-instructions-for-${ordinal.outpoint}`,
@@ -780,21 +845,19 @@ export const transferOrdinals: Action<
 			)
 
 			if (ctx.debug && ctx.log) {
-				const logOutputs: ActionLogEntry['outputs'] = input.transfers.map(
-					(t, i) => ({
-						index: i,
-						protocolID: P1SAT_PROTOCOL,
-						keyID: t.ordinal.outpoint,
-						basket: ORDINALS_BASKET,
-						satoshis: 1,
-					}),
-				)
+				const logOutputs: ActionLogEntry['outputs'] = sources.map((s, i) => ({
+					index: i,
+					protocolID: P1SAT_PROTOCOL,
+					keyID: s.outpoint,
+					basket: ORDINALS_BASKET,
+					satoshis: 1,
+				}))
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'transferOrdinals',
 					input: {
 						transfers: input.transfers.map((t) => ({
-							outpoint: t.ordinal.outpoint,
+							id: t.id,
 							counterparty: t.counterparty,
 							address: t.address,
 						})),
@@ -814,7 +877,7 @@ export const transferOrdinals: Action<
 					action: 'transferOrdinals',
 					input: {
 						transfers: input.transfers.map((t) => ({
-							outpoint: t.ordinal.outpoint,
+							id: t.id,
 						})),
 					},
 					error: error instanceof Error ? error.message : 'unknown-error',
@@ -827,31 +890,30 @@ export const transferOrdinals: Action<
 	},
 }
 
+/** @deprecated Use sendOrdinals */
+export const transferOrdinals = sendOrdinals
+
 /**
  * List an ordinal for sale on the global orderbook.
  */
-export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
+export const sellOrdinal: Action<SellOrdinalRequest, OrdinalOperationResponse> =
 	{
 		meta: {
-			name: 'listOrdinal',
+			name: 'sellOrdinal',
 			description: 'List an ordinal for sale on the global orderbook',
 			category: 'ordinals',
 			inputSchema: {
 				type: 'object',
 				properties: {
-					ordinal: {
-						type: 'object',
-						description: 'WalletOutput from listOutputs',
-					},
-					inputBEEF: {
-						type: 'array',
-						description:
-							"BEEF from listOutputs with include: 'entire transactions'",
+					id: {
+						type: 'string',
+						description: 'Tracking id in the ordinals basket',
 					},
 					price: { type: 'integer', description: 'Price in satoshis' },
 					payAddress: {
 						type: 'string',
-						description: 'Address to receive payment on purchase',
+						description:
+							'Address to receive payment (default: P1SAT keyID 1sat 0)',
 					},
 					map: {
 						type: 'object',
@@ -859,7 +921,7 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 							'Optional MAP metadata to append to the listing output script',
 					},
 				},
-				required: ['ordinal', 'inputBEEF', 'price', 'payAddress'],
+				required: ['id', 'price'],
 			},
 		},
 		async execute(ctx, input) {
@@ -869,14 +931,15 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 					return params
 				}
 
-				if (!input.ordinal.customInstructions) {
+				const { source, ...createArgs } = params
+				if (!source.customInstructions) {
 					return { error: 'missing-custom-instructions' }
 				}
 
 				const result = await executeTrackedAction(
 					ctx.wallet,
 					{
-						...params,
+						...createArgs,
 						options: { randomizeOutputs: false },
 					},
 					input.fundingProvider,
@@ -886,7 +949,7 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 							ctx,
 							tx,
 							0,
-							input.ordinal.customInstructions as string,
+							source.customInstructions as string,
 						)
 						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
 						return { 0: { unlockingScript: unlocking } }
@@ -896,15 +959,15 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 				if (ctx.debug && ctx.log) {
 					ctx.log({
 						timestamp: new Date().toISOString(),
-						action: 'listOrdinal',
-						input: { outpoint: input.ordinal.outpoint, price: input.price },
+						action: 'sellOrdinal',
+						input: { outpoint: source.outpoint, price: input.price },
 						txid: result.txid,
 						rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 						outputs: [
 							{
 								index: 0,
 								protocolID: P1SAT_PROTOCOL,
-								keyID: input.ordinal.outpoint,
+								keyID: source.outpoint,
 								basket: ORDINALS_BASKET,
 								satoshis: 1,
 							},
@@ -914,12 +977,12 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 
 				return result
 			} catch (error) {
-				console.error('[listOrdinal]', error)
+				console.error('[sellOrdinal]', error)
 				if (ctx.debug && ctx.log) {
 					ctx.log({
 						timestamp: new Date().toISOString(),
-						action: 'listOrdinal',
-						input: { outpoint: input.ordinal.outpoint, price: input.price },
+						action: 'sellOrdinal',
+						input: { price: input.price },
 						error: error instanceof Error ? error.message : 'unknown-error',
 					})
 				}
@@ -930,45 +993,47 @@ export const listOrdinal: Action<ListOrdinalRequest, OrdinalOperationResponse> =
 		},
 	}
 
-/** Input for cancelListing action */
-export interface CancelListingInput extends ActionOptions {
-	/** The listing output to cancel (from listOutputs) */
-	listing: WalletOutput
-	/** BEEF data — resolved automatically via ID tag if omitted */
-	inputBEEF?: number[]
+/** @deprecated Use sellOrdinal */
+export const listOrdinal = sellOrdinal
+
+/** Input for cancelOrdinalListing action */
+export interface CancelOrdinalListingInput extends ActionOptions {
+	/** Tracking id in the ordinals basket (wallet-owned) */
+	id: string
 }
+
+/** @deprecated Use CancelOrdinalListingInput */
+export type CancelListingInput = CancelOrdinalListingInput
 
 /**
  * Cancel an ordinal listing.
  */
-export const cancelListing: Action<
-	CancelListingInput,
+export const cancelOrdinalListing: Action<
+	CancelOrdinalListingInput,
 	OrdinalOperationResponse
 > = {
 	meta: {
-		name: 'cancelListing',
+		name: 'cancelOrdinalListing',
 		description:
 			'Cancel an ordinal listing and return the ordinal to the wallet',
 		category: 'ordinals',
 		inputSchema: {
 			type: 'object',
 			properties: {
-				listing: {
-					type: 'object',
-					description:
-						'WalletOutput of the listing (must include lockingScript)',
-				},
-				inputBEEF: {
-					type: 'array',
-					description: 'BEEF — resolved automatically via ID tag if omitted',
+				id: {
+					type: 'string',
+					description: 'Tracking id of the listing in the ordinals basket',
 				},
 			},
-			required: ['listing'],
+			required: ['id'],
 		},
 	},
 	async execute(ctx, input) {
 		try {
-			const { listing } = input
+			if (!input.id) return { error: 'missing-id' }
+			const loaded = await loadOrdinalSpend(ctx, input.id)
+			if ('error' in loaded) return loaded
+			const { output: listing, beef: inputBEEF } = loaded
 			const outpoint = listing.outpoint
 
 			if (!listing.customInstructions) {
@@ -992,20 +1057,9 @@ export const cancelListing: Action<
 			const newKeyID = outpoint
 			const cancelAddress = await deriveCancelAddressInternal(ctx, newKeyID)
 
-			const { tags, basket } = await resolveOrdinalTags(ctx, outpoint, {
-				tags: listing.tags,
-			})
-
-			const inputBEEF =
-				input.inputBEEF ?? (await resolveBeef(ctx.wallet, basket, listing))
-
-			let sourceName: string | undefined
-			try {
-				sourceName = JSON.parse(listing.customInstructions).name
-			} catch {}
-			if (!sourceName) {
-				sourceName = tags.find((t) => t.startsWith('name:'))?.slice(5)
-			}
+			const tags = ordinalSeedTags(listing)
+			const basket = ORDINALS_BASKET
+			const sourceName = nameFromOutput(listing, tags)
 
 			const cancelUnlock = OrdLock.cancelWithWallet(
 				ctx.wallet,
@@ -1057,7 +1111,7 @@ export const cancelListing: Action<
 			if (ctx.debug && ctx.log) {
 				ctx.log({
 					timestamp: new Date().toISOString(),
-					action: 'cancelListing',
+					action: 'cancelOrdinalListing',
 					input: { outpoint, signKeyID },
 					txid: result.txid,
 					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
@@ -1074,12 +1128,12 @@ export const cancelListing: Action<
 
 			return result
 		} catch (error) {
-			console.error('[cancelListing]', error)
+			console.error('[cancelOrdinalListing]', error)
 			if (ctx.debug && ctx.log) {
 				ctx.log({
 					timestamp: new Date().toISOString(),
-					action: 'cancelListing',
-					input: { outpoint: input.listing.outpoint },
+					action: 'cancelOrdinalListing',
+					input: { id: input.id },
 					error: error instanceof Error ? error.message : 'unknown-error',
 				})
 			}
@@ -1090,15 +1144,15 @@ export const cancelListing: Action<
 	},
 }
 
+/** @deprecated Use cancelOrdinalListing */
+export const cancelListing = cancelOrdinalListing
+
 /**
  * Purchase an ordinal from the global orderbook.
  */
-export const purchaseOrdinal: Action<
-	PurchaseOrdinalRequest,
-	OrdinalOperationResponse
-> = {
+export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 	meta: {
-		name: 'purchaseOrdinal',
+		name: 'buyOrdinal',
 		description: 'Purchase an ordinal from the global orderbook',
 		category: 'ordinals',
 		requiresServices: true,
@@ -1108,6 +1162,11 @@ export const purchaseOrdinal: Action<
 				outpoint: {
 					type: 'string',
 					description: 'Outpoint of the listing to purchase',
+				},
+				inputBEEF: {
+					type: 'array',
+					description: 'BEEF for listing tx; else services fetch',
+					items: { type: 'integer' },
 				},
 				marketplaceAddress: {
 					type: 'string',
@@ -1133,24 +1192,36 @@ export const purchaseOrdinal: Action<
 		try {
 			const { outpoint, marketplaceAddress, marketplaceRate } = input
 
-			if (!ctx.services) {
-				return { error: 'services-required-for-purchase' }
-			}
-
 			const { txid, vout } = parseOutpoint(outpoint)
 
-			const { tags, basket } = await resolveOrdinalTags(ctx, outpoint, {
-				contentType: input.contentType,
-				origin: input.origin,
-				name: input.name,
-			})
+			let tags: string[]
+			let basket: string
+			if (input.tags?.length) {
+				basket = input.basket ?? ORDINALS_BASKET
+				tags = input.tags
+			} else {
+				const resolved = await resolveOrdinalTags(ctx, outpoint, {
+					contentType: input.contentType,
+					origin: input.origin,
+					name: input.name,
+				})
+				tags = resolved.tags
+				basket = input.basket ?? resolved.basket
+			}
 
-			const beef = await ctx.services.getBeefForTxid(txid)
+			let beef: Beef
+			if (input.inputBEEF) {
+				beef = Beef.fromBinary(input.inputBEEF)
+			} else {
+				if (!ctx.services) {
+					return { error: 'services-required-for-purchase' }
+				}
+				beef = await ctx.services.getBeefForTxid(txid)
+			}
 			const listingBeefTx = beef.findTxid(txid)
 			if (!listingBeefTx?.tx) {
 				return { error: 'listing-transaction-not-found' }
 			}
-
 			const listingOutput = listingBeefTx.tx.outputs[vout]
 			if (!listingOutput) {
 				return { error: 'listing-output-not-found' }
@@ -1178,6 +1249,9 @@ export const purchaseOrdinal: Action<
 				customInstructions?: string
 			}> = []
 
+			const name =
+				input.name ?? tags.find((t) => t.startsWith('name:'))?.slice(5)
+
 			outputs.push({
 				lockingScript: new P2PKH().lock(ourOrdAddress).toHex(),
 				satoshis: 1,
@@ -1187,7 +1261,7 @@ export const purchaseOrdinal: Action<
 				customInstructions: JSON.stringify({
 					protocolID: P1SAT_PROTOCOL,
 					keyID: outpoint,
-					...(input.name && { name: input.name }),
+					...(name && { name }),
 				}),
 			})
 
@@ -1249,7 +1323,7 @@ export const purchaseOrdinal: Action<
 			if (ctx.debug && ctx.log) {
 				ctx.log({
 					timestamp: new Date().toISOString(),
-					action: 'purchaseOrdinal',
+					action: 'buyOrdinal',
 					input: { outpoint },
 					txid: result.txid,
 					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
@@ -1267,11 +1341,11 @@ export const purchaseOrdinal: Action<
 
 			return result
 		} catch (error) {
-			console.error('[purchaseOrdinal]', error)
+			console.error('[buyOrdinal]', error)
 			if (ctx.debug && ctx.log) {
 				ctx.log({
 					timestamp: new Date().toISOString(),
-					action: 'purchaseOrdinal',
+					action: 'buyOrdinal',
 					input: { outpoint: input.outpoint },
 					error: error instanceof Error ? error.message : 'unknown-error',
 				})
@@ -1282,6 +1356,9 @@ export const purchaseOrdinal: Action<
 		}
 	},
 }
+
+/** @deprecated Use buyOrdinal */
+export const purchaseOrdinal = buyOrdinal
 
 /**
  * Burn one or more ordinals (send to OP_FALSE OP_RETURN).
@@ -1297,20 +1374,13 @@ export const burnOrdinals: Action<
 		inputSchema: {
 			type: 'object',
 			properties: {
-				ordinals: {
+				ids: {
 					type: 'array',
-					description: 'WalletOutputs to burn',
-					items: {
-						type: 'object',
-						description: 'WalletOutput from listOutputs',
-					},
-				},
-				inputBEEF: {
-					type: 'array',
-					description: 'BEEF — resolved automatically via ID tag if omitted',
+					description: 'Tracking ids in the ordinals basket',
+					items: { type: 'string' },
 				},
 			},
-			required: ['ordinals'],
+			required: ['ids'],
 		},
 	},
 	async execute(ctx, input) {
@@ -1320,37 +1390,19 @@ export const burnOrdinals: Action<
 				return params
 			}
 
-			console.log(
-				'[burnOrdinals] params:',
-				JSON.stringify(
-					{
-						description: params.description,
-						inputBEEF: params.inputBEEF
-							? `[${params.inputBEEF.length} bytes]`
-							: 'undefined',
-						inputs: params.inputs,
-						outputs: params.outputs?.map((o) => ({
-							...o,
-							lockingScript: `${o.lockingScript?.slice(0, 20)}...`,
-						})),
-					},
-					null,
-					2,
-				),
-			)
-
+			const { sources, ...createArgs } = params
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				{
-					...params,
+					...createArgs,
 					options: { randomizeOutputs: false },
 				},
 				input.fundingProvider,
 				params.inputBEEF as number[],
 				async (tx) => {
 					const spends: Record<number, { unlockingScript: string }> = {}
-					for (let i = 0; i < input.ordinals.length; i++) {
-						const ordinal = input.ordinals[i]
+					for (let i = 0; i < sources.length; i++) {
+						const ordinal = sources[i]
 						if (!ordinal.customInstructions) {
 							throw new Error(
 								`missing-custom-instructions-for-${ordinal.outpoint}`,
@@ -1373,11 +1425,7 @@ export const burnOrdinals: Action<
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'burnOrdinals',
-					input: {
-						ordinals: input.ordinals.map((o) => ({
-							outpoint: o.outpoint,
-						})),
-					},
+					input: { ids: input.ids },
 					txid: result.txid,
 					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 				})
@@ -1390,11 +1438,7 @@ export const burnOrdinals: Action<
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'burnOrdinals',
-					input: {
-						ordinals: input.ordinals.map((o) => ({
-							outpoint: o.outpoint,
-						})),
-					},
+					input: { ids: input.ids },
 					error: error instanceof Error ? error.message : 'unknown-error',
 				})
 			}
@@ -1411,10 +1455,10 @@ export const burnOrdinals: Action<
 
 /** All ordinals actions for registry */
 export const ordinalsActions = [
-	getOrdinals,
-	transferOrdinals,
-	listOrdinal,
-	cancelListing,
-	purchaseOrdinal,
+	listOrdinals,
+	sendOrdinals,
+	sellOrdinal,
+	cancelOrdinalListing,
+	buyOrdinal,
 	burnOrdinals,
 ]

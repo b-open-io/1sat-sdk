@@ -68,13 +68,101 @@ Gate: [`serve.ts` `runMonitor`](../../packages/cli/src/commands/serve.ts) = `mod
 
 ---
 
-## nginx changes (delta from the cluster-deploy doc)
+## nginx changes (decided 2026-07-22)
 
-Hand-written by the operator. `wallet.1sat.app` upstream block is unchanged (still 8101-8104; the instances behind it just became unified).
+All in standard `sites-available`/`sites-enabled` — no conf.d/snippets. The cluster is defined once at the top of the `wallet.1sat.app` file (where the upstream already lives); every other site file references `wallet_backend` by name, which works because all sites-enabled files share one `http` scope. `api.1sat.app` is untouched — it stays purely the Go stack.
 
-- **`messagebox.1sat.app`**: repoint `proxy_pass` from `127.0.0.1:8771` to the `wallet_backend` upstream. Add WebSocket upgrade headers for `/socket.io/` (`proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade"; proxy_http_version 1.1;`). WS has no consumers yet, but the headers are harmless for HTTP.
-- **Paymail (`api.1sat.app`, `paymail.1sat.app`, `1sat.app`)**: cut `proxy_pass` from Go `8084` to `wallet_backend`. The TS host serves capabilities at root `/bsvalias/*` (not Go's `/1sat/bsvalias/*`) and advertises `server.paymail.baseUrl` in the discovery doc — so drop the hardcoded `Host api.1sat.app` rewrite and set `baseUrl` to the intended paymail domain. Apex `1sat.app` keeps its narrow location set (only `/.well-known/bsvalias`; everything else 302→www).
-- **Global on the consolidated blocks**: `client_max_body_size 30m` (unified body limit is 30 MB). The unified server sets wide-open CORS itself — don't add a second CORS layer at nginx. `GET /docs` + `/openapi.json` are public (swagger auto-on) — block them at nginx if the API surface shouldn't be advertised.
+Paymail domain decision: capabilities on the **root domain** — `server.paymail.baseUrl https://1sat.app`. The Cloudflare www-redirect rule has been expanded to also exclude `/bsvalias` (done 2026-07-22). There is **no** `_bsvalias._tcp.1sat.app` SRV record — discovery defaults to the handle domain, so the apex is the only paymail entry point. The `paymail.1sat.app` site file is unused and gets removed at cutover.
+
+nginx body limit stays 100m as today; the app enforces its own 30 MB JSON limit. The app sets wide-open CORS itself — no CORS at nginx. `GET /docs` + `/openapi.json` are public (swagger) — block at nginx if undesired.
+
+### `sites-available/wallet.1sat.app` (cluster defined here)
+
+```nginx
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      '';
+}
+
+upstream wallet_backend {
+    hash $http_x_bsv_auth_identity_key consistent;
+    server 127.0.0.1:8101;
+    server 127.0.0.1:8102;
+    server 127.0.0.1:8103;
+    server 127.0.0.1:8104;
+    keepalive 32;
+}
+
+server {
+    listen 443 ssl;
+    server_name wallet.1sat.app;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_certificate     /etc/letsencrypt/live/wallet.1sat.app/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/wallet.1sat.app/privkey.pem;
+
+    location / {
+        client_max_body_size 100m;
+        proxy_pass http://wallet_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+server {
+    listen 80;
+    server_name wallet.1sat.app;
+    return 301 https://$server_name$request_uri;
+}
+```
+
+(The `map` + `$connection_upgrade` pair keeps upstream keepalive for plain HTTP while still allowing `/socket.io/` WebSocket upgrades.)
+
+### `sites-available/messagebox.1sat.app`
+
+References `wallet_backend` and `$connection_upgrade` defined in the wallet file (all sites-enabled files share one `http` scope). Replaces the old `8771` target.
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name messagebox.1sat.app;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_certificate     /etc/letsencrypt/live/messagebox.1sat.app/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/messagebox.1sat.app/privkey.pem;
+
+    location / {
+        client_max_body_size 100m;
+        proxy_pass http://wallet_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+server {
+    listen 80;
+    server_name messagebox.1sat.app;
+    return 301 https://$server_name$request_uri;
+}
+```
+
+### `sites-available/paymail.1sat.app`
+
+Remove (unlink from sites-enabled). Nothing references this name — no SRV record, and the new discovery doc advertises `1sat.app`.
+
+### `sites-available/1sat.app` (apex)
+
+Same catch-all shape as `messagebox.1sat.app`, with `server_name 1sat.app` and the `1sat.app` LE cert paths. Path policy is Cloudflare's job: the edge rule 302s everything to www except `/.well-known/bsvalias` and `/bsvalias`, so those are the only apex paths that ever reach origin. No redirect and no path rules at nginx.
+
+**Apply**: edit files, `sudo nginx -t`, `sudo systemctl reload nginx`.
 
 ---
 

@@ -141,47 +141,48 @@ bunx @1sat/cli remote status [url]                 # Per-identity capacity + pri
 bunx @1sat/cli remote topup [url]                  # Manual BRC-29 top-up to `/account/payment`
 ```
 
-### Ordinals
+### Ordinals (id-first)
+
+Wallet-owned spends use **`--id`** (from `list` / tags). External buy uses **`--outpoint`** and optional **`--beef`**.
 
 ```bash
-bunx @1sat/cli ordinals list                                                # List ordinals in wallet
-bunx @1sat/cli ordinals mint --file image.png                               # Inscribe a file
-bunx @1sat/cli ordinals mint --file note.txt --type text/plain              # Override detected MIME
-bunx @1sat/cli ordinals mint --file image.png --map '{"name":"NFT 1"}'      # Attach MAP metadata
-bunx @1sat/cli ordinals mint --file image.png --sign-with-bap               # Sign inscription with BAP identity
-bunx @1sat/cli ordinals transfer --outpoint <op> --to <addr>                # Transfer ordinal
+bunx @1sat/cli ordinals list
+bunx @1sat/cli ordinals inscribe --file image.png
+bunx @1sat/cli ordinals inscribe --file note.txt --type text/plain
+bunx @1sat/cli ordinals inscribe --file image.png --map '{"name":"NFT 1"}'
+bunx @1sat/cli ordinals inscribe --file image.png --sign-with-bap
+bunx @1sat/cli ordinals send --id <id> --to <addr|identityKey>
+bunx @1sat/cli ordinals sell --id <id> --price <sats> [--pay-address <addr>]
+bunx @1sat/cli ordinals cancel --id <id>
+bunx @1sat/cli ordinals buy --outpoint <txid.vout> [--beef <file|hex|base64>]
+bunx @1sat/cli ordinals burn --ids <id1,id2>
 ```
 
-### Marketplace (OrdLock)
+Breaking renames: `mint`→`inscribe`, `transfer`→`send`, wallet `--outpoint`→`--id`.
+
+### BSV21 (was `tokens`)
 
 ```bash
-bunx @1sat/cli ordinals sell --outpoint <txid.vout> --price <sats>   # List ordinal for sale (OrdLock)
-bunx @1sat/cli ordinals cancel --outpoint <txid.vout>               # Cancel an active listing
-bunx @1sat/cli ordinals buy --outpoint <txid.vout>                  # Purchase a listed ordinal
-bunx @1sat/cli ordinals burn --outpoints <op1,op2,...>             # Burn ordinals permanently
+bunx @1sat/cli bsv21 balances
+bunx @1sat/cli bsv21 list [--token-id <id>]
+bunx @1sat/cli bsv21 send --token-id <id> --amount <n> --to <addr>
+bunx @1sat/cli bsv21 deploy-mint --symbol <ticker> --amount <total-supply>
+bunx @1sat/cli bsv21 deploy-auth --symbol <ticker>
+bunx @1sat/cli bsv21 mint --token-id <id> --amount <n>
+bunx @1sat/cli bsv21 buy --outpoint <txid.vout> --token-id <id> --amount <n> [--beef …]
 ```
 
-### Tokens (BSV21)
-
-```bash
-bunx @1sat/cli tokens balances                                                  # Show token balances by token ID
-bunx @1sat/cli tokens list [--token-id <id>]                                    # List owned token UTXOs
-bunx @1sat/cli tokens send --token-id <id> --amount <n> --to <addr>             # Transfer tokens
-bunx @1sat/cli tokens deploy-mint --symbol <ticker> --amount <total-supply>     # Deploy fixed-supply token
-bunx @1sat/cli tokens deploy-auth --symbol <ticker>                             # Deploy mintable token (auth UTXOs)
-bunx @1sat/cli tokens mint --token-id <id> --amount <n>                         # Mint supply / re-issue or burn auth
-bunx @1sat/cli tokens buy --outpoint <txid.vout> --token-id <id> --amount <n>   # Purchase listed tokens
-```
-
-`tokens send` destination is one of `--to <address>`, `--counterparty <pubkey-hex>`, or `--locking-script <hex>`. Paymail recipients are not supported for BSV21 transfers — there is no ecosystem spec for paymail-delivered token outputs. Use `--to <address>` instead. `deploy-mint`/`deploy-auth`/`mint` accept `--decimals <0-18>`, `--icon <url-or-data-uri>`, and the same destination flags; `mint` also takes `--auth-to`/`--auth-counterparty`/`--auth-locking-script` and `--end-minting`.
+`bsv21 send` destination: `--to`, `--counterparty`, or `--locking-script`. No paymail for BSV21.
 
 ### Locks (Timelock)
 
 ```bash
-bunx @1sat/cli locks info                                  # Show locked totals and maturity status
-bunx @1sat/cli locks lock --sats <amount> --blocks <n>     # Time-lock BSV until a block height
-bunx @1sat/cli locks unlock                                # Unlock all matured locks
+bunx @1sat/cli locks list                                  # UTXOs with id / until tags
+bunx @1sat/cli locks bsv --sats <amount> --until <height>  # Time-lock until block height
+bunx @1sat/cli locks unlock [--ids <id1,id2>]              # Specific or all matured
 ```
+
+Breaking: `info`→`list`, `lock`→`bsv`, `--blocks`→`--until`.
 
 ### Identity (BAP)
 
@@ -206,13 +207,20 @@ bunx @1sat/cli social post --content "..." --app my-app                    # MAP
 
 Tags (`--tags a,b,c`) land on the on-chain post's MAP payload and on the wallet output as `tag:<value>`, so `wallet list-outputs --tags tag:bsv` finds your own posts by tag. `--content-type` accepts `text/plain` (default) or `text/markdown`.
 
-### OpNS Names
+### OpNS Names (id-first)
 
 ```bash
-bunx @1sat/cli opns register --outpoint <txid.vout>     # Register identity on an OpNS name
-bunx @1sat/cli opns deregister --outpoint <txid.vout>   # Deregister identity from an OpNS name
-bunx @1sat/cli opns lookup                              # List OpNS names from wallet
+bunx @1sat/cli opns lookup [--limit] [--offset] [--ids] [--names] [--tags] …
+bunx @1sat/cli opns register --id <id>
+bunx @1sat/cli opns deregister --id <id>
+bunx @1sat/cli opns sell --id <id> --price <sats> [--pay-address <addr>]
+bunx @1sat/cli opns cancel-listing --id <id>
+bunx @1sat/cli opns send --id <id> --to <addr|identityKey>
+bunx @1sat/cli opns buy --outpoint <txid.vout> [--beef …]
+bunx @1sat/cli opns internalize --beef <file|hex|base64> [--key-id 1sat 0]
 ```
+
+Print **id**, name, outpoint on lookup. Wallet spends: `--id` only.
 
 ### Sweep / Import
 

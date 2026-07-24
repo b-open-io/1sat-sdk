@@ -1,40 +1,52 @@
 /**
  * OpNS Module
  *
- * Actions for managing OpNS names. Identity bind is a signed PushDrop on the
- * name UTXO (field0 = BRC-100 identity key). Moving the name spends that
- * script and re-locks under the normal ordinal formats (P2PKH / OrdLock).
+ * Wallet-owned names live in OPNS_BASKET with id: tags.
+ * Self-moves: id → one loadBasketOutputBeef → ordinalSeedTags + domain tags.
+ * Ingress (internalizeOpns / buyOpns) stamps full tags including id:.
  */
 
-import { OpNS } from '@1sat/templates'
+import { OpNS, OrdLock } from '@1sat/templates'
 import {
 	OPNS_BASKET,
 	OPNS_PUBLISHED_TAG,
 	OPNS_PUSHDROP_TEMPLATE,
 	OPNS_REGISTER_COUNTERPARTY,
 	P1SAT_PROTOCOL,
+	buildInputAssetLabel,
 	opnsRegisterKeyId,
+	readAssetIdTag,
 } from '@1sat/types'
 import {
+	type BEEF,
+	P2PKH,
+	PublicKey,
 	PushDrop,
 	Transaction,
 	Utils,
-	type BEEF,
 	type WalletCounterparty,
 	type WalletOutput,
 	type WalletProtocol,
 } from '@bsv/sdk'
-import { buildTransferOrdinals, listOrdinal, transferOrdinals } from '../ordinals'
+import {
+	buildOrdLockScript,
+	buyOrdinal,
+	defaultPayAddress,
+	deriveCancelAddressInternal,
+} from '../ordinals'
 import type { Action, ActionOptions, OneSatContext } from '../types'
 import {
 	executeTrackedAction,
 	randomActionId,
 } from '../utils/createTrackedAction'
-import { resolveBeef } from '../utils/resolveBeef'
+import { loadBasketOutputBeef } from '../utils/loadBasketOutput'
+import { ordinalSeedTags } from '../utils/ordinalSeedTags'
 import {
 	signOrdinalInput,
 	unlockingScriptLengthForInstructions,
 } from '../utils/signOrdinalInput'
+
+const OPNS_CONTENT_TYPE = 'application/op-ns'
 
 export { opnsRegisterKeyId } from '@1sat/types'
 
@@ -42,35 +54,40 @@ export { opnsRegisterKeyId } from '@1sat/types'
 // Types
 // ============================================================================
 
-export interface OpnsRegisterRequest extends ActionOptions {
-	/** The OpNS ordinal output to register (from listOutputs) */
-	ordinal: WalletOutput
-	/** BEEF — resolved automatically via ID tag if omitted */
-	inputBEEF?: number[]
-}
-
-export interface OpnsDeregisterRequest extends ActionOptions {
-	/** The OpNS ordinal output to deregister (from listOutputs) */
-	ordinal: WalletOutput
-	/** BEEF — resolved automatically via ID tag if omitted */
-	inputBEEF?: number[]
-}
-
 export interface OpnsOperationResponse {
 	txid?: string
 	tx?: number[]
 	error?: string
 }
 
-/** Input for getOpnsNames — listOutputs-shaped; basket is always OPNS. */
-export interface GetOpnsNamesInput {
-	/** Output tags to filter (listOutputs tags) */
+/** Wallet-owned OpNS spend: id of the basket row (bare or id: prefix). */
+export interface OpnsIdInput extends ActionOptions {
+	/** Tracking id of the OpNS UTXO in the OPNS basket */
+	id: string
+}
+
+export type RegisterOpnsRequest = OpnsIdInput
+export type DeregisterOpnsRequest = OpnsIdInput
+
+export interface SellOpnsRequest extends OpnsIdInput {
+	price: number
+	/** Payment receive address; default P1SAT keyID `1sat 0` */
+	payAddress?: string
+}
+
+export interface SendOpnsRequest extends OpnsIdInput {
+	counterparty?: string
+	address?: string
+}
+
+export interface CancelOpnsListingRequest extends OpnsIdInput {}
+
+export interface ListOpnsInput {
 	tags?: string[]
-	/** How multiple tags combine (default: any when any tags/names present) */
 	tagQueryMode?: 'all' | 'any'
-	/** Convenience: appended as `name:${n}` tags (same tagQueryMode) */
 	names?: string[]
-	/** Omit for metadata-only (no BEEF). Use entire transactions when batch BEEF is required. */
+	/** ids to filter (appended as id: tags) */
+	ids?: string[]
 	include?: 'locking scripts' | 'entire transactions'
 	includeCustomInstructions?: boolean
 	includeTags?: boolean
@@ -79,32 +96,47 @@ export interface GetOpnsNamesInput {
 	offset?: number
 }
 
-/** Result from getOpnsNames action */
-export interface GetOpnsNamesResult {
+export interface ListOpnsResult {
 	outputs: WalletOutput[]
 	BEEF?: BEEF
 	totalOutputs?: number
 }
 
-/** Input for internalizeOpns — receive a foreign-created OpNS mint into the wallet. */
+/** @deprecated Use RegisterOpnsRequest */
+export type OpnsRegisterRequest = RegisterOpnsRequest
+/** @deprecated Use DeregisterOpnsRequest */
+export type OpnsDeregisterRequest = DeregisterOpnsRequest
+/** @deprecated Use SellOpnsRequest */
+export type OpnsListRequest = SellOpnsRequest
+/** @deprecated Use SendOpnsRequest */
+export type OpnsTransferRequest = SendOpnsRequest
+/** @deprecated Use CancelOpnsListingRequest */
+export type OpnsCancelListingRequest = CancelOpnsListingRequest
+/** @deprecated Use ListOpnsInput */
+export type GetOpnsNamesInput = ListOpnsInput
+/** @deprecated Use ListOpnsResult */
+export type GetOpnsNamesResult = ListOpnsResult
+
 export interface InternalizeOpnsInput {
-	/** Mint tx as AtomicBEEF (BRC-95) — same format internalizeAction requires */
+	/** AtomicBEEF (BRC-95) */
 	tx: number[]
-	/** Spend derivation for the receive lock (same path used to build receiveAddress) */
 	protocolID: WalletProtocol
 	keyID: string
 	counterparty?: WalletCounterparty
 }
 
-/** Result from internalizeOpns */
 export interface InternalizeOpnsResult {
 	txid?: string
 	outpoint?: string
 	name?: string
+	id?: string
 	error?: string
 }
 
-/** Locate the name delivery output on an OpNS mint tx (nodes at i,i+1 → name at i+2). */
+// ============================================================================
+// Helpers
+// ============================================================================
+
 function findMintNameDelivery(tx: Transaction): {
 	vout: number
 	name: string
@@ -120,89 +152,62 @@ function findMintNameDelivery(tx: Transaction): {
 	return null
 }
 
-// ============================================================================
-// Helpers
-// ============================================================================
-
-function sourceNameFromOrdinal(ordinal: WalletOutput): string | undefined {
-	if (ordinal.customInstructions) {
-		try {
-			const name = JSON.parse(ordinal.customInstructions).name
-			if (typeof name === 'string' && name) return name
-		} catch {}
+function nameFromOutput(out: WalletOutput): string | undefined {
+	const fromTag = out.tags?.find((t) => t.startsWith('name:'))?.slice(5)
+	if (fromTag) return fromTag.slice(0, 64)
+	if (!out.customInstructions) return undefined
+	try {
+		const n = JSON.parse(out.customInstructions).name
+		return typeof n === 'string' && n ? n.slice(0, 64) : undefined
+	} catch {
+		return undefined
 	}
-	return ordinal.tags?.find((t) => t.startsWith('name:'))?.slice(5)
 }
 
-async function signSingleOrdinalInput(
+/** Load OPNS row + BEEF from wallet storage by id. */
+async function loadOpnsSpend(
 	ctx: OneSatContext,
-	ordinal: WalletOutput,
-) {
-	if (!ordinal.customInstructions) {
-		return { error: 'missing-custom-instructions' as const }
+	input: OpnsIdInput,
+): Promise<{ output: WalletOutput; beef: number[] } | { error: string }> {
+	return loadBasketOutputBeef(ctx.wallet, OPNS_BASKET, input.id)
+}
+
+/** Ordinal seed + opns domain tag; optional extras (ordlock, published, …). */
+function opnsFileTags(output: WalletOutput, extra: string[] = []): string[] {
+	const tags = ordinalSeedTags(output)
+	if (!tags.includes('opns')) tags.unshift('opns')
+	for (const e of extra) {
+		if (e && !tags.includes(e)) tags.push(e)
 	}
-	return {
-		sign: async (tx: Parameters<typeof signOrdinalInput>[1]) => {
-			const unlocking = await signOrdinalInput(
-				ctx,
-				tx,
-				0,
-				ordinal.customInstructions as string,
-			)
-			if (typeof unlocking !== 'string') throw new Error(unlocking.error)
-			return { 0: { unlockingScript: unlocking } }
-		},
-	}
+	return tags
 }
 
 // ============================================================================
-// Actions
+// listOpns
 // ============================================================================
 
-/**
- * List OpNS names in the wallet. Mirrors listOutputs (fixed OPNS basket).
- * Metadata-only by default; pass include: 'entire transactions' for batch BEEF.
- */
-export const getOpnsNames: Action<GetOpnsNamesInput, GetOpnsNamesResult> = {
+export const listOpns: Action<ListOpnsInput, ListOpnsResult> = {
 	meta: {
-		name: 'getOpnsNames',
+		name: 'listOpns',
 		description:
 			'List OpNS names from the wallet (metadata by default; optional BEEF)',
 		category: 'opns',
 		inputSchema: {
 			type: 'object',
 			properties: {
-				tags: {
-					type: 'array',
-					description: 'Filter tags (listOutputs tags)',
-					items: { type: 'string' },
-				},
-				tagQueryMode: {
-					type: 'string',
-					enum: ['all', 'any'],
-					description: 'How tags combine (default any when filtering)',
-				},
-				names: {
-					type: 'array',
-					description: 'Appended as name:${n} tags',
-					items: { type: 'string' },
-				},
+				tags: { type: 'array', items: { type: 'string' } },
+				tagQueryMode: { type: 'string', enum: ['all', 'any'] },
+				names: { type: 'array', items: { type: 'string' } },
+				ids: { type: 'array', items: { type: 'string' } },
 				include: {
 					type: 'string',
 					enum: ['locking scripts', 'entire transactions'],
-					description: 'Omit for metadata-only (no BEEF)',
 				},
 				includeCustomInstructions: { type: 'boolean' },
 				includeTags: { type: 'boolean' },
 				includeLabels: { type: 'boolean' },
-				limit: {
-					type: 'integer',
-					description: 'Max names to return (default: 100)',
-				},
-				offset: {
-					type: 'integer',
-					description: 'Offset for pagination (default: 0)',
-				},
+				limit: { type: 'integer' },
+				offset: { type: 'integer' },
 			},
 		},
 	},
@@ -210,6 +215,9 @@ export const getOpnsNames: Action<GetOpnsNamesInput, GetOpnsNamesResult> = {
 		const tags = [...(input.tags ?? [])]
 		for (const n of input.names ?? []) {
 			if (n) tags.push(`name:${n}`)
+		}
+		for (const id of input.ids ?? []) {
+			if (id) tags.push(id.startsWith('id:') ? id : `id:${id}`)
 		}
 		const filtering = tags.length > 0
 		const result = await ctx.wallet.listOutputs({
@@ -235,10 +243,13 @@ export const getOpnsNames: Action<GetOpnsNamesInput, GetOpnsNamesResult> = {
 	},
 }
 
-/**
- * Internalize an OpNS mint delivery into the wallet model (basket, name tag, id:).
- * Caller supplies BEEF + the spend derivation used for the receive lock.
- */
+/** @deprecated Use listOpns */
+export const getOpnsNames = listOpns
+
+// ============================================================================
+// internalizeOpns (ingress)
+// ============================================================================
+
 export const internalizeOpns: Action<
 	InternalizeOpnsInput,
 	InternalizeOpnsResult
@@ -246,44 +257,31 @@ export const internalizeOpns: Action<
 	meta: {
 		name: 'internalizeOpns',
 		description:
-			'Internalize a foreign-created OpNS mint into the wallet with tracking tags',
+			'Internalize a foreign-created OpNS mint (AtomicBEEF) into the OPNS basket',
 		category: 'opns',
 		inputSchema: {
 			type: 'object',
 			properties: {
-				tx: {
-					type: 'array',
-					description: 'Mint AtomicBEEF (BRC-95) bytes',
-					items: { type: 'integer' },
-				},
-				protocolID: {
-					type: 'array',
-					description: 'Wallet protocol for spend derivation',
-				},
-				keyID: {
-					type: 'string',
-					description: 'Key ID for spend derivation',
-				},
-				counterparty: {
-					type: 'string',
-					description: 'Counterparty for spend derivation (default self)',
-				},
+				tx: { type: 'array', items: { type: 'integer' } },
+				protocolID: { type: 'array' },
+				keyID: { type: 'string' },
+				counterparty: { type: 'string' },
 			},
 			required: ['tx', 'protocolID', 'keyID'],
 		},
 	},
-	async execute(_ctx, input) {
+	async execute(ctx, input) {
 		try {
 			const parsed = Transaction.fromAtomicBEEF(input.tx)
 			const txid = parsed.id('hex')
 			const delivery = findMintNameDelivery(parsed)
-			if (!delivery) {
-				return { error: 'not-an-opns-mint' }
-			}
+			if (!delivery) return { error: 'not-an-opns-mint' }
 			const { vout, name } = delivery
+			const outpoint = `${txid}.${vout}`
 			const actionId = randomActionId()
+			const idTag = `id:${actionId}_${vout}`
 			const counterparty = input.counterparty ?? 'self'
-			await _ctx.wallet.internalizeAction({
+			await ctx.wallet.internalizeAction({
 				tx: input.tx,
 				outputs: [
 					{
@@ -291,7 +289,13 @@ export const internalizeOpns: Action<
 						protocol: 'basket insertion',
 						insertionRemittance: {
 							basket: OPNS_BASKET,
-							tags: ['opns', `name:${name}`, `id:${actionId}_${vout}`],
+							tags: [
+								'opns',
+								`type:${OPNS_CONTENT_TYPE}`,
+								`origin:${outpoint}`,
+								`name:${name}`,
+								idTag,
+							],
 							customInstructions: JSON.stringify({
 								protocolID: input.protocolID,
 								keyID: input.keyID,
@@ -305,8 +309,9 @@ export const internalizeOpns: Action<
 			})
 			return {
 				txid,
-				outpoint: `${txid}.${vout}`,
+				outpoint,
 				name,
+				id: `${actionId}_${vout}`,
 			}
 		} catch (err) {
 			return {
@@ -316,50 +321,38 @@ export const internalizeOpns: Action<
 	},
 }
 
-/**
- * Bind the wallet identity key to an OpNS name via signed PushDrop.
- *
- * Lock: PushDrop under [0,'p 1sat'] / opns:{inputOutpoint} / anyone, forSelf.
- * fields[0] = identity pubkey bytes; field-sig included (same derivation).
- */
-export const opnsRegister: Action<OpnsRegisterRequest, OpnsOperationResponse> =
+// ============================================================================
+// register / deregister
+// ============================================================================
+
+export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 	{
 		meta: {
-			name: 'opnsRegister',
+			name: 'registerOpns',
 			description:
 				'Bind BRC-100 identity key to an OpNS name via signed PushDrop',
 			category: 'opns',
 			inputSchema: {
 				type: 'object',
 				properties: {
-					ordinal: {
-						type: 'object',
-						description: 'WalletOutput of the OpNS ordinal from listOutputs',
-					},
-					inputBEEF: {
-						type: 'array',
-						description:
-							"BEEF from listOutputs with include: 'entire transactions'",
-					},
+					id: { type: 'string', description: 'OPNS basket tracking id' },
 				},
-				required: ['ordinal'],
+				required: ['id'],
 			},
 		},
 		async execute(ctx, input) {
 			try {
-				const { ordinal } = input
-				if (!ordinal.customInstructions) {
+				const loaded = await loadOpnsSpend(ctx, input)
+				if ('error' in loaded) return loaded
+				const { output, beef } = loaded
+				if (!output.customInstructions) {
 					return { error: 'missing-custom-instructions' }
 				}
-
-				const inputBEEF =
-					input.inputBEEF ??
-					(await resolveBeef(ctx.wallet, OPNS_BASKET, ordinal))
 
 				const { publicKey: identityPubKey } = await ctx.wallet.getPublicKey({
 					identityKey: true,
 				})
-				const keyID = opnsRegisterKeyId(ordinal.outpoint)
+				const keyID = opnsRegisterKeyId(output.outpoint)
 				const lockingScript = await new PushDrop(ctx.wallet).lock(
 					[Utils.toArray(identityPubKey, 'hex')],
 					P1SAT_PROTOCOL,
@@ -369,25 +362,24 @@ export const opnsRegister: Action<OpnsRegisterRequest, OpnsOperationResponse> =
 					true,
 				)
 
-				const tags = [
-					...(ordinal.tags ?? []).filter(
-						(t) => t !== OPNS_PUBLISHED_TAG && !t.startsWith('ordlock'),
-					),
-					OPNS_PUBLISHED_TAG,
-				]
-				const name = sourceNameFromOrdinal(ordinal)
+				const name = nameFromOutput(output)
+				const tags = opnsFileTags(output, [OPNS_PUBLISHED_TAG])
+				const inputId = readAssetIdTag(output.tags)
 
-				const result = await executeTrackedAction(
+				return await executeTrackedAction(
 					ctx.wallet,
 					{
 						description: 'Register OpNS identity bind',
-						inputBEEF,
+						inputBEEF: beef,
+						...(inputId && {
+							labels: [buildInputAssetLabel(OPNS_BASKET, inputId)],
+						}),
 						inputs: [
 							{
-								outpoint: ordinal.outpoint,
+								outpoint: output.outpoint,
 								inputDescription: 'OpNS name to register',
 								unlockingScriptLength: unlockingScriptLengthForInstructions(
-									ordinal.customInstructions,
+									output.customInstructions,
 								),
 							},
 						],
@@ -410,30 +402,20 @@ export const opnsRegister: Action<OpnsRegisterRequest, OpnsOperationResponse> =
 						options: { randomizeOutputs: false },
 					},
 					input.fundingProvider,
-					inputBEEF,
+					beef,
 					async (tx) => {
 						const unlocking = await signOrdinalInput(
 							ctx,
 							tx,
 							0,
-							ordinal.customInstructions as string,
+							output.customInstructions as string,
 						)
 						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
 						return { 0: { unlockingScript: unlocking } }
 					},
 				)
-
-				return result
 			} catch (error) {
-				console.error('[opnsRegister]', error)
-				if (ctx.debug && ctx.log) {
-					ctx.log({
-						timestamp: new Date().toISOString(),
-						action: 'opnsRegister',
-						input: { outpoint: input.ordinal.outpoint },
-						error: error instanceof Error ? error.message : 'unknown-error',
-					})
-				}
+				console.error('[registerOpns]', error)
 				return {
 					error: error instanceof Error ? error.message : 'unknown-error',
 				}
@@ -441,86 +423,95 @@ export const opnsRegister: Action<OpnsRegisterRequest, OpnsOperationResponse> =
 		},
 	}
 
-/**
- * Remove an identity bind by self-transferring to plain P2PKH.
- * Spending the PushDrop clears the on-chain bind.
- */
-export const opnsDeregister: Action<
-	OpnsDeregisterRequest,
+/** @deprecated Use registerOpns */
+export const opnsRegister = registerOpns
+
+export const deregisterOpns: Action<
+	DeregisterOpnsRequest,
 	OpnsOperationResponse
 > = {
 	meta: {
-		name: 'opnsDeregister',
-		description: 'Remove identity bind from an OpNS name (self-transfer to P2PKH)',
+		name: 'deregisterOpns',
+		description:
+			'Remove identity bind from an OpNS name (self-transfer to P2PKH)',
 		category: 'opns',
 		inputSchema: {
 			type: 'object',
 			properties: {
-				ordinal: {
-					type: 'object',
-					description: 'WalletOutput of the OpNS ordinal from listOutputs',
-				},
-				inputBEEF: {
-					type: 'array',
-					description:
-						"BEEF from listOutputs with include: 'entire transactions'",
-				},
+				id: { type: 'string' },
 			},
-			required: ['ordinal'],
+			required: ['id'],
 		},
 	},
 	async execute(ctx, input) {
 		try {
-			const { ordinal } = input
-			const inputBEEF =
-				input.inputBEEF ?? (await resolveBeef(ctx.wallet, OPNS_BASKET, ordinal))
+			const loaded = await loadOpnsSpend(ctx, input)
+			if ('error' in loaded) return loaded
+			const { output, beef } = loaded
+			if (!output.customInstructions) {
+				return { error: 'missing-custom-instructions' }
+			}
 
-			const params = await buildTransferOrdinals(ctx, {
-				transfers: [
-					{
-						ordinal,
-						counterparty: 'self',
-						extraTags: [],
-					},
-				],
-				inputBEEF,
+			const outpoint = output.outpoint
+			const { publicKey } = await ctx.wallet.getPublicKey({
+				protocolID: P1SAT_PROTOCOL,
+				keyID: outpoint,
+				counterparty: 'self',
+				forSelf: true,
 			})
-
-			if ('error' in params) {
-				return params
-			}
-
-			// Drop published tag on the plain self-transfer output
-			if (params.outputs?.[0]?.tags) {
-				params.outputs[0].tags = params.outputs[0].tags.filter(
-					(t) => t !== OPNS_PUBLISHED_TAG,
-				)
-			}
-
-			const signer = await signSingleOrdinalInput(ctx, ordinal)
-			if ('error' in signer) return signer
+			const address = PublicKey.fromString(publicKey).toAddress()
+			const tags = opnsFileTags(output)
+			const name = nameFromOutput(output)
+			const inputId = readAssetIdTag(output.tags)
 
 			return await executeTrackedAction(
 				ctx.wallet,
 				{
-					...params,
 					description: 'Deregister OpNS identity bind',
+					inputBEEF: beef,
+					...(inputId && {
+						labels: [buildInputAssetLabel(OPNS_BASKET, inputId)],
+					}),
+					inputs: [
+						{
+							outpoint,
+							inputDescription: 'OpNS name to deregister',
+							unlockingScriptLength: unlockingScriptLengthForInstructions(
+								output.customInstructions,
+							),
+						},
+					],
+					outputs: [
+						{
+							lockingScript: new P2PKH().lock(address).toHex(),
+							satoshis: 1,
+							outputDescription: 'OpNS name (unbound)',
+							basket: OPNS_BASKET,
+							tags,
+							customInstructions: JSON.stringify({
+								protocolID: P1SAT_PROTOCOL,
+								keyID: outpoint,
+								...(name && { name }),
+							}),
+						},
+					],
 					options: { randomizeOutputs: false },
 				},
 				input.fundingProvider,
-				inputBEEF,
-				signer.sign,
+				beef,
+				async (tx) => {
+					const unlocking = await signOrdinalInput(
+						ctx,
+						tx,
+						0,
+						output.customInstructions as string,
+					)
+					if (typeof unlocking !== 'string') throw new Error(unlocking.error)
+					return { 0: { unlockingScript: unlocking } }
+				},
 			)
 		} catch (error) {
-			console.error('[opnsDeregister]', error)
-			if (ctx.debug && ctx.log) {
-				ctx.log({
-					timestamp: new Date().toISOString(),
-					action: 'opnsDeregister',
-					input: { outpoint: input.ordinal.outpoint },
-					error: error instanceof Error ? error.message : 'unknown-error',
-				})
-			}
+			console.error('[deregisterOpns]', error)
 			return {
 				error: error instanceof Error ? error.message : 'unknown-error',
 			}
@@ -528,118 +519,380 @@ export const opnsDeregister: Action<
 	},
 }
 
-export interface OpnsListRequest extends ActionOptions {
-	/** The OpNS ordinal output to list (from listOutputs) */
-	ordinal: WalletOutput
-	/** BEEF — resolved automatically via ID tag if omitted */
-	inputBEEF?: number[]
-	/** Price in satoshis */
-	price: number
-	/** Address that receives payment on purchase */
-	payAddress: string
-}
+/** @deprecated Use deregisterOpns */
+export const opnsDeregister = deregisterOpns
 
-/**
- * List an OpNS name for sale.
- * Spends the current lock (PushDrop or P2PKH); OrdLock output has no identity bind.
- */
-export const opnsList: Action<OpnsListRequest, OpnsOperationResponse> = {
+// ============================================================================
+// sell / send / cancel
+// ============================================================================
+
+export const sellOpns: Action<SellOpnsRequest, OpnsOperationResponse> = {
 	meta: {
-		name: 'opnsList',
+		name: 'sellOpns',
 		description: 'List an OpNS name for sale',
 		category: 'opns',
 		inputSchema: {
 			type: 'object',
 			properties: {
-				ordinal: {
-					type: 'object',
-					description: 'WalletOutput of the OpNS ordinal from listOutputs',
-				},
-				inputBEEF: {
-					type: 'array',
-					description:
-						"BEEF from listOutputs with include: 'entire transactions'",
-				},
-				price: { type: 'integer', description: 'Price in satoshis' },
+				id: { type: 'string' },
+				price: { type: 'integer' },
 				payAddress: {
 					type: 'string',
-					description: 'Address to receive payment on purchase',
+					description: 'Payment address (default: P1SAT keyID 1sat 0)',
 				},
 			},
-			required: ['ordinal', 'price', 'payAddress'],
+			required: ['id', 'price'],
 		},
 	},
 	async execute(ctx, input) {
-		return listOrdinal.execute(ctx, input)
+		try {
+			if (input.price <= 0) return { error: 'invalid-price' }
+			const loaded = await loadOpnsSpend(ctx, input)
+			if ('error' in loaded) return loaded
+			const { output, beef } = loaded
+			if (!output.customInstructions) {
+				return { error: 'missing-custom-instructions' }
+			}
+
+			const outpoint = output.outpoint
+			const payAddress = input.payAddress ?? (await defaultPayAddress(ctx))
+			const cancelAddress = await deriveCancelAddressInternal(ctx, outpoint)
+			const lockingScript = buildOrdLockScript(
+				cancelAddress,
+				payAddress,
+				input.price,
+			).toHex()
+			const tags = opnsFileTags(output, ['ordlock', `price:${input.price}`])
+			const name = nameFromOutput(output)
+			const inputId = readAssetIdTag(output.tags)
+
+			return await executeTrackedAction(
+				ctx.wallet,
+				{
+					description: `List OpNS for ${input.price} sats`,
+					inputBEEF: beef,
+					...(inputId && {
+						labels: [buildInputAssetLabel(OPNS_BASKET, inputId)],
+					}),
+					inputs: [
+						{
+							outpoint,
+							inputDescription: 'OpNS name to list',
+							unlockingScriptLength: unlockingScriptLengthForInstructions(
+								output.customInstructions,
+							),
+						},
+					],
+					outputs: [
+						{
+							lockingScript,
+							satoshis: 1,
+							outputDescription: `List OpNS for ${input.price} sats`,
+							basket: OPNS_BASKET,
+							tags,
+							customInstructions: JSON.stringify({
+								protocolID: P1SAT_PROTOCOL,
+								keyID: outpoint,
+								...(name && { name }),
+							}),
+						},
+					],
+					options: { randomizeOutputs: false },
+				},
+				input.fundingProvider,
+				beef,
+				async (tx) => {
+					const unlocking = await signOrdinalInput(
+						ctx,
+						tx,
+						0,
+						output.customInstructions as string,
+					)
+					if (typeof unlocking !== 'string') throw new Error(unlocking.error)
+					return { 0: { unlockingScript: unlocking } }
+				},
+			)
+		} catch (error) {
+			console.error('[sellOpns]', error)
+			return {
+				error: error instanceof Error ? error.message : 'unknown-error',
+			}
+		}
 	},
 }
 
-export interface OpnsTransferRequest extends ActionOptions {
-	/** The OpNS ordinal output to transfer (from listOutputs) */
-	ordinal: WalletOutput
-	/** Recipient's identity public key (preferred) */
-	counterparty?: string
-	/** Raw P2PKH address */
-	address?: string
-	/** BEEF — resolved automatically via ID tag if omitted */
+/** @deprecated Use sellOpns */
+export const opnsList = sellOpns
+
+export const sendOpns: Action<SendOpnsRequest, OpnsOperationResponse> = {
+	meta: {
+		name: 'sendOpns',
+		description: 'Transfer an OpNS name to a new owner',
+		category: 'opns',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				id: { type: 'string' },
+				counterparty: { type: 'string' },
+				address: { type: 'string' },
+			},
+			required: ['id'],
+		},
+	},
+	async execute(ctx, input) {
+		try {
+			if (!input.counterparty && !input.address) {
+				return { error: 'must-provide-counterparty-or-address' }
+			}
+			const loaded = await loadOpnsSpend(ctx, input)
+			if ('error' in loaded) return loaded
+			const { output, beef } = loaded
+			if (!output.customInstructions) {
+				return { error: 'missing-custom-instructions' }
+			}
+
+			const outpoint = output.outpoint
+			const isSelf = input.counterparty === 'self'
+			let recipientAddress: string
+			if (input.counterparty) {
+				const { publicKey } = await ctx.wallet.getPublicKey({
+					protocolID: P1SAT_PROTOCOL,
+					keyID: outpoint,
+					counterparty: input.counterparty,
+					forSelf: isSelf,
+				})
+				recipientAddress = PublicKey.fromString(publicKey).toAddress()
+			} else {
+				recipientAddress = input.address as string
+			}
+
+			const inputId = readAssetIdTag(output.tags)
+			const name = nameFromOutput(output)
+			const tags = opnsFileTags(output)
+
+			return await executeTrackedAction(
+				ctx.wallet,
+				{
+					description: 'Transfer OpNS name',
+					inputBEEF: beef,
+					...(inputId && {
+						labels: [buildInputAssetLabel(OPNS_BASKET, inputId)],
+					}),
+					inputs: [
+						{
+							outpoint,
+							inputDescription: 'OpNS name to transfer',
+							unlockingScriptLength: unlockingScriptLengthForInstructions(
+								output.customInstructions,
+							),
+						},
+					],
+					outputs: [
+						isSelf
+							? {
+									lockingScript: new P2PKH().lock(recipientAddress).toHex(),
+									satoshis: 1,
+									outputDescription: 'OpNS self-transfer',
+									basket: OPNS_BASKET,
+									tags,
+									customInstructions: JSON.stringify({
+										protocolID: P1SAT_PROTOCOL,
+										keyID: outpoint,
+										...(name && { name }),
+									}),
+								}
+							: {
+									lockingScript: new P2PKH().lock(recipientAddress).toHex(),
+									satoshis: 1,
+									outputDescription: 'OpNS transfer',
+									tags: [],
+								},
+					],
+					options: { randomizeOutputs: false },
+				},
+				input.fundingProvider,
+				beef,
+				async (tx) => {
+					const unlocking = await signOrdinalInput(
+						ctx,
+						tx,
+						0,
+						output.customInstructions as string,
+					)
+					if (typeof unlocking !== 'string') throw new Error(unlocking.error)
+					return { 0: { unlockingScript: unlocking } }
+				},
+			)
+		} catch (error) {
+			console.error('[sendOpns]', error)
+			return {
+				error: error instanceof Error ? error.message : 'unknown-error',
+			}
+		}
+	},
+}
+
+/** @deprecated Use sendOpns */
+export const opnsTransfer = sendOpns
+
+export const cancelOpnsListing: Action<
+	CancelOpnsListingRequest,
+	OpnsOperationResponse
+> = {
+	meta: {
+		name: 'cancelOpnsListing',
+		description: 'Cancel an OpNS name listing back into the OPNS basket',
+		category: 'opns',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				id: { type: 'string' },
+			},
+			required: ['id'],
+		},
+	},
+	async execute(ctx, input) {
+		try {
+			const loaded = await loadOpnsSpend(ctx, input)
+			if ('error' in loaded) return loaded
+			const { output: listing, beef: inputBEEF } = loaded
+			const outpoint = listing.outpoint
+			if (!listing.customInstructions) {
+				return { error: 'missing-custom-instructions' }
+			}
+
+			const {
+				protocolID: signProtocolID,
+				keyID: signKeyID,
+				counterparty: signCounterparty,
+			} = JSON.parse(listing.customInstructions)
+
+			const newKeyID = outpoint
+			const cancelAddress = await deriveCancelAddressInternal(ctx, newKeyID)
+			const tags = opnsFileTags(listing)
+			const name = nameFromOutput(listing)
+			const inputId = readAssetIdTag(listing.tags)
+
+			const cancelUnlock = OrdLock.cancelWithWallet(
+				ctx.wallet,
+				signProtocolID,
+				signKeyID,
+				signCounterparty,
+			)
+
+			return await executeTrackedAction(
+				ctx.wallet,
+				{
+					description: 'Cancel OpNS listing',
+					inputBEEF,
+					...(inputId && {
+						labels: [buildInputAssetLabel(OPNS_BASKET, inputId)],
+					}),
+					inputs: [
+						{
+							outpoint,
+							inputDescription: 'Listed OpNS name',
+							unlockingScriptLength: 108,
+						},
+					],
+					outputs: [
+						{
+							lockingScript: new P2PKH().lock(cancelAddress).toHex(),
+							satoshis: 1,
+							outputDescription: 'Cancelled OpNS listing',
+							basket: OPNS_BASKET,
+							tags,
+							customInstructions: JSON.stringify({
+								protocolID: P1SAT_PROTOCOL,
+								keyID: newKeyID,
+								...(name && { name }),
+							}),
+						},
+					],
+					options: { randomizeOutputs: false },
+				},
+				input.fundingProvider,
+				inputBEEF,
+				async (tx) => {
+					const unlockingScript = await cancelUnlock.sign(tx, 0)
+					return { 0: { unlockingScript: unlockingScript.toHex() } }
+				},
+			)
+		} catch (error) {
+			console.error('[cancelOpnsListing]', error)
+			return {
+				error: error instanceof Error ? error.message : 'unknown-error',
+			}
+		}
+	},
+}
+
+/** @deprecated Use cancelOpnsListing */
+export const opnsCancelListing = cancelOpnsListing
+
+export interface BuyOpnsRequest extends ActionOptions {
+	outpoint: string
+	/** BEEF for the listing tx; else services fetch */
 	inputBEEF?: number[]
+	name?: string
+	origin?: string
+	marketplaceAddress?: string
+	marketplaceRate?: number
 }
 
 /**
- * Transfer an OpNS name to a new owner.
- * Spends the current lock; recipient gets plain P2PKH (bind does not carry forward).
+ * Buy an OpNS listing and file into the OPNS basket with full tags.
  */
-export const opnsTransfer: Action<OpnsTransferRequest, OpnsOperationResponse> =
-	{
-		meta: {
-			name: 'opnsTransfer',
-			description: 'Transfer an OpNS name to a new owner',
-			category: 'opns',
-			inputSchema: {
-				type: 'object',
-				properties: {
-					ordinal: {
-						type: 'object',
-						description: 'WalletOutput of the OpNS ordinal from listOutputs',
-					},
-					counterparty: {
-						type: 'string',
-						description: 'Recipient identity public key (hex)',
-					},
-					address: {
-						type: 'string',
-						description: 'Recipient P2PKH address',
-					},
-					inputBEEF: {
-						type: 'array',
-						description:
-							"BEEF from listOutputs with include: 'entire transactions'",
-					},
-				},
-				required: ['ordinal'],
+export const buyOpns: Action<BuyOpnsRequest, OpnsOperationResponse> = {
+	meta: {
+		name: 'buyOpns',
+		description: 'Purchase an OpNS name listing into the OPNS basket',
+		category: 'opns',
+		requiresServices: true,
+		inputSchema: {
+			type: 'object',
+			properties: {
+				outpoint: { type: 'string' },
+				inputBEEF: { type: 'array', items: { type: 'integer' } },
+				name: { type: 'string' },
+				origin: { type: 'string' },
+				marketplaceAddress: { type: 'string' },
+				marketplaceRate: { type: 'number' },
 			},
+			required: ['outpoint'],
 		},
-		async execute(ctx, input) {
-			return transferOrdinals.execute(ctx, {
-				transfers: [
-					{
-						ordinal: input.ordinal,
-						counterparty: input.counterparty,
-						address: input.address,
-					},
-				],
-				inputBEEF: input.inputBEEF,
-				fundingProvider: input.fundingProvider,
-			})
-		},
-	}
+	},
+	async execute(ctx, input) {
+		const name = input.name?.slice(0, 64)
+		const origin = input.origin ?? input.outpoint
+		const tags = [
+			'opns',
+			`type:${OPNS_CONTENT_TYPE}`,
+			`origin:${origin}`,
+			...(name ? [`name:${name}`] : []),
+		]
+		return buyOrdinal.execute(ctx, {
+			outpoint: input.outpoint,
+			inputBEEF: input.inputBEEF,
+			marketplaceAddress: input.marketplaceAddress,
+			marketplaceRate: input.marketplaceRate,
+			name,
+			origin,
+			contentType: OPNS_CONTENT_TYPE,
+			fundingProvider: input.fundingProvider,
+			basket: OPNS_BASKET,
+			tags,
+		})
+	},
+}
 
-/** All OpNS actions for registry (paid mine lives on 1sat.name / orchestrator). */
 export const opnsActions = [
-	getOpnsNames,
+	listOpns,
 	internalizeOpns,
-	opnsRegister,
-	opnsDeregister,
-	opnsList,
-	opnsTransfer,
+	registerOpns,
+	deregisterOpns,
+	sellOpns,
+	sendOpns,
+	cancelOpnsListing,
+	buyOpns,
 ]

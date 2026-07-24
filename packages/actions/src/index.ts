@@ -41,8 +41,14 @@ export type {
 	FundingProvider,
 	FundingResult,
 } from './funding'
-export { resolveBeef, extractIdTag } from './utils/resolveBeef'
 export { getDisplayValue } from './utils/displayValue'
+export { ordinalSeedTags } from './utils/ordinalSeedTags'
+export {
+	loadBasketOutput,
+	loadBasketOutputBeef,
+	toIdTag,
+	type LoadBasketOutputResult,
+} from './utils/loadBasketOutput'
 export {
 	internalizeBeef,
 	type InternalizeBeefOptions,

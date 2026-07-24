@@ -1,23 +1,23 @@
 /**
- * OpNS commands - register, deregister, lookup, sell, buy, cancel-listing.
- *
- * Manage OpNS names: payment identity bindings and market listings. Paid
- * mining is product code on 1sat.name.
+ * OpNS commands — id-first wallet spends; external buy with outpoint/BEEF.
  */
 
 import {
-	cancelListing,
-	deriveDepositAddresses,
+	buyOpns,
+	cancelOpnsListing,
+	deregisterOpns,
 	getDisplayValue,
-	getOpnsNames,
-	listOrdinal,
-	opnsDeregister as opnsDeregisterAction,
-	opnsRegister as opnsRegisterAction,
-	purchaseOrdinal,
+	internalizeOpns,
+	listOpns,
+	registerOpns,
+	sellOpns,
+	sendOpns,
 } from '@1sat/actions'
+import { P1SAT_PROTOCOL } from '@1sat/types'
 import { confirm, isCancel } from '@clack/prompts'
 import type { GlobalFlags } from '../args'
 import { extractFlag } from '../args'
+import { idFromTags, parseBeefFlag, parseToFlag } from '../beef'
 import { loadContext } from '../context'
 import { printCommandHelp } from '../help'
 import { loadKey } from '../keys'
@@ -41,7 +41,11 @@ export async function handleOpnsCommand(
 		case 'buy':
 			return opnsBuy(rest, opts)
 		case 'cancel-listing':
-			return opnsCancelListing(rest, opts)
+			return opnsCancelListingCmd(rest, opts)
+		case 'send':
+			return opnsSend(rest, opts)
+		case 'internalize':
+			return opnsInternalize(rest, opts)
 		default:
 			printCommandHelp('opns', opts.json)
 			if (subcommand && subcommand !== 'help') {
@@ -50,45 +54,28 @@ export async function handleOpnsCommand(
 	}
 }
 
-async function opnsRegister(args: string[], opts: GlobalFlags): Promise<void> {
-	const outpoint = extractFlag(args, '--outpoint')
+function requireId(args: string[]): string {
+	const id = extractFlag(args, '--id')
+	if (!id) fatal('Missing --id <tracking-id>')
+	return id
+}
 
-	if (!outpoint) fatal('Missing --outpoint <txid.vout>')
+async function opnsRegister(args: string[], opts: GlobalFlags): Promise<void> {
+	const id = requireId(args)
 
 	if (!opts.yes) {
 		const ok = await confirm({
-			message: `Register identity on OpNS name ${outpoint}?`,
+			message: `Register identity on OpNS id ${id}?`,
 		})
-		if (isCancel(ok) || !ok) {
-			fatal('Registration cancelled.')
-		}
+		if (isCancel(ok) || !ok) fatal('Registration cancelled.')
 	}
 
 	const privateKey = await loadKey()
-	const { ctx, destroy } = await loadContext(privateKey, {
-		chain: opts.chain,
-	})
+	const { ctx, destroy } = await loadContext(privateKey, { chain: opts.chain })
 
 	try {
-		// Look up the OpNS ordinal from the wallet
-		const namesResult = await getOpnsNames.execute(ctx, {
-			limit: 10000,
-			include: 'entire transactions',
-		})
-		const ordinal = namesResult.outputs.find((o) => o.outpoint === outpoint)
-		if (!ordinal) {
-			fatal(`OpNS name not found in wallet: ${outpoint}`)
-		}
-
-		const result = await opnsRegisterAction.execute(ctx, {
-			ordinal,
-			inputBEEF: namesResult.BEEF as number[] | undefined,
-		})
-
-		if (result.error) {
-			fatal(result.error)
-		}
-
+		const result = await registerOpns.execute(ctx, { id })
+		if (result.error) fatal(result.error)
 		output(opts.json ? result : { txid: result.txid }, opts)
 	} finally {
 		await destroy()
@@ -99,58 +86,55 @@ async function opnsDeregister(
 	args: string[],
 	opts: GlobalFlags,
 ): Promise<void> {
-	const outpoint = extractFlag(args, '--outpoint')
-
-	if (!outpoint) fatal('Missing --outpoint <txid.vout>')
+	const id = requireId(args)
 
 	if (!opts.yes) {
 		const ok = await confirm({
-			message: `Deregister identity from OpNS name ${outpoint}?`,
+			message: `Deregister identity from OpNS id ${id}?`,
 		})
-		if (isCancel(ok) || !ok) {
-			fatal('Deregistration cancelled.')
-		}
+		if (isCancel(ok) || !ok) fatal('Deregistration cancelled.')
 	}
 
 	const privateKey = await loadKey()
-	const { ctx, destroy } = await loadContext(privateKey, {
-		chain: opts.chain,
-	})
+	const { ctx, destroy } = await loadContext(privateKey, { chain: opts.chain })
 
 	try {
-		// Look up the OpNS ordinal from the wallet
-		const namesResult = await getOpnsNames.execute(ctx, {
-			limit: 10000,
-			include: 'entire transactions',
-		})
-		const ordinal = namesResult.outputs.find((o) => o.outpoint === outpoint)
-		if (!ordinal) {
-			fatal(`OpNS name not found in wallet: ${outpoint}`)
-		}
-
-		const result = await opnsDeregisterAction.execute(ctx, {
-			ordinal,
-			inputBEEF: namesResult.BEEF as number[] | undefined,
-		})
-
-		if (result.error) {
-			fatal(result.error)
-		}
-
+		const result = await deregisterOpns.execute(ctx, { id })
+		if (result.error) fatal(result.error)
 		output(opts.json ? result : { txid: result.txid }, opts)
 	} finally {
 		await destroy()
 	}
 }
 
-async function opnsLookup(_args: string[], opts: GlobalFlags): Promise<void> {
+async function opnsLookup(args: string[], opts: GlobalFlags): Promise<void> {
+	const limit = Number(extractFlag(args, '--limit') ?? '100')
+	const offset = Number(extractFlag(args, '--offset') ?? '0')
+	const names = extractFlag(args, '--names')?.split(',').filter(Boolean)
+	const ids = extractFlag(args, '--ids')?.split(',').filter(Boolean)
+	const tags = extractFlag(args, '--tags')?.split(',').filter(Boolean)
+	const tagQueryMode = extractFlag(args, '--tag-query-mode') as
+		| 'all'
+		| 'any'
+		| undefined
+	const include = extractFlag(args, '--include') as
+		| 'locking scripts'
+		| 'entire transactions'
+		| undefined
+
 	const privateKey = await loadKey()
-	const { ctx, destroy } = await loadContext(privateKey, {
-		chain: opts.chain,
-	})
+	const { ctx, destroy } = await loadContext(privateKey, { chain: opts.chain })
 
 	try {
-		const result = await getOpnsNames.execute(ctx, { limit: 100 })
+		const result = await listOpns.execute(ctx, {
+			limit,
+			offset,
+			names,
+			ids,
+			tags,
+			tagQueryMode,
+			include,
+		})
 
 		if (opts.json) {
 			output(result.outputs, opts)
@@ -163,6 +147,7 @@ async function opnsLookup(_args: string[], opts: GlobalFlags): Promise<void> {
 		}
 
 		for (const o of result.outputs) {
+			const id = idFromTags(o.tags) ?? ''
 			const nameTag = getDisplayValue(o, 'name', 'name') ?? ''
 			const publishedTag = o.tags?.find((t) => t === 'opns:published')
 			const status = publishedTag ? 'registered' : 'unregistered'
@@ -174,7 +159,7 @@ async function opnsLookup(_args: string[], opts: GlobalFlags): Promise<void> {
 			const listed = price ? `  ${formatLabel(`listed @ ${price}`)}` : ''
 
 			console.log(
-				`  ${formatValue(o.outpoint)}  ${nameTag ? formatValue(nameTag) : ''}  ${formatLabel(status)}${listed}`,
+				`  ${formatValue(id)}  ${formatValue(o.outpoint)}  ${nameTag ? formatValue(nameTag) : ''}  ${formatLabel(status)}${listed}`,
 			)
 		}
 
@@ -184,47 +169,25 @@ async function opnsLookup(_args: string[], opts: GlobalFlags): Promise<void> {
 	}
 }
 
-async function opnsCancelListing(
+async function opnsCancelListingCmd(
 	args: string[],
 	opts: GlobalFlags,
 ): Promise<void> {
-	const outpoint = extractFlag(args, '--outpoint')
-
-	if (!outpoint) fatal('Missing --outpoint <txid.vout>')
+	const id = requireId(args)
 
 	if (!opts.yes) {
 		const ok = await confirm({
-			message: `Cancel listing for OpNS name ${outpoint}?`,
+			message: `Cancel listing for OpNS id ${id}?`,
 		})
-		if (isCancel(ok) || !ok) {
-			fatal('Cancellation cancelled.')
-		}
+		if (isCancel(ok) || !ok) fatal('Cancellation cancelled.')
 	}
 
 	const privateKey = await loadKey()
-	const { ctx, destroy } = await loadContext(privateKey, {
-		chain: opts.chain,
-	})
+	const { ctx, destroy } = await loadContext(privateKey, { chain: opts.chain })
 
 	try {
-		const namesResult = await getOpnsNames.execute(ctx, {
-			limit: 10000,
-			include: 'entire transactions',
-		})
-		const listing = namesResult.outputs.find((o) => o.outpoint === outpoint)
-		if (!listing) {
-			fatal(`Listing not found in wallet OpNS basket: ${outpoint}`)
-		}
-
-		const result = await cancelListing.execute(ctx, {
-			listing,
-			inputBEEF: namesResult.BEEF as number[] | undefined,
-		})
-
-		if (result.error) {
-			fatal(result.error)
-		}
-
+		const result = await cancelOpnsListing.execute(ctx, { id })
+		if (result.error) fatal(result.error)
 		output(opts.json ? result : { txid: result.txid }, opts)
 	} finally {
 		await destroy()
@@ -232,13 +195,11 @@ async function opnsCancelListing(
 }
 
 async function opnsSell(args: string[], opts: GlobalFlags): Promise<void> {
-	const outpoint = extractFlag(args, '--outpoint')
+	const id = requireId(args)
 	const priceStr = extractFlag(args, '--price')
-	const payAddressFlag = extractFlag(args, '--pay-address')
+	const payAddress = extractFlag(args, '--pay-address')
 
-	if (!outpoint) fatal('Missing --outpoint <txid.vout>')
 	if (!priceStr) fatal('Missing --price <satoshis>')
-
 	const price = Number(priceStr)
 	if (!Number.isFinite(price) || price <= 0) {
 		fatal('--price must be a positive number')
@@ -246,51 +207,47 @@ async function opnsSell(args: string[], opts: GlobalFlags): Promise<void> {
 
 	if (!opts.yes) {
 		const ok = await confirm({
-			message: `List OpNS name ${outpoint} for sale at ${price} satoshis?`,
+			message: `List OpNS id ${id} for sale at ${price} satoshis?`,
 		})
-		if (isCancel(ok) || !ok) {
-			fatal('Listing cancelled.')
-		}
+		if (isCancel(ok) || !ok) fatal('Listing cancelled.')
 	}
 
 	const privateKey = await loadKey()
-	const { ctx, destroy } = await loadContext(privateKey, {
-		chain: opts.chain,
-	})
+	const { ctx, destroy } = await loadContext(privateKey, { chain: opts.chain })
 
 	try {
-		const namesResult = await getOpnsNames.execute(ctx, {
-			limit: 10000,
-			include: 'entire transactions',
-		})
-		const ordinal = namesResult.outputs.find((o) => o.outpoint === outpoint)
-		if (!ordinal) {
-			fatal(`OpNS name not found in wallet: ${outpoint}`)
-		}
-
-		let payAddress = payAddressFlag
-		if (!payAddress) {
-			const addressResult = await deriveDepositAddresses.execute(ctx, {
-				prefix: '1sat',
-				count: 1,
-			})
-			payAddress = addressResult.derivations[0]?.address
-			if (!payAddress) {
-				fatal('Failed to derive pay address')
-			}
-		}
-
-		const result = await listOrdinal.execute(ctx, {
-			ordinal,
+		const result = await sellOpns.execute(ctx, {
+			id,
 			price,
-			payAddress,
-			inputBEEF: namesResult.BEEF as number[] | undefined,
+			...(payAddress && { payAddress }),
 		})
+		if (result.error) fatal(result.error)
+		output(opts.json ? result : { txid: result.txid }, opts)
+	} finally {
+		await destroy()
+	}
+}
 
-		if (result.error) {
-			fatal(result.error)
-		}
+async function opnsSend(args: string[], opts: GlobalFlags): Promise<void> {
+	const id = requireId(args)
+	const to = extractFlag(args, '--to')
+	if (!to) fatal('Missing --to <address|identityKey>')
 
+	const dest = parseToFlag(to)
+
+	if (!opts.yes) {
+		const ok = await confirm({
+			message: `Send OpNS id ${id} to ${to}?`,
+		})
+		if (isCancel(ok) || !ok) fatal('Send cancelled.')
+	}
+
+	const privateKey = await loadKey()
+	const { ctx, destroy } = await loadContext(privateKey, { chain: opts.chain })
+
+	try {
+		const result = await sendOpns.execute(ctx, { id, ...dest })
+		if (result.error) fatal(result.error)
 		output(opts.json ? result : { txid: result.txid }, opts)
 	} finally {
 		await destroy()
@@ -299,31 +256,63 @@ async function opnsSell(args: string[], opts: GlobalFlags): Promise<void> {
 
 async function opnsBuy(args: string[], opts: GlobalFlags): Promise<void> {
 	const outpoint = extractFlag(args, '--outpoint')
+	const beef = parseBeefFlag(extractFlag(args, '--beef'))
+	const name = extractFlag(args, '--name')
+	const origin = extractFlag(args, '--origin')
 
 	if (!outpoint) fatal('Missing --outpoint <txid.vout>')
 
 	if (!opts.yes) {
 		const ok = await confirm({
-			message: `Purchase OpNS name listing ${outpoint}?`,
+			message: `Purchase OpNS listing ${outpoint}?`,
 		})
-		if (isCancel(ok) || !ok) {
-			fatal('Purchase cancelled.')
-		}
+		if (isCancel(ok) || !ok) fatal('Purchase cancelled.')
 	}
 
 	const privateKey = await loadKey()
-	const { ctx, destroy } = await loadContext(privateKey, {
-		chain: opts.chain,
-	})
+	const { ctx, destroy } = await loadContext(privateKey, { chain: opts.chain })
 
 	try {
-		const result = await purchaseOrdinal.execute(ctx, { outpoint })
-
-		if (result.error) {
-			fatal(result.error)
-		}
-
+		const result = await buyOpns.execute(ctx, {
+			outpoint,
+			...(beef && { inputBEEF: beef }),
+			...(name && { name }),
+			...(origin && { origin }),
+		})
+		if (result.error) fatal(result.error)
 		output(opts.json ? result : { txid: result.txid }, opts)
+	} finally {
+		await destroy()
+	}
+}
+
+async function opnsInternalize(
+	args: string[],
+	opts: GlobalFlags,
+): Promise<void> {
+	const beef = parseBeefFlag(extractFlag(args, '--beef'))
+	const keyID = extractFlag(args, '--key-id') ?? '1sat 0'
+
+	if (!beef) fatal('Missing --beef <file|hex|base64>')
+
+	if (!opts.yes) {
+		const ok = await confirm({
+			message: 'Internalize OpNS mint AtomicBEEF into wallet?',
+		})
+		if (isCancel(ok) || !ok) fatal('Internalize cancelled.')
+	}
+
+	const privateKey = await loadKey()
+	const { ctx, destroy } = await loadContext(privateKey, { chain: opts.chain })
+
+	try {
+		const result = await internalizeOpns.execute(ctx, {
+			tx: beef,
+			protocolID: P1SAT_PROTOCOL,
+			keyID,
+		})
+		if (result.error) fatal(result.error)
+		output(opts.json ? result : result, opts)
 	} finally {
 		await destroy()
 	}

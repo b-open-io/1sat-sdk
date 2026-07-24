@@ -1,24 +1,24 @@
 /**
- * Ordinals commands - list, mint, transfer, sell, cancel, buy.
+ * Ordinals commands — id-first wallet spends; external buy with outpoint/BEEF.
  */
 
 import { readFileSync } from 'node:fs'
 import { basename, extname } from 'node:path'
 import {
 	burnOrdinals,
-	cancelListing,
-	deriveDepositAddresses,
+	buyOrdinal,
+	cancelOrdinalListing,
 	getDisplayValue,
-	getOrdinals,
 	inscribe,
-	listOrdinal,
-	purchaseOrdinal,
-	transferOrdinals,
+	listOrdinals,
+	sellOrdinal,
+	sendOrdinals,
 } from '@1sat/actions'
 import { Utils } from '@bsv/sdk'
 import { confirm, isCancel } from '@clack/prompts'
 import type { GlobalFlags } from '../args'
-import { extractFlag, extractFlags, hasFlag } from '../args'
+import { extractFlag, hasFlag } from '../args'
+import { idFromTags, parseBeefFlag, parseToFlag } from '../beef'
 import { loadContext } from '../context'
 import { printCommandHelp } from '../help'
 import { loadKey } from '../keys'
@@ -33,10 +33,12 @@ export async function handleOrdinalsCommand(
 	switch (subcommand) {
 		case 'list':
 			return ordinalsList(rest, opts)
-		case 'mint':
-			return ordinalsMint(rest, opts)
-		case 'transfer':
-			return ordinalsTransfer(rest, opts)
+		case 'inscribe':
+		case 'mint': // deprecated alias
+			return ordinalsInscribe(rest, opts)
+		case 'send':
+		case 'transfer': // deprecated alias
+			return ordinalsSend(rest, opts)
 		case 'sell':
 			return ordinalsSell(rest, opts)
 		case 'cancel':
@@ -53,16 +55,37 @@ export async function handleOrdinalsCommand(
 	}
 }
 
-async function ordinalsList(_args: string[], opts: GlobalFlags): Promise<void> {
+function requireId(args: string[]): string {
+	const id = extractFlag(args, '--id')
+	if (!id) fatal('Missing --id <tracking-id>')
+	return id
+}
+
+async function ordinalsList(args: string[], opts: GlobalFlags): Promise<void> {
+	const limit = Number(extractFlag(args, '--limit') ?? '100')
+	const offset = Number(extractFlag(args, '--offset') ?? '0')
+	const ids = extractFlag(args, '--ids')?.split(',').filter(Boolean)
+	const tags = extractFlag(args, '--tags')?.split(',').filter(Boolean)
+	const tagQueryMode = extractFlag(args, '--tag-query-mode') as
+		| 'all'
+		| 'any'
+		| undefined
+	const include = extractFlag(args, '--include') as
+		| 'locking scripts'
+		| 'entire transactions'
+		| undefined
+
 	const privateKey = await loadKey()
-	const { ctx, destroy } = await loadContext(privateKey, {
-		chain: opts.chain,
-	})
+	const { ctx, destroy } = await loadContext(privateKey, { chain: opts.chain })
 
 	try {
-		const result = await getOrdinals.execute(ctx, {
-			limit: 100,
-			offset: 0,
+		const result = await listOrdinals.execute(ctx, {
+			limit,
+			offset,
+			ids,
+			tags,
+			tagQueryMode,
+			include,
 		})
 
 		if (opts.json) {
@@ -76,6 +99,7 @@ async function ordinalsList(_args: string[], opts: GlobalFlags): Promise<void> {
 		}
 
 		for (const o of result.outputs) {
+			const id = idFromTags(o.tags) ?? ''
 			const typeTag =
 				o.tags?.find((t) => t.startsWith('type:'))?.slice(5) ?? 'unknown'
 			const originTag =
@@ -83,7 +107,7 @@ async function ordinalsList(_args: string[], opts: GlobalFlags): Promise<void> {
 			const nameTag = getDisplayValue(o, 'name', 'name') ?? ''
 
 			console.log(
-				`  ${formatValue(o.outpoint)}  ${formatLabel(typeTag)}${nameTag ? `  ${nameTag}` : ''}${originTag ? `  origin:${originTag}` : ''}`,
+				`  ${formatValue(id)}  ${formatValue(o.outpoint)}  ${formatLabel(typeTag)}${nameTag ? `  ${nameTag}` : ''}${originTag ? `  origin:${originTag}` : ''}`,
 			)
 		}
 
@@ -114,11 +138,16 @@ const MIME_TYPES: Record<string, string> = {
 	'.pdf': 'application/pdf',
 }
 
-async function ordinalsMint(args: string[], opts: GlobalFlags): Promise<void> {
+async function ordinalsInscribe(
+	args: string[],
+	opts: GlobalFlags,
+): Promise<void> {
 	const file = extractFlag(args, '--file')
 	const type = extractFlag(args, '--type')
 	const mapStr = extractFlag(args, '--map')
 	const signWithBAP = hasFlag(args, '--sign-with-bap')
+	const stream = hasFlag(args, '--stream')
+	const streamChunkSize = extractFlag(args, '--stream-chunk-size')
 
 	if (!file) fatal('Missing --file <path>')
 
@@ -165,15 +194,11 @@ async function ordinalsMint(args: string[], opts: GlobalFlags): Promise<void> {
 		const ok = await confirm({
 			message: `Inscribe ${basename(file)} (${contentType}, ${fileBytes.length} bytes)?`,
 		})
-		if (isCancel(ok) || !ok) {
-			fatal('Inscription cancelled.')
-		}
+		if (isCancel(ok) || !ok) fatal('Inscription cancelled.')
 	}
 
 	const privateKey = await loadKey()
-	const { ctx, destroy } = await loadContext(privateKey, {
-		chain: opts.chain,
-	})
+	const { ctx, destroy } = await loadContext(privateKey, { chain: opts.chain })
 
 	try {
 		const result = await inscribe.execute(ctx, {
@@ -181,59 +206,39 @@ async function ordinalsMint(args: string[], opts: GlobalFlags): Promise<void> {
 			contentType,
 			...(map ? { map } : {}),
 			...(signWithBAP ? { signWithBAP: true } : {}),
+			...(stream ? { stream: true } : {}),
+			...(streamChunkSize ? { streamChunkSize: Number(streamChunkSize) } : {}),
 		})
 
-		if (result.error) {
-			fatal(result.error)
-		}
-
+		if (result.error) fatal(result.error)
 		output(opts.json ? result : { txid: result.txid }, opts)
 	} finally {
 		await destroy()
 	}
 }
 
-async function ordinalsTransfer(
-	args: string[],
-	opts: GlobalFlags,
-): Promise<void> {
-	const outpoint = extractFlag(args, '--outpoint')
+async function ordinalsSend(args: string[], opts: GlobalFlags): Promise<void> {
+	const id = requireId(args)
 	const to = extractFlag(args, '--to')
+	if (!to) fatal('Missing --to <address|identityKey>')
 
-	if (!outpoint) fatal('Missing --outpoint <txid.vout>')
-	if (!to) fatal('Missing --to <address>')
+	const dest = parseToFlag(to)
 
 	if (!opts.yes) {
 		const ok = await confirm({
-			message: `Transfer ordinal ${outpoint} to ${to}?`,
+			message: `Send ordinal id ${id} to ${to}?`,
 		})
-		if (isCancel(ok) || !ok) {
-			fatal('Transfer cancelled.')
-		}
+		if (isCancel(ok) || !ok) fatal('Send cancelled.')
 	}
 
 	const privateKey = await loadKey()
-	const { ctx, destroy } = await loadContext(privateKey, {
-		chain: opts.chain,
-	})
+	const { ctx, destroy } = await loadContext(privateKey, { chain: opts.chain })
 
 	try {
-		// Look up the ordinal from the wallet
-		const ordinalsResult = await getOrdinals.execute(ctx, { limit: 10000 })
-		const ordinal = ordinalsResult.outputs.find((o) => o.outpoint === outpoint)
-		if (!ordinal) {
-			fatal(`Ordinal not found in wallet: ${outpoint}`)
-		}
-
-		const result = await transferOrdinals.execute(ctx, {
-			transfers: [{ ordinal, address: to }],
-			inputBEEF: ordinalsResult.BEEF as number[] | undefined,
+		const result = await sendOrdinals.execute(ctx, {
+			transfers: [{ id, ...dest }],
 		})
-
-		if (result.error) {
-			fatal(result.error)
-		}
-
+		if (result.error) fatal(result.error)
 		output(opts.json ? result : { txid: result.txid }, opts)
 	} finally {
 		await destroy()
@@ -241,12 +246,11 @@ async function ordinalsTransfer(
 }
 
 async function ordinalsSell(args: string[], opts: GlobalFlags): Promise<void> {
-	const outpoint = extractFlag(args, '--outpoint')
+	const id = requireId(args)
 	const priceStr = extractFlag(args, '--price')
+	const payAddress = extractFlag(args, '--pay-address')
 
-	if (!outpoint) fatal('Missing --outpoint <txid.vout>')
 	if (!priceStr) fatal('Missing --price <satoshis>')
-
 	const price = Number(priceStr)
 	if (!Number.isFinite(price) || price <= 0) {
 		fatal('--price must be a positive number')
@@ -254,47 +258,21 @@ async function ordinalsSell(args: string[], opts: GlobalFlags): Promise<void> {
 
 	if (!opts.yes) {
 		const ok = await confirm({
-			message: `List ordinal ${outpoint} for sale at ${price} satoshis?`,
+			message: `List ordinal id ${id} for sale at ${price} satoshis?`,
 		})
-		if (isCancel(ok) || !ok) {
-			fatal('Listing cancelled.')
-		}
+		if (isCancel(ok) || !ok) fatal('Listing cancelled.')
 	}
 
 	const privateKey = await loadKey()
-	const { ctx, destroy } = await loadContext(privateKey, {
-		chain: opts.chain,
-	})
+	const { ctx, destroy } = await loadContext(privateKey, { chain: opts.chain })
 
 	try {
-		// Look up the ordinal from the wallet
-		const ordinalsResult = await getOrdinals.execute(ctx, { limit: 10000 })
-		const ordinal = ordinalsResult.outputs.find((o) => o.outpoint === outpoint)
-		if (!ordinal) {
-			fatal(`Ordinal not found in wallet: ${outpoint}`)
-		}
-
-		// Derive a BRC-29 address to receive payment
-		const addressResult = await deriveDepositAddresses.execute(ctx, {
-			prefix: '1sat',
-			count: 1,
-		})
-		const payAddress = addressResult.derivations[0]?.address
-		if (!payAddress) {
-			fatal('Failed to derive pay address')
-		}
-
-		const result = await listOrdinal.execute(ctx, {
-			ordinal,
+		const result = await sellOrdinal.execute(ctx, {
+			id,
 			price,
-			payAddress,
-			inputBEEF: ordinalsResult.BEEF as number[] | undefined,
+			...(payAddress && { payAddress }),
 		})
-
-		if (result.error) {
-			fatal(result.error)
-		}
-
+		if (result.error) fatal(result.error)
 		output(opts.json ? result : { txid: result.txid }, opts)
 	} finally {
 		await destroy()
@@ -305,41 +283,21 @@ async function ordinalsCancel(
 	args: string[],
 	opts: GlobalFlags,
 ): Promise<void> {
-	const outpoint = extractFlag(args, '--outpoint')
-
-	if (!outpoint) fatal('Missing --outpoint <txid.vout>')
+	const id = requireId(args)
 
 	if (!opts.yes) {
 		const ok = await confirm({
-			message: `Cancel listing for ordinal ${outpoint}?`,
+			message: `Cancel listing for ordinal id ${id}?`,
 		})
-		if (isCancel(ok) || !ok) {
-			fatal('Cancellation cancelled.')
-		}
+		if (isCancel(ok) || !ok) fatal('Cancellation cancelled.')
 	}
 
 	const privateKey = await loadKey()
-	const { ctx, destroy } = await loadContext(privateKey, {
-		chain: opts.chain,
-	})
+	const { ctx, destroy } = await loadContext(privateKey, { chain: opts.chain })
 
 	try {
-		// Look up the listing from the wallet (listings are in ordinals basket with ordlock tag)
-		const ordinalsResult = await getOrdinals.execute(ctx, { limit: 10000 })
-		const listing = ordinalsResult.outputs.find((o) => o.outpoint === outpoint)
-		if (!listing) {
-			fatal(`Listing not found in wallet: ${outpoint}`)
-		}
-
-		const result = await cancelListing.execute(ctx, {
-			listing,
-			inputBEEF: ordinalsResult.BEEF as number[] | undefined,
-		})
-
-		if (result.error) {
-			fatal(result.error)
-		}
-
+		const result = await cancelOrdinalListing.execute(ctx, { id })
+		if (result.error) fatal(result.error)
 		output(opts.json ? result : { txid: result.txid }, opts)
 	} finally {
 		await destroy()
@@ -348,6 +306,7 @@ async function ordinalsCancel(
 
 async function ordinalsBuy(args: string[], opts: GlobalFlags): Promise<void> {
 	const outpoint = extractFlag(args, '--outpoint')
+	const beef = parseBeefFlag(extractFlag(args, '--beef'))
 
 	if (!outpoint) fatal('Missing --outpoint <txid.vout>')
 
@@ -355,23 +314,18 @@ async function ordinalsBuy(args: string[], opts: GlobalFlags): Promise<void> {
 		const ok = await confirm({
 			message: `Purchase ordinal listing ${outpoint}?`,
 		})
-		if (isCancel(ok) || !ok) {
-			fatal('Purchase cancelled.')
-		}
+		if (isCancel(ok) || !ok) fatal('Purchase cancelled.')
 	}
 
 	const privateKey = await loadKey()
-	const { ctx, destroy } = await loadContext(privateKey, {
-		chain: opts.chain,
-	})
+	const { ctx, destroy } = await loadContext(privateKey, { chain: opts.chain })
 
 	try {
-		const result = await purchaseOrdinal.execute(ctx, { outpoint })
-
-		if (result.error) {
-			fatal(result.error)
-		}
-
+		const result = await buyOrdinal.execute(ctx, {
+			outpoint,
+			...(beef && { inputBEEF: beef }),
+		})
+		if (result.error) fatal(result.error)
 		output(opts.json ? result : { txid: result.txid }, opts)
 	} finally {
 		await destroy()
@@ -379,42 +333,27 @@ async function ordinalsBuy(args: string[], opts: GlobalFlags): Promise<void> {
 }
 
 async function ordinalsBurn(args: string[], opts: GlobalFlags): Promise<void> {
-	const outpoints = extractFlags(args, '--outpoints')
-	if (!outpoints.length) {
-		fatal('Missing --outpoints <txid.vout[,txid.vout...]>')
-	}
+	const idsStr = extractFlag(args, '--ids')
+	if (!idsStr) fatal('Missing --ids <id1,id2,...>')
+	const ids = idsStr
+		.split(',')
+		.map((s) => s.trim())
+		.filter(Boolean)
+	if (!ids.length) fatal('--ids must include at least one id')
 
 	if (!opts.yes) {
 		const ok = await confirm({
-			message: `Burn ${outpoints.length} ordinal(s) permanently? This cannot be undone.`,
+			message: `Burn ${ids.length} ordinal(s) permanently? This cannot be undone.`,
 		})
-		if (isCancel(ok) || !ok) {
-			fatal('Burn cancelled.')
-		}
+		if (isCancel(ok) || !ok) fatal('Burn cancelled.')
 	}
 
 	const privateKey = await loadKey()
-	const { ctx, destroy } = await loadContext(privateKey, {
-		chain: opts.chain,
-	})
+	const { ctx, destroy } = await loadContext(privateKey, { chain: opts.chain })
 
 	try {
-		const ordinalsResult = await getOrdinals.execute(ctx, { limit: 10000 })
-		const selected = outpoints.map((op) => {
-			const match = ordinalsResult.outputs.find((o) => o.outpoint === op)
-			if (!match) fatal(`Ordinal not found in wallet: ${op}`)
-			return match
-		})
-
-		const result = await burnOrdinals.execute(ctx, {
-			ordinals: selected,
-			inputBEEF: ordinalsResult.BEEF as number[] | undefined,
-		})
-
-		if (result.error) {
-			fatal(result.error)
-		}
-
+		const result = await burnOrdinals.execute(ctx, { ids })
+		if (result.error) fatal(result.error)
 		output(opts.json ? result : { txid: result.txid }, opts)
 	} finally {
 		await destroy()

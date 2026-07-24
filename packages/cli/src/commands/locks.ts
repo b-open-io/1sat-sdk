@@ -1,15 +1,16 @@
 /**
- * Lock commands - info, lock, unlock.
+ * Lock commands — list, bsv (lock), unlock.
  */
 
-import { getLockData, lockBsv, unlockBsv } from '@1sat/actions'
+import { listLocks, lockBsv, unlockBsv } from '@1sat/actions'
 import { confirm, isCancel } from '@clack/prompts'
 import type { GlobalFlags } from '../args'
 import { extractFlag } from '../args'
+import { idFromTags } from '../beef'
 import { loadContext } from '../context'
 import { printCommandHelp } from '../help'
 import { loadKey } from '../keys'
-import { fatal, output, printKeyValue } from '../output'
+import { fatal, formatLabel, formatValue, output } from '../output'
 
 export async function handleLocksCommand(
 	args: string[],
@@ -18,10 +19,12 @@ export async function handleLocksCommand(
 	const [subcommand, ...rest] = args
 
 	switch (subcommand) {
-		case 'info':
-			return locksInfo(rest, opts)
-		case 'lock':
-			return locksLock(rest, opts)
+		case 'list':
+		case 'info': // deprecated alias — still summary-friendly
+			return locksList(rest, opts)
+		case 'bsv':
+		case 'lock': // deprecated alias
+			return locksBsv(rest, opts)
 		case 'unlock':
 			return locksUnlock(rest, opts)
 		default:
@@ -32,89 +35,99 @@ export async function handleLocksCommand(
 	}
 }
 
-async function locksInfo(_args: string[], opts: GlobalFlags): Promise<void> {
+async function locksList(_args: string[], opts: GlobalFlags): Promise<void> {
 	const privateKey = await loadKey()
-	const { ctx, destroy } = await loadContext(privateKey, {
-		chain: opts.chain,
-	})
+	const { ctx, destroy } = await loadContext(privateKey, { chain: opts.chain })
 
 	try {
-		const data = await getLockData.execute(ctx, {})
+		const result = await listLocks.execute(ctx, {})
 
 		if (opts.json) {
-			output(data, opts)
+			output(result.outputs, opts)
 			return
 		}
 
-		printKeyValue({
-			'Total Locked (sats)': data.totalLocked,
-			'Unlockable (sats)': data.unlockable,
-			'Next Unlock Block': data.nextUnlock || 'none',
-		})
+		if (result.outputs.length === 0) {
+			output('No locks found.', opts)
+			return
+		}
+
+		let total = 0
+		for (const o of result.outputs) {
+			const id = idFromTags(o.tags) ?? ''
+			const until = o.tags?.find((t) => t.startsWith('until:'))?.slice(6) ?? '?'
+			total += o.satoshis
+			console.log(
+				`  ${formatValue(id)}  ${formatValue(String(o.satoshis))} sats  until ${formatLabel(until)}  ${formatValue(o.outpoint)}`,
+			)
+		}
+		console.log(`\n  ${result.outputs.length} lock(s), ${total} sats total.`)
 	} finally {
 		await destroy()
 	}
 }
 
-async function locksLock(args: string[], opts: GlobalFlags): Promise<void> {
+async function locksBsv(args: string[], opts: GlobalFlags): Promise<void> {
 	const satsStr = extractFlag(args, '--sats')
-	const blocksStr = extractFlag(args, '--blocks')
+	const untilStr = extractFlag(args, '--until') ?? extractFlag(args, '--blocks')
 
 	if (!satsStr) fatal('Missing --sats <amount>')
-	if (!blocksStr) fatal('Missing --blocks <n>')
+	if (!untilStr) fatal('Missing --until <block-height>')
 
 	const satoshis = Number(satsStr)
 	if (!Number.isFinite(satoshis) || satoshis <= 0) {
 		fatal('--sats must be a positive number')
 	}
 
-	const until = Number(blocksStr)
+	const until = Number(untilStr)
 	if (!Number.isFinite(until) || until <= 0) {
-		fatal('--blocks must be a positive block height')
+		fatal('--until must be a positive block height')
 	}
 
 	if (!opts.yes) {
 		const ok = await confirm({
 			message: `Lock ${satoshis} satoshis until block ${until}?`,
 		})
-		if (isCancel(ok) || !ok) {
-			fatal('Lock cancelled.')
-		}
+		if (isCancel(ok) || !ok) fatal('Lock cancelled.')
 	}
 
 	const privateKey = await loadKey()
-	const { ctx, destroy } = await loadContext(privateKey, {
-		chain: opts.chain,
-	})
+	const { ctx, destroy } = await loadContext(privateKey, { chain: opts.chain })
 
 	try {
 		const result = await lockBsv.execute(ctx, {
 			requests: [{ satoshis, until }],
 		})
-
-		if (result.error) {
-			fatal(result.error)
-		}
-
+		if (result.error) fatal(result.error)
 		output(opts.json ? result : { txid: result.txid }, opts)
 	} finally {
 		await destroy()
 	}
 }
 
-async function locksUnlock(_args: string[], opts: GlobalFlags): Promise<void> {
+async function locksUnlock(args: string[], opts: GlobalFlags): Promise<void> {
+	const ids = extractFlag(args, '--ids')
+		?.split(',')
+		.map((s) => s.trim())
+		.filter(Boolean)
+
+	if (!opts.yes) {
+		const ok = await confirm({
+			message: ids?.length
+				? `Unlock ${ids.length} lock(s)?`
+				: 'Unlock all matured locks?',
+		})
+		if (isCancel(ok) || !ok) fatal('Unlock cancelled.')
+	}
+
 	const privateKey = await loadKey()
-	const { ctx, destroy } = await loadContext(privateKey, {
-		chain: opts.chain,
-	})
+	const { ctx, destroy } = await loadContext(privateKey, { chain: opts.chain })
 
 	try {
-		const result = await unlockBsv.execute(ctx, {})
-
-		if (result.error) {
-			fatal(result.error)
-		}
-
+		const result = await unlockBsv.execute(ctx, {
+			...(ids?.length ? { ids } : {}),
+		})
+		if (result.error) fatal(result.error)
 		output(opts.json ? result : { txid: result.txid }, opts)
 	} finally {
 		await destroy()

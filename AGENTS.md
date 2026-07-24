@@ -85,8 +85,9 @@ with `bun run scripts/gen-action-index.ts`).
 
 ## Action Conventions (packages/actions)
 - **All actions** must use `createTrackedAction` instead of raw `wallet.createAction`. This adds ID tags to basketed outputs for targeted lookups.
-- **Actions spending wallet-owned inputs** must make `inputBEEF` optional with `resolveBeef` fallback. The helper looks up BEEF via the output's ID tag.
-- **Actions spending external inputs** (e.g. purchasing a listing from another user) require `inputBEEF` — the caller's wallet has no BEEF for outputs it doesn't own.
+- **Actions spending wallet-owned inputs** take the asset's `id` (the bare value of its `id:` tag) — not a `WalletOutput` and not `inputBEEF`. Use `loadBasketOutputBeef(wallet, basket, id)` to load the row and its BEEF in one lookup, or `loadBasketOutput` when only tags and customInstructions are needed.
+- **Self-kept outputs** re-file into the same basket with carried tags via `ordinalSeedTags(source)` plus the action's own markers, and get a fresh `id:` from `createTrackedAction`. Do not use `resolveOrdinalTags` to decide the basket for an asset already under management.
+- **Actions spending external inputs** (e.g. purchasing a listing from another user) require `inputBEEF` plus the outpoint — the caller's wallet has no BEEF for outputs it doesn't own, and BEEF alone doesn't say which output.
 - **All two-phase actions** (signAndProcess: false) must use `completeSignedAction` for signing. It handles BEEF merge, script verification, signAction, and abort on failure.
 - **Template methods** (`OrdLock.cancelWithWallet`, `Lock.unlockWithWallet`) must be used for contract unlocking instead of manual signature construction. They handle sighash byte appending correctly.
 

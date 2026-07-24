@@ -2,6 +2,9 @@
 
 | Plan | Status | Description |
 |------|--------|-------------|
+| [P1SAT id-first actions](./2026-07-23-p1sat-id-first-actions.md) | **Draft** | id: on all P1SAT basket UTXOs; spends by id; list tags default; consumer updates |
+| [CLI id-first wiring](./2026-07-23-cli-id-first-wiring.md) | **Draft** | Wire 1sat CLI to id-first actions; walkthrough in progress |
+| [P1SAT permission prompts](./2026-07-23-p1sat-permission-prompts.md) | **Draft** | Claim+validate rich prompts; action inventory; OpNS first |
 | [Host pack / Paymail](./2026-07-21-hosted-paymail.md) | **In Progress** | Design locked; multi-process impl in trees; ts-stack #297; unify + cutover left |
 | [MAP Templates Migration](./2026-03-02-map-templates-migration.md) | **COMPLETE** | SDK-side changes done, Go deferred |
 | [CWI Unification](./CWI_UNIFICATION.md) | **COMPLETE** | Method names unified, EmbedTransport removed |

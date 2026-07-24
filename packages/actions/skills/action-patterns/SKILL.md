@@ -54,12 +54,24 @@ All transaction-producing actions return `tx?: number[]` (AtomicBEEF), not hex s
 
 Operations that spend custom scripts (ordinals, locks, tokens) build the transaction first, then sign it in a second phase. Single-phase plain sends (sendBsv/sendAllBsv) skip this entirely.
 
+### Id-first P1SAT assets
+
+Wallet-owned non-fungible assets (OpNS, ordinals, locks) use **`id:`** tags in their domain basket.
+
+- **Spend (owned):** pass `{ id }` only. Action loads the row + BEEF via `loadBasketOutputBeef(basket, id)`. Do not pass a stale `WalletOutput` as the source of truth.
+- **Self-move filing:** `ordinalSeedTags(output)` + fixed domain basket + action-specific tags. Do **not** use `resolveOrdinalTags` for owned assets.
+- **List/read:** tags/CI on by default; BEEF off unless `include: 'entire transactions'`.
+- **External spend (buy):** `{ outpoint, inputBEEF? }` — BEEF if provided, else services fetch, else error. Plus path-specific fields.
+- **Fungible (BSV21):** value API (`tokenId`, amounts); internal UTXOs still have `id:`; self destinations must stay basketed.
+
+Helpers: `loadBasketOutput` / `loadBasketOutputBeef`, `ordinalSeedTags`, `toIdTag`.
+
 ### inputBEEF: When Required vs Optional
 
 `inputBEEF` provides the SPV proof chain for the inputs being spent:
 
-- **Optional** for inputs from your own wallet — actions auto-resolve BEEF via the output's ID tag (`resolveBeef` fallback).
-- **Required** for external inputs not in your wallet — e.g. purchasing a listing from another user. The buyer's wallet has no BEEF for the seller's ordlock UTXO, so the marketplace/overlay must provide it.
+- **Owned id-first paths:** caller usually omits BEEF — action loads it from the basket by `id`.
+- **External inputs:** pass `inputBEEF` or rely on services fetch (buy paths). Wallet has no proof for foreign UTXOs.
 
 ### Phase 1: createAction (build the transaction)
 
@@ -134,7 +146,7 @@ const tools = actionRegistry.toMcpTools()
 The complete, generated list of all actions:
 
 <!-- ACTION-INDEX -->
-_48 actions, generated from the registry — do not edit by hand._
+_54 actions, generated from the registry — do not edit by hand._
 
 | Category | Action | Services | Purpose |
 |----------|--------|:--------:|---------|
@@ -146,19 +158,25 @@ _48 actions, generated from the registry — do not edit by hand._
 | `identity` | `publishIdentity` |  | Publish initial BAP identity record from wallet |
 | `identity` | `rotateIdentity` |  | Rotate BAP signing key to the next derived key |
 | `identity` | `updateProfile` |  | Update BAP identity profile signed with BAP identity |
-| `inscriptions` | `inscribe` |  | Create a new inscription with the given content and type |
+| `inscriptions` | `inscribe` |  | Create a new inscription (single tx, or OrdFS multi-tx stream when stream/streamChunkSize is set) |
 | `locks` | `getLockData` |  | Get summary of time-locked BSV (total, unlockable, next unlock height) |
+| `locks` | `listLocks` |  | List time-locked BSV UTXOs (metadata by default) |
 | `locks` | `lockBsv` |  | Lock BSV until a specific block height |
-| `locks` | `unlockBsv` |  | Unlock all matured time-locked BSV |
-| `opns` | `getOpnsNames` |  | Get OpNS names from the wallet with BEEF for spending |
-| `opns` | `opnsDeregister` |  | Remove identity key binding from an OpNS name |
-| `opns` | `opnsRegister` | ✓ | Register identity key on an OpNS name via MAP metadata |
+| `locks` | `unlockBsv` |  | Unlock matured time-locked BSV (all unlockable, or specific ids) |
+| `opns` | `buyOpns` | ✓ | Purchase an OpNS name listing into the OPNS basket |
+| `opns` | `cancelOpnsListing` |  | Cancel an OpNS name listing back into the OPNS basket |
+| `opns` | `deregisterOpns` |  | Remove identity bind from an OpNS name (self-transfer to P2PKH) |
+| `opns` | `internalizeOpns` |  | Internalize a foreign-created OpNS mint (AtomicBEEF) into the OPNS basket |
+| `opns` | `listOpns` |  | List OpNS names from the wallet (metadata by default; optional BEEF) |
+| `opns` | `registerOpns` |  | Bind BRC-100 identity key to an OpNS name via signed PushDrop |
+| `opns` | `sellOpns` |  | List an OpNS name for sale |
+| `opns` | `sendOpns` |  | Transfer an OpNS name to a new owner |
 | `ordinals` | `burnOrdinals` |  | Burn one or more ordinals by sending to OP_RETURN |
-| `ordinals` | `cancelListing` |  | Cancel an ordinal listing and return the ordinal to the wallet |
-| `ordinals` | `getOrdinals` |  | Get ordinals/inscriptions from the wallet with BEEF for spending |
-| `ordinals` | `listOrdinal` |  | List an ordinal for sale on the global orderbook |
-| `ordinals` | `purchaseOrdinal` | ✓ | Purchase an ordinal from the global orderbook |
-| `ordinals` | `transferOrdinals` |  | Transfer one or more ordinals to new owners |
+| `ordinals` | `buyOrdinal` | ✓ | Purchase an ordinal from the global orderbook |
+| `ordinals` | `cancelOrdinalListing` |  | Cancel an ordinal listing and return the ordinal to the wallet |
+| `ordinals` | `listOrdinals` |  | List ordinals/inscriptions (metadata by default; optional BEEF) |
+| `ordinals` | `sellOrdinal` |  | List an ordinal for sale on the global orderbook |
+| `ordinals` | `sendOrdinals` |  | Transfer one or more ordinals to new owners |
 | `payments` | `getMneeBalance` | ✓ | Get MNEE stablecoin balance across yours wallet addresses |
 | `payments` | `getMneeConfig` | ✓ | Get MNEE service configuration including cosigner and fee structure |
 | `payments` | `getMneeHistory` | ✓ | Get MNEE transaction history with parsed amounts and counterparties |
@@ -178,13 +196,13 @@ _48 actions, generated from the registry — do not edit by hand._
 | `sweep` | `sweepOrdinals` | ✓ | Sweep ordinals from external wallet (via WIF) into the connected wallet |
 | `sync` | `syncAddresses` | ✓ | Sync external payments to BRC-29 deposit addresses into the wallet |
 | `sync` | `syncCosignDeliveries` | ✓ | Pull cosign-wrapped BSV21 deliveries from a MessageBox and internalize them into the wallet |
-| `sync` | `syncMessages` | ✓ | Sync incoming paymail payments from the message box into the wallet |
+| `sync` | `syncMessages` |  | Sync incoming paymail payments from the message box into the wallet |
+| `tokens` | `buyBsv21` | ✓ | Purchase BSV21 tokens from the marketplace |
 | `tokens` | `deployBsv21Auth` |  | Deploy a new BSV21 token with mintable supply via auth UTXOs (deploy+auth) |
 | `tokens` | `deployBsv21Mint` |  | Deploy a new BSV21 token with fixed supply (deploy+mint) |
 | `tokens` | `getBsv21Balances` |  | Get aggregated BSV21 token balances grouped by token ID |
-| `tokens` | `listTokens` |  | List BSV21 token outputs from the wallet |
+| `tokens` | `listBsv21` |  | List BSV21 token outputs from the wallet |
 | `tokens` | `mintBsv21` | ✓ | Spend an auth UTXO to mint new supply and/or re-issue authority |
-| `tokens` | `purchaseBsv21` | ✓ | Purchase BSV21 tokens from the marketplace |
 | `tokens` | `sendBsv21` |  | Send BSV21 tokens to one or more recipients |
 <!-- /ACTION-INDEX -->
 

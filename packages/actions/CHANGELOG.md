@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.0.191 (unreleased)
+
+### Added
+- `loadBasketOutput` / `loadBasketOutputBeef` / `ordinalSeedTags` helpers (id-first load + tag carry).
+- `listLocks` (UTXO list with ids); `buyOpns` (file purchase into OPNS basket).
+- `buyOrdinal` optional `inputBEEF` + `filing` override.
+- `unlockBsv({ ids? })` — specific locks or all matured.
+
+### Changed
+- **Renames** (old names kept as deprecated aliases):
+  - OpNS: `listOpns`, `registerOpns`, `deregisterOpns`, `sellOpns`, `sendOpns`, `cancelOpnsListing`
+  - Ordinals: `listOrdinals`, `sendOrdinals`, `sellOrdinal`, `cancelOrdinalListing`, `buyOrdinal`
+  - BSV21: `listBsv21`, `buyBsv21`
+- `sellOpns` / `sellOrdinal`: optional `payAddress` (default P1SAT keyID `1sat 0`).
+- `internalizeOpns` stamps `opns`, `type:application/op-ns`, `origin:`, `name:`, `id:`.
+- OpNS/ordinals self-spends **carry tags** + fixed basket; no `resolveOrdinalTags` for owned filing.
+- Sigma single inscribe: inscription is normal send + `sendWith` anchor (not noSend).
+- `sendBsv21` baskets self destinations with token tags.
+- List defaults: metadata/tags on; BEEF off unless requested.
+
+### Removed
+- `resolveBeef` and `extractIdTag`. `loadBasketOutputBeef(wallet, basket, id)` makes
+  the same lookup from a bare id and returns the row with its BEEF; `readAssetIdTag`
+  from `@1sat/types` reads the id off a tags array.
+
 ## 0.0.190
 
 ### Added
