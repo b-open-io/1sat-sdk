@@ -14,8 +14,9 @@ export * from './constants';
 export { signP2PKHInput } from './utils/signP2PKH';
 export { completeSignedAction, } from './utils/completeSignedAction';
 export { createTrackedAction, executeTrackedAction, randomActionId, } from './utils/createTrackedAction';
-export { resolveBeef, extractIdTag } from './utils/resolveBeef';
 export { getDisplayValue } from './utils/displayValue';
+export { ordinalSeedTags } from './utils/ordinalSeedTags';
+export { loadBasketOutput, loadBasketOutputBeef, toIdTag, } from './utils/loadBasketOutput';
 export { internalizeBeef, } from './utils/internalizeBeef';
 // Export module actions and types
 export * from './addresses';

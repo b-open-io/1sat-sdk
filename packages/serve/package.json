@@ -1,6 +1,6 @@
 {
   "name": "@1sat/serve",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Bun-native BRC-103/104 mutual-auth transport and BRC-105 payment for HTTP servers, wire-compatible with the BSV Express middleware",
   "type": "module",
   "main": "./dist/index.js",
