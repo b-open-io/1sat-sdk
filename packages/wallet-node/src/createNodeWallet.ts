@@ -50,9 +50,9 @@ export interface NodeWalletConfig {
 	onTransactionBroadcasted?: (txid: string) => void
 	onTransactionProven?: (txid: string, blockHeight: number) => void
 	/**
-	 * Skip the initial `monitor.runOnce()` that fires when local storage is
-	 * active. Set to true when a separate monitor process (e.g. `1sat serve`)
-	 * is already running against the same storage.
+	 * Skip the initial `monitor.runOnce()` after wallet create. Set to true
+	 * when a separate monitor process (e.g. `1sat serve`) already covers
+	 * the same work, or when the caller will drive `runOnce` itself.
 	 */
 	skipInitialMonitor?: boolean
 	/**
@@ -129,14 +129,11 @@ export async function createNodeWallet(
 		},
 	)
 
-	// Fire monitor.runOnce() on wake when local is active. The server runs
-	// its own monitor when remote is active, so firing ours would duplicate
-	// (and race with) its work. Tasks self-throttle internally via their
-	// per-task intervals, so repeated runOnce calls during rapid activity
-	// are cheap timestamp comparisons. All stores register synchronously
-	// during createWalletCore, so the topology is settled by this point.
+	// One runOnce after create unless skipInitialMonitor. Tasks self-throttle
+	// via per-task intervals. Local-active: defaults + BackupSync. Remote-active:
+	// BackupSync only.
 	let initialRunOnce: Promise<unknown> | undefined
-	if (!config.activeRemote && !config.skipInitialMonitor) {
+	if (core.monitor && !config.skipInitialMonitor) {
 		initialRunOnce = core.monitor.runOnce().catch((err: unknown) => {
 			console.error('[wallet-core] initial monitor run failed:', err)
 		})

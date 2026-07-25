@@ -290,7 +290,7 @@
     },
     "packages/wallet": {
       "name": "@1sat/wallet",
-      "version": "0.0.97",
+      "version": "0.0.98",
       "dependencies": {
         "@1sat/client": "workspace:*",
         "@1sat/templates": "workspace:*",
@@ -311,7 +311,7 @@
     },
     "packages/wallet-browser": {
       "name": "@1sat/wallet-browser",
-      "version": "0.0.83",
+      "version": "0.0.84",
       "dependencies": {
         "@1sat/wallet": "workspace:*",
       },
@@ -425,7 +425,7 @@
     },
     "packages/wallet-node": {
       "name": "@1sat/wallet-node",
-      "version": "0.0.63",
+      "version": "0.0.64",
       "dependencies": {
         "@1sat/wallet": "workspace:*",
       },

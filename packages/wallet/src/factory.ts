@@ -50,11 +50,10 @@ export interface WalletCoreConfig {
 	onTransactionBroadcasted?: (txid: string) => void
 	onTransactionProven?: (txid: string, blockHeight: number) => void
 	/**
-	 * Interval in ms between periodic `updateBackups()` runs when local
-	 * storage is the active store. Defaults to 5 minutes. Set to 0 to
-	 * disable (caller drives sync manually). Ignored when `activeRemote`
-	 * is set — remote-active deployments treat the remote as canonical
-	 * and don't push local-to-remote on a schedule.
+	 * Interval in ms for the BackupSync monitor task (active → backups).
+	 * Defaults to 5 minutes. Set to 0 to omit the task (manual
+	 * `storage.updateBackups()` only). Applies for local-active and
+	 * remote-active; callers still drive work via `monitor.runOnce()`.
 	 */
 	backupSyncIntervalMs?: number
 	/**
@@ -92,9 +91,9 @@ export interface WalletCoreResult {
 	storage: InstanceType<any>
 	/**
 	 * Present only when the caller supplies a `Monitor` class in the toolbox
-	 * (wallet-node, wallet-browser). Remote-active wrappers (wallet-remote)
-	 * omit the class; the server owns the monitor loop and the client's
-	 * result has `monitor: undefined`.
+	 * (wallet-node, wallet-browser). wallet-remote omits the class
+	 * (`monitor: undefined`). Local-active includes default chain tasks plus
+	 * BackupSync; remote-active is BackupSync-only (server owns chain work).
 	 */
 	monitor: InstanceType<any> | undefined
 	destroy: () => Promise<void>
@@ -261,18 +260,15 @@ export async function createWalletCore(
 		}
 	}
 
-	// Settle or refresh — never both. When any store's user row disagrees
-	// with config, `setActive` merges the divergent store's data into the
-	// chosen active and propagates the settled state to every store — the
-	// sync IS the settling. When all rows already agree, `setActive` would
-	// no-op, so instead refresh every backup from the active store —
-	// fire-and-forget, backup freshness never blocks or fails boot.
+	// When any store's user row disagrees with config, `setActive` merges
+	// the divergent store into the chosen active and propagates the settled
+	// state. When rows already agree, `setActive` is a no-op. Backup refresh
+	// is not done at boot — it races first reads (balance) under runAsSync.
+	// Callers drive BackupSync via monitor.runOnce() after the wallet is up.
 	if (
-		storage.getActiveStore() === intendedActiveKey &&
-		storage.isActiveEnabled
+		storage.getActiveStore() !== intendedActiveKey ||
+		!storage.isActiveEnabled
 	) {
-		void syncBackups()
-	} else {
 		await storage.setActive(intendedActiveKey)
 	}
 
@@ -299,16 +295,14 @@ export async function createWalletCore(
 
 	// Monitor only exists when the caller supplied a Monitor class in the
 	// toolbox. wallet-node and wallet-browser do; wallet-remote doesn't
-	// (server owns the monitor loop). When present, the task loop is still
-	// caller-driven via startTasks / runOnce — factory just constructs and
-	// wires defaults.
+	// (server owns chain monitoring). When present, the task loop is still
+	// caller-driven via startTasks / runOnce — factory just constructs tasks.
 	//
-	// Suppressed when a remote is active: the remote server owns the monitor
-	// for its own storage. Running a local monitor against a StorageClient
-	// would attempt StorageProvider operations on a non-StorageProvider and
-	// fail with WERR_INVALID_OPERATION on every tick.
+	// Local-active: full default tasks (headers/proofs/…) plus BackupSync.
+	// Remote-active: BackupSync only — chain monitoring stays on the server;
+	// default tasks would hit StorageProvider APIs on a StorageClient and fail.
 	let monitor: InstanceType<any> | undefined
-	if (toolbox.Monitor && !config.activeRemote) {
+	if (toolbox.Monitor) {
 		monitor = new toolbox.Monitor({
 			chain: config.chain,
 			services: oneSatServices as any,
@@ -320,13 +314,14 @@ export async function createWalletCore(
 			unprovenAttemptsLimitTest: 10,
 			unprovenAttemptsLimitMain: 144,
 		})
-		monitor.addDefaultTasks()
+		if (!config.activeRemote) {
+			monitor.addDefaultTasks()
+		}
 
-		// Periodic automatic backup sync. Unlike the explicit updateBackups()
-		// (loud, all-or-nothing by design), the automatic path isolates each
-		// backup so one failing store never starves the rest. Billing 507s
-		// are settled out-of-band by the payment auto-retry layer, never
-		// under the storage lock. Interval defaults to 5 min.
+		// Periodic backup push (active → each backup), isolated per store.
+		// Unlike updateBackups() (loud, all-or-nothing), failures don't abort
+		// siblings. Billing 507s settle out-of-band via payment auto-retry.
+		// Interval defaults to 5 min; trigger() no-ops until elapsed.
 		const backupSyncIntervalMs = config.backupSyncIntervalMs ?? 5 * 60 * 1000
 		if (backupSyncIntervalMs > 0) {
 			monitor.addTask(

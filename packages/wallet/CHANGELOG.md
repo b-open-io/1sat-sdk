@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.98
+
+### Changed
+- Drop boot-time `void syncBackups()` — it held `runAsSync` and raced first reads (e.g. balance).
+- Monitor is built for remote-active wallets too, with **BackupSync only** (no default chain tasks). Local-active still gets defaults + BackupSync.
+- Backup refresh is driven by caller `monitor.runOnce()` (task interval default 5m).
+
 ## 0.0.63
 
 ### Removed

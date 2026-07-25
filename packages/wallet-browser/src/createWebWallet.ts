@@ -76,13 +76,10 @@ export async function createWebWallet(
 		Monitor,
 	})
 
-	// Fire monitor.runOnce() on wake when local is active. The server runs
-	// its own monitor when remote is active, so firing ours would duplicate
-	// (and race with) its work. Tasks self-throttle internally via their
-	// per-task intervals, so repeated runOnce calls during rapid activity
-	// are cheap timestamp comparisons. All stores register synchronously
-	// during createWalletCore, so the topology is settled by this point.
-	if (!config.activeRemote) {
+	// One runOnce after create. Tasks self-throttle via per-task intervals
+	// (BackupSync default 5m). Local-active runs full defaults + BackupSync;
+	// remote-active is BackupSync-only (no chain-task duplication with server).
+	if (core.monitor) {
 		core.monitor.runOnce().catch((err: unknown) => {
 			console.error('[wallet-core] initial monitor run failed:', err)
 		})
