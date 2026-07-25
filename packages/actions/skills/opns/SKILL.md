@@ -38,7 +38,6 @@ External buys take **`outpoint`** + optional **`inputBEEF`** (else services fetc
 | `cancelOpnsListing` | Cancel listing back into OPNS basket (`{ id }`) |
 | `buyOpns` | Buy external listing → file OPNS basket (`{ outpoint, inputBEEF?, name?, origin? }`) |
 
-Deprecated aliases still exist (`getOpnsNames`, `opnsRegister`, …) — prefer new names.
 
 ## Claim or Buy at 1sat.name
 

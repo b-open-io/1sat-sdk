@@ -102,21 +102,6 @@ export interface ListOpnsResult {
 	totalOutputs?: number
 }
 
-/** @deprecated Use RegisterOpnsRequest */
-export type OpnsRegisterRequest = RegisterOpnsRequest
-/** @deprecated Use DeregisterOpnsRequest */
-export type OpnsDeregisterRequest = DeregisterOpnsRequest
-/** @deprecated Use SellOpnsRequest */
-export type OpnsListRequest = SellOpnsRequest
-/** @deprecated Use SendOpnsRequest */
-export type OpnsTransferRequest = SendOpnsRequest
-/** @deprecated Use CancelOpnsListingRequest */
-export type OpnsCancelListingRequest = CancelOpnsListingRequest
-/** @deprecated Use ListOpnsInput */
-export type GetOpnsNamesInput = ListOpnsInput
-/** @deprecated Use ListOpnsResult */
-export type GetOpnsNamesResult = ListOpnsResult
-
 export interface InternalizeOpnsInput {
 	/** AtomicBEEF (BRC-95) */
 	tx: number[]
@@ -242,9 +227,6 @@ export const listOpns: Action<ListOpnsInput, ListOpnsResult> = {
 		}
 	},
 }
-
-/** @deprecated Use listOpns */
-export const getOpnsNames = listOpns
 
 // ============================================================================
 // internalizeOpns (ingress)
@@ -423,9 +405,6 @@ export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 		},
 	}
 
-/** @deprecated Use registerOpns */
-export const opnsRegister = registerOpns
-
 export const deregisterOpns: Action<
 	DeregisterOpnsRequest,
 	OpnsOperationResponse
@@ -518,9 +497,6 @@ export const deregisterOpns: Action<
 		}
 	},
 }
-
-/** @deprecated Use deregisterOpns */
-export const opnsDeregister = deregisterOpns
 
 // ============================================================================
 // sell / send / cancel
@@ -620,9 +596,6 @@ export const sellOpns: Action<SellOpnsRequest, OpnsOperationResponse> = {
 		}
 	},
 }
-
-/** @deprecated Use sellOpns */
-export const opnsList = sellOpns
 
 export const sendOpns: Action<SendOpnsRequest, OpnsOperationResponse> = {
 	meta: {
@@ -732,9 +705,6 @@ export const sendOpns: Action<SendOpnsRequest, OpnsOperationResponse> = {
 	},
 }
 
-/** @deprecated Use sendOpns */
-export const opnsTransfer = sendOpns
-
 export const cancelOpnsListing: Action<
 	CancelOpnsListingRequest,
 	OpnsOperationResponse
@@ -826,9 +796,6 @@ export const cancelOpnsListing: Action<
 		}
 	},
 }
-
-/** @deprecated Use cancelOpnsListing */
-export const opnsCancelListing = cancelOpnsListing
 
 export interface BuyOpnsRequest extends ActionOptions {
 	outpoint: string

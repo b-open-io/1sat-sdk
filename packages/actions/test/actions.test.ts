@@ -1,20 +1,21 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import {
-	cancelListing,
+	buyOrdinal,
+	cancelOrdinalListing,
 	getBsv21Balances,
 	getLockData,
-	getOrdinals,
 	inscribe,
-	listOrdinal,
-	listTokens,
+	listBsv21,
+	listOrdinals,
 	lockBsv,
-	purchaseOrdinal,
+	sellOrdinal,
 	sendAllBsv,
 	sendBsv,
+	sendOrdinals,
 	signBsm,
-	transferOrdinals,
 	unlockBsv,
 } from '@1sat/actions'
+import { readAssetIdTag } from '@1sat/types'
 import { BSM, PublicKey, Utils } from '@bsv/sdk'
 import {
 	type TestContext,
@@ -44,14 +45,14 @@ afterAll(async () => {
 // ============================================================================
 
 describe('Phase 1 — Read-only', () => {
-	test('getOrdinals — lists ordinals owned by wallet', async () => {
-		const result = await getOrdinals.execute(primary.ctx, {})
+	test('listOrdinals — lists ordinals owned by wallet', async () => {
+		const result = await listOrdinals.execute(primary.ctx, {})
 		expect(result).toHaveProperty('outputs')
 		expect(Array.isArray(result.outputs)).toBe(true)
 	})
 
-	test('listTokens — lists BSV21 tokens owned by wallet', async () => {
-		const result = await listTokens.execute(primary.ctx, {})
+	test('listBsv21 — lists BSV21 tokens owned by wallet', async () => {
+		const result = await listBsv21.execute(primary.ctx, {})
 		expect(Array.isArray(result)).toBe(true)
 	})
 
@@ -102,8 +103,8 @@ describe('Phase 1 — Read-only', () => {
 // Phase 2 — Create assets (requires funded PRIMARY wallet)
 // ============================================================================
 
-// Track the inscribed outpoint for use in later phases
-let inscribedOutpoint: string
+// Track the inscribed id for use in later phases
+let inscribedId: string
 
 describe('Phase 2 — Create assets', () => {
 	test('inscribe — inscribes content on-chain', async () => {
@@ -123,7 +124,13 @@ describe('Phase 2 — Create assets', () => {
 		expect(typeof result.txid).toBe('string')
 		expect(result.txid!.length).toBe(64)
 
-		inscribedOutpoint = `${result.txid}_0`
+		const listed = await listOrdinals.execute(primary.ctx, {})
+		const row = listed.outputs.find((o) =>
+			o.outpoint.startsWith(result.txid!),
+		)
+		const id = readAssetIdTag(row?.tags)
+		expect(id).toBeDefined()
+		inscribedId = id!
 	})
 
 	test('inscribe with sigma — inscribes SVG with Sigma signature', async () => {
@@ -154,7 +161,7 @@ describe('Phase 2 — Create assets', () => {
 // ============================================================================
 
 // We'll inscribe a fresh ordinal on seller, list it, then buy with buyer
-let sellerOutpoint: string
+let sellerId: string
 let listingOutpoint: string
 
 describe('Phase 3 — Ordinal marketplace', () => {
@@ -172,21 +179,25 @@ describe('Phase 3 — Ordinal marketplace', () => {
 
 		expect(result.error).toBeUndefined()
 		expect(result.txid).toBeDefined()
-		sellerOutpoint = `${result.txid}_0`
+		const listed = await listOrdinals.execute(seller.ctx, {})
+		const row = listed.outputs.find((o) => o.outpoint.startsWith(result.txid!))
+		const id = readAssetIdTag(row?.tags)
+		expect(id).toBeDefined()
+		sellerId = id!
 	})
 
-	test('listOrdinal — lists an ordinal for sale', async () => {
-		const result = await listOrdinal.execute(seller.ctx, {
-			outpoint: sellerOutpoint,
-			priceSatoshis: 1000,
+	test('sellOrdinal — lists an ordinal for sale', async () => {
+		const result = await sellOrdinal.execute(seller.ctx, {
+			id: sellerId,
+			price: 1000,
 		})
 
 		expect(result.error).toBeUndefined()
 		expect(result.txid).toBeDefined()
-		listingOutpoint = `${result.txid}_0`
+		listingOutpoint = `${result.txid}.0`
 	})
 
-	test('cancelListing — cancels an active listing', async () => {
+	test('cancelOrdinalListing — cancels an active listing', async () => {
 		// List a second ordinal so we can cancel it without affecting the purchase test
 		const content = JSON.stringify({ cancel: true, ts: Date.now() })
 		const base64Content = Utils.toBase64(
@@ -198,21 +209,33 @@ describe('Phase 3 — Ordinal marketplace', () => {
 		})
 		expect(insc.txid).toBeDefined()
 
-		const listing = await listOrdinal.execute(seller.ctx, {
-			outpoint: `${insc.txid}_0`,
-			priceSatoshis: 2000,
+		const listed = await listOrdinals.execute(seller.ctx, {})
+		const row = listed.outputs.find((o) => o.outpoint.startsWith(insc.txid!))
+		const id = readAssetIdTag(row?.tags)
+		expect(id).toBeDefined()
+
+		const listing = await sellOrdinal.execute(seller.ctx, {
+			id: id!,
+			price: 2000,
 		})
 		expect(listing.txid).toBeDefined()
 
-		const result = await cancelListing.execute(seller.ctx, {
-			outpoint: `${listing.txid}_0`,
+		const after = await listOrdinals.execute(seller.ctx, {})
+		const listingRow = after.outputs.find((o) =>
+			o.outpoint.startsWith(listing.txid!),
+		)
+		const listingId = readAssetIdTag(listingRow?.tags)
+		expect(listingId).toBeDefined()
+
+		const result = await cancelOrdinalListing.execute(seller.ctx, {
+			id: listingId!,
 		})
 		expect(result.error).toBeUndefined()
 		expect(result.txid).toBeDefined()
 	})
 
-	test('purchaseOrdinal — buyer purchases a listed ordinal', async () => {
-		const result = await purchaseOrdinal.execute(buyer.ctx, {
+	test('buyOrdinal — buyer purchases a listed ordinal', async () => {
+		const result = await buyOrdinal.execute(buyer.ctx, {
 			outpoint: listingOutpoint,
 		})
 
@@ -220,13 +243,11 @@ describe('Phase 3 — Ordinal marketplace', () => {
 		expect(result.txid).toBeDefined()
 	})
 
-	test('transferOrdinals — transfers an ordinal to another address', async () => {
-		// Transfer the inscribed ordinal from primary to buyer
+	test('sendOrdinals — transfers an ordinal to another address', async () => {
 		const buyerAddress = await deriveDepositAddress(buyer.wallet)
 
-		const result = await transferOrdinals.execute(primary.ctx, {
-			outpoints: [inscribedOutpoint],
-			address: buyerAddress,
+		const result = await sendOrdinals.execute(primary.ctx, {
+			transfers: [{ id: inscribedId, address: buyerAddress }],
 		})
 
 		expect(result.error).toBeUndefined()
@@ -240,7 +261,7 @@ describe('Phase 3 — Ordinal marketplace', () => {
 
 describe('Phase 4 — Token operations', () => {
 	test.todo('sendBsv21 — sends BSV21 tokens to a recipient')
-	test.todo('purchaseBsv21 — purchases BSV21 tokens from a listing')
+	test.todo('buyBsv21 — purchases BSV21 tokens from a listing')
 })
 
 // ============================================================================

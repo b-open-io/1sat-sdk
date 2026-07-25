@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.0.191 (unreleased)
+## 0.0.192
+
+### Removed
+- Deprecated ordinal/OpNS/BSV21 action aliases (`getOrdinals`, `listOrdinal`, `transferOrdinals`, `cancelListing`, `purchaseOrdinal`, and OpNS/token counterparts). Use the canonical names only.
+
+### Changed
+- Depends on `@1sat/wallet@0.0.98` (no boot backup race; BackupSync via monitor).
+
+## 0.0.191
 
 ### Added
 - `loadBasketOutput` / `loadBasketOutputBeef` / `ordinalSeedTags` helpers (id-first load + tag carry).

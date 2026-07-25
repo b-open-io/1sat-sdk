@@ -21,7 +21,6 @@ CLI group is **`bsv21`** (was `tokens`).
 | `deployBsv21Auth` | Mintable deploy+auth |
 | `mintBsv21` | Spend auth to mint / re-issue / end |
 
-Deprecated aliases: `listTokens`, `purchaseBsv21`.
 
 Fungible API stays **value-based** (not spend-by-id). Basket UTXOs still carry `id:` internally. **Self destinations must be basketed/tagged.**
 

@@ -248,7 +248,7 @@ async function listTokensInternal(
 // Actions
 // ============================================================================
 
-/** Input for listTokens action */
+/** Input for listBsv21 action */
 export interface ListTokensInput {
 	/** Max number of tokens to return */
 	limit?: number
@@ -276,9 +276,6 @@ export const listBsv21: Action<ListTokensInput, WalletOutput[]> = {
 		return listTokensInternal(ctx, input.limit)
 	},
 }
-
-/** @deprecated Use listBsv21 */
-export const listTokens = listBsv21
 
 /** Input for getBsv21Balances action (no required params) */
 export type GetBsv21BalancesInput = Record<string, never>
@@ -770,7 +767,7 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 			try {
 				await ctx.services.bsv21.validateOutput(tokenId, outpoint)
 			} catch (e) {
-				console.error('[purchaseBsv21] overlay validation error:', e)
+				console.error('[buyBsv21] overlay validation error:', e)
 				return { error: 'listing-not-found-in-overlay' }
 			}
 
@@ -912,12 +909,12 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 						tokenId,
 					)
 					console.log(
-						'[purchaseBsv21] Overlay submission result:',
+						'[buyBsv21] Overlay submission result:',
 						overlayResult,
 					)
 				} catch (overlayError) {
 					console.warn(
-						'[purchaseBsv21] Overlay submission failed:',
+						'[buyBsv21] Overlay submission failed:',
 						overlayError,
 					)
 				}
@@ -926,7 +923,7 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 			if (ctx.debug && ctx.log) {
 				ctx.log({
 					timestamp: new Date().toISOString(),
-					action: 'purchaseBsv21',
+					action: 'buyBsv21',
 					input: { tokenId, outpoint, amount: tokenAmount.toString() },
 					txid: result.txid,
 					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
@@ -944,11 +941,11 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 
 			return result
 		} catch (error) {
-			console.error('[purchaseBsv21]', error)
+			console.error('[buyBsv21]', error)
 			if (ctx.debug && ctx.log) {
 				ctx.log({
 					timestamp: new Date().toISOString(),
-					action: 'purchaseBsv21',
+					action: 'buyBsv21',
 					input: {
 						tokenId: input.tokenId,
 						outpoint: input.outpoint,
@@ -1716,9 +1713,6 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 // ============================================================================
 
 /** All token actions for registry */
-/** @deprecated Use buyBsv21 */
-export const purchaseBsv21 = buyBsv21
-
 export const tokensActions = [
 	listBsv21,
 	getBsv21Balances,

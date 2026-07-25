@@ -19,7 +19,6 @@ List, buy, send, and cancel ordinals with `@1sat/actions` (OrdLock).
 | `buyOrdinal` | Buy external listing (`{ outpoint, inputBEEF? }`) |
 | `burnOrdinals` | Burn (`{ ids }` or pre-loaded rows) |
 
-Deprecated aliases: `getOrdinals`, `transferOrdinals`, `listOrdinal`, `cancelListing`, `purchaseOrdinal`.
 
 ## BEEF rules
 

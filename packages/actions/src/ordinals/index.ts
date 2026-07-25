@@ -190,9 +190,6 @@ export interface SellOrdinalRequest extends ActionOptions {
 	map?: Record<string, string>
 }
 
-/** @deprecated Use SellOrdinalRequest */
-export type ListOrdinalRequest = SellOrdinalRequest
-
 export interface BuyOrdinalRequest extends ActionOptions {
 	/** Outpoint of listing to purchase */
 	outpoint: string
@@ -213,9 +210,6 @@ export interface BuyOrdinalRequest extends ActionOptions {
 	/** Tags for the purchased output; default resolveOrdinalTags for ordinals ingress */
 	tags?: string[]
 }
-
-/** @deprecated Use BuyOrdinalRequest */
-export type PurchaseOrdinalRequest = BuyOrdinalRequest
 
 export interface OrdinalOperationResponse {
 	txid?: string
@@ -660,11 +654,6 @@ export interface ListOrdinalsResult {
 	totalOutputs?: number
 }
 
-/** @deprecated Use ListOrdinalsInput */
-export type GetOrdinalsInput = ListOrdinalsInput
-/** @deprecated Use ListOrdinalsResult */
-export type GetOrdinalsResult = ListOrdinalsResult
-
 /**
  * List ordinals in the wallet. Metadata (tags/CI) by default; BEEF on demand.
  */
@@ -724,9 +713,6 @@ export const listOrdinals: Action<ListOrdinalsInput, ListOrdinalsResult> = {
 	},
 }
 
-/** @deprecated Use listOrdinals */
-export const getOrdinals = listOrdinals
-
 /**
  * Transfer an ordinal to a new owner.
  */
@@ -780,7 +766,7 @@ export const sendOrdinals: Action<
 			}
 
 			console.log(
-				'[transferOrdinals] params:',
+				'[sendOrdinals] params:',
 				JSON.stringify(
 					{
 						description: params.description,
@@ -801,16 +787,16 @@ export const sendOrdinals: Action<
 			// Debug: Check if BEEF contains the source transactions
 			try {
 				const beef = Beef.fromBinary(params.inputBEEF as number[])
-				console.log('[transferOrdinals] BEEF tx count:', beef.txs.length)
+				console.log('[sendOrdinals] BEEF tx count:', beef.txs.length)
 				for (const inp of params.inputs ?? []) {
 					const [txid] = inp.outpoint.split('.')
 					const sourceTx = beef.findTxid(txid)
 					console.log(
-						`[transferOrdinals] Source tx for ${inp.outpoint}: ${sourceTx ? 'FOUND' : 'MISSING'}`,
+						`[sendOrdinals] Source tx for ${inp.outpoint}: ${sourceTx ? 'FOUND' : 'MISSING'}`,
 					)
 				}
 			} catch (e) {
-				console.log('[transferOrdinals] BEEF parse error:', e)
+				console.log('[sendOrdinals] BEEF parse error:', e)
 			}
 
 			const { sources, ...createArgs } = params
@@ -854,7 +840,7 @@ export const sendOrdinals: Action<
 				}))
 				ctx.log({
 					timestamp: new Date().toISOString(),
-					action: 'transferOrdinals',
+					action: 'sendOrdinals',
 					input: {
 						transfers: input.transfers.map((t) => ({
 							id: t.id,
@@ -870,11 +856,11 @@ export const sendOrdinals: Action<
 
 			return result
 		} catch (error) {
-			console.error('[transferOrdinals]', error)
+			console.error('[sendOrdinals]', error)
 			if (ctx.debug && ctx.log) {
 				ctx.log({
 					timestamp: new Date().toISOString(),
-					action: 'transferOrdinals',
+					action: 'sendOrdinals',
 					input: {
 						transfers: input.transfers.map((t) => ({
 							id: t.id,
@@ -889,9 +875,6 @@ export const sendOrdinals: Action<
 		}
 	},
 }
-
-/** @deprecated Use sendOrdinals */
-export const transferOrdinals = sendOrdinals
 
 /**
  * List an ordinal for sale on the global orderbook.
@@ -993,17 +976,11 @@ export const sellOrdinal: Action<SellOrdinalRequest, OrdinalOperationResponse> =
 		},
 	}
 
-/** @deprecated Use sellOrdinal */
-export const listOrdinal = sellOrdinal
-
 /** Input for cancelOrdinalListing action */
 export interface CancelOrdinalListingInput extends ActionOptions {
 	/** Tracking id in the ordinals basket (wallet-owned) */
 	id: string
 }
-
-/** @deprecated Use CancelOrdinalListingInput */
-export type CancelListingInput = CancelOrdinalListingInput
 
 /**
  * Cancel an ordinal listing.
@@ -1143,9 +1120,6 @@ export const cancelOrdinalListing: Action<
 		}
 	},
 }
-
-/** @deprecated Use cancelOrdinalListing */
-export const cancelListing = cancelOrdinalListing
 
 /**
  * Purchase an ordinal from the global orderbook.
@@ -1357,11 +1331,8 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 	},
 }
 
-/** @deprecated Use buyOrdinal */
-export const purchaseOrdinal = buyOrdinal
-
 /**
- * Burn one or more ordinals (send to OP_FALSE OP_RETURN).
+ * Burn one or more ordinals.
  */
 export const burnOrdinals: Action<
 	BurnOrdinalsRequest,
