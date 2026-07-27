@@ -6,6 +6,14 @@
  * maps for sync reads and mirrors every write to Redis; the express wrapper
  * (`wrapAuthWithSessionHydration`) async-loads a peer's sessions from Redis
  * into local memory before the auth middleware's sync lookups run.
+ *
+ * TODO: rewrite against `AsyncSessionManager` from `@bsv/sdk`. It is built for
+ * exactly this case and `Peer` awaits every session call, so Redis can serve
+ * reads directly — which removes this subclass, the write mirroring and
+ * `wrapAuthWithSessionHydration`, along with the per-identity preload that
+ * currently pulls every stored session into each instance's memory.
+ * Keep an identity-key index: the auth middleware still resolves
+ * `hasSession(identityKey)` when deciding whether to wait for certificates.
  */
 
 import { createAuthMiddleware } from '@bsv/auth-express-middleware'

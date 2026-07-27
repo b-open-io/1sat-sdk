@@ -1,6 +1,6 @@
 {
   "name": "@1sat/wallet-server",
-  "version": "0.0.39",
+  "version": "0.0.40",
   "description": "BRC-100 wallet storage RPC server for 1Sat Ordinals SDK",
   "type": "module",
   "main": "./dist/index.js",
@@ -32,6 +32,7 @@
   "license": "MIT",
   "dependencies": {
     "@1sat/client": "workspace:*",
+    "@bsv/auth-express-middleware": "npm:@bopen-io/auth-express-middleware@2.1.3",
     "@1sat/types": "workspace:*",
     "@1sat/wallet": "workspace:*",
     "@bopen-io/messagebox-server": "^1.3.2",
@@ -40,7 +41,6 @@
     "ioredis": "^5.11.1"
   },
   "peerDependencies": {
-    "@bsv/auth-express-middleware": "^2.1.1",
     "@bsv/sdk": "^2.1.9",
     "@bsv/wallet-toolbox": "2.4.3",
     "knex": "^3.1.0",
@@ -52,7 +52,6 @@
     }
   },
   "devDependencies": {
-    "@bsv/auth-express-middleware": "^2.1.1",
     "@bsv/sdk": "^2.1.9",
     "@bsv/wallet-toolbox": "2.4.3",
     "@types/bun": "^1.3.10",
