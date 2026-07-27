@@ -1,6 +1,8 @@
 # P1SAT permission prompts — inventory & plan
 
-Status: **Draft** — stock-taking; no implementation commitment  
+> **Superseded for architecture; historical inventory only** → see [2026-07-25-p1sat-permissions.md](./2026-07-25-p1sat-permissions.md)
+
+Status: **Archived inventory** — architecture decisions live in the 2026-07-25 doc  
 Last updated: 2026-07-23
 
 ## Goal

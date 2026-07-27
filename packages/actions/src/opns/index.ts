@@ -12,6 +12,8 @@ import {
 	OPNS_PUBLISHED_TAG,
 	OPNS_PUSHDROP_TEMPLATE,
 	OPNS_REGISTER_COUNTERPARTY,
+	OPNS_REGISTER_LOCK_PLACEHOLDER_HEX,
+	P1SAT_INTENTS,
 	P1SAT_PROTOCOL,
 	buildInputAssetLabel,
 	opnsRegisterKeyId,
@@ -19,15 +21,15 @@ import {
 } from '@1sat/types'
 import {
 	type BEEF,
+	type CreateActionArgs,
 	P2PKH,
 	PublicKey,
-	PushDrop,
 	Transaction,
-	Utils,
 	type WalletCounterparty,
 	type WalletOutput,
 	type WalletProtocol,
 } from '@bsv/sdk'
+import { prepareP1SatArgs } from '../apply'
 import {
 	buildOrdLockScript,
 	buyOrdinal,
@@ -331,58 +333,56 @@ export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 					return { error: 'missing-custom-instructions' }
 				}
 
-				const { publicKey: identityPubKey } = await ctx.wallet.getPublicKey({
-					identityKey: true,
-				})
 				const keyID = opnsRegisterKeyId(output.outpoint)
-				const lockingScript = await new PushDrop(ctx.wallet).lock(
-					[Utils.toArray(identityPubKey, 'hex')],
-					P1SAT_PROTOCOL,
-					keyID,
-					OPNS_REGISTER_COUNTERPARTY,
-					true,
-					true,
-				)
-
 				const name = nameFromOutput(output)
 				const tags = opnsFileTags(output, [OPNS_PUBLISHED_TAG])
 				const inputId = readAssetIdTag(output.tags)
+				const intent = P1SAT_INTENTS.OPNS_REGISTER
+				const labels = [
+					...(inputId ? [buildInputAssetLabel(OPNS_BASKET, inputId)] : []),
+				]
+
+				const args: CreateActionArgs = {
+					description: (name
+						? `Publish OpNS ${name}`
+						: 'Publish OpNS name'
+					).slice(0, 50),
+					inputBEEF: beef,
+					labels,
+					inputs: [
+						{
+							outpoint: output.outpoint,
+							inputDescription: 'OpNS name to register',
+							unlockingScriptLength: unlockingScriptLengthForInstructions(
+								output.customInstructions,
+							),
+						},
+					],
+					outputs: [
+						{
+							// Placeholder — apply seals real PushDrop on base (action or module)
+							lockingScript: OPNS_REGISTER_LOCK_PLACEHOLDER_HEX,
+							satoshis: 1,
+							outputDescription: 'OpNS identity bind',
+							basket: OPNS_BASKET,
+							tags,
+							customInstructions: JSON.stringify({
+								protocolID: P1SAT_PROTOCOL,
+								keyID,
+								counterparty: OPNS_REGISTER_COUNTERPARTY,
+								template: OPNS_PUSHDROP_TEMPLATE,
+								...(name && { name }),
+							}),
+						},
+					],
+					options: { randomizeOutputs: false },
+				}
+
+				await prepareP1SatArgs(ctx, args, intent)
 
 				return await executeTrackedAction(
 					ctx.wallet,
-					{
-						description: 'Register OpNS identity bind',
-						inputBEEF: beef,
-						...(inputId && {
-							labels: [buildInputAssetLabel(OPNS_BASKET, inputId)],
-						}),
-						inputs: [
-							{
-								outpoint: output.outpoint,
-								inputDescription: 'OpNS name to register',
-								unlockingScriptLength: unlockingScriptLengthForInstructions(
-									output.customInstructions,
-								),
-							},
-						],
-						outputs: [
-							{
-								lockingScript: lockingScript.toHex(),
-								satoshis: 1,
-								outputDescription: 'OpNS identity bind',
-								basket: OPNS_BASKET,
-								tags,
-								customInstructions: JSON.stringify({
-									protocolID: P1SAT_PROTOCOL,
-									keyID,
-									counterparty: OPNS_REGISTER_COUNTERPARTY,
-									template: OPNS_PUSHDROP_TEMPLATE,
-									...(name && { name }),
-								}),
-							},
-						],
-						options: { randomizeOutputs: false },
-					},
+					args,
 					input.fundingProvider,
 					beef,
 					async (tx) => {
@@ -442,40 +442,46 @@ export const deregisterOpns: Action<
 			const tags = opnsFileTags(output)
 			const name = nameFromOutput(output)
 			const inputId = readAssetIdTag(output.tags)
+			const intent = P1SAT_INTENTS.OPNS_DEREGISTER
+			const args: CreateActionArgs = {
+				description: (name
+					? `Unpublish OpNS ${name}`
+					: 'Unpublish OpNS name'
+				).slice(0, 50),
+				inputBEEF: beef,
+				labels: [
+					...(inputId ? [buildInputAssetLabel(OPNS_BASKET, inputId)] : []),
+				],
+				inputs: [
+					{
+						outpoint,
+						inputDescription: 'OpNS name to deregister',
+						unlockingScriptLength: unlockingScriptLengthForInstructions(
+							output.customInstructions,
+						),
+					},
+				],
+				outputs: [
+					{
+						lockingScript: new P2PKH().lock(address).toHex(),
+						satoshis: 1,
+						outputDescription: 'OpNS name (unbound)',
+						basket: OPNS_BASKET,
+						tags,
+						customInstructions: JSON.stringify({
+							protocolID: P1SAT_PROTOCOL,
+							keyID: outpoint,
+							...(name && { name }),
+						}),
+					},
+				],
+				options: { randomizeOutputs: false },
+			}
+			await prepareP1SatArgs(ctx, args, intent)
 
 			return await executeTrackedAction(
 				ctx.wallet,
-				{
-					description: 'Deregister OpNS identity bind',
-					inputBEEF: beef,
-					...(inputId && {
-						labels: [buildInputAssetLabel(OPNS_BASKET, inputId)],
-					}),
-					inputs: [
-						{
-							outpoint,
-							inputDescription: 'OpNS name to deregister',
-							unlockingScriptLength: unlockingScriptLengthForInstructions(
-								output.customInstructions,
-							),
-						},
-					],
-					outputs: [
-						{
-							lockingScript: new P2PKH().lock(address).toHex(),
-							satoshis: 1,
-							outputDescription: 'OpNS name (unbound)',
-							basket: OPNS_BASKET,
-							tags,
-							customInstructions: JSON.stringify({
-								protocolID: P1SAT_PROTOCOL,
-								keyID: outpoint,
-								...(name && { name }),
-							}),
-						},
-					],
-					options: { randomizeOutputs: false },
-				},
+				args,
 				input.fundingProvider,
 				beef,
 				async (tx) => {
@@ -533,48 +539,59 @@ export const sellOpns: Action<SellOpnsRequest, OpnsOperationResponse> = {
 			const outpoint = output.outpoint
 			const payAddress = input.payAddress ?? (await defaultPayAddress(ctx))
 			const cancelAddress = await deriveCancelAddressInternal(ctx, outpoint)
-			const lockingScript = buildOrdLockScript(
+			const ordLockScript = buildOrdLockScript(
 				cancelAddress,
 				payAddress,
 				input.price,
-			).toHex()
-			const tags = opnsFileTags(output, ['ordlock', `price:${input.price}`])
+			)
+			const lockingScript = ordLockScript.toHex()
+
+			// Read the price back out of the script we just built, so the tag
+			// can never drift from what the chain will actually enforce.
+			const encoded = OrdLock.decode(ordLockScript)
+			if (!encoded) {
+				throw new Error('sellOpns: built OrdLock script failed to decode')
+			}
+			const tags = opnsFileTags(output, ['ordlock', `price:${encoded.price}`])
 			const name = nameFromOutput(output)
 			const inputId = readAssetIdTag(output.tags)
+			const intent = P1SAT_INTENTS.OPNS_LIST
+			const args: CreateActionArgs = {
+				description: `List OpNS for ${input.price} sats`.slice(0, 50),
+				inputBEEF: beef,
+				labels: [
+					...(inputId ? [buildInputAssetLabel(OPNS_BASKET, inputId)] : []),
+				],
+				inputs: [
+					{
+						outpoint,
+						inputDescription: 'OpNS name to list',
+						unlockingScriptLength: unlockingScriptLengthForInstructions(
+							output.customInstructions,
+						),
+					},
+				],
+				outputs: [
+					{
+						lockingScript,
+						satoshis: 1,
+						outputDescription: `List OpNS for ${input.price} sats`,
+						basket: OPNS_BASKET,
+						tags,
+						customInstructions: JSON.stringify({
+							protocolID: P1SAT_PROTOCOL,
+							keyID: outpoint,
+							...(name && { name }),
+						}),
+					},
+				],
+				options: { randomizeOutputs: false },
+			}
+			await prepareP1SatArgs(ctx, args, intent)
 
 			return await executeTrackedAction(
 				ctx.wallet,
-				{
-					description: `List OpNS for ${input.price} sats`,
-					inputBEEF: beef,
-					...(inputId && {
-						labels: [buildInputAssetLabel(OPNS_BASKET, inputId)],
-					}),
-					inputs: [
-						{
-							outpoint,
-							inputDescription: 'OpNS name to list',
-							unlockingScriptLength: unlockingScriptLengthForInstructions(
-								output.customInstructions,
-							),
-						},
-					],
-					outputs: [
-						{
-							lockingScript,
-							satoshis: 1,
-							outputDescription: `List OpNS for ${input.price} sats`,
-							basket: OPNS_BASKET,
-							tags,
-							customInstructions: JSON.stringify({
-								protocolID: P1SAT_PROTOCOL,
-								keyID: outpoint,
-								...(name && { name }),
-							}),
-						},
-					],
-					options: { randomizeOutputs: false },
-				},
+				args,
 				input.fundingProvider,
 				beef,
 				async (tx) => {
@@ -642,47 +659,53 @@ export const sendOpns: Action<SendOpnsRequest, OpnsOperationResponse> = {
 			const inputId = readAssetIdTag(output.tags)
 			const name = nameFromOutput(output)
 			const tags = opnsFileTags(output)
+			const intent = P1SAT_INTENTS.OPNS_TRANSFER
+			const args: CreateActionArgs = {
+				description: (name
+					? `Transfer OpNS ${name}`
+					: 'Transfer OpNS name'
+				).slice(0, 50),
+				inputBEEF: beef,
+				labels: [
+					...(inputId ? [buildInputAssetLabel(OPNS_BASKET, inputId)] : []),
+				],
+				inputs: [
+					{
+						outpoint,
+						inputDescription: 'OpNS name to transfer',
+						unlockingScriptLength: unlockingScriptLengthForInstructions(
+							output.customInstructions,
+						),
+					},
+				],
+				outputs: [
+					isSelf
+						? {
+								lockingScript: new P2PKH().lock(recipientAddress).toHex(),
+								satoshis: 1,
+								outputDescription: 'OpNS self-transfer',
+								basket: OPNS_BASKET,
+								tags,
+								customInstructions: JSON.stringify({
+									protocolID: P1SAT_PROTOCOL,
+									keyID: outpoint,
+									...(name && { name }),
+								}),
+							}
+						: {
+								lockingScript: new P2PKH().lock(recipientAddress).toHex(),
+								satoshis: 1,
+								outputDescription: 'OpNS transfer',
+								tags: [],
+							},
+				],
+				options: { randomizeOutputs: false },
+			}
+			await prepareP1SatArgs(ctx, args, intent)
 
 			return await executeTrackedAction(
 				ctx.wallet,
-				{
-					description: 'Transfer OpNS name',
-					inputBEEF: beef,
-					...(inputId && {
-						labels: [buildInputAssetLabel(OPNS_BASKET, inputId)],
-					}),
-					inputs: [
-						{
-							outpoint,
-							inputDescription: 'OpNS name to transfer',
-							unlockingScriptLength: unlockingScriptLengthForInstructions(
-								output.customInstructions,
-							),
-						},
-					],
-					outputs: [
-						isSelf
-							? {
-									lockingScript: new P2PKH().lock(recipientAddress).toHex(),
-									satoshis: 1,
-									outputDescription: 'OpNS self-transfer',
-									basket: OPNS_BASKET,
-									tags,
-									customInstructions: JSON.stringify({
-										protocolID: P1SAT_PROTOCOL,
-										keyID: outpoint,
-										...(name && { name }),
-									}),
-								}
-							: {
-									lockingScript: new P2PKH().lock(recipientAddress).toHex(),
-									satoshis: 1,
-									outputDescription: 'OpNS transfer',
-									tags: [],
-								},
-					],
-					options: { randomizeOutputs: false },
-				},
+				args,
 				input.fundingProvider,
 				beef,
 				async (tx) => {
@@ -750,37 +773,44 @@ export const cancelOpnsListing: Action<
 				signCounterparty,
 			)
 
+			const intent = P1SAT_INTENTS.OPNS_CANCEL_LISTING
+			const args: CreateActionArgs = {
+				description: (name
+					? `Cancel OpNS listing ${name}`
+					: 'Cancel OpNS listing'
+				).slice(0, 50),
+				inputBEEF,
+				labels: [
+					...(inputId ? [buildInputAssetLabel(OPNS_BASKET, inputId)] : []),
+				],
+				inputs: [
+					{
+						outpoint,
+						inputDescription: 'Listed OpNS name',
+						unlockingScriptLength: 108,
+					},
+				],
+				outputs: [
+					{
+						lockingScript: new P2PKH().lock(cancelAddress).toHex(),
+						satoshis: 1,
+						outputDescription: 'Cancelled OpNS listing',
+						basket: OPNS_BASKET,
+						tags,
+						customInstructions: JSON.stringify({
+							protocolID: P1SAT_PROTOCOL,
+							keyID: newKeyID,
+							...(name && { name }),
+						}),
+					},
+				],
+				options: { randomizeOutputs: false },
+			}
+			await prepareP1SatArgs(ctx, args, intent)
+
 			return await executeTrackedAction(
 				ctx.wallet,
-				{
-					description: 'Cancel OpNS listing',
-					inputBEEF,
-					...(inputId && {
-						labels: [buildInputAssetLabel(OPNS_BASKET, inputId)],
-					}),
-					inputs: [
-						{
-							outpoint,
-							inputDescription: 'Listed OpNS name',
-							unlockingScriptLength: 108,
-						},
-					],
-					outputs: [
-						{
-							lockingScript: new P2PKH().lock(cancelAddress).toHex(),
-							satoshis: 1,
-							outputDescription: 'Cancelled OpNS listing',
-							basket: OPNS_BASKET,
-							tags,
-							customInstructions: JSON.stringify({
-								protocolID: P1SAT_PROTOCOL,
-								keyID: newKeyID,
-								...(name && { name }),
-							}),
-						},
-					],
-					options: { randomizeOutputs: false },
-				},
+				args,
 				input.fundingProvider,
 				inputBEEF,
 				async (tx) => {
@@ -830,25 +860,21 @@ export const buyOpns: Action<BuyOpnsRequest, OpnsOperationResponse> = {
 		},
 	},
 	async execute(ctx, input) {
-		const name = input.name?.slice(0, 64)
-		const origin = input.origin ?? input.outpoint
-		const tags = [
-			'opns',
-			`type:${OPNS_CONTENT_TYPE}`,
-			`origin:${origin}`,
-			...(name ? [`name:${name}`] : []),
-		]
+		// Hints pass straight through — undefined when the caller has none.
+		// `resolveOrdinalTags` resolves origin from ORDFS and, for op-ns content,
+		// reads the name from the origin's inscription.
 		return buyOrdinal.execute(ctx, {
 			outpoint: input.outpoint,
 			inputBEEF: input.inputBEEF,
 			marketplaceAddress: input.marketplaceAddress,
 			marketplaceRate: input.marketplaceRate,
-			name,
-			origin,
+			name: input.name?.slice(0, 64),
+			origin: input.origin,
 			contentType: OPNS_CONTENT_TYPE,
 			fundingProvider: input.fundingProvider,
 			basket: OPNS_BASKET,
-			tags,
+			tags: ['opns'],
+			p1satIntent: P1SAT_INTENTS.OPNS_PURCHASE,
 		})
 	},
 }

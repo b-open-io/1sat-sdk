@@ -1,4 +1,9 @@
-import { P1SAT_LABEL } from '@1sat/types'
+import {
+	P1SAT_LABEL,
+	buildActionIdLabel,
+	hasP1SatDispatchLabel,
+	parseActionIdLabel,
+} from '@1sat/types'
 import {
 	type CreateActionArgs,
 	type CreateActionResult,
@@ -22,6 +27,22 @@ export function randomActionId(): string {
 }
 
 /**
+ * Read the actionId from `args.labels`, stamping a fresh one when absent.
+ *
+ * Call this before anything derives from the actionId — notably apply, which
+ * runs ahead of `createTrackedAction` on a base wallet. Intermediate keyIDs
+ * derived from it are recomputable from the action record instead of being
+ * lost with a wall-clock value.
+ */
+export function ensureActionId(args: CreateActionArgs): string {
+	const existing = parseActionIdLabel(args.labels)
+	if (existing) return existing
+	const actionId = randomActionId()
+	args.labels = [...(args.labels ?? []), buildActionIdLabel(actionId)]
+	return actionId
+}
+
+/**
  * Inject tracking tags into outputs that have baskets.
  *
  * Each basketed output gets `id:<actionId>_<argsIndex>` — unique per
@@ -41,15 +62,14 @@ function applyTrackingTags(args: CreateActionArgs, actionId: string): void {
 }
 
 /**
- * Ensure the args carry the `'p 1sat'` label so WalletPermissionsManager
- * dispatches the createAction call to the registered 1Sat permission
- * module. Without this label, the module never sees createAction and
- * subsequent createSignature calls under `'p 1sat'` arrive with no
- * captured commitment — which would prompt the user once per input.
+ * Ensure the args carry a 1Sat dispatch label so WalletPermissionsManager
+ * routes createAction to the registered module. Intent labels
+ * (`p 1sat intent …`) already satisfy dispatch; otherwise append bare
+ * `p 1sat action`.
  */
 function applyOneSatLabel(args: CreateActionArgs): void {
 	const labels = args.labels ?? []
-	if (labels.includes(P1SAT_LABEL)) return
+	if (hasP1SatDispatchLabel(labels)) return
 	args.labels = [...labels, P1SAT_LABEL]
 }
 
@@ -85,7 +105,7 @@ export async function createTrackedAction(
 	args: CreateActionArgs,
 	opts: TrackedActionOptions = {},
 ): Promise<CreateActionResult & { actionId: string }> {
-	const actionId = randomActionId()
+	const actionId = opts.bypassP1Sat ? randomActionId() : ensureActionId(args)
 	if (!opts.bypassP1Sat) {
 		applyTrackingTags(args, actionId)
 		applyOneSatLabel(args)
@@ -131,7 +151,7 @@ export async function executeTrackedAction(
 	opts: TrackedActionOptions = {},
 ): Promise<CompleteSignedActionResult & { actionId: string }> {
 	if (fundingProvider) {
-		const actionId = randomActionId()
+		const actionId = opts.bypassP1Sat ? randomActionId() : ensureActionId(args)
 		if (!opts.bypassP1Sat) {
 			applyTrackingTags(args, actionId)
 			applyOneSatLabel(args)

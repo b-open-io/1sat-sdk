@@ -25,6 +25,13 @@ export interface OneSatContext {
 	debug?: boolean
 	/** Structured log callback — receives derivation details for each action execution */
 	log?: (entry: ActionLogEntry) => void
+	/**
+	 * When true, createAction does not go through the 1Sat permission module
+	 * (CLI / real base wallet). The action runs apply before createAction.
+	 * When false (dApp or admin-WPM gated wallet), the module owns apply.
+	 * Defaults to true.
+	 */
+	isBaseWallet: boolean
 }
 
 /**
@@ -132,6 +139,8 @@ export function createContext(
 		dataDir?: string
 		debug?: boolean
 		log?: (entry: ActionLogEntry) => void
+		/** Defaults true (CLI/base). Set false for dApp/admin-WPM gated wallets. */
+		isBaseWallet?: boolean
 	},
 ): OneSatContext {
 	return {
@@ -142,5 +151,6 @@ export function createContext(
 		dataDir: options?.dataDir,
 		debug: options?.debug,
 		log: options?.log,
+		isBaseWallet: options?.isBaseWallet ?? true,
 	}
 }

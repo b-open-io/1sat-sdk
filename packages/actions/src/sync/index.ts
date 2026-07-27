@@ -205,7 +205,19 @@ export const syncAddresses: Action<SyncAddressesInput, SyncAddressesResult> = {
 			}
 
 			// 6. Update last score
-			if (maxSafeScore > lastScore) {
+			//
+			// Only when everything in this run succeeded. The cursor is the sole
+			// record of what remains to do — there is no queue of pending work —
+			// so advancing past a failure loses that transaction permanently once
+			// it falls outside the reorg window. Holding the cursor back re-fetches
+			// the whole range next sync; `store.has(txid)` makes the already-done
+			// ones no-ops.
+			//
+			// A transaction that can never be processed will therefore block those
+			// behind it. That is the intended failure: an ordinal must not be
+			// ingested without an origin, and a stalled sync is visible where a
+			// silent skip is not.
+			if (failed === 0 && maxSafeScore > lastScore) {
 				await store.setLastScore(maxSafeScore)
 			}
 

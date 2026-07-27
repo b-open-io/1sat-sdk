@@ -3,7 +3,8 @@
   "private": true,
   "workspaces": [
     "packages/*",
-    "examples/*"
+    "examples/*",
+    "test-app"
   ],
   "scripts": {
     "build": "bun run --filter '*' build",

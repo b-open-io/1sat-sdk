@@ -11,6 +11,7 @@ export function Inscribe() {
   const [text, setText] = useState('')
   const [contentType, setContentType] = useState('text/plain')
   const [file, setFile] = useState<File | null>(null)
+  const [signWithBAP, setSignWithBAP] = useState(false)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -37,10 +38,12 @@ export function Inscribe() {
         mime = contentType
         log('info', `inscribe: text (${mime}, ${text.length} chars)`)
       }
+      log('info', signWithBAP ? 'intent: ordinal.inscribe-sigma' : 'intent: ordinal.inscribe')
 
       const res = await inscribe.execute(ctx, {
         base64Content,
         contentType: mime,
+        signWithBAP,
       })
 
       if (res.error) throw new Error(res.error)
@@ -85,6 +88,15 @@ export function Inscribe() {
         style={{ ...input, padding: '0.25rem' }}
         onChange={e => { if (e.target.files?.[0]) setFile(e.target.files[0]) }}
       />
+
+      <label style={{ ...label, display: 'flex', alignItems: 'center', gap: '0.4rem', margin: '0.25rem 0 0.6rem' }}>
+        <input
+          type="checkbox"
+          checked={signWithBAP}
+          onChange={e => setSignWithBAP(e.target.checked)}
+        />
+        Sign with BAP (Sigma) — intent {signWithBAP ? 'ordinal.inscribe-sigma' : 'ordinal.inscribe'}
+      </label>
 
       <button style={disabled ? buttonDisabled : button} disabled={disabled} onClick={handleInscribe}>
         {loading ? 'Inscribing...' : 'Inscribe'}

@@ -3,6 +3,7 @@ export {
 	type OneSatPermissionModule,
 	type PermissionsModule,
 } from './createOneSatPermissionModule'
+export { applyCreateAction } from './apply'
 export { CommitmentCache } from './commitmentCache'
 export { computeHashOutputs } from './hashOutputs'
 export {

@@ -10,6 +10,8 @@ export { createContext, } from './types';
 export { ActionRegistry, actionRegistry } from './action-registry';
 // Export constants
 export * from './constants';
+// P1Sat apply (base-wallet seal / validate; module re-exports dispatch)
+export { applyP1SatIntent, applyOpnsRegister, applyInscribeSigma, applyValidateOnly, prepareP1SatArgs, sigmaAnchorKeyId, stampScriptDerivedTags, P1SAT_APPLY_REGISTRY, } from './apply';
 // Export shared utilities
 export { signP2PKHInput } from './utils/signP2PKH';
 export { completeSignedAction, } from './utils/completeSignedAction';

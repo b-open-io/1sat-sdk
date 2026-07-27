@@ -56,6 +56,8 @@ export async function loadContext(
 		services: walletResult.services,
 		chain: opts.chain,
 		dataDir,
+		// Real base wallet — action runs apply before createAction.
+		isBaseWallet: true,
 	})
 
 	return {

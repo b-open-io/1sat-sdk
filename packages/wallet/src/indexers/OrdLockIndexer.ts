@@ -35,7 +35,10 @@ export class OrdLockIndexer extends Indexer {
 
 		return {
 			data: listing,
-			tags: [`list:${listing.price}`],
+			// Same pair every other producer emits — `sellOrdinal`, `sellOpns`
+			// and `stampScriptDerivedTags`. A listing that arrived by sync has to
+			// look like one that we created, or listing queries miss it.
+			tags: ['ordlock', `price:${listing.price}`],
 			owner: decoded.seller,
 			protocol: 'basket insertion', // OrdLock script requires manual unlock
 		}

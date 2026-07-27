@@ -575,6 +575,7 @@ export interface CreateOrdTokenListingsConfig {
 // ============================================================================
 
 export * from './constants'
+export * from './ordinalTags'
 export * from './destination'
 export * from './services'
 export * from './indexer'

@@ -30,7 +30,9 @@ import {
 	P1SAT_BASKET_PREFIX,
 	P1SAT_INPUT_LABEL_PREFIX,
 	SIGMA_BASKET,
+	parseIntentLabel,
 } from '@1sat/types'
+import { Lock, OrdLock } from '@1sat/templates'
 import { parseAddress } from '@1sat/wallet'
 import type {
 	CreateActionArgs,
@@ -70,10 +72,35 @@ export interface EnrichedOutput {
 	tags: string[]
 	/** Recipient address if the locking script is P2PKH (or P2PKH-suffixed). */
 	recipient?: string
+	/**
+	 * Sale price decoded from an OrdLock locking script, in satoshis.
+	 *
+	 * Read this rather than the `price:` tag — the script is what the chain
+	 * enforces, the tag is only what the caller asserted.
+	 */
+	listingPriceSats?: number
+	/** Seller payout address decoded from an OrdLock locking script. */
+	listingSeller?: string
+	/**
+	 * Block height decoded from a Lock locking script.
+	 *
+	 * Read this rather than the `until:` tag — the script is what the chain
+	 * enforces, the tag is only what the caller asserted.
+	 */
+	lockUntilHeight?: number
+}
+
+export type TrustState = 'verified' | 'unverified' | 'mismatch'
+
+export interface EnrichedTrust {
+	state: TrustState
+	note?: string
 }
 
 export interface EnrichedIntent {
 	kind: EnrichedIntentKind
+	/** Explicit `p 1sat intent <domain>.<verb>` when present. */
+	p1satIntent?: string
 	/** One entry per `'p 1sat input <basket> <id>'` label. */
 	inputs: EnrichedAsset[]
 	/** All raw outputs with recipient decoded from script. */
@@ -83,6 +110,11 @@ export interface EnrichedIntent {
 	/** ORDFS or compatible content URL builder. */
 	contentUrlForOrigin: (origin: string) => string
 	chain: 'mainnet' | 'testnet'
+	/** Purchase / hint-path trust after module re-resolve (from tags or default). */
+	trust?: EnrichedTrust
+	/** Overlay processing fee (not miner/DSAP). */
+	indexerFeeSats?: number
+	indexerFeeNote?: string
 }
 
 const ASSET_BASKETS = [
@@ -109,6 +141,7 @@ export async function enrichIntent(
 	const chain = opts.chain ?? 'mainnet'
 	const contentHost = opts.contentHost ?? 'https://ordfs.network'
 	const labels = args.labels ?? []
+	const p1satIntent = parseIntentLabel(labels)
 
 	const inputRefs = parseAssetLabels(labels, P1SAT_INPUT_LABEL_PREFIX)
 	const inputs = (
@@ -121,18 +154,85 @@ export async function enrichIntent(
 		decodeOutput(out, i, chain),
 	)
 
-	const kind = detectKind(inputs, outputs)
-	const summary = buildSummary(kind, inputs, outputs)
+	const kind = detectKind(inputs, outputs, p1satIntent)
+	const summary = buildSummary(kind, inputs, outputs, p1satIntent)
+	const trust = initialTrust(p1satIntent)
+	const fee = extractIndexerFee(args, outputs)
 
 	return {
 		kind,
+		p1satIntent,
 		inputs,
 		outputs,
 		labels,
 		summary,
 		contentUrlForOrigin: (origin) => contentUrlFromOrigin(contentHost, origin),
 		chain,
+		trust,
+		...fee,
 	}
+}
+
+/**
+ * Trust is a property of a check performed *now*, never of the asset.
+ *
+ * A `trust:` tag can't be written truthfully at broadcast time — the overlay
+ * generally hasn't indexed the transaction yet — so any such tag in storage is
+ * meaningless or a lie, and outputs are dApp-authored besides. Nothing
+ * persisted may influence the badge.
+ *
+ * Every purchase therefore starts `unverified`; `verifyIntent` upgrades it if
+ * and when a service positively answers.
+ */
+function initialTrust(p1satIntent?: string): EnrichedTrust | undefined {
+	const isPurchase =
+		p1satIntent === 'ordinal.purchase' ||
+		p1satIntent === 'opns.purchase' ||
+		p1satIntent === 'bsv21.purchase'
+	if (!isPurchase) return undefined
+	return { state: 'unverified' }
+}
+
+function extractIndexerFee(
+	args: CreateActionArgs,
+	outputs: EnrichedOutput[],
+): { indexerFeeSats?: number; indexerFeeNote?: string } {
+	// Overlay fee outs: unbasketed, description-free (encrypted), typically
+	// modest fixed amounts. Prefer tag `fee:overlay` if present; else detect
+	// outputDescription is unavailable — use tag on args outputs if action set it.
+	const rawOuts = args.outputs ?? []
+	let feeSats = 0
+	let tokenOuts = 0
+	for (let i = 0; i < rawOuts.length; i++) {
+		const tags = rawOuts[i].tags ?? []
+		if (tags.some((t) => t === 'fee:overlay' || t.startsWith('indexer-fee'))) {
+			feeSats += rawOuts[i].satoshis ?? 0
+		}
+		if (
+			rawOuts[i].basket === BSV21_BASKET ||
+			tags.some((t) => t.startsWith('bsv21:'))
+		) {
+			tokenOuts++
+		}
+	}
+	// No fallback. The `fee:overlay` tag is a hint from the action; when it is
+	// absent we show nothing rather than guessing which output is the fee.
+	//
+	// The previous heuristic took the last unbasketed output under 50k sats and
+	// labelled it a fee. On a purchase that picks up the seller payment, so the
+	// same output rendered twice — once as Price, once as Indexer fee.
+	//
+	// The real check belongs on the verification promise: the overlay publishes
+	// `fee_address` and `fee_per_output` in `getTokenDetails`, and `decodeOutput`
+	// already resolves each output's recipient from its locking script, so fee
+	// outputs are the ones paying `fee_address`. Exact, not inferred.
+	if (!feeSats) return {}
+	const note =
+		tokenOuts > 0
+			? `${feeSats.toLocaleString()} sats overlay fee` +
+				(tokenOuts > 1 ? ` (${tokenOuts} token outs)` : '')
+			: `${feeSats.toLocaleString()} sats overlay fee`
+	return { indexerFeeSats: feeSats, indexerFeeNote: note }
 }
 
 // ---------------------------------------------------------------------------
@@ -219,6 +319,17 @@ function decodeOutput(
 	} catch {
 		return enriched
 	}
+	const ordLock = OrdLock.decode(script, chain === 'mainnet')
+	if (ordLock) {
+		enriched.listingPriceSats = Number(ordLock.price)
+		enriched.listingSeller = ordLock.seller
+	}
+
+	const lock = Lock.decode(script, chain === 'mainnet')
+	if (lock) {
+		enriched.lockUntilHeight = lock.until
+	}
+
 	const recipient = parseAddress(script, 0, chain)
 	if (recipient) {
 		enriched.recipient = recipient
@@ -245,7 +356,33 @@ function hasListingTags(tags: string[]): boolean {
 function detectKind(
 	inputs: EnrichedAsset[],
 	outputs: EnrichedOutput[],
+	p1satIntent?: string,
 ): EnrichedIntentKind {
+	// Prefer explicit intent labels over heuristics.
+	if (p1satIntent?.startsWith('opns.')) return 'opns'
+	if (p1satIntent === 'ordinal.list' || p1satIntent === 'bsv21.list')
+		return 'listing'
+	if (
+		p1satIntent === 'ordinal.cancel-listing' ||
+		p1satIntent === 'opns.cancel-listing'
+	)
+		return 'cancel-listing'
+	if (
+		p1satIntent === 'ordinal.purchase' ||
+		p1satIntent === 'opns.purchase' ||
+		p1satIntent === 'bsv21.purchase'
+	)
+		return 'purchase'
+	if (p1satIntent === 'ordinal.transfer') return 'ordinal-transfer'
+	if (p1satIntent === 'bsv21.transfer') return 'token-transfer'
+	if (p1satIntent === 'lock.lock') return 'lock'
+	if (p1satIntent === 'lock.unlock') return 'unlock'
+	if (
+		p1satIntent === 'ordinal.inscribe' ||
+		p1satIntent === 'ordinal.inscribe-sigma'
+	)
+		return 'inscription'
+
 	// Cancel listing: spending an ordlock-tagged input back to a P2PKH owner.
 	// Listings live in the basket of the listed asset (ordinals, opns, …),
 	// so the ordlock/price tags are the marker, not the basket.
@@ -298,7 +435,12 @@ function buildSummary(
 	kind: EnrichedIntentKind,
 	inputs: EnrichedAsset[],
 	outputs: EnrichedOutput[],
+	intentId?: string,
 ): string {
+	if (intentId) {
+		const named = summaryFromIntentId(intentId, inputs, outputs)
+		if (named) return named
+	}
 	switch (kind) {
 		case 'ordinal-transfer': {
 			const recipient = outputs.find((o) => o.recipient)?.recipient
@@ -324,10 +466,11 @@ function buildSummary(
 			return ct ? `Inscribe ${ct}` : `Create inscription`
 		}
 		case 'listing': {
-			const out = outputs.find((o) =>
-				o.tags.some((t) => t.startsWith('price:')),
-			)
-			const price = tagValue(out?.tags, 'price')
+			const out =
+				outputs.find((o) => o.listingPriceSats !== undefined) ??
+				outputs.find((o) => o.tags.some((t) => t.startsWith('price:')))
+			// Script-decoded price only — the `price:` tag is caller-asserted.
+			const price = out?.listingPriceSats
 			// The listing output carries name/origin tags too — fall back to
 			// them when no input label resolved.
 			const name =
@@ -350,6 +493,62 @@ function buildSummary(
 		}
 		default:
 			return `Approve transaction`
+	}
+}
+
+function summaryFromIntentId(
+	intentId: string,
+	inputs: EnrichedAsset[],
+	outputs: EnrichedOutput[],
+): string | undefined {
+	const name =
+		tagValue(inputs[0]?.tags, 'name') ??
+		tagValue(outputs.find((o) => o.basket === OPNS_BASKET)?.tags, 'name')
+	const what = name ? `“${name}”` : undefined
+	switch (intentId) {
+		case 'opns.register':
+			return what ? `Publish name ${what}` : 'Publish OpNS name'
+		case 'opns.deregister':
+			return what ? `Unpublish name ${what}` : 'Unpublish OpNS name'
+		case 'opns.list':
+			return what ? `List name ${what} for sale` : 'List OpNS name for sale'
+		case 'opns.transfer':
+			return what ? `Transfer name ${what}` : 'Transfer OpNS name'
+		case 'opns.cancel-listing':
+			return what ? `Cancel listing of ${what}` : 'Cancel OpNS listing'
+		case 'opns.purchase':
+			return what ? `Buy name ${what}` : 'Buy OpNS name'
+		case 'ordinal.transfer':
+			return 'Send ordinal'
+		case 'ordinal.list':
+			return 'List ordinal for sale'
+		case 'ordinal.cancel-listing':
+			return 'Cancel ordinal listing'
+		case 'ordinal.purchase':
+			return 'Buy ordinal'
+		case 'ordinal.burn':
+			return 'Burn ordinal'
+		case 'ordinal.inscribe':
+		case 'ordinal.inscribe-sigma':
+			return 'Create inscription'
+		case 'ordinal.mint-collection':
+			return 'Mint collection'
+		case 'ordinal.mint-item':
+			return 'Mint collection item'
+		case 'lock.lock':
+			return 'Lock BSV'
+		case 'lock.unlock':
+			return 'Unlock BSV'
+		case 'bsv21.transfer':
+			return 'Send tokens'
+		case 'bsv21.purchase':
+			return 'Buy tokens'
+		case 'bsv21.mint':
+			return 'Mint tokens'
+		case 'bsv21.deploy':
+			return 'Deploy token'
+		default:
+			return undefined
 	}
 }
 

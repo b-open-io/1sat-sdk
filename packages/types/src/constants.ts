@@ -28,6 +28,8 @@ export const ORDINALS_BASKET = 'p 1sat ordinals'
 export const BSV21_BASKET = 'p 1sat bsv21'
 export const BSV21_AUTH_BASKET = 'p 1sat bsv21-auth'
 export const BSV21_DEPLOY_FUNDING_BASKET = 'p 1sat bsv21-deploy-funding'
+/** Tag on a single-CA deploy output; tokenId is the outpoint (`txid_vout`). */
+export const BSV21_DEPLOY_TAG = 'bsv21:deploy'
 export const OPNS_BASKET = 'p 1sat opns'
 /**
  * Host-wallet basket for subscription receipt dust (1 sat to host).
@@ -181,6 +183,119 @@ export function readHostingExp(tags: string[] | undefined): number | undefined {
 export const P1SAT_LABEL = 'p 1sat action'
 
 /**
+ * Intent label prefix. Payload is `<domain>.<verb>` (e.g. `opns.register`).
+ * When present, replaces the need for bare {@link P1SAT_LABEL} as the
+ * WPM dispatch trigger for createAction.
+ */
+export const P1SAT_INTENT_LABEL_PREFIX = 'p 1sat intent '
+
+/** Well-known P1Sat createAction intents (permission apply dispatch keys). */
+export const P1SAT_INTENTS = {
+	OPNS_REGISTER: 'opns.register',
+	OPNS_DEREGISTER: 'opns.deregister',
+	OPNS_LIST: 'opns.list',
+	OPNS_TRANSFER: 'opns.transfer',
+	OPNS_CANCEL_LISTING: 'opns.cancel-listing',
+	OPNS_PURCHASE: 'opns.purchase',
+	ORDINAL_TRANSFER: 'ordinal.transfer',
+	ORDINAL_LIST: 'ordinal.list',
+	ORDINAL_CANCEL_LISTING: 'ordinal.cancel-listing',
+	ORDINAL_PURCHASE: 'ordinal.purchase',
+	ORDINAL_BURN: 'ordinal.burn',
+	ORDINAL_INSCRIBE: 'ordinal.inscribe',
+	ORDINAL_INSCRIBE_SIGMA: 'ordinal.inscribe-sigma',
+	ORDINAL_MINT_COLLECTION: 'ordinal.mint-collection',
+	ORDINAL_MINT_ITEM: 'ordinal.mint-item',
+	LOCK_LOCK: 'lock.lock',
+	LOCK_UNLOCK: 'lock.unlock',
+	BSV21_TRANSFER: 'bsv21.transfer',
+	BSV21_PURCHASE: 'bsv21.purchase',
+	BSV21_MINT: 'bsv21.mint',
+	BSV21_DEPLOY: 'bsv21.deploy',
+} as const
+
+export type P1SatIntent = (typeof P1SAT_INTENTS)[keyof typeof P1SAT_INTENTS]
+
+/** All known intent id strings (for fail-closed checks). */
+export const P1SAT_INTENT_IDS: ReadonlySet<string> = new Set(
+	Object.values(P1SAT_INTENTS),
+)
+
+/**
+ * True if `intent` is a known P1Sat intent id.
+ */
+export function isKnownP1SatIntent(intent: string): intent is P1SatIntent {
+	return P1SAT_INTENT_IDS.has(intent)
+}
+
+/**
+ * Build `p 1sat intent <domain>.<verb>`.
+ */
+export function buildIntentLabel(intent: string): string {
+	return `${P1SAT_INTENT_LABEL_PREFIX}${intent}`
+}
+
+/**
+ * First `p 1sat intent …` label payload, or undefined.
+ */
+export function parseIntentLabel(
+	labels: string[] | undefined,
+): string | undefined {
+	if (!labels) return undefined
+	for (const label of labels) {
+		if (!label.startsWith(P1SAT_INTENT_LABEL_PREFIX)) continue
+		const intent = label.slice(P1SAT_INTENT_LABEL_PREFIX.length).trim()
+		if (intent) return intent
+	}
+	return undefined
+}
+
+/**
+ * Action-id label prefix. Payload is the hex actionId that also appears in
+ * each basketed output's `id:<actionId>_<index>` tag.
+ *
+ * The actionId is the action's correlator: it is stamped before apply runs,
+ * so both the action and apply can derive the same intermediate keyIDs
+ * (e.g. the Sigma anchor) without passing anything between them. Nothing may
+ * travel back from apply to the action — `WalletPermissionsManager` rebuilds
+ * `labels` into a new array before the module sees the args, so writes there
+ * are not visible to the caller.
+ */
+export const P1SAT_ACTION_ID_LABEL_PREFIX = 'p 1sat action-id '
+
+/**
+ * Build `p 1sat action-id <actionId>`.
+ */
+export function buildActionIdLabel(actionId: string): string {
+	return `${P1SAT_ACTION_ID_LABEL_PREFIX}${actionId}`
+}
+
+/**
+ * First `p 1sat action-id …` label payload, or undefined.
+ */
+export function parseActionIdLabel(
+	labels: string[] | undefined,
+): string | undefined {
+	if (!labels) return undefined
+	for (const label of labels) {
+		if (!label.startsWith(P1SAT_ACTION_ID_LABEL_PREFIX)) continue
+		const actionId = label.slice(P1SAT_ACTION_ID_LABEL_PREFIX.length).trim()
+		if (actionId) return actionId
+	}
+	return undefined
+}
+
+/**
+ * True if labels already route createAction to the 1Sat permission module
+ * (bare action label or any intent label).
+ */
+export function hasP1SatDispatchLabel(labels: string[] | undefined): boolean {
+	if (!labels?.length) return false
+	if (labels.includes(P1SAT_LABEL)) return true
+	return labels.some((l) => l.startsWith(P1SAT_INTENT_LABEL_PREFIX))
+}
+
+/**
  * Shared `'p 1sat '` prefix on every 1Sat asset basket. Used by the
  * WalletPermissionsManager to route basket-scoped calls (listOutputs,
  * internalizeAction, etc.) through the 1Sat permission module.
@@ -201,6 +316,13 @@ export const P1SAT_BASKET_PREFIX = 'p 1sat '
  * the final tx. The module reads both directly.
  */
 export const P1SAT_INPUT_LABEL_PREFIX = 'p 1sat input '
+
+/**
+ * Sized placeholder for `opns.register` PushDrop output before apply seals
+ * the real field-sig script. ~142 bytes matches typical lock (33-byte pubkey
+ * + CHECKSIG + identity field + DER sig + 2DROP).
+ */
+export const OPNS_REGISTER_LOCK_PLACEHOLDER_HEX = '00'.repeat(142)
 
 /**
  * Build a label that points the 1Sat permission module at a specific

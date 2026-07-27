@@ -1,6 +1,6 @@
 import { AIP, WalletSigner } from '@1sat/templates'
 import { OP, Script, Utils } from '@bsv/sdk'
-import { BAP_BASKET, BAP_PROTOCOL_ID } from '../constants'
+import { BAP_BASKET, BAP_KEY_ID, BAP_PROTOCOL_ID } from '../constants'
 import type { OneSatContext } from '../types'
 
 const { toArray } = Utils
@@ -29,41 +29,34 @@ export async function resolveBapSigner(
 /**
  * Resolve the current BAP signing key ID from the wallet's basket.
  *
- * Scans `type:id` outputs for the highest `seq:N` tag and reads the
- * keyID from customInstructions. Throws if no ID outputs exist —
- * identity-0 is reserved for publishing/rotation and must not be used
- * for general signing.
+ * The `seq:N` ID record declares `<BAP_KEY_ID>-N` as the current signing
+ * key, so the highest `seq:` tag determines the key. `-0` is reserved for
+ * publishing/rotation and must not be used for general signing.
  */
 export async function resolveCurrentKeyId(ctx: OneSatContext): Promise<string> {
 	const result = await ctx.wallet.listOutputs({
 		basket: BAP_BASKET,
 		tags: ['type:id'],
 		includeTags: true,
-		includeCustomInstructions: true,
 		limit: 100,
 	})
 
-	let maxSeq = -1
-	let keyID: string | undefined
+	let maxSeq = 0
 
 	for (const output of result.outputs) {
 		const seqTag = output.tags?.find((t) => t.startsWith('seq:'))
 		if (!seqTag) continue
 		const seq = Number.parseInt(seqTag.slice(4), 10)
-		if (seq > maxSeq && output.customInstructions) {
-			maxSeq = seq
-			const info = JSON.parse(output.customInstructions)
-			keyID = info.keyID
-		}
+		if (Number.isFinite(seq) && seq > maxSeq) maxSeq = seq
 	}
 
-	if (!keyID) {
+	if (maxSeq < 1) {
 		throw new Error(
 			'No BAP identity published — cannot resolve current signing key. Publish an identity before signing.',
 		)
 	}
 
-	return keyID
+	return `${BAP_KEY_ID}-${maxSeq}`
 }
 
 /**

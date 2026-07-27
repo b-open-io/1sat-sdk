@@ -6,6 +6,7 @@
 
 import { Lock } from '@1sat/templates'
 import {
+	P1SAT_INTENTS,
 	P1SAT_PROTOCOL,
 	buildInputAssetLabel,
 	readAssetIdTag,
@@ -16,6 +17,7 @@ import {
 	Utils,
 	type WalletOutput,
 } from '@bsv/sdk'
+import { prepareP1SatArgs } from '../apply'
 import { LOCK_BASKET } from '../constants'
 import type { Action, ActionLogEntry, ActionOptions } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
@@ -239,12 +241,20 @@ export const lockBsv: Action<LockBsvInput, LockOperationResponse> = {
 				if (req.until <= 0) return { error: 'invalid-block-height' }
 
 				const lockingScript = Lock.lock(lockAddress, req.until)
+
+				// Read the height back out of the script we just built, so the
+				// tag can never drift from what the chain will actually enforce.
+				const encoded = Lock.decode(lockingScript)
+				if (!encoded) {
+					return { error: 'lock-script-encode-failed' }
+				}
+
 				outputs.push({
 					lockingScript: lockingScript.toHex(),
 					satoshis: req.satoshis,
-					outputDescription: `Lock ${req.satoshis} sats until block ${req.until}`,
+					outputDescription: `Lock ${req.satoshis} sats until block ${encoded.until}`,
 					basket: LOCK_BASKET,
-					tags: [`until:${req.until}`],
+					tags: [`until:${encoded.until}`],
 					customInstructions: JSON.stringify({
 						protocolID: LOCK_PROTOCOL,
 						keyID: LOCK_KEY_ID,
@@ -252,13 +262,18 @@ export const lockBsv: Action<LockBsvInput, LockOperationResponse> = {
 				})
 			}
 
-			const result = await executeTrackedAction(
-				ctx.wallet,
+			const args = await prepareP1SatArgs(
+				ctx,
 				{
 					description: `Lock BSV in ${requests.length} output(s)`,
 					outputs,
 					options: { acceptDelayedBroadcast: false },
 				},
+				P1SAT_INTENTS.LOCK_LOCK,
+			)
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				args,
 				input.fundingProvider,
 			)
 
@@ -416,8 +431,8 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 				.map((l) => readAssetIdTag(l.output.tags))
 				.filter((id): id is string => Boolean(id))
 				.map((id) => buildInputAssetLabel(LOCK_BASKET, id))
-			const result = await executeTrackedAction(
-				ctx.wallet,
+			const args = await prepareP1SatArgs(
+				ctx,
 				{
 					description: `Unlock ${maturedLocks.length} lock(s)`,
 					inputBEEF,
@@ -431,6 +446,11 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 					outputs: [],
 					lockTime: maxUntil,
 				},
+				P1SAT_INTENTS.LOCK_UNLOCK,
+			)
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				args,
 				undefined,
 				inputBEEF as number[],
 				async (tx) => {

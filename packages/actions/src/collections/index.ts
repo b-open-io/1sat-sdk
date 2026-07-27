@@ -22,11 +22,12 @@ import type {
 	RarityLabels,
 	Royalty,
 } from '@1sat/types'
+import { P1SAT_INTENTS, P1SAT_PROTOCOL } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
 import { P2PKH, PublicKey, Script, Utils } from '@bsv/sdk'
+import { prepareP1SatArgs } from '../apply'
 import {
 	MAX_INSCRIPTION_BYTES,
-	P1SAT_PROTOCOL,
 	ORDINALS_BASKET,
 } from '../constants'
 import type { Action, ActionOptions } from '../types'
@@ -287,8 +288,8 @@ export const mintCollection: Action<MintCollectionInput, MintCollectionOutput> =
 					'subType:collection',
 				]
 
-				const result = await executeTrackedAction(
-					ctx.wallet,
+				const args = await prepareP1SatArgs(
+					ctx,
 					{
 						description: `Create collection: ${input.name}`,
 						outputs: [
@@ -310,6 +311,11 @@ export const mintCollection: Action<MintCollectionInput, MintCollectionOutput> =
 							randomizeOutputs: false,
 						},
 					},
+					P1SAT_INTENTS.ORDINAL_MINT_COLLECTION,
+				)
+				const result = await executeTrackedAction(
+					ctx.wallet,
+					args,
 					input.fundingProvider,
 				)
 
@@ -462,8 +468,8 @@ export const mintCollectionItem: Action<
 				`collectionId:${input.collectionId}`,
 			]
 
-			const result = await executeTrackedAction(
-				ctx.wallet,
+			const mintItemArgs = await prepareP1SatArgs(
+				ctx,
 				{
 					description: `Create collection item: ${input.name}`,
 					outputs: [
@@ -485,6 +491,11 @@ export const mintCollectionItem: Action<
 						randomizeOutputs: false,
 					},
 				},
+				P1SAT_INTENTS.ORDINAL_MINT_ITEM,
+			)
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				mintItemArgs,
 				input.fundingProvider,
 			)
 

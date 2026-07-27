@@ -2,7 +2,7 @@
  * CSS string for the OneSatPermissionPrompt component. Inlined as a style
  * tag so the host wallet doesn't have to wire up CSS imports.
  *
- * Colors match the design in `1sat-permissions-popups.pen`.
+ * Colors match `docs/plans/mockups/p1sat-permissions.pen`.
  */
 export const promptStyles = `
 .opp-root {
@@ -19,6 +19,12 @@ export const promptStyles = `
   --opp-reject-border: #d1d5db;
   --opp-status-bg: #FFFBE6;
   --opp-status-fg: #E5A920;
+  --opp-trust-ok-bg: #ECFDF5;
+  --opp-trust-ok-fg: #059669;
+  --opp-trust-warn-bg: #FFFBEB;
+  --opp-trust-warn-fg: #D97706;
+  --opp-trust-bad-bg: #FEF2F2;
+  --opp-trust-bad-fg: #DC2626;
 
   font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: var(--opp-bg);
@@ -50,6 +56,12 @@ export const promptStyles = `
   --opp-reject-border: #2D3142;
   --opp-status-bg: #2A2408;
   --opp-status-fg: #E5A920;
+  --opp-trust-ok-bg: #0A2E1F;
+  --opp-trust-ok-fg: #34D399;
+  --opp-trust-warn-bg: #2A2008;
+  --opp-trust-warn-fg: #FBBF24;
+  --opp-trust-bad-bg: #2A1215;
+  --opp-trust-bad-fg: #F87171;
 }
 
 .opp-body {
@@ -111,7 +123,7 @@ export const promptStyles = `
   background: var(--opp-card-bg);
   border: 1px solid var(--opp-card-border);
   border-radius: 10px;
-  margin: 0 20px;
+  margin: 0 20px 8px;
   padding: 16px;
 }
 
@@ -120,8 +132,22 @@ export const promptStyles = `
   height: 80px;
   border-radius: 8px;
   object-fit: cover;
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.08);
   flex-shrink: 0;
+}
+
+.opp-featured-image-token {
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+}
+
+.opp-featured-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--opp-muted);
+  font-size: 18px;
 }
 
 .opp-featured-meta {
@@ -129,6 +155,7 @@ export const promptStyles = `
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+  flex: 1;
 }
 
 .opp-featured-title {
@@ -142,9 +169,71 @@ export const promptStyles = `
 .opp-featured-subtitle {
   font-size: 12px;
   color: var(--opp-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.opp-featured-subtitle-text {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
+}
+
+.opp-trust-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 20px 8px;
+}
+
+.opp-trust {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.opp-trust-verified {
+  background: var(--opp-trust-ok-bg);
+  color: var(--opp-trust-ok-fg);
+}
+
+.opp-trust-unverified {
+  background: var(--opp-trust-warn-bg);
+  color: var(--opp-trust-warn-fg);
+}
+
+.opp-trust-mismatch {
+  background: var(--opp-trust-bad-bg);
+  color: var(--opp-trust-bad-fg);
+}
+
+.opp-trust-note {
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.opp-trust-note-verified {
+  background: var(--opp-trust-ok-bg);
+  color: var(--opp-trust-ok-fg);
+}
+
+.opp-trust-note-unverified {
+  background: var(--opp-trust-warn-bg);
+  color: var(--opp-trust-warn-fg);
+}
+
+.opp-trust-note-mismatch {
+  background: var(--opp-trust-bad-bg);
+  color: var(--opp-trust-bad-fg);
 }
 
 .opp-row {
@@ -156,31 +245,54 @@ export const promptStyles = `
 
 .opp-row-key {
   color: var(--opp-muted);
+  flex-shrink: 0;
+}
+
+.opp-row-value-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 70%;
+  justify-content: flex-end;
 }
 
 .opp-row-value {
   font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   text-align: right;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
-  max-width: 60%;
 }
 
-.opp-meta {
-  display: flex;
-  justify-content: space-between;
-  padding: 12px 20px;
-  font-size: 12px;
-  color: var(--opp-muted);
-}
-
-.opp-meta-value {
+.opp-copy {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid var(--opp-reject-border);
+  background: var(--opp-bg);
   color: var(--opp-fg);
-  font-weight: 500;
+  cursor: pointer;
+}
+
+.opp-copy:hover {
+  border-color: var(--opp-accent);
+  color: var(--opp-accent);
+}
+
+.opp-fee-note {
+  font-size: 11px;
+  color: var(--opp-muted);
+  line-height: 1.3;
+  margin-top: -4px;
 }
 
 .opp-actions {

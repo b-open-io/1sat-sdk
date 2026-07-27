@@ -15,63 +15,74 @@ import { MneeHistory } from './components/MneeHistory'
 import { OrdinalsList } from './components/OrdinalsList'
 import { TokensList } from './components/TokensList'
 import { UtxosList } from './components/UtxosList'
+import { OpnsPanel } from './components/OpnsPanel'
+import { DepositSync } from './components/DepositSync'
+import { SweepUntagged } from './components/SweepUntagged'
+import { SendUntaggedOrdinal } from './components/SendUntaggedOrdinal'
 import { EventLog } from './components/EventLog'
 import { LogProvider } from './components/LogContext'
+import { LocalCwiHost } from './localCwi/LocalCwiHost'
 
 /** Keyed by identityKey so all child state resets on account switch */
 function WalletContent() {
-  const { identityKey } = useWallet()
+	const { identityKey } = useWallet()
 
-  return (
-    <div key={identityKey ?? 'disconnected'}>
-      <WalletInfo />
-      <div style={gridStyle}>
-        <div style={colStyle}>
-          <SendBsv />
-          <SendMnee />
-          <Inscribe />
-          <SendOrdinals />
-          <TransferToken />
-          <Listings />
-          <SignMessage />
-          <BapProfile />
-          <LockBsv />
-        </div>
-        <div style={colStyle}>
-          <MneeBalance />
-          <MneeHistory />
-          <OrdinalsList />
-          <TokensList />
-          <UtxosList />
-        </div>
-      </div>
-    </div>
-  )
+	return (
+		<div key={identityKey ?? 'disconnected'}>
+			<WalletInfo />
+			<div style={gridStyle}>
+				<div style={colStyle}>
+					<DepositSync />
+					<SweepUntagged />
+					<SendUntaggedOrdinal />
+					<OpnsPanel />
+					<SendBsv />
+					<SendMnee />
+					<Inscribe />
+					<SendOrdinals />
+					<TransferToken />
+					<Listings />
+					<SignMessage />
+					<BapProfile />
+					<LockBsv />
+				</div>
+				<div style={colStyle}>
+					<MneeBalance />
+					<MneeHistory />
+					<OrdinalsList />
+					<TokensList />
+					<UtxosList />
+				</div>
+			</div>
+		</div>
+	)
 }
 
 function App() {
-  return (
-    <WalletProvider autoReconnect>
-      <LogProvider>
-        <Header />
-        <WalletContent />
-        <EventLog />
-      </LogProvider>
-    </WalletProvider>
-  )
+	return (
+		<LocalCwiHost>
+			<WalletProvider autoReconnect>
+				<LogProvider>
+					<Header />
+					<WalletContent />
+					<EventLog />
+				</LogProvider>
+			</WalletProvider>
+		</LocalCwiHost>
+	)
 }
 
 const gridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: '1.5rem',
-  marginTop: '1.5rem',
+	display: 'grid',
+	gridTemplateColumns: '1fr 1fr',
+	gap: '1.5rem',
+	marginTop: '1.5rem',
 }
 
 const colStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '1.5rem',
+	display: 'flex',
+	flexDirection: 'column',
+	gap: '1.5rem',
 }
 
 export default App

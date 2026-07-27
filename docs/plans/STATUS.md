@@ -4,7 +4,11 @@
 |------|--------|-------------|
 | [P1SAT id-first actions](./2026-07-23-p1sat-id-first-actions.md) | **Draft** | id: on all P1SAT basket UTXOs; spends by id; list tags default; consumer updates |
 | [CLI id-first wiring](./2026-07-23-cli-id-first-wiring.md) | **Draft** | Wire 1sat CLI to id-first actions; walkthrough in progress |
-| [P1SAT permission prompts](./2026-07-23-p1sat-permission-prompts.md) | **Draft** | Claim+validate rich prompts; action inventory; OpNS first |
+| [P1SAT permissions](./2026-07-25-p1sat-permissions.md) | **Architecture locked** | Action/module/apply split; intent matrix; OpNS publish canonical |
+| [P1SAT permission UI wiring](./2026-07-25-p1sat-permission-ui-wiring.md) | **In progress** | Phase 0 done; Phase 1 view model + UI chrome next · [mockups](./mockups/p1sat-permissions.pen) |
+| [P1SAT permission prompts](./2026-07-23-p1sat-permission-prompts.md) | **Archived inventory** | Historical only → see 2026-07-25-p1sat-permissions.md |
+| [Permission test harness](./2026-07-25-permission-test-harness.md) | **In progress** | test-app + agent-browser; flow results, fixes applied, harness gotchas |
+| [Permission module verification](./2026-07-26-permission-module-verification.md) | **Plan** | Optional services on the module; trust computed live, never stored |
 | [Host pack / Paymail](./2026-07-21-hosted-paymail.md) | **In Progress** | Design locked; multi-process impl in trees; ts-stack #297; unify + cutover left |
 | [MAP Templates Migration](./2026-03-02-map-templates-migration.md) | **COMPLETE** | SDK-side changes done, Go deferred |
 | [CWI Unification](./CWI_UNIFICATION.md) | **COMPLETE** | Method names unified, EmbedTransport removed |

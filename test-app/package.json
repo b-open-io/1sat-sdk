@@ -9,12 +9,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@1sat/actions": "0.0.162",
-    "@1sat/client": "0.0.38",
-    "@1sat/connect": "0.0.67",
-    "@1sat/react": "0.0.63",
-    "@1sat/types": "0.0.30",
-    "@bsv/sdk": "latest",
+    "@1sat/actions": "workspace:*",
+    "@1sat/client": "workspace:*",
+    "@1sat/connect": "workspace:*",
+    "@1sat/permission-module": "workspace:*",
+    "@1sat/permission-module-ui": "workspace:*",
+    "@1sat/react": "workspace:*",
+    "@1sat/templates": "workspace:*",
+    "@1sat/types": "workspace:*",
+    "@1sat/wallet": "workspace:*",
+    "@1sat/wallet-browser": "workspace:*",
+    "@bsv/sdk": "^2.1.9",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },

@@ -1,7 +1,7 @@
+import { P1SAT_BASKET_PREFIX, parseIntentLabel } from '@1sat/types'
+import type { IPermissionStore } from '@1sat/wallet'
 import type {
 	CreateActionArgs,
-	CreateActionInput,
-	CreateActionOutput,
 	CreateActionResult,
 	CreateSignatureArgs,
 	GetPublicKeyArgs,
@@ -10,60 +10,88 @@ import type {
 	WalletInterface,
 } from '@bsv/sdk'
 import { Transaction } from '@bsv/sdk'
-import { P1SAT_BASKET_PREFIX } from '@1sat/types'
-import type { IPermissionStore } from '@1sat/wallet'
-import { CommitmentCache } from './commitmentCache'
+import { applyCreateAction } from './apply'
+import type { CommitmentCache } from './commitmentCache'
 import { enrichIntent } from './enrichIntent'
 import { computeHashOutputs } from './hashOutputs'
 import { MIN_BIP143_PREIMAGE_BYTES, parsePreimage } from './sighashParser'
-import type { PromptHandler } from './types'
+import type { PromptHandler, VerificationServices } from './types'
+import { verifyIntent } from './verifyIntent'
 
 interface HandlerDeps {
+	/** Base wallet — apply crypto never uses a gated wrapper. */
 	wallet: WalletInterface
 	promptHandler: PromptHandler
 	cache: CommitmentCache
 	adminOriginator?: string
 	permissionStore?: IPermissionStore
+	services?: VerificationServices
 }
 
 /**
  * createAction onRequest:
- *   1. Admin originator → return args unchanged.
- *   2. Enrich the intent — look up input assets in the wallet by their
- *      `'p 1sat input <basket> <id>'` labels (trusted records, not dApp-supplied).
- *   3. Prompt user with the structured intent. Reject throws.
+ *   1. dApp: enrich (wallet re-lookup) → prompt → reject throws.
+ *   2. Admin: no prompt.
+ *   3. Always apply on base wallet (admin silent; dApp after approve).
+ *      Mutates args in place (PushDrop seal, etc.).
  */
 export async function handleCreateActionRequest(
 	deps: HandlerDeps,
 	args: CreateActionArgs,
 	originator: string,
 ): Promise<CreateActionArgs> {
-	if (isAdmin(deps, originator)) return args
+	const p1satIntent = parseIntentLabel(args.labels)
+	const admin = isAdmin(deps, originator)
 
-	const enriched = await enrichIntent(deps.wallet, args)
+	if (!admin) {
+		const enriched = await enrichIntent(deps.wallet, args)
 
-	const approved = await deps.promptHandler({
-		kind: 'transaction',
-		originator,
-		intent: {
-			kind: enriched.kind,
-			inputs: enriched.inputs,
-			outputs: enriched.outputs.map((o) => ({
-				index: o.index,
-				satoshis: o.satoshis,
-				basket: o.basket,
-				tags: o.tags,
-				recipient: o.recipient,
-			})),
-			contentUrls: buildContentUrlMap(enriched),
-			chain: enriched.chain,
-		},
-		summary: enriched.summary,
-	})
-	if (!approved) {
-		throw new Error('1Sat permission module: user rejected the transaction.')
+		const approved = await deps.promptHandler({
+			kind: 'transaction',
+			originator,
+			intent: {
+				kind: enriched.kind,
+				p1satIntent: enriched.p1satIntent,
+				inputs: enriched.inputs,
+				outputs: enriched.outputs.map((o) => ({
+					index: o.index,
+					satoshis: o.satoshis,
+					basket: o.basket,
+					tags: o.tags,
+					recipient: o.recipient,
+					listingPriceSats: o.listingPriceSats,
+					listingSeller: o.listingSeller,
+					lockUntilHeight: o.lockUntilHeight,
+				})),
+				contentUrls: buildContentUrlMap(enriched),
+				chain: enriched.chain,
+				...(enriched.trust && { trust: enriched.trust }),
+				// Resolves once a service answers. The card renders immediately
+				// with `trust.state === 'unverified'` and upgrades in place — a
+				// slow or unreachable overlay delays the badge, never the prompt.
+				...(enriched.trust && {
+					verification: verifyIntent(
+						deps.services,
+						enriched.p1satIntent,
+						enriched.inputs,
+						enriched.outputs,
+						enriched.contentUrlForOrigin,
+					),
+				}),
+				...(enriched.indexerFeeSats != null && {
+					indexerFeeSats: enriched.indexerFeeSats,
+					indexerFeeNote: enriched.indexerFeeNote,
+				}),
+			},
+			summary: enriched.summary,
+		})
+		if (!approved) {
+			throw new Error('1Sat permission module: user rejected the transaction.')
+		}
 	}
 
+	// Admin and dApp both apply — seal ops must not bare-return on admin.
+	await applyCreateAction(deps.wallet, args, p1satIntent)
 	return args
 }
 
@@ -76,18 +104,46 @@ export async function handleCreateActionRequest(
  * other "asset received into wallet" flows) get resolved.
  */
 function buildContentUrlMap(
-	enriched: ReturnType<typeof enrichIntent> extends Promise<infer T> ? T : never,
+	enriched: ReturnType<typeof enrichIntent> extends Promise<infer T>
+		? T
+		: never,
 ): Record<string, string> {
 	const out: Record<string, string> = {}
-	const add = (tags: string[]): void => {
+	const addOrigin = (tags: string[]): void => {
 		const tag = tags.find((t) => t.startsWith('origin:'))
 		if (!tag) return
 		const value = tag.slice('origin:'.length)
 		if (!value || out[value]) return
 		out[value] = enriched.contentUrlForOrigin(value)
 	}
-	for (const asset of enriched.inputs) add(asset.tags)
-	for (const output of enriched.outputs) add(output.tags)
+	const addIcon = (tags: string[]): void => {
+		const icon = tags.find((t) => t.startsWith('icon:'))?.slice(5)
+		if (!icon || out[icon]) return
+		if (icon.startsWith('_')) {
+			const bsv21 = tags.find(
+				(t) => t.startsWith('bsv21:') && t !== 'bsv21:deploy',
+			)
+			if (bsv21) {
+				const tokenId = bsv21.slice(6)
+				const txid = tokenId.split('_')[0]
+				const full = `${txid}${icon}`
+				out[icon] = enriched.contentUrlForOrigin(full)
+				out[full] = out[icon]
+				return
+			}
+		}
+		if (icon.includes('.') || icon.includes('_')) {
+			out[icon] = enriched.contentUrlForOrigin(icon.replace('_', '.'))
+		}
+	}
+	for (const asset of enriched.inputs) {
+		addOrigin(asset.tags)
+		addIcon(asset.tags)
+	}
+	for (const output of enriched.outputs) {
+		addOrigin(output.tags)
+		addIcon(output.tags)
+	}
 	return out
 }
 
@@ -151,8 +207,11 @@ export async function handleCreateSignatureRequest(
 	if (preimage && preimage.length >= MIN_BIP143_PREIMAGE_BYTES) {
 		const parsed = parsePreimage(preimage)
 		if (parsed) {
-			const commitment = deps.cache.findByHashOutputs(originator, parsed.hashOutputs)
-			if (commitment && commitment.authorizedOutpoints.has(parsed.outpoint)) {
+			const commitment = deps.cache.findByHashOutputs(
+				originator,
+				parsed.hashOutputs,
+			)
+			if (commitment?.authorizedOutpoints.has(parsed.outpoint)) {
 				return args
 			}
 			if (commitment) {
@@ -205,29 +264,6 @@ function isAdmin(deps: HandlerDeps, originator: string): boolean {
 	return !!deps.adminOriginator && originator === deps.adminOriginator
 }
 
-function stripInputForPrompt(input: CreateActionInput) {
-	return {
-		outpoint: input.outpoint,
-		inputDescription: input.inputDescription,
-	}
-}
-
-function stripOutputForPrompt(output: CreateActionOutput) {
-	return {
-		satoshis: output.satoshis,
-		outputDescription: output.outputDescription,
-		basket: output.basket,
-		lockingScriptLength: output.lockingScript.length / 2,
-	}
-}
-
-function summarizeIntent(args: CreateActionArgs): string {
-	if (args.description) return args.description
-	const ins = args.inputs?.length ?? 0
-	const outs = args.outputs?.length ?? 0
-	return `Transaction with ${ins} input(s) and ${outs} output(s)`
-}
-
 // ---------------------------------------------------------------------------
 // Basket-access gating
 // ---------------------------------------------------------------------------
@@ -257,7 +293,8 @@ export async function ensureBasketAccess(
 
 	const unique = new Set<string>()
 	for (const b of baskets) {
-		if (typeof b === 'string' && b.startsWith(P1SAT_BASKET_PREFIX)) unique.add(b)
+		if (typeof b === 'string' && b.startsWith(P1SAT_BASKET_PREFIX))
+			unique.add(b)
 	}
 	if (unique.size === 0) return
 
@@ -336,7 +373,10 @@ export async function handleInternalizeActionRequest(
 ): Promise<InternalizeActionArgs> {
 	const baskets: string[] = []
 	for (const out of args.outputs ?? []) {
-		if (out.protocol === 'basket insertion' && out.insertionRemittance?.basket) {
+		if (
+			out.protocol === 'basket insertion' &&
+			out.insertionRemittance?.basket
+		) {
 			baskets.push(out.insertionRemittance.basket)
 		}
 	}

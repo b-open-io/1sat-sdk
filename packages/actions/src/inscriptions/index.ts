@@ -6,27 +6,22 @@
 
 import { Inscription, MAP as MAPTemplate } from '@1sat/templates'
 import type { Destination } from '@1sat/types'
-import {
-	Beef,
-	Hash,
-	type LockingScript,
-	P2PKH,
-	PublicKey,
-	Script,
-	Utils,
-} from '@bsv/sdk'
+import { P1SAT_INTENTS, P1SAT_PROTOCOL, buildActionIdLabel } from '@1sat/types'
+import { Beef, Hash, type LockingScript, Script, Utils } from '@bsv/sdk'
+import { prepareP1SatArgs, sigmaAnchorKeyId } from '../apply'
 import {
 	DEFAULT_STREAM_CHUNK_SIZE,
 	MAX_INSCRIPTION_BYTES,
 	ORDFS_STREAM_CONTENT_TYPE,
 	ORDFS_STREAM_PARAM,
 	ORDINALS_BASKET,
-	P1SAT_PROTOCOL,
-	SIGMA_BASKET,
 } from '../constants'
-import { applySigma } from '../signing/sigma'
 import type { Action, ActionOptions, OneSatContext } from '../types'
-import { executeTrackedAction } from '../utils/createTrackedAction'
+import {
+	ensureActionId,
+	executeTrackedAction,
+	randomActionId,
+} from '../utils/createTrackedAction'
 import {
 	type ResolvedDestination,
 	resolveDestination,
@@ -112,74 +107,19 @@ async function inscribeWithSigma(
 	lockingScript: Script,
 	tags: string[],
 	input: InscribeRequest,
+	actionId: string,
 	outputCustomInstructions?: string,
 	outputKeyIDForLog?: string,
 ): Promise<InscribeResponse> {
-	const anchorKeyID = `anchor-${Date.now()}`
-	const { publicKey: anchorPubKey } = await ctx.wallet.getPublicKey({
-		protocolID: P1SAT_PROTOCOL,
-		keyID: anchorKeyID,
-		counterparty: 'self',
-		forSelf: true,
-	})
-	const anchorAddress = PublicKey.fromString(anchorPubKey).toAddress()
-	const anchorLockingScript = new P2PKH().lock(anchorAddress)
-
-	const anchorResult = await executeTrackedAction(
-		ctx.wallet,
-		{
-			description: 'Sigma anchor output',
-			outputs: [
-				{
-					lockingScript: anchorLockingScript.toHex(),
-					satoshis: 2,
-					outputDescription: 'Sigma anchor',
-					basket: SIGMA_BASKET,
-					customInstructions: JSON.stringify({
-						protocolID: P1SAT_PROTOCOL,
-						keyID: anchorKeyID,
-					}),
-				},
-			],
-			options: {
-				noSend: true,
-				randomizeOutputs: false,
-				acceptDelayedBroadcast: true,
-			},
-		},
-		input.fundingProvider,
-		undefined,
-		undefined,
-		{ bypassP1Sat: true },
-	)
-
-	if (!anchorResult.txid) {
-		return { error: 'anchor-no-txid' }
-	}
-
-	const sigmaScript = await applySigma(
+	// One CA: plain inscription shell; apply on base does anchor+sigma+push.
+	const args = await prepareP1SatArgs(
 		ctx,
-		new Script(lockingScript.chunks),
-		{ txid: anchorResult.txid, vout: 0 },
-		0,
-		0,
-	)
-
-	const result = await executeTrackedAction(
-		ctx.wallet,
 		{
 			description: 'Create inscription',
-			inputBEEF: anchorResult.tx,
-			inputs: [
-				{
-					outpoint: `${anchorResult.txid}.0`,
-					inputDescription: 'Sigma anchor',
-					unlockingScriptLength: 108,
-				},
-			],
+			labels: [buildActionIdLabel(actionId)],
 			outputs: [
 				{
-					lockingScript: sigmaScript.toHex(),
+					lockingScript: lockingScript.toHex(),
 					satoshis: 1,
 					outputDescription: 'Inscription',
 					basket: ORDINALS_BASKET,
@@ -189,17 +129,19 @@ async function inscribeWithSigma(
 			],
 			options: {
 				randomizeOutputs: false,
-				// Inscription is the real broadcast; hold only the anchor and pull it in.
-				noSendChange: anchorResult.noSendChange,
-				knownTxids: [anchorResult.txid],
 				acceptDelayedBroadcast: true,
-				trustSelf: 'known',
-				sendWith: [anchorResult.txid],
 			},
 		},
+		P1SAT_INTENTS.ORDINAL_INSCRIBE_SIGMA,
+	)
+
+	const result = await executeTrackedAction(
+		ctx.wallet,
+		args,
 		input.fundingProvider,
-		anchorResult.tx as number[],
+		args.inputBEEF as number[] | undefined,
 		async (tx) => {
+			const anchorKeyID = sigmaAnchorKeyId(ensureActionId(args))
 			const unlocking = await signP2PKHInput(
 				ctx,
 				tx,
@@ -220,7 +162,7 @@ async function inscribeWithSigma(
 				contentType: input.contentType,
 				map: input.map,
 				signWithBAP: true,
-				anchorTxid: anchorResult.txid,
+				anchorOutpoint: args.inputs?.[0]?.outpoint,
 			},
 			txid: result.txid,
 			rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
@@ -581,9 +523,14 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 				return { error: 'streaming-with-funding-provider-not-supported' }
 			}
 
+			// Minted before output building so the destination derivation is
+			// recomputable from the action record. Stamped on args below.
+			const actionId = randomActionId()
+
 			const resolved = await resolveDestination(ctx, input.destination, {
 				protocolID: P1SAT_PROTOCOL,
 				keyIDPrefix: 'inscribe',
+				actionId,
 			})
 
 			const customInstructions = resolved.customInstructions
@@ -628,16 +575,18 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 					lockingScript,
 					tags,
 					input,
+					actionId,
 					customInstructions,
 					resolved.customInstructions?.keyID,
 				)
 				return { ...sigmaResult, contentHash }
 			}
 
-			const result = await executeTrackedAction(
-				ctx.wallet,
+			const args = await prepareP1SatArgs(
+				ctx,
 				{
 					description: 'Create inscription',
+					labels: [buildActionIdLabel(actionId)],
 					outputs: [
 						{
 							lockingScript: lockingScript.toHex(),
@@ -653,6 +602,11 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 						randomizeOutputs: false,
 					},
 				},
+				P1SAT_INTENTS.ORDINAL_INSCRIBE,
+			)
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				args,
 				input.fundingProvider,
 			)
 

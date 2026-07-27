@@ -7,7 +7,13 @@
 
 import { MAP as MAPTemplate } from '@1sat/templates'
 import { OrdLock } from '@1sat/templates'
-import { buildInputAssetLabel, readAssetIdTag } from '@1sat/types'
+import {
+	P1SAT_INTENTS,
+	buildInputAssetLabel,
+	nameFromMap,
+	ordinalTagsFromMetadata,
+	readAssetIdTag,
+} from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
 import {
 	type BEEF,
@@ -25,6 +31,7 @@ import {
 	Utils,
 	type WalletOutput,
 } from '@bsv/sdk'
+import { prepareP1SatArgs } from '../apply'
 import {
 	OPNS_BASKET,
 	ORDINALS_BASKET,
@@ -96,39 +103,47 @@ export async function resolveOrdinalTags(
 	if ((!resolvedContentType || !origin) && ctx.services) {
 		try {
 			const metadata = await ctx.services.ordfs.getMetadata(outpoint, -2)
-			if (!resolvedContentType && metadata.contentType) {
-				resolvedContentType = metadata.contentType
-				if (!contentTypes.includes(metadata.contentType)) {
-					contentTypes.push(metadata.contentType)
+
+			// Canonical tags from the shared builder, then split back out —
+			// every ORDFS-derived tag decision lives in one place.
+			for (const tag of ordinalTagsFromMetadata(metadata)) {
+				if (tag.startsWith('type:')) {
+					const ct = tag.slice(5)
+					if (!contentTypes.includes(ct)) contentTypes.push(ct)
 				}
 			}
-			origin = origin ?? metadata.origin ?? outpoint
+			if (!resolvedContentType && metadata.contentType) {
+				resolvedContentType = metadata.contentType
+			}
 
-			// Non-OPNS: try MAP metadata for name
+			// ORDFS is authoritative for origin. A caller-supplied value is a
+			// hint at best — for a listing it is the seller's outpoint, which
+			// is not an origin at all.
+			origin = metadata.origin ?? origin
+
+			// Non-OPNS: MAP metadata carries the name. OpNS derives its own
+			// from the inscription content, below.
 			if (
 				name === undefined &&
-				resolvedContentType !== 'application/op-ns' &&
-				metadata.map
+				resolvedContentType !== 'application/op-ns'
 			) {
-				const mapName = metadata.map.name
-				const subTypeData = metadata.map.subTypeData as
-					| Record<string, unknown>
-					| undefined
-				name =
-					(typeof mapName === 'string' ? mapName : undefined) ??
-					(typeof subTypeData?.name === 'string' ? subTypeData.name : undefined)
+				name = nameFromMap(metadata.map)
 			}
 		} catch {
 			// Fall through with whatever we have
 		}
 	}
 
-	origin = origin ?? outpoint
+	// No outpoint fallback. An outpoint is not an origin — for a listing it is
+	// the seller's output, which holds no inscription. When ORDFS could not
+	// resolve one, emit no origin tag rather than a false one; the same rule
+	// `OriginIndexer` and `verifyOrdinal` follow.
 
 	// OPNS: name is inscription content
 	if (
 		name === undefined &&
 		resolvedContentType === 'application/op-ns' &&
+		origin &&
 		ctx.services
 	) {
 		try {
@@ -209,6 +224,8 @@ export interface BuyOrdinalRequest extends ActionOptions {
 	basket?: string
 	/** Tags for the purchased output; default resolveOrdinalTags for ordinals ingress */
 	tags?: string[]
+	/** Override intent (e.g. buyOpns → opns.purchase). Default ordinal.purchase. */
+	p1satIntent?: string
 }
 
 export interface OrdinalOperationResponse {
@@ -527,7 +544,18 @@ export async function buildListOrdinal(
 		lockingScript = ordLockScript.toHex()
 	}
 
-	const tags = [...ordinalSeedTags(ordinal), 'ordlock', `price:${price}`]
+	// Read the price back out of the script we just built, so the tag can
+	// never drift from what the chain will actually enforce.
+	const encoded = OrdLock.decode(ordLockScript)
+	if (!encoded) {
+		throw new Error('sellOrdinal: built OrdLock script failed to decode')
+	}
+
+	const tags = [
+		...ordinalSeedTags(ordinal),
+		'ordlock',
+		`price:${encoded.price}`,
+	]
 	const basket = ORDINALS_BASKET
 	const sourceName = nameFromOutput(ordinal, tags)
 
@@ -800,12 +828,14 @@ export const sendOrdinals: Action<
 			}
 
 			const { sources, ...createArgs } = params
+			const args = await prepareP1SatArgs(
+				ctx,
+				{ ...createArgs, options: { randomizeOutputs: false } },
+				P1SAT_INTENTS.ORDINAL_TRANSFER,
+			)
 			const result = await executeTrackedAction(
 				ctx.wallet,
-				{
-					...createArgs,
-					options: { randomizeOutputs: false },
-				},
+				args,
 				input.fundingProvider,
 				params.inputBEEF as number[],
 				async (tx) => {
@@ -919,12 +949,14 @@ export const sellOrdinal: Action<SellOrdinalRequest, OrdinalOperationResponse> =
 					return { error: 'missing-custom-instructions' }
 				}
 
+				const args = await prepareP1SatArgs(
+					ctx,
+					{ ...createArgs, options: { randomizeOutputs: false } },
+					P1SAT_INTENTS.ORDINAL_LIST,
+				)
 				const result = await executeTrackedAction(
 					ctx.wallet,
-					{
-						...createArgs,
-						options: { randomizeOutputs: false },
-					},
+					args,
 					input.fundingProvider,
 					params.inputBEEF as number[],
 					async (tx) => {
@@ -1046,8 +1078,8 @@ export const cancelOrdinalListing: Action<
 			)
 
 			const inputId = readAssetIdTag(listing.tags)
-			const result = await executeTrackedAction(
-				ctx.wallet,
+			const args = await prepareP1SatArgs(
+				ctx,
 				{
 					description: 'Cancel ordinal listing',
 					inputBEEF,
@@ -1077,6 +1109,11 @@ export const cancelOrdinalListing: Action<
 					],
 					options: { randomizeOutputs: false },
 				},
+				P1SAT_INTENTS.ORDINAL_CANCEL_LISTING,
+			)
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				args,
 				input.fundingProvider,
 				inputBEEF,
 				async (tx) => {
@@ -1165,23 +1202,22 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 	async execute(ctx, input) {
 		try {
 			const { outpoint, marketplaceAddress, marketplaceRate } = input
+			const intent = input.p1satIntent ?? P1SAT_INTENTS.ORDINAL_PURCHASE
 
 			const { txid, vout } = parseOutpoint(outpoint)
 
-			let tags: string[]
-			let basket: string
-			if (input.tags?.length) {
-				basket = input.basket ?? ORDINALS_BASKET
-				tags = input.tags
-			} else {
-				const resolved = await resolveOrdinalTags(ctx, outpoint, {
-					contentType: input.contentType,
-					origin: input.origin,
-					name: input.name,
-				})
-				tags = resolved.tags
-				basket = input.basket ?? resolved.basket
-			}
+			// No origin hint: the caller only has the seller's listing outpoint,
+			// which is not an origin. `resolveOrdinalTags` resolves the real one
+			// from ORDFS and owns every tag decision.
+			const resolved = await resolveOrdinalTags(ctx, outpoint, {
+				contentType: input.contentType,
+				origin: input.origin,
+				name: input.name,
+			})
+			const tags = input.tags?.length
+				? [...new Set([...input.tags, ...resolved.tags])]
+				: resolved.tags
+			const basket = input.basket ?? resolved.basket
 
 			let beef: Beef
 			if (input.inputBEEF) {
@@ -1223,8 +1259,7 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 				customInstructions?: string
 			}> = []
 
-			const name =
-				input.name ?? tags.find((t) => t.startsWith('name:'))?.slice(5)
+			const name = tags.find((t) => t.startsWith('name:'))?.slice(5)
 
 			outputs.push({
 				lockingScript: new P2PKH().lock(ourOrdAddress).toHex(),
@@ -1266,8 +1301,8 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 
 			const beefBinary = beef.toBinary()
 
-			const result = await executeTrackedAction(
-				ctx.wallet,
+			const args = await prepareP1SatArgs(
+				ctx,
 				{
 					description: `Purchase ordinal for ${payoutSatoshis} sats`,
 					inputBEEF: beefBinary,
@@ -1281,6 +1316,11 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 					outputs,
 					options: { randomizeOutputs: false },
 				},
+				intent,
+			)
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				args,
 				input.fundingProvider,
 				beefBinary as number[],
 				async (tx) => {
@@ -1362,12 +1402,14 @@ export const burnOrdinals: Action<
 			}
 
 			const { sources, ...createArgs } = params
+			const args = await prepareP1SatArgs(
+				ctx,
+				{ ...createArgs, options: { randomizeOutputs: false } },
+				P1SAT_INTENTS.ORDINAL_BURN,
+			)
 			const result = await executeTrackedAction(
 				ctx.wallet,
-				{
-					...createArgs,
-					options: { randomizeOutputs: false },
-				},
+				args,
 				input.fundingProvider,
 				params.inputBEEF as number[],
 				async (tx) => {

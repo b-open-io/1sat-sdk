@@ -7,6 +7,8 @@
 import { BSV21, OrdLock, P2MS } from '@1sat/templates'
 import {
 	type Destination,
+	BSV21_DEPLOY_TAG,
+	P1SAT_INTENTS,
 	buildInputAssetLabel,
 	buildTokenLabel,
 	readAssetIdTag,
@@ -15,6 +17,7 @@ import { parseOutpoint } from '@1sat/utils'
 import {
 	Beef,
 	BigNumber,
+	type CreateActionArgs,
 	LockingScript,
 	OP,
 	P2PKH,
@@ -25,10 +28,10 @@ import {
 	Utils,
 	type WalletOutput,
 } from '@bsv/sdk'
+import { prepareP1SatArgs } from '../apply'
 import {
 	BSV21_AUTH_BASKET,
 	BSV21_BASKET,
-	BSV21_DEPLOY_FUNDING_BASKET,
 	P1SAT_PROTOCOL,
 } from '../constants'
 import type {
@@ -41,6 +44,22 @@ import { executeTrackedAction } from '../utils/createTrackedAction'
 import { getDisplayValue } from '../utils/displayValue'
 import { resolveDestination } from '../utils/resolveDestination'
 import { signP2PKHInput } from '../utils/signP2PKH'
+
+/** tokenId from tags, or deploy outpoint when tagged bsv21:deploy. */
+function tokenIdFromOutput(o: WalletOutput): string | undefined {
+	const idTag = o.tags?.find(
+		(t) => t.startsWith('bsv21:') && t !== BSV21_DEPLOY_TAG,
+	)
+	if (idTag) return idTag.slice(6)
+	if (o.tags?.includes(BSV21_DEPLOY_TAG)) {
+		return o.outpoint.replace('.', '_')
+	}
+	return undefined
+}
+
+function matchesTokenId(o: WalletOutput, tokenId: string): boolean {
+	return tokenIdFromOutput(o) === tokenId
+}
 
 // ============================================================================
 // Types
@@ -308,11 +327,10 @@ export const getBsv21Balances: Action<GetBsv21BalancesInput, Bsv21Balance[]> = {
 		>()
 
 		for (const o of outputs) {
-			const idTag = o.tags?.find((t) => t.startsWith('bsv21:'))
+			const tokenId = tokenIdFromOutput(o)
 			const amtTag = o.tags?.find((t) => t.startsWith('amt:'))?.slice(4)
-			if (!idTag || !amtTag) continue
+			if (!tokenId || !amtTag) continue
 
-			const tokenId = idTag.slice(6)
 			const amt = BigInt(amtTag)
 			const dec = Number.parseInt(
 				o.tags?.find((t) => t.startsWith('dec:'))?.slice(4) || '0',
@@ -432,11 +450,9 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				limit: 10000,
 			})
 
-			const tokenUtxos = listResult.outputs.filter((o) => {
-				const idTag = o.tags?.find((t) => t.startsWith('bsv21:'))
-				if (!idTag) return false
-				return idTag.slice(6) === tokenId
-			})
+			const tokenUtxos = listResult.outputs.filter((o) =>
+				matchesTokenId(o, tokenId),
+			)
 
 			// Batch-validate all candidate outpoints against the overlay
 			const validOutpoints = new Set<string>()
@@ -522,14 +538,19 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 					...(isSelf && {
 						basket: BSV21_BASKET,
 						tags: [...tokenTags, `amt:${r.amount}`],
-						customInstructions: JSON.stringify({
-							protocolID: P1SAT_PROTOCOL,
-							keyID:
-								recipientResolved.customInstructions?.keyID ??
-								`${tokenId}-${Date.now()}`,
-							counterparty: 'self',
-							...(tokenDetails.token.sym && {
-								sym: tokenDetails.token.sym,
+						// Only when the wallet actually derived the key. A literal
+						// address or lockingScript destination has no derivation, and
+						// inventing a keyID here would record a triple that was never
+						// used to lock this output — leaving it unspendable from its
+						// own record.
+						...(recipientResolved.customInstructions?.keyID && {
+							customInstructions: JSON.stringify({
+								protocolID: P1SAT_PROTOCOL,
+								keyID: recipientResolved.customInstructions.keyID,
+								counterparty: 'self',
+								...(tokenDetails.token.sym && {
+									sym: tokenDetails.token.sym,
+								}),
 							}),
 						}),
 					}),
@@ -586,7 +607,7 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				lockingScript: p2pkh.lock(fee_address).toHex(),
 				satoshis: fee_per_output * tokenOutputCount,
 				outputDescription: 'Overlay processing fee',
-				tags: [],
+				tags: ['fee:overlay'],
 			})
 
 			const symbol = tokenDetails.token.sym || tokenId.slice(0, 8)
@@ -610,8 +631,8 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				.map((o) => readAssetIdTag(o.tags))
 				.filter((id): id is string => Boolean(id))
 				.map((id) => buildInputAssetLabel(BSV21_BASKET, id))
-			const result = await executeTrackedAction(
-				ctx.wallet,
+			const sendArgs = await prepareP1SatArgs(
+				ctx,
 				{
 					description: `Send ${symbol} to ${resolved.length} recipient${resolved.length > 1 ? 's' : ''}`,
 					labels: [buildTokenLabel(tokenId), ...inputLabels],
@@ -624,6 +645,11 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 					outputs,
 					options: { randomizeOutputs: false },
 				},
+				P1SAT_INTENTS.BSV21_TRANSFER,
+			)
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				sendArgs,
 				input.fundingProvider,
 				inputBEEF as number[],
 				async (tx) => {
@@ -866,14 +892,14 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 					lockingScript: p2pkh.lock(tokenDetails.status.fee_address).toHex(),
 					satoshis: tokenDetails.status.fee_per_output,
 					outputDescription: 'Overlay processing fee',
-					tags: [],
+					tags: ['fee:overlay'],
 				})
 			}
 
 			const beefBinary = beef.toBinary()
 
-			const result = await executeTrackedAction(
-				ctx.wallet,
+			const buyArgs = await prepareP1SatArgs(
+				ctx,
 				{
 					description: `Purchase ${tokenAmount} tokens for ${payoutSatoshis} sats`,
 					labels: [buildTokenLabel(tokenId)],
@@ -888,6 +914,11 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 					outputs,
 					options: { randomizeOutputs: false },
 				},
+				P1SAT_INTENTS.BSV21_PURCHASE,
+			)
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				buyArgs,
 				input.fundingProvider,
 				beefBinary as number[],
 				async (tx) => {
@@ -961,52 +992,26 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 	},
 }
 
-/** Miner fee rate used for manual deploy tx fee calculation. */
-const DEPLOY_FEE_PER_KB = 100
-
 /**
- * Estimate the byte size of the manually-built deploy tx (1 input, 1 output, no
- * change). Conservative — sized for a typical signed P2PKH unlocking script.
- */
-function estimateDeployTxSize(deployScriptBytes: number): number {
-	const overhead = 10 // version(4) + locktime(4) + inCount(1) + outCount(1)
-	const input = 148 // P2PKH spend: txid(32)+vout(4)+scriptLen(1)+script(~107)+seq(4)
-	const scriptLenVarint =
-		deployScriptBytes < 0xfd ? 1 : deployScriptBytes < 0x10000 ? 3 : 5
-	const output = 8 + scriptLenVarint + deployScriptBytes
-	return overhead + input + output
-}
-
-/**
- * Shared deploy flow:
- *   1. createAction a funding intermediate (wallet broadcasts via signAndProcess).
- *   2. Manually build + sign the deploy tx that spends the funding output.
- *   3. Synchronously broadcast the deploy via services.postBeef and require a
- *      success/processing arcade status before continuing. internalize alone
- *      only QUEUES a tx for later background broadcast — silent drops there
- *      have left tokens in a half-deployed state.
- *   4. internalizeAction adopts the deploy into the wallet basket so the auth
- *      UTXO becomes spendable.
- *
- * Used by both deployBsv21Mint and deployBsv21Auth — they only differ in the
- * deploy script (BSV21.deployMint vs BSV21.deployAuth) and target basket.
+ * Single createAction deploy. Tags include `bsv21:deploy` + metadata;
+ * tokenId is the resulting outpoint (`txid_0`). Balance queries treat
+ * deploy rows as that token when outpoint matches.
  */
 async function executeBsv21Deploy(args: {
 	ctx: OneSatContext
 	symbol: string
 	deployScript: LockingScript
-	/** customInstructions to record on the deploy output. Pass through from
-	 *  resolveDestination so wallet-derived destinations carry the keyID for
-	 *  later spends; literal scripts/addresses pass undefined. */
 	destinationCustomInstructions?: {
 		protocolID: unknown
 		keyID: string
 		counterparty?: import('@bsv/sdk').WalletCounterparty
 	}
 	basket: string
-	buildTags: (tokenId: string) => string[]
+	/** Tags without tokenId — always includes bsv21:deploy. */
+	buildTags: () => string[]
 	description: string
 	outputDescription: string
+	fundingProvider?: import('../funding').FundingProvider
 }): Promise<{
 	txid?: string
 	tx?: number[]
@@ -1014,104 +1019,6 @@ async function executeBsv21Deploy(args: {
 	error?: string
 }> {
 	const { ctx, symbol, deployScript, basket } = args
-
-	const deployScriptBin = deployScript.toBinary()
-	const txSize = estimateDeployTxSize(deployScriptBin.length)
-	const fee = Math.ceil((txSize * DEPLOY_FEE_PER_KB) / 1000)
-	// 1 sat for the deploy output + computed fee + small buffer for unlocking
-	// script size variance (low-S signatures can be a byte shorter, etc.)
-	const fundingValue = 1 + fee + 5
-
-	const fundingKeyID = `bsv21-deploy-fund-${symbol}-${Date.now()}`
-	const { publicKey: fundingPubKey } = await ctx.wallet.getPublicKey({
-		protocolID: P1SAT_PROTOCOL,
-		keyID: fundingKeyID,
-		counterparty: 'self',
-		forSelf: true,
-	})
-	const fundingAddress = PublicKey.fromString(fundingPubKey).toAddress()
-	const fundingScript = new P2PKH().lock(fundingAddress)
-
-	const fundingResult = await ctx.wallet.createAction({
-		description: `${args.description} (funding)`,
-		outputs: [
-			{
-				lockingScript: fundingScript.toHex(),
-				satoshis: fundingValue,
-				outputDescription: 'Deploy funding intermediate',
-				basket: BSV21_DEPLOY_FUNDING_BASKET,
-				customInstructions: JSON.stringify({
-					protocolID: P1SAT_PROTOCOL,
-					keyID: fundingKeyID,
-				}),
-			},
-		],
-		options: { randomizeOutputs: false },
-	})
-
-	if (!fundingResult.txid || !fundingResult.tx) {
-		return { error: 'funding-failed' }
-	}
-
-	const fundingBeef = Beef.fromBinary(Array.from(fundingResult.tx))
-	const fundingTx = fundingBeef.findAtomicTransaction(fundingResult.txid)
-	if (!fundingTx) {
-		return { error: 'funding-tx-not-in-beef' }
-	}
-
-	const deployTx = new Transaction()
-	deployTx.addInput({
-		sourceTransaction: fundingTx,
-		// Setting sourceTXID is required so BeefTx.updateInputTxids picks up
-		// the dependency. Without it, the deploy's inputTxids is empty and
-		// Beef.sortTxs orders the deploy before its ancestors, which then get
-		// trimmed by toBinaryAtomic.
-		sourceTXID: fundingResult.txid,
-		sourceOutputIndex: 0,
-		unlockingScript: new UnlockingScript(),
-		sequence: 0xffffffff,
-	})
-	deployTx.addOutput({
-		lockingScript: deployScript,
-		satoshis: 1,
-	})
-
-	const sigResult = await signP2PKHInput(
-		ctx,
-		deployTx,
-		0,
-		P1SAT_PROTOCOL,
-		fundingKeyID,
-	)
-	if (typeof sigResult !== 'string') {
-		return { error: sigResult.error }
-	}
-	deployTx.inputs[0].unlockingScript = UnlockingScript.fromHex(sigResult)
-
-	const deployTxid = deployTx.id('hex')
-	const tokenId = `${deployTxid}_0`
-
-	fundingBeef.mergeTransaction(deployTx)
-	const deployBeefBin = fundingBeef.toBinaryAtomic(deployTxid)
-
-	// Synchronous broadcast — internalize alone queues for background
-	// broadcast and has been observed to silently drop the deploy tx,
-	// stranding the funding output and leaving the wallet with a
-	// "deployed" record for a tx that never reached the network.
-	if (!ctx.services) {
-		return { error: 'broadcast-services-unavailable' }
-	}
-	const broadcastResults = await ctx.services.postBeef(fundingBeef, [
-		deployTxid,
-	])
-	const broadcastFailure = broadcastResults.find((r) => r.status !== 'success')
-	if (broadcastFailure) {
-		const reason =
-			broadcastFailure.error?.message ??
-			broadcastFailure.error?.code ??
-			'broadcast-failed'
-		return { error: `deploy-broadcast-failed: ${reason}` }
-	}
 
 	const customInstructions = args.destinationCustomInstructions
 		? JSON.stringify({
@@ -1124,26 +1031,43 @@ async function executeBsv21Deploy(args: {
 			})
 		: undefined
 
-	await ctx.wallet.internalizeAction({
-		tx: deployBeefBin,
+	const tags = args.buildTags()
+	if (!tags.includes(BSV21_DEPLOY_TAG)) tags.push(BSV21_DEPLOY_TAG)
+
+	const caArgs: CreateActionArgs = {
+		description: args.description,
 		outputs: [
 			{
-				outputIndex: 0,
-				protocol: 'basket insertion',
-				insertionRemittance: {
-					basket,
-					tags: args.buildTags(tokenId),
-					customInstructions,
-				},
+				lockingScript: deployScript.toHex(),
+				satoshis: 1,
+				outputDescription: args.outputDescription,
+				basket,
+				tags,
+				customInstructions,
 			},
 		],
-		description: args.description,
-	})
+		options: { randomizeOutputs: false },
+	}
+
+	const prepared = await prepareP1SatArgs(
+		ctx,
+		caArgs,
+		P1SAT_INTENTS.BSV21_DEPLOY,
+	)
+	const result = await executeTrackedAction(
+		ctx.wallet,
+		prepared,
+		args.fundingProvider,
+	)
+
+	if (!result.txid) {
+		return { error: 'deploy-no-txid' }
+	}
 
 	return {
-		txid: deployTxid,
-		tx: deployBeefBin,
-		tokenId,
+		txid: result.txid,
+		tx: result.tx,
+		tokenId: `${result.txid}_0`,
 	}
 }
 
@@ -1219,9 +1143,9 @@ export const deployBsv21Mint: Action<
 				basket: BSV21_BASKET,
 				description: `Deploy ${symbol} (${amount} fixed supply)`,
 				outputDescription: `Deploy ${symbol}`,
-				buildTags: (tokenId) => {
+				buildTags: () => {
 					const tags = [
-						`bsv21:${tokenId}`,
+						BSV21_DEPLOY_TAG,
 						`amt:${amount}`,
 						`dec:${decimals}`,
 						`sym:${symbol}`,
@@ -1343,8 +1267,8 @@ export const deployBsv21Auth: Action<
 				basket: BSV21_AUTH_BASKET,
 				description: `Deploy ${symbol} (mintable)`,
 				outputDescription: `Deploy ${symbol} auth`,
-				buildTags: (tokenId) => {
-					const tags = [`bsv21:${tokenId}`, `dec:${decimals}`, `sym:${symbol}`]
+				buildTags: () => {
+					const tags = [BSV21_DEPLOY_TAG, `dec:${decimals}`, `sym:${symbol}`]
 					if (icon) tags.push(`icon:${icon}`)
 					return tags
 				},
@@ -1582,7 +1506,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 						.toHex(),
 					satoshis: tokenDetails.status.fee_per_output * tokenOutputCount,
 					outputDescription: 'Overlay processing fee',
-					tags: [],
+					tags: ['fee:overlay'],
 				})
 			}
 
@@ -1596,8 +1520,8 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 
 			const symbol = tokenDetails.token.sym || tokenId.slice(0, 8)
 			const authInputId = readAssetIdTag(authUtxo.tags)
-			const result = await executeTrackedAction(
-				ctx.wallet,
+			const mintArgs = await prepareP1SatArgs(
+				ctx,
 				{
 					description: mint
 						? `Mint ${mintAmount} ${symbol}`
@@ -1619,6 +1543,11 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 					outputs,
 					options: { randomizeOutputs: false },
 				},
+				P1SAT_INTENTS.BSV21_MINT,
+			)
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				mintArgs,
 				input.fundingProvider,
 				inputBEEF as number[],
 				async (tx) => {

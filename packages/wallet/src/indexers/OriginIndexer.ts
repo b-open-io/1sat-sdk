@@ -7,6 +7,7 @@ import {
 	type ParseContext,
 	type ParseResult,
 	type Txo,
+	ordinalTagsFromMetadata,
 } from '@1sat/types'
 import type { Inscription } from './InscriptionIndexer'
 import type { Sigma } from './SigmaIndexer'
@@ -229,12 +230,13 @@ export class OriginIndexer extends Indexer {
 						}
 					}
 				} catch (e) {
-					if (e instanceof HttpError && e.status === 404) {
-						// Source outpoint not found in OrdFS - treat as new origin
-						origin.outpoint = txo.outpoint.toString()
-					} else {
-						throw e
-					}
+					// `resolveOrigins` already established positionally that this is
+					// a transfer, so this output is not its own origin. A 404 means
+					// ORDFS has not indexed the parent yet; anything else means it
+					// is unreachable. Neither justifies inventing an origin, and an
+					// ordinal must not be ingested without one — throw and leave the
+					// transaction in the queue for a later pass.
+					throw e
 				}
 			} else {
 				// New origin
@@ -279,22 +281,18 @@ export class OriginIndexer extends Indexer {
 
 			// Now add tags since origin is determined
 			if (txo.owner && this.owners.has(txo.owner)) {
-				originData.tags.push(`origin:${origin.outpoint || ''}`)
-				if (origin.insc?.file?.type) {
-					const fullType = origin.insc.file.type
-					const baseType = fullType.split(';')[0].trim()
-					const category = baseType.split('/')[0]
-					originData.tags.push(`type:${category}`)
-					originData.tags.push(`type:${baseType}`)
-				}
-				// Extract name from map data
-				const name = (origin.map?.name ??
-					(origin.map?.subTypeData as Record<string, unknown>)?.name) as
-					| string
-					| undefined
-				if (name) {
-					originData.tags.push(`name:${name}`)
-				}
+				// `resolveOrigins` has run by now and always resolves a real
+				// outpoint — whether this output is a new origin (positionally
+				// determined) or a transfer (resolved via ORDFS). An empty value
+				// would mean origin resolution never ran, which is not a state to
+				// record as if it were an origin.
+				originData.tags.push(
+					...ordinalTagsFromMetadata({
+						origin: origin.outpoint || undefined,
+						contentType: origin.insc?.file?.type,
+						map: origin.map,
+					}),
+				)
 			}
 		}
 	}
