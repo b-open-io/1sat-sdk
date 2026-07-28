@@ -80,6 +80,11 @@ export interface VerificationServices {
 		bulkMetadata?(
 			outpoints: string[],
 		): Promise<Record<string, { contentType?: string; contentLength?: number; origin?: string; map?: Record<string, unknown> } | null>>
+		/**
+		 * Content URL for card thumbnails. Supplied by the injected services so
+		 * previews resolve against the same host the app reads content from.
+		 */
+		getContentUrl?(outpoint: string): string
 	}
 	opns?: {
 		getOrigin?(name: string): Promise<{ name: string; outpoint: string } | null>

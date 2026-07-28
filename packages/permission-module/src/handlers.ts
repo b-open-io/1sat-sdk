@@ -44,7 +44,9 @@ export async function handleCreateActionRequest(
 	const admin = isAdmin(deps, originator)
 
 	if (!admin) {
-		const enriched = await enrichIntent(deps.wallet, args)
+		const enriched = await enrichIntent(deps.wallet, args, {
+			services: deps.services,
+		})
 
 		const approved = await deps.promptHandler({
 			kind: 'transaction',
@@ -62,6 +64,8 @@ export async function handleCreateActionRequest(
 					listingPriceSats: o.listingPriceSats,
 					listingSeller: o.listingSeller,
 					lockUntilHeight: o.lockUntilHeight,
+					opnsProfileName: o.opnsProfileName,
+					opnsAvatarOrigin: o.opnsAvatarOrigin,
 				})),
 				contentUrls: buildContentUrlMap(enriched),
 				chain: enriched.chain,
@@ -143,6 +147,11 @@ function buildContentUrlMap(
 	for (const output of enriched.outputs) {
 		addOrigin(output.tags)
 		addIcon(output.tags)
+		// Avatar on an OpNS bind comes from the script, not a tag.
+		const avatar = output.opnsAvatarOrigin
+		if (avatar && !out[avatar]) {
+			out[avatar] = enriched.contentUrlForOrigin(avatar.replace('_', '.'))
+		}
 	}
 	return out
 }

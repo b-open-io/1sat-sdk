@@ -318,11 +318,13 @@ export const P1SAT_BASKET_PREFIX = 'p 1sat '
 export const P1SAT_INPUT_LABEL_PREFIX = 'p 1sat input '
 
 /**
- * Sized placeholder for `opns.register` PushDrop output before apply seals
- * the real field-sig script. ~142 bytes matches typical lock (33-byte pubkey
- * + CHECKSIG + identity field + DER sig + 2DROP).
+ * Byte length of the zero-filled signature field carried by an unsealed
+ * `opns.register` lock. The action emits the complete PushDrop script with
+ * this field zeroed so the output is exactly the size it will be on chain;
+ * apply replaces it with the real DER signature. Sized to the longest DER
+ * signature so the estimate is never short.
  */
-export const OPNS_REGISTER_LOCK_PLACEHOLDER_HEX = '00'.repeat(142)
+export const OPNS_REGISTER_SIG_PLACEHOLDER_LEN = 72
 
 /**
  * Build a label that points the 1Sat permission module at a specific

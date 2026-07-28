@@ -6,14 +6,17 @@ import {
 } from '@1sat/types'
 import {
 	type CreateActionArgs,
+	LockingScript,
 	PushDrop,
-	Utils,
 	type WalletInterface,
 } from '@bsv/sdk'
 
 /**
- * Seal `opns.register` PushDrop field-sig onto the OpNS output in place.
- * Uses the given wallet (must be base — never a gated WPM wrapper).
+ * Replace the zeroed signature field of an `opns.register` lock with the real
+ * one. The action emits the complete PushDrop script — identity key, profile
+ * slots, and a zero-filled signature field of final length — so the only thing
+ * left here is the signature. Uses the given wallet (must be base — never a
+ * gated WPM wrapper).
  */
 export async function applyOpnsRegister(
 	wallet: WalletInterface,
@@ -36,14 +39,18 @@ export async function applyOpnsRegister(
 		throw new Error('opns.register apply: missing input outpoint')
 	}
 
-	const { publicKey: identityPubKey } = await wallet.getPublicKey({
-		identityKey: true,
-	})
-	const keyID = opnsRegisterKeyId(input.outpoint)
+	const fields = PushDrop.decode(
+		LockingScript.fromHex(out.lockingScript),
+	).fields.map((f) => [...f])
+	const placeholder = fields.pop()
+	if (!placeholder?.length || placeholder.some((b) => b !== 0)) {
+		throw new Error('opns.register apply: signature field is not zeroed')
+	}
+
 	const lockingScript = await new PushDrop(wallet).lock(
-		[Utils.toArray(identityPubKey, 'hex')],
+		fields,
 		P1SAT_PROTOCOL,
-		keyID,
+		opnsRegisterKeyId(input.outpoint),
 		OPNS_REGISTER_COUNTERPARTY,
 		true,
 		true,

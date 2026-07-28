@@ -81,6 +81,10 @@ interface OutputEntry {
 	listingSeller?: string
 	/** Block height decoded from the Lock script — authoritative over `until:`. */
 	lockUntilHeight?: number
+	/** Display name decoded from an OpNS bind — what the signature commits to. */
+	opnsProfileName?: string
+	/** Avatar origin outpoint (`txid_vout`) decoded from an OpNS bind. */
+	opnsAvatarOrigin?: string
 }
 
 /**
@@ -1066,16 +1070,33 @@ function summarizeOpns(
 
 	const rows: DetailRow[] = []
 	if (name) rows.push({ key: 'Name', value: name })
+	// Decoded from the bind script, so this is what the signature commits to.
+	if (opnsOutput?.opnsProfileName) {
+		rows.push({ key: 'Display name', value: opnsOutput.opnsProfileName })
+	}
 	if (recipient) rows.push(copyable('Recipient', recipient))
 	if (price) rows.push({ key: 'Price', value: `${price} sats` })
 	if (origin) rows.push(copyable('Origin', origin))
 
 	const copy = opnsCopy(intent.p1satIntent, Boolean(recipient))
 	const nameBit = name ? `“${name}”` : 'an OpNS name'
+	const avatarOrigin = opnsOutput?.opnsAvatarOrigin
+	const avatarUrl = avatarOrigin
+		? intent.contentUrls?.[avatarOrigin]
+		: undefined
 	return {
 		title: copy.title,
 		subtitle: `${shortenOriginator(req.originator)} wants to ${copy.verb} ${nameBit}`,
 		rows,
+		// Show the avatar being committed to, not just its outpoint.
+		...(avatarUrl && {
+			featured: {
+				variant: 'token' as const,
+				imageUrl: avatarUrl,
+				title: opnsOutput?.opnsProfileName ?? name ?? 'Avatar',
+				...(name && { subtitle: name }),
+			},
+		}),
 	}
 }
 

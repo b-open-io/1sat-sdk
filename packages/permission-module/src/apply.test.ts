@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import {
 	OPNS_BASKET,
-	OPNS_REGISTER_LOCK_PLACEHOLDER_HEX,
+	OPNS_REGISTER_COUNTERPARTY,
+	OPNS_REGISTER_SIG_PLACEHOLDER_LEN,
 	P1SAT_INTENTS,
+	P1SAT_PROTOCOL,
 	buildIntentLabel,
 	opnsRegisterKeyId,
 } from '@1sat/types'
@@ -12,7 +14,7 @@ import type {
 	GetPublicKeyArgs,
 	WalletInterface,
 } from '@bsv/sdk'
-import { PrivateKey } from '@bsv/sdk'
+import { LockingScript, PrivateKey, PushDrop, Utils } from '@bsv/sdk'
 import { applyCreateAction } from './apply'
 import { CommitmentCache } from './commitmentCache'
 import { handleCreateActionRequest } from './handlers'
@@ -36,7 +38,31 @@ function mockBaseWallet(): WalletInterface {
 	} as unknown as WalletInterface
 }
 
-function registerArgs(outpoint = `${'aa'.repeat(32)}.0`): CreateActionArgs {
+/** Complete opns.register lock with the signature field left zeroed. */
+async function unsealedLock(
+	wallet: WalletInterface,
+	outpoint: string,
+): Promise<string> {
+	const { publicKey } = await wallet.getPublicKey({ identityKey: true })
+	const script = await new PushDrop(wallet).lock(
+		[
+			Utils.toArray(publicKey, 'hex'),
+			new Array(OPNS_REGISTER_SIG_PLACEHOLDER_LEN).fill(0),
+		],
+		P1SAT_PROTOCOL,
+		opnsRegisterKeyId(outpoint),
+		OPNS_REGISTER_COUNTERPARTY,
+		true,
+		false,
+	)
+	return script.toHex()
+}
+
+async function registerArgs(
+	wallet: WalletInterface,
+	outpoint = `${'aa'.repeat(32)}.0`,
+): Promise<CreateActionArgs> {
+	const lockingScript = await unsealedLock(wallet, outpoint)
 	return {
 		description: 'Publish OpNS',
 		labels: [
@@ -52,7 +78,7 @@ function registerArgs(outpoint = `${'aa'.repeat(32)}.0`): CreateActionArgs {
 		],
 		outputs: [
 			{
-				lockingScript: OPNS_REGISTER_LOCK_PLACEHOLDER_HEX,
+				lockingScript,
 				satoshis: 1,
 				outputDescription: 'bind',
 				basket: OPNS_BASKET,
@@ -63,9 +89,9 @@ function registerArgs(outpoint = `${'aa'.repeat(32)}.0`): CreateActionArgs {
 }
 
 describe('applyCreateAction / opns.register', () => {
-	test('seals PushDrop in place (same outputs array ref)', async () => {
+	test('replaces the zeroed signature in place (same outputs array ref)', async () => {
 		const wallet = mockBaseWallet()
-		const args = registerArgs()
+		const args = await registerArgs(wallet)
 		const outputsRef = args.outputs!
 		const out = outputsRef[0]
 		const before = out.lockingScript
@@ -74,14 +100,20 @@ describe('applyCreateAction / opns.register', () => {
 
 		expect(args.outputs).toBe(outputsRef)
 		expect(out.lockingScript).not.toBe(before)
-		expect(out.lockingScript.length).toBeGreaterThan(before.length / 2)
-		// PushDrop starts with locking pubkey push
-		expect(out.lockingScript.length % 2).toBe(0)
+
+		const fields = PushDrop.decode(
+			LockingScript.fromHex(out.lockingScript),
+		).fields
+		const signature = fields[fields.length - 1]
+		expect(signature.some((b) => b !== 0)).toBe(true)
+		// Placeholder was sized to the longest DER signature, so the sealed
+		// script is never larger than what was estimated.
+		expect(out.lockingScript.length).toBeLessThanOrEqual(before.length)
 	})
 
 	test('unknown intent fails closed', async () => {
 		const wallet = mockBaseWallet()
-		const args = registerArgs()
+		const args = await registerArgs(wallet)
 		args.labels = [buildIntentLabel('nope.unknown')]
 		await expect(applyCreateAction(wallet, args)).rejects.toThrow(
 			/unknown intent/,
@@ -90,7 +122,7 @@ describe('applyCreateAction / opns.register', () => {
 
 	test('validate-only intents leave lockingScript unchanged', async () => {
 		const wallet = mockBaseWallet()
-		const args = registerArgs()
+		const args = await registerArgs(wallet)
 		args.labels = [buildIntentLabel(P1SAT_INTENTS.OPNS_DEREGISTER)]
 		const before = args.outputs![0].lockingScript
 		await applyCreateAction(wallet, args, P1SAT_INTENTS.OPNS_DEREGISTER)
@@ -101,7 +133,7 @@ describe('applyCreateAction / opns.register', () => {
 describe('handleCreateActionRequest admin vs dApp', () => {
 	test('admin applies without prompt', async () => {
 		const wallet = mockBaseWallet()
-		const args = registerArgs()
+		const args = await registerArgs(wallet)
 		const before = args.outputs![0].lockingScript
 		let prompted = false
 		const promptHandler: PromptHandler = async () => {
@@ -130,7 +162,7 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 			},
 		} as unknown as WalletInterface
 
-		const args = registerArgs()
+		const args = await registerArgs(wallet)
 		const before = args.outputs![0].lockingScript
 		let promptSummary = ''
 		const promptHandler: PromptHandler = async (req) => {
@@ -162,7 +194,7 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 				return { totalOutputs: 0, outputs: [] }
 			},
 		} as unknown as WalletInterface
-		const args = registerArgs()
+		const args = await registerArgs(wallet)
 		const before = args.outputs![0].lockingScript
 		const deps = {
 			wallet: listWallet,

@@ -35,6 +35,7 @@ import {
 	REMOTE_BACKUP_URL,
 	STORAGE_IDENTITY_KEY,
 	TOGGLE_ADMIN_KEY,
+	TOGGLE_LOCAL_KEY,
 	WIF_STORAGE_KEY,
 } from './constants'
 
@@ -76,9 +77,13 @@ export function useLocalCwi(): LocalCwiContextValue {
 	return ctx
 }
 
-function readToggle(key: string, fallback: boolean): boolean {
+function readToggle(
+	key: string,
+	fallback: boolean,
+	store: Storage = localStorage,
+): boolean {
 	try {
-		const v = localStorage.getItem(key)
+		const v = store.getItem(key)
 		if (v === null) return fallback
 		return v === '1' || v === 'true'
 	} catch {
@@ -86,9 +91,13 @@ function readToggle(key: string, fallback: boolean): boolean {
 	}
 }
 
-function writeToggle(key: string, on: boolean): void {
+function writeToggle(
+	key: string,
+	on: boolean,
+	store: Storage = localStorage,
+): void {
 	try {
-		localStorage.setItem(key, on ? '1' : '0')
+		store.setItem(key, on ? '1' : '0')
 	} catch {
 		/* ignore */
 	}
@@ -115,9 +124,12 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 	const [error, setError] = useState<string | null>(null)
 	const [identityKey, setIdentityKey] = useState<string | null>(null)
 	const [gatedWallet, setGatedWallet] = useState<WalletInterface | null>(null)
-	// Session-only: never default on or persist — otherwise window.CWI
-	// front-runs Yours / other BRC-100 wallets across reloads.
-	const [localEnabled, setLocalEnabledState] = useState(false)
+	// sessionStorage, not localStorage: survives reloads within the tab but
+	// starts off in a fresh browser, so window.CWI does not front-run Yours or
+	// other BRC-100 wallets.
+	const [localEnabled, setLocalEnabledState] = useState(() =>
+		readToggle(TOGGLE_LOCAL_KEY, false, sessionStorage),
+	)
 	const [adminOriginator, setAdminOriginatorState] = useState(() =>
 		readToggle(TOGGLE_ADMIN_KEY, false),
 	)
@@ -140,6 +152,7 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 	}, [])
 
 	const setLocalEnabled = useCallback((on: boolean) => {
+		writeToggle(TOGGLE_LOCAL_KEY, on, sessionStorage)
 		setLocalEnabledState(on)
 	}, [])
 

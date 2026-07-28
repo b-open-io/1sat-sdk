@@ -3,6 +3,7 @@
  */
 
 import type { OneSatServices } from '@1sat/client'
+import { outpointFromBytes } from '@1sat/templates'
 import { P1SAT_PROTOCOL, opnsRegisterKeyId } from '@1sat/types'
 import {
 	type LockingScript,
@@ -44,15 +45,37 @@ export async function resolvePaymailBind(
 		throw new Error(`no output at ${txid}.${vout}`)
 	}
 
-	const identityKey = await verifyPushDropBind(tx, vout, output.lockingScript)
-	return { identityKey, outpoint: `${txid}.${vout}` }
+	const bind = await verifyPushDropBind(tx, vout, output.lockingScript)
+	return { ...bind, outpoint: `${txid}.${vout}` }
+}
+
+/**
+ * Slots after the identity key are presentation-only: slot 1 display name
+ * (utf8), slot 2 avatar origin outpoint (36 bytes). Both optional. An empty
+ * push decodes as `[]` or `[0]`, either of which means unset.
+ */
+function decodeProfileSlots(fields: number[][]): {
+	profileName?: string
+	avatarOrigin?: string
+} {
+	const isUnset = (f: number[] | undefined) =>
+		!f?.length || (f.length === 1 && f[0] === 0)
+
+	const name = fields[1]
+	const avatar = fields[2]
+	return {
+		...(isUnset(name) ? {} : { profileName: Utils.toUTF8(name as number[]) }),
+		...(isUnset(avatar) || avatar?.length !== 36
+			? {}
+			: { avatarOrigin: outpointFromBytes(avatar) ?? undefined }),
+	}
 }
 
 export async function verifyPushDropBind(
 	tx: Transaction,
 	vout: number,
 	lockingScript: LockingScript,
-): Promise<string> {
+): Promise<Omit<ResolvedBind, 'outpoint'>> {
 	const decoded = PushDrop.decode(lockingScript)
 	if (decoded.fields.length < 2) {
 		throw new Error('not a signed PushDrop bind')
@@ -100,5 +123,5 @@ export async function verifyPushDropBind(
 		throw new Error('invalid PushDrop field signature')
 	}
 
-	return identityKey
+	return { identityKey, ...decodeProfileSlots(fields) }
 }

@@ -35,7 +35,7 @@ outside the browser.
 | Where | Key | Holds |
 |---|---|---|
 | localStorage | `1sat-test-app-wif` | the wallet key |
-| localStorage | `1sat-test-app-local-cwi` | Local CWI toggle |
+| sessionStorage | `1sat-test-app-local-cwi` | Local CWI toggle |
 | localStorage | `1sat-test-app-admin-originator` | admin/dApp originator toggle |
 | IndexedDB | `wallet-toolbox-mainnet` | outputs, baskets, tags |
 | IndexedDB | `1sat-wallet-permissions:1sat-test-app` | granted permissions |
@@ -43,6 +43,10 @@ outside the browser.
 
 Clearing the permissions store replays the first-run grouped prompt. Clearing
 `wallet-toolbox-mainnet` loses the tagged rows.
+
+The Local CWI toggle is deliberately in `sessionStorage`: it survives reloads
+within the tab but starts off in a fresh browser, so `window.CWI` does not
+front-run Yours or another BRC-100 wallet.
 
 ---
 

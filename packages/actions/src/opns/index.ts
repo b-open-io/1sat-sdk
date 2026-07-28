@@ -6,13 +6,13 @@
  * Ingress (internalizeOpns / buyOpns) stamps full tags including id:.
  */
 
-import { OpNS, OrdLock } from '@1sat/templates'
+import { OpNS, OrdLock, outpointToBytes } from '@1sat/templates'
 import {
 	OPNS_BASKET,
 	OPNS_PUBLISHED_TAG,
 	OPNS_PUSHDROP_TEMPLATE,
 	OPNS_REGISTER_COUNTERPARTY,
-	OPNS_REGISTER_LOCK_PLACEHOLDER_HEX,
+	OPNS_REGISTER_SIG_PLACEHOLDER_LEN,
 	P1SAT_INTENTS,
 	P1SAT_PROTOCOL,
 	buildInputAssetLabel,
@@ -24,7 +24,9 @@ import {
 	type CreateActionArgs,
 	P2PKH,
 	PublicKey,
+	PushDrop,
 	Transaction,
+	Utils,
 	type WalletCounterparty,
 	type WalletOutput,
 	type WalletProtocol,
@@ -50,6 +52,24 @@ import {
 
 const OPNS_CONTENT_TYPE = 'application/op-ns'
 
+/**
+ * Presentation slots published after the identity key: slot 1 display name
+ * (utf8), slot 2 avatar origin outpoint (36 bytes). Slot 1 is an empty push
+ * when only an avatar is set; trailing unset slots are omitted.
+ */
+function profileFields(profileName?: string, avatar?: string): number[][] {
+	const displayName = profileName?.trim() ?? ''
+	const origin = avatar?.trim() ?? ''
+	if (!displayName && !origin) return []
+
+	const nameField = displayName ? Utils.toArray(displayName, 'utf8') : []
+	if (!origin) return [nameField]
+
+	const avatarField = outpointToBytes(origin.replace('.', '_'))
+	if (!avatarField) throw new Error(`invalid avatar outpoint: ${origin}`)
+	return [nameField, avatarField]
+}
+
 export { opnsRegisterKeyId } from '@1sat/types'
 
 // ============================================================================
@@ -68,7 +88,16 @@ export interface OpnsIdInput extends ActionOptions {
 	id: string
 }
 
-export type RegisterOpnsRequest = OpnsIdInput
+export interface RegisterOpnsRequest extends OpnsIdInput {
+	/**
+	 * Display name returned by the paymail public-profile capability.
+	 * Presentation only — the OpNS name is the unique, owned value.
+	 */
+	profileName?: string
+	/** Origin outpoint (`txid_vout`) of an on-chain image ordinal */
+	avatar?: string
+}
+
 export type DeregisterOpnsRequest = OpnsIdInput
 
 export interface SellOpnsRequest extends OpnsIdInput {
@@ -320,6 +349,15 @@ export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 				type: 'object',
 				properties: {
 					id: { type: 'string', description: 'OPNS basket tracking id' },
+					profileName: {
+						type: 'string',
+						description: 'Display name for paymail public-profile',
+					},
+					avatar: {
+						type: 'string',
+						description:
+							'Origin outpoint (txid_vout) of an on-chain image ordinal',
+					},
 				},
 				required: ['id'],
 			},
@@ -334,6 +372,23 @@ export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 				}
 
 				const keyID = opnsRegisterKeyId(output.outpoint)
+				const { publicKey: identityPubKey } = await ctx.wallet.getPublicKey({
+					identityKey: true,
+				})
+				// Complete script, signature field zeroed — apply swaps in the real
+				// signature, so the size here is the size on chain.
+				const unsealedLock = await new PushDrop(ctx.wallet).lock(
+					[
+						Utils.toArray(identityPubKey, 'hex'),
+						...profileFields(input.profileName, input.avatar),
+						new Array(OPNS_REGISTER_SIG_PLACEHOLDER_LEN).fill(0),
+					],
+					P1SAT_PROTOCOL,
+					keyID,
+					OPNS_REGISTER_COUNTERPARTY,
+					true,
+					false,
+				)
 				const name = nameFromOutput(output)
 				const tags = opnsFileTags(output, [OPNS_PUBLISHED_TAG])
 				const inputId = readAssetIdTag(output.tags)
@@ -360,8 +415,7 @@ export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 					],
 					outputs: [
 						{
-							// Placeholder — apply seals real PushDrop on base (action or module)
-							lockingScript: OPNS_REGISTER_LOCK_PLACEHOLDER_HEX,
+							lockingScript: unsealedLock.toHex(),
 							satoshis: 1,
 							outputDescription: 'OpNS identity bind',
 							basket: OPNS_BASKET,

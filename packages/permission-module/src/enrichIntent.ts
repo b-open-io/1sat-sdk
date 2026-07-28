@@ -25,6 +25,7 @@ import {
 	BSV21_AUTH_BASKET,
 	BSV21_BASKET,
 	LOCK_BASKET,
+	ORDFS_HOST,
 	OPNS_BASKET,
 	ORDINALS_BASKET,
 	P1SAT_BASKET_PREFIX,
@@ -32,7 +33,7 @@ import {
 	SIGMA_BASKET,
 	parseIntentLabel,
 } from '@1sat/types'
-import { Lock, OrdLock } from '@1sat/templates'
+import { Lock, OrdLock, outpointFromBytes } from '@1sat/templates'
 import { parseAddress } from '@1sat/wallet'
 import type {
 	CreateActionArgs,
@@ -40,7 +41,38 @@ import type {
 	WalletInterface,
 	WalletOutput,
 } from '@bsv/sdk'
-import { Script } from '@bsv/sdk'
+import { LockingScript, PushDrop, Script, Utils } from '@bsv/sdk'
+import type { VerificationServices } from './types'
+
+/**
+ * Presentation fields on an OpNS bind: field 0 is the identity key and the
+ * last is the signature, so field 1 is the display name and field 2 the
+ * avatar origin. Decoded from the script because that is what the signature
+ * covers — tags are only what the caller asserted.
+ */
+function decodeOpnsProfile(script: Script): {
+	opnsProfileName?: string
+	opnsAvatarOrigin?: string
+} {
+	let fields: number[][]
+	try {
+		fields = PushDrop.decode(LockingScript.fromHex(script.toHex())).fields
+	} catch {
+		return {}
+	}
+	if (fields.length < 3) return {}
+
+	const body = fields.slice(0, -1)
+	const unset = (f?: number[]) => !f?.length || (f.length === 1 && f[0] === 0)
+	const name = body[1]
+	const avatar = body[2]
+	return {
+		...(unset(name) ? {} : { opnsProfileName: Utils.toUTF8(name) }),
+		...(unset(avatar) || avatar.length !== 36
+			? {}
+			: { opnsAvatarOrigin: outpointFromBytes(avatar) ?? undefined }),
+	}
+}
 
 export type EnrichedIntentKind =
 	| 'ordinal-transfer'
@@ -88,6 +120,15 @@ export interface EnrichedOutput {
 	 * enforces, the tag is only what the caller asserted.
 	 */
 	lockUntilHeight?: number
+	/**
+	 * Display name published on an OpNS bind, decoded from the PushDrop.
+	 *
+	 * Read this rather than a tag — the signed script is what the approval
+	 * actually commits to.
+	 */
+	opnsProfileName?: string
+	/** Avatar origin outpoint (`txid_vout`) decoded from an OpNS bind. */
+	opnsAvatarOrigin?: string
 }
 
 export type TrustState = 'verified' | 'unverified' | 'mismatch'
@@ -130,7 +171,12 @@ const ASSET_BASKETS = [
 
 interface EnrichOptions {
 	chain?: 'mainnet' | 'testnet'
-	contentHost?: string
+	/**
+	 * Injected 1Sat services. When these carry `ordfs.getContentUrl`, card
+	 * thumbnails resolve against the same host the rest of the app reads
+	 * content from instead of the public default.
+	 */
+	services?: VerificationServices
 }
 
 export async function enrichIntent(
@@ -139,7 +185,11 @@ export async function enrichIntent(
 	opts: EnrichOptions = {},
 ): Promise<EnrichedIntent> {
 	const chain = opts.chain ?? 'mainnet'
-	const contentHost = opts.contentHost ?? 'https://ordfs.network'
+	// Bound, not detached — the real OrdfsClient method uses `this`.
+	const ordfs = opts.services?.ordfs
+	const getContentUrl = ordfs?.getContentUrl
+		? (origin: string) => ordfs.getContentUrl?.(origin)
+		: undefined
 	const labels = args.labels ?? []
 	const p1satIntent = parseIntentLabel(labels)
 
@@ -166,7 +216,8 @@ export async function enrichIntent(
 		outputs,
 		labels,
 		summary,
-		contentUrlForOrigin: (origin) => contentUrlFromOrigin(contentHost, origin),
+		contentUrlForOrigin: (origin) =>
+			getContentUrl?.(origin) ?? contentUrlFromOrigin(ORDFS_HOST, origin),
 		chain,
 		trust,
 		...fee,
@@ -328,6 +379,10 @@ function decodeOutput(
 	const lock = Lock.decode(script, chain === 'mainnet')
 	if (lock) {
 		enriched.lockUntilHeight = lock.until
+	}
+
+	if (out.basket === OPNS_BASKET) {
+		Object.assign(enriched, decodeOpnsProfile(script))
 	}
 
 	const recipient = parseAddress(script, 0, chain)

@@ -29,6 +29,8 @@ export function OpnsPanel() {
 	const { log } = useLog()
 	const [list, setList] = useState<ListOpnsResult | null>(null)
 	const [id, setId] = useState('')
+	const [profileName, setProfileName] = useState('')
+	const [avatar, setAvatar] = useState('')
 	const [buyOutpoint, setBuyOutpoint] = useState('')
 	const [loading, setLoading] = useState(false)
 	const [result, setResult] = useState<string | null>(null)
@@ -57,9 +59,16 @@ export function OpnsPanel() {
 		setLoading(true)
 		setResult(null)
 		setError(null)
-		log('info', `registerOpns: id=${id}`)
+		log(
+			'info',
+			`registerOpns: id=${id}${profileName ? ` profileName=${profileName}` : ''}${avatar ? ` avatar=${avatar}` : ''}`,
+		)
 		try {
-			const res = await registerOpns.execute(ctx, { id })
+			const res = await registerOpns.execute(ctx, {
+				id,
+				...(profileName && { profileName }),
+				...(avatar && { avatar }),
+			})
 			if (res.error) throw new Error(res.error)
 			setResult(res.txid ?? 'no txid')
 			log('success', `registerOpns txid: ${res.txid}`)
@@ -146,6 +155,20 @@ export function OpnsPanel() {
 				placeholder="from list below"
 				value={id}
 				onChange={(e) => setId(e.target.value)}
+			/>
+			<label style={label}>Profile name (optional)</label>
+			<input
+				style={input}
+				placeholder="display name for paymail public-profile"
+				value={profileName}
+				onChange={(e) => setProfileName(e.target.value)}
+			/>
+			<label style={label}>Avatar origin (optional)</label>
+			<input
+				style={input}
+				placeholder="txid_vout of an image ordinal"
+				value={avatar}
+				onChange={(e) => setAvatar(e.target.value)}
 			/>
 			<div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
 				<button

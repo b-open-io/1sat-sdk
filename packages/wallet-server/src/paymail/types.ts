@@ -22,6 +22,13 @@ export interface PendingStore {
 export interface ResolvedBind {
 	identityKey: string
 	outpoint: string
+	/**
+	 * Presentation-only display name from PushDrop slot 1. The OpNS name is
+	 * the unique, owned value; this is decoration and may be absent.
+	 */
+	profileName?: string
+	/** Origin outpoint (`txid_vout`) of an image ordinal, from slot 2. */
+	avatarOrigin?: string
 }
 
 export interface PaymailDeps {

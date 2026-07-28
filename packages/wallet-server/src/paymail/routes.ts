@@ -33,6 +33,9 @@ export async function mountPaymailRoutes(
 	deps: PaymailDeps,
 ): Promise<void> {
 	const services = new OneSatServices('main', deps.stackUrl)
+	// Avatars resolve through the same ORDFS host used for name resolution;
+	// content lives at /content, matching OrdfsClient.
+	const ordfsBaseUrl = `${deps.stackUrl.replace(/\/$/, '')}/content`
 	const gateOn = deps.requireEntitlement === true && deps.hostWallet != null
 	const messageBox =
 		deps.messageboxUrl && deps.hostPrivateKey
@@ -89,7 +92,15 @@ export async function mountPaymailRoutes(
 			new PublicProfileRoute({
 				domainLogicHandler: async (params: any) => {
 					const { name } = PublicProfileRoute.getNameAndDomain(params)
-					return { name, avatar: '' }
+					const bind = await resolveAndAuthorize(name)
+					return {
+						// Presentation only — falls back to the OpNS name, which is
+						// the unique, owned value.
+						name: bind.profileName || name,
+						avatar: bind.avatarOrigin
+							? `${ordfsBaseUrl}/${bind.avatarOrigin}`
+							: '',
+					}
 				},
 			}),
 			new P2pPaymentDestinationRoute({
