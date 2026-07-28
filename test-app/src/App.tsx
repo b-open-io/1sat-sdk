@@ -17,8 +17,6 @@ import { TokensList } from './components/TokensList'
 import { UtxosList } from './components/UtxosList'
 import { OpnsPanel } from './components/OpnsPanel'
 import { DepositSync } from './components/DepositSync'
-import { SweepUntagged } from './components/SweepUntagged'
-import { SendUntaggedOrdinal } from './components/SendUntaggedOrdinal'
 import { EventLog } from './components/EventLog'
 import { LogProvider } from './components/LogContext'
 import { LocalCwiHost } from './localCwi/LocalCwiHost'
@@ -33,8 +31,6 @@ function WalletContent() {
 			<div style={gridStyle}>
 				<div style={colStyle}>
 					<DepositSync />
-					<SweepUntagged />
-					<SendUntaggedOrdinal />
 					<OpnsPanel />
 					<SendBsv />
 					<SendMnee />

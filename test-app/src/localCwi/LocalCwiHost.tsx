@@ -35,7 +35,6 @@ import {
 	REMOTE_BACKUP_URL,
 	STORAGE_IDENTITY_KEY,
 	TOGGLE_ADMIN_KEY,
-	TOGGLE_LOCAL_KEY,
 	WIF_STORAGE_KEY,
 } from './constants'
 
@@ -116,9 +115,9 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 	const [error, setError] = useState<string | null>(null)
 	const [identityKey, setIdentityKey] = useState<string | null>(null)
 	const [gatedWallet, setGatedWallet] = useState<WalletInterface | null>(null)
-	const [localEnabled, setLocalEnabledState] = useState(() =>
-		readToggle(TOGGLE_LOCAL_KEY, true),
-	)
+	// Session-only: never default on or persist — otherwise window.CWI
+	// front-runs Yours / other BRC-100 wallets across reloads.
+	const [localEnabled, setLocalEnabledState] = useState(false)
 	const [adminOriginator, setAdminOriginatorState] = useState(() =>
 		readToggle(TOGGLE_ADMIN_KEY, false),
 	)
@@ -141,7 +140,6 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 	}, [])
 
 	const setLocalEnabled = useCallback((on: boolean) => {
-		writeToggle(TOGGLE_LOCAL_KEY, on)
 		setLocalEnabledState(on)
 	}, [])
 

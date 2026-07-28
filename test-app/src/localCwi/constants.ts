@@ -17,5 +17,4 @@ export const STORAGE_IDENTITY_KEY = '1sat-test-app'
  */
 export const REMOTE_BACKUP_URL = 'https://wallet.1sat.app'
 export const WIF_STORAGE_KEY = '1sat-test-app-wif'
-export const TOGGLE_LOCAL_KEY = '1sat-test-app-local-cwi'
 export const TOGGLE_ADMIN_KEY = '1sat-test-app-admin-originator'
