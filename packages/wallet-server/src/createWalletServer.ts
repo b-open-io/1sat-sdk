@@ -1,5 +1,10 @@
 import type { Server } from 'node:http'
 import type { WalletInterface } from '@bsv/sdk'
+import {
+	BINARY_ENCODING,
+	BINARY_ENCODING_HEADER,
+	stringifyJsonRpc,
+} from '@bsv/wallet-toolbox/out/src/storage/remoting/BinaryJson.js'
 import { createLogger } from 'evlog'
 import { evlog, useLogger } from 'evlog/express'
 import express, {
@@ -123,14 +128,7 @@ export function createWalletServer(
 				})
 			})
 		}
-		mountPublicRoute(
-			app,
-			publicPath,
-			config,
-			wallet,
-			accountsDeps,
-			authMiddleware,
-		)
+		mountPublicRoute(app, publicPath, config, accountsDeps, authMiddleware)
 		mountStatusRoute(app, publicPath, config, serverIdentityKey, wallet)
 		if (accountsDeps) {
 			mountPaymentRoute(app, publicPath, {
@@ -223,7 +221,6 @@ function mountPublicRoute(
 	app: Express,
 	path: string,
 	config: WalletServerConfig,
-	wallet: WalletInterface,
 	accountsDeps: AccountsMiddlewareDeps | undefined,
 	authMiddleware: (
 		req: ExpressRequest,
@@ -252,25 +249,40 @@ export function dispatchHandler(config: WalletServerConfig) {
 		const log = useLogger()
 		log.set({ context: 'wallet-server', route: 'rpc' })
 
+		// Storage results carry Uint8Array fields. The caller advertises whether
+		// it can decode base64-tagged binary; we echo the header only when we
+		// encode that way, and fall back to number[] for callers that don't ask.
+		const useBinary = req.header(BINARY_ENCODING_HEADER) === BINARY_ENCODING
+
 		const identityKey = req.auth?.identityKey
 		if (!identityKey || identityKey === 'unknown') {
 			log.set({ event: 'auth_failed', reason: 'missing_identity' })
-			return res.status(401).json({
-				jsonrpc: '2.0',
-				error: { code: -32000, message: 'Unauthenticated' },
-				id: req.body?.id ?? null,
-			})
+			return sendRpc(
+				res,
+				401,
+				{
+					jsonrpc: '2.0',
+					error: { code: -32000, message: 'Unauthenticated' },
+					id: req.body?.id ?? null,
+				},
+				useBinary,
+			)
 		}
 		log.set({ identityKey })
 
 		const body = req.body
 		if (!isJsonRpcLike(body)) {
 			log.set({ event: 'invalid_request', reason: 'not_jsonrpc' })
-			return res.status(400).json({
-				jsonrpc: '2.0',
-				error: { code: -32600, message: 'Invalid Request' },
-				id: body?.id ?? null,
-			})
+			return sendRpc(
+				res,
+				400,
+				{
+					jsonrpc: '2.0',
+					error: { code: -32600, message: 'Invalid Request' },
+					id: body?.id ?? null,
+				},
+				useBinary,
+			)
 		}
 
 		log.set({ event: 'rpc_request', method: body.method })
@@ -300,8 +312,27 @@ export function dispatchHandler(config: WalletServerConfig) {
 			})
 		}
 
-		res.status(200).json(response)
+		sendRpc(res, 200, response, useBinary)
 	}
+}
+
+/**
+ * Serialize every JSON-RPC response through the toolbox's own codec, the
+ * counterpart to `parseJsonRpc` in `StorageClient`. Bare `res.json` renders a
+ * `Uint8Array` as `{"0":..,"1":..}`, which the client cannot decode back to
+ * bytes.
+ */
+function sendRpc(
+	res: ExpressResponse,
+	status: number,
+	payload: unknown,
+	useBinary: boolean,
+): void {
+	if (useBinary) res.set(BINARY_ENCODING_HEADER, BINARY_ENCODING)
+	res
+		.status(status)
+		.type('application/json')
+		.send(stringifyJsonRpc(payload, useBinary))
 }
 
 export function mountStatusRoute(

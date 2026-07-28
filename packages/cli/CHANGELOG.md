@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.95
+
+### Fixed
+- `1sat serve` picks up `@1sat/wallet-server` 0.0.41, which fixes `Uint8Array` fields being serialized as `{"0":..}` in storage JSON-RPC responses. Remote wallets on toolbox 2.4.2+ failed `signAction` with `Serialized BEEF must start with 4022206465 or 4022206466 but starts with 0`.
+
 ## 0.0.78
 
 ### Changed

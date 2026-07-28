@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.41
+
+### Fixed
+- JSON-RPC responses are serialized with the toolbox's `stringifyJsonRpc` instead of bare `JSON.stringify`/`res.json`. Since wallet-toolbox 2.4.2, storage `createAction` returns `inputBeef` as a `Uint8Array`, which plain JSON renders as `{"0":..,"1":..}`. `StorageClient` cannot decode that back to bytes, so `signAction` threw `Serialized BEEF must start with 4022206465 or 4022206466 but starts with 0` — after `processAction` had already broadcast the transaction. Also affected `sourceTransaction` and the action-batch `inputBeef` fields.
+- The `X-BSV-Binary-Encoding` request header is now honored and echoed on the response. Callers that advertise `base64` get tagged binary (~2.6x smaller for a typical BEEF); callers that don't get `number[]`, as before.
+
 ## 0.0.13
 
 ### Added
