@@ -57,6 +57,38 @@ function hasOpReturn(script: Script): boolean {
 }
 
 /**
+ * Append Sigma fields without round-tripping the base script through
+ * Script.chunks. @bsv/sdk's serializer stops at an OP_RETURN chunk that
+ * already carries trailing payload data (MAP after P2PKH), so writeBin
+ * after a chunk-slice copy silently drops SIGMA. Binary concat preserves
+ * the exact preimage bytes we signed.
+ */
+function appendSigmaSuffix(
+	lockingScript: Script,
+	address: string,
+	compactSig: number[],
+	vin: number,
+): Script {
+	const base = lockingScript.toUint8Array()
+	const tail = new Script()
+	if (hasOpReturn(lockingScript)) {
+		tail.writeBin(toArray('|'))
+	} else {
+		tail.writeOpCode(OP.OP_RETURN)
+	}
+	tail.writeBin(toArray('SIGMA'))
+	tail.writeBin(toArray('BSM'))
+	tail.writeBin(toArray(address))
+	tail.writeBin(compactSig)
+	tail.writeBin(toArray(vin.toString()))
+	const suffix = Uint8Array.from(tail.toBinary())
+	const combined = new Uint8Array(base.length + suffix.length)
+	combined.set(base, 0)
+	combined.set(suffix, base.length)
+	return Script.fromBinary(Array.from(combined))
+}
+
+/**
  * Compute a Sigma signature using the BRC-100 wallet and append SIGMA
  * protocol data to the provided locking script.
  *
@@ -102,17 +134,5 @@ export async function applySigma(
 	const address = publicKey.toAddress()
 	const compactSig = signature.toCompact(recovery, true) as number[]
 
-	const out = new Script(lockingScript.chunks.slice())
-	if (hasOpReturn(lockingScript)) {
-		out.writeBin(toArray('|'))
-	} else {
-		out.writeOpCode(OP.OP_RETURN)
-	}
-	out.writeBin(toArray('SIGMA'))
-	out.writeBin(toArray('BSM'))
-	out.writeBin(toArray(address))
-	out.writeBin(compactSig)
-	out.writeBin(toArray(vin.toString()))
-
-	return out
+	return appendSigmaSuffix(lockingScript, address, compactSig, vin)
 }
