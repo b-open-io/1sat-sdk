@@ -163,33 +163,73 @@ export default class Sigma implements ScriptTemplate {
 		return Hash.sha256(EMPTY_OUTPOINT)
 	}
 
+	/**
+	 * Hash of the script bytes preceding the SIGMA section.
+	 *
+	 * Mirrors bitcoinschema/go-sigma: scan raw opcodes for an `OP_RETURN` or a
+	 * `|` separator immediately followed by the SIGMA prefix, then hash
+	 * everything before that separator — the separator itself is not signed.
+	 * Scanning bytes rather than parsed chunks matters, because parsing folds
+	 * everything after a data-bearing `OP_RETURN` into one chunk, which hides
+	 * a SIGMA section that shares an `OP_RETURN` with MAP or B.
+	 */
 	static computeDataHash(script: Script, sigmaInstance = 0): number[] {
-		const chunks = script.chunks
-		let n = 0
-
-		for (let i = 0; i < chunks.length; i++) {
-			const chunk = chunks[i]
-
-			if (isSigmaChunk(chunk)) {
-				if (n === sigmaInstance) {
-					return Hash.sha256(new Script(chunks.slice(0, i - 1)).toBinary())
-				}
-				n++
-			} else if (isEmbeddedOpReturn(chunk)) {
-				try {
-					for (const ic of Script.fromBinary(chunk.data!).chunks) {
-						if (isSigmaChunk(ic)) {
-							if (n === sigmaInstance) {
-								return Hash.sha256(new Script(chunks.slice(0, i)).toBinary())
-							}
-							n++
-						}
-					}
-				} catch {}
+		const bytes = script.toBinary()
+		const readOp = (
+			at: number,
+		): { op: number; data: number[]; next: number } | null => {
+			if (at >= bytes.length) return null
+			const op = bytes[at]
+			let start = at + 1
+			let len = 0
+			if (op >= 1 && op <= 75) {
+				len = op
+			} else if (op === 0x4c) {
+				if (start >= bytes.length) return null
+				len = bytes[start]
+				start += 1
+			} else if (op === 0x4d) {
+				if (start + 1 >= bytes.length) return null
+				len = bytes[start] | (bytes[start + 1] << 8)
+				start += 2
+			} else if (op === 0x4e) {
+				if (start + 3 >= bytes.length) return null
+				len =
+					(bytes[start] |
+						(bytes[start + 1] << 8) |
+						(bytes[start + 2] << 16) |
+						(bytes[start + 3] << 24)) >>> 0
+				start += 4
 			}
+			const next = start + len
+			if (next > bytes.length) return null
+			return { op, data: bytes.slice(start, next), next }
 		}
 
-		return Hash.sha256(script.toBinary())
+		let occurrences = 0
+		let prevPos = 0
+		let pos = 0
+		while (pos < bytes.length) {
+			const op = readOp(pos)
+			if (!op) break
+			pos = op.next
+			const isSeparator =
+				op.op === OP.OP_RETURN || (op.op === 1 && op.data[0] === 0x7c)
+			if (isSeparator) {
+				const next = readOp(pos)
+				if (!next) break
+				pos = next.next
+				if (next.op === 5 && toUTF8(next.data) === SIGMA_PREFIX) {
+					if (occurrences === sigmaInstance) {
+						return Hash.sha256(bytes.slice(0, prevPos))
+					}
+					occurrences++
+				}
+			}
+			prevPos = pos
+		}
+
+		return Hash.sha256(bytes)
 	}
 
 	static computeMessageHash(inputHash: number[], dataHash: number[]): number[] {

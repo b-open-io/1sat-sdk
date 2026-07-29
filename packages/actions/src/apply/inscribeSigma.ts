@@ -6,7 +6,7 @@ import {
 	Script,
 	type WalletInterface,
 } from '@bsv/sdk'
-import { applySigma } from '../signing/sigma'
+import { sealSigma } from '../signing/sigma'
 import type { OneSatContext } from '../types'
 import {
 	ensureActionId,
@@ -45,7 +45,7 @@ export async function applyInscribeSigma(
 	// Already sealed (has anchor input) — idempotent.
 	if (args.inputs?.length) return
 
-	const baseScript = Script.fromHex(out.lockingScript)
+	const placeholderScript = Script.fromHex(out.lockingScript)
 	const ctx: OneSatContext = {
 		wallet,
 		chain: 'main',
@@ -94,13 +94,18 @@ export async function applyInscribeSigma(
 		throw new Error('ordinal.inscribe-sigma apply: anchor failed')
 	}
 
-	const sigmaScript = await applySigma(
+	const sigmaScript = await sealSigma(
 		ctx,
-		baseScript,
+		placeholderScript,
 		{ txid: anchorResult.txid, vout: 0 },
 		0,
 		0,
 	)
+	if (sigmaScript.toHex().length !== out.lockingScript.length) {
+		throw new Error(
+			'ordinal.inscribe-sigma apply: sealed script size differs from placeholder',
+		)
+	}
 	out.lockingScript = sigmaScript.toHex()
 
 	// Mutate inputs array in place (or initialize then push).

@@ -12,6 +12,7 @@ export function Inscribe() {
   const [contentType, setContentType] = useState('text/plain')
   const [file, setFile] = useState<File | null>(null)
   const [signWithBAP, setSignWithBAP] = useState(false)
+  const [mapJson, setMapJson] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -40,10 +41,14 @@ export function Inscribe() {
       }
       log('info', signWithBAP ? 'intent: ordinal.inscribe-sigma' : 'intent: ordinal.inscribe')
 
+      const map = mapJson.trim() ? JSON.parse(mapJson) : undefined
+      if (map) log('info', `map: ${mapJson.trim()}`)
+
       const res = await inscribe.execute(ctx, {
         base64Content,
         contentType: mime,
         signWithBAP,
+        ...(map && { map }),
       })
 
       if (res.error) throw new Error(res.error)
@@ -51,6 +56,7 @@ export function Inscribe() {
       log('success', `inscribe txid: ${res.txid}`)
       setText('')
       setFile(null)
+      setMapJson('')
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       setError(msg)
@@ -81,6 +87,14 @@ export function Inscribe() {
         <option value="image/jpeg">image/jpeg</option>
         <option value="image/svg+xml">image/svg+xml</option>
       </select>
+
+      <label style={label}>MAP metadata (JSON, optional)</label>
+      <input
+        style={input}
+        placeholder='{"app":"test","type":"post"}'
+        value={mapJson}
+        onChange={e => setMapJson(e.target.value)}
+      />
 
       <label style={label}>Or Upload File</label>
       <input

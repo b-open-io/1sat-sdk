@@ -144,7 +144,12 @@ export {
 	resolveCurrentKeyId,
 } from './aip'
 export { signWithBap, type BapSignature } from './bap'
-export { applySigma } from './sigma'
+export {
+	appendSigmaPlaceholder,
+	sealSigma,
+	resolveSigmaAddress,
+	SIGMA_COMPACT_SIG_LEN,
+} from './sigma'
 export {
 	getAuthToken,
 	type AuthTokenRequest,

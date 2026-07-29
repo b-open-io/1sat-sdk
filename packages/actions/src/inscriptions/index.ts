@@ -9,6 +9,7 @@ import type { Destination } from '@1sat/types'
 import { P1SAT_INTENTS, P1SAT_PROTOCOL, buildActionIdLabel } from '@1sat/types'
 import { Beef, Hash, type LockingScript, Script, Utils } from '@bsv/sdk'
 import { prepareP1SatArgs, sigmaAnchorKeyId } from '../apply'
+import { appendSigmaPlaceholder } from '../signing/sigma'
 import {
 	DEFAULT_STREAM_CHUNK_SIZE,
 	MAX_INSCRIPTION_BYTES,
@@ -111,7 +112,9 @@ async function inscribeWithSigma(
 	outputCustomInstructions?: string,
 	outputKeyIDForLog?: string,
 ): Promise<InscribeResponse> {
-	// One CA: plain inscription shell; apply on base does anchor+sigma+push.
+	// Full script with the SIGMA signature zeroed, so the output is already
+	// its on-chain size; apply creates the anchor and swaps the signature in.
+	const placeholderScript = await appendSigmaPlaceholder(ctx, lockingScript)
 	const args = await prepareP1SatArgs(
 		ctx,
 		{
@@ -119,7 +122,7 @@ async function inscribeWithSigma(
 			labels: [buildActionIdLabel(actionId)],
 			outputs: [
 				{
-					lockingScript: lockingScript.toHex(),
+					lockingScript: placeholderScript.toHex(),
 					satoshis: 1,
 					outputDescription: 'Inscription',
 					basket: ORDINALS_BASKET,
