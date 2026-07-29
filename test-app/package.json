@@ -21,7 +21,8 @@
     "@1sat/wallet-browser": "workspace:*",
     "@bsv/sdk": "^2.1.9",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5"
+    "react-dom": "^19.2.5",
+    "@bsv/wallet-toolbox-client": "2.4.4"
   },
   "devDependencies": {
     "@types/react": "^19.2.14",

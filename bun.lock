@@ -30,7 +30,7 @@
     },
     "packages/actions": {
       "name": "@1sat/actions",
-      "version": "0.0.195",
+      "version": "0.0.196",
       "dependencies": {
         "@1sat/client": "workspace:*",
         "@1sat/templates": "workspace:*",
@@ -50,7 +50,7 @@
     },
     "packages/cli": {
       "name": "@1sat/cli",
-      "version": "0.0.97",
+      "version": "0.0.98",
       "bin": {
         "1sat": "./src/cli.ts",
       },
@@ -62,7 +62,7 @@
         "@1sat/wallet-server": "workspace:*",
         "@bopen-io/messagebox-server": "^1.3.2",
         "@bsv/sdk": "^2.1.9",
-        "@bsv/wallet-toolbox": "2.4.3",
+        "@bsv/wallet-toolbox": "2.4.4",
         "@clack/prompts": "^0.8.0",
         "bitcoin-backup": "^0.0.11",
         "chalk": "^5.0.0",
@@ -79,10 +79,10 @@
     },
     "packages/client": {
       "name": "@1sat/client",
-      "version": "0.0.48",
+      "version": "0.0.49",
       "dependencies": {
         "@1sat/types": "workspace:*",
-        "@bsv/wallet-toolbox": "2.4.3",
+        "@bsv/wallet-toolbox-client": "2.4.4",
       },
       "devDependencies": {
         "@bsv/sdk": "^2.1.9",
@@ -94,7 +94,7 @@
     },
     "packages/connect": {
       "name": "@1sat/connect",
-      "version": "0.0.86",
+      "version": "0.0.87",
       "dependencies": {
         "@1sat/wallet": "workspace:*",
         "@sigma-auth/better-auth-plugin": "^0.0.92",
@@ -153,7 +153,7 @@
     },
     "packages/permission-module": {
       "name": "@1sat/permission-module",
-      "version": "0.0.47",
+      "version": "0.0.48",
       "dependencies": {
         "@1sat/actions": "workspace:*",
         "@1sat/templates": "workspace:*",
@@ -166,12 +166,11 @@
       },
       "peerDependencies": {
         "@bsv/sdk": "^2.1.9",
-        "@bsv/wallet-toolbox": "2.4.3",
       },
     },
     "packages/permission-module-ui": {
       "name": "@1sat/permission-module-ui",
-      "version": "0.0.42",
+      "version": "0.0.43",
       "dependencies": {
         "@1sat/permission-module": "workspace:*",
         "@1sat/types": "workspace:*",
@@ -187,7 +186,7 @@
     },
     "packages/react": {
       "name": "@1sat/react",
-      "version": "0.0.83",
+      "version": "0.0.84",
       "dependencies": {
         "@1sat/connect": "workspace:*",
       },
@@ -216,7 +215,7 @@
     },
     "packages/sweep-ui": {
       "name": "@1sat/sweep-ui",
-      "version": "0.0.82",
+      "version": "0.0.83",
       "dependencies": {
         "@1sat/actions": "workspace:*",
         "@1sat/client": "workspace:*",
@@ -291,7 +290,7 @@
     },
     "packages/wallet": {
       "name": "@1sat/wallet",
-      "version": "0.0.101",
+      "version": "0.0.102",
       "dependencies": {
         "@1sat/client": "workspace:*",
         "@1sat/templates": "workspace:*",
@@ -307,31 +306,29 @@
       },
       "peerDependencies": {
         "@bsv/sdk": "^2.1.9",
-        "@bsv/wallet-toolbox": "2.4.3",
+        "@bsv/wallet-toolbox-client": "2.4.4",
       },
     },
     "packages/wallet-browser": {
       "name": "@1sat/wallet-browser",
-      "version": "0.0.87",
+      "version": "0.0.88",
       "dependencies": {
         "@1sat/wallet": "workspace:*",
       },
       "devDependencies": {
         "@bsv/sdk": "^2.1.9",
-        "@bsv/wallet-toolbox": "2.4.3",
-        "@bsv/wallet-toolbox-mobile": "2.4.3",
+        "@bsv/wallet-toolbox-client": "2.4.4",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
         "@1sat/client": "workspace:*",
         "@bsv/sdk": "^2.1.9",
-        "@bsv/wallet-toolbox": "2.4.3",
-        "@bsv/wallet-toolbox-mobile": "2.4.3",
+        "@bsv/wallet-toolbox-client": "2.4.4",
       },
     },
     "packages/wallet-desktop": {
       "name": "@1sat/wallet-desktop",
-      "version": "0.0.22",
+      "version": "0.0.23",
       "dependencies": {
         "@1sat/actions": "workspace:*",
         "@1sat/client": "workspace:*",
@@ -394,7 +391,7 @@
       },
       "devDependencies": {
         "@bsv/sdk": "^2.1.9",
-        "@bsv/wallet-toolbox": "2.4.3",
+        "@bsv/wallet-toolbox": "2.4.4",
         "@tailwindcss/vite": "^4.1.4",
         "@types/bun": "latest",
         "@types/qrcode": "^1.5.5",
@@ -426,21 +423,21 @@
     },
     "packages/wallet-node": {
       "name": "@1sat/wallet-node",
-      "version": "0.0.67",
+      "version": "0.0.68",
       "dependencies": {
         "@1sat/wallet": "workspace:*",
       },
       "devDependencies": {
         "@1sat/client": "workspace:*",
         "@bsv/sdk": "^2.1.9",
-        "@bsv/wallet-toolbox": "2.4.3",
+        "@bsv/wallet-toolbox": "2.4.4",
         "@types/pg": "^8.11.0",
         "pg": "^8.11.0",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
         "@bsv/sdk": "^2.1.9",
-        "@bsv/wallet-toolbox": "2.4.3",
+        "@bsv/wallet-toolbox": "2.4.4",
         "pg": "^8.11.0",
       },
       "optionalPeers": [
@@ -449,24 +446,24 @@
     },
     "packages/wallet-remote": {
       "name": "@1sat/wallet-remote",
-      "version": "0.0.58",
+      "version": "0.0.59",
       "dependencies": {
         "@1sat/wallet": "workspace:*",
       },
       "devDependencies": {
         "@bsv/sdk": "^2.1.9",
-        "@bsv/wallet-toolbox": "2.4.3",
+        "@bsv/wallet-toolbox": "2.4.4",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
         "@1sat/client": "workspace:*",
         "@bsv/sdk": "^2.1.9",
-        "@bsv/wallet-toolbox": "2.4.3",
+        "@bsv/wallet-toolbox": "2.4.4",
       },
     },
     "packages/wallet-server": {
       "name": "@1sat/wallet-server",
-      "version": "0.0.43",
+      "version": "0.0.44",
       "dependencies": {
         "@1sat/client": "workspace:*",
         "@1sat/templates": "workspace:*",
@@ -481,7 +478,7 @@
       "devDependencies": {
         "@bsv/paymail": "^2.4.0",
         "@bsv/sdk": "^2.1.9",
-        "@bsv/wallet-toolbox": "2.4.3",
+        "@bsv/wallet-toolbox": "2.4.4",
         "@types/bun": "^1.3.10",
         "@types/express": "^4.17.21",
         "knex": "^3.1.0",
@@ -490,7 +487,7 @@
       "peerDependencies": {
         "@bsv/paymail": "^2.4.0",
         "@bsv/sdk": "^2.1.9",
-        "@bsv/wallet-toolbox": "2.4.3",
+        "@bsv/wallet-toolbox": "2.4.4",
         "knex": "^3.1.0",
       },
     },
@@ -509,6 +506,7 @@
         "@1sat/wallet": "workspace:*",
         "@1sat/wallet-browser": "workspace:*",
         "@bsv/sdk": "^2.1.9",
+        "@bsv/wallet-toolbox-client": "2.4.4",
         "react": "^19.2.5",
         "react-dom": "^19.2.5",
       },
@@ -568,19 +566,19 @@
 
     "@1sat/wallet-server": ["@1sat/wallet-server@workspace:packages/wallet-server"],
 
-    "@ai-sdk/gateway": ["@ai-sdk/gateway@3.0.159", "", { "dependencies": { "@ai-sdk/provider": "3.0.14", "@ai-sdk/provider-utils": "4.0.40", "@vercel/oidc": "3.2.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-BJ1SMVpD2Qie/OVmQho1b1wb8rcGYC38p2D20MyP0+zUGBlXJOMfq1zP97+tl1oyT1u/A84R+oaYrUT18dIdWg=="],
+    "@ai-sdk/gateway": ["@ai-sdk/gateway@3.0.160", "", { "dependencies": { "@ai-sdk/provider": "3.0.14", "@ai-sdk/provider-utils": "4.0.41", "@vercel/oidc": "3.2.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-yL024nICtDX74vFkfFJl8t7uHlA3BXl/5C+Ah92dPunI0U2WPCPhTnmiWu4zEYTjZmmvFOC3pDojniLsHkUFqA=="],
 
-    "@ai-sdk/mcp": ["@ai-sdk/mcp@1.0.64", "", { "dependencies": { "@ai-sdk/provider": "3.0.14", "@ai-sdk/provider-utils": "4.0.40", "pkce-challenge": "^5.0.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-n6fZiIsiK0TWdJa7bdcjiQxOmg+GRa1wk8ns01gfzaiZbnNwIjmgt1oFMDIzLzgOjVq/LqktbXfxvBFlQ8RDnQ=="],
+    "@ai-sdk/mcp": ["@ai-sdk/mcp@1.0.65", "", { "dependencies": { "@ai-sdk/provider": "3.0.14", "@ai-sdk/provider-utils": "4.0.41", "pkce-challenge": "^5.0.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-N+ngvp55W4XG6L+vmeZOcPAqrogfHpG6khN1JpjsZ6ij4SdWkjU4TvkggWuReAqtbf9Qmm59pC7Uw/t9j1iL7w=="],
 
-    "@ai-sdk/openai": ["@ai-sdk/openai@3.0.89", "", { "dependencies": { "@ai-sdk/provider": "3.0.14", "@ai-sdk/provider-utils": "4.0.40" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-G5Brp7duF/pPxaY1wa3pR4mV18qcEVtcrfZT4YxzheR2iP672auUdHoddCqyKS9RxTtZQyxXQ6bNiTcKvaWgIg=="],
+    "@ai-sdk/openai": ["@ai-sdk/openai@3.0.90", "", { "dependencies": { "@ai-sdk/provider": "3.0.14", "@ai-sdk/provider-utils": "4.0.41" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-GIucFshCN7JZwTDur25PsnLEMRUFfAKuLaA9TP9fzGxPC2Zxzl94tvat93ZdZLURkKOrDukU0E4fj73tKDWjTA=="],
 
-    "@ai-sdk/openai-compatible": ["@ai-sdk/openai-compatible@2.0.62", "", { "dependencies": { "@ai-sdk/provider": "3.0.14", "@ai-sdk/provider-utils": "4.0.40" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-lRe54zvyIS1a60N8UVhnwKZRI5I+GSV8uhKkPpId+aiKO7z7UgSbNqFmXkBBMD3yc9UrLnQnATV2EQyXNhzEkA=="],
+    "@ai-sdk/openai-compatible": ["@ai-sdk/openai-compatible@2.0.63", "", { "dependencies": { "@ai-sdk/provider": "3.0.14", "@ai-sdk/provider-utils": "4.0.41" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-EmrD7iRboidulu6yHfMiMhd6RQSw8KrIWhNLK8vl5brQZbIjXkyhUU+FULZM3P4m46Vatzx8u3vX1w/qmFUmqA=="],
 
     "@ai-sdk/provider": ["@ai-sdk/provider@3.0.14", "", { "dependencies": { "json-schema": "^0.4.0" } }, "sha512-5X1k57JBJ4H7H1QjX7CnJYAB1I19r/trVZTMcSms7/kLNZ8RaU4Nt2agcwZzv82Hfx6Q7/TOLU7agAKeFfc8cA=="],
 
-    "@ai-sdk/provider-utils": ["@ai-sdk/provider-utils@4.0.40", "", { "dependencies": { "@ai-sdk/provider": "3.0.14", "@standard-schema/spec": "^1.1.0", "eventsource-parser": "^3.0.8" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-OL5IrpUm9Y8Dwy+w/vvFwPotS6m52O9W0op2oXgXdCROMJIBalBI0oro6OIBYkPxvm5Xg02GSkoQN25RlR0bnw=="],
+    "@ai-sdk/provider-utils": ["@ai-sdk/provider-utils@4.0.41", "", { "dependencies": { "@ai-sdk/provider": "3.0.14", "@standard-schema/spec": "^1.1.0", "eventsource-parser": "^3.0.8", "undici": "^5.29.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-I7hhjfw01yEI8NkuAsT8Mv6xbWFr/lqLXMdaJQ2zWfXEpxog1eT7skDcv1+RY29/+5btzH8wD+vVvy48bk9oNQ=="],
 
-    "@ai-sdk/react": ["@ai-sdk/react@3.0.239", "", { "dependencies": { "@ai-sdk/provider-utils": "4.0.40", "ai": "6.0.237", "swr": "^2.2.5", "throttleit": "2.1.0" }, "peerDependencies": { "react": "^18 || ~19.0.1 || ~19.1.2 || ^19.2.1" } }, "sha512-V2ufTaGoEHLUKJglht5WU5LTiE11lVCofBHFCJp+AD77O465xoI8WwJsEPIAgrYT0JS/6NMvH24qcsELgN8RXQ=="],
+    "@ai-sdk/react": ["@ai-sdk/react@3.0.240", "", { "dependencies": { "@ai-sdk/provider-utils": "4.0.41", "ai": "6.0.238", "swr": "^2.2.5", "throttleit": "2.1.0" }, "peerDependencies": { "react": "^18 || ~19.0.1 || ~19.1.2 || ^19.2.1" } }, "sha512-o+XBxxBEE8+eJ3CiUChEk525rOBZ/yeSIhEjs9rzm1u7ITsPEiuuUtFxm7Cj7V4ZATTALwPvsctVFAfgdeaRQg=="],
 
     "@antfu/install-pkg": ["@antfu/install-pkg@1.1.0", "", { "dependencies": { "package-manager-detector": "^1.3.0", "tinyexec": "^1.0.1" } }, "sha512-MGQsmw10ZyI+EJo45CdSER4zEb+p31LpDAFp2Z3gkSd1yqVZGi0Ebx++YTEMonJy4oChEMLsxZ64j8FH6sSqtQ=="],
 
@@ -692,9 +690,9 @@
 
     "@bsv/sdk": ["@bsv/sdk@2.2.0", "", {}, "sha512-+qDajfMt8IkhnB7qLADODCLqnCFu3W52Kn/knNK1lRZhCPbyFkcPVW6HdHrZnn6vdOvtsCvOhUdw/CUW92TwQA=="],
 
-    "@bsv/wallet-toolbox": ["@bsv/wallet-toolbox@2.4.3", "", { "dependencies": { "@bsv/auth-express-middleware": "^2.1.1", "@bsv/payment-express-middleware": "^2.1.0", "better-sqlite3": "^12.11.1", "body-parser": "^2.3.0", "dotenv": "^17.4.2", "express": "^5.2.1", "hash-wasm": "^4.12.0", "idb": "^8.0.2", "knex": "^3.2.10", "mysql2": "^3.22.5", "ws": "^8.21.0" }, "peerDependencies": { "@bsv/sdk": "^2.1.8" } }, "sha512-L+I9p+6JQVOeJKBcq+GHACXdAbc7RQeTAm0m+w3CfczMX6WuAap7u6ifQbHX/FdFRjqKLwX303PTzYXkAffGhQ=="],
+    "@bsv/wallet-toolbox": ["@bsv/wallet-toolbox@2.4.4", "", { "dependencies": { "@bsv/auth-express-middleware": "^2.1.2", "@bsv/payment-express-middleware": "^2.1.1", "better-sqlite3": "^12.11.1", "body-parser": "^2.3.0", "dotenv": "^17.4.2", "express": "^5.2.1", "express-rate-limit": "^8.6.0", "hash-wasm": "^4.12.0", "idb": "^8.0.3", "knex": "^3.3.0", "mysql2": "^3.23.1", "ws": "^8.21.1" }, "peerDependencies": { "@bsv/sdk": "^2.1.8" } }, "sha512-5c4SBSxs6qTb+ElFQGpMMxvJu4C9IfOLyaX4+G7V9SuweEgedtclGmuTVAqOGjYl+8PaGSAi64fw7LfPSawe5w=="],
 
-    "@bsv/wallet-toolbox-mobile": ["@bsv/wallet-toolbox-mobile@2.4.3", "", { "dependencies": { "hash-wasm": "^4.12.0", "idb": "^8.0.2" }, "peerDependencies": { "@bsv/sdk": "^2.1.8" } }, "sha512-ejPH0S/RVNVR2HTvUW11DB2xCP013gjEWNRxhXwrDCPfpAjtDqLPt4vHIFdfuxDGSrV74H0E37ikcvZidQHNdA=="],
+    "@bsv/wallet-toolbox-client": ["@bsv/wallet-toolbox-client@2.4.4", "", { "dependencies": { "hash-wasm": "^4.12.0", "idb": "^8.0.3" }, "peerDependencies": { "@bsv/sdk": "^2.1.8" } }, "sha512-B/S08jT98Uy3hlCn2J0o9fDeedbNrsBxbdTfqjNHSlYXUD2uMm3xOyY2SQYpIXaAN4nWRFBLFhuMgdxwhjvz3w=="],
 
     "@chevrotain/types": ["@chevrotain/types@11.1.2", "", {}, "sha512-U+HFai5+zmJCkK86QsaJtoITlboZHBqrVketcO2ROv865xfCMSFpELQoz1GkX5GzME8pTa+3kbKrZHQtI0gdbw=="],
 
@@ -1638,7 +1636,7 @@
 
     "agent-base": ["agent-base@7.1.4", "", {}, "sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ=="],
 
-    "ai": ["ai@6.0.237", "", { "dependencies": { "@ai-sdk/gateway": "3.0.159", "@ai-sdk/provider": "3.0.14", "@ai-sdk/provider-utils": "4.0.40", "@opentelemetry/api": "^1.9.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-TdiKxGoYrKQyaN6fkk1WRxA+XSQ8nO3LZo/QVnJsME54bMuddXqzJ4KrJozF5/czHfJ5BmgHJ4mJmGqRZHX3Hw=="],
+    "ai": ["ai@6.0.238", "", { "dependencies": { "@ai-sdk/gateway": "3.0.160", "@ai-sdk/provider": "3.0.14", "@ai-sdk/provider-utils": "4.0.41", "@opentelemetry/api": "^1.9.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-XBIrxDzOrUAOqf+mkvzpOY67SRJoa5X99iMGAuCIcsey302+QW4AWpAJIyRuE3jJxmslWO4K3ToSeBUl1DeguA=="],
 
     "ai-sdk-ollama": ["ai-sdk-ollama@3.8.8", "", { "dependencies": { "@ai-sdk/provider": "^3.0.10", "@ai-sdk/provider-utils": "^4.0.30", "jsonrepair": "^3.14.0", "ollama": "^0.6.3" }, "peerDependencies": { "ai": "^6.0.197" } }, "sha512-peWelPf6sVsRULQyYhfyu1dMZhwewRszsbQVfbuhNLflh+ncRXn6pe1BRE3NAcSsWd7JMRZAV5RzcuR3R9ZfaQ=="],
 
@@ -1688,7 +1686,7 @@
 
     "base64id": ["base64id@2.0.0", "", {}, "sha512-lGe34o6EHj9y3Kts9R4ZYs/Gr+6N7MCaMlIFA3F1R2O5/m7K06AxfSeO5530PEERE6/WyEg3lsuyw4GHlPZHog=="],
 
-    "baseline-browser-mapping": ["baseline-browser-mapping@2.11.6", "", { "bin": { "baseline-browser-mapping": "dist/cli.cjs" } }, "sha512-69D/imtToCsIcAl8WBS2YaRwA4jO/j0HhU+hELqMEu9f54MoUtI6+XH5mrKU8rEFNEk/Ui1I2MK4/JkWacclGw=="],
+    "baseline-browser-mapping": ["baseline-browser-mapping@2.11.7", "", { "bin": { "baseline-browser-mapping": "dist/cli.cjs" } }, "sha512-APw5YuIQAg6L9w4sHDI6j26DGFJI6RpYOhnkMPdC9lWbkKvsyPHzDsve1yd73lk21yz7Y09Kci8B2Pp9FonzWA=="],
 
     "basic-ftp": ["basic-ftp@5.3.1", "", {}, "sha512-bopVNp6ugyA150DDuZfPFdt1KZ5a94ZDiwX4hMgZDzF+GttD80lEy8kj98kbyhLXnPvhtIo93mdnLIjpCAeeOw=="],
 
@@ -2198,7 +2196,7 @@
 
     "inline-style-parser": ["inline-style-parser@0.2.7", "", {}, "sha512-Nb2ctOyNR8DqQoR0OwRG95uNWIC0C1lCgf5Naz5H6Ji72KZ8OcFZLz2P5sNgwlyoJ8Yif11oMuYs5pBQa86csA=="],
 
-    "internmap": ["internmap@1.0.1", "", {}, "sha512-lDB5YccMydFBtasVtxnZ3MRBHuaoE8GKsppq+EchKL2U4nK/DmEpPHNH8MZe5HkMtpSiTSOZwfN0tzYjO/lJEw=="],
+    "internmap": ["internmap@2.0.3", "", {}, "sha512-5Hh7Y1wQbvY5ooGgPbDaL5iYLAPzMTUrjMulskHLH6wnv/A+1q5rgEaiuqEjB+oxGXIVZs1FF+R/KPN3ZSQYYg=="],
 
     "interpret": ["interpret@2.2.0", "", {}, "sha512-Ju0Bz/cEia55xDwUWEa8+olFpCiQoypjnQySseKtmjNrnps3P+xfpUmGr90T7yjlVJmOtybRvPXhKMbHr+fWnw=="],
 
@@ -2526,7 +2524,7 @@
 
     "nanoid": ["nanoid@5.1.16", "", { "bin": { "nanoid": "bin/nanoid.js" } }, "sha512-kVrnsrJqMR8+oLJnGEmSWw9BivK5mt7H3FZatVRjrc5wGqFYuBxX1yG7+A7Gi5AefkX6t/oCkizcQgpu0cY1dQ=="],
 
-    "nanostores": ["nanostores@1.4.1", "", {}, "sha512-PGd3uPojJB9Z07d5NX3Db/SOSBbyy3wLMUGq0GpnEEJfVzY9mq7daPMAZ3jObV5D3Jn+YKND636eI5ULg7F80Q=="],
+    "nanostores": ["nanostores@1.4.2", "", {}, "sha512-Wxv8Roefr2nqtiRG0bnaFlpYqpIVtOEeJZHaH+4nGgOK1/7n6OHOuHCb/bhqrNQgZM8fyd0s1PqhdrJc9Ib44g=="],
 
     "napi-build-utils": ["napi-build-utils@2.0.0", "", {}, "sha512-GEbrYkbfF7MoNaoh2iGG84Mnf/WZfB0GdGEsM8wz7Expx/LlWf5U8t9nvJKXSp3qr5IsEbK04cBGhol/KwOsWA=="],
 
@@ -2640,7 +2638,7 @@
 
     "points-on-path": ["points-on-path@0.2.1", "", { "dependencies": { "path-data-parser": "0.1.0", "points-on-curve": "0.2.0" } }, "sha512-25ClnWWuw7JbWZcgqY/gJ4FQWadKxGWk+3kR/7kD0tCaDtPPMj7oHu2ToLaVhfpnHrZzYby2w6tUA0eOIuUg8g=="],
 
-    "postcss": ["postcss@8.5.24", "", { "dependencies": { "nanoid": "^3.3.16", "picocolors": "^1.1.1", "source-map-js": "^1.2.1" } }, "sha512-8RyVklq0owXUTa4xlpzu4l9AaVKIdQvAcOHZWaMh98HgySsUtxRVf/chRe3dsSLqb6i40BzGRzEUddRaI+9TSw=="],
+    "postcss": ["postcss@8.5.25", "", { "dependencies": { "nanoid": "^3.3.16", "picocolors": "^1.1.1", "source-map-js": "^1.2.1" } }, "sha512-DTPx3RWSSnWyzLxQnlH0rJP+EW5ekl16ZU4/psbIhA0e53kJfdgaN5vKM+xP7yJtXVu+nfdVFmlgFDEKAe4Pyw=="],
 
     "postgres-array": ["postgres-array@2.0.0", "", {}, "sha512-VpZrUqU5A69eQyW2c5CA1jtLecCsN2U/bD6VilrFDWq5+5UIEVO7nazS3TEcHf1zuPYO/sqGvUvW62g86RXZuA=="],
 
@@ -3100,6 +3098,8 @@
 
     "@1sat/wallet-desktop/react": ["react@18.3.1", "", { "dependencies": { "loose-envify": "^1.1.0" } }, "sha512-wS+hAgJShR0KhEvPJArfuPVN1+Hz1t0Y6n5jLrGQbkb4urgPE/0Rve+1kMB1v/oWgHgm4WIcV+i7F2pTVj+2iQ=="],
 
+    "@ai-sdk/provider-utils/undici": ["undici@5.29.0", "", { "dependencies": { "@fastify/busboy": "^2.0.0" } }, "sha512-raqeBD6NQK4SkWhQzeYKd1KmIG6dllBOTt55Rmkt4HtI9mwdWtJljnrXjAFUBLTSN67HWrOIZ3EPF4kjUw80Bg=="],
+
     "@babel/core/debug": ["debug@4.4.3", "", { "dependencies": { "ms": "^2.1.3" } }, "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA=="],
 
     "@babel/core/semver": ["semver@6.3.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA=="],
@@ -3418,6 +3418,8 @@
 
     "type-is/mime-types": ["mime-types@2.1.35", "", { "dependencies": { "mime-db": "1.52.0" } }, "sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw=="],
 
+    "@ai-sdk/provider-utils/undici/@fastify/busboy": ["@fastify/busboy@2.1.1", "", {}, "sha512-vBZP4NlzfOlerQTnba4aqZoMhE/a9HY7HRqoOPaETQcSQuWEIyZMHGfVu6w9wGtGK5fED5qRs2DteVCjOH60sA=="],
+
     "@babel/core/debug/ms": ["ms@2.1.3", "", {}, "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA=="],
 
     "@babel/helper-compilation-targets/lru-cache/yallist": ["yallist@3.1.1", "", {}, "sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g=="],
@@ -3597,6 +3599,8 @@
     "cross-spawn/which/isexe": ["isexe@2.0.0", "", {}, "sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw=="],
 
     "cytoscape-fcose/cose-base/layout-base": ["layout-base@2.0.1", "", {}, "sha512-dp3s92+uNI1hWIpPGH3jK2kxE2lMjdXdr+DH8ynZHpd6PUlH6x6cbuXnoMmiNumznqaNO31xu9e79F0uuZ0JFg=="],
+
+    "d3-sankey/d3-array/internmap": ["internmap@1.0.1", "", {}, "sha512-lDB5YccMydFBtasVtxnZ3MRBHuaoE8GKsppq+EchKL2U4nK/DmEpPHNH8MZe5HkMtpSiTSOZwfN0tzYjO/lJEw=="],
 
     "d3-sankey/d3-shape/d3-path": ["d3-path@1.0.9", "", {}, "sha512-VLaYcn81dtHVTjEHd8B+pbe9yHWpXKZUC87PzoFmsFrJqgFwDe/qxfp5MlfsfM1V5E/iVt0MmEbWQ7FVIXh/bg=="],
 

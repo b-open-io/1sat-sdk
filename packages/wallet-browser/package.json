@@ -1,6 +1,6 @@
 {
   "name": "@1sat/wallet-browser",
-  "version": "0.0.87",
+  "version": "0.0.88",
   "description": "Browser wallet factory for 1Sat Ordinals SDK",
   "type": "module",
   "main": "./dist/index.js",
@@ -33,13 +33,11 @@
   "peerDependencies": {
     "@1sat/client": "workspace:*",
     "@bsv/sdk": "^2.1.9",
-    "@bsv/wallet-toolbox": "2.4.3",
-    "@bsv/wallet-toolbox-mobile": "2.4.3"
+    "@bsv/wallet-toolbox-client": "2.4.4"
   },
   "devDependencies": {
     "@bsv/sdk": "^2.1.9",
-    "@bsv/wallet-toolbox": "2.4.3",
-    "@bsv/wallet-toolbox-mobile": "2.4.3",
+    "@bsv/wallet-toolbox-client": "2.4.4",
     "typescript": "^5.9.3"
   }
 }

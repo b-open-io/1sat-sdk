@@ -157,7 +157,8 @@ export async function createNodeWallet(
 		remoteStorage: core.remoteClients[0],
 		setActiveStorage: core.setActiveStorage,
 		addRemote: core.addRemote,
-		getActiveStorage: core.getActiveStorage,
+		getActiveStorage:
+			core.getActiveStorage as () => sdk.WalletStorageProvider,
 	}
 }
 

@@ -1,4 +1,4 @@
-import type { sdk } from '@bsv/wallet-toolbox/out/src/index.client.js'
+import type { sdk } from '@bsv/wallet-toolbox-client/out/src/index.client.js'
 
 type Chain = sdk.Chain
 

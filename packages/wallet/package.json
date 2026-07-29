@@ -1,6 +1,6 @@
 {
   "name": "@1sat/wallet",
-  "version": "0.0.101",
+  "version": "0.0.102",
   "description": "BRC-100 wallet engine for 1Sat Ordinals SDK",
   "type": "module",
   "main": "./dist/index.js",
@@ -38,7 +38,7 @@
   },
   "peerDependencies": {
     "@bsv/sdk": "^2.1.9",
-    "@bsv/wallet-toolbox": "2.4.3"
+    "@bsv/wallet-toolbox-client": "2.4.4"
   },
   "devDependencies": {
     "@bsv/sdk": "^2.1.9",

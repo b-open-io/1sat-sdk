@@ -9,7 +9,7 @@ import {
 	type PermissionsManagerConfig,
 	WalletPermissionsManager,
 	type WalletPermissionsManagerCallbacks,
-} from '@bsv/wallet-toolbox/out/src/index.client.js'
+} from '@bsv/wallet-toolbox-client/out/src/index.client.js'
 import {
 	isExpired,
 	normalizeOriginator,
@@ -300,7 +300,7 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 	public override async grantGroupedPermission(params: {
 		requestID: string
 		granted: Partial<
-			import('@bsv/wallet-toolbox/out/src/index.client.js').GroupedPermissions
+			import('@bsv/wallet-toolbox-client/out/src/index.client.js').GroupedPermissions
 		>
 		expiry?: number
 	}): Promise<void> {

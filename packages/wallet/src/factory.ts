@@ -1,6 +1,5 @@
 import { OneSatServices } from '@1sat/client'
 import { KeyDeriver, type PrivateKey, type WalletInterface } from '@bsv/sdk'
-import type { sdk as toolboxSdk } from '@bsv/wallet-toolbox'
 import { parsePrivateKey } from './parsePrivateKey'
 import {
 	type StoragePaymentHook,
@@ -8,8 +7,16 @@ import {
 	installStoragePaymentAutoRetry,
 } from './storagePaymentAutoRetry'
 
-type WalletServices = toolboxSdk.WalletServices
-type WalletStorageProvider = toolboxSdk.WalletStorageProvider
+/**
+ * Minimal structural view of a `WalletStorageProvider`. Kept structural so
+ * the factory stays runtime-neutral: `@1sat/wallet-node` supplies a
+ * `StorageKnex` from `@bsv/wallet-toolbox` while `@1sat/wallet-browser`
+ * supplies a `StorageIdb` from `@bsv/wallet-toolbox-client`, and a nominal
+ * type from either package would reject the other.
+ */
+export interface WalletStorageProviderLike {
+	makeAvailable(): Promise<{ storageIdentityKey: string }>
+}
 
 export type Chain = 'main' | 'test'
 
@@ -117,13 +124,13 @@ export interface WalletCoreResult {
 	 * (e.g. an RPC server) that need to expose the raw provider directly
 	 * rather than go through the single-tenant WalletStorageManager.
 	 */
-	getActiveStorage: () => WalletStorageProvider
+	getActiveStorage: () => WalletStorageProviderLike
 	feeModel: { model: 'sat/kb'; value: number }
 }
 
 export async function createWalletCore(
 	config: WalletCoreConfig,
-	localStorage: WalletStorageProvider | undefined,
+	localStorage: WalletStorageProviderLike | undefined,
 	toolbox: {
 		Services: any
 		StorageClient: any
@@ -163,7 +170,7 @@ export async function createWalletCore(
 		chain,
 		keyDeriver,
 		storage,
-		services: oneSatServices as unknown as WalletServices,
+		services: oneSatServices,
 	})
 
 	// 4. Connect remotes

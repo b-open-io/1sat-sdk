@@ -1,7 +1,7 @@
-import type { sdk } from '@bsv/wallet-toolbox/out/src/index.client.js'
-import type { TableSettings } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/TableSettings.js'
-import type { TableSyncState } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/TableSyncState.js'
-import type { TableUser } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/TableUser.js'
+import type { sdk } from '@bsv/wallet-toolbox-client/out/src/index.client.js'
+import type { TableSettings } from '@bsv/wallet-toolbox-client/out/src/storage/schema/tables/TableSettings.js'
+import type { TableSyncState } from '@bsv/wallet-toolbox-client/out/src/storage/schema/tables/TableSyncState.js'
+import type { TableUser } from '@bsv/wallet-toolbox-client/out/src/storage/schema/tables/TableUser.js'
 import { encode } from '@msgpack/msgpack'
 import { Zip, ZipDeflate } from 'fflate'
 
@@ -191,6 +191,41 @@ export class FileBackupProvider implements WalletStorageProvider {
 
 	async internalizeAction(_auth: AuthId, _args: unknown): Promise<never> {
 		throw new Error('Not supported: internalizeAction')
+	}
+
+	async getCapabilities(): Promise<never> {
+		throw new Error('Not supported: getCapabilities')
+	}
+
+	async beginActionBatch(_auth: AuthId, _args: unknown): Promise<never> {
+		throw new Error('Not supported: beginActionBatch')
+	}
+
+	async extendActionBatch(_auth: AuthId, _args: unknown): Promise<never> {
+		throw new Error('Not supported: extendActionBatch')
+	}
+
+	async renewActionBatch(_auth: AuthId, _args: unknown): Promise<never> {
+		throw new Error('Not supported: renewActionBatch')
+	}
+
+	async prepareActionBatchCommit(
+		_auth: AuthId,
+		_args: unknown,
+	): Promise<never> {
+		throw new Error('Not supported: prepareActionBatchCommit')
+	}
+
+	async putActionBatchBlob(_auth: AuthId, _args: unknown): Promise<never> {
+		throw new Error('Not supported: putActionBatchBlob')
+	}
+
+	async commitActionBatch(_auth: AuthId, _args: unknown): Promise<never> {
+		throw new Error('Not supported: commitActionBatch')
+	}
+
+	async abortActionBatch(_auth: AuthId, _args: unknown): Promise<never> {
+		throw new Error('Not supported: abortActionBatch')
 	}
 
 	async insertCertificateAuth(

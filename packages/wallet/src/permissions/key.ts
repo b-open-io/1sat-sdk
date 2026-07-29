@@ -1,5 +1,5 @@
 import type { WalletProtocol } from '@bsv/sdk'
-import type { GroupedPermissions, PermissionRequest } from '@bsv/wallet-toolbox'
+import type { GroupedPermissions, PermissionRequest } from '@bsv/wallet-toolbox-client'
 import type { PermissionKey } from './types'
 
 /** Default ports stripped from normalized originators (mirrors WPM). */
