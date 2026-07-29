@@ -55,7 +55,7 @@ import {
 
 const DEFAULT_HOST = '127.0.0.1'
 const DEFAULT_PORT = 8100
-const DEFAULT_ONESAT_URL = 'https://api.1sat.app/1sat'
+const DEFAULT_STACK_URL = 'https://api.1sat.app'
 const DEFAULT_BASELINE_BYTES = 1024 * 1024 * 1024 // 1 GB
 const DEFAULT_PURCHASE_UNIT_BYTES = 1_073_741_824 // 1 GB chunks for production
 const DEFAULT_SATS_PER_UNIT = 1_000_000
@@ -69,7 +69,7 @@ interface ResolvedServe {
 	chain: 'main' | 'test'
 	host: string
 	port: number
-	onesatURL: string
+	stackUrl: string
 	storage: ServerStorageConfig
 	dataDir: string
 	sqliteFilename: string
@@ -167,7 +167,7 @@ async function resolveServe(opts: GlobalFlags): Promise<ResolvedServe> {
 		chain,
 		host: server.host ?? DEFAULT_HOST,
 		port: resolvePort(server.port),
-		onesatURL: DEFAULT_ONESAT_URL,
+		stackUrl: config.stackUrl ?? DEFAULT_STACK_URL,
 		storage,
 		dataDir,
 		sqliteFilename: deriveSqliteFilename(dataDir, chain),
@@ -260,6 +260,7 @@ async function runWithStorage(
 		chain: resolved.chain,
 		storageIdentityKey: resolved.storageIdentityKey,
 		storage,
+		servicesBaseUrl: resolved.stackUrl,
 		activeRemote: resolved.activeRemote,
 		backups: resolved.backups,
 		// Each serve mode manages monitor work explicitly (see runMonitor
@@ -439,7 +440,7 @@ async function startWalletServer(
 		paymail: {
 			baseUrl:
 				paymailCfg?.baseUrl ?? `http://${resolved.host}:${resolved.port}`,
-			stackUrl: paymailCfg?.stackUrl ?? 'https://api.1sat.app',
+			stackUrl: paymailCfg?.stackUrl ?? resolved.stackUrl,
 			pendingStore,
 			hostWallet: hostingEnabled ? walletResult.wallet : undefined,
 			requireEntitlement: hostingEnabled,

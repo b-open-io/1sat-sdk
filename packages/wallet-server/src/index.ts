@@ -17,12 +17,6 @@ export { WalletServerClient } from './client'
 export { topUpStorage } from './topUp'
 export type { TopUpResult } from './topUp'
 
-export { createWalletMonitor } from './createWalletMonitor'
-export type {
-	WalletMonitorConfig,
-	WalletMonitorHandle,
-} from './createWalletMonitor'
-
 export { BILLABLE_METHODS, dispatch, isBillableMethod } from './dispatch'
 export type { DispatchContext, DispatchInput } from './dispatch'
 

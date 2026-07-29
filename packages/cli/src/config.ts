@@ -98,7 +98,7 @@ export interface ServerPaymailConfig {
 	 * (e.g. https://1sat.app). Required for serve paymail.
 	 */
 	baseUrl?: string
-	/** Stack API root (OpNS, beef, tx). Defaults to https://api.1sat.app */
+	/** Stack API root (OpNS, beef, tx). Falls back to the top-level `stackUrl`. */
 	stackUrl?: string
 	/**
 	 * SQLite path for in-flight P2P payment references (Go paymail port).
@@ -193,6 +193,13 @@ export interface OneSatCliConfig {
 	backups?: string[]
 	/** Storage identity key for wallet persistence */
 	storageIdentityKey?: string
+	/**
+	 * 1sat-stack root. Origin plus optional path — never include `/1sat`,
+	 * which clients append as part of each route. Defaults to
+	 * https://api.1sat.app. Set to a loopback URL (e.g. http://localhost:8084)
+	 * when the stack runs on the same host to avoid a public round trip.
+	 */
+	stackUrl?: string
 	/** Settings read by `1sat serve` subcommands. Absent for client-only installs. */
 	server?: ServerConfig
 }
