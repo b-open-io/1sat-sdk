@@ -3,6 +3,7 @@ import {
 	type CounterpartyPermissionEventHandler,
 	type GroupedPermissionEventHandler,
 	type GroupedPermissionRequest,
+	type GroupedPermissions,
 	type PermissionEventHandler,
 	type PermissionRequest,
 	type PermissionToken,
@@ -212,12 +213,16 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 			originator: normalizeOriginator(args.originator),
 		}
 		const grant = await this.permissionStore.findGrant(key)
-		if (
-			grant &&
-			!isExpired(grant.expiry) &&
-			(grant.authorizedAmount ?? 0) >= args.satoshis
-		) {
-			return true
+		if (grant && !isExpired(grant.expiry) && grant.authorizedAmount != null) {
+			// authorizedAmount is a monthly budget, not a per-payment ceiling.
+			// Comparing it against this request alone would approve it again on
+			// every payment of that size. Month-to-date spend comes from the
+			// labeled action history the base class writes on every createAction;
+			// the grant itself holds no running total.
+			const token = grantToToken(grant)
+			token.rawOriginator = args.originator
+			const spent = await this.querySpentSince(token)
+			if (spent + args.satoshis <= grant.authorizedAmount) return true
 		}
 		return super.ensureSpendingAuthorization(args)
 	}
@@ -233,9 +238,8 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 	// silently drift if upstream ever extends them; the loud-throw guard
 	// below trips fast on rename so we don't quietly regress to bypass.
 	private isAdminBasketUpstream(basket: string): boolean {
-		const fn = (
-			this as unknown as { isAdminBasket?: (b: string) => boolean }
-		).isAdminBasket
+		const fn = (this as unknown as { isAdminBasket?: (b: string) => boolean })
+			.isAdminBasket
 		if (typeof fn !== 'function') {
 			throw new Error(
 				'LocalWalletPermissionsManager: super.isAdminBasket is unavailable; admin-basket checks would silently bypass',
@@ -272,21 +276,21 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 		const request = this.pendingSingle.get(params.requestID)
 		if (request) {
 			const key = permissionKeyFromRequest(request)
-			const grant: StoredGrant = {
-				key,
-				expiry: params.expiry ?? 0,
-				grantedAt: Date.now(),
-				reason: request.reason,
+			// A spending prompt raised here is reactive: the manager asked because
+			// this payment was not covered, and the user answered about this
+			// payment. Persisting a cap would silently turn that into a standing
+			// monthly allowance nobody asked for, so the approval covers the
+			// request in flight and nothing is stored. Standing allowances come
+			// only from grantGroupedPermission, where the app declared an amount
+			// in its manifest and the user approved it as an allowance.
+			if (key.type !== 'spending') {
+				await this.permissionStore.putGrant({
+					key,
+					expiry: params.expiry ?? 0,
+					grantedAt: Date.now(),
+					reason: request.reason,
+				})
 			}
-			if (key.type === 'spending' && params.amount != null) {
-				grant.authorizedAmount = params.amount
-			} else if (
-				request.type === 'spending' &&
-				request.spending?.satoshis != null
-			) {
-				grant.authorizedAmount = request.spending.satoshis
-			}
-			await this.permissionStore.putGrant(grant)
 			this.pendingSingle.delete(params.requestID)
 		}
 		return super.grantPermission({ ...params, ephemeral: true })
@@ -299,9 +303,7 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 
 	public override async grantGroupedPermission(params: {
 		requestID: string
-		granted: Partial<
-			import('@bsv/wallet-toolbox-client/out/src/index.client.js').GroupedPermissions
-		>
+		granted: Partial<GroupedPermissions>
 		expiry?: number
 	}): Promise<void> {
 		const request = this.pendingGrouped.get(params.requestID)
@@ -663,4 +665,3 @@ function parseIdbKey(serialized: string): PermissionKey | null {
 	}
 	return null
 }
-

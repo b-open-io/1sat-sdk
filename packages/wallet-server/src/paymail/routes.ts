@@ -7,6 +7,7 @@ import { OneSatServices } from '@1sat/client'
 import {
 	P2pPaymentDestinationRoute,
 	PaymailClient,
+	type PaymailRouteParams,
 	PaymailRouter,
 	PublicKeyInfrastructureRoute,
 	PublicProfileRoute,
@@ -20,6 +21,37 @@ import { checkHostingEntitlement } from './entitlement'
 import { MessageBoxClient } from './messagebox'
 import { resolvePaymailBind } from './resolve'
 import type { PaymailDeps } from './types'
+
+/**
+ * Request bodies as each route hands them to its handler.
+ *
+ * `@bsv/paymail` types every `domainLogicHandler` body as `unknown` — one
+ * signature serves all routes — and each route instead validates its own body
+ * with Joi before dispatch, stripping unknown keys. These mirror those
+ * schemas, so the shape is what the route guarantees rather than a guess.
+ */
+interface P2pDestinationBody {
+	satoshis: number
+}
+
+interface PaymailMetadata {
+	sender?: string
+	pubkey?: string
+	signature?: string
+	note?: string | null
+}
+
+interface ReceiveBeefBody {
+	beef: string
+	reference: string
+	metadata?: PaymailMetadata
+}
+
+interface ReceiveHexBody {
+	hex: string
+	reference: string
+	metadata?: PaymailMetadata
+}
 
 class NotFoundError extends Error {
 	constructor(message = 'paymail not found') {
@@ -78,7 +110,7 @@ export async function mountPaymailRoutes(
 		basePath: '/bsvalias',
 		routes: [
 			new PublicKeyInfrastructureRoute({
-				domainLogicHandler: async (params: any) => {
+				domainLogicHandler: async (params: PaymailRouteParams) => {
 					const { name, domain } =
 						PublicKeyInfrastructureRoute.getNameAndDomain(params)
 					const bind = await resolveAndAuthorize(name)
@@ -90,7 +122,7 @@ export async function mountPaymailRoutes(
 				},
 			}),
 			new PublicProfileRoute({
-				domainLogicHandler: async (params: any) => {
+				domainLogicHandler: async (params: PaymailRouteParams) => {
 					const { name } = PublicProfileRoute.getNameAndDomain(params)
 					const bind = await resolveAndAuthorize(name)
 					return {
@@ -104,7 +136,8 @@ export async function mountPaymailRoutes(
 				},
 			}),
 			new P2pPaymentDestinationRoute({
-				domainLogicHandler: async (params, body) => {
+				domainLogicHandler: async (params, rawBody) => {
+					const body = rawBody as P2pDestinationBody
 					const { name, domain } =
 						P2pPaymentDestinationRoute.getNameAndDomain(params)
 					const bind = await resolveAndAuthorize(name)
@@ -126,7 +159,8 @@ export async function mountPaymailRoutes(
 			new ReceiveBeefTransactionRoute({
 				verifySignature: false,
 				paymailClient,
-				domainLogicHandler: async (params, body) => {
+				domainLogicHandler: async (params, rawBody) => {
+					const body = rawBody as ReceiveBeefBody
 					// Senders post plain BEEF per BRC-70; fromBEEF accepts
 					// V1, V2, and Atomic. Normalize to atomic for downstream
 					// internalization by the recipient wallet.
@@ -137,7 +171,8 @@ export async function mountPaymailRoutes(
 			new ReceiveTransactionRoute({
 				verifySignature: false,
 				paymailClient,
-				domainLogicHandler: async (params, body) => {
+				domainLogicHandler: async (params, rawBody) => {
+					const body = rawBody as ReceiveHexBody
 					const tx = Transaction.fromHex(body.hex)
 					await populateAncestors(tx)
 					const beefBytes = tx.toAtomicBEEF()
