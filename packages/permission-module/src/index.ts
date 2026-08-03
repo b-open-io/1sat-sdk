@@ -19,4 +19,11 @@ export {
 	type PromptHandler,
 	type PromptKind,
 	type PromptRequest,
+	type VerificationServices,
 } from './types'
+export {
+	VERIFICATION_TIMEOUT_MS,
+	verifyIntent,
+	type VerificationResult,
+} from './verifyIntent'
+export type { EnrichedAsset, EnrichedOutput, TrustState } from './enrichIntent'

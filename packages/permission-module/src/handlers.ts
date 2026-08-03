@@ -16,7 +16,6 @@ import { enrichIntent } from './enrichIntent'
 import { computeHashOutputs } from './hashOutputs'
 import { MIN_BIP143_PREIMAGE_BYTES, parsePreimage } from './sighashParser'
 import type { PromptHandler, VerificationServices } from './types'
-import { verifyIntent } from './verifyIntent'
 
 interface HandlerDeps {
 	/** Base wallet — apply crypto never uses a gated wrapper. */
@@ -69,19 +68,11 @@ export async function handleCreateActionRequest(
 				})),
 				contentUrls: buildContentUrlMap(enriched),
 				chain: enriched.chain,
+				// Initial state only. Live verification runs in the prompt UI, which
+				// shares a process with whatever renders it — every value here has
+				// to survive a host handing the request across a process boundary,
+				// so nothing on this payload may be a promise or a function.
 				...(enriched.trust && { trust: enriched.trust }),
-				// Resolves once a service answers. The card renders immediately
-				// with `trust.state === 'unverified'` and upgrades in place — a
-				// slow or unreachable overlay delays the badge, never the prompt.
-				...(enriched.trust && {
-					verification: verifyIntent(
-						deps.services,
-						enriched.p1satIntent,
-						enriched.inputs,
-						enriched.outputs,
-						enriched.contentUrlForOrigin,
-					),
-				}),
 				...(enriched.indexerFeeSats != null && {
 					indexerFeeSats: enriched.indexerFeeSats,
 					indexerFeeNote: enriched.indexerFeeNote,

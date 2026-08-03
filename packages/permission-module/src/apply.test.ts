@@ -166,6 +166,11 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 		const before = args.outputs![0].lockingScript
 		let promptSummary = ''
 		const promptHandler: PromptHandler = async (req) => {
+			// A host may hand this request to a renderer in another process — the
+			// browser extension writes it through chrome.storage. Anything that
+			// cannot be structured-cloned (a promise, a function) arrives as `{}`
+			// and breaks the prompt, so the payload must survive a round trip.
+			expect(() => structuredClone(req)).not.toThrow()
 			promptSummary = req.summary
 			expect(req.intent.p1satIntent).toBe('opns.register')
 			return true

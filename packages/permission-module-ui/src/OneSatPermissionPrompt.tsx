@@ -1,6 +1,13 @@
 'use client'
 
-import type { PromptRequest } from '@1sat/permission-module'
+import {
+	type EnrichedAsset,
+	type EnrichedOutput,
+	type PromptRequest,
+	type VerificationResult,
+	type VerificationServices,
+	verifyIntent,
+} from '@1sat/permission-module'
 import {
 	BSV21_BASKET,
 	LOCK_BASKET,
@@ -21,6 +28,13 @@ export interface OneSatPermissionPromptProps {
 	onReject: () => void
 	/** Theme override. Defaults to 'auto' (matches `prefers-color-scheme`). */
 	theme?: Theme
+	/**
+	 * Lookup clients used to re-check a purchase card's claims against a live
+	 * service. Supplied by the host that renders the prompt, because the request
+	 * payload may have crossed a process boundary to get here and cannot carry
+	 * anything but data. Omit to render the module's initial trust state only.
+	 */
+	services?: VerificationServices
 }
 
 interface DetailRow {
@@ -100,23 +114,32 @@ export function OneSatPermissionPrompt({
 	onApprove,
 	onReject,
 	theme = 'auto',
+	services,
 }: OneSatPermissionPromptProps) {
 	const resolvedTheme = useResolvedTheme(theme)
 	const base = summarizeRequest(request)
 	const [busy, setBusy] = useState(false)
-	const [verified, setVerified] = useState<
-		NonNullable<Awaited<TransactionIntent['verification']>> | undefined
-	>(undefined)
+	const [verified, setVerified] = useState<VerificationResult | undefined>(
+		undefined,
+	)
 
-	// Upgrade the trust badge if a service answers. Ignored when the module
-	// supplied no `verification` promise, or the prompt closes first.
-	const verification = (
-		request.intent as { verification?: TransactionIntent['verification'] }
-	)?.verification
+	// Re-check the card's claims against a live service and upgrade the badge
+	// in place. Runs here rather than in the module because only the renderer is
+	// guaranteed to share a process with the result. The card never waits on
+	// this — an unreachable overlay delays the badge, not the prompt.
+	const intent = request.intent as unknown as TransactionIntent | undefined
+	const trustState = intent?.trust?.state
+	const p1satIntent = intent?.p1satIntent
 	useEffect(() => {
-		if (!verification) return
+		if (!services || !trustState || !p1satIntent || !intent) return
 		let live = true
-		verification
+		verifyIntent(
+			services,
+			p1satIntent,
+			intent.inputs as unknown as EnrichedAsset[],
+			intent.outputs as unknown as EnrichedOutput[],
+			services.ordfs?.getContentUrl,
+		)
 			.then((res) => {
 				if (live && res) setVerified(res)
 			})
@@ -124,7 +147,7 @@ export function OneSatPermissionPrompt({
 		return () => {
 			live = false
 		}
-	}, [verification])
+	}, [services, trustState, p1satIntent, intent])
 
 	const summary = verified
 		? applyVerification(base, verified)
@@ -390,7 +413,7 @@ function readSystemTheme(): 'light' | 'dark' {
  */
 function applyVerification(
 	base: IntentSummary,
-	res: NonNullable<Awaited<TransactionIntent['verification']>>,
+	res: VerificationResult,
 ): IntentSummary {
 	const rows = base.rows.map((row) => {
 		if (row.key === 'Origin' && res.origin) return copyable('Origin', res.origin)
@@ -499,24 +522,12 @@ interface TransactionIntent {
 	outputs: OutputEntry[]
 	contentUrls?: Record<string, string>
 	chain?: string
-	/** Optional module-supplied trust (purchases / hint paths). */
-	trust?: { state: TrustState; note?: string }
 	/**
-	 * Resolves when a service answers, upgrading `trust` in place.
-	 *
-	 * The card renders immediately as `unverified` and never waits on this —
-	 * an unreachable overlay delays the badge, not the prompt. Hosts that
-	 * ignore the field simply keep the initial state.
+	 * Module-supplied initial trust (purchases / hint paths). Live verification
+	 * is the renderer's job — see the `services` prop — because this payload may
+	 * have been serialized on its way here and can only carry data.
 	 */
-	verification?: Promise<{
-		state: TrustState
-		note?: string
-		contentType?: string
-		contentLength?: number
-		origin?: string
-		name?: string
-		contentUrl?: string
-	}>
+	trust?: { state: TrustState; note?: string }
 
 	/** Optional module-supplied overlay processing fee. */
 	indexerFeeSats?: number
