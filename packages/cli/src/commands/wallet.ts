@@ -9,6 +9,7 @@ import {
 	sendBsv,
 	syncAddresses,
 } from '@1sat/actions'
+import type { WalletInterface } from '@bsv/sdk'
 import { confirm, isCancel } from '@clack/prompts'
 import type { GlobalFlags } from '../args'
 import { extractFlag, extractFlags } from '../args'
@@ -16,6 +17,31 @@ import { loadContext } from '../context'
 import { printCommandHelp } from '../help'
 import { loadKey } from '../keys'
 import { fatal, formatValue, output, printKeyValue } from '../output'
+
+/**
+ * BRC-100 methods reached by passing the method's own args as one JSON
+ * argument. The commands above wrap the handful that benefit from flags and
+ * formatting; these keep the rest of the interface reachable rather than
+ * leaving it to one-off scripts.
+ */
+const PASSTHROUGH_METHODS = {
+	'get-public-key': 'getPublicKey',
+	encrypt: 'encrypt',
+	decrypt: 'decrypt',
+	'create-hmac': 'createHmac',
+	'verify-hmac': 'verifyHmac',
+	'create-signature': 'createSignature',
+	'verify-signature': 'verifySignature',
+	'internalize-action': 'internalizeAction',
+	'acquire-certificate': 'acquireCertificate',
+	'prove-certificate': 'proveCertificate',
+	'discover-by-identity-key': 'discoverByIdentityKey',
+	'discover-by-attributes': 'discoverByAttributes',
+	'get-height': 'getHeight',
+	'get-header-for-height': 'getHeaderForHeight',
+	'get-network': 'getNetwork',
+	'get-version': 'getVersion',
+} as const satisfies Record<string, keyof WalletInterface>
 
 export async function handleWalletCommand(
 	args: string[],
@@ -52,11 +78,44 @@ export async function handleWalletCommand(
 			return walletListCertificates(rest, opts)
 		case 'relinquish-certificate':
 			return walletRelinquishCertificate(rest, opts)
-		default:
+		default: {
+			const method =
+				PASSTHROUGH_METHODS[subcommand as keyof typeof PASSTHROUGH_METHODS]
+			if (method) return walletPassthrough(method, rest, opts)
 			printCommandHelp('wallet', opts.json)
 			if (subcommand && subcommand !== 'help') {
 				process.exit(1)
 			}
+		}
+	}
+}
+
+/** Calls a BRC-100 method with parsed JSON args; no args means `{}`. */
+async function walletPassthrough(
+	method: keyof WalletInterface,
+	args: string[],
+	opts: GlobalFlags,
+): Promise<void> {
+	const jsonInput = args[0]
+	let methodArgs: unknown = {}
+	if (jsonInput) {
+		try {
+			methodArgs = JSON.parse(jsonInput)
+		} catch {
+			fatal(`Invalid JSON: ${jsonInput}`)
+		}
+	}
+
+	const privateKey = await loadKey()
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+
+	try {
+		const call = ctx.wallet[method] as (a: unknown) => Promise<unknown>
+		output(await call.call(ctx.wallet, methodArgs), opts)
+	} finally {
+		await destroy()
 	}
 }
 

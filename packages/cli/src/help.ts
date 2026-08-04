@@ -267,6 +267,75 @@ export const COMMANDS: CommandSpec[] = [
 					{ flag: '--certifier', values: '<c>', required: true },
 				],
 			},
+			{
+				name: 'get-public-key',
+				description: 'Derive a public key (BRC-100)',
+				positional: "'<json>'",
+			},
+			{
+				name: 'encrypt',
+				description: 'Encrypt to a counterparty (BRC-100)',
+				positional: "'<json>'",
+			},
+			{
+				name: 'decrypt',
+				description: 'Decrypt from a counterparty (BRC-100)',
+				positional: "'<json>'",
+			},
+			{
+				name: 'create-hmac',
+				description: 'Create an HMAC (BRC-100)',
+				positional: "'<json>'",
+			},
+			{
+				name: 'verify-hmac',
+				description: 'Verify an HMAC (BRC-100)',
+				positional: "'<json>'",
+			},
+			{
+				name: 'create-signature',
+				description: 'Create a signature (BRC-100)',
+				positional: "'<json>'",
+			},
+			{
+				name: 'verify-signature',
+				description: 'Verify a signature (BRC-100)',
+				positional: "'<json>'",
+			},
+			{
+				name: 'internalize-action',
+				description:
+					'Take ownership of an output — wallet payment or basket insertion (BRC-100)',
+				positional: "'<json>'",
+			},
+			{
+				name: 'acquire-certificate',
+				description: 'Acquire a certificate (BRC-100)',
+				positional: "'<json>'",
+			},
+			{
+				name: 'prove-certificate',
+				description: 'Prove fields of a certificate (BRC-100)',
+				positional: "'<json>'",
+			},
+			{
+				name: 'discover-by-identity-key',
+				description: 'Discover certificates by identity key (BRC-100)',
+				positional: "'<json>'",
+			},
+			{
+				name: 'discover-by-attributes',
+				description: 'Discover certificates by attributes (BRC-100)',
+				positional: "'<json>'",
+			},
+			{ name: 'get-height', description: 'Current block height (BRC-100)' },
+			{
+				name: 'get-header-for-height',
+				description: 'Block header at a height (BRC-100)',
+				positional: "'<json>'",
+			},
+			{ name: 'get-network', description: 'Wallet network (BRC-100)' },
+			{ name: 'get-version', description: 'Wallet version (BRC-100)' },
 		],
 	},
 
