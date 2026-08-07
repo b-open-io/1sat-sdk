@@ -635,12 +635,9 @@ function edgePanelFromOrdinal(
 		case 'transfer':
 			actionTitle = edge.create?.recipient ? 'Send' : 'Move'
 			if (edge.create?.recipient) {
-				// Full address — CSS wraps; copy still available.
-				metaAfter.push({
-					key: 'To',
-					value: edge.create.recipient,
-					copyValue: edge.create.recipient,
-				})
+				metaAfter.push(
+					copyable('To', edge.create.recipient),
+				)
 			}
 			break
 		case 'list': {
@@ -653,11 +650,7 @@ function edgePanelFromOrdinal(
 				})
 			}
 			if (edge.create?.listingSeller) {
-				metaAfter.push({
-					key: 'Payout',
-					value: edge.create.listingSeller,
-					copyValue: edge.create.listingSeller,
-				})
+				metaAfter.push(copyable('Payout', edge.create.listingSeller))
 			}
 			break
 		}
@@ -710,7 +703,7 @@ function edgePanelFromOrdinal(
 		// If we already used name as subtitle, still show origin unlabeled via meta.
 		meta:
 			nameLine && origin
-				? [{ key: '', value: origin, copyValue: origin }, ...meta]
+				? [{ key: '', value: shortenMid(origin, 28), copyValue: origin }, ...meta]
 				: meta,
 	}
 }

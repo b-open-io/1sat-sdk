@@ -185,7 +185,7 @@ export const promptStyles = `
 
 .opp-featured-meta-line {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 6px;
   min-width: 0;
   font-size: 12px;
@@ -203,13 +203,11 @@ export const promptStyles = `
 }
 
 .opp-featured-meta-value {
-  /* Prefer full address/origin on the default card width; wrap if needed. */
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   min-width: 0;
   flex: 1;
-  line-height: 1.35;
 }
 
 .opp-featured-meta-value-mono {
