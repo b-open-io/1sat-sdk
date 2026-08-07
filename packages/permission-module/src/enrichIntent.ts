@@ -216,6 +216,8 @@ export interface EnrichedOutput {
 	opnsProfileName?: string
 	/** Avatar origin outpoint (`txid_vout`) decoded from an OpNS bind. */
 	opnsAvatarOrigin?: string
+	/** Case-preserving display name from customInstructions when present. */
+	customInstructions?: string
 }
 
 export type TrustState = 'verified' | 'unverified' | 'mismatch'
@@ -432,6 +434,7 @@ function decodeOutput(
 		basket: out.basket,
 		tags: out.tags ?? [],
 		template: 'unrecognized',
+		customInstructions: out.customInstructions,
 	}
 	if (!out.lockingScript) return enriched
 	let script: Script
@@ -562,6 +565,24 @@ function hasZeroedSigmaSig(script: Script): boolean {
 	return false
 }
 
+/** Prefer case-preserving CI name over lowercased `name:` tags. */
+function displayNameFrom(
+	tags: string[] | undefined,
+	customInstructions?: string,
+	scriptName?: string,
+): string | undefined {
+	if (scriptName) return scriptName
+	if (customInstructions) {
+		try {
+			const n = JSON.parse(customInstructions).name
+			if (typeof n === 'string' && n.trim()) return n.trim()
+		} catch {
+			// ignore
+		}
+	}
+	return tagValue(tags, 'name')
+}
+
 function isCollectableBasket(basket?: string): boolean {
 	return (
 		basket === ORDINALS_BASKET ||
@@ -598,7 +619,7 @@ function buildOrdinalEdges(
 
 	for (const inp of collectableIns) {
 		usedIn.add(inp.id)
-		const name = tagValue(inp.tags, 'name')
+		const name = displayNameFrom(inp.tags, inp.customInstructions)
 		const origin = tagValue(inp.tags, 'origin')
 		const spend = {
 			basket: inp.basket,
@@ -692,8 +713,11 @@ function buildOrdinalEdges(
 		}
 		if (out.template === 'ordlock') continue
 
-		const name =
-			out.opnsProfileName ?? tagValue(out.tags, 'name') ?? undefined
+		const name = displayNameFrom(
+			out.tags,
+			out.customInstructions,
+			out.opnsProfileName,
+		)
 		const origin = tagValue(out.tags, 'origin')
 		const hasSellerPay = outputs.some(
 			(o) => !o.basket && o.recipient && o.satoshis > 1,
@@ -741,9 +765,11 @@ function edge(
 	summary: string,
 ): OrdinalEdge {
 	const name =
-		create?.opnsProfileName ??
-		tagValue(create?.tags, 'name') ??
-		spend?.name
+		displayNameFrom(
+			create?.tags,
+			create?.customInstructions,
+			create?.opnsProfileName,
+		) ?? spend?.name
 	const origin = tagValue(create?.tags, 'origin') ?? spend?.origin
 	return {
 		operation,
@@ -789,7 +815,7 @@ function buildLegs(
 
 	const legs: TxLeg[] = []
 	for (const [i, inp] of inputs.entries()) {
-		const name = tagValue(inp.tags, 'name')
+		const name = displayNameFrom(inp.tags, inp.customInstructions)
 		const origin = tagValue(inp.tags, 'origin')
 		const listing = hasListingTags(inp.tags)
 		const inOrdinalEdge = edgeInIds.has(inp.id)
@@ -809,8 +835,11 @@ function buildLegs(
 		})
 	}
 	for (const out of outputs) {
-		const name =
-			out.opnsProfileName ?? tagValue(out.tags, 'name') ?? undefined
+		const name = displayNameFrom(
+			out.tags,
+			out.customInstructions,
+			out.opnsProfileName,
+		)
 		const origin = tagValue(out.tags, 'origin')
 		const inOrdinalEdge = edgeOutIdx.has(out.index)
 		legs.push({
