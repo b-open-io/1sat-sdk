@@ -10,8 +10,6 @@ export interface VerificationResult {
 	note?: string
 	/** Content type confirmed by ORDFS, when it answered. */
 	contentType?: string
-	/** Content length in bytes confirmed by ORDFS, when it answered. */
-	contentLength?: number
 	/**
 	 * True origin as resolved by ORDFS.
 	 *
@@ -87,7 +85,6 @@ async function verifyOrdinal(
 
 	const resolved = {
 		contentType: meta.contentType,
-		contentLength: meta.contentLength,
 		// ORDFS resolves the true genesis; the tagged value is usually the
 		// seller's listing outpoint. Not treated as a mismatch — the claimed
 		// value is an outpoint by construction, not a competing assertion.
