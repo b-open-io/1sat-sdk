@@ -30,6 +30,8 @@ export type {
 	EnrichedAsset,
 	EnrichedOutput,
 	EnrichedIntentKind,
+	OrdinalEdge,
+	OrdinalOperation,
 	ScriptTemplateKind,
 	TxLeg,
 	TrustState,

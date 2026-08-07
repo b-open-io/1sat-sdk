@@ -30,7 +30,7 @@ P1Sat-as-BRC (old 302/303 / draft 313/314) is **not** blocking SDK work; module 
 | Protocol default | Drop `p` prefix on defaults (e.g. `[0,'1sat']`); **caller may override**; CI records what was used |
 | Bound createSignature via module | Only when protocol name routes to module (`p …`) or routing is extended; not assumed for plain defaults |
 | Intent labels | **Retire** — no `p 1sat intent …` |
-| Classification (prompts) | **Header:** tx-level `kind` + summary. **Body:** `legs[]` from scripts/assets (templates, seals, recipients) |
+| Classification (prompts) | **Header:** tx-level `kind` + summary. **Body:** `ordinalEdges[]` (303 tip→tip ops + rich helpers) + remaining `legs[]` (seals, payments, other templates) |
 | Placeholder seal (output scripts) | **SDK apply only** (Sigma / signed PushDrop) |
 | `name:` tags | Stop writing; display name in CI when known |
 | `type:` | Full MIME only; strip `;…`; origin inscription; copy on self-keep |
@@ -71,7 +71,7 @@ One decision, two code layers (usually one PR):
 13. createSignature: commitment bind when routed; fallback prompt.  
 14. Optional: protocol grant handling if plain defaults leave gaps for legacy `p 1sat` keys.  
 15. ~~Placeholder seal by script shape (OpNS PushDrop / Sigma)~~  
-15a. ~~Prompt: kind/summary header; legs for templates + seal callouts~~  
+15a. ~~Prompt: kind/summary header; ordinalEdges (rich) + legs (seals/other)~~  
 
 ### E — Tags / CI
 

@@ -447,36 +447,8 @@ function applyVerification(
 function summarizeRequest(req: PromptRequest): IntentSummary {
 	if (req.kind === 'transaction') {
 		const intent = req.intent as unknown as TransactionIntent
-		// Header from kind/summary; body prefers per-leg script details.
-		if (intent.legs?.length) {
-			return summarizeFromLegs(req, intent)
-		}
-		const byIntent = summarizeByP1SatIntent(req, intent)
-		if (byIntent) return byIntent
-		switch (intent.kind) {
-			case 'ordinal-transfer':
-				return summarizeOrdinalTransfer(req, intent)
-			case 'token-transfer':
-				return summarizeTokenTransfer(req, intent)
-			case 'lock':
-				return summarizeLock(req, intent)
-			case 'unlock':
-				return summarizeUnlock(req, intent)
-			case 'inscription':
-				return summarizeInscription(req, intent)
-			case 'listing':
-				return summarizeListing(req, intent)
-			case 'cancel-listing':
-				return summarizeCancelListing(req, intent)
-			case 'purchase':
-				return summarizePurchase(req, intent)
-			case 'social-post':
-				return summarizeSocialPost(req, intent)
-			case 'opns':
-				return summarizeOpns(req, intent)
-			default:
-				return summarizeUnknownTx(req, intent)
-		}
+		// Header from kind/summary; body from ordinal edges (rich) + other legs.
+		return summarizeTransactionDetails(req, intent)
 	}
 	if (req.kind === 'protocol') {
 		return summarizeProtocol(req)
@@ -505,43 +477,124 @@ const KIND_TITLES: Record<string, string> = {
 	unknown: 'Approve transaction',
 }
 
+interface OrdinalEdgeEntry {
+	operation:
+		| 'inscribe'
+		| 'transfer'
+		| 'burn'
+		| 'list'
+		| 'cancel-listing'
+		| 'purchase'
+	title: string
+	summary: string
+	spend?: {
+		basket: string
+		id: string
+		outpoint: string
+		satoshis: number
+		tags: string[]
+		name?: string
+		origin?: string
+		isListing?: boolean
+	}
+	create?: {
+		index: number
+		satoshis: number
+		basket?: string
+		tags: string[]
+		template?: string
+		sealPending?: boolean
+		sealKind?: string
+		recipient?: string
+		listingPriceSats?: number
+		listingSeller?: string
+		opnsProfileName?: string
+		opnsAvatarOrigin?: string
+		name?: string
+		origin?: string
+	}
+}
+
 /**
- * Kind/summary for the header; legs for every understood input/output and seal.
+ * Header from kind/summary. Body: rich ordinal edges + remaining legs
+ * (payments, seals not already covered, unrecognized scripts).
  */
-function summarizeFromLegs(
+function summarizeTransactionDetails(
 	req: PromptRequest,
 	intent: TransactionIntent,
 ): IntentSummary {
 	const title = KIND_TITLES[intent.kind] ?? 'Approve transaction'
 	const rows: DetailRow[] = []
+	let featured: IntentSummary['featured']
+
+	const edges = intent.ordinalEdges ?? []
+	for (const edge of edges) {
+		const block = summarizeOrdinalEdge(req, intent, edge)
+		rows.push(...block.rows)
+		if (block.featured && !featured) featured = block.featured
+	}
+
+	// Legs not already told by an ordinal edge (fee, change, extra seals, tokens…).
 	for (const leg of intent.legs ?? []) {
+		if (leg.inOrdinalEdge && !leg.sealPending) continue
+		// Always surface seal callouts even if the out is in an edge.
+		if (leg.inOrdinalEdge && leg.sealPending) {
+			rows.push({
+				key: `Seal · out #${leg.index}`,
+				value:
+					leg.sealKind === 'sigma'
+						? 'You will sign a Sigma commitment on this output'
+						: leg.sealKind === 'pushdrop'
+							? 'You will sign PushDrop data on this output'
+							: 'You will sign data on this output',
+			})
+			continue
+		}
+		if (leg.inOrdinalEdge) continue
 		const side = leg.side === 'input' ? 'Spend' : 'Create'
-		const key = `${side} #${leg.index}`
 		let value = leg.label
 		if (leg.sealPending) {
-			const seal =
+			value = `${value} — ${
 				leg.sealKind === 'sigma'
-					? 'You will sign a Sigma commitment on this output'
+					? 'Sigma signature'
 					: leg.sealKind === 'pushdrop'
-						? 'You will sign PushDrop data on this output'
-						: 'You will sign data on this output'
-			value = `${value} — ${seal}`
+						? 'PushDrop signature'
+						: 'script signature'
+			}`
 		}
 		rows.push({
-			key,
+			key: `${side} #${leg.index}`,
 			value,
 			...(leg.outpoint ? { copyValue: leg.outpoint } : {}),
 			...(leg.recipient ? { copyValue: leg.recipient } : {}),
 		})
 	}
-	// Featured media when we can resolve an origin on a leg.
-	const originLeg = (intent.legs ?? []).find((l) => l.origin)
-	const origin = originLeg?.origin
-	const contentUrl = origin ? intent.contentUrls?.[origin] : undefined
-	const name =
-		originLeg?.name ??
-		originLeg?.opnsProfileName ??
-		tagFromTags(originLeg?.tags, 'name')
+
+	if (!featured) {
+		const origin =
+			edges[0]?.create?.origin ??
+			edges[0]?.spend?.origin ??
+			(intent.legs ?? []).find((l) => l.origin)?.origin
+		if (origin && intent.contentUrls?.[origin]) {
+			featured = {
+				variant: 'ordinal',
+				imageUrl: intent.contentUrls[origin],
+				title:
+					edges[0]?.create?.name ??
+					edges[0]?.spend?.name ??
+					origin,
+				subtitle: origin,
+				subtitleCopy: origin,
+			}
+		}
+	}
+
+	if (rows.length === 0) {
+		rows.push({
+			key: 'Transaction',
+			value: req.summary || 'No parsed legs',
+		})
+	}
 
 	return {
 		title,
@@ -549,14 +602,7 @@ function summarizeFromLegs(
 			req.summary ||
 			`${shortenOriginator(req.originator)} wants to ${title.toLowerCase()}`,
 		rows,
-		...(contentUrl && {
-			featured: {
-				variant: intent.kind === 'token-transfer' ? 'token' : 'ordinal',
-				imageUrl: contentUrl,
-				title: name ?? origin ?? 'Asset',
-				...(origin && { subtitle: origin, subtitleCopy: origin }),
-			},
-		}),
+		...(featured ? { featured } : {}),
 		...(intent.trust && {
 			trust: {
 				state: intent.trust.state as TrustState,
@@ -570,6 +616,99 @@ function summarizeFromLegs(
 			},
 		}),
 	}
+}
+
+/** Rich detail block for one ordinal tip→tip edge (303-style operations). */
+function summarizeOrdinalEdge(
+	_req: PromptRequest,
+	intent: TransactionIntent,
+	edge: OrdinalEdgeEntry,
+): { rows: DetailRow[]; featured?: IntentSummary['featured'] } {
+	const rows: DetailRow[] = []
+	const name =
+		edge.create?.name ??
+		edge.create?.opnsProfileName ??
+		edge.spend?.name
+	const origin = edge.create?.origin ?? edge.spend?.origin
+	const what = name ? `“${name}”` : 'collectable'
+
+	rows.push({ key: edge.title, value: edge.summary })
+
+	switch (edge.operation) {
+		case 'transfer':
+			if (edge.spend?.outpoint) {
+				rows.push(copyable('From', edge.spend.outpoint))
+			}
+			if (edge.create?.recipient) {
+				rows.push(copyable('To', edge.create.recipient))
+			} else if (edge.create?.basket) {
+				rows.push({ key: 'Keep in', value: edge.create.basket })
+			}
+			break
+		case 'list':
+			if (edge.create?.listingPriceSats != null) {
+				rows.push({
+					key: 'Price',
+					value: `${edge.create.listingPriceSats} sats`,
+				})
+			}
+			if (edge.create?.listingSeller) {
+				rows.push(copyable('Seller payout', edge.create.listingSeller))
+			}
+			break
+		case 'cancel-listing':
+			if (edge.spend?.outpoint) {
+				rows.push(copyable('Listing', edge.spend.outpoint))
+			}
+			rows.push({ key: 'Result', value: `Return ${what} to wallet` })
+			break
+		case 'purchase':
+			if (edge.create?.listingPriceSats != null) {
+				rows.push({
+					key: 'Price',
+					value: `${edge.create.listingPriceSats} sats`,
+				})
+			}
+			if (edge.create?.basket) {
+				rows.push({ key: 'Receive into', value: edge.create.basket })
+			}
+			break
+		case 'inscribe':
+			if (edge.create?.template) {
+				rows.push({ key: 'Script', value: edge.create.template })
+			}
+			if (edge.create?.sealPending) {
+				rows.push({
+					key: 'Signature',
+					value:
+						edge.create.sealKind === 'sigma'
+							? 'You will sign a Sigma commitment'
+							: 'You will sign script data',
+				})
+			}
+			break
+		case 'burn':
+			if (edge.spend?.outpoint) {
+				rows.push(copyable('Burning', edge.spend.outpoint))
+			}
+			rows.push({ key: 'Result', value: 'No collectable output' })
+			break
+	}
+
+	if (origin) rows.push(copyable('Origin', origin))
+
+	const contentUrl = origin ? intent.contentUrls?.[origin] : undefined
+	const featured = contentUrl
+		? {
+				variant: 'ordinal' as const,
+				imageUrl: contentUrl,
+				title: name ?? what,
+				subtitle: origin,
+				subtitleCopy: origin,
+			}
+		: undefined
+
+	return { rows, featured }
 }
 
 function tagFromTags(
@@ -617,6 +756,7 @@ interface TxLegEntry {
 	name?: string
 	origin?: string
 	opnsProfileName?: string
+	inOrdinalEdge?: boolean
 }
 
 interface TransactionIntent {
@@ -634,8 +774,10 @@ interface TransactionIntent {
 		| 'unknown'
 	/** @deprecated legacy intent id; prefer kind + legs */
 	p1satIntent?: string
-	/** Per-leg details from script parse (preferred for the detail pane). */
+	/** Per-leg details from script parse. */
 	legs?: TxLegEntry[]
+	/** Ordinal tip→tip operations with rich helpers. */
+	ordinalEdges?: OrdinalEdgeEntry[]
 	inputs: AssetEntry[]
 	outputs: OutputEntry[]
 	contentUrls?: Record<string, string>

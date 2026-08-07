@@ -68,6 +68,7 @@ export async function handleCreateActionRequest(
 					opnsAvatarOrigin: o.opnsAvatarOrigin,
 				})),
 				legs: enriched.legs,
+				ordinalEdges: enriched.ordinalEdges,
 				contentUrls: buildContentUrlMap(enriched),
 				chain: enriched.chain,
 				// Initial state only. Live verification runs in the prompt UI, which

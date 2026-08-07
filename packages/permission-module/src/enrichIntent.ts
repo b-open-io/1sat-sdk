@@ -106,7 +106,7 @@ export type ScriptTemplateKind =
 
 /**
  * One understood (or partially understood) input or output in the action.
- * Detail pane is built from these; `kind` is only the card header.
+ * Non-ordinal detail and seal callouts; ordinal tip→tip stories use {@link OrdinalEdge}.
  */
 export interface TxLeg {
 	side: 'input' | 'output'
@@ -130,6 +130,54 @@ export interface TxLeg {
 	opnsAvatarOrigin?: string
 	origin?: string
 	name?: string
+	/** True when this leg is part of an {@link OrdinalEdge} (UI may de-dupe). */
+	inOrdinalEdge?: boolean
+}
+
+/**
+ * Ordinal (or OpNS-like 1-sat collectable) tip→tip story.
+ * Derived from input/output shape — same vocabulary as BRC-303 operation table.
+ */
+export type OrdinalOperation =
+	| 'inscribe'
+	| 'transfer'
+	| 'burn'
+	| 'list'
+	| 'cancel-listing'
+	| 'purchase'
+
+export interface OrdinalEdge {
+	operation: OrdinalOperation
+	title: string
+	summary: string
+	/** Wallet-owned spend when known from input labels. */
+	spend?: {
+		basket: string
+		id: string
+		outpoint: string
+		satoshis: number
+		tags: string[]
+		name?: string
+		origin?: string
+		isListing?: boolean
+	}
+	/** Resulting collectable / listing output when present. */
+	create?: {
+		index: number
+		satoshis: number
+		basket?: string
+		tags: string[]
+		template?: ScriptTemplateKind
+		sealPending?: boolean
+		sealKind?: 'pushdrop' | 'sigma'
+		recipient?: string
+		listingPriceSats?: number
+		listingSeller?: string
+		opnsProfileName?: string
+		opnsAvatarOrigin?: string
+		name?: string
+		origin?: string
+	}
 }
 
 export interface EnrichedOutput {
@@ -184,10 +232,15 @@ export interface EnrichedIntent {
 	/** All raw outputs with recipient decoded from script. */
 	outputs: EnrichedOutput[]
 	/**
-	 * Per-leg detail for the prompt body (templates, seals, assets).
+	 * Per-leg detail for the prompt body (templates, seals, non-ordinal outs).
 	 * Header still uses `kind` / `summary`.
 	 */
 	legs: TxLeg[]
+	/**
+	 * Ordinal/OpNS tip→tip operations (send, list, buy, …).
+	 * Rich UI helpers key off `operation`, not whole-tx kind alone.
+	 */
+	ordinalEdges: OrdinalEdge[]
 	labels: string[]
 	summary: string
 	/** ORDFS or compatible content URL builder. */
@@ -249,13 +302,15 @@ export async function enrichIntent(
 	const summary = buildSummary(kind, inputs, outputs)
 	const trust = initialTrust(kind)
 	const fee = extractIndexerFee(args, outputs)
-	const legs = buildLegs(inputs, outputs)
+	const ordinalEdges = buildOrdinalEdges(inputs, outputs)
+	const legs = buildLegs(inputs, outputs, ordinalEdges)
 
 	return {
 		kind,
 		inputs,
 		outputs,
 		legs,
+		ordinalEdges,
 		labels,
 		summary,
 		contentUrlForOrigin: (origin) =>
@@ -507,15 +562,237 @@ function hasZeroedSigmaSig(script: Script): boolean {
 	return false
 }
 
+function isCollectableBasket(basket?: string): boolean {
+	return (
+		basket === ORDINALS_BASKET ||
+		basket === OPNS_BASKET ||
+		// plain-name future + legacy
+		basket === '1sat' ||
+		!!basket?.includes('ordinal') ||
+		!!basket?.includes('opns')
+	)
+}
+
+/**
+ * Pair collectable spends with their next tip/listing (BRC-303 shapes).
+ */
+function buildOrdinalEdges(
+	inputs: EnrichedAsset[],
+	outputs: EnrichedOutput[],
+): OrdinalEdge[] {
+	const edges: OrdinalEdge[] = []
+	const usedOut = new Set<number>()
+
+	const takeOut = (
+		pred: (o: EnrichedOutput) => boolean,
+	): EnrichedOutput | undefined => {
+		const hit = outputs.find((o) => !usedOut.has(o.index) && pred(o))
+		if (hit) usedOut.add(hit.index)
+		return hit
+	}
+
+	const collectableIns = inputs.filter(
+		(i) => isCollectableBasket(i.basket) || hasListingTags(i.tags),
+	)
+	const usedIn = new Set<string>()
+
+	for (const inp of collectableIns) {
+		usedIn.add(inp.id)
+		const name = tagValue(inp.tags, 'name')
+		const origin = tagValue(inp.tags, 'origin')
+		const spend = {
+			basket: inp.basket,
+			id: inp.id,
+			outpoint: inp.outpoint,
+			satoshis: inp.satoshis,
+			tags: inp.tags,
+			...(name ? { name } : {}),
+			...(origin ? { origin } : {}),
+			isListing: hasListingTags(inp.tags),
+		}
+
+		if (hasListingTags(inp.tags)) {
+			// cancel: listing in → held collectable out (not ordlock)
+			const create = takeOut(
+				(o) =>
+					isCollectableBasket(o.basket) &&
+					o.template !== 'ordlock' &&
+					o.satoshis === 1,
+			)
+			edges.push(
+				edge(
+					'cancel-listing',
+					spend,
+					create,
+					name ? `Cancel listing of “${name}”` : 'Cancel listing',
+					'Return collectable from marketplace lock',
+				),
+			)
+			continue
+		}
+
+		const listOut = takeOut((o) => o.template === 'ordlock' && o.satoshis === 1)
+		if (listOut) {
+			const price = listOut.listingPriceSats
+			edges.push(
+				edge(
+					'list',
+					spend,
+					listOut,
+					name ? `List “${name}”` : 'List collectable',
+					price != null
+						? `List for ${price} sats`
+						: 'List on marketplace lock',
+				),
+			)
+			continue
+		}
+
+		const next = takeOut(
+			(o) =>
+				(isCollectableBasket(o.basket) || o.satoshis === 1) &&
+				o.template !== 'ordlock',
+		)
+		if (!next) {
+			edges.push(
+				edge(
+					'burn',
+					spend,
+					undefined,
+					name ? `Burn “${name}”` : 'Burn collectable',
+					'No collectable output — tip ends',
+				),
+			)
+			continue
+		}
+
+		// transfer (self-keep or external)
+		const external = Boolean(next.recipient)
+		edges.push(
+			edge(
+				'transfer',
+				spend,
+				next,
+				name ? `Send “${name}”` : 'Send collectable',
+				external && next.recipient
+					? `To ${truncate(next.recipient, 18)}`
+					: 'Move collectable',
+			),
+		)
+	}
+
+	// purchase / inscribe: collectable outs with no matching wallet spend
+	for (const out of outputs) {
+		if (usedOut.has(out.index)) continue
+		if (!isCollectableBasket(out.basket) && out.template !== 'ordlock') {
+			// 1-sat sigma/inscribe without basket still counts
+			if (!(out.satoshis === 1 && (out.template === 'sigma' || out.sealPending))) {
+				continue
+			}
+		}
+		if (out.template === 'ordlock') continue
+
+		const name =
+			out.opnsProfileName ?? tagValue(out.tags, 'name') ?? undefined
+		const origin = tagValue(out.tags, 'origin')
+		const hasSellerPay = outputs.some(
+			(o) => !o.basket && o.recipient && o.satoshis > 1,
+		)
+		const bareOrigin = out.tags.includes('origin')
+
+		if (hasSellerPay && collectableIns.length === 0) {
+			usedOut.add(out.index)
+			edges.push(
+				edge(
+					'purchase',
+					undefined,
+					out,
+					name ? `Buy “${name}”` : 'Buy collectable',
+					'Receive collectable from marketplace',
+				),
+			)
+			continue
+		}
+
+		if (collectableIns.length === 0 || bareOrigin || out.template === 'sigma') {
+			usedOut.add(out.index)
+			edges.push(
+				edge(
+					'inscribe',
+					undefined,
+					out,
+					name ? `Inscribe “${name}”` : 'Create inscription',
+					out.sealPending
+						? 'New origin (signature seal pending)'
+						: 'New collectable output',
+				),
+			)
+		}
+	}
+
+	return edges
+}
+
+function edge(
+	operation: OrdinalOperation,
+	spend: OrdinalEdge['spend'],
+	create: EnrichedOutput | undefined,
+	title: string,
+	summary: string,
+): OrdinalEdge {
+	const name =
+		create?.opnsProfileName ??
+		tagValue(create?.tags, 'name') ??
+		spend?.name
+	const origin = tagValue(create?.tags, 'origin') ?? spend?.origin
+	return {
+		operation,
+		title,
+		summary,
+		...(spend ? { spend } : {}),
+		...(create
+			? {
+					create: {
+						index: create.index,
+						satoshis: create.satoshis,
+						basket: create.basket,
+						tags: create.tags,
+						template: create.template,
+						sealPending: create.sealPending,
+						sealKind: create.sealKind,
+						recipient: create.recipient,
+						listingPriceSats: create.listingPriceSats,
+						listingSeller: create.listingSeller,
+						opnsProfileName: create.opnsProfileName,
+						opnsAvatarOrigin: create.opnsAvatarOrigin,
+						...(name ? { name } : {}),
+						...(origin ? { origin } : {}),
+					},
+				}
+			: {}),
+	}
+}
+
 function buildLegs(
 	inputs: EnrichedAsset[],
 	outputs: EnrichedOutput[],
+	ordinalEdges: OrdinalEdge[],
 ): TxLeg[] {
+	const edgeOutIdx = new Set(
+		ordinalEdges
+			.map((e) => e.create?.index)
+			.filter((i): i is number => i != null),
+	)
+	const edgeInIds = new Set(
+		ordinalEdges.map((e) => e.spend?.id).filter((id): id is string => !!id),
+	)
+
 	const legs: TxLeg[] = []
 	for (const [i, inp] of inputs.entries()) {
 		const name = tagValue(inp.tags, 'name')
 		const origin = tagValue(inp.tags, 'origin')
 		const listing = hasListingTags(inp.tags)
+		const inOrdinalEdge = edgeInIds.has(inp.id)
 		legs.push({
 			side: 'input',
 			index: i,
@@ -526,6 +803,7 @@ function buildLegs(
 			tags: inp.tags,
 			id: inp.id,
 			outpoint: inp.outpoint,
+			inOrdinalEdge,
 			...(name ? { name } : {}),
 			...(origin ? { origin } : {}),
 		})
@@ -534,12 +812,14 @@ function buildLegs(
 		const name =
 			out.opnsProfileName ?? tagValue(out.tags, 'name') ?? undefined
 		const origin = tagValue(out.tags, 'origin')
+		const inOrdinalEdge = edgeOutIdx.has(out.index)
 		legs.push({
 			side: 'output',
 			index: out.index,
 			satoshis: out.satoshis,
 			template: out.template ?? 'unrecognized',
 			label: legLabelOutput(out, name),
+			inOrdinalEdge,
 			...(out.sealPending
 				? { sealPending: true, sealKind: out.sealKind }
 				: {}),
