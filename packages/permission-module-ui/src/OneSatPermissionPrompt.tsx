@@ -607,7 +607,13 @@ function summarizeTransactionDetails(
 	}
 }
 
-/** One uniform panel: asset identity + what this edge does (no From). */
+/**
+ * One uniform panel per edge:
+ *   title  = action (Send / List / Buy / …)
+ *   line 2 = asset name when known
+ *   line 3 = origin
+ *   meta   = To, Price, Sign, … (never From)
+ */
 function edgePanelFromOrdinal(
 	intent: TransactionIntent,
 	edge: OrdinalEdgeEntry,
@@ -617,72 +623,72 @@ function edgePanelFromOrdinal(
 		edge.create?.opnsProfileName ??
 		edge.spend?.name
 	const origin = edge.create?.origin ?? edge.spend?.origin
-	const what = name ?? 'Collectable'
 	const meta: DetailRow[] = []
 
+	let actionTitle = 'Update'
 	switch (edge.operation) {
 		case 'transfer':
-			meta.push({
-				key: 'Action',
-				value: edge.create?.recipient
-					? `Send to ${shortenMid(edge.create.recipient, 20)}`
-					: 'Move in wallet',
-				...(edge.create?.recipient
-					? { copyValue: edge.create.recipient }
-					: {}),
-			})
+			actionTitle = edge.create?.recipient ? 'Send' : 'Move'
+			if (edge.create?.recipient) {
+				meta.push(copyable('To', edge.create.recipient))
+			}
 			break
 		case 'list': {
+			actionTitle = 'List'
 			const price = edge.create?.listingPriceSats
-			meta.push({
-				key: 'Action',
-				value:
-					price != null
-						? `List for ${price.toLocaleString()} sats`
-						: 'List for sale',
-			})
+			if (price != null) {
+				meta.push({
+					key: 'Price',
+					value: `${price.toLocaleString()} sats`,
+				})
+			}
 			if (edge.create?.listingSeller) {
 				meta.push(copyable('Payout', edge.create.listingSeller))
 			}
 			break
 		}
 		case 'cancel-listing':
-			meta.push({ key: 'Action', value: 'Cancel listing' })
+			actionTitle = 'Cancel listing'
 			break
 		case 'purchase': {
+			actionTitle = 'Buy'
 			const price = edge.create?.listingPriceSats
-			meta.push({
-				key: 'Action',
-				value:
-					price != null
-						? `Buy for ${price.toLocaleString()} sats`
-						: 'Buy',
-			})
+			if (price != null) {
+				meta.push({
+					key: 'Price',
+					value: `${price.toLocaleString()} sats`,
+				})
+			}
 			break
 		}
 		case 'inscribe':
-			meta.push({
-				key: 'Action',
-				value: edge.create?.sealPending
-					? edge.create.sealKind === 'sigma'
-						? 'Inscribe (Sigma sign)'
-						: 'Inscribe (sign script)'
-					: 'Inscribe',
-			})
+			actionTitle = 'Inscribe'
+			if (edge.create?.sealPending) {
+				meta.push({
+					key: 'Sign',
+					value:
+						edge.create.sealKind === 'sigma'
+							? 'Sigma commitment'
+							: 'Script data',
+				})
+			}
 			break
 		case 'burn':
-			meta.push({ key: 'Action', value: 'Burn' })
+			actionTitle = 'Burn'
 			break
+	}
+
+	// Under title: name (if any), then origin as its own field, then To/Price/…
+	if (origin) {
+		meta.unshift(copyable('Origin', origin))
 	}
 
 	const contentUrl = origin ? intent.contentUrls?.[origin] : undefined
 	return {
 		variant: 'ordinal',
 		...(contentUrl ? { imageUrl: contentUrl } : {}),
-		title: what,
-		...(origin
-			? { subtitle: shortenMid(origin, 28), subtitleCopy: origin }
-			: {}),
+		title: actionTitle,
+		...(name ? { subtitle: name } : {}),
 		meta,
 	}
 }
