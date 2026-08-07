@@ -458,13 +458,6 @@ function applyVerification(
 		return row
 	})
 
-	if (res.contentLength !== undefined && !rows.some((r) => r.key === 'Size')) {
-		rows.push({
-			key: 'Size',
-			value: `${res.contentLength.toLocaleString('en-US')} bytes`,
-		})
-	}
-
 	const panels =
 		base.edgePanels ?? (base.featured ? [base.featured] : [])
 	const edgePanels = panels.map((p, i) =>
