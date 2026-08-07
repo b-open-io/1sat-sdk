@@ -689,22 +689,17 @@ function edgePanelFromOrdinal(
 	// is rendered as first meta line without a key (see panel render).
 	const meta: DetailRow[] = [...metaAfter]
 
+	if (origin) {
+		metaAfter.unshift(copyable('Origin', origin))
+	}
+
 	const contentUrl = origin ? intent.contentUrls?.[origin] : undefined
 	return {
 		variant: 'ordinal',
 		...(contentUrl ? { imageUrl: contentUrl } : {}),
 		title: actionTitle,
-		// Prefer name as the soft subtitle; origin always available unlabeled below.
-		...(nameLine
-			? { subtitle: nameLine }
-			: origin
-				? { subtitle: origin, subtitleCopy: origin }
-				: {}),
-		// If we already used name as subtitle, still show origin unlabeled via meta.
-		meta:
-			nameLine && origin
-				? [{ key: '', value: shortenMid(origin, 28), copyValue: origin }, ...meta]
-				: meta,
+		...(nameLine ? { subtitle: nameLine } : {}),
+		meta: metaAfter,
 	}
 }
 
