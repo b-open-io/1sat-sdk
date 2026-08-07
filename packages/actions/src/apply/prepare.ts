@@ -8,12 +8,11 @@ import { ensureActionId } from '../utils/createTrackedAction'
 import { applyP1SatIntent } from './applyIntent'
 
 /**
- * Attach intent + action-id labels and run apply when `ctx.isBaseWallet`.
- * Mutates `args` in place (labels + any apply rewrite).
+ * Attach intent label + `p 1sat action <id>` (if missing) and run apply when
+ * `ctx.isBaseWallet`. Mutates `args` in place.
  *
- * The action id is stamped here, ahead of apply, so both the base-wallet path
- * (apply below) and the gated path (apply inside the module) see the same
- * value and derive identical intermediate keyIDs.
+ * Action id is ensured here ahead of apply so base-wallet apply and module
+ * apply share intermediate keyIDs (e.g. Sigma anchor).
  */
 export async function prepareP1SatArgs(
 	ctx: OneSatContext,

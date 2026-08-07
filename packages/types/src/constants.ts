@@ -170,22 +170,15 @@ export function readHostingExp(tags: string[] | undefined): number | undefined {
 }
 
 /**
- * Generic dispatch-trigger label. Added by `createTrackedAction` when no
- * asset-specific labels are present, so the module still gets a chance
- * to capture the hashOutputs commitment for any 1Sat-asset createAction.
- *
- * Asset-specific labels (built via {@link buildInputAssetLabel} /
- * {@link buildOutputAssetLabel}) carry per-asset lookup keys the module
- * uses to render the prompt with rich detail (ordinal name, token amount,
- * etc.). The wallet-toolbox enforces a `'p <scheme> <payload>'` shape, so
- * a bare `'p 1sat'` is invalid; we use `'p 1sat action'` as the fallback.
+ * Dispatch label for createAction → 1Sat permission module.
+ * Action correlator ids live on output `id:` tags, not in this label.
  */
 export const P1SAT_LABEL = 'p 1sat action'
 
 /**
  * Intent label prefix. Payload is `<domain>.<verb>` (e.g. `opns.register`).
- * When present, replaces the need for bare {@link P1SAT_LABEL} as the
- * WPM dispatch trigger for createAction.
+ * Still used by apply dispatch until script-based sealing lands; not required
+ * for WPM module routing once {@link P1SAT_LABEL} is present.
  */
 export const P1SAT_INTENT_LABEL_PREFIX = 'p 1sat intent '
 
@@ -251,48 +244,22 @@ export function parseIntentLabel(
 }
 
 /**
- * Action-id label prefix. Payload is the hex actionId that also appears in
- * each basketed output's `id:<actionId>_<index>` tag.
- *
- * The actionId is the action's correlator: it is stamped before apply runs,
- * so both the action and apply can derive the same intermediate keyIDs
- * (e.g. the Sigma anchor) without passing anything between them. Nothing may
- * travel back from apply to the action — `WalletPermissionsManager` rebuilds
- * `labels` into a new array before the module sees the args, so writes there
- * are not visible to the caller.
- */
-export const P1SAT_ACTION_ID_LABEL_PREFIX = 'p 1sat action-id '
-
-/**
- * Build `p 1sat action-id <actionId>`.
- */
-export function buildActionIdLabel(actionId: string): string {
-	return `${P1SAT_ACTION_ID_LABEL_PREFIX}${actionId}`
-}
-
-/**
- * First `p 1sat action-id …` label payload, or undefined.
- */
-export function parseActionIdLabel(
-	labels: string[] | undefined,
-): string | undefined {
-	if (!labels) return undefined
-	for (const label of labels) {
-		if (!label.startsWith(P1SAT_ACTION_ID_LABEL_PREFIX)) continue
-		const actionId = label.slice(P1SAT_ACTION_ID_LABEL_PREFIX.length).trim()
-		if (actionId) return actionId
-	}
-	return undefined
-}
-
-/**
  * True if labels already route createAction to the 1Sat permission module
- * (bare action label or any intent label).
+ * (any well-formed `p 1sat <payload>` label, including bare {@link P1SAT_LABEL}).
  */
 export function hasP1SatDispatchLabel(labels: string[] | undefined): boolean {
 	if (!labels?.length) return false
-	if (labels.includes(P1SAT_LABEL)) return true
-	return labels.some((l) => l.startsWith(P1SAT_INTENT_LABEL_PREFIX))
+	return labels.some((l) => {
+		if (!l.startsWith('p 1sat ')) return false
+		return l.length > 'p 1sat '.length
+	})
+}
+
+/** Ensure {@link P1SAT_LABEL} is present on createAction labels. */
+export function ensureP1SatActionLabel(labels: string[] | undefined): string[] {
+	const next = labels ?? []
+	if (next.includes(P1SAT_LABEL) || hasP1SatDispatchLabel(next)) return next
+	return [...next, P1SAT_LABEL]
 }
 
 /**
@@ -303,17 +270,8 @@ export function hasP1SatDispatchLabel(labels: string[] | undefined): boolean {
 export const P1SAT_BASKET_PREFIX = 'p 1sat '
 
 /**
- * Label prefix recognized by the 1Sat permission module. Carries the
- * `'p 1sat'` dispatch trigger; payload is `'<basket-suffix> <id>'`
- * where `<basket-suffix>` is the asset basket name with the shared
- * `'p 1sat '` prefix stripped (e.g. `'ordinals'`, `'bsv21'`). Encoding
- * only the suffix keeps the payload space-free so the parser can split
- * cleanly on the boundary between basket and id.
- *
- * Outputs don't need a label: the SDK sets tags directly on
- * `args.outputs[i].tags` (unencrypted, visible to the module), and
- * `args.outputs[i].lockingScript` is cryptographically committed to
- * the final tx. The module reads both directly.
+ * Input label prefix. Full form: `p 1sat input <basket> <id>` with **id last**
+ * (no spaces in id). Basket may contain spaces (e.g. legacy `p 1sat ordinals`).
  */
 export const P1SAT_INPUT_LABEL_PREFIX = 'p 1sat input '
 
@@ -327,34 +285,40 @@ export const P1SAT_INPUT_LABEL_PREFIX = 'p 1sat input '
 export const OPNS_REGISTER_SIG_PLACEHOLDER_LEN = 72
 
 /**
- * Build a label that points the 1Sat permission module at a specific
- * input asset record in the wallet's storage.
+ * Build `p 1sat input <basket> <id>`.
  *
- * `id` is the per-output asset id assigned by `createTrackedAction`
- * (`id:<actionId>_<vout>`) — the value stored on the input's `id:` tag,
- * without the `id:` prefix. The module resolves the record via
- * `listOutputs({ basket, tags: [id:<id>], tagQueryMode: 'all' })` — a
- * single indexed lookup, not a basket scan.
- *
- * Inputs without an `id:` tag (e.g. created before tracked-action ids
- * existed) can't be enriched; callers should skip emitting the label
- * for those rather than scanning by outpoint.
- *
- * The shared {@link P1SAT_BASKET_PREFIX} is stripped from the basket
- * before encoding so basket names with embedded spaces don't collide
- * with the basket↔id space delimiter. Non-P1Sat baskets pass through
- * unstripped — those won't resolve in the permission module and the
- * input simply drops from enrichment (graceful degradation to the
- * generic transaction approval UI).
- *
- * @param basket - Asset basket (typically a P1Sat basket constant).
- * @param id     - The asset id, i.e. the `id:` tag value on the input.
+ * `id` is the bare `id:` tag value (no `id:` prefix) and MUST NOT contain
+ * spaces. `basket` is the full BRC-46 basket name.
  */
 export function buildInputAssetLabel(basket: string, id: string): string {
-	const suffix = basket.startsWith(P1SAT_BASKET_PREFIX)
-		? basket.slice(P1SAT_BASKET_PREFIX.length)
-		: basket
-	return `${P1SAT_INPUT_LABEL_PREFIX}${suffix} ${id}`
+	const b = basket.trim()
+	const assetId = id.trim()
+	if (!b) throw new Error('P1Sat input label requires a basket name')
+	if (!assetId || /\s/.test(assetId)) {
+		throw new Error('P1Sat input id must be a non-empty string without spaces')
+	}
+	return `${P1SAT_INPUT_LABEL_PREFIX}${b} ${assetId}`
+}
+
+/**
+ * Parse `p 1sat input <basket> <id>` labels (id = last token).
+ */
+export function parseInputAssetLabels(
+	labels: string[] | undefined,
+): Array<{ basket: string; id: string }> {
+	if (!labels?.length) return []
+	const refs: Array<{ basket: string; id: string }> = []
+	for (const label of labels) {
+		if (!label.startsWith(P1SAT_INPUT_LABEL_PREFIX)) continue
+		const payload = label.slice(P1SAT_INPUT_LABEL_PREFIX.length).trim()
+		const lastSpace = payload.lastIndexOf(' ')
+		if (lastSpace <= 0) continue
+		const basket = payload.slice(0, lastSpace).trim()
+		const id = payload.slice(lastSpace + 1).trim()
+		if (!basket || !id || /\s/.test(id)) continue
+		refs.push({ basket, id })
+	}
+	return refs
 }
 
 /**

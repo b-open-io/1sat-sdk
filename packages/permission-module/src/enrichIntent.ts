@@ -28,9 +28,8 @@ import {
 	ORDFS_HOST,
 	OPNS_BASKET,
 	ORDINALS_BASKET,
-	P1SAT_BASKET_PREFIX,
-	P1SAT_INPUT_LABEL_PREFIX,
 	SIGMA_BASKET,
+	parseInputAssetLabels,
 	parseIntentLabel,
 } from '@1sat/types'
 import { Lock, OrdLock, outpointFromBytes } from '@1sat/templates'
@@ -193,7 +192,7 @@ export async function enrichIntent(
 	const labels = args.labels ?? []
 	const p1satIntent = parseIntentLabel(labels)
 
-	const inputRefs = parseAssetLabels(labels, P1SAT_INPUT_LABEL_PREFIX)
+	const inputRefs = parseInputAssetLabels(labels)
 	const inputs = (
 		await Promise.all(
 			inputRefs.map((ref) => lookupAsset(wallet, ref.basket, ref.id)),
@@ -284,30 +283,6 @@ function extractIndexerFee(
 				(tokenOuts > 1 ? ` (${tokenOuts} token outs)` : '')
 			: `${feeSats.toLocaleString()} sats overlay fee`
 	return { indexerFeeSats: feeSats, indexerFeeNote: note }
-}
-
-// ---------------------------------------------------------------------------
-// Label parsing — `'p 1sat input <basket> <id>'`
-// ---------------------------------------------------------------------------
-
-interface AssetLabelRef {
-	basket: string
-	id: string
-}
-
-function parseAssetLabels(labels: string[], prefix: string): AssetLabelRef[] {
-	const refs: AssetLabelRef[] = []
-	for (const label of labels) {
-		if (!label.startsWith(prefix)) continue
-		const payload = label.slice(prefix.length).trim()
-		const sep = payload.indexOf(' ')
-		if (sep <= 0) continue
-		const suffix = payload.slice(0, sep)
-		const id = payload.slice(sep + 1).trim()
-		if (!suffix || !id) continue
-		refs.push({ basket: `${P1SAT_BASKET_PREFIX}${suffix}`, id })
-	}
-	return refs
 }
 
 // ---------------------------------------------------------------------------

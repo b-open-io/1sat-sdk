@@ -2,6 +2,7 @@
 
 | Plan | Status | Description |
 |------|--------|-------------|
+| [BRC alignment](./2026-08-05-brc-alignment.md) | **Draft** | 147 interop + SDK module: plain baskets, `p 1sat action/input` labels, tags/CI, collections |
 | [P1SAT id-first actions](./2026-07-23-p1sat-id-first-actions.md) | **Draft** | id: on all P1SAT basket UTXOs; spends by id; list tags default; consumer updates |
 | [CLI id-first wiring](./2026-07-23-cli-id-first-wiring.md) | **Draft** | Wire 1sat CLI to id-first actions; walkthrough in progress |
 | [P1SAT permissions](./2026-07-25-p1sat-permissions.md) | **Architecture locked** | Action/module/apply split; intent matrix; OpNS publish canonical |

@@ -1,4 +1,7 @@
-import { P1SAT_BASKET_PREFIX, parseIntentLabel } from '@1sat/types'
+import {
+	P1SAT_BASKET_PREFIX,
+	parseIntentLabel,
+} from '@1sat/types'
 import type { IPermissionStore } from '@1sat/wallet'
 import type {
 	CreateActionArgs,

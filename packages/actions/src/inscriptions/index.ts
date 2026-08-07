@@ -6,7 +6,7 @@
 
 import { Inscription, MAP as MAPTemplate } from '@1sat/templates'
 import type { Destination } from '@1sat/types'
-import { P1SAT_INTENTS, P1SAT_PROTOCOL, buildActionIdLabel } from '@1sat/types'
+import { P1SAT_INTENTS, P1SAT_PROTOCOL } from '@1sat/types'
 import { Beef, Hash, type LockingScript, Script, Utils } from '@bsv/sdk'
 import { prepareP1SatArgs, sigmaAnchorKeyId } from '../apply'
 import { appendSigmaPlaceholder } from '../signing/sigma'
@@ -21,7 +21,6 @@ import type { Action, ActionOptions, OneSatContext } from '../types'
 import {
 	ensureActionId,
 	executeTrackedAction,
-	randomActionId,
 } from '../utils/createTrackedAction'
 import {
 	type ResolvedDestination,
@@ -108,7 +107,6 @@ async function inscribeWithSigma(
 	lockingScript: Script,
 	tags: string[],
 	input: InscribeRequest,
-	actionId: string,
 	outputCustomInstructions?: string,
 	outputKeyIDForLog?: string,
 ): Promise<InscribeResponse> {
@@ -119,7 +117,6 @@ async function inscribeWithSigma(
 		ctx,
 		{
 			description: 'Create inscription',
-			labels: [buildActionIdLabel(actionId)],
 			outputs: [
 				{
 					lockingScript: placeholderScript.toHex(),
@@ -526,14 +523,9 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 				return { error: 'streaming-with-funding-provider-not-supported' }
 			}
 
-			// Minted before output building so the destination derivation is
-			// recomputable from the action record. Stamped on args below.
-			const actionId = randomActionId()
-
 			const resolved = await resolveDestination(ctx, input.destination, {
 				protocolID: P1SAT_PROTOCOL,
 				keyIDPrefix: 'inscribe',
-				actionId,
 			})
 
 			const customInstructions = resolved.customInstructions
@@ -578,7 +570,6 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 					lockingScript,
 					tags,
 					input,
-					actionId,
 					customInstructions,
 					resolved.customInstructions?.keyID,
 				)
@@ -589,7 +580,6 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 				ctx,
 				{
 					description: 'Create inscription',
-					labels: [buildActionIdLabel(actionId)],
 					outputs: [
 						{
 							lockingScript: lockingScript.toHex(),

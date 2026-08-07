@@ -213,6 +213,7 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 		).rejects.toThrow(/rejected/)
 		expect(args.outputs![0].lockingScript).toBe(before)
 	})
+
 })
 
 describe('opnsRegisterKeyId binding', () => {
