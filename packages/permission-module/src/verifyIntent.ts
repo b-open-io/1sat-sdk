@@ -68,14 +68,18 @@ async function verifyOrdinal(
 	const ordfs = services.ordfs
 	if (typeof ordfs?.bulkMetadata !== 'function') return { state: 'unverified' }
 
-	// `:-2` resolves the outpoint to its origin before returning metadata.
-	// Querying the raw outpoint is wrong for anything already moved or listed —
-	// an OrdLock output carries no inscription, so ORDFS answers with an empty
-	// record rather than the asset.
+	// `:-2` is only an ORDFS request suffix (resolve tip → origin metadata).
+	// It is not part of asset identity and must not be required to match
+	// response map keys beyond looking up the bulk result.
 	const key = `${origin}:-2`
-	// Called on the client, not detached — these are class methods that use `this`.
 	const res = await withTimeout(ordfs.bulkMetadata([key]))
-	const meta = res?.[key] ?? res?.[origin]
+	// Prefer exact key, then bare origin, then any record that carried content.
+	const meta =
+		res?.[key] ??
+		res?.[origin] ??
+		Object.values(res ?? {}).find(
+			(m): m is NonNullable<typeof m> => !!m?.contentType,
+		)
 
 	// An empty record means "nothing inscribed here", not a description of the
 	// asset — treat it as no answer rather than as evidence.
