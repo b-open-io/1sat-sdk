@@ -183,6 +183,27 @@ export const promptStyles = `
   font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
 }
 
+.opp-featured-meta-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--opp-muted);
+}
+
+.opp-featured-meta-key {
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+
+.opp-featured-meta-value {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
 .opp-trust-wrap {
   display: flex;
   flex-direction: column;

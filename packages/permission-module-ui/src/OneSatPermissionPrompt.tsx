@@ -54,13 +54,15 @@ interface IntentSummary {
 	/** @deprecated Network fee is out of scope on 1sat cards. */
 	feeSats?: number
 	network?: string
-	/** NFT / ordinal / token preview. */
+	/** NFT / ordinal / token preview (+ optional action meta under origin). */
 	featured?: {
 		imageUrl?: string
 		title: string
 		subtitle?: string
 		/** Full subtitle for copy (e.g. token id). */
 		subtitleCopy?: string
+		/** Extra lines under origin (price, to, seal, …). */
+		meta?: DetailRow[]
 		/** Circular token icon vs square ordinal thumb. */
 		variant?: 'ordinal' | 'token'
 	}
@@ -236,6 +238,15 @@ export function OneSatPermissionPrompt({
 								)}
 							</div>
 						)}
+						{(summary.featured.meta ?? []).map((m) => (
+							<div className="opp-featured-meta-line" key={`${m.key}:${m.value}`}>
+								<span className="opp-featured-meta-key">{m.key}</span>
+								<span className="opp-featured-meta-value" title={m.copyValue ?? m.value}>
+									{m.value}
+								</span>
+								{m.copyValue && <CopyButton text={m.copyValue} />}
+							</div>
+						))}
 					</div>
 				</div>
 			)}
@@ -463,20 +474,6 @@ interface BasketAccessIntent {
 	baskets: Array<{ basket: string; description?: string }>
 }
 
-const KIND_TITLES: Record<string, string> = {
-	'ordinal-transfer': 'Send ordinal',
-	'token-transfer': 'Send tokens',
-	lock: 'Lock BSV',
-	unlock: 'Unlock BSV',
-	inscription: 'Create inscription',
-	listing: 'List for sale',
-	'cancel-listing': 'Cancel listing',
-	purchase: 'Buy asset',
-	'social-post': 'Social post',
-	opns: 'OpNS',
-	unknown: 'Approve transaction',
-}
-
 interface OrdinalEdgeEntry {
 	operation:
 		| 'inscribe'
@@ -516,31 +513,43 @@ interface OrdinalEdgeEntry {
 }
 
 /**
- * Header from kind/summary. Body: rich ordinal edges + remaining legs
- * (payments, seals not already covered, unrecognized scripts).
+ * Generic transaction chrome. One summary line per ordinal edge (in the
+ * featured pane when possible); other legs as simple detail rows.
+ * No kind-specific page title — kind stays internal for summary text only.
  */
 function summarizeTransactionDetails(
 	req: PromptRequest,
 	intent: TransactionIntent,
 ): IntentSummary {
-	const title = KIND_TITLES[intent.kind] ?? 'Approve transaction'
 	const rows: DetailRow[] = []
 	let featured: IntentSummary['featured']
+	const edgeSummaries: string[] = []
 
 	const edges = intent.ordinalEdges ?? []
 	for (const edge of edges) {
-		const block = summarizeOrdinalEdge(req, intent, edge)
-		rows.push(...block.rows)
-		if (block.featured && !featured) featured = block.featured
+		const block = summarizeOrdinalEdge(intent, edge)
+		edgeSummaries.push(block.line)
+		if (block.featured && !featured) {
+			featured = block.featured
+		} else {
+			// Extra edges: one row each (no second full block).
+			rows.push({ key: edge.title, value: block.line })
+		}
 	}
 
-	// Legs not already told by an ordinal edge (fee, change, extra seals, tokens…).
 	for (const leg of intent.legs ?? []) {
 		if (leg.inOrdinalEdge && !leg.sealPending) continue
-		// Always surface seal callouts even if the out is in an edge.
 		if (leg.inOrdinalEdge && leg.sealPending) {
+			// Prefer seal on the featured meta when it matches the edge out.
+			const onFeatured =
+				featured &&
+				edges.some(
+					(e) =>
+						e.create?.index === leg.index && e.create?.sealPending,
+				)
+			if (onFeatured) continue
 			rows.push({
-				key: `Seal · out #${leg.index}`,
+				key: 'Signature',
 				value:
 					leg.sealKind === 'sigma'
 						? 'You will sign a Sigma commitment on this output'
@@ -551,56 +560,22 @@ function summarizeTransactionDetails(
 			continue
 		}
 		if (leg.inOrdinalEdge) continue
-		const side = leg.side === 'input' ? 'Spend' : 'Create'
-		let value = leg.label
-		if (leg.sealPending) {
-			value = `${value} — ${
-				leg.sealKind === 'sigma'
-					? 'Sigma signature'
-					: leg.sealKind === 'pushdrop'
-						? 'PushDrop signature'
-						: 'script signature'
-			}`
-		}
 		rows.push({
-			key: `${side} #${leg.index}`,
-			value,
+			key: leg.side === 'input' ? 'Spend' : 'Output',
+			value: leg.label,
 			...(leg.outpoint ? { copyValue: leg.outpoint } : {}),
 			...(leg.recipient ? { copyValue: leg.recipient } : {}),
 		})
 	}
 
-	if (!featured) {
-		const origin =
-			edges[0]?.create?.origin ??
-			edges[0]?.spend?.origin ??
-			(intent.legs ?? []).find((l) => l.origin)?.origin
-		if (origin && intent.contentUrls?.[origin]) {
-			featured = {
-				variant: 'ordinal',
-				imageUrl: intent.contentUrls[origin],
-				title:
-					edges[0]?.create?.name ??
-					edges[0]?.spend?.name ??
-					origin,
-				subtitle: origin,
-				subtitleCopy: origin,
-			}
-		}
-	}
-
-	if (rows.length === 0) {
-		rows.push({
-			key: 'Transaction',
-			value: req.summary || 'No parsed legs',
-		})
-	}
+	const subtitle =
+		edgeSummaries[0] ??
+		req.summary ??
+		`${shortenOriginator(req.originator)} wants to approve a transaction`
 
 	return {
-		title,
-		subtitle:
-			req.summary ||
-			`${shortenOriginator(req.originator)} wants to ${title.toLowerCase()}`,
+		title: 'Transaction Request',
+		subtitle,
 		rows,
 		...(featured ? { featured } : {}),
 		...(intent.trust && {
@@ -618,97 +593,101 @@ function summarizeTransactionDetails(
 	}
 }
 
-/** Rich detail block for one ordinal tip→tip edge (303-style operations). */
+/** One human line + optional featured pane (thumb, origin, action meta). */
 function summarizeOrdinalEdge(
-	_req: PromptRequest,
 	intent: TransactionIntent,
 	edge: OrdinalEdgeEntry,
-): { rows: DetailRow[]; featured?: IntentSummary['featured'] } {
-	const rows: DetailRow[] = []
+): { line: string; featured?: IntentSummary['featured'] } {
 	const name =
 		edge.create?.name ??
 		edge.create?.opnsProfileName ??
 		edge.spend?.name
 	const origin = edge.create?.origin ?? edge.spend?.origin
 	const what = name ? `“${name}”` : 'collectable'
+	const meta: DetailRow[] = []
 
-	rows.push({ key: edge.title, value: edge.summary })
-
+	let line = edge.summary
 	switch (edge.operation) {
 		case 'transfer':
-			if (edge.spend?.outpoint) {
-				rows.push(copyable('From', edge.spend.outpoint))
-			}
 			if (edge.create?.recipient) {
-				rows.push(copyable('To', edge.create.recipient))
-			} else if (edge.create?.basket) {
-				rows.push({ key: 'Keep in', value: edge.create.basket })
+				line = `Send ${what} to ${shortenMid(edge.create.recipient, 18)}`
+				meta.push(copyable('To', edge.create.recipient))
+			} else {
+				line = `Move ${what}`
+			}
+			if (edge.spend?.outpoint) {
+				meta.push(copyable('From', edge.spend.outpoint))
 			}
 			break
-		case 'list':
-			if (edge.create?.listingPriceSats != null) {
-				rows.push({
-					key: 'Price',
-					value: `${edge.create.listingPriceSats} sats`,
-				})
+		case 'list': {
+			const price = edge.create?.listingPriceSats
+			line =
+				price != null
+					? `List ${what} for ${price.toLocaleString()} sats`
+					: `List ${what}`
+			if (price != null) {
+				meta.push({ key: 'Price', value: `${price.toLocaleString()} sats` })
 			}
 			if (edge.create?.listingSeller) {
-				rows.push(copyable('Seller payout', edge.create.listingSeller))
+				meta.push(copyable('Payout', edge.create.listingSeller))
 			}
 			break
+		}
 		case 'cancel-listing':
+			line = `Cancel listing of ${what}`
 			if (edge.spend?.outpoint) {
-				rows.push(copyable('Listing', edge.spend.outpoint))
-			}
-			rows.push({ key: 'Result', value: `Return ${what} to wallet` })
-			break
-		case 'purchase':
-			if (edge.create?.listingPriceSats != null) {
-				rows.push({
-					key: 'Price',
-					value: `${edge.create.listingPriceSats} sats`,
-				})
-			}
-			if (edge.create?.basket) {
-				rows.push({ key: 'Receive into', value: edge.create.basket })
+				meta.push(copyable('Listing', edge.spend.outpoint))
 			}
 			break
+		case 'purchase': {
+			const price = edge.create?.listingPriceSats
+			line =
+				price != null
+					? `Buy ${what} for ${price.toLocaleString()} sats`
+					: `Buy ${what}`
+			if (price != null) {
+				meta.push({ key: 'Price', value: `${price.toLocaleString()} sats` })
+			}
+			break
+		}
 		case 'inscribe':
-			if (edge.create?.template) {
-				rows.push({ key: 'Script', value: edge.create.template })
-			}
+			line = name ? `Inscribe ${what}` : 'Create inscription'
 			if (edge.create?.sealPending) {
-				rows.push({
-					key: 'Signature',
+				meta.push({
+					key: 'Sign',
 					value:
 						edge.create.sealKind === 'sigma'
-							? 'You will sign a Sigma commitment'
-							: 'You will sign script data',
+							? 'Sigma commitment'
+							: 'Script data',
 				})
 			}
 			break
 		case 'burn':
+			line = `Burn ${what}`
 			if (edge.spend?.outpoint) {
-				rows.push(copyable('Burning', edge.spend.outpoint))
+				meta.push(copyable('Outpoint', edge.spend.outpoint))
 			}
-			rows.push({ key: 'Result', value: 'No collectable output' })
 			break
 	}
 
-	if (origin) rows.push(copyable('Origin', origin))
-
 	const contentUrl = origin ? intent.contentUrls?.[origin] : undefined
-	const featured = contentUrl
-		? {
-				variant: 'ordinal' as const,
-				imageUrl: contentUrl,
-				title: name ?? what,
-				subtitle: origin,
-				subtitleCopy: origin,
-			}
-		: undefined
+	const featured: IntentSummary['featured'] = {
+		variant: 'ordinal',
+		...(contentUrl ? { imageUrl: contentUrl } : {}),
+		title: name ?? what,
+		...(origin
+			? { subtitle: shortenMid(origin, 28), subtitleCopy: origin }
+			: {}),
+		...(meta.length ? { meta } : {}),
+	}
 
-	return { rows, featured }
+	return { line, featured }
+}
+
+function shortenMid(s: string, max: number): string {
+	if (s.length <= max) return s
+	const keep = Math.max(4, Math.floor((max - 1) / 2))
+	return `${s.slice(0, keep)}…${s.slice(-keep)}`
 }
 
 function tagFromTags(
