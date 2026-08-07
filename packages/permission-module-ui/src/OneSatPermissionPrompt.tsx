@@ -47,25 +47,31 @@ interface DetailRow {
 
 type TrustState = 'verified' | 'unverified' | 'mismatch'
 
+/** One self-contained edge/detail block (same chrome for every edge). */
+interface EdgePanel {
+	imageUrl?: string
+	title: string
+	subtitle?: string
+	subtitleCopy?: string
+	/** Action + facts for this edge (Send to…, Price, Sign…). */
+	meta?: DetailRow[]
+	variant?: 'ordinal' | 'token'
+}
+
 interface IntentSummary {
 	title: string
 	subtitle: string
+	/** Uniform panels — one per ordinal edge (preferred). */
+	edgePanels?: EdgePanel[]
+	/**
+	 * @deprecated Prefer edgePanels. Single panel still accepted and normalized.
+	 */
+	featured?: EdgePanel
+	/** Non-edge legs (payments, change, unrecognized). */
 	rows: DetailRow[]
 	/** @deprecated Network fee is out of scope on 1sat cards. */
 	feeSats?: number
 	network?: string
-	/** NFT / ordinal / token preview (+ optional action meta under origin). */
-	featured?: {
-		imageUrl?: string
-		title: string
-		subtitle?: string
-		/** Full subtitle for copy (e.g. token id). */
-		subtitleCopy?: string
-		/** Extra lines under origin (price, to, seal, …). */
-		meta?: DetailRow[]
-		/** Circular token icon vs square ordinal thumb. */
-		variant?: 'ordinal' | 'token'
-	}
 	trust?: {
 		state: TrustState
 		note?: string
@@ -178,7 +184,9 @@ export function OneSatPermissionPrompt({
 	}, [onApprove, onReject, busy])
 
 	const className = `opp-root${resolvedTheme === 'dark' ? ' opp-dark' : ''}`
-	const featuredVariant = summary.featured?.variant ?? 'ordinal'
+	const edgePanels =
+		summary.edgePanels ??
+		(summary.featured ? [summary.featured] : [])
 
 	return (
 		<div className={className}>
@@ -200,56 +208,66 @@ export function OneSatPermissionPrompt({
 				<div className="opp-status">Awaiting Approval</div>
 			</div>
 
-			{summary.featured && (
-				<div
-					className={`opp-featured${featuredVariant === 'token' ? ' opp-featured-token' : ''}`}
-				>
-					{summary.featured.imageUrl ? (
-						<img
-							className={
-								featuredVariant === 'token'
-									? 'opp-featured-image opp-featured-image-token'
-									: 'opp-featured-image'
-							}
-							src={summary.featured.imageUrl}
-							alt={summary.featured.title}
-						/>
-					) : (
-						<div
-							className={
-								featuredVariant === 'token'
-									? 'opp-featured-image opp-featured-image-token opp-featured-placeholder'
-									: 'opp-featured-image opp-featured-placeholder'
-							}
-							aria-hidden
-						>
-							{featuredVariant === 'token' ? '◎' : '▭'}
-						</div>
-					)}
-					<div className="opp-featured-meta">
-						<div className="opp-featured-title">{summary.featured.title}</div>
-						{summary.featured.subtitle && (
-							<div className="opp-featured-subtitle">
-								<span className="opp-featured-subtitle-text">
-									{summary.featured.subtitle}
-								</span>
-								{summary.featured.subtitleCopy && (
-									<CopyButton text={summary.featured.subtitleCopy} />
-								)}
+			{edgePanels.map((panel, i) => {
+				const variant = panel.variant ?? 'ordinal'
+				return (
+					<div
+						className={`opp-featured${variant === 'token' ? ' opp-featured-token' : ''}`}
+						key={`edge-${i}-${panel.title}`}
+					>
+						{panel.imageUrl ? (
+							<img
+								className={
+									variant === 'token'
+										? 'opp-featured-image opp-featured-image-token'
+										: 'opp-featured-image'
+								}
+								src={panel.imageUrl}
+								alt={panel.title}
+							/>
+						) : (
+							<div
+								className={
+									variant === 'token'
+										? 'opp-featured-image opp-featured-image-token opp-featured-placeholder'
+										: 'opp-featured-image opp-featured-placeholder'
+								}
+								aria-hidden
+							>
+								{variant === 'token' ? '◎' : '▭'}
 							</div>
 						)}
-						{(summary.featured.meta ?? []).map((m) => (
-							<div className="opp-featured-meta-line" key={`${m.key}:${m.value}`}>
-								<span className="opp-featured-meta-key">{m.key}</span>
-								<span className="opp-featured-meta-value" title={m.copyValue ?? m.value}>
-									{m.value}
-								</span>
-								{m.copyValue && <CopyButton text={m.copyValue} />}
-							</div>
-						))}
+						<div className="opp-featured-meta">
+							<div className="opp-featured-title">{panel.title}</div>
+							{panel.subtitle && (
+								<div className="opp-featured-subtitle">
+									<span className="opp-featured-subtitle-text">
+										{panel.subtitle}
+									</span>
+									{panel.subtitleCopy && (
+										<CopyButton text={panel.subtitleCopy} />
+									)}
+								</div>
+							)}
+							{(panel.meta ?? []).map((m) => (
+								<div
+									className="opp-featured-meta-line"
+									key={`${m.key}:${m.value}`}
+								>
+									<span className="opp-featured-meta-key">{m.key}</span>
+									<span
+										className="opp-featured-meta-value"
+										title={m.copyValue ?? m.value}
+									>
+										{m.value}
+									</span>
+									{m.copyValue && <CopyButton text={m.copyValue} />}
+								</div>
+							))}
+						</div>
 					</div>
-				</div>
-			)}
+				)
+			})}
 
 			{summary.trust && (
 				<div className="opp-trust-wrap">
@@ -441,17 +459,30 @@ function applyVerification(
 		})
 	}
 
+	const panels =
+		base.edgePanels ?? (base.featured ? [base.featured] : [])
+	const edgePanels = panels.map((p, i) =>
+		i === 0
+			? {
+					...p,
+					title: res.name ?? p.title,
+					imageUrl: res.contentUrl ?? p.imageUrl,
+					...(res.origin
+						? {
+								subtitle: shortenMid(res.origin, 28),
+								subtitleCopy: res.origin,
+							}
+						: {}),
+				}
+			: p,
+	)
+
 	return {
 		...base,
 		rows,
+		edgePanels,
+		featured: undefined,
 		trust: { state: res.state, note: res.note },
-		featured: base.featured
-			? {
-					...base.featured,
-					title: res.name ?? base.featured.title,
-					imageUrl: res.contentUrl ?? base.featured.imageUrl,
-				}
-			: undefined,
 	}
 }
 
@@ -513,41 +544,29 @@ interface OrdinalEdgeEntry {
 }
 
 /**
- * Generic transaction chrome. One summary line per ordinal edge (in the
- * featured pane when possible); other legs as simple detail rows.
- * No kind-specific page title — kind stays internal for summary text only.
+ * Generic chrome. Every ordinal edge is the same panel shape (thumb + origin
+ * + action meta). No kind title and no separate summary that duplicates the
+ * edge. Other legs fill the detail card below.
  */
 function summarizeTransactionDetails(
 	req: PromptRequest,
 	intent: TransactionIntent,
 ): IntentSummary {
 	const rows: DetailRow[] = []
-	let featured: IntentSummary['featured']
-	const edgeSummaries: string[] = []
+	const edgePanels: EdgePanel[] = []
 
-	const edges = intent.ordinalEdges ?? []
-	for (const edge of edges) {
-		const block = summarizeOrdinalEdge(intent, edge)
-		edgeSummaries.push(block.line)
-		if (block.featured && !featured) {
-			featured = block.featured
-		} else {
-			// Extra edges: one row each (no second full block).
-			rows.push({ key: edge.title, value: block.line })
-		}
+	for (const edge of intent.ordinalEdges ?? []) {
+		edgePanels.push(edgePanelFromOrdinal(intent, edge))
 	}
 
 	for (const leg of intent.legs ?? []) {
 		if (leg.inOrdinalEdge && !leg.sealPending) continue
 		if (leg.inOrdinalEdge && leg.sealPending) {
-			// Prefer seal on the featured meta when it matches the edge out.
-			const onFeatured =
-				featured &&
-				edges.some(
-					(e) =>
-						e.create?.index === leg.index && e.create?.sealPending,
-				)
-			if (onFeatured) continue
+			// Seal already on the matching edge panel when create.sealPending.
+			const onEdge = (intent.ordinalEdges ?? []).some(
+				(e) => e.create?.index === leg.index && e.create?.sealPending,
+			)
+			if (onEdge) continue
 			rows.push({
 				key: 'Signature',
 				value:
@@ -568,16 +587,11 @@ function summarizeTransactionDetails(
 		})
 	}
 
-	const subtitle =
-		edgeSummaries[0] ??
-		req.summary ??
-		`${shortenOriginator(req.originator)} wants to approve a transaction`
-
 	return {
 		title: 'Transaction Request',
-		subtitle,
+		subtitle: `${shortenOriginator(req.originator)} wants your approval`,
+		edgePanels,
 		rows,
-		...(featured ? { featured } : {}),
 		...(intent.trust && {
 			trust: {
 				state: intent.trust.state as TrustState,
@@ -593,95 +607,84 @@ function summarizeTransactionDetails(
 	}
 }
 
-/** One human line + optional featured pane (thumb, origin, action meta). */
-function summarizeOrdinalEdge(
+/** One uniform panel: asset identity + what this edge does (no From). */
+function edgePanelFromOrdinal(
 	intent: TransactionIntent,
 	edge: OrdinalEdgeEntry,
-): { line: string; featured?: IntentSummary['featured'] } {
+): EdgePanel {
 	const name =
 		edge.create?.name ??
 		edge.create?.opnsProfileName ??
 		edge.spend?.name
 	const origin = edge.create?.origin ?? edge.spend?.origin
-	const what = name ? `“${name}”` : 'collectable'
+	const what = name ?? 'Collectable'
 	const meta: DetailRow[] = []
 
-	let line = edge.summary
 	switch (edge.operation) {
 		case 'transfer':
-			if (edge.create?.recipient) {
-				line = `Send ${what} to ${shortenMid(edge.create.recipient, 18)}`
-				meta.push(copyable('To', edge.create.recipient))
-			} else {
-				line = `Move ${what}`
-			}
-			if (edge.spend?.outpoint) {
-				meta.push(copyable('From', edge.spend.outpoint))
-			}
+			meta.push({
+				key: 'Action',
+				value: edge.create?.recipient
+					? `Send to ${shortenMid(edge.create.recipient, 20)}`
+					: 'Move in wallet',
+				...(edge.create?.recipient
+					? { copyValue: edge.create.recipient }
+					: {}),
+			})
 			break
 		case 'list': {
 			const price = edge.create?.listingPriceSats
-			line =
-				price != null
-					? `List ${what} for ${price.toLocaleString()} sats`
-					: `List ${what}`
-			if (price != null) {
-				meta.push({ key: 'Price', value: `${price.toLocaleString()} sats` })
-			}
+			meta.push({
+				key: 'Action',
+				value:
+					price != null
+						? `List for ${price.toLocaleString()} sats`
+						: 'List for sale',
+			})
 			if (edge.create?.listingSeller) {
 				meta.push(copyable('Payout', edge.create.listingSeller))
 			}
 			break
 		}
 		case 'cancel-listing':
-			line = `Cancel listing of ${what}`
-			if (edge.spend?.outpoint) {
-				meta.push(copyable('Listing', edge.spend.outpoint))
-			}
+			meta.push({ key: 'Action', value: 'Cancel listing' })
 			break
 		case 'purchase': {
 			const price = edge.create?.listingPriceSats
-			line =
-				price != null
-					? `Buy ${what} for ${price.toLocaleString()} sats`
-					: `Buy ${what}`
-			if (price != null) {
-				meta.push({ key: 'Price', value: `${price.toLocaleString()} sats` })
-			}
+			meta.push({
+				key: 'Action',
+				value:
+					price != null
+						? `Buy for ${price.toLocaleString()} sats`
+						: 'Buy',
+			})
 			break
 		}
 		case 'inscribe':
-			line = name ? `Inscribe ${what}` : 'Create inscription'
-			if (edge.create?.sealPending) {
-				meta.push({
-					key: 'Sign',
-					value:
-						edge.create.sealKind === 'sigma'
-							? 'Sigma commitment'
-							: 'Script data',
-				})
-			}
+			meta.push({
+				key: 'Action',
+				value: edge.create?.sealPending
+					? edge.create.sealKind === 'sigma'
+						? 'Inscribe (Sigma sign)'
+						: 'Inscribe (sign script)'
+					: 'Inscribe',
+			})
 			break
 		case 'burn':
-			line = `Burn ${what}`
-			if (edge.spend?.outpoint) {
-				meta.push(copyable('Outpoint', edge.spend.outpoint))
-			}
+			meta.push({ key: 'Action', value: 'Burn' })
 			break
 	}
 
 	const contentUrl = origin ? intent.contentUrls?.[origin] : undefined
-	const featured: IntentSummary['featured'] = {
+	return {
 		variant: 'ordinal',
 		...(contentUrl ? { imageUrl: contentUrl } : {}),
-		title: name ?? what,
+		title: what,
 		...(origin
 			? { subtitle: shortenMid(origin, 28), subtitleCopy: origin }
 			: {}),
-		...(meta.length ? { meta } : {}),
+		meta,
 	}
-
-	return { line, featured }
 }
 
 function shortenMid(s: string, max: number): string {
@@ -711,6 +714,7 @@ function summarizeBasketAccess(req: PromptRequest): IntentSummary {
 				? 'Grant Basket Access'
 				: `Grant Access to ${baskets.length} Baskets`,
 		subtitle: `${shortenOriginator(req.originator)} wants to read and write 1Sat baskets`,
+		edgePanels: [],
 		rows: baskets.map((b) => ({
 			key: b.basket,
 			value: b.description ?? 'List, insert, and remove outputs',
@@ -1398,7 +1402,8 @@ function summarizeUnknownTx(
 	const outs = intent.outputs.length
 	return {
 		title: 'Transaction Request',
-		subtitle: `${shortenOriginator(req.originator)} wants to ${req.summary.toLowerCase()}`,
+		subtitle: `${shortenOriginator(req.originator)} wants your approval`,
+		edgePanels: [],
 		rows: [{ key: 'Inputs / Outputs', value: `${ins} / ${outs}` }],
 	}
 }
@@ -1434,6 +1439,7 @@ function summarizeProtocol(req: PromptRequest): IntentSummary {
 		subtitle:
 			intent.notes ??
 			`${shortenOriginator(req.originator)} requests read-only access to derive your 1Sat addresses. Signing remains per-transaction.`,
+		edgePanels: [],
 		rows,
 	}
 }
@@ -1462,6 +1468,7 @@ function summarizeSignature(req: PromptRequest): IntentSummary {
 	return {
 		title: 'Signature Request',
 		subtitle: `${shortenOriginator(req.originator)} requests a signature`,
+		edgePanels: [],
 		rows,
 	}
 }
