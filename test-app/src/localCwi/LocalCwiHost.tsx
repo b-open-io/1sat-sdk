@@ -6,6 +6,7 @@
  */
 import { createOneSatPermissionModule } from '@1sat/permission-module'
 import type { PromptRequest } from '@1sat/permission-module'
+import type { VerificationServices } from '@1sat/permission-module'
 import { OneSatPermissionPrompt } from '@1sat/permission-module-ui'
 import { LocalWalletPermissionsManager } from '@1sat/wallet'
 import {
@@ -135,6 +136,9 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 	)
 	const [prompt, setPrompt] = useState<PromptState | null>(null)
 	const [coreQueue, setCoreQueue] = useState<CoreEntry[]>([])
+	const [promptServices, setPromptServices] = useState<
+		VerificationServices | undefined
+	>(undefined)
 	const destroyRef = useRef<(() => Promise<void>) | null>(null)
 	const gatedRef = useRef<LocalWalletPermissionsManager | null>(null)
 
@@ -199,6 +203,9 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 				})
 
 				const baseWallet = web.wallet
+				// Prompt UI needs services to run verifyIntent (badge upgrade).
+				// Module also gets them for any server-side enrich helpers.
+				setPromptServices(web.services)
 				const oneSatModule = createOneSatPermissionModule({
 					wallet: baseWallet,
 					// Enables live verification of purchase cards. Optional —
@@ -386,6 +393,7 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 							onApprove={onApprove}
 							onReject={onReject}
 							theme="dark"
+							services={promptServices}
 						/>
 					</div>
 				</div>
