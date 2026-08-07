@@ -141,12 +141,15 @@ export function OneSatPermissionPrompt({
 	useEffect(() => {
 		if (!services || !trustState || !verifyKey || !intent) return
 		let live = true
+		const getContentUrl = services.ordfs?.getContentUrl?.bind(
+			services.ordfs,
+		)
 		verifyIntent(
 			services,
 			verifyKey,
 			intent.inputs as unknown as EnrichedAsset[],
 			intent.outputs as unknown as EnrichedOutput[],
-			services.ordfs?.getContentUrl,
+			getContentUrl,
 		)
 			.then((res) => {
 				if (live && res) setVerified(res)

@@ -174,6 +174,14 @@ export async function verifyIntent(
 		kindOrIntent === 'purchase' || kindOrIntent.endsWith('.purchase')
 	if (!isPurchase) return { state: 'unverified' }
 
+	const debug: Record<string, unknown> = {
+		kindOrIntent,
+		hasOrdfs: !!services.ordfs,
+		hasBulk: typeof services.ordfs?.bulkMetadata === 'function',
+		inputTagSets: inputs.map((i) => i.tags),
+		outputTagSets: outputs.map((o) => o.tags),
+	}
+
 	try {
 		const allTags = [...inputs.map((i) => i.tags), ...outputs.map((o) => o.tags)]
 		const findAll = (key: string) =>
@@ -199,6 +207,8 @@ export async function verifyIntent(
 
 		const name = find('name')
 		const origin = find('origin')
+		debug.name = name
+		debug.origin = origin
 		if (
 			(name && origin && outputs.some((o) => o.basket?.includes('opns'))) ||
 			kindOrIntent === 'opns.purchase'
@@ -207,12 +217,32 @@ export async function verifyIntent(
 			return await verifyOpns(services, name, origin)
 		}
 
-		if (!origin) return { state: 'unverified' }
+		if (!origin) {
+			debug.reason = 'no-origin-tag'
+			;(
+				globalThis as unknown as { __lastVerify?: unknown }
+			).__lastVerify = debug
+			return { state: 'unverified' }
+		}
 		const res = await verifyOrdinal(services, origin, findAll('type'))
-		return res.origin && contentUrlForOrigin
-			? { ...res, contentUrl: contentUrlForOrigin(res.origin) }
-			: res
-	} catch {
+		debug.verifyOrdinal = res
+		// contentUrl is optional polish — never let a URL helper wipe a verified result
+		// (e.g. unbound getContentUrl losing `this` and throwing).
+		if (res.origin && contentUrlForOrigin) {
+			try {
+				res.contentUrl = contentUrlForOrigin(res.origin)
+			} catch (e) {
+				debug.contentUrlError = String(e)
+			}
+		}
+		;(
+			globalThis as unknown as { __lastVerify?: unknown }
+		).__lastVerify = debug
+		return res
+	} catch (e) {
+		debug.error = String(e)
+		;(globalThis as unknown as { __lastVerify?: unknown }).__lastVerify =
+			debug
 		return { state: 'unverified' }
 	}
 }

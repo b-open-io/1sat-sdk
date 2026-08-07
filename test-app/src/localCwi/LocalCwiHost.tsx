@@ -206,6 +206,8 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 				// Prompt UI needs services to run verifyIntent (badge upgrade).
 				// Module also gets them for any server-side enrich helpers.
 				setPromptServices(web.services)
+				;(window as unknown as Record<string, unknown>).__promptServices =
+					web.services
 				const oneSatModule = createOneSatPermissionModule({
 					wallet: baseWallet,
 					// Enables live verification of purchase cards. Optional —
