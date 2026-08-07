@@ -626,12 +626,9 @@ function edgePanelFromOrdinal(
 		edge.create?.opnsProfileName ??
 		edge.spend?.name
 	const origin = edge.create?.origin ?? edge.spend?.origin
-	const meta: DetailRow[] = []
 
 	let actionTitle = 'Update'
-	// Name as unlabeled line under action (when present).
-	let nameLine: string | undefined = name
-	// Origin as unlabeled monospace line (subtitle slot prefers name; origin next).
+	const nameLine: string | undefined = name
 	const metaAfter: DetailRow[] = []
 
 	switch (edge.operation) {
