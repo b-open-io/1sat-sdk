@@ -185,23 +185,36 @@ export const promptStyles = `
 
 .opp-featured-meta-line {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   min-width: 0;
   font-size: 12px;
   color: var(--opp-muted);
 }
 
+.opp-featured-meta-line-bare {
+  align-items: center;
+}
+
 .opp-featured-meta-key {
   flex-shrink: 0;
   opacity: 0.75;
+  min-width: 2.5em;
 }
 
 .opp-featured-meta-value {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* Prefer full address/origin on the default card width; wrap if needed. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-all;
   min-width: 0;
+  flex: 1;
+  line-height: 1.35;
+}
+
+.opp-featured-meta-value-mono {
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
+  font-size: 11px;
 }
 
 .opp-trust-wrap {

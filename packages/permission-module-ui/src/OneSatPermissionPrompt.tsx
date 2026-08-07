@@ -249,21 +249,24 @@ export function OneSatPermissionPrompt({
 									)}
 								</div>
 							)}
-							{(panel.meta ?? []).map((m) => (
-								<div
-									className="opp-featured-meta-line"
-									key={`${m.key}:${m.value}`}
-								>
+						{(panel.meta ?? []).map((m) => (
+							<div
+								className={`opp-featured-meta-line${m.key ? '' : ' opp-featured-meta-line-bare'}`}
+								key={`${m.key}:${m.value}`}
+							>
+								{m.key ? (
 									<span className="opp-featured-meta-key">{m.key}</span>
-									<span
-										className="opp-featured-meta-value"
-										title={m.copyValue ?? m.value}
-									>
-										{m.value}
-									</span>
-									{m.copyValue && <CopyButton text={m.copyValue} />}
-								</div>
-							))}
+								) : null}
+								<span
+									className={`opp-featured-meta-value${m.key ? '' : ' opp-featured-meta-value-mono'}`}
+									title={m.copyValue ?? m.value}
+								>
+									{m.value}
+								</span>
+								{m.copyValue && <CopyButton text={m.copyValue} />}
+							</div>
+						))}
+
 						</div>
 					</div>
 				)
@@ -626,24 +629,38 @@ function edgePanelFromOrdinal(
 	const meta: DetailRow[] = []
 
 	let actionTitle = 'Update'
+	// Name as unlabeled line under action (when present).
+	let nameLine: string | undefined = name
+	// Origin as unlabeled monospace line (subtitle slot prefers name; origin next).
+	const metaAfter: DetailRow[] = []
+
 	switch (edge.operation) {
 		case 'transfer':
 			actionTitle = edge.create?.recipient ? 'Send' : 'Move'
 			if (edge.create?.recipient) {
-				meta.push(copyable('To', edge.create.recipient))
+				// Full address — CSS wraps; copy still available.
+				metaAfter.push({
+					key: 'To',
+					value: edge.create.recipient,
+					copyValue: edge.create.recipient,
+				})
 			}
 			break
 		case 'list': {
 			actionTitle = 'List'
 			const price = edge.create?.listingPriceSats
 			if (price != null) {
-				meta.push({
+				metaAfter.push({
 					key: 'Price',
 					value: `${price.toLocaleString()} sats`,
 				})
 			}
 			if (edge.create?.listingSeller) {
-				meta.push(copyable('Payout', edge.create.listingSeller))
+				metaAfter.push({
+					key: 'Payout',
+					value: edge.create.listingSeller,
+					copyValue: edge.create.listingSeller,
+				})
 			}
 			break
 		}
@@ -654,7 +671,7 @@ function edgePanelFromOrdinal(
 			actionTitle = 'Buy'
 			const price = edge.create?.listingPriceSats
 			if (price != null) {
-				meta.push({
+				metaAfter.push({
 					key: 'Price',
 					value: `${price.toLocaleString()} sats`,
 				})
@@ -664,7 +681,7 @@ function edgePanelFromOrdinal(
 		case 'inscribe':
 			actionTitle = 'Inscribe'
 			if (edge.create?.sealPending) {
-				meta.push({
+				metaAfter.push({
 					key: 'Sign',
 					value:
 						edge.create.sealKind === 'sigma'
@@ -678,18 +695,26 @@ function edgePanelFromOrdinal(
 			break
 	}
 
-	// Under title: name (if any), then origin as its own field, then To/Price/…
-	if (origin) {
-		meta.unshift(copyable('Origin', origin))
-	}
+	// Build meta: optional name is title-adjacent via subtitle; origin unlabeled
+	// is rendered as first meta line without a key (see panel render).
+	const meta: DetailRow[] = [...metaAfter]
 
 	const contentUrl = origin ? intent.contentUrls?.[origin] : undefined
 	return {
 		variant: 'ordinal',
 		...(contentUrl ? { imageUrl: contentUrl } : {}),
 		title: actionTitle,
-		...(name ? { subtitle: name } : {}),
-		meta,
+		// Prefer name as the soft subtitle; origin always available unlabeled below.
+		...(nameLine
+			? { subtitle: nameLine }
+			: origin
+				? { subtitle: origin, subtitleCopy: origin }
+				: {}),
+		// If we already used name as subtitle, still show origin unlabeled via meta.
+		meta:
+			nameLine && origin
+				? [{ key: '', value: origin, copyValue: origin }, ...meta]
+				: meta,
 	}
 }
 
