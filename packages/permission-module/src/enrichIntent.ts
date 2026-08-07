@@ -95,11 +95,52 @@ export interface EnrichedAsset {
 	customInstructions?: string
 }
 
+/** Recognized locking-script template for a tx leg. */
+export type ScriptTemplateKind =
+	| 'p2pkh'
+	| 'ordlock'
+	| 'lock'
+	| 'pushdrop'
+	| 'sigma'
+	| 'unrecognized'
+
+/**
+ * One understood (or partially understood) input or output in the action.
+ * Detail pane is built from these; `kind` is only the card header.
+ */
+export interface TxLeg {
+	side: 'input' | 'output'
+	index: number
+	satoshis: number
+	template: ScriptTemplateKind
+	/** Short human line for this leg. */
+	label: string
+	/** Apply will write a signature into this output script. */
+	sealPending?: boolean
+	sealKind?: 'pushdrop' | 'sigma'
+	basket?: string
+	tags?: string[]
+	id?: string
+	outpoint?: string
+	recipient?: string
+	listingPriceSats?: number
+	listingSeller?: string
+	lockUntilHeight?: number
+	opnsProfileName?: string
+	opnsAvatarOrigin?: string
+	origin?: string
+	name?: string
+}
+
 export interface EnrichedOutput {
 	index: number
 	satoshis: number
 	basket?: string
 	tags: string[]
+	template?: ScriptTemplateKind
+	/** Apply will seal a placeholder signature in this output. */
+	sealPending?: boolean
+	sealKind?: 'pushdrop' | 'sigma'
 	/** Recipient address if the locking script is P2PKH (or P2PKH-suffixed). */
 	recipient?: string
 	/**
@@ -142,6 +183,11 @@ export interface EnrichedIntent {
 	inputs: EnrichedAsset[]
 	/** All raw outputs with recipient decoded from script. */
 	outputs: EnrichedOutput[]
+	/**
+	 * Per-leg detail for the prompt body (templates, seals, assets).
+	 * Header still uses `kind` / `summary`.
+	 */
+	legs: TxLeg[]
 	labels: string[]
 	summary: string
 	/** ORDFS or compatible content URL builder. */
@@ -203,11 +249,13 @@ export async function enrichIntent(
 	const summary = buildSummary(kind, inputs, outputs)
 	const trust = initialTrust(kind)
 	const fee = extractIndexerFee(args, outputs)
+	const legs = buildLegs(inputs, outputs)
 
 	return {
 		kind,
 		inputs,
 		outputs,
+		legs,
 		labels,
 		summary,
 		contentUrlForOrigin: (origin) =>
@@ -328,6 +376,7 @@ function decodeOutput(
 		satoshis: out.satoshis ?? 0,
 		basket: out.basket,
 		tags: out.tags ?? [],
+		template: 'unrecognized',
 	}
 	if (!out.lockingScript) return enriched
 	let script: Script
@@ -336,34 +385,217 @@ function decodeOutput(
 	} catch {
 		return enriched
 	}
-	const ordLock = OrdLock.decode(script, chain === 'mainnet')
-	if (ordLock) {
-		enriched.listingPriceSats = Number(ordLock.price)
-		enriched.listingSeller = ordLock.seller
-	}
 
-	const lock = Lock.decode(script, chain === 'mainnet')
-	if (lock) {
-		enriched.lockUntilHeight = lock.until
-	}
+	const classified = classifyScript(script, chain, out.basket)
+	Object.assign(enriched, classified)
 
-	if (out.basket === OPNS_BASKET) {
+	if (out.basket === OPNS_BASKET || classified.template === 'pushdrop') {
 		Object.assign(enriched, decodeOpnsProfile(script))
 	}
 
-	const recipient = parseAddress(script, 0, chain)
-	if (recipient) {
-		enriched.recipient = recipient
-		return enriched
+	return enriched
+}
+
+function classifyScript(
+	script: Script,
+	chain: 'mainnet' | 'testnet',
+	basket?: string,
+): Partial<EnrichedOutput> {
+	const main = chain === 'mainnet'
+	const ordLock = OrdLock.decode(script, main)
+	if (ordLock) {
+		return {
+			template: 'ordlock',
+			listingPriceSats: Number(ordLock.price),
+			listingSeller: ordLock.seller,
+		}
 	}
-	// Inscription envelope or other suffix-bearing scripts — try parsing
-	// P2PKH after OP_ENDIF.
+
+	const lock = Lock.decode(script, main)
+	if (lock) {
+		return {
+			template: 'lock',
+			lockUntilHeight: lock.until,
+		}
+	}
+
+	if (scriptContainsAscii(script, 'SIGMA')) {
+		const sealPending = hasZeroedSigmaSig(script)
+		return {
+			template: 'sigma',
+			...(sealPending ? { sealPending: true, sealKind: 'sigma' as const } : {}),
+			...p2pkhRecipient(script, chain),
+		}
+	}
+
+	try {
+		const fields = PushDrop.decode(
+			LockingScript.fromHex(script.toHex()),
+		).fields
+		if (fields.length >= 2) {
+			const last = fields[fields.length - 1]
+			const sealPending = !!last?.length && last.every((b) => b === 0)
+			return {
+				template: 'pushdrop',
+				...(sealPending
+					? { sealPending: true, sealKind: 'pushdrop' as const }
+					: {}),
+			}
+		}
+	} catch {
+		// not PushDrop
+	}
+
+	const recipient = p2pkhRecipient(script, chain)
+	if (recipient.recipient) {
+		return { template: 'p2pkh', ...recipient }
+	}
+
+	return { template: basket ? 'unrecognized' : 'unrecognized' }
+}
+
+function p2pkhRecipient(
+	script: Script,
+	chain: 'mainnet' | 'testnet',
+): { recipient?: string } {
+	const recipient = parseAddress(script, 0, chain)
+	if (recipient) return { recipient }
 	const endifIndex = script.chunks.findIndex((c) => c.op === 0x68)
 	if (endifIndex > 0) {
 		const after = parseAddress(script, endifIndex + 1, chain)
-		if (after) enriched.recipient = after
+		if (after) return { recipient: after }
 	}
-	return enriched
+	return {}
+}
+
+function scriptContainsAscii(script: Script, ascii: string): boolean {
+	const needle = Utils.toArray(ascii)
+	const hay = script.toBinary()
+	if (hay.length < needle.length) return false
+	outer: for (let i = 0; i <= hay.length - needle.length; i++) {
+		for (let j = 0; j < needle.length; j++) {
+			if (hay[i + j] !== needle[j]) continue outer
+		}
+		return true
+	}
+	return false
+}
+
+/** True when a SIGMA tape's signature field is still all zeros. */
+function hasZeroedSigmaSig(script: Script): boolean {
+	const bin = script.toBinary()
+	const sigma = Utils.toArray('SIGMA')
+	for (let i = 0; i <= bin.length - sigma.length - 70; i++) {
+		let match = true
+		for (let j = 0; j < sigma.length; j++) {
+			if (bin[i + j] !== sigma[j]) {
+				match = false
+				break
+			}
+		}
+		if (!match) continue
+		// After SIGMA marker, look for a run of 65 zero bytes (compact sig placeholder).
+		const slice = bin.slice(i + sigma.length, i + sigma.length + 80)
+		let zeros = 0
+		for (const b of slice) {
+			if (b === 0) zeros++
+			else if (zeros >= 60) return true
+			else zeros = 0
+		}
+		if (zeros >= 60) return true
+	}
+	return false
+}
+
+function buildLegs(
+	inputs: EnrichedAsset[],
+	outputs: EnrichedOutput[],
+): TxLeg[] {
+	const legs: TxLeg[] = []
+	for (const [i, inp] of inputs.entries()) {
+		const name = tagValue(inp.tags, 'name')
+		const origin = tagValue(inp.tags, 'origin')
+		const listing = hasListingTags(inp.tags)
+		legs.push({
+			side: 'input',
+			index: i,
+			satoshis: inp.satoshis,
+			template: listing ? 'ordlock' : 'unrecognized',
+			label: legLabelInput(inp, name, listing),
+			basket: inp.basket,
+			tags: inp.tags,
+			id: inp.id,
+			outpoint: inp.outpoint,
+			...(name ? { name } : {}),
+			...(origin ? { origin } : {}),
+		})
+	}
+	for (const out of outputs) {
+		const name =
+			out.opnsProfileName ?? tagValue(out.tags, 'name') ?? undefined
+		const origin = tagValue(out.tags, 'origin')
+		legs.push({
+			side: 'output',
+			index: out.index,
+			satoshis: out.satoshis,
+			template: out.template ?? 'unrecognized',
+			label: legLabelOutput(out, name),
+			...(out.sealPending
+				? { sealPending: true, sealKind: out.sealKind }
+				: {}),
+			basket: out.basket,
+			tags: out.tags,
+			recipient: out.recipient,
+			listingPriceSats: out.listingPriceSats,
+			listingSeller: out.listingSeller,
+			lockUntilHeight: out.lockUntilHeight,
+			opnsProfileName: out.opnsProfileName,
+			opnsAvatarOrigin: out.opnsAvatarOrigin,
+			...(name ? { name } : {}),
+			...(origin ? { origin } : {}),
+		})
+	}
+	return legs
+}
+
+function legLabelInput(
+	inp: EnrichedAsset,
+	name: string | undefined,
+	listing: boolean,
+): string {
+	const what = name ? `“${name}”` : inp.basket
+	if (listing) return `Spend listing ${what}`
+	return `Spend ${what} (${inp.satoshis} sats)`
+}
+
+function legLabelOutput(out: EnrichedOutput, name?: string): string {
+	const parts: string[] = []
+	if (out.sealPending && out.sealKind === 'sigma') {
+		parts.push('Sign Sigma on output')
+	} else if (out.sealPending && out.sealKind === 'pushdrop') {
+		parts.push('Sign PushDrop on output')
+	} else if (out.template === 'ordlock' && out.listingPriceSats != null) {
+		parts.push(`List for ${out.listingPriceSats} sats`)
+	} else if (out.template === 'lock' && out.lockUntilHeight != null) {
+		parts.push(`Lock until height ${out.lockUntilHeight}`)
+	} else if (out.template === 'sigma') {
+		parts.push('Sigma-signed output')
+	} else if (out.template === 'pushdrop') {
+		parts.push(name ? `PushDrop “${name}”` : 'PushDrop output')
+	} else if (out.recipient) {
+		parts.push(`Pay ${truncate(out.recipient, 18)}`)
+	} else if (out.basket) {
+		parts.push(`File to ${out.basket}`)
+	} else {
+		parts.push(
+			out.template === 'unrecognized'
+				? 'Unrecognized script'
+				: 'Output',
+		)
+	}
+	if (name && !parts[0]?.includes(name)) parts.push(`“${name}”`)
+	parts.push(`${out.satoshis} sats`)
+	return parts.join(' · ')
 }
 
 // ---------------------------------------------------------------------------

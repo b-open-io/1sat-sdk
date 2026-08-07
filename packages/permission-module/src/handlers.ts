@@ -57,6 +57,9 @@ export async function handleCreateActionRequest(
 					satoshis: o.satoshis,
 					basket: o.basket,
 					tags: o.tags,
+					template: o.template,
+					sealPending: o.sealPending,
+					sealKind: o.sealKind,
 					recipient: o.recipient,
 					listingPriceSats: o.listingPriceSats,
 					listingSeller: o.listingSeller,
@@ -64,6 +67,7 @@ export async function handleCreateActionRequest(
 					opnsProfileName: o.opnsProfileName,
 					opnsAvatarOrigin: o.opnsAvatarOrigin,
 				})),
+				legs: enriched.legs,
 				contentUrls: buildContentUrlMap(enriched),
 				chain: enriched.chain,
 				// Initial state only. Live verification runs in the prompt UI, which

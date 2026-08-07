@@ -40,7 +40,8 @@ export interface PromptRequest {
 	 * Context payload for the host UI.
 	 *
 	 * Transaction kind (typical fields the UI consumes):
-	 * - `p1satIntent` — e.g. `opns.register`, `ordinal.transfer`
+	 * - `kind` / `summary` — header only
+	 * - `legs` — per-input/output template details and pending seals
 	 * - `inputs` / `outputs` / `contentUrls` — assets, recipients, ORDFS/icon URLs
 	 * - `trust?` — `{ state: 'verified'|'unverified'|'mismatch', note? }` purchases
 	 * - `indexerFeeSats?` / `indexerFeeNote?` — overlay fee (not miner/DSAP)

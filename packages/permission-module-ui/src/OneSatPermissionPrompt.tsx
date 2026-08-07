@@ -447,6 +447,10 @@ function applyVerification(
 function summarizeRequest(req: PromptRequest): IntentSummary {
 	if (req.kind === 'transaction') {
 		const intent = req.intent as unknown as TransactionIntent
+		// Header from kind/summary; body prefers per-leg script details.
+		if (intent.legs?.length) {
+			return summarizeFromLegs(req, intent)
+		}
 		const byIntent = summarizeByP1SatIntent(req, intent)
 		if (byIntent) return byIntent
 		switch (intent.kind) {
@@ -487,6 +491,99 @@ interface BasketAccessIntent {
 	baskets: Array<{ basket: string; description?: string }>
 }
 
+const KIND_TITLES: Record<string, string> = {
+	'ordinal-transfer': 'Send ordinal',
+	'token-transfer': 'Send tokens',
+	lock: 'Lock BSV',
+	unlock: 'Unlock BSV',
+	inscription: 'Create inscription',
+	listing: 'List for sale',
+	'cancel-listing': 'Cancel listing',
+	purchase: 'Buy asset',
+	'social-post': 'Social post',
+	opns: 'OpNS',
+	unknown: 'Approve transaction',
+}
+
+/**
+ * Kind/summary for the header; legs for every understood input/output and seal.
+ */
+function summarizeFromLegs(
+	req: PromptRequest,
+	intent: TransactionIntent,
+): IntentSummary {
+	const title = KIND_TITLES[intent.kind] ?? 'Approve transaction'
+	const rows: DetailRow[] = []
+	for (const leg of intent.legs ?? []) {
+		const side = leg.side === 'input' ? 'Spend' : 'Create'
+		const key = `${side} #${leg.index}`
+		let value = leg.label
+		if (leg.sealPending) {
+			const seal =
+				leg.sealKind === 'sigma'
+					? 'You will sign a Sigma commitment on this output'
+					: leg.sealKind === 'pushdrop'
+						? 'You will sign PushDrop data on this output'
+						: 'You will sign data on this output'
+			value = `${value} — ${seal}`
+		}
+		rows.push({
+			key,
+			value,
+			...(leg.outpoint ? { copyValue: leg.outpoint } : {}),
+			...(leg.recipient ? { copyValue: leg.recipient } : {}),
+		})
+	}
+	// Featured media when we can resolve an origin on a leg.
+	const originLeg = (intent.legs ?? []).find((l) => l.origin)
+	const origin = originLeg?.origin
+	const contentUrl = origin ? intent.contentUrls?.[origin] : undefined
+	const name =
+		originLeg?.name ??
+		originLeg?.opnsProfileName ??
+		tagFromTags(originLeg?.tags, 'name')
+
+	return {
+		title,
+		subtitle:
+			req.summary ||
+			`${shortenOriginator(req.originator)} wants to ${title.toLowerCase()}`,
+		rows,
+		...(contentUrl && {
+			featured: {
+				variant: intent.kind === 'token-transfer' ? 'token' : 'ordinal',
+				imageUrl: contentUrl,
+				title: name ?? origin ?? 'Asset',
+				...(origin && { subtitle: origin, subtitleCopy: origin }),
+			},
+		}),
+		...(intent.trust && {
+			trust: {
+				state: intent.trust.state as TrustState,
+				note: intent.trust.note,
+			},
+		}),
+		...(intent.indexerFeeSats != null && {
+			indexerFee: {
+				sats: intent.indexerFeeSats,
+				note: intent.indexerFeeNote,
+			},
+		}),
+	}
+}
+
+function tagFromTags(
+	tags: string[] | undefined,
+	key: string,
+): string | undefined {
+	if (!tags) return undefined
+	const prefix = `${key}:`
+	for (const t of tags) {
+		if (t.startsWith(prefix)) return t.slice(prefix.length)
+	}
+	return undefined
+}
+
 function summarizeBasketAccess(req: PromptRequest): IntentSummary {
 	const intent = req.intent as unknown as BasketAccessIntent
 	const baskets = intent.baskets ?? []
@@ -503,6 +600,25 @@ function summarizeBasketAccess(req: PromptRequest): IntentSummary {
 	}
 }
 
+interface TxLegEntry {
+	side: 'input' | 'output'
+	index: number
+	satoshis: number
+	template: string
+	label: string
+	sealPending?: boolean
+	sealKind?: string
+	basket?: string
+	tags?: string[]
+	id?: string
+	outpoint?: string
+	recipient?: string
+	listingPriceSats?: number
+	name?: string
+	origin?: string
+	opnsProfileName?: string
+}
+
 interface TransactionIntent {
 	kind:
 		| 'ordinal-transfer'
@@ -516,8 +632,10 @@ interface TransactionIntent {
 		| 'social-post'
 		| 'opns'
 		| 'unknown'
-	/** Explicit `p 1sat intent <domain>.<verb>` when present. */
+	/** @deprecated legacy intent id; prefer kind + legs */
 	p1satIntent?: string
+	/** Per-leg details from script parse (preferred for the detail pane). */
+	legs?: TxLegEntry[]
 	inputs: AssetEntry[]
 	outputs: OutputEntry[]
 	contentUrls?: Record<string, string>

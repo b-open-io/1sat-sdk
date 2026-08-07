@@ -148,9 +148,18 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 		const args = await registerArgs(wallet)
 		const before = args.outputs![0].lockingScript
 		let promptKind = ''
+		let legCount = 0
+		let sealLeg = false
 		const promptHandler: PromptHandler = async (req) => {
 			expect(() => structuredClone(req)).not.toThrow()
 			promptKind = String(req.intent.kind ?? '')
+			const legs = req.intent.legs as unknown[] | undefined
+			legCount = legs?.length ?? 0
+			sealLeg = Boolean(
+				(legs as Array<{ sealPending?: boolean }> | undefined)?.some(
+					(l) => l.sealPending,
+				),
+			)
 			return true
 		}
 		const deps = {
@@ -166,6 +175,8 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 			'https://dapp.example',
 		)
 		expect(promptKind).toBe('opns')
+		expect(legCount).toBeGreaterThan(0)
+		expect(sealLeg).toBe(true)
 		expect(next.outputs![0].lockingScript).not.toBe(before)
 	})
 

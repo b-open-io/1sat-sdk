@@ -26,4 +26,11 @@ export {
 	verifyIntent,
 	type VerificationResult,
 } from './verifyIntent'
-export type { EnrichedAsset, EnrichedOutput, TrustState } from './enrichIntent'
+export type {
+	EnrichedAsset,
+	EnrichedOutput,
+	EnrichedIntentKind,
+	ScriptTemplateKind,
+	TxLeg,
+	TrustState,
+} from './enrichIntent'

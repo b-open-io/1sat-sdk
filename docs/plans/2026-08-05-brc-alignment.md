@@ -30,7 +30,7 @@ P1Sat-as-BRC (old 302/303 / draft 313/314) is **not** blocking SDK work; module 
 | Protocol default | Drop `p` prefix on defaults (e.g. `[0,'1sat']`); **caller may override**; CI records what was used |
 | Bound createSignature via module | Only when protocol name routes to module (`p …`) or routing is extended; not assumed for plain defaults |
 | Intent labels | **Retire** — no `p 1sat intent …` |
-| Classification (prompts) | Output locking scripts + spent-input templates; not caller verbs |
+| Classification (prompts) | **Header:** tx-level `kind` + summary. **Body:** `legs[]` from scripts/assets (templates, seals, recipients) |
 | Placeholder seal (output scripts) | **SDK apply only** (Sigma / signed PushDrop) |
 | `name:` tags | Stop writing; display name in CI when known |
 | `type:` | Full MIME only; strip `;…`; origin inscription; copy on self-keep |
@@ -66,11 +66,12 @@ One decision, two code layers (usually one PR):
 
 ### D — Permission module
 
-11. createAction: labels → enrich → classify from scripts/spent templates → prompt.  
+11. ~~createAction: labels → enrich → kind header + legs body → prompt~~  
 12. Keep list/internalize basket gates for `p 1sat …` baskets (compat).  
 13. createSignature: commitment bind when routed; fallback prompt.  
 14. Optional: protocol grant handling if plain defaults leave gaps for legacy `p 1sat` keys.  
-15. Placeholder seal remains in apply path (SDK), not a BRC requirement.
+15. ~~Placeholder seal by script shape (OpNS PushDrop / Sigma)~~  
+15a. ~~Prompt: kind/summary header; legs for templates + seal callouts~~  
 
 ### E — Tags / CI
 
