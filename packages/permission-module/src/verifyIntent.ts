@@ -158,12 +158,17 @@ async function verifyBsv21(
  */
 export async function verifyIntent(
 	services: VerificationServices | undefined,
-	p1satIntent: string | undefined,
+	/** Prompt kind from script/heuristic classify, or legacy intent id. */
+	kindOrIntent: string | undefined,
 	inputs: EnrichedAsset[],
 	outputs: EnrichedOutput[],
 	contentUrlForOrigin?: (origin: string) => string,
 ): Promise<VerificationResult> {
-	if (!services || !p1satIntent) return { state: 'unverified' }
+	if (!services || !kindOrIntent) return { state: 'unverified' }
+
+	const isPurchase =
+		kindOrIntent === 'purchase' || kindOrIntent.endsWith('.purchase')
+	if (!isPurchase) return { state: 'unverified' }
 
 	try {
 		const allTags = [...inputs.map((i) => i.tags), ...outputs.map((o) => o.tags)]
@@ -181,31 +186,28 @@ export async function verifyIntent(
 			return undefined
 		}
 
-		switch (p1satIntent) {
-			case 'ordinal.purchase': {
-				const origin = find('origin')
-				if (!origin) return { state: 'unverified' }
-				const res = await verifyOrdinal(services, origin, findAll('type'))
-				// Preview URL follows the *resolved* origin, not the tagged one —
-				// a listing outpoint has no content to serve.
-				return res.origin && contentUrlForOrigin
-					? { ...res, contentUrl: contentUrlForOrigin(res.origin) }
-					: res
-			}
-			case 'opns.purchase': {
-				const name = find('name')
-				const origin = find('origin')
-				if (!name || !origin) return { state: 'unverified' }
-				return await verifyOpns(services, name, origin)
-			}
-			case 'bsv21.purchase': {
-				const tokenId = find('bsv21')
-				if (!tokenId) return { state: 'unverified' }
-				return await verifyBsv21(services, tokenId, find('sym'))
-			}
-			default:
-				return { state: 'unverified' }
+		// Prefer tag-driven path (script classify only sets kind: 'purchase').
+		const tokenId = find('bsv21')
+		if (tokenId || kindOrIntent === 'bsv21.purchase') {
+			if (!tokenId) return { state: 'unverified' }
+			return await verifyBsv21(services, tokenId, find('sym'))
 		}
+
+		const name = find('name')
+		const origin = find('origin')
+		if (
+			(name && origin && outputs.some((o) => o.basket?.includes('opns'))) ||
+			kindOrIntent === 'opns.purchase'
+		) {
+			if (!name || !origin) return { state: 'unverified' }
+			return await verifyOpns(services, name, origin)
+		}
+
+		if (!origin) return { state: 'unverified' }
+		const res = await verifyOrdinal(services, origin, findAll('type'))
+		return res.origin && contentUrlForOrigin
+			? { ...res, contentUrl: contentUrlForOrigin(res.origin) }
+			: res
 	} catch {
 		return { state: 'unverified' }
 	}

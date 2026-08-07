@@ -6,7 +6,7 @@
 
 import { Inscription, MAP as MAPTemplate } from '@1sat/templates'
 import type { Destination } from '@1sat/types'
-import { P1SAT_INTENTS, P1SAT_PROTOCOL } from '@1sat/types'
+import { P1SAT_PROTOCOL } from '@1sat/types'
 import { Beef, Hash, type LockingScript, Script, Utils } from '@bsv/sdk'
 import { prepareP1SatArgs, sigmaAnchorKeyId } from '../apply'
 import { appendSigmaPlaceholder } from '../signing/sigma'
@@ -113,9 +113,7 @@ async function inscribeWithSigma(
 	// Full script with the SIGMA signature zeroed, so the output is already
 	// its on-chain size; apply creates the anchor and swaps the signature in.
 	const placeholderScript = await appendSigmaPlaceholder(ctx, lockingScript)
-	const args = await prepareP1SatArgs(
-		ctx,
-		{
+	const args = await prepareP1SatArgs(ctx, {
 			description: 'Create inscription',
 			outputs: [
 				{
@@ -131,9 +129,7 @@ async function inscribeWithSigma(
 				randomizeOutputs: false,
 				acceptDelayedBroadcast: true,
 			},
-		},
-		P1SAT_INTENTS.ORDINAL_INSCRIBE_SIGMA,
-	)
+		})
 
 	const result = await executeTrackedAction(
 		ctx.wallet,
@@ -576,9 +572,7 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 				return { ...sigmaResult, contentHash }
 			}
 
-			const args = await prepareP1SatArgs(
-				ctx,
-				{
+			const args = await prepareP1SatArgs(ctx, {
 					description: 'Create inscription',
 					outputs: [
 						{
@@ -594,9 +588,7 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 						acceptDelayedBroadcast: false,
 						randomizeOutputs: false,
 					},
-				},
-				P1SAT_INTENTS.ORDINAL_INSCRIBE,
-			)
+				})
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				args,

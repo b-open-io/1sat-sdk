@@ -30,7 +30,6 @@ import {
 	ORDINALS_BASKET,
 	SIGMA_BASKET,
 	parseInputAssetLabels,
-	parseIntentLabel,
 } from '@1sat/types'
 import { Lock, OrdLock, outpointFromBytes } from '@1sat/templates'
 import { parseAddress } from '@1sat/wallet'
@@ -139,8 +138,6 @@ export interface EnrichedTrust {
 
 export interface EnrichedIntent {
 	kind: EnrichedIntentKind
-	/** Explicit `p 1sat intent <domain>.<verb>` when present. */
-	p1satIntent?: string
 	/** One entry per `'p 1sat input <basket> <id>'` label. */
 	inputs: EnrichedAsset[]
 	/** All raw outputs with recipient decoded from script. */
@@ -190,7 +187,6 @@ export async function enrichIntent(
 		? (origin: string) => ordfs.getContentUrl?.(origin)
 		: undefined
 	const labels = args.labels ?? []
-	const p1satIntent = parseIntentLabel(labels)
 
 	const inputRefs = parseInputAssetLabels(labels)
 	const inputs = (
@@ -203,14 +199,13 @@ export async function enrichIntent(
 		decodeOutput(out, i, chain),
 	)
 
-	const kind = detectKind(inputs, outputs, p1satIntent)
-	const summary = buildSummary(kind, inputs, outputs, p1satIntent)
-	const trust = initialTrust(p1satIntent)
+	const kind = detectKind(inputs, outputs)
+	const summary = buildSummary(kind, inputs, outputs)
+	const trust = initialTrust(kind)
 	const fee = extractIndexerFee(args, outputs)
 
 	return {
 		kind,
-		p1satIntent,
 		inputs,
 		outputs,
 		labels,
@@ -234,12 +229,8 @@ export async function enrichIntent(
  * Every purchase therefore starts `unverified`; `verifyIntent` upgrades it if
  * and when a service positively answers.
  */
-function initialTrust(p1satIntent?: string): EnrichedTrust | undefined {
-	const isPurchase =
-		p1satIntent === 'ordinal.purchase' ||
-		p1satIntent === 'opns.purchase' ||
-		p1satIntent === 'bsv21.purchase'
-	if (!isPurchase) return undefined
+function initialTrust(kind: EnrichedIntentKind): EnrichedTrust | undefined {
+	if (kind !== 'purchase') return undefined
 	return { state: 'unverified' }
 }
 
@@ -386,33 +377,7 @@ function hasListingTags(tags: string[]): boolean {
 function detectKind(
 	inputs: EnrichedAsset[],
 	outputs: EnrichedOutput[],
-	p1satIntent?: string,
 ): EnrichedIntentKind {
-	// Prefer explicit intent labels over heuristics.
-	if (p1satIntent?.startsWith('opns.')) return 'opns'
-	if (p1satIntent === 'ordinal.list' || p1satIntent === 'bsv21.list')
-		return 'listing'
-	if (
-		p1satIntent === 'ordinal.cancel-listing' ||
-		p1satIntent === 'opns.cancel-listing'
-	)
-		return 'cancel-listing'
-	if (
-		p1satIntent === 'ordinal.purchase' ||
-		p1satIntent === 'opns.purchase' ||
-		p1satIntent === 'bsv21.purchase'
-	)
-		return 'purchase'
-	if (p1satIntent === 'ordinal.transfer') return 'ordinal-transfer'
-	if (p1satIntent === 'bsv21.transfer') return 'token-transfer'
-	if (p1satIntent === 'lock.lock') return 'lock'
-	if (p1satIntent === 'lock.unlock') return 'unlock'
-	if (
-		p1satIntent === 'ordinal.inscribe' ||
-		p1satIntent === 'ordinal.inscribe-sigma'
-	)
-		return 'inscription'
-
 	// Cancel listing: spending an ordlock-tagged input back to a P2PKH owner.
 	// Listings live in the basket of the listed asset (ordinals, opns, …),
 	// so the ordlock/price tags are the marker, not the basket.
@@ -465,12 +430,7 @@ function buildSummary(
 	kind: EnrichedIntentKind,
 	inputs: EnrichedAsset[],
 	outputs: EnrichedOutput[],
-	intentId?: string,
 ): string {
-	if (intentId) {
-		const named = summaryFromIntentId(intentId, inputs, outputs)
-		if (named) return named
-	}
 	switch (kind) {
 		case 'ordinal-transfer': {
 			const recipient = outputs.find((o) => o.recipient)?.recipient
@@ -516,69 +476,22 @@ function buildSummary(
 		case 'social-post':
 			return `Create social post`
 		case 'opns': {
+			const out = outputs.find((o) => o.basket === OPNS_BASKET)
 			const name =
-				tagValue(inputs[0]?.tags, 'name') ??
-				tagValue(outputs.find((o) => o.basket === OPNS_BASKET)?.tags, 'name')
-			return name ? `Update OpNS name “${name}”` : 'OpNS operation'
+				tagValue(inputs[0]?.tags, 'name') ?? tagValue(out?.tags, 'name')
+			const published = out?.tags.includes('opns:published')
+			if (published) {
+				return name ? `Publish name “${name}”` : 'Publish OpNS name'
+			}
+			return name ? `OpNS operation on “${name}”` : 'OpNS operation'
+		}
+		case 'purchase': {
+			const name =
+				tagValue(outputs[0]?.tags, 'name') ?? tagValue(inputs[0]?.tags, 'name')
+			return name ? `Buy “${name}”` : 'Buy asset'
 		}
 		default:
 			return `Approve transaction`
-	}
-}
-
-function summaryFromIntentId(
-	intentId: string,
-	inputs: EnrichedAsset[],
-	outputs: EnrichedOutput[],
-): string | undefined {
-	const name =
-		tagValue(inputs[0]?.tags, 'name') ??
-		tagValue(outputs.find((o) => o.basket === OPNS_BASKET)?.tags, 'name')
-	const what = name ? `“${name}”` : undefined
-	switch (intentId) {
-		case 'opns.register':
-			return what ? `Publish name ${what}` : 'Publish OpNS name'
-		case 'opns.deregister':
-			return what ? `Unpublish name ${what}` : 'Unpublish OpNS name'
-		case 'opns.list':
-			return what ? `List name ${what} for sale` : 'List OpNS name for sale'
-		case 'opns.transfer':
-			return what ? `Transfer name ${what}` : 'Transfer OpNS name'
-		case 'opns.cancel-listing':
-			return what ? `Cancel listing of ${what}` : 'Cancel OpNS listing'
-		case 'opns.purchase':
-			return what ? `Buy name ${what}` : 'Buy OpNS name'
-		case 'ordinal.transfer':
-			return 'Send ordinal'
-		case 'ordinal.list':
-			return 'List ordinal for sale'
-		case 'ordinal.cancel-listing':
-			return 'Cancel ordinal listing'
-		case 'ordinal.purchase':
-			return 'Buy ordinal'
-		case 'ordinal.burn':
-			return 'Burn ordinal'
-		case 'ordinal.inscribe':
-		case 'ordinal.inscribe-sigma':
-			return 'Create inscription'
-		case 'ordinal.mint-collection':
-			return 'Mint collection'
-		case 'ordinal.mint-item':
-			return 'Mint collection item'
-		case 'lock.lock':
-			return 'Lock BSV'
-		case 'lock.unlock':
-			return 'Unlock BSV'
-		case 'bsv21.transfer':
-			return 'Send tokens'
-		case 'bsv21.purchase':
-			return 'Buy tokens'
-		case 'bsv21.mint':
-			return 'Mint tokens'
-		case 'bsv21.deploy':
-			return 'Deploy token'
-		default:
-			return undefined
 	}
 }
 

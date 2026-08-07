@@ -129,13 +129,13 @@ export function OneSatPermissionPrompt({
 	// this — an unreachable overlay delays the badge, not the prompt.
 	const intent = request.intent as unknown as TransactionIntent | undefined
 	const trustState = intent?.trust?.state
-	const p1satIntent = intent?.p1satIntent
+	const verifyKey = intent?.kind ?? intent?.p1satIntent
 	useEffect(() => {
-		if (!services || !trustState || !p1satIntent || !intent) return
+		if (!services || !trustState || !verifyKey || !intent) return
 		let live = true
 		verifyIntent(
 			services,
-			p1satIntent,
+			verifyKey,
 			intent.inputs as unknown as EnrichedAsset[],
 			intent.outputs as unknown as EnrichedOutput[],
 			services.ordfs?.getContentUrl,
@@ -147,7 +147,7 @@ export function OneSatPermissionPrompt({
 		return () => {
 			live = false
 		}
-	}, [services, trustState, p1satIntent, intent])
+	}, [services, trustState, verifyKey, intent])
 
 	const summary = verified
 		? applyVerification(base, verified)
@@ -1089,7 +1089,7 @@ function summarizeOpns(
 	if (price) rows.push({ key: 'Price', value: `${price} sats` })
 	if (origin) rows.push(copyable('Origin', origin))
 
-	const copy = opnsCopy(intent.p1satIntent, Boolean(recipient))
+	const copy = opnsCopy(intent, Boolean(recipient))
 	const nameBit = name ? `“${name}”` : 'an OpNS name'
 	const avatarOrigin = opnsOutput?.opnsAvatarOrigin
 	const avatarUrl = avatarOrigin
@@ -1112,10 +1112,11 @@ function summarizeOpns(
 }
 
 function opnsCopy(
-	p1satIntent: string | undefined,
+	intent: TransactionIntent,
 	isTransferHeuristic: boolean,
 ): { title: string; verb: string } {
-	switch (p1satIntent) {
+	const id = intent.p1satIntent
+	switch (id) {
 		case 'opns.register':
 			return { title: 'Publish name', verb: 'publish' }
 		case 'opns.deregister':
@@ -1129,10 +1130,25 @@ function opnsCopy(
 		case 'opns.purchase':
 			return { title: 'Buy name', verb: 'buy' }
 		default:
-			return isTransferHeuristic
-				? { title: 'Transfer OpNS Name', verb: 'transfer' }
-				: { title: 'Update OpNS Name', verb: 'update' }
+			break
 	}
+	// Script-classify path: use tags / kind heuristics.
+	const out = intent.outputs?.find((o) => o.basket?.includes('opns'))
+	if (out?.tags?.includes('opns:published')) {
+		return { title: 'Publish name', verb: 'publish' }
+	}
+	if (intent.kind === 'purchase') {
+		return { title: 'Buy name', verb: 'buy' }
+	}
+	if (intent.kind === 'listing') {
+		return { title: 'List name for sale', verb: 'list' }
+	}
+	if (intent.kind === 'cancel-listing') {
+		return { title: 'Cancel listing', verb: 'cancel the listing of' }
+	}
+	return isTransferHeuristic
+		? { title: 'Transfer OpNS Name', verb: 'transfer' }
+		: { title: 'Update OpNS Name', verb: 'update' }
 }
 
 function summarizeUnknownTx(

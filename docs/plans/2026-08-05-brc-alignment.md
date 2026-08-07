@@ -55,7 +55,7 @@ One decision, two code layers (usually one PR):
 4. ~~Dispatch label bare `p 1sat action`; action id on `id:` tags via `ensureActionId`~~  
 5. ~~`p 1sat input <basket> <id>` — full basket, id last~~  
 6. ~~Inscribe destination keyID independent of action id (`inscribe-<random>`)~~  
-7. Drop intent label builders, registry, and apply dispatch-by-intent (still pending).  
+7. ~~Drop intent dispatch — apply seals by script shape; prompts classify by heuristics~~  
 
 
 ### C — Protocol defaults

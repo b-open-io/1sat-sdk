@@ -8,7 +8,6 @@
 import { MAP as MAPTemplate } from '@1sat/templates'
 import { OrdLock } from '@1sat/templates'
 import {
-	P1SAT_INTENTS,
 	buildInputAssetLabel,
 	nameFromMap,
 	ordinalTagsFromMetadata,
@@ -224,8 +223,6 @@ export interface BuyOrdinalRequest extends ActionOptions {
 	basket?: string
 	/** Tags for the purchased output; default resolveOrdinalTags for ordinals ingress */
 	tags?: string[]
-	/** Override intent (e.g. buyOpns → opns.purchase). Default ordinal.purchase. */
-	p1satIntent?: string
 }
 
 export interface OrdinalOperationResponse {
@@ -828,11 +825,7 @@ export const sendOrdinals: Action<
 			}
 
 			const { sources, ...createArgs } = params
-			const args = await prepareP1SatArgs(
-				ctx,
-				{ ...createArgs, options: { randomizeOutputs: false } },
-				P1SAT_INTENTS.ORDINAL_TRANSFER,
-			)
+			const args = await prepareP1SatArgs(ctx, { ...createArgs, options: { randomizeOutputs: false } })
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				args,
@@ -949,11 +942,7 @@ export const sellOrdinal: Action<SellOrdinalRequest, OrdinalOperationResponse> =
 					return { error: 'missing-custom-instructions' }
 				}
 
-				const args = await prepareP1SatArgs(
-					ctx,
-					{ ...createArgs, options: { randomizeOutputs: false } },
-					P1SAT_INTENTS.ORDINAL_LIST,
-				)
+				const args = await prepareP1SatArgs(ctx, { ...createArgs, options: { randomizeOutputs: false } })
 				const result = await executeTrackedAction(
 					ctx.wallet,
 					args,
@@ -1078,9 +1067,7 @@ export const cancelOrdinalListing: Action<
 			)
 
 			const inputId = readAssetIdTag(listing.tags)
-			const args = await prepareP1SatArgs(
-				ctx,
-				{
+			const args = await prepareP1SatArgs(ctx, {
 					description: 'Cancel ordinal listing',
 					inputBEEF,
 					...(inputId && {
@@ -1108,9 +1095,7 @@ export const cancelOrdinalListing: Action<
 						},
 					],
 					options: { randomizeOutputs: false },
-				},
-				P1SAT_INTENTS.ORDINAL_CANCEL_LISTING,
-			)
+				})
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				args,
@@ -1202,7 +1187,6 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 	async execute(ctx, input) {
 		try {
 			const { outpoint, marketplaceAddress, marketplaceRate } = input
-			const intent = input.p1satIntent ?? P1SAT_INTENTS.ORDINAL_PURCHASE
 
 			const { txid, vout } = parseOutpoint(outpoint)
 
@@ -1301,23 +1285,19 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 
 			const beefBinary = beef.toBinary()
 
-			const args = await prepareP1SatArgs(
-				ctx,
-				{
-					description: `Purchase ordinal for ${payoutSatoshis} sats`,
-					inputBEEF: beefBinary,
-					inputs: [
-						{
-							outpoint,
-							inputDescription: 'Listed ordinal',
-							unlockingScriptLength: 1368,
-						},
-					],
-					outputs,
-					options: { randomizeOutputs: false },
-				},
-				intent,
-			)
+			const args = await prepareP1SatArgs(ctx, {
+				description: `Purchase ordinal for ${payoutSatoshis} sats`,
+				inputBEEF: beefBinary,
+				inputs: [
+					{
+						outpoint,
+						inputDescription: 'Listed ordinal',
+						unlockingScriptLength: 1368,
+					},
+				],
+				outputs,
+				options: { randomizeOutputs: false },
+			})
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				args,
@@ -1402,11 +1382,7 @@ export const burnOrdinals: Action<
 			}
 
 			const { sources, ...createArgs } = params
-			const args = await prepareP1SatArgs(
-				ctx,
-				{ ...createArgs, options: { randomizeOutputs: false } },
-				P1SAT_INTENTS.ORDINAL_BURN,
-			)
+			const args = await prepareP1SatArgs(ctx, { ...createArgs, options: { randomizeOutputs: false } })
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				args,

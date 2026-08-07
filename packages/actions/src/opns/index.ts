@@ -13,7 +13,6 @@ import {
 	OPNS_PUSHDROP_TEMPLATE,
 	OPNS_REGISTER_COUNTERPARTY,
 	OPNS_REGISTER_SIG_PLACEHOLDER_LEN,
-	P1SAT_INTENTS,
 	P1SAT_PROTOCOL,
 	buildInputAssetLabel,
 	opnsRegisterKeyId,
@@ -392,7 +391,6 @@ export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 				const name = nameFromOutput(output)
 				const tags = opnsFileTags(output, [OPNS_PUBLISHED_TAG])
 				const inputId = readAssetIdTag(output.tags)
-				const intent = P1SAT_INTENTS.OPNS_REGISTER
 				const labels = [
 					...(inputId ? [buildInputAssetLabel(OPNS_BASKET, inputId)] : []),
 				]
@@ -432,7 +430,7 @@ export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 					options: { randomizeOutputs: false },
 				}
 
-				await prepareP1SatArgs(ctx, args, intent)
+				await prepareP1SatArgs(ctx, args)
 
 				return await executeTrackedAction(
 					ctx.wallet,
@@ -496,7 +494,6 @@ export const deregisterOpns: Action<
 			const tags = opnsFileTags(output)
 			const name = nameFromOutput(output)
 			const inputId = readAssetIdTag(output.tags)
-			const intent = P1SAT_INTENTS.OPNS_DEREGISTER
 			const args: CreateActionArgs = {
 				description: (name
 					? `Unpublish OpNS ${name}`
@@ -531,7 +528,7 @@ export const deregisterOpns: Action<
 				],
 				options: { randomizeOutputs: false },
 			}
-			await prepareP1SatArgs(ctx, args, intent)
+			await prepareP1SatArgs(ctx, args)
 
 			return await executeTrackedAction(
 				ctx.wallet,
@@ -609,7 +606,6 @@ export const sellOpns: Action<SellOpnsRequest, OpnsOperationResponse> = {
 			const tags = opnsFileTags(output, ['ordlock', `price:${encoded.price}`])
 			const name = nameFromOutput(output)
 			const inputId = readAssetIdTag(output.tags)
-			const intent = P1SAT_INTENTS.OPNS_LIST
 			const args: CreateActionArgs = {
 				description: `List OpNS for ${input.price} sats`.slice(0, 50),
 				inputBEEF: beef,
@@ -641,7 +637,7 @@ export const sellOpns: Action<SellOpnsRequest, OpnsOperationResponse> = {
 				],
 				options: { randomizeOutputs: false },
 			}
-			await prepareP1SatArgs(ctx, args, intent)
+			await prepareP1SatArgs(ctx, args)
 
 			return await executeTrackedAction(
 				ctx.wallet,
@@ -713,7 +709,6 @@ export const sendOpns: Action<SendOpnsRequest, OpnsOperationResponse> = {
 			const inputId = readAssetIdTag(output.tags)
 			const name = nameFromOutput(output)
 			const tags = opnsFileTags(output)
-			const intent = P1SAT_INTENTS.OPNS_TRANSFER
 			const args: CreateActionArgs = {
 				description: (name
 					? `Transfer OpNS ${name}`
@@ -755,7 +750,7 @@ export const sendOpns: Action<SendOpnsRequest, OpnsOperationResponse> = {
 				],
 				options: { randomizeOutputs: false },
 			}
-			await prepareP1SatArgs(ctx, args, intent)
+			await prepareP1SatArgs(ctx, args)
 
 			return await executeTrackedAction(
 				ctx.wallet,
@@ -827,7 +822,6 @@ export const cancelOpnsListing: Action<
 				signCounterparty,
 			)
 
-			const intent = P1SAT_INTENTS.OPNS_CANCEL_LISTING
 			const args: CreateActionArgs = {
 				description: (name
 					? `Cancel OpNS listing ${name}`
@@ -860,7 +854,7 @@ export const cancelOpnsListing: Action<
 				],
 				options: { randomizeOutputs: false },
 			}
-			await prepareP1SatArgs(ctx, args, intent)
+			await prepareP1SatArgs(ctx, args)
 
 			return await executeTrackedAction(
 				ctx.wallet,
@@ -928,7 +922,6 @@ export const buyOpns: Action<BuyOpnsRequest, OpnsOperationResponse> = {
 			fundingProvider: input.fundingProvider,
 			basket: OPNS_BASKET,
 			tags: ['opns'],
-			p1satIntent: P1SAT_INTENTS.OPNS_PURCHASE,
 		})
 	},
 }

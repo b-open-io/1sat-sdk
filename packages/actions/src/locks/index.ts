@@ -6,7 +6,6 @@
 
 import { Lock } from '@1sat/templates'
 import {
-	P1SAT_INTENTS,
 	P1SAT_PROTOCOL,
 	buildInputAssetLabel,
 	readAssetIdTag,
@@ -262,15 +261,11 @@ export const lockBsv: Action<LockBsvInput, LockOperationResponse> = {
 				})
 			}
 
-			const args = await prepareP1SatArgs(
-				ctx,
-				{
+			const args = await prepareP1SatArgs(ctx, {
 					description: `Lock BSV in ${requests.length} output(s)`,
 					outputs,
 					options: { acceptDelayedBroadcast: false },
-				},
-				P1SAT_INTENTS.LOCK_LOCK,
-			)
+				})
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				args,
@@ -431,9 +426,7 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 				.map((l) => readAssetIdTag(l.output.tags))
 				.filter((id): id is string => Boolean(id))
 				.map((id) => buildInputAssetLabel(LOCK_BASKET, id))
-			const args = await prepareP1SatArgs(
-				ctx,
-				{
+			const args = await prepareP1SatArgs(ctx, {
 					description: `Unlock ${maturedLocks.length} lock(s)`,
 					inputBEEF,
 					...(inputLabels.length > 0 && { labels: inputLabels }),
@@ -445,9 +438,7 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 					})),
 					outputs: [],
 					lockTime: maxUntil,
-				},
-				P1SAT_INTENTS.LOCK_UNLOCK,
-			)
+				})
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				args,

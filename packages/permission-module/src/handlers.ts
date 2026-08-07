@@ -1,7 +1,4 @@
-import {
-	P1SAT_BASKET_PREFIX,
-	parseIntentLabel,
-} from '@1sat/types'
+import { P1SAT_BASKET_PREFIX } from '@1sat/types'
 import type { IPermissionStore } from '@1sat/wallet'
 import type {
 	CreateActionArgs,
@@ -42,7 +39,6 @@ export async function handleCreateActionRequest(
 	args: CreateActionArgs,
 	originator: string,
 ): Promise<CreateActionArgs> {
-	const p1satIntent = parseIntentLabel(args.labels)
 	const admin = isAdmin(deps, originator)
 
 	if (!admin) {
@@ -55,7 +51,6 @@ export async function handleCreateActionRequest(
 			originator,
 			intent: {
 				kind: enriched.kind,
-				p1satIntent: enriched.p1satIntent,
 				inputs: enriched.inputs,
 				outputs: enriched.outputs.map((o) => ({
 					index: o.index,
@@ -89,7 +84,7 @@ export async function handleCreateActionRequest(
 	}
 
 	// Admin and dApp both apply — seal ops must not bare-return on admin.
-	await applyCreateAction(deps.wallet, args, p1satIntent)
+	await applyCreateAction(deps.wallet, args)
 	return args
 }
 

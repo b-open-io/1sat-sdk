@@ -8,7 +8,6 @@ import { BSV21, OrdLock, P2MS } from '@1sat/templates'
 import {
 	type Destination,
 	BSV21_DEPLOY_TAG,
-	P1SAT_INTENTS,
 	buildInputAssetLabel,
 	buildTokenLabel,
 	readAssetIdTag,
@@ -631,9 +630,7 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				.map((o) => readAssetIdTag(o.tags))
 				.filter((id): id is string => Boolean(id))
 				.map((id) => buildInputAssetLabel(BSV21_BASKET, id))
-			const sendArgs = await prepareP1SatArgs(
-				ctx,
-				{
+			const sendArgs = await prepareP1SatArgs(ctx, {
 					description: `Send ${symbol} to ${resolved.length} recipient${resolved.length > 1 ? 's' : ''}`,
 					labels: [buildTokenLabel(tokenId), ...inputLabels],
 					inputBEEF,
@@ -644,9 +641,7 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 					})),
 					outputs,
 					options: { randomizeOutputs: false },
-				},
-				P1SAT_INTENTS.BSV21_TRANSFER,
-			)
+				})
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				sendArgs,
@@ -898,9 +893,7 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 
 			const beefBinary = beef.toBinary()
 
-			const buyArgs = await prepareP1SatArgs(
-				ctx,
-				{
+			const buyArgs = await prepareP1SatArgs(ctx, {
 					description: `Purchase ${tokenAmount} tokens for ${payoutSatoshis} sats`,
 					labels: [buildTokenLabel(tokenId)],
 					inputBEEF: beefBinary,
@@ -913,9 +906,7 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 					],
 					outputs,
 					options: { randomizeOutputs: false },
-				},
-				P1SAT_INTENTS.BSV21_PURCHASE,
-			)
+				})
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				buyArgs,
@@ -1049,11 +1040,7 @@ async function executeBsv21Deploy(args: {
 		options: { randomizeOutputs: false },
 	}
 
-	const prepared = await prepareP1SatArgs(
-		ctx,
-		caArgs,
-		P1SAT_INTENTS.BSV21_DEPLOY,
-	)
+	const prepared = await prepareP1SatArgs(ctx, caArgs)
 	const result = await executeTrackedAction(
 		ctx.wallet,
 		prepared,
@@ -1520,9 +1507,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 
 			const symbol = tokenDetails.token.sym || tokenId.slice(0, 8)
 			const authInputId = readAssetIdTag(authUtxo.tags)
-			const mintArgs = await prepareP1SatArgs(
-				ctx,
-				{
+			const mintArgs = await prepareP1SatArgs(ctx, {
 					description: mint
 						? `Mint ${mintAmount} ${symbol}`
 						: `Re-issue ${symbol} authority`,
@@ -1542,9 +1527,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 					],
 					outputs,
 					options: { randomizeOutputs: false },
-				},
-				P1SAT_INTENTS.BSV21_MINT,
-			)
+				})
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				mintArgs,

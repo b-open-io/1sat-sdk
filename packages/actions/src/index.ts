@@ -25,6 +25,7 @@ export * from './constants'
 
 // P1Sat apply (base-wallet seal / validate; module re-exports dispatch)
 export {
+	applyP1SatCreateAction,
 	applyP1SatIntent,
 	applyOpnsRegister,
 	applyInscribeSigma,

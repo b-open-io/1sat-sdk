@@ -3,9 +3,8 @@ import {
 	OPNS_BASKET,
 	OPNS_REGISTER_COUNTERPARTY,
 	OPNS_REGISTER_SIG_PLACEHOLDER_LEN,
-	P1SAT_INTENTS,
+	P1SAT_LABEL,
 	P1SAT_PROTOCOL,
-	buildIntentLabel,
 	opnsRegisterKeyId,
 } from '@1sat/types'
 import type {
@@ -31,7 +30,6 @@ function mockBaseWallet(): WalletInterface {
 			return { publicKey: protocolKey }
 		},
 		async createSignature(_args: CreateSignatureArgs) {
-			// 70-byte DER-ish stub — PushDrop only embeds the bytes
 			const sig = new Array(70).fill(0x30)
 			return { signature: sig }
 		},
@@ -65,10 +63,7 @@ async function registerArgs(
 	const lockingScript = await unsealedLock(wallet, outpoint)
 	return {
 		description: 'Publish OpNS',
-		labels: [
-			buildIntentLabel(P1SAT_INTENTS.OPNS_REGISTER),
-			'p 1sat input opns test-id',
-		],
+		labels: [P1SAT_LABEL, `p 1sat input ${OPNS_BASKET} test-id`],
 		inputs: [
 			{
 				outpoint,
@@ -88,15 +83,15 @@ async function registerArgs(
 	}
 }
 
-describe('applyCreateAction / opns.register', () => {
-	test('replaces the zeroed signature in place (same outputs array ref)', async () => {
+describe('applyCreateAction / script seal', () => {
+	test('seals zeroed PushDrop signature in place', async () => {
 		const wallet = mockBaseWallet()
 		const args = await registerArgs(wallet)
 		const outputsRef = args.outputs!
 		const out = outputsRef[0]
 		const before = out.lockingScript
 
-		await applyCreateAction(wallet, args, P1SAT_INTENTS.OPNS_REGISTER)
+		await applyCreateAction(wallet, args)
 
 		expect(args.outputs).toBe(outputsRef)
 		expect(out.lockingScript).not.toBe(before)
@@ -106,27 +101,16 @@ describe('applyCreateAction / opns.register', () => {
 		).fields
 		const signature = fields[fields.length - 1]
 		expect(signature.some((b) => b !== 0)).toBe(true)
-		// Placeholder was sized to the longest DER signature, so the sealed
-		// script is never larger than what was estimated.
 		expect(out.lockingScript.length).toBeLessThanOrEqual(before.length)
 	})
 
-	test('unknown intent fails closed', async () => {
+	test('no-op when script is already sealed', async () => {
 		const wallet = mockBaseWallet()
 		const args = await registerArgs(wallet)
-		args.labels = [buildIntentLabel('nope.unknown')]
-		await expect(applyCreateAction(wallet, args)).rejects.toThrow(
-			/unknown intent/,
-		)
-	})
-
-	test('validate-only intents leave lockingScript unchanged', async () => {
-		const wallet = mockBaseWallet()
-		const args = await registerArgs(wallet)
-		args.labels = [buildIntentLabel(P1SAT_INTENTS.OPNS_DEREGISTER)]
-		const before = args.outputs![0].lockingScript
-		await applyCreateAction(wallet, args, P1SAT_INTENTS.OPNS_DEREGISTER)
-		expect(args.outputs![0].lockingScript).toBe(before)
+		await applyCreateAction(wallet, args)
+		const sealed = args.outputs![0].lockingScript
+		await applyCreateAction(wallet, args)
+		expect(args.outputs![0].lockingScript).toBe(sealed)
 	})
 })
 
@@ -154,7 +138,6 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 
 	test('dApp prompts then applies on approve', async () => {
 		const wallet = mockBaseWallet()
-		// enrichIntent listOutputs will fail → empty inputs; still applies
 		const listWallet = {
 			...wallet,
 			async listOutputs() {
@@ -164,15 +147,10 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 
 		const args = await registerArgs(wallet)
 		const before = args.outputs![0].lockingScript
-		let promptSummary = ''
+		let promptKind = ''
 		const promptHandler: PromptHandler = async (req) => {
-			// A host may hand this request to a renderer in another process — the
-			// browser extension writes it through chrome.storage. Anything that
-			// cannot be structured-cloned (a promise, a function) arrives as `{}`
-			// and breaks the prompt, so the payload must survive a round trip.
 			expect(() => structuredClone(req)).not.toThrow()
-			promptSummary = req.summary
-			expect(req.intent.p1satIntent).toBe('opns.register')
+			promptKind = String(req.intent.kind ?? '')
 			return true
 		}
 		const deps = {
@@ -187,7 +165,7 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 			args,
 			'https://dapp.example',
 		)
-		expect(promptSummary.toLowerCase()).toContain('publish')
+		expect(promptKind).toBe('opns')
 		expect(next.outputs![0].lockingScript).not.toBe(before)
 	})
 
@@ -213,7 +191,6 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 		).rejects.toThrow(/rejected/)
 		expect(args.outputs![0].lockingScript).toBe(before)
 	})
-
 })
 
 describe('opnsRegisterKeyId binding', () => {
