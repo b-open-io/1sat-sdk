@@ -42,6 +42,12 @@ import type {
 import { LockingScript, PushDrop, Script, Utils } from '@bsv/sdk'
 import type { VerificationServices } from './types'
 
+/** Same protocol WPM uses for description/CI encryption. */
+const METADATA_ENCRYPTION_PROTOCOL: [2, string] = [
+	2,
+	'admin metadata encryption',
+]
+
 /**
  * Presentation fields on an OpNS bind: field 0 is the identity key and the
  * last is the signature, so field 1 is the display name and field 2 the
@@ -296,10 +302,18 @@ export async function enrichIntent(
 		)
 	).filter((a): a is EnrichedAsset => a !== null)
 
-	const outputs = (args.outputs ?? []).map((out, i) =>
-		decodeOutput(out, i, chain),
+	const outputs = await Promise.all(
+		(args.outputs ?? []).map(async (out, i) => {
+			const decoded = decodeOutput(out, i, chain)
+			if (decoded.customInstructions) {
+				decoded.customInstructions = await maybeDecryptCustomInstructions(
+					wallet,
+					decoded.customInstructions,
+				)
+			}
+			return decoded
+		}),
 	)
-
 	const kind = detectKind(inputs, outputs)
 	const summary = buildSummary(kind, inputs, outputs)
 	const trust = initialTrust(kind)
@@ -385,6 +399,41 @@ function extractIndexerFee(
 // Asset lookup — indexed `listOutputs` query by `id:<id>` tag.
 // ---------------------------------------------------------------------------
 
+/**
+ * WPM may encrypt customInstructions before storage / before module onRequest.
+ * Base-wallet listOutputs returns ciphertext. Never mutate plaintext:
+ *  1. If it already parses as JSON → return as-is (base-wallet writes).
+ *  2. Else try decrypt; on failure return original unchanged.
+ */
+async function maybeDecryptCustomInstructions(
+	wallet: WalletInterface,
+	value: string | undefined,
+): Promise<string | undefined> {
+	if (!value) return undefined
+	// Fast path: plaintext JSON (or anything that is already valid JSON).
+	try {
+		JSON.parse(value)
+		return value
+	} catch {
+		// not JSON — may be WPM base64 ciphertext
+	}
+	try {
+		const { plaintext } = await wallet.decrypt({
+			ciphertext: Utils.toArray(value, 'base64'),
+			protocolID: METADATA_ENCRYPTION_PROTOCOL,
+			keyID: '1',
+			counterparty: 'self',
+		})
+		const text = Utils.toUTF8(plaintext)
+		// Only accept decrypt if result is usable JSON — avoids "decrypting"
+		// random strings into garbage we then treat as CI.
+		JSON.parse(text)
+		return text
+	} catch {
+		return value
+	}
+}
+
 async function lookupAsset(
 	wallet: WalletInterface,
 	basket: string,
@@ -404,15 +453,20 @@ async function lookupAsset(
 		})
 		const match = result.outputs[0]
 		if (!match) return null
+		const rawCi = (
+			match as WalletOutput & { customInstructions?: string }
+		).customInstructions
+		const customInstructions = await maybeDecryptCustomInstructions(
+			wallet,
+			rawCi,
+		)
 		return {
 			basket,
 			id,
 			outpoint: match.outpoint,
 			satoshis: match.satoshis,
 			tags: match.tags ?? [],
-			customInstructions: (
-				match as WalletOutput & { customInstructions?: string }
-			).customInstructions,
+			customInstructions,
 		}
 	} catch {
 		return null
