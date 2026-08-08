@@ -68,9 +68,10 @@ import type {
 	TableUser,
 } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/index.js'
 import {
+	applyBrc153ReferenceLabel,
 	makeBrc114ActionTimeLabel,
 	parseBrc114ActionTimeLabels,
-} from '@bsv/wallet-toolbox/out/src/utility/brc114ActionTimeLabels.js'
+} from '@bsv/wallet-toolbox'
 import {
 	verifyId,
 	verifyOneOrNone,
@@ -2976,6 +2977,13 @@ export class StorageBunSqlite extends StorageProvider {
 						action.labels = (
 							await this.getLabelsForTransactionId(tx.transactionId as number)
 						).map((l) => l.label)
+						const reference = tx.reference as string | undefined
+						if (reference != null && reference !== '') {
+							action.labels = applyBrc153ReferenceLabel(
+								action.labels as string[],
+								reference,
+							)
+						}
 						if (timeFilterRequested) {
 							const ts = tx.created_at
 								? new Date(tx.created_at as string).getTime()
@@ -3328,7 +3336,7 @@ export class StorageBunSqlite extends StorageProvider {
 			if (vargs.includeTransactions && !beef.findTxid(o.txid as string)) {
 				await this.getValidBeefForKnownTxid(
 					o.txid as string,
-					beef,
+					beef as never,
 					undefined,
 					vargs.knownTxids,
 					trx,
@@ -3462,7 +3470,7 @@ export class StorageBunSqlite extends StorageProvider {
 				txStatus: ['sending', 'unproven', 'completed', 'nosend'],
 			})
 			for (const utxo of utxos) {
-				const options = { mergeToBeef: beef, ignoreServices: true }
+				const options = { mergeToBeef: beef as never, ignoreServices: true }
 				if (utxo.txid) await this.getBeefForTransaction(utxo.txid, options)
 			}
 			const proofTxids: Record<string, boolean> = {}

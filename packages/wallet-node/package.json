@@ -34,7 +34,7 @@
   },
   "peerDependencies": {
     "@bsv/sdk": "^2.1.9",
-    "@bsv/wallet-toolbox": "2.4.4",
+    "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.6.2-brc153.5",
     "pg": "^8.11.0"
   },
   "peerDependenciesMeta": {
@@ -48,7 +48,7 @@
   "devDependencies": {
     "@1sat/client": "workspace:*",
     "@bsv/sdk": "^2.1.9",
-    "@bsv/wallet-toolbox": "2.4.4",
+    "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.6.2-brc153.5",
     "@types/pg": "^8.11.0",
     "pg": "^8.11.0",
     "typescript": "^5.9.3"
