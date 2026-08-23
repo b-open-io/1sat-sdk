@@ -22,6 +22,12 @@ export async function executeSigmaAction(
 	fundingProvider?: FundingProvider,
 	targetOutputIndex = 0,
 ) {
+	if (fundingProvider) {
+		throw new Error(
+			'sigma-incompatible-with-funding-provider: external funders cannot sign the wallet-owned SIGMA anchor input',
+		)
+	}
+
 	const target = args.outputs?.[targetOutputIndex]
 	if (!target?.lockingScript) {
 		throw new Error(`sigma action: missing output ${targetOutputIndex}`)
