@@ -35,7 +35,10 @@ class MaterializeSkillsTests(unittest.TestCase):
             for path in (ROOT / "skills").iterdir()
             if path.is_dir() and not path.name.startswith(".")
         }
-        self.assertEqual(root_names, package_names | {"codex-agent-setup"})
+        self.assertEqual(
+            root_names,
+            package_names | {"codex-agent-setup", "mintflow", "test-app"},
+        )
         self.assertNotIn("sdk-publish", root_names)
         for name in root_names:
             destination = ROOT / "skills" / name

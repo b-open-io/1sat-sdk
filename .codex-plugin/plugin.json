@@ -1,7 +1,7 @@
 {
   "name": "1sat",
-  "version": "0.2.5",
-  "description": "1Sat ecosystem skills for Codex with OpNS lifecycle guidance and an optional Uno Satoj custom-agent adapter",
+  "version": "0.2.6",
+  "description": "1Sat ecosystem skills for Codex with collection overlay and OpNS lifecycle guidance plus an optional Uno Satoj custom-agent adapter",
   "author": {
     "name": "b-open-io",
     "url": "https://github.com/b-open-io"
@@ -19,7 +19,7 @@
   "interface": {
     "displayName": "1Sat",
     "shortDescription": "1Sat and BSV application skills for Codex.",
-    "longDescription": "Skills for 1Sat Ordinals, BSV21 tokens, wallets, marketplace operations, indexing, OpNS claiming through 1sat.name, and an explicit installer for the optional Uno Satoj Codex custom agent.",
+    "longDescription": "Skills for 1Sat Ordinals, collection overlay admission and lookup, BSV21 tokens, wallets, marketplace operations, indexing, OpNS claiming through 1sat.name, and an explicit installer for the optional Uno Satoj Codex custom agent.",
     "developerName": "b-open-io",
     "category": "Developer Tools",
     "capabilities": [
