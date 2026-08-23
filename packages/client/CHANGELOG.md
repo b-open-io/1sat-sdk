@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Documentation
+- Added a collection-overlay skill covering the shipped SIGMA admission rules,
+  topics, optional routes, mint-only semantics, and SDK compatibility checks.
+- Routed collection API questions out of the general stack reference so hosted
+  deployment claims are not inferred from library defaults.
+- Corrected the public README's portable skill names and synchronized generated
+  package skills while preserving the authored MintFlow and test-app skills.
+- Corrected MintFlow's collection guidance so proposed SDK helpers remain
+  clearly labeled and SIGMA is not misrepresented as root-owner authority.
+
 ## [0.0.26] - 2026-04-23
 
 ### Fixed
