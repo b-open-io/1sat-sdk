@@ -3,8 +3,10 @@
  * subdirectory manifest, and the root manifest last. The root manifest is the
  * directory's identity and the only output that carries MAP or a signature.
  *
- * Every output is written in one of two on-chain forms, chosen by
+ * Outputs are written in one of three layouts, chosen by
  * `writeMode` (see {@link OrdfsDirWriteMode}):
+ *   - `'mixed'` — 0-sat B leaves and one 1-sat root inscription. This is the
+ *     default: the directory has one ownable token without a UTXO per file.
  *   - `'inscription'` — a 1-sat ord envelope, built on the shared
  *     `Inscription` template. Ownable/transferable/updatable; holds a UTXO.
  *   - `'b'` — a 0-sat B protocol (bitcom `B://`) output, built on the shared
@@ -12,14 +14,14 @@
  *     supplied, rather than reimplementing multi-protocol script layout).
  *     Plain on-chain data; nothing is owned or held as a UTXO.
  *
- * Locking is pluggable (an address or a per-vout resolver) and only applies
- * to `'inscription'` outputs — `'b'` outputs are OP_RETURN and provably
+ * Locking is pluggable (an address or a per-vout resolver) and applies to
+ * ordinal outputs — `'b'` outputs are OP_RETURN and provably
  * unspendable, so there is nothing to lock. MAP is whatever the caller
  * passes. Signing is deliberately NOT policy-enforced here: this builder
  * accepts any `aip` signer regardless of `writeMode` (it is the pure, "dumb"
  * primitive). It's `deployOrdfsDir` (the publishing action) that enforces the
- * real policy — SIGMA for `'inscription'`, AIP for `'b'` — since SIGMA needs
- * a spending input that only exists once a transaction is being built.
+ * real policy — SIGMA for an ordinal root, AIP for an all-B tree — since
+ * SIGMA needs a spending input that only exists during transaction building.
  */
 
 import {
@@ -52,9 +54,10 @@ export interface OrdfsDirFile {
 }
 
 /**
- * How every output in an ord-fs directory publish is written on-chain.
+ * How an ord-fs directory publish is written on-chain.
  *
- * - `'inscription'` (default) — a 1-sat ord envelope per output. Ownable,
+ * - `'mixed'` (default) — 0-sat B leaves and a 1-sat ordinal root.
+ * - `'inscription'` — a 1-sat ord envelope per output. Ownable,
  *   transferable, and updatable; holds a UTXO on chain until explicitly
  *   spent. `locking` controls who can spend it.
  * - `'b'` — a 0-sat B protocol (bitcom `B://`) output per output. Plain
@@ -62,12 +65,13 @@ export interface OrdfsDirFile {
  *   ownable/transferable, and `locking` is ignored — OP_RETURN outputs are
  *   provably unspendable.
  */
-export type OrdfsDirWriteMode = 'inscription' | 'b'
+export type OrdfsDirWriteMode = 'mixed' | 'inscription' | 'b'
 
 /**
  * An address applied to every output, or a resolver that returns the locking
  * script per vout. The resolver lets callers vary the lock per output without
- * exposing a raw private key here. Only used for `writeMode: 'inscription'`.
+ * exposing a raw private key here. Used by every ordinal output, including
+ * the root of a `mixed` layout.
  */
 export type OrdfsLocking =
 	| { address: string }
@@ -78,13 +82,12 @@ export type OrdfsLocking =
  */
 export interface BuildOrdFsDirOutputsOptions {
 	/**
-	 * How every output is written on-chain. Defaults to `'inscription'`.
+	 * Output layout. Defaults to `'mixed'` (B leaves, ordinal root).
 	 */
 	writeMode?: OrdfsDirWriteMode
 	/**
-	 * Locking applied to every output, so the caller controls who can spend
-	 * them. Required when `writeMode` is `'inscription'`; ignored (and may be
-	 * omitted) for `'b'`, since OP_RETURN outputs hold no UTXO to lock.
+	 * Locking applied to ordinal outputs, so the caller controls who can spend
+	 * them. Required for `mixed` and `inscription`; ignored for `b`.
 	 */
 	locking?: OrdfsLocking
 	/**
@@ -108,7 +111,7 @@ export interface BuildOrdFsDirOutputsOptions {
 export interface OrdfsDirOutput {
 	/** Hex-encoded locking script (inscription envelope or B protocol, plus any suffix). */
 	lockingScriptHex: string
-	/** Satoshi amount: 1 for `'inscription'` outputs, 0 for `'b'` outputs. */
+	/** Satoshi amount: 1 for ordinal outputs, 0 for B outputs. */
 	satoshis: number
 	/** Human-readable description of what this output carries. */
 	description: string
@@ -177,7 +180,7 @@ function buildLeafScript(
 	}
 	if (!locking) {
 		throw new Error(
-			"buildOrdFsDirOutputs: 'locking' is required for writeMode 'inscription' — it controls who can spend the ordinal UTXO",
+			"buildOrdFsDirOutputs: 'locking' is required for ordinal outputs — it controls who can spend the UTXO",
 		)
 	}
 	const inscription = Inscription.create(content, contentType, {
@@ -221,7 +224,7 @@ function buildManifestScript(
 
 	if (!locking) {
 		throw new Error(
-			"buildOrdFsDirOutputs: 'locking' is required for writeMode 'inscription' — it controls who can spend the ordinal UTXO",
+			"buildOrdFsDirOutputs: 'locking' is required for the ordinal root — it controls who can spend the UTXO",
 		)
 	}
 	const suffix = hasMap ? MAP.set(map as Record<string, string>) : undefined
@@ -242,7 +245,7 @@ function buildManifestScript(
  *
  * @param files - Files to publish, in the order their outputs are created.
  *   Paths use `/` for subdirectories (e.g. `"refs/api.md"`).
- * @param opts - Write mode, locking strategy (for `'inscription'`), plus
+ * @param opts - Write mode, locking strategy (for ordinal outputs), plus
  *   optional MAP and AIP signer for the root manifest.
  * @param ctx - Forwarded to the AIP signer; may be omitted when none is given.
  * @returns The outputs, the root manifest's vout and script, and the tree.
@@ -252,8 +255,11 @@ export async function buildOrdFsDirOutputs(
 	opts: BuildOrdFsDirOutputsOptions,
 	ctx?: OneSatContext,
 ): Promise<BuildOrdFsDirOutputsResult> {
-	const writeMode: OrdfsDirWriteMode = opts.writeMode ?? 'inscription'
-	const satoshis = writeMode === 'b' ? 0 : 1
+	const writeMode: OrdfsDirWriteMode = opts.writeMode ?? 'mixed'
+	const leafWriteMode = writeMode === 'mixed' ? 'b' : writeMode
+	const manifestWriteMode = writeMode === 'mixed' ? 'inscription' : writeMode
+	const leafSatoshis = leafWriteMode === 'b' ? 0 : 1
+	const manifestSatoshis = manifestWriteMode === 'b' ? 0 : 1
 
 	const tree = buildOrdfsDirManifest(files)
 	const outputs: OrdfsDirOutput[] = []
@@ -264,7 +270,7 @@ export async function buildOrdFsDirOutputs(
 	for (let i = 0; i < files.length; i++) {
 		const file = files[i]
 		const script = buildLeafScript(
-			writeMode,
+			leafWriteMode,
 			file.content,
 			file.contentType,
 			opts.locking,
@@ -272,7 +278,7 @@ export async function buildOrdFsDirOutputs(
 		)
 		outputs.push({
 			lockingScriptHex: Utils.toHex(script.toBinary()),
-			satoshis,
+			satoshis: leafSatoshis,
 			description: `file: ${file.path}`,
 			isManifest: false,
 		})
@@ -286,7 +292,7 @@ export async function buildOrdFsDirOutputs(
 			Utils.toArray(JSON.stringify(subdir.manifest), 'utf8'),
 		)
 		const script = buildLeafScript(
-			writeMode,
+			leafWriteMode,
 			subdirBytes,
 			tree.manifestContentType,
 			opts.locking,
@@ -294,7 +300,7 @@ export async function buildOrdFsDirOutputs(
 		)
 		outputs.push({
 			lockingScriptHex: Utils.toHex(script.toBinary()),
-			satoshis,
+			satoshis: leafSatoshis,
 			description: `dir: ${subdir.path}/`,
 			isManifest: false,
 		})
@@ -309,7 +315,7 @@ export async function buildOrdFsDirOutputs(
 	)
 
 	let manifestScript = buildManifestScript(
-		writeMode,
+		manifestWriteMode,
 		manifestBytes,
 		tree.manifestContentType,
 		opts.locking,
@@ -328,7 +334,7 @@ export async function buildOrdFsDirOutputs(
 
 	outputs.push({
 		lockingScriptHex: Utils.toHex(manifestScript.toBinary()),
-		satoshis,
+		satoshis: manifestSatoshis,
 		description: 'manifest (ord-fs/json)',
 		isManifest: true,
 	})

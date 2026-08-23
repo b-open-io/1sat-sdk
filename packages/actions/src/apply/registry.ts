@@ -26,6 +26,8 @@ export const P1SAT_APPLY_REGISTRY: Record<string, ApplyFn> = {
 	'ordinal.burn': applyValidateOnly,
 	'ordinal.inscribe': applyValidateOnly,
 	'ordinal.inscribe-sigma': applyInscribeSigma,
+	'ordfs.deploy': applyValidateOnly,
+	'ordfs.deploy-sigma': applyInscribeSigma,
 	'ordinal.mint-collection': applyValidateOnly,
 	'ordinal.mint-item': applyValidateOnly,
 	'lock.lock': applyValidateOnly,

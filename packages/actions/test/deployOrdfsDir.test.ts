@@ -21,30 +21,6 @@ describe('deployOrdfsDir input validation', () => {
 		})
 		expect(res.error).toMatch(/invalid-write-mode/)
 	})
-
-	it('rejects a signed inscription publish together with an external funding provider', async () => {
-		const res = await deployOrdfsDir.execute(ctx, {
-			files,
-			writeMode: 'inscription',
-			sign: true,
-			fundingProvider: {
-				fund: async () => ({ tx: [], txid: 'x' }),
-			} as never,
-		})
-		expect(res.error).toMatch(/sigma-incompatible-with-funding-provider/)
-	})
-
-	it('allows a "b" write mode publish with an external funding provider (no anchor needed)', async () => {
-		const res = await deployOrdfsDir.execute(ctx, {
-			files,
-			writeMode: 'b',
-			sign: true,
-			fundingProvider: {
-				fund: async () => ({ tx: [], txid: 'x' }),
-			} as never,
-		})
-		expect(res.error).not.toMatch(/sigma-incompatible-with-funding-provider/)
-	})
 })
 
 describe('inscribeOrdfsDir back-compat alias', () => {

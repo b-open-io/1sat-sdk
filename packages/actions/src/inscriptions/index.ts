@@ -8,8 +8,7 @@ import { Inscription, MAP as MAPTemplate } from '@1sat/templates'
 import type { Destination } from '@1sat/types'
 import { P1SAT_INTENTS, P1SAT_PROTOCOL, buildActionIdLabel } from '@1sat/types'
 import { Beef, Hash, type LockingScript, Script, Utils } from '@bsv/sdk'
-import { prepareP1SatArgs, sigmaAnchorKeyId } from '../apply'
-import { appendSigmaPlaceholder } from '../signing/sigma'
+import { prepareP1SatArgs } from '../apply'
 import {
 	DEFAULT_STREAM_CHUNK_SIZE,
 	MAX_INSCRIPTION_BYTES,
@@ -19,10 +18,10 @@ import {
 } from '../constants'
 import type { Action, ActionOptions, OneSatContext } from '../types'
 import {
-	ensureActionId,
 	executeTrackedAction,
 	randomActionId,
 } from '../utils/createTrackedAction'
+import { executeSigmaAction } from '../utils/executeSigmaAction'
 import {
 	type ResolvedDestination,
 	resolveDestination,
@@ -112,49 +111,30 @@ async function inscribeWithSigma(
 	outputCustomInstructions?: string,
 	outputKeyIDForLog?: string,
 ): Promise<InscribeResponse> {
-	// Full script with the SIGMA signature zeroed, so the output is already
-	// its on-chain size; apply creates the anchor and swaps the signature in.
-	const placeholderScript = await appendSigmaPlaceholder(ctx, lockingScript)
-	const args = await prepareP1SatArgs(
-		ctx,
-		{
-			description: 'Create inscription',
-			labels: [buildActionIdLabel(actionId)],
-			outputs: [
-				{
-					lockingScript: placeholderScript.toHex(),
-					satoshis: 1,
-					outputDescription: 'Inscription',
-					basket: ORDINALS_BASKET,
-					tags,
-					customInstructions: outputCustomInstructions,
-				},
-			],
-			options: {
-				randomizeOutputs: false,
-				acceptDelayedBroadcast: true,
+	const args = {
+		description: 'Create inscription',
+		labels: [buildActionIdLabel(actionId)],
+		outputs: [
+			{
+				lockingScript: lockingScript.toHex(),
+				satoshis: 1,
+				outputDescription: 'Inscription',
+				basket: ORDINALS_BASKET,
+				tags,
+				customInstructions: outputCustomInstructions,
 			},
+		],
+		options: {
+			randomizeOutputs: false,
+			acceptDelayedBroadcast: true,
 		},
-		P1SAT_INTENTS.ORDINAL_INSCRIBE_SIGMA,
-	)
+	}
 
-	const result = await executeTrackedAction(
-		ctx.wallet,
+	const result = await executeSigmaAction(
+		ctx,
 		args,
+		P1SAT_INTENTS.ORDINAL_INSCRIBE_SIGMA,
 		input.fundingProvider,
-		args.inputBEEF as number[] | undefined,
-		async (tx) => {
-			const anchorKeyID = sigmaAnchorKeyId(ensureActionId(args))
-			const unlocking = await signP2PKHInput(
-				ctx,
-				tx,
-				0,
-				P1SAT_PROTOCOL,
-				anchorKeyID,
-			)
-			if (typeof unlocking !== 'string') throw new Error(unlocking.error)
-			return { 0: { unlockingScript: unlocking } }
-		},
 	)
 
 	if (ctx.debug && ctx.log) {
@@ -165,7 +145,6 @@ async function inscribeWithSigma(
 				contentType: input.contentType,
 				map: input.map,
 				signWithBAP: true,
-				anchorOutpoint: args.inputs?.[0]?.outpoint,
 			},
 			txid: result.txid,
 			rawtx: result.tx ? Utils.toHex(result.tx) : undefined,

@@ -36,10 +36,18 @@ describe('buildOrdFsDirOutputs', () => {
 			false,
 			true,
 		])
+		expect(res.outputs.map((o) => o.satoshis)).toEqual([0, 0, 0, 1])
 		for (const o of res.outputs) {
-			expect(o.satoshis).toBe(1)
 			expect(o.lockingScriptHex.length).toBeGreaterThan(0)
 		}
+	})
+
+	it("writes every output as one satoshi in 'inscription' mode", async () => {
+		const res = await buildOrdFsDirOutputs(
+			[{ path: 'a.txt', content: bytes('hi'), contentType: 'text/plain' }],
+			{ writeMode: 'inscription', locking: { address: addr } },
+		)
+		expect(res.outputs.map((o) => o.satoshis)).toEqual([1, 1])
 	})
 
 	it('is MAP-agnostic: the suffix is present only when map is supplied', async () => {

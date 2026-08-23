@@ -149,7 +149,9 @@ export function hostingExpTag(expiresAtUnix: number): string {
 	return `${HOSTING_EXP_TAG_PREFIX}${Math.floor(expiresAtUnix)}`
 }
 
-export function readHostingPayer(tags: string[] | undefined): string | undefined {
+export function readHostingPayer(
+	tags: string[] | undefined,
+): string | undefined {
 	if (!tags) return undefined
 	for (const t of tags) {
 		if (t.startsWith(HOSTING_PAYER_TAG_PREFIX)) {
@@ -204,6 +206,8 @@ export const P1SAT_INTENTS = {
 	ORDINAL_BURN: 'ordinal.burn',
 	ORDINAL_INSCRIBE: 'ordinal.inscribe',
 	ORDINAL_INSCRIBE_SIGMA: 'ordinal.inscribe-sigma',
+	ORDFS_DEPLOY: 'ordfs.deploy',
+	ORDFS_DEPLOY_SIGMA: 'ordfs.deploy-sigma',
 	ORDINAL_MINT_COLLECTION: 'ordinal.mint-collection',
 	ORDINAL_MINT_ITEM: 'ordinal.mint-item',
 	LOCK_LOCK: 'lock.lock',

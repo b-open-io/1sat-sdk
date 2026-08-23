@@ -12,9 +12,10 @@
  * Layering keeps the pure tree logic testable and reusable, the output builder
  * key-agnostic, and the transaction/Sigma concerns confined to the action.
  *
- * Every publish picks one write mode for the whole tree — there is no
- * per-file mode in this action (see {@link OrdfsDirWriteMode}):
- *   - `'inscription'` (default) — every output is a 1-sat ord envelope.
+ * Every publish picks one directory layout (see {@link OrdfsDirWriteMode}):
+ *   - `'mixed'` (default) — leaves are 0-sat B data and the root manifest is
+ *     the only 1-sat ordinal. This produces one ownable directory asset.
+ *   - `'inscription'` — every output is a 1-sat ord envelope.
  *     Ownable, transferable, updatable; holds a UTXO. Authorship, when
  *     signed, uses SIGMA: it binds the root manifest to a spent anchor input
  *     so the signature only validates in this exact transaction.
@@ -30,14 +31,15 @@
  * AIP does not.
  */
 
-import { P2PKH, PublicKey, Utils } from '@bsv/sdk'
-import { ORDINALS_BASKET, P1SAT_PROTOCOL, SIGMA_BASKET } from '../constants'
+import { P1SAT_INTENTS, P1SAT_PROTOCOL } from '@1sat/types'
+import { Utils } from '@bsv/sdk'
+import { prepareP1SatArgs } from '../apply'
+import { ORDINALS_BASKET } from '../constants'
 import { applyBapAip } from '../signing/aip'
-import { applySigma } from '../signing/sigma'
 import type { Action, ActionOptions, OneSatContext } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
+import { executeSigmaAction } from '../utils/executeSigmaAction'
 import { resolveDestination } from '../utils/resolveDestination'
-import { signP2PKHInput } from '../utils/signP2PKH'
 import { buildOrdFsDirOutputs } from './outputs'
 import type { OrdfsDirFile, OrdfsDirWriteMode } from './outputs'
 
@@ -91,15 +93,14 @@ export interface DeployOrdfsDirRequest extends ActionOptions {
 	 */
 	map?: Record<string, string>
 	/**
-	 * How every output in the tree is written on-chain. Defaults to
-	 * `'inscription'`. See the module doc comment for the ownership and
+	 * Directory output layout. Defaults to `'mixed'`. See the module doc comment for the ownership and
 	 * signing implications of each mode.
 	 */
 	writeMode?: OrdfsDirWriteMode
 	/**
 	 * Sign the root manifest's authorship. Defaults to `true`. The signing
 	 * PROTOCOL is derived from `writeMode` — not independently selectable —
-	 * SIGMA for `'inscription'`, AIP for `'b'`.
+	 * SIGMA when the root is an inscription, AIP for an all-B tree.
 	 */
 	sign?: boolean
 }
@@ -142,12 +143,10 @@ export type InscribeOrdfsDirResponse = DeployOrdfsDirResponse
  *   [F..F+D-1] one output per subdirectory manifest
  *   [F+D]      the root manifest (the directory's identity)
  *
- * For `writeMode: 'inscription'` (default), every output is locked to a
- * wallet-derived self address (via {@link resolveDestination}) and holds a
- * UTXO. For `writeMode: 'b'`, every output is a 0-sat OP_RETURN and nothing
- * is locked or held. The root manifest carries the optional MAP and, when
- * `sign` is true, the mode-derived authorship signature; file and
- * subdirectory outputs are unsigned plumbing either way.
+ * The default `mixed` layout writes 0-sat B leaves plus one wallet-locked
+ * ordinal root. `inscription` locks every output; `b` writes every output as
+ * plain 0-sat data. The root carries optional MAP metadata and, when `sign`
+ * is true, the layout-appropriate authorship signature.
  *
  * @param ctx - Action context carrying the BRC-100 wallet.
  * @param input - Files, optional MAP fields, write mode, sign flag, and
@@ -162,7 +161,7 @@ export const deployOrdfsDir: Action<
 	meta: {
 		name: 'deployOrdfsDir',
 		description:
-			'Publish a directory of files as a single on-chain ord-fs/json tree, as either 1-sat inscriptions (ownable) or 0-sat B uploads (plain data)',
+			'Publish an ord-fs/json directory with one ownable root by default, or all-inscription/all-B output layouts',
 		category: 'inscriptions',
 		inputSchema: {
 			type: 'object',
@@ -192,14 +191,14 @@ export const deployOrdfsDir: Action<
 				writeMode: {
 					type: 'string',
 					description:
-						"How every output is written on-chain: '1sat' inscriptions (ownable, hold a UTXO) or 0-sat B uploads (plain data, nothing owned).",
-					enum: ['inscription', 'b'],
-					default: 'inscription',
+						"Output layout: 'mixed' uses B leaves plus one ordinal root; 'inscription' makes every output ownable; 'b' makes every output plain data.",
+					enum: ['mixed', 'inscription', 'b'],
+					default: 'mixed',
 				},
 				sign: {
 					type: 'boolean',
 					description:
-						'Sign the root manifest. Protocol is derived from writeMode: SIGMA for inscription, AIP for b.',
+						'Sign the root manifest. Uses SIGMA for mixed/inscription and AIP for b.',
 					default: true,
 				},
 			},
@@ -212,25 +211,16 @@ export const deployOrdfsDir: Action<
 				return { error: 'no-files' }
 			}
 
-			const writeMode: OrdfsDirWriteMode = input.writeMode ?? 'inscription'
-			if (writeMode !== 'inscription' && writeMode !== 'b') {
+			const writeMode: OrdfsDirWriteMode = input.writeMode ?? 'mixed'
+			if (
+				writeMode !== 'mixed' &&
+				writeMode !== 'inscription' &&
+				writeMode !== 'b'
+			) {
 				return { error: `invalid-write-mode: ${String(input.writeMode)}` }
 			}
 
 			const sign = input.sign ?? true
-
-			// SIGMA binds authorship to a wallet-signed anchor input. An external
-			// funding provider builds/broadcasts the tx itself and does not run the
-			// caller's anchor-signing callback, so the anchor would be left
-			// unsigned. Fail informatively instead of broadcasting a broken tx.
-			// This only applies to signed 'inscription' publishes — AIP (used for
-			// 'b') signs at build time and has no anchor to co-sign.
-			if (writeMode === 'inscription' && sign && input.fundingProvider) {
-				return {
-					error:
-						'sigma-incompatible-with-funding-provider: use sign:false or writeMode:"b" with an external funding provider',
-				}
-			}
 
 			// Decode base64 content into the raw bytes the output builder expects.
 			const files: OrdfsDirFile[] = input.files.map((f) => ({
@@ -239,19 +229,17 @@ export const deployOrdfsDir: Action<
 				contentType: f.contentType,
 			}))
 
-			// 'inscription' outputs hold a UTXO and need a spendable lock, derived
-			// from the wallet. 'b' outputs are 0-sat OP_RETURN data with nothing to
-			// own, so there's no destination to resolve.
+			// Mixed and inscription layouts have at least one ordinal output, so
+			// derive its spendable lock from the wallet. An all-B tree has no UTXO.
 			const resolved =
-				writeMode === 'inscription'
+				writeMode !== 'b'
 					? await resolveDestination(ctx, undefined, {
 							protocolID: P1SAT_PROTOCOL,
 							keyIDPrefix: 'ordfs-dir',
 						})
 					: undefined
 			// resolveDestination returns a wallet-derived self P2PKH locking
-			// script; reuse it verbatim for every output via the resolver
-			// strategy, which keeps the output builder key-agnostic.
+			// script; reuse it for whichever outputs are ordinal in this layout.
 			const lockingScript = resolved?.lockingScript
 
 			// AIP can be applied at output-build time (it is tx-independent), so
@@ -277,7 +265,7 @@ export const deployOrdfsDir: Action<
 					})
 				: undefined
 
-			if (writeMode === 'inscription' && sign) {
+			if (writeMode !== 'b' && sign) {
 				return await publishWithSigma(ctx, built, input, customInstructions)
 			}
 
@@ -336,9 +324,9 @@ interface PublishOutput {
 
 /**
  * Convert the built outputs into createAction output specs. Only the root
- * manifest carries tags; it's basketed as the tradeable ordinal only for
- * `writeMode: 'inscription'` — a `'b'` manifest owns nothing, so it isn't
- * tracked as an asset. File and subdirectory outputs are plumbing either way.
+ * manifest carries tags and is basketed as the tradeable ordinal for mixed
+ * and all-inscription layouts. An all-B manifest owns nothing, so it isn't
+ * tracked as an asset. File and subdirectory outputs are plumbing.
  */
 function toActionOutputs(
 	built: BuiltOutputs,
@@ -353,7 +341,7 @@ function toActionOutputs(
 		}
 		if (o.isManifest) {
 			out.tags = ['type:ord-fs/json', 'origin']
-			if (writeMode === 'inscription') {
+			if (writeMode !== 'b') {
 				out.basket = ORDINALS_BASKET
 				out.customInstructions = manifestCustomInstructions
 			}
@@ -376,8 +364,8 @@ async function publishOutputs(
 ): Promise<DeployOrdfsDirResponse> {
 	const outputs = toActionOutputs(built, writeMode, manifestCustomInstructions)
 
-	const result = await executeTrackedAction(
-		ctx.wallet,
+	const args = await prepareP1SatArgs(
+		ctx,
 		{
 			description: 'Publish ord-fs directory',
 			outputs,
@@ -386,6 +374,11 @@ async function publishOutputs(
 				randomizeOutputs: false,
 			},
 		},
+		P1SAT_INTENTS.ORDFS_DEPLOY,
+	)
+	const result = await executeTrackedAction(
+		ctx.wallet,
+		args,
 		input.fundingProvider,
 	)
 
@@ -400,10 +393,8 @@ async function publishOutputs(
 }
 
 /**
- * Publish with SIGMA authorship: create a 2-sat anchor, bind the root
- * manifest's SIGMA signature to the anchor outpoint, then spend the anchor in
- * the publish transaction so the signature is only valid here. Only called
- * for signed `writeMode: 'inscription'` publishes.
+ * Publish with SIGMA authorship through the shared placeholder/seal apply
+ * flow. Only called for signed mixed or all-inscription publishes.
  */
 async function publishWithSigma(
 	ctx: OneSatContext,
@@ -411,106 +402,24 @@ async function publishWithSigma(
 	input: DeployOrdfsDirRequest,
 	manifestCustomInstructions?: string,
 ): Promise<DeployOrdfsDirResponse> {
-	const anchorKeyID = `anchor-${Date.now()}`
-	const { publicKey: anchorPubKey } = await ctx.wallet.getPublicKey({
-		protocolID: P1SAT_PROTOCOL,
-		keyID: anchorKeyID,
-		counterparty: 'self',
-		forSelf: true,
-	})
-	const anchorAddress = PublicKey.fromString(anchorPubKey).toAddress()
-	const anchorLockingScript = new P2PKH().lock(anchorAddress)
-
-	// Step 1: anchor tx (signed, not broadcast). A 2-sat lock-in UTXO that
-	// exists only so the publish tx can spend it to produce the SIGMA
-	// signature. Bypass P1SAT tracking — this is internal plumbing.
-	const anchorResult = await executeTrackedAction(
-		ctx.wallet,
-		{
-			description: 'Sigma anchor output',
-			outputs: [
-				{
-					lockingScript: anchorLockingScript.toHex(),
-					satoshis: 2,
-					outputDescription: 'Sigma anchor',
-					basket: SIGMA_BASKET,
-					customInstructions: JSON.stringify({
-						protocolID: P1SAT_PROTOCOL,
-						keyID: anchorKeyID,
-					}),
-				},
-			],
-			options: {
-				noSend: true,
-				randomizeOutputs: false,
-				acceptDelayedBroadcast: true,
-			},
-		},
-		input.fundingProvider,
-		undefined,
-		undefined,
-		{ bypassP1Sat: true },
-	)
-
-	if (!anchorResult.txid) return { error: 'anchor-no-txid' }
-
-	// Bind the SIGMA signature to (anchorTxid, 0). It commits to the root
-	// manifest script and that exact input, so it only validates in a tx that
-	// spends the anchor. The manifest is the last output (vout = manifestVout);
-	// the anchor is vin 0.
-	const sigmaScript = await applySigma(
-		ctx,
-		built.manifestScript,
-		{ txid: anchorResult.txid, vout: 0 },
-		built.manifestVout,
-		0,
-	)
-
-	// Swap in the Sigma-signed manifest script, then emit the outputs.
-	built.outputs[built.manifestVout].lockingScriptHex = sigmaScript.toHex()
 	const outputs = toActionOutputs(
 		built,
-		'inscription',
+		input.writeMode ?? 'mixed',
 		manifestCustomInstructions,
 	)
-
-	// Step 2: publish tx, spending the anchor and broadcasting both.
-	const result = await executeTrackedAction(
-		ctx.wallet,
+	const result = await executeSigmaAction(
+		ctx,
 		{
 			description: 'Publish ord-fs directory',
-			inputBEEF: anchorResult.tx,
-			inputs: [
-				{
-					outpoint: `${anchorResult.txid}.0`,
-					inputDescription: 'Sigma anchor',
-					unlockingScriptLength: 108,
-				},
-			],
 			outputs,
 			options: {
 				randomizeOutputs: false,
-				noSend: true,
-				noSendChange: anchorResult.noSendChange,
-				knownTxids: [anchorResult.txid],
 				acceptDelayedBroadcast: true,
-				trustSelf: 'known',
-				sendWith: [anchorResult.txid],
 			},
 		},
+		P1SAT_INTENTS.ORDFS_DEPLOY_SIGMA,
 		input.fundingProvider,
-		anchorResult.tx as number[],
-		async (tx) => {
-			const unlocking = await signP2PKHInput(
-				ctx,
-				tx,
-				0,
-				P1SAT_PROTOCOL,
-				anchorKeyID,
-			)
-			if (typeof unlocking !== 'string') throw new Error(unlocking.error)
-			return { 0: { unlockingScript: unlocking } }
-		},
+		built.manifestVout,
 	)
 
 	if (!result.txid) return { error: 'no-txid-returned' }
@@ -519,7 +428,7 @@ async function publishWithSigma(
 		txid: result.txid,
 		manifestVout: built.manifestVout,
 		origins: originsFor(result.txid, built.outputs.length),
-		writeMode: 'inscription',
+		writeMode: input.writeMode ?? 'mixed',
 	}
 }
 
