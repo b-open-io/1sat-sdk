@@ -50,6 +50,8 @@ GET /collection/{collectionId}/item/{outpoint}
 `mode: disabled`; a deployment must enable it and register item topics through
 `collection_ids` or `Services.RegisterCollection`. Do not assume these routes
 exist on `api.1sat.app` unless that deployment has been checked directly.
+When giving query instructions, state both deployment gates: enabling the
+module and registering the collection's item topic.
 
 ## SDK compatibility gate
 
@@ -78,6 +80,9 @@ A BSV21 deploy output can carry collection-item MAP and SIGMA at the script
 level. That does not make collections part of BSV21. Keep the BSV21 package
 generic and put collection-specific construction and lookup in the collection
 layer. Confirm SDK support before presenting this as a ready-made action.
+When reviewing a design that puts collection fields in the BSV21 JSON payload,
+correct both halves explicitly: keep that payload generic, then compose the
+collection MAP and SIGMA envelopes at the output-script layer.
 
 ## Source map
 
