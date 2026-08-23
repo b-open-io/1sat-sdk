@@ -19,6 +19,7 @@ import type {
 	CollectionItemTrait,
 	CollectionSubTypeData,
 	CollectionTraits,
+	Destination,
 	RarityLabels,
 	Royalty,
 } from '@1sat/types'
@@ -26,6 +27,7 @@ import { P1SAT_INTENTS, P1SAT_PROTOCOL } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
 import { P2PKH, PublicKey, Script, Utils } from '@bsv/sdk'
 import { MAX_INSCRIPTION_BYTES, ORDINALS_BASKET } from '../constants'
+import { type DeployBsv21Response, deployBsv21Mint } from '../tokens'
 import type { Action, ActionOptions } from '../types'
 import { appendMapSuffix } from '../utils/appendMapSuffix'
 import { executeSigmaAction } from '../utils/executeSigmaAction'
@@ -92,6 +94,47 @@ export interface MintCollectionItemOutput {
 	error?: string
 }
 
+export interface MintBsv21CollectionItemInput extends ActionOptions {
+	/** Token symbol/ticker (max 32 chars) */
+	symbol: string
+	/** Total fixed supply */
+	amount: bigint | string
+	/** Decimal places (0-18) */
+	decimals?: number
+	/** Optional icon URL or data URI */
+	icon?: string
+	/** Recipient of the supply. Defaults to self. */
+	destination?: Destination
+	/** Absolute collection origin outpoint (`<txid>_<vout>`). */
+	collectionId: string
+	/** Display name in MAP. Defaults to the token symbol. */
+	name?: string
+	/** Optional mint number within the collection */
+	mintNumber?: number
+	/** Optional rank within the collection */
+	rank?: number
+	/** Optional rarity label for the item */
+	rarityLabel?: string
+	/** Optional item traits */
+	traits?: CollectionItemTrait[]
+	/** Optional file attachments */
+	attachments?: CollectionItemAttachment[]
+	/** MAP app field (default: "1sat-wallet") */
+	app?: string
+}
+
+type CollectionItemMapInput = Pick<
+	MintCollectionItemInput,
+	| 'name'
+	| 'collectionId'
+	| 'mintNumber'
+	| 'rank'
+	| 'rarityLabel'
+	| 'traits'
+	| 'attachments'
+	| 'app'
+>
+
 // ============================================================================
 // Internal helpers
 // ============================================================================
@@ -142,8 +185,8 @@ function buildCollectionMap(
  * Build MAP metadata record for a collection item.
  * All values must be strings for MAP protocol.
  */
-function buildCollectionItemMap(
-	input: MintCollectionItemInput,
+export function buildCollectionItemMap(
+	input: CollectionItemMapInput,
 ): Record<string, string> {
 	const subTypeData: CollectionItemSubTypeData = {
 		collectionId: input.collectionId,
@@ -568,9 +611,108 @@ export const mintCollectionItem: Action<
 	},
 }
 
+/**
+ * Deploy a fixed-supply BSV21 token that is indexed as a collection item.
+ * Collection metadata stays in MAP; the BSV21 JSON payload remains generic.
+ */
+export const mintBsv21CollectionItem: Action<
+	MintBsv21CollectionItemInput,
+	DeployBsv21Response
+> = {
+	meta: {
+		name: 'mintBsv21CollectionItem',
+		description:
+			'Deploy a fixed-supply BSV21 token with collection-item MAP and SIGMA',
+		category: 'collections',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				symbol: { type: 'string', description: 'Token symbol/ticker' },
+				amount: {
+					type: 'string',
+					description: 'Total fixed supply (as string for bigint)',
+				},
+				decimals: {
+					type: 'integer',
+					description: 'Decimal places (0-18, default 0)',
+				},
+				icon: { type: 'string', description: 'Icon URL or data URI' },
+				destination: {
+					type: 'object',
+					description: 'Recipient destination. Defaults to self.',
+				},
+				collectionId: {
+					type: 'string',
+					description: 'Absolute collection origin outpoint: <txid>_<vout>',
+				},
+				name: {
+					type: 'string',
+					description: 'Display name in MAP (defaults to token symbol)',
+				},
+				mintNumber: {
+					type: 'integer',
+					description: 'Optional mint number within the collection',
+				},
+				rank: {
+					type: 'integer',
+					description: 'Optional rank within the collection',
+				},
+				rarityLabel: {
+					type: 'string',
+					description: 'Optional rarity label for the item',
+				},
+				traits: { type: 'array', description: 'Optional item traits' },
+				attachments: {
+					type: 'array',
+					description: 'Optional file attachments',
+				},
+				app: {
+					type: 'string',
+					description: 'MAP app field (default: 1sat-wallet)',
+				},
+			},
+			required: ['symbol', 'amount', 'collectionId'],
+		},
+	},
+	async execute(ctx, input) {
+		if (!/^[0-9a-fA-F]{64}_\d+$/.test(input.collectionId)) {
+			return {
+				error: `collectionId-must-be-absolute-outpoint: ${input.collectionId}`,
+			}
+		}
+
+		const name = input.name ?? input.symbol
+		const map = buildCollectionItemMap({
+			name,
+			collectionId: input.collectionId,
+			mintNumber: input.mintNumber,
+			rank: input.rank,
+			rarityLabel: input.rarityLabel,
+			traits: input.traits,
+			attachments: input.attachments,
+			app: input.app,
+		})
+
+		return deployBsv21Mint.execute(ctx, {
+			symbol: input.symbol,
+			amount: input.amount,
+			decimals: input.decimals,
+			icon: input.icon,
+			destination: input.destination,
+			map,
+			signWithBAP: true,
+			fundingProvider: input.fundingProvider,
+		})
+	},
+}
+
 // ============================================================================
 // Module exports
 // ============================================================================
 
 /** All collection actions for registry */
-export const collectionsActions = [mintCollection, mintCollectionItem]
+export const collectionsActions = [
+	mintCollection,
+	mintCollectionItem,
+	mintBsv21CollectionItem,
+]

@@ -34,6 +34,7 @@ bun run <SKILL_DIR>/scripts/mint.ts <wif> <file-path> <metadata-json>
 | `listOrdinals` | List owned ordinals after mint (metadata/tags; print `id`) |
 | `mintCollection` | Create a collection parent inscription |
 | `mintCollectionItem` | Create an item inscription linked to a parent collection |
+| `mintBsv21CollectionItem` | Deploy a fixed-supply BSV21 collection member |
 
 CLI: `ordinals inscribe` (was `ordinals mint`). Marketplace send/sell/buy: see `../ordinals-marketplace/SKILL.md`.
 
@@ -189,6 +190,24 @@ An invalid `collectionId` or ORDFS reference returns an error. The item embeds
 the collection outpoint as the inscription `parent`, carries the collection
 MAP fields, and is signed with SIGMA. Returns `MintCollectionItemOutput`:
 `{ txid?, error? }`.
+
+### Create a BSV21 Collection Item (`mintBsv21CollectionItem`)
+
+```typescript
+import { mintBsv21CollectionItem } from '@1sat/actions'
+
+const result = await mintBsv21CollectionItem.execute(ctx, {
+  symbol: 'MEM',
+  amount: '1000',
+  collectionId: 'collectionTxid_0',
+  name: 'Membership Token',
+  rarityLabel: 'founder',
+})
+```
+
+This keeps the BSV21 deploy JSON generic, appends the collection-item record as
+MAP, and adds SIGMA. `collectionId` must be an absolute outpoint because the
+collection root is not created in the token deploy transaction.
 
 ## Requirements
 

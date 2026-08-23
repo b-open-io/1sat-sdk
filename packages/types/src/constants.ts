@@ -216,6 +216,7 @@ export const P1SAT_INTENTS = {
 	BSV21_PURCHASE: 'bsv21.purchase',
 	BSV21_MINT: 'bsv21.mint',
 	BSV21_DEPLOY: 'bsv21.deploy',
+	BSV21_DEPLOY_SIGMA: 'bsv21.deploy-sigma',
 } as const
 
 export type P1SatIntent = (typeof P1SAT_INTENTS)[keyof typeof P1SAT_INTENTS]

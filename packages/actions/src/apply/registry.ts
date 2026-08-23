@@ -36,4 +36,5 @@ export const P1SAT_APPLY_REGISTRY: Record<string, ApplyFn> = {
 	'bsv21.purchase': applyValidateOnly,
 	'bsv21.mint': applyValidateOnly,
 	'bsv21.deploy': applyValidateOnly,
+	'bsv21.deploy-sigma': applyInscribeSigma,
 }

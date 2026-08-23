@@ -89,9 +89,20 @@ const result = await deployBsv21Mint.execute(ctx, {
   amount: '2100000000000000',
   decimals: 8,
   icon: 'iconTxid_0',
+  map: { app: 'my-app', purpose: 'membership' }, // optional generic MAP
+  signWithBAP: true,                              // optional SIGMA
 })
 // result.tokenId
 ```
+
+`map` is appended outside the BSV21 inscription payload, so it does not change
+the token JSON. `signWithBAP` routes the deploy through the shared P1Sat SIGMA
+placeholder/seal flow. SIGMA requires the wallet to sign its anchor input and
+therefore cannot be combined with an external `fundingProvider`.
+
+For a BSV21 token that should be indexed as a collection member, use
+`mintBsv21CollectionItem` from the collection actions. The token module keeps
+its `map` option generic and does not interpret collection fields.
 
 ## Deploy mintable + mint
 
