@@ -105,8 +105,8 @@
 			"name": "collections",
 			"source": "packages/client/skills/collections",
 			"destination": "skills/collections",
-			"source_hash": "sha256:9ec902c691ee0a55f723d11f0144862ed9f56795dd4ac9466ec2eeeb53de03cb",
-			"generated_hash": "sha256:9ec902c691ee0a55f723d11f0144862ed9f56795dd4ac9466ec2eeeb53de03cb"
+			"source_hash": "sha256:aa9ef241bac8e0ad7b98b5f7c353f875c2a3c776e089e9c4c0215cd8fee332cc",
+			"generated_hash": "sha256:aa9ef241bac8e0ad7b98b5f7c353f875c2a3c776e089e9c4c0215cd8fee332cc"
 		},
 		{
 			"name": "stack-api",
