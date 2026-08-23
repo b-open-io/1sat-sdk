@@ -185,7 +185,7 @@ function buildCollectionMap(
  * Build MAP metadata record for a collection item.
  * All values must be strings for MAP protocol.
  */
-export function buildCollectionItemMap(
+function buildCollectionItemMap(
 	input: CollectionItemMapInput,
 ): Record<string, string> {
 	const subTypeData: CollectionItemSubTypeData = {
