@@ -12,7 +12,7 @@
  * pointing to the parent collection's origin outpoint.
  */
 
-import { Inscription, MAP as MAPTemplate } from '@1sat/templates'
+import { Inscription } from '@1sat/templates'
 import type {
 	CollectionItemAttachment,
 	CollectionItemSubTypeData,
@@ -25,13 +25,10 @@ import type {
 import { P1SAT_INTENTS, P1SAT_PROTOCOL } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
 import { P2PKH, PublicKey, Script, Utils } from '@bsv/sdk'
-import { prepareP1SatArgs } from '../apply'
-import {
-	MAX_INSCRIPTION_BYTES,
-	ORDINALS_BASKET,
-} from '../constants'
+import { MAX_INSCRIPTION_BYTES, ORDINALS_BASKET } from '../constants'
 import type { Action, ActionOptions } from '../types'
-import { executeTrackedAction } from '../utils/createTrackedAction'
+import { appendMapSuffix } from '../utils/appendMapSuffix'
+import { executeSigmaAction } from '../utils/executeSigmaAction'
 
 // ============================================================================
 // Types
@@ -66,10 +63,12 @@ export interface MintCollectionOutput {
 }
 
 export interface MintCollectionItemInput extends ActionOptions {
-	/** Base64 encoded item artwork */
-	base64Content: string
-	/** Content type (MIME type) of the artwork */
-	contentType: string
+	/** Base64 encoded item artwork. Mutually exclusive with `ref`. */
+	base64Content?: string
+	/** Existing ORDFS reference used as the item's default content. */
+	ref?: string
+	/** Content type of embedded artwork. Required with `base64Content`. */
+	contentType?: string
 	/** Item name */
 	name: string
 	/** Collection origin outpoint: "<txid>_<vout>" of the parent collection */
@@ -78,6 +77,8 @@ export interface MintCollectionItemInput extends ActionOptions {
 	mintNumber?: number
 	/** Optional rank within the collection */
 	rank?: number
+	/** Optional rarity label for the item */
+	rarityLabel?: string
 	/** Optional item traits */
 	traits?: CollectionItemTrait[]
 	/** Optional file attachments */
@@ -148,6 +149,9 @@ function buildCollectionItemMap(
 		collectionId: input.collectionId,
 		...(input.mintNumber !== undefined && { mintNumber: input.mintNumber }),
 		...(input.rank !== undefined && { rank: input.rank }),
+		...(input.rarityLabel !== undefined && {
+			rarityLabel: input.rarityLabel,
+		}),
 		...(input.traits && input.traits.length > 0 && { traits: input.traits }),
 		...(input.attachments &&
 			input.attachments.length > 0 && { attachments: input.attachments }),
@@ -167,25 +171,18 @@ function buildCollectionItemMap(
  */
 function buildInscriptionScript(
 	address: string,
-	base64Content: string,
+	content: Uint8Array,
 	contentType: string,
 	map: Record<string, string>,
 	parent?: Uint8Array,
 ): Script {
-	const content = Utils.toArray(base64Content, 'base64')
 	const p2pkhScript = new P2PKH().lock(address)
 
-	// Build suffix: P2PKH + MAP
-	const suffix = new Script()
-	for (const chunk of p2pkhScript.chunks) suffix.chunks.push(chunk)
-	const mapScript = MAPTemplate.set(map)
-	for (const chunk of mapScript.chunks) suffix.chunks.push(chunk)
-
-	const inscription = Inscription.create(new Uint8Array(content), contentType, {
-		scriptSuffix: suffix,
+	const inscription = Inscription.create(content, contentType, {
+		scriptSuffix: p2pkhScript,
 		parent,
 	})
-	return new Script(inscription.lock().chunks)
+	return appendMapSuffix(new Script(inscription.lock().chunks), map)
 }
 
 // ============================================================================
@@ -276,7 +273,7 @@ export const mintCollection: Action<MintCollectionInput, MintCollectionOutput> =
 				const map = buildCollectionMap(input)
 				const lockingScript = buildInscriptionScript(
 					address,
-					input.base64Content,
+					new Uint8Array(decoded),
 					input.contentType,
 					map,
 				)
@@ -288,7 +285,7 @@ export const mintCollection: Action<MintCollectionInput, MintCollectionOutput> =
 					'subType:collection',
 				]
 
-				const args = await prepareP1SatArgs(
+				const result = await executeSigmaAction(
 					ctx,
 					{
 						description: `Create collection: ${input.name}`,
@@ -312,10 +309,6 @@ export const mintCollection: Action<MintCollectionInput, MintCollectionOutput> =
 						},
 					},
 					P1SAT_INTENTS.ORDINAL_MINT_COLLECTION,
-				)
-				const result = await executeTrackedAction(
-					ctx.wallet,
-					args,
 					input.fundingProvider,
 				)
 
@@ -386,7 +379,13 @@ export const mintCollectionItem: Action<
 			properties: {
 				base64Content: {
 					type: 'string',
-					description: 'Base64 encoded item artwork',
+					description:
+						'Base64 encoded item artwork; mutually exclusive with ref',
+				},
+				ref: {
+					type: 'string',
+					description:
+						'Existing ORDFS reference used as the item default content',
 				},
 				contentType: {
 					type: 'string',
@@ -409,6 +408,10 @@ export const mintCollectionItem: Action<
 					type: 'integer',
 					description: 'Optional rank within the collection',
 				},
+				rarityLabel: {
+					type: 'string',
+					description: 'Optional rarity label for the item',
+				},
 				traits: {
 					type: 'array',
 					description: 'Optional item traits',
@@ -422,15 +425,36 @@ export const mintCollectionItem: Action<
 					description: 'MAP app field (default: "1sat-wallet")',
 				},
 			},
-			required: ['base64Content', 'contentType', 'name', 'collectionId'],
+			required: ['name', 'collectionId'],
 		},
 	},
 	async execute(ctx, input) {
 		try {
-			const decoded = Utils.toArray(input.base64Content, 'base64')
-			if (decoded.length > MAX_INSCRIPTION_BYTES) {
+			const hasContent = input.base64Content !== undefined
+			const hasRef = input.ref !== undefined
+			if (hasContent === hasRef) {
+				return { error: 'exactly-one-of-base64Content-or-ref-required' }
+			}
+			if (hasContent && !input.contentType) {
+				return { error: 'contentType-required-with-base64Content' }
+			}
+			if (
+				hasRef &&
+				!/^(_\d+|[0-9a-fA-F]{64}_\d+(:-?\d+)?)$/.test(input.ref as string)
+			) {
+				return { error: `invalid-ref: ${input.ref}` }
+			}
+
+			const content = hasRef
+				? new Uint8Array(
+						Utils.toArray(JSON.stringify({ '.': input.ref as string }), 'utf8'),
+					)
+				: new Uint8Array(Utils.toArray(input.base64Content as string, 'base64'))
+			const contentType = hasRef ? 'ord-fs/json' : (input.contentType as string)
+
+			if (content.length > MAX_INSCRIPTION_BYTES) {
 				return {
-					error: `Inscription data too large: ${decoded.length} bytes (max ${MAX_INSCRIPTION_BYTES})`,
+					error: `Inscription data too large: ${content.length} bytes (max ${MAX_INSCRIPTION_BYTES})`,
 				}
 			}
 
@@ -454,21 +478,21 @@ export const mintCollectionItem: Action<
 			const map = buildCollectionItemMap(input)
 			const lockingScript = buildInscriptionScript(
 				address,
-				input.base64Content,
-				input.contentType,
+				content,
+				contentType,
 				map,
 				parentBytes,
 			)
 
 			const tags = [
-				`type:${input.contentType}`,
+				`type:${contentType}`,
 				'origin',
 				`name:${input.name.slice(0, 64)}`,
 				'subType:collectionItem',
 				`collectionId:${input.collectionId}`,
 			]
 
-			const mintItemArgs = await prepareP1SatArgs(
+			const result = await executeSigmaAction(
 				ctx,
 				{
 					description: `Create collection item: ${input.name}`,
@@ -492,10 +516,6 @@ export const mintCollectionItem: Action<
 					},
 				},
 				P1SAT_INTENTS.ORDINAL_MINT_ITEM,
-			)
-			const result = await executeTrackedAction(
-				ctx.wallet,
-				mintItemArgs,
 				input.fundingProvider,
 			)
 
@@ -508,7 +528,7 @@ export const mintCollectionItem: Action<
 					timestamp: new Date().toISOString(),
 					action: 'mintCollectionItem',
 					input: {
-						contentType: input.contentType,
+						contentType,
 						name: input.name,
 						collectionId: input.collectionId,
 						mintNumber: input.mintNumber,

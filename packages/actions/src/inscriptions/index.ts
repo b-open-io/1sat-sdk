@@ -4,7 +4,7 @@
  * Actions for creating inscriptions, including multi-tx OrdFS streams.
  */
 
-import { Inscription, MAP as MAPTemplate } from '@1sat/templates'
+import { Inscription } from '@1sat/templates'
 import type { Destination } from '@1sat/types'
 import { P1SAT_INTENTS, P1SAT_PROTOCOL, buildActionIdLabel } from '@1sat/types'
 import { Beef, Hash, type LockingScript, Script, Utils } from '@bsv/sdk'
@@ -17,6 +17,7 @@ import {
 	ORDINALS_BASKET,
 } from '../constants'
 import type { Action, ActionOptions, OneSatContext } from '../types'
+import { appendMapSuffix } from '../utils/appendMapSuffix'
 import {
 	executeTrackedAction,
 	randomActionId,
@@ -91,15 +92,11 @@ function buildInscriptionScript(
 ): Script {
 	const suffix = new Script()
 	for (const chunk of lockingScript.chunks) suffix.chunks.push(chunk)
-	if (map && Object.keys(map).length > 0) {
-		const mapScript = MAPTemplate.set(map)
-		for (const chunk of mapScript.chunks) suffix.chunks.push(chunk)
-	}
 
 	const inscription = Inscription.create(content, contentType, {
 		scriptSuffix: suffix,
 	})
-	return new Script(inscription.lock().chunks)
+	return appendMapSuffix(new Script(inscription.lock().chunks), map)
 }
 
 async function inscribeWithSigma(

@@ -36,6 +36,7 @@ import {
 import type { Protocol } from '@1sat/templates'
 import { type LockingScript, P2PKH, Script, Utils } from '@bsv/sdk'
 import type { OneSatContext } from '../types'
+import { appendMapSuffix } from '../utils/appendMapSuffix'
 import { type OrdfsDirManifest, buildOrdfsDirManifest } from './manifest'
 
 /**
@@ -227,12 +228,13 @@ function buildManifestScript(
 			"buildOrdFsDirOutputs: 'locking' is required for the ordinal root — it controls who can spend the UTXO",
 		)
 	}
-	const suffix = hasMap ? MAP.set(map as Record<string, string>) : undefined
 	const manifestInscription = Inscription.create(manifestBytes, contentType, {
 		scriptPrefix: lockFor(locking, vout),
-		...(suffix ? { scriptSuffix: suffix } : {}),
 	})
-	return new Script(manifestInscription.lock().chunks)
+	return appendMapSuffix(
+		new Script(manifestInscription.lock().chunks),
+		hasMap ? map : undefined,
+	)
 }
 
 /**

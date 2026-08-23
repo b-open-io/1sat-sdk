@@ -362,7 +362,7 @@ export interface CollectionItemSubTypeData {
 	collectionId: string
 	mintNumber?: number
 	rank?: number
-	rarityLabel?: RarityLabels
+	rarityLabel?: string
 	traits?: CollectionItemTrait[]
 	attachments?: CollectionItemAttachment[]
 }
