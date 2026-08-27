@@ -6,12 +6,21 @@ export { MAP_PREFIX }
 
 /**
  * MAP protocol commands
+ *
+ * Per the Magic Attribute Protocol specification. `SET` and `REMOVE` operate on
+ * single-value keys; `ADD` and `DELETE` operate on list-valued keys. `SELECT`
+ * designates a transaction as the context for a following command, and `CLEAR`
+ * erases every value a transaction wrote.
+ *
+ * @see https://github.com/opldotdev/MAP
  */
 export enum MAPCommand {
 	SET = 'SET',
-	DEL = 'DEL',
+	REMOVE = 'REMOVE',
 	ADD = 'ADD',
+	DELETE = 'DELETE',
 	SELECT = 'SELECT',
+	CLEAR = 'CLEAR',
 }
 
 /**
@@ -20,11 +29,14 @@ export enum MAPCommand {
 export interface MAPData {
 	cmd: MAPCommand | string
 	data: Record<string, string>
+	/** Values appended by an ADD command, in script order */
 	adds?: string[]
+	/** Values struck by a DELETE command, in script order */
+	deletes?: string[]
 }
 
 /**
- * MAP (Metadata and Payload) Protocol Template
+ * MAP (Magic Attribute Protocol) Template
  *
  * The MAP protocol provides a way to store key-value metadata on the blockchain.
  * It supports different commands for setting, deleting, adding, and selecting data.
@@ -54,17 +66,41 @@ export default class MAP {
 	}
 
 	/**
-	 * Creates a MAP protocol locking script with DEL command
+	 * Creates a MAP protocol locking script with a REMOVE command
 	 *
-	 * @param keys - Array of keys to delete
+	 * REMOVE clears single-value keys. To drop individual members of a
+	 * list-valued key, use {@link MAP.delete} instead.
+	 *
+	 * @param keys - Array of keys to remove
 	 * @returns LockingScript - The MAP protocol locking script
 	 */
-	static del(keys: string[]): LockingScript {
+	static remove(keys: string[]): LockingScript {
 		const data: Record<string, string> = {}
 		for (const key of keys) {
 			data[key] = ''
 		}
-		return MAP.lock(MAPCommand.DEL, data)
+		return MAP.lock(MAPCommand.REMOVE, data)
+	}
+
+	/**
+	 * Creates a MAP protocol locking script with a DELETE command
+	 *
+	 * DELETE removes one or more values from a single list-valued key. The key
+	 * is named first so that the values are only struck from that list.
+	 *
+	 * @param key - The list-valued key to delete from
+	 * @param values - Values to remove from that list
+	 * @returns LockingScript - The MAP protocol locking script
+	 */
+	static delete(key: string, values: string[]): LockingScript {
+		const script = new Script()
+		script.writeBin(Utils.toArray(MAP_PREFIX))
+		script.writeBin(Utils.toArray(MAPCommand.DELETE))
+		script.writeBin(Utils.toArray(key))
+		for (const value of values) {
+			script.writeBin(Utils.toArray(value))
+		}
+		return script as LockingScript
 	}
 
 	/**
@@ -197,13 +233,32 @@ export default class MAP {
 					mapData.adds = values
 				}
 			}
-		} else if (cmd === MAPCommand.DEL) {
-			// For DEL command, read all keys to delete
+		} else if (cmd === MAPCommand.REMOVE) {
+			// REMOVE clears single-value keys - read every key named
 			for (let i = 1; i < chunks.length; i++) {
 				const keyChunk = chunks[i]
 				if (keyChunk?.data != null) {
 					const key = MAP.cleanString(Utils.toUTF8(keyChunk.data))
 					mapData.data[key] = ''
+				}
+			}
+		} else if (cmd === MAPCommand.DELETE) {
+			// DELETE removes values from one list-valued key: key first, then values
+			if (chunks.length >= 2) {
+				const keyChunk = chunks[1]
+				if (keyChunk?.data != null) {
+					const key = MAP.cleanString(Utils.toUTF8(keyChunk.data))
+
+					const values: string[] = []
+					for (let i = 2; i < chunks.length; i++) {
+						const valueChunk = chunks[i]
+						if (valueChunk?.data != null) {
+							values.push(MAP.cleanString(Utils.toUTF8(valueChunk.data)))
+						}
+					}
+
+					mapData.data[key] = values.join(' ')
+					mapData.deletes = values
 				}
 			}
 		}
