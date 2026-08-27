@@ -60,9 +60,11 @@ export default class MAP {
 	 * @returns LockingScript - The MAP protocol locking script
 	 */
 	static add(key: string, values: string[]): LockingScript {
-		const data: Record<string, string> = {}
-		data[key] = values.join(' ') // Join values with space
-		return MAP.lock(MAPCommand.ADD, data)
+		// ADD names the list key, then writes one push per value. Joining the
+		// values into a single push would make an n-member list indistinguishable
+		// from a one-member list holding a space-separated string, and would not
+		// round-trip through the ADD branch of decode().
+		return MAP.lockPushes([MAPCommand.ADD, key, ...values])
 	}
 
 	/**
@@ -75,11 +77,9 @@ export default class MAP {
 	 * @returns LockingScript - The MAP protocol locking script
 	 */
 	static remove(keys: string[]): LockingScript {
-		const data: Record<string, string> = {}
-		for (const key of keys) {
-			data[key] = ''
-		}
-		return MAP.lock(MAPCommand.REMOVE, data)
+		// REMOVE names keys only - it takes no values. Routing it through lock()
+		// would pad every key with an empty push.
+		return MAP.lockPushes([MAPCommand.REMOVE, ...keys])
 	}
 
 	/**
@@ -93,14 +93,35 @@ export default class MAP {
 	 * @returns LockingScript - The MAP protocol locking script
 	 */
 	static delete(key: string, values: string[]): LockingScript {
+		return MAP.lockPushes([MAPCommand.DELETE, key, ...values])
+	}
+
+	/**
+	 * Builds a BitCom-framed MAP output from an ordered list of pushes
+	 *
+	 * The list commands (ADD, DELETE) and REMOVE are positional rather than
+	 * key/value, so they cannot go through {@link MAP.lock}. They still need the
+	 * same `OP_RETURN <MAP_PREFIX> ...` framing, otherwise {@link MAP.decode}
+	 * finds no OP_RETURN and returns null.
+	 *
+	 * @param pushes - The command followed by its operands, in script order
+	 * @returns LockingScript - The MAP protocol locking script
+	 */
+	private static lockPushes(pushes: string[]): LockingScript {
 		const script = new Script()
-		script.writeBin(Utils.toArray(MAP_PREFIX))
-		script.writeBin(Utils.toArray(MAPCommand.DELETE))
-		script.writeBin(Utils.toArray(key))
-		for (const value of values) {
-			script.writeBin(Utils.toArray(value))
+		for (const push of pushes) {
+			script.writeBin(Utils.toArray(MAP.cleanString(push)))
 		}
-		return script as LockingScript
+
+		const protocols: Protocol[] = [
+			{
+				protocol: MAP_PREFIX,
+				script: script.toBinary(),
+				pos: 0,
+			},
+		]
+
+		return new BitCom(protocols).lock()
 	}
 
 	/**
