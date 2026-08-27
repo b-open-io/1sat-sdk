@@ -93,9 +93,39 @@ export function Header() {
 						/>
 						Admin originator
 					</label>
+					<label
+						style={{
+							...toggleLabel,
+							opacity: local.localEnabled ? 1 : 0.45,
+						}}
+						title="useOneSatModule on 1sat asset actions (p 1sat labels → module)"
+					>
+						<input
+							type="checkbox"
+							checked={local.useOneSatModule}
+							onChange={(e) => local.setUseOneSatModule(e.target.checked)}
+							disabled={!local.localEnabled}
+						/>
+						1Sat module
+					</label>
+					<button
+						type="button"
+						style={clearBtn}
+						disabled={!local.localEnabled || local.status !== 'ready'}
+						onClick={() => {
+							void local.clearPermissionGrants().then((n) => {
+								log('info', `Cleared ${n} permission grant(s)`)
+							})
+						}}
+						title="Clear IndexedDB permission grants so prompts replay"
+					>
+						Clear grants
+					</button>
 					<span style={{ fontSize: '0.7rem', color: '#555' }}>
 						{local.localEnabled
-							? 'Actions use local wallet (no Connect needed)'
+							? local.useOneSatModule
+								? '1sat actions → module prompts'
+								: '1sat actions → local pipeline (WPM core may prompt)'
 							: 'Connect extension (disable Yours or Local to pick one)'}
 					</span>
 				</div>
@@ -139,4 +169,14 @@ const toggleLabel: React.CSSProperties = {
 	color: '#ccc',
 	cursor: 'pointer',
 	userSelect: 'none',
+}
+
+const clearBtn: React.CSSProperties = {
+	fontSize: '0.7rem',
+	padding: '0.2rem 0.45rem',
+	background: '#333',
+	color: '#ccc',
+	border: '1px solid #555',
+	borderRadius: 4,
+	cursor: 'pointer',
 }

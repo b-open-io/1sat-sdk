@@ -14,7 +14,6 @@ import {
 	DEPOSIT_BASKET,
 	OPNS_BASKET,
 	ORDINALS_BASKET,
-	buildTokenLabel,
 } from '@1sat/types'
 import {
 	Bsv21Indexer,
@@ -28,6 +27,13 @@ import {
 	Outpoint,
 	SigmaIndexer,
 } from '@1sat/wallet'
+import {
+	buildBsv21CustomInstructions,
+} from './bsv21Remittance'
+import {
+	buildOrdinalCustomInstructions,
+	remittanceFromOrdinalTags,
+} from './ordinalRemittance'
 import {
 	Beef,
 	type InternalizeActionArgs,
@@ -294,6 +300,7 @@ function buildInternalizeOutput(
 		const tags = [...collectTags(txo), idTag]
 		const nameTag = tags.find((t) => t.startsWith('name:'))
 		const sym = (txo.data.bsv21?.data as { sym?: string })?.sym
+		const remittance = remittanceFromOrdinalTags(tags)
 
 		return {
 			outputIndex: vout,
@@ -305,6 +312,7 @@ function buildInternalizeOutput(
 					derivationPrefix: derivation.derivationPrefix,
 					derivationSuffix: derivation.derivationSuffix,
 					senderIdentityKey: derivation.senderIdentityKey,
+					...remittance,
 					...(nameTag && { name: nameTag.slice(5).slice(0, 64) }),
 					...(sym && { sym }),
 				}),
@@ -320,7 +328,42 @@ function buildInternalizeOutput(
 	if (txo.basket && txo.basket !== 'fund') {
 		const tags = [...collectTags(txo), idTag]
 		const nameTag = tags.find((t) => t.startsWith('name:'))
-		const sym = (txo.data.bsv21?.data as { sym?: string })?.sym
+		const keyID = `${derivation.derivationPrefix} ${derivation.derivationSuffix}`
+		const bsv21 = txo.data.bsv21?.data as
+			| {
+					id?: string
+					amt?: bigint | string
+					op?: string
+					sym?: string
+					dec?: number | string
+					icon?: string
+			  }
+			| undefined
+
+		const customInstructions = bsv21?.id
+			? buildBsv21CustomInstructions({
+					token: {
+						id: bsv21.id,
+						amt: String(bsv21.amt ?? '0'),
+						op: bsv21.op,
+						sym: bsv21.sym,
+						dec: bsv21.dec,
+						icon: bsv21.icon,
+					},
+					protocolID: derivation.protocolID,
+					keyID,
+					counterparty: derivation.counterparty,
+				})
+			: buildOrdinalCustomInstructions({
+					protocolID: derivation.protocolID,
+					keyID,
+					counterparty: derivation.counterparty,
+					tags,
+					name: nameTag?.slice(5),
+					extra: {
+						...(bsv21?.sym && { sym: bsv21.sym }),
+					},
+				})
 
 		return {
 			outputIndex: vout,
@@ -328,15 +371,7 @@ function buildInternalizeOutput(
 			insertionRemittance: {
 				basket: txo.basket,
 				tags,
-				customInstructions: JSON.stringify({
-					protocolID: derivation.protocolID,
-					keyID: `${derivation.derivationPrefix} ${derivation.derivationSuffix}`,
-					...(derivation.counterparty != null && {
-						counterparty: derivation.counterparty,
-					}),
-					...(nameTag && { name: nameTag.slice(5).slice(0, 64) }),
-					...(sym && { sym }),
-				}),
+				customInstructions,
 			},
 		}
 	}
@@ -374,7 +409,11 @@ function buildLabels(ownedTxos: Txo[]): string[] {
 	for (const txo of ownedTxos) {
 		const bsv21 = txo.data.bsv21?.data as { id?: string } | undefined
 		if (bsv21?.id) {
-			labels.add(buildTokenLabel(bsv21.id))
+			// Plain label only. Do NOT use `p bsv21 token …` (buildTokenLabel):
+			// P-labels force WPM's module internalize path, which encrypts CI
+			// again after non-P basket authorization already encrypted it
+			// (double encryption → listOutputs only peels one layer).
+			labels.add(`bsv21 ${bsv21.id}`)
 		}
 	}
 	return [...labels]

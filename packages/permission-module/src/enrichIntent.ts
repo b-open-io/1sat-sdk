@@ -7,8 +7,8 @@
  * before dispatching to permission modules — so we can't read them.
  * What's left:
  *
- *   - `args.labels`            — unencrypted; carries our `'p 1sat input <basket> <id>'`
- *                                / `'p 1sat output <basket> <id>'` lookup keys
+ *   - `args.labels`            — unencrypted; carries our `'p <scheme> input <key>'`
+ *                                lookup keys
  *   - `args.outputs[i].lockingScript` — decode P2PKH for recipient address
  *   - `args.outputs[i].satoshis`
  *
@@ -22,16 +22,23 @@
 import {
 	BAP_BASKET,
 	BSOCIAL_BASKET,
-	BSV21_AUTH_BASKET,
 	BSV21_BASKET,
 	LOCK_BASKET,
 	ORDFS_HOST,
 	OPNS_BASKET,
 	ORDINALS_BASKET,
 	SIGMA_BASKET,
+	formatOrdinalOutpoint,
 	parseInputAssetLabels,
 } from '@1sat/types'
-import { Lock, OrdLock, outpointFromBytes } from '@1sat/templates'
+import {
+	BSV21,
+	Inscription,
+	Lock,
+	OrdLock,
+	outpointFromBytes,
+	Sigma,
+} from '@1sat/templates'
 import { parseAddress } from '@1sat/wallet'
 import type {
 	CreateActionArgs,
@@ -108,6 +115,7 @@ export type ScriptTemplateKind =
 	| 'lock'
 	| 'pushdrop'
 	| 'sigma'
+	| 'bsv21'
 	| 'unrecognized'
 
 /**
@@ -138,6 +146,11 @@ export interface TxLeg {
 	name?: string
 	/** True when this leg is part of an {@link OrdinalEdge} (UI may de-dupe). */
 	inOrdinalEdge?: boolean
+	tokenId?: string
+	tokenAmt?: string
+	tokenSym?: string
+	tokenOp?: string
+	isIndexerFee?: boolean
 }
 
 /**
@@ -151,6 +164,10 @@ export type OrdinalOperation =
 	| 'list'
 	| 'cancel-listing'
 	| 'purchase'
+	/** OpNS self-spend into signed PushDrop bind. */
+	| 'register'
+	/** OpNS unpublish / drop bind (when detectable). */
+	| 'unregister'
 
 export interface OrdinalEdge {
 	operation: OrdinalOperation
@@ -183,6 +200,12 @@ export interface OrdinalEdge {
 		opnsAvatarOrigin?: string
 		name?: string
 		origin?: string
+		/** Best-effort content type from tags (`type:image/png`). */
+		contentType?: string
+		/** UTF-8 body decoded from the output inscription script. */
+		inscriptionText?: string
+		/** `data:image/…;base64,…` from the output inscription script. */
+		inscriptionDataUrl?: string
 	}
 }
 
@@ -192,6 +215,8 @@ export interface EnrichedOutput {
 	basket?: string
 	tags: string[]
 	template?: ScriptTemplateKind
+	/** Raw locking script hex (for re-decode at panel build). */
+	lockingScript?: string
 	/** Apply will seal a placeholder signature in this output. */
 	sealPending?: boolean
 	sealKind?: 'pushdrop' | 'sigma'
@@ -224,6 +249,22 @@ export interface EnrichedOutput {
 	opnsAvatarOrigin?: string
 	/** Case-preserving display name from customInstructions when present. */
 	customInstructions?: string
+	/** BSV21 token id from script (or tags). */
+	tokenId?: string
+	/** BSV21 amount string from script (or tags). */
+	tokenAmt?: string
+	/** BSV21 symbol when present on script/tags. */
+	tokenSym?: string
+	/** BSV21 op from script (`transfer`, `mint`, …). */
+	tokenOp?: string
+	/** True when tags mark this as an overlay indexer fee. */
+	isIndexerFee?: boolean
+	/** MIME from Inscription.decode on the locking script. */
+	inscriptionType?: string
+	/** UTF-8 inscription body (text/json/html), from the script. */
+	inscriptionText?: string
+	/** Image/svg data URL from the script. */
+	inscriptionDataUrl?: string
 }
 
 export type TrustState = 'verified' | 'unverified' | 'mismatch'
@@ -235,7 +276,7 @@ export interface EnrichedTrust {
 
 export interface EnrichedIntent {
 	kind: EnrichedIntentKind
-	/** One entry per `'p 1sat input <basket> <id>'` label. */
+	/** One entry per `'p <scheme> input <key>'` label. */
 	inputs: EnrichedAsset[]
 	/** All raw outputs with recipient decoded from script. */
 	outputs: EnrichedOutput[]
@@ -264,7 +305,6 @@ export interface EnrichedIntent {
 const ASSET_BASKETS = [
 	ORDINALS_BASKET,
 	BSV21_BASKET,
-	BSV21_AUTH_BASKET,
 	LOCK_BASKET,
 	OPNS_BASKET,
 	BSOCIAL_BASKET,
@@ -345,11 +385,11 @@ export async function enrichIntent(
  * meaningless or a lie, and outputs are dApp-authored besides. Nothing
  * persisted may influence the badge.
  *
- * Every purchase therefore starts `unverified`; `verifyIntent` upgrades it if
- * and when a service positively answers.
+ * Purchases and BSV21 transfers start `unverified`; `verifyIntent` upgrades
+ * them when the overlay positively answers (token active + inputs valid).
  */
 function initialTrust(kind: EnrichedIntentKind): EnrichedTrust | undefined {
-	if (kind !== 'purchase') return undefined
+	if (kind !== 'purchase' && kind !== 'token-transfer') return undefined
 	return { state: 'unverified' }
 }
 
@@ -489,6 +529,7 @@ function decodeOutput(
 		tags: out.tags ?? [],
 		template: 'unrecognized',
 		customInstructions: out.customInstructions,
+		...(out.lockingScript ? { lockingScript: out.lockingScript } : {}),
 	}
 	if (!out.lockingScript) return enriched
 	let script: Script
@@ -500,9 +541,34 @@ function decodeOutput(
 
 	const classified = classifyScript(script, chain, out.basket)
 	Object.assign(enriched, classified)
+	Object.assign(enriched, inscriptionPreviewFromScript(script))
 
 	if (out.basket === OPNS_BASKET || classified.template === 'pushdrop') {
 		Object.assign(enriched, decodeOpnsProfile(script))
+	}
+
+	// Tag fallbacks when script didn't carry sym/id (self-kept rows).
+	if (!enriched.tokenId) {
+		const tid = tagValue(enriched.tags, 'bsv21')
+		if (tid && tid !== 'deploy') enriched.tokenId = tid
+	}
+	if (!enriched.tokenAmt) {
+		const amt = tagValue(enriched.tags, 'amt')
+		if (amt) enriched.tokenAmt = amt
+	}
+	if (!enriched.tokenSym) {
+		const sym = displayFieldFrom(
+			'sym',
+			enriched.tags,
+			enriched.customInstructions,
+		)
+		if (sym) enriched.tokenSym = sym
+	}
+	if (
+		enriched.tags.includes('fee:overlay') ||
+		enriched.tags.some((t) => t.startsWith('indexer-fee'))
+	) {
+		enriched.isIndexerFee = true
 	}
 
 	return enriched
@@ -531,11 +597,28 @@ function classifyScript(
 		}
 	}
 
-	if (scriptContainsAscii(script, 'SIGMA')) {
+	const bsv21 = BSV21.decode(script)
+	if (bsv21) {
+		const d = bsv21.tokenData
+		// amt is the BSV21 inscription amount (base units), never satoshis.
+		const tokenAmt =
+			d.amt != null && String(d.amt).length > 0 ? String(d.amt) : undefined
+		return {
+			template: 'bsv21',
+			...(d.id ? { tokenId: d.id } : {}),
+			...(tokenAmt ? { tokenAmt } : {}),
+			...(d.sym ? { tokenSym: d.sym } : {}),
+			...(d.op ? { tokenOp: d.op } : {}),
+			...p2pkhRecipient(script, chain),
+		}
+	}
+
+	if (scriptContainsAscii(script, 'SIGMA') || Sigma.countInstances(script) > 0) {
 		const sealPending = hasZeroedSigmaSig(script)
 		return {
 			template: 'sigma',
-			...(sealPending ? { sealPending: true, sealKind: 'sigma' as const } : {}),
+			sealKind: 'sigma' as const,
+			...(sealPending ? { sealPending: true } : {}),
 			...p2pkhRecipient(script, chain),
 		}
 	}
@@ -566,6 +649,46 @@ function classifyScript(
 	return { template: basket ? 'unrecognized' : 'unrecognized' }
 }
 
+const PREVIEW_TEXT_MAX = 800
+
+function inscriptionPreviewFromScript(
+	script: Script,
+): Pick<
+	EnrichedOutput,
+	'inscriptionType' | 'inscriptionText' | 'inscriptionDataUrl'
+> {
+	const insc = Inscription.decode(script)
+	if (!insc?.file) return {}
+	const type = insc.file.type.split(';')[0]?.trim() || ''
+	const bytes = Array.from(insc.file.content)
+	if (bytes.length === 0) {
+		return type ? { inscriptionType: type } : {}
+	}
+	const lower = type.toLowerCase()
+	if (lower.startsWith('image/')) {
+		return {
+			inscriptionType: type,
+			inscriptionDataUrl: `data:${type};base64,${Utils.toBase64(bytes)}`,
+		}
+	}
+	try {
+		let text = Utils.toUTF8(bytes)
+		if (lower.includes('json')) {
+			try {
+				text = JSON.stringify(JSON.parse(text), null, 2)
+			} catch {
+				// keep raw
+			}
+		}
+		return {
+			inscriptionType: type,
+			inscriptionText: text.slice(0, PREVIEW_TEXT_MAX),
+		}
+	} catch {
+		return type ? { inscriptionType: type } : {}
+	}
+}
+
 function p2pkhRecipient(
 	script: Script,
 	chain: 'mainnet' | 'testnet',
@@ -593,28 +716,21 @@ function scriptContainsAscii(script: Script, ascii: string): boolean {
 	return false
 }
 
-/** True when a SIGMA tape's signature field is still all zeros. */
+/**
+ * True when a SIGMA tape's signature push is still the zero placeholder.
+ * Parses the real tape (`SIGMA · algo · address · sig · vin`) via
+ * {@link Sigma.parseFromScript} — not a raw zero-run hunt after the marker
+ * (BSM + address sit between SIGMA and the sig field).
+ */
 function hasZeroedSigmaSig(script: Script): boolean {
-	const bin = script.toBinary()
-	const sigma = Utils.toArray('SIGMA')
-	for (let i = 0; i <= bin.length - sigma.length - 70; i++) {
-		let match = true
-		for (let j = 0; j < sigma.length; j++) {
-			if (bin[i + j] !== sigma[j]) {
-				match = false
-				break
-			}
+	try {
+		const sigs = Sigma.parseFromScript(script)
+		for (const s of sigs) {
+			const bytes = Utils.toArray(s.signature, 'base64')
+			if (bytes.length > 0 && bytes.every((b) => b === 0)) return true
 		}
-		if (!match) continue
-		// After SIGMA marker, look for a run of 65 zero bytes (compact sig placeholder).
-		const slice = bin.slice(i + sigma.length, i + sigma.length + 80)
-		let zeros = 0
-		for (const b of slice) {
-			if (b === 0) zeros++
-			else if (zeros >= 60) return true
-			else zeros = 0
-		}
-		if (zeros >= 60) return true
+	} catch {
+		// unparseable tape
 	}
 	return false
 }
@@ -635,6 +751,26 @@ function displayNameFrom(
 		}
 	}
 	return tagValue(tags, 'name')
+}
+
+/**
+ * Case-preserving field from customInstructions (BRC-100 lowercases tags).
+ * Falls back to the matching tag when CI is missing.
+ */
+function displayFieldFrom(
+	field: string,
+	tags: string[] | undefined,
+	customInstructions?: string,
+): string | undefined {
+	if (customInstructions) {
+		try {
+			const v = JSON.parse(customInstructions)[field]
+			if (typeof v === 'string' && v.trim()) return v.trim()
+		} catch {
+			// ignore
+		}
+	}
+	return tagValue(tags, field)
 }
 
 function isCollectableBasket(basket?: string): boolean {
@@ -723,6 +859,65 @@ function buildOrdinalEdges(
 			continue
 		}
 
+		// OpNS register / unregister.
+		const isOpnsSpend =
+			inp.basket === OPNS_BASKET ||
+			!!inp.basket?.includes('opns') ||
+			inp.tags.some((t) => t.startsWith('opns:') || t === 'opns')
+		if (isOpnsSpend) {
+			const registerOut = takeOut(
+				(o) =>
+					o.template === 'pushdrop' &&
+					(o.sealPending ||
+						o.tags.includes('opns:published') ||
+						o.basket === OPNS_BASKET ||
+						!!o.basket?.includes('opns')),
+			)
+			if (registerOut) {
+				// Domain is the owned OpNS name; profile is presentation only.
+				const domain = name
+				edges.push(
+					edge(
+						'register',
+						spend,
+						registerOut,
+						domain ? `Publish “${domain}”` : 'Publish OpNS name',
+						registerOut.sealPending
+							? 'Sign PushDrop identity bind'
+							: 'OpNS identity bind',
+					),
+				)
+				continue
+			}
+
+			// Unpublish: was bound → plain P2PKH keep in OPNS basket (drops bind).
+			// Self-P2PKH still decodes a recipient address — basket + dropped
+			// published tag is what distinguishes this from an external send.
+			const wasPublished = inp.tags.includes('opns:published')
+			if (wasPublished) {
+				const unregOut = takeOut(
+					(o) =>
+						o.satoshis === 1 &&
+						o.template === 'p2pkh' &&
+						(o.basket === OPNS_BASKET || !!o.basket?.includes('opns')) &&
+						!o.tags.includes('opns:published'),
+				)
+				if (unregOut) {
+					edges.push(
+						edge(
+							'unregister',
+							spend,
+							// Don't surface self-P2PKH address as a "To".
+							{ ...unregOut, recipient: undefined },
+							name ? `Unpublish “${name}”` : 'Unpublish OpNS name',
+							'Remove identity bind',
+						),
+					)
+					continue
+				}
+			}
+		}
+
 		const next = takeOut(
 			(o) =>
 				(isCollectableBasket(o.basket) || o.satoshis === 1) &&
@@ -741,14 +936,20 @@ function buildOrdinalEdges(
 			continue
 		}
 
-		// transfer (self-keep or external)
-		const external = Boolean(next.recipient)
+		// transfer: external only when the collectable leaves the wallet basket
+		const external = Boolean(next.recipient) && !next.basket
 		edges.push(
 			edge(
 				'transfer',
 				spend,
-				next,
-				name ? `Send “${name}”` : 'Send collectable',
+				external ? next : { ...next, recipient: undefined },
+				name
+					? external
+						? `Send “${name}”`
+						: `Move “${name}”`
+					: external
+						? 'Send collectable'
+						: 'Move collectable',
 				external && next.recipient
 					? `To ${truncate(next.recipient, 18)}`
 					: 'Move collectable',
@@ -825,6 +1026,7 @@ function edge(
 			create?.opnsProfileName,
 		) ?? spend?.name
 	const origin = tagValue(create?.tags, 'origin') ?? spend?.origin
+	const contentType = contentTypeFromTags(create?.tags ?? spend?.tags)
 	return {
 		operation,
 		title,
@@ -847,10 +1049,33 @@ function edge(
 						opnsAvatarOrigin: create.opnsAvatarOrigin,
 						...(name ? { name } : {}),
 						...(origin ? { origin } : {}),
+						...(contentType || create.inscriptionType
+							? {
+									contentType:
+										create.inscriptionType ?? contentType,
+								}
+							: {}),
+						...(create.inscriptionText
+							? { inscriptionText: create.inscriptionText }
+							: {}),
+						...(create.inscriptionDataUrl
+							? { inscriptionDataUrl: create.inscriptionDataUrl }
+							: {}),
 					},
 				}
 			: {}),
 	}
+}
+
+/** Prefer specific MIME (`image/png`) over bare category (`image`). */
+function contentTypeFromTags(tags: string[] | undefined): string | undefined {
+	if (!tags?.length) return undefined
+	const types = tags
+		.filter((t) => t.startsWith('type:'))
+		.map((t) => t.slice(5))
+	if (!types.length) return undefined
+	const specific = types.find((t) => t.includes('/'))
+	return specific ?? types[types.length - 1]
 }
 
 function buildLegs(
@@ -873,11 +1098,19 @@ function buildLegs(
 		const origin = tagValue(inp.tags, 'origin')
 		const listing = hasListingTags(inp.tags)
 		const inOrdinalEdge = edgeInIds.has(inp.id)
+		const tokenId = tagValue(inp.tags, 'bsv21')
+		const tokenAmt = tagValue(inp.tags, 'amt')
+		// sym/name-like fields: CI preserves case; tags are lowercased by BRC-100.
+		const tokenSym = displayFieldFrom('sym', inp.tags, inp.customInstructions)
 		legs.push({
 			side: 'input',
 			index: i,
 			satoshis: inp.satoshis,
-			template: listing ? 'ordlock' : 'unrecognized',
+			template: listing
+				? 'ordlock'
+				: tokenId || inp.basket === BSV21_BASKET
+					? 'bsv21'
+					: 'unrecognized',
 			label: legLabelInput(inp, name, listing),
 			basket: inp.basket,
 			tags: inp.tags,
@@ -886,6 +1119,9 @@ function buildLegs(
 			inOrdinalEdge,
 			...(name ? { name } : {}),
 			...(origin ? { origin } : {}),
+			...(tokenId && tokenId !== 'deploy' ? { tokenId } : {}),
+			...(tokenAmt ? { tokenAmt } : {}),
+			...(tokenSym ? { tokenSym } : {}),
 		})
 	}
 	for (const out of outputs) {
@@ -916,6 +1152,11 @@ function buildLegs(
 			opnsAvatarOrigin: out.opnsAvatarOrigin,
 			...(name ? { name } : {}),
 			...(origin ? { origin } : {}),
+			...(out.tokenId ? { tokenId: out.tokenId } : {}),
+			...(out.tokenAmt ? { tokenAmt: out.tokenAmt } : {}),
+			...(out.tokenSym ? { tokenSym: out.tokenSym } : {}),
+			...(out.tokenOp ? { tokenOp: out.tokenOp } : {}),
+			...(out.isIndexerFee ? { isIndexerFee: true } : {}),
 		})
 	}
 	return legs
@@ -1113,6 +1354,5 @@ function truncate(s: string, max: number): string {
 
 function contentUrlFromOrigin(host: string, origin: string): string {
 	const trimmed = host.replace(/\/$/, '')
-	const formatted = origin.replace('.', '_')
-	return `${trimmed}/${formatted}`
+	return `${trimmed}/${formatOrdinalOutpoint(origin)}`
 }

@@ -1,4 +1,5 @@
 import type { BEEF, WalletInterface, WalletOutput } from '@bsv/sdk'
+import { ensurePlaintextCi } from './walletMetadataCi'
 
 /** Accept bare id value or full `id:…` tag. */
 export function toIdTag(id: string): string {
@@ -15,7 +16,7 @@ export interface LoadBasketOutputResult {
 
 /**
  * Load a single wallet-owned basket UTXO by tracking id.
- * Returns tags, customInstructions, outpoint; optionally BEEF for spending.
+ * Always returns plaintext customInstructions (peels WPM metadata encryption).
  */
 export async function loadBasketOutput(
 	wallet: WalletInterface,
@@ -40,9 +41,20 @@ export async function loadBasketOutput(
 		limit: 1,
 	})
 
-	const output = result.outputs[0]
-	if (!output) {
+	const row = result.outputs[0]
+	if (!row) {
 		return { error: `output-not-found:${idTag}` }
+	}
+
+	const customInstructions = await ensurePlaintextCi(
+		wallet,
+		row.customInstructions,
+	)
+	const output: WalletOutput = {
+		...row,
+		...(customInstructions !== undefined
+			? { customInstructions }
+			: { customInstructions: undefined }),
 	}
 
 	return {

@@ -10,34 +10,63 @@
           "description": "Read your identity public key"
         },
         {
+          "protocolID": [0, "onesat"],
+          "description": "Sign 1Sat asset transactions (preferred key protocol)"
+        },
+        {
           "protocolID": [0, "p 1sat"],
-          "description": "Sign 1Sat asset transactions (ordinals, BSV21, locks, OpNS, deposits)"
+          "description": "Legacy 1Sat key protocol + module P-protocol"
         }
       ],
       "basketAccess": [
         {
-          "basket": "p 1sat ordinals",
-          "description": "Read and write ordinal outputs",
+          "basket": "1sat",
+          "description": "Read and write ordinal / collectable outputs",
           "operations": ["insert", "remove", "list"]
         },
         {
-          "basket": "p 1sat bsv21",
+          "basket": "bsv21",
           "description": "Read and write BSV21 token outputs",
           "operations": ["insert", "remove", "list"]
         },
         {
-          "basket": "p 1sat lock",
+          "basket": "lock",
           "description": "Read and write timelocked outputs",
           "operations": ["insert", "remove", "list"]
         },
         {
-          "basket": "p 1sat opns",
+          "basket": "opns",
           "description": "Read and write OpNS name outputs",
           "operations": ["insert", "remove", "list"]
         },
         {
-          "basket": "p 1sat bsocial",
+          "basket": "bsocial",
           "description": "Read and write BSocial post outputs",
+          "operations": ["insert", "remove", "list"]
+        },
+        {
+          "basket": "sigma",
+          "description": "Sigma anchor outputs",
+          "operations": ["insert", "remove", "list"]
+        },
+        {
+          "basket": "p 1sat ordinals",
+          "description": "Legacy ordinal basket (pre-migrate)",
+          "operations": ["insert", "remove", "list"]
+        },
+        {
+          "basket": "p 1sat bsv21",
+          "description": "Legacy BSV21 basket (pre-migrate)",
+          "operations": ["insert", "remove", "list"]
+        },
+        {
+          "basket": "p 1sat lock",
+          "description": "Legacy lock basket (pre-migrate)",
+          "operations": ["insert", "remove", "list"]
+        },
+        {
+          "basket": "p 1sat opns",
+          "description": "Legacy OpNS basket (pre-migrate)",
           "operations": ["insert", "remove", "list"]
         }
       ],

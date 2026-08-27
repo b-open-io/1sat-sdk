@@ -1,3 +1,4 @@
+import { formatOrdinalOutpoint } from '@1sat/types'
 import type { EnrichedAsset, EnrichedOutput, TrustState } from './enrichIntent'
 import type { VerificationServices } from './types'
 
@@ -129,11 +130,15 @@ async function verifyOpns(
 	return { state: 'verified' }
 }
 
-/** Verify a BSV21 token is active on the overlay. */
+/**
+ * Verify a BSV21 token is active and that spent inputs are valid unspent
+ * outs on the token overlay topic.
+ */
 async function verifyBsv21(
 	services: VerificationServices,
 	tokenId: string,
 	claimedSym?: string,
+	inputOutpoints: string[] = [],
 ): Promise<VerificationResult> {
 	const bsv21 = services.bsv21
 	if (typeof bsv21?.getTokenDetails !== 'function') return { state: 'unverified' }
@@ -145,14 +150,50 @@ async function verifyBsv21(
 		return { state: 'mismatch', note: 'Token is not active on the overlay' }
 	}
 	const sym = res.token?.sym
-	if (claimedSym && sym && claimedSym !== sym) {
-		return { state: 'mismatch', note: `Token symbol is ${sym}, not ${claimedSym}` }
+	// Tags are lowercased by BRC-100; CI/overlay preserve case — compare ignore-case.
+	if (
+		claimedSym &&
+		sym &&
+		claimedSym.toLowerCase() !== sym.toLowerCase()
+	) {
+		return {
+			state: 'mismatch',
+			note: `Token symbol is ${sym}, not ${claimedSym}`,
+		}
 	}
-	return { state: 'verified' }
+
+	// Validate spent token UTXOs against the overlay (same check sendBsv21 uses).
+	if (inputOutpoints.length > 0 && typeof bsv21.validateOutputs === 'function') {
+		const validated = await withTimeout(
+			bsv21.validateOutputs(tokenId, inputOutpoints, { unspent: true }),
+		)
+		if (!validated) return { state: 'unverified' }
+		const ok = new Set(
+			validated.map((v) => formatOrdinalOutpoint(v.outpoint)),
+		)
+		const missing = inputOutpoints.filter(
+			(op) => !ok.has(formatOrdinalOutpoint(op)),
+		)
+		if (missing.length > 0) {
+			return {
+				state: 'mismatch',
+				note:
+					missing.length === 1
+						? 'A spent token output is not valid on the overlay'
+						: `${missing.length} spent token outputs are not valid on the overlay`,
+			}
+		}
+	}
+
+	return {
+		state: 'verified',
+		// Case-preserving symbol from overlay for the card subtitle.
+		...(sym ? { name: sym } : {}),
+	}
 }
 
 /**
- * Verify the assets on a purchase intent.
+ * Verify assets on a purchase or BSV21 transfer.
  *
  * Returns `unverified` for anything we cannot positively confirm, including
  * when no services are wired at all. Never throws.
@@ -169,7 +210,10 @@ export async function verifyIntent(
 
 	const isPurchase =
 		kindOrIntent === 'purchase' || kindOrIntent.endsWith('.purchase')
-	if (!isPurchase) return { state: 'unverified' }
+	const isTokenTransfer =
+		kindOrIntent === 'token-transfer' ||
+		kindOrIntent.startsWith('bsv21.')
+	if (!isPurchase && !isTokenTransfer) return { state: 'unverified' }
 
 	const debug: Record<string, unknown> = {
 		kindOrIntent,
@@ -195,11 +239,38 @@ export async function verifyIntent(
 			return undefined
 		}
 
-		// Prefer tag-driven path (script classify only sets kind: 'purchase').
+		// BSV21: token active + spent inputs valid on overlay.
 		const tokenId = find('bsv21')
-		if (tokenId || kindOrIntent === 'bsv21.purchase') {
+		if (
+			tokenId ||
+			kindOrIntent === 'bsv21.purchase' ||
+			kindOrIntent === 'token-transfer' ||
+			kindOrIntent.startsWith('bsv21.')
+		) {
 			if (!tokenId) return { state: 'unverified' }
-			return await verifyBsv21(services, tokenId, find('sym'))
+			const tokenInputs = inputs.filter(
+				(i) =>
+					i.basket?.includes('bsv21') ||
+					i.tags.some((t) => t.startsWith('bsv21:')),
+			)
+			const outpoints = tokenInputs
+				.map((i) => i.outpoint)
+				.filter(Boolean)
+			// Prefer case-preserving CI sym over lowercased tags.
+			let claimedSym = find('sym')
+			for (const inp of inputs) {
+				if (!inp.customInstructions) continue
+				try {
+					const s = JSON.parse(inp.customInstructions).sym
+					if (typeof s === 'string' && s.trim()) {
+						claimedSym = s.trim()
+						break
+					}
+				} catch {
+					// ignore
+				}
+			}
+			return await verifyBsv21(services, tokenId, claimedSym, outpoints)
 		}
 
 		const name = find('name')

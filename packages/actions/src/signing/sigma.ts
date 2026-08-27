@@ -14,26 +14,28 @@ import { resolveCurrentKeyId } from './aip'
 
 const { toArray } = Utils
 
-
-
-
-
-/**
- * Check whether a script contains OP_RETURN.
- */
 function hasOpReturn(script: Script): boolean {
 	return script.chunks.some((c) => c.op === OP.OP_RETURN)
 }
 
 /**
- * Compact BSM signatures are always `[recoveryByte, r(32), s(32)]`. Fixed
- * width, so a placeholder tape is exactly the size of the sealed one.
+ * Compact BSM signatures are always `[recoveryByte, r(32), s(32)]`.
  */
 export const SIGMA_COMPACT_SIG_LEN = 65
 
 /**
- * The current BAP signing address. Read-only, so this resolves at
- * createAction-args time — before anything is signed.
+ * Placeholder address push (max P2PKH base58 length). Apply rewrites the
+ * whole tape with the real address — pushdata opcodes follow the real length.
+ */
+export const SIGMA_ADDRESS_PLACEHOLDER_LEN = 34
+
+const ZERO_SIG = (): number[] => new Array(SIGMA_COMPACT_SIG_LEN).fill(0)
+const ZERO_ADDRESS = (): number[] =>
+	new Array(SIGMA_ADDRESS_PLACEHOLDER_LEN).fill(0)
+
+/**
+ * The current BAP signing address. Used in apply when sealing, not when
+ * building the unsigned placeholder (that would hit WPM protocol access).
  */
 export async function resolveSigmaAddress(
 	ctx: OneSatContext,
@@ -54,12 +56,11 @@ export async function resolveSigmaAddress(
  * Built as raw bytes and concatenated rather than appended to
  * `script.chunks`: `Script.fromHex` folds everything after a data-bearing
  * `OP_RETURN` into that one chunk, and re-serializing a chunk copy silently
- * drops anything pushed after it. Concatenation also keeps the signed
- * preimage byte-exact.
+ * drops anything pushed after it.
  */
 function sigmaTapeBytes(
 	needsSeparator: boolean,
-	address: string,
+	address: string | number[],
 	compactSig: number[],
 	vin: number,
 ): number[] {
@@ -71,7 +72,7 @@ function sigmaTapeBytes(
 	}
 	tail.writeBin(toArray('SIGMA'))
 	tail.writeBin(toArray('BSM'))
-	tail.writeBin(toArray(address))
+	tail.writeBin(typeof address === 'string' ? toArray(address) : address)
 	tail.writeBin(compactSig)
 	tail.writeBin(toArray(vin.toString()))
 	return tail.toBinary()
@@ -81,38 +82,48 @@ function concatScript(base: Script, suffix: number[]): Script {
 	return Script.fromBinary([...base.toBinary(), ...suffix])
 }
 
+function placeholderTapes(vin: number): number[][] {
+	const addr = ZERO_ADDRESS()
+	const sig = ZERO_SIG()
+	return [
+		sigmaTapeBytes(true, addr, sig, vin),
+		sigmaTapeBytes(false, addr, sig, vin),
+	]
+}
+
+function findPlaceholderTape(
+	scriptBin: number[],
+	vin: number,
+): number[] | undefined {
+	return placeholderTapes(vin).find((t) => {
+		const start = scriptBin.length - t.length
+		return start >= 0 && t.every((b, i) => scriptBin[start + i] === b)
+	})
+}
+
 /**
- * Append an unsigned SIGMA tape with the signature zero-filled.
- *
- * The signature itself can't be computed yet — it commits to the anchor
- * outpoint, and the anchor transaction is created during apply. Its length
- * is fixed though, so the output is already its exact on-chain size and fee
- * estimation is correct.
+ * Append an unsigned SIGMA tape: zero address push + zero signature.
+ * No BAP getPublicKey — apply fills both fields and rewrites the tape.
  */
 export async function appendSigmaPlaceholder(
-	ctx: OneSatContext,
+	_ctx: OneSatContext,
 	lockingScript: Script,
 	vin = 0,
 ): Promise<Script> {
-	const { address } = await resolveSigmaAddress(ctx)
 	return concatScript(
 		lockingScript,
 		sigmaTapeBytes(
 			hasOpReturn(lockingScript),
-			address,
-			new Array(SIGMA_COMPACT_SIG_LEN).fill(0),
+			ZERO_ADDRESS(),
+			ZERO_SIG(),
 			vin,
 		),
 	)
 }
 
 /**
- * Replace the zeroed signature in a placeholder tape with the real one.
- *
- * The placeholder is rebuilt from the same inputs and matched against the
- * script's tail, which both locates the tape exactly and proves nothing else
- * drifted. Sigma hashes the script *without* its tape, so the signature is
- * computed over the stripped prefix.
+ * Strip the placeholder tape, sign, append a new tape with real address + sig.
+ * Rewrites pushdata for the real address length — does not patch bytes in place.
  */
 export async function sealSigma(
 	ctx: OneSatContext,
@@ -122,30 +133,14 @@ export async function sealSigma(
 	refVin = 0,
 ): Promise<Script> {
 	const vin = refVin === -1 ? targetVout : refVin
-	const { keyID, publicKey, address } = await resolveSigmaAddress(ctx)
-
 	const bytes = lockingScript.toBinary()
-	const zeroed = sigmaTapeBytes(
-		true,
-		address,
-		new Array(SIGMA_COMPACT_SIG_LEN).fill(0),
-		vin,
-	)
-	const noSeparator = sigmaTapeBytes(
-		false,
-		address,
-		new Array(SIGMA_COMPACT_SIG_LEN).fill(0),
-		vin,
-	)
-	const tape = [zeroed, noSeparator].find((t) => {
-		const start = bytes.length - t.length
-		return start >= 0 && t.every((b, i) => bytes[start + i] === b)
-	})
+	const tape = findPlaceholderTape(bytes, vin)
 	if (!tape) {
 		throw new Error('sigma seal: no zeroed placeholder tape on the script')
 	}
 
 	const base = Script.fromBinary(bytes.slice(0, bytes.length - tape.length))
+	const { keyID, publicKey, address } = await resolveSigmaAddress(ctx)
 	const compactSig = await signSigma(ctx, base, inputOutpoint, keyID, publicKey)
 	return concatScript(
 		base,
@@ -155,26 +150,21 @@ export async function sealSigma(
 
 /**
  * Sign against an anchor outpoint, returning the 65-byte compact signature.
- * `scriptWithTape` must already carry its SIGMA tape (zero-filled is fine) —
- * the template's dataHash locates the tape and hashes the bytes before it.
+ * `scriptWithTape` is the prefix (no tape); dataHash hashes those bytes.
  */
 async function signSigma(
 	ctx: OneSatContext,
-	scriptWithTape: Script,
+	scriptPrefix: Script,
 	inputOutpoint: { txid: string; vout: number },
 	keyID: string,
 	publicKey: PublicKey,
 ): Promise<number[]> {
-	// Both hashes come from the template, so the signer and any verifier
-	// agree by construction. Reimplementing dataHash here is what broke MAP
-	// inscriptions: it hashed the whole prefix, while the template stops at
-	// the OP_RETURN carrying the tape.
 	const inputHash = Sigma.computeInputHash(
 		inputOutpoint.txid,
 		0,
 		inputOutpoint.vout,
 	)
-	const dataHash = Sigma.computeDataHash(scriptWithTape, 0)
+	const dataHash = Sigma.computeDataHash(scriptPrefix, 0)
 	const messageHash = Sigma.computeMessageHash(inputHash, dataHash)
 	const bsmHash = BSM.magicHash(messageHash)
 

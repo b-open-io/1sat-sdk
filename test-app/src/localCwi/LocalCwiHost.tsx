@@ -4,7 +4,7 @@
  * - localEnabled → expose / hide window.CWI (vs extension-only)
  * - adminOriginator → actions use admin (no prompt, still apply) vs dApp (prompt)
  */
-import { createOneSatPermissionModule } from '@1sat/permission-module'
+import { createAssetPermissionModules } from '@1sat/permission-module'
 import type { PromptRequest } from '@1sat/permission-module'
 import type { VerificationServices } from '@1sat/permission-module'
 import { OneSatPermissionPrompt } from '@1sat/permission-module-ui'
@@ -33,10 +33,12 @@ import {
 } from './CorePermissionPrompt'
 import {
 	ADMIN_ORIGINATOR,
+	DAPP_ORIGINATOR,
 	REMOTE_BACKUP_URL,
 	STORAGE_IDENTITY_KEY,
 	TOGGLE_ADMIN_KEY,
 	TOGGLE_LOCAL_KEY,
+	TOGGLE_ONESAT_MODULE_KEY,
 	WIF_STORAGE_KEY,
 } from './constants'
 
@@ -66,6 +68,14 @@ export type LocalCwiContextValue = {
 	/** Actions bind admin originator (silent apply) vs dApp (prompt). */
 	adminOriginator: boolean
 	setAdminOriginator: (on: boolean) => void
+	/**
+	 * When true, 1sat asset actions pass useOneSatModule (p 1sat labels → module).
+	 * When false, local pipeline (generic WPM prompts may still appear).
+	 */
+	useOneSatModule: boolean
+	setUseOneSatModule: (on: boolean) => void
+	/** Clear stored permission grants (dApp + admin) so prompts replay. */
+	clearPermissionGrants: () => Promise<number>
 }
 
 const LocalCwiContext = createContext<LocalCwiContextValue | null>(null)
@@ -134,6 +144,9 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 	const [adminOriginator, setAdminOriginatorState] = useState(() =>
 		readToggle(TOGGLE_ADMIN_KEY, false),
 	)
+	const [useOneSatModule, setUseOneSatModuleState] = useState(() =>
+		readToggle(TOGGLE_ONESAT_MODULE_KEY, true, sessionStorage),
+	)
 	const [prompt, setPrompt] = useState<PromptState | null>(null)
 	const [coreQueue, setCoreQueue] = useState<CoreEntry[]>([])
 	const [promptServices, setPromptServices] = useState<
@@ -141,6 +154,7 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 	>(undefined)
 	const destroyRef = useRef<(() => Promise<void>) | null>(null)
 	const gatedRef = useRef<LocalWalletPermissionsManager | null>(null)
+	const permissionStoreRef = useRef<IndexedDbPermissionStore | null>(null)
 
 	const promptHandler = useCallback((request: PromptRequest) => {
 		return new Promise<boolean>((resolve) => {
@@ -163,6 +177,22 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 	const setAdminOriginator = useCallback((on: boolean) => {
 		writeToggle(TOGGLE_ADMIN_KEY, on)
 		setAdminOriginatorState(on)
+	}, [])
+
+	const setUseOneSatModule = useCallback((on: boolean) => {
+		writeToggle(TOGGLE_ONESAT_MODULE_KEY, on, sessionStorage)
+		setUseOneSatModuleState(on)
+	}, [])
+
+	const clearPermissionGrants = useCallback(async () => {
+		const store = permissionStoreRef.current
+		if (!store) return 0
+		const a = await store.deleteAllForOriginator(DAPP_ORIGINATOR)
+		const b = await store.deleteAllForOriginator(ADMIN_ORIGINATOR)
+		// Also clear host-only variants if any
+		const host = typeof window !== 'undefined' ? window.location.host : ''
+		const c = host ? await store.deleteAllForOriginator(host) : 0
+		return a + b + c
 	}, [])
 
 	// Boot wallet once
@@ -201,6 +231,7 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 				const permissionStore = new IndexedDbPermissionStore({
 					scope: '1sat-test-app',
 				})
+				permissionStoreRef.current = permissionStore
 
 				const baseWallet = web.wallet
 				// Prompt UI needs services to run verifyIntent (badge upgrade).
@@ -208,7 +239,11 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 				setPromptServices(web.services)
 				;(window as unknown as Record<string, unknown>).__promptServices =
 					web.services
-				const oneSatModule = createOneSatPermissionModule({
+				// Base (ungated) wallet for harness repair / decrypt paths.
+				// Do not use for dApp simulation — use window.CWI.
+				;(window as unknown as Record<string, unknown>).__baseWallet =
+					baseWallet
+				const assetModules = createAssetPermissionModules({
 					wallet: baseWallet,
 					// Enables live verification of purchase cards. Optional —
 					// without it every purchase stays `unverified`.
@@ -221,7 +256,7 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 				const gated = new LocalWalletPermissionsManager(
 					baseWallet,
 					ADMIN_ORIGINATOR,
-					{ permissionModules: { '1sat': oneSatModule } },
+					{ permissionModules: assetModules },
 					{ store: permissionStore },
 				)
 
@@ -371,6 +406,9 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 			setLocalEnabled,
 			adminOriginator,
 			setAdminOriginator,
+			useOneSatModule,
+			setUseOneSatModule,
+			clearPermissionGrants,
 		}),
 		[
 			status,
@@ -381,6 +419,9 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 			setLocalEnabled,
 			adminOriginator,
 			setAdminOriginator,
+			useOneSatModule,
+			setUseOneSatModule,
+			clearPermissionGrants,
 		],
 	)
 

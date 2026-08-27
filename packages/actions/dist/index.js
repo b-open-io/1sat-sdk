@@ -11,15 +11,23 @@ export { ActionRegistry, actionRegistry } from './action-registry';
 // Export constants
 export * from './constants';
 // P1Sat apply (base-wallet seal / validate; module re-exports dispatch)
-export { applyP1SatIntent, applyOpnsRegister, applyInscribeSigma, applyValidateOnly, prepareP1SatArgs, sigmaAnchorKeyId, stampScriptDerivedTags, P1SAT_APPLY_REGISTRY, } from './apply';
+export { applyP1SatCreateAction, applyP1SatIntent, applyOpnsRegister, applyInscribeSigma, applyValidateOnly, prepareP1SatArgs, sigmaAnchorKeyId, stampScriptDerivedTags, P1SAT_APPLY_REGISTRY, } from './apply';
 // Export shared utilities
 export { signP2PKHInput } from './utils/signP2PKH';
 export { completeSignedAction, } from './utils/completeSignedAction';
-export { createTrackedAction, executeTrackedAction, randomActionId, } from './utils/createTrackedAction';
+export { createTrackedAction, executeTrackedAction, randomActionId, stampManagedOutputIds, ensureP1SatDispatchLabel, ensureActionId, } from './utils/createTrackedAction';
+export { hasOneSatModule } from './utils/hasOneSatModule';
+export { spendsFromLabels, labelsFromSpends, spendToLabel, spendTargetsFromLabels, labelsFromSpendTargets, spendTargetToLabel, buildSpendsForTargets, buildSpendsForResolved, materializeSpends, resolveSpendTargets, unlockByScript, buildPurchaseUnlockingScript, runCreateActionPipeline, finishCreateAction, embellishCreateActionArgs, } from './pipeline';
 export { getDisplayValue } from './utils/displayValue';
 export { ordinalSeedTags } from './utils/ordinalSeedTags';
 export { loadBasketOutput, loadBasketOutputBeef, toIdTag, } from './utils/loadBasketOutput';
+export { bsv21FieldsFromOutput, bsv21FilterTags, buildBsv21CustomInstructions, parseBsv21CustomInstructions, overwriteBsv21CiFields, } from './utils/bsv21Remittance';
+export { stampBsv21OutputCustomInstructions } from './utils/stampBsv21OutputCi';
+export { stampOrdinalOutputCustomInstructions } from './utils/stampOrdinalOutputCi';
+export { overwriteOrdinalCiFields, remittanceFromOrdinalTags, buildOrdinalCustomInstructions, } from './utils/ordinalRemittance';
+export { ensurePlaintextCi, encryptWalletMetadataCi, looksLikeJson, METADATA_ENCRYPTION_PROTOCOL, } from './utils/walletMetadataCi';
 export { internalizeBeef, } from './utils/internalizeBeef';
+export { moveBasketOutputs, migrateLegacyP1SatBaskets, } from './utils/moveBasket';
 // Export module actions and types
 export * from './addresses';
 export * from './collections';

@@ -8,7 +8,7 @@ export const ADMIN_ORIGINATOR = 'test-app-admin'
  * permissions manager normalizes originators and the 1Sat module does not.
  */
 export const DAPP_ORIGINATOR =
-	typeof window !== 'undefined' ? window.location.host : 'localhost:5173'
+	typeof window !== 'undefined' ? window.location.host : 'localhost:5174'
 
 export const STORAGE_IDENTITY_KEY = '1sat-test-app'
 /**
@@ -20,3 +20,5 @@ export const WIF_STORAGE_KEY = '1sat-test-app-wif'
 /** sessionStorage — see LocalCwiHost */
 export const TOGGLE_LOCAL_KEY = '1sat-test-app-local-cwi'
 export const TOGGLE_ADMIN_KEY = '1sat-test-app-admin-originator'
+/** sessionStorage — 1sat module labels on actions (useOneSatModule) */
+export const TOGGLE_ONESAT_MODULE_KEY = '1sat-test-app-use-onesat-module'

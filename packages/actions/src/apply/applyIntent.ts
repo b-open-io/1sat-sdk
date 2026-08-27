@@ -7,20 +7,23 @@ import {
 	Utils,
 	type WalletInterface,
 } from '@bsv/sdk'
-import { ensureActionId } from '../utils/createTrackedAction'
+import { stampManagedOutputIds } from '../utils/createTrackedAction'
+import { stampBsv21OutputCustomInstructions } from '../utils/stampBsv21OutputCi'
+import { stampOrdinalOutputCustomInstructions } from '../utils/stampOrdinalOutputCi'
 import { applyInscribeSigma } from './inscribeSigma'
 import { applyOpnsRegister } from './opnsRegister'
 import { stampScriptDerivedTags } from './stampScriptTags'
 
 /**
- * Module/base-wallet apply: seal recognized placeholders from script shape,
- * then stamp script-derived tags. No intent labels.
+ * Authoritative enrich (local pipeline + module embellish):
+ * managed `id:` tags, seals, script-derived tags, BSV-21 + ordinal/OpNS CI.
+ * Does **not** add module dispatch labels — those are opt-in via prepare.
  */
 export async function applyP1SatCreateAction(
 	wallet: WalletInterface,
 	args: CreateActionArgs,
 ): Promise<void> {
-	ensureActionId(args)
+	stampManagedOutputIds(args)
 
 	if (hasUnsealedOpnsRegister(args)) {
 		await applyOpnsRegister(wallet, args)
@@ -30,6 +33,10 @@ export async function applyP1SatCreateAction(
 	}
 
 	stampScriptDerivedTags(args)
+	// Tags/script + spent-input carry → CI. Keeps derivation.
+	// Same path for local (WPM encrypts after) and module (may re-encrypt).
+	await stampBsv21OutputCustomInstructions(wallet, args)
+	await stampOrdinalOutputCustomInstructions(wallet, args)
 }
 
 /** @deprecated Use {@link applyP1SatCreateAction} */

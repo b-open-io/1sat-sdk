@@ -2,10 +2,12 @@ import { sendOrdinals } from '@1sat/actions'
 import { useState } from 'react'
 import { card, heading, input, button, buttonDisabled, successText, errorText, label } from './styles'
 import { useLog } from './LogContext'
+import { useActionFlags } from './useActionFlags'
 import { useOneSatContext } from './useActions'
 
 export function SendOrdinals() {
 	const ctx = useOneSatContext()
+	const flags = useActionFlags()
 	const { log } = useLog()
 	const [id, setId] = useState('')
 	const [destAddress, setDestAddress] = useState('')
@@ -25,6 +27,7 @@ export function SendOrdinals() {
 		try {
 			const res = await sendOrdinals.execute(ctx, {
 				transfers: [{ id, address: destAddress }],
+				...flags,
 			})
 
 			if (res.error) throw new Error(res.error)

@@ -19,9 +19,10 @@ import {
 } from '../constants'
 import type { Action, ActionOptions, OneSatContext } from '../types'
 import {
-	ensureActionId,
 	executeTrackedAction,
+	stampManagedOutputIds,
 } from '../utils/createTrackedAction'
+import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance'
 import {
 	type ResolvedDestination,
 	resolveDestination,
@@ -135,18 +136,12 @@ async function inscribeWithSigma(
 		ctx.wallet,
 		args,
 		input.fundingProvider,
-		args.inputBEEF as number[] | undefined,
-		async (tx) => {
-			const anchorKeyID = sigmaAnchorKeyId(ensureActionId(args))
-			const unlocking = await signP2PKHInput(
-				ctx,
-				tx,
-				0,
-				P1SAT_PROTOCOL,
-				anchorKeyID,
-			)
-			if (typeof unlocking !== 'string') throw new Error(unlocking.error)
-			return { 0: { unlockingScript: unlocking } }
+		undefined,
+		undefined,
+		{
+			spends: [],
+			usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					permissionScheme: '1sat',
 		},
 	)
 
@@ -231,9 +226,8 @@ async function inscribeStream(
 			input.map,
 		)
 		const originTags = streamTags(0, [
-			`type:${input.contentType}`,
+			`type:${input.contentType.split(';')[0]?.trim() || input.contentType}`,
 			'origin',
-			...(input.map?.name ? [`name:${input.map.name}`] : []),
 		])
 		try {
 			const result = await executeTrackedAction(ctx.wallet, {
@@ -281,9 +275,8 @@ async function inscribeStream(
 	)
 
 	const multiOriginTags = streamTags(0, [
-		`type:${input.contentType}`,
+		`type:${input.contentType.split(';')[0]?.trim() || input.contentType}`,
 		'origin',
-		...(input.map?.name ? [`name:${input.map.name}`] : []),
 	])
 
 	let originResult: Awaited<ReturnType<typeof executeTrackedAction>>
@@ -314,6 +307,7 @@ async function inscribeStream(
 		return fail('origin-no-txid')
 	}
 	txids.push(originResult.txid)
+	let priorSpendId = `${originResult.actionId}_0`
 	allNoSendChange.push(...(originResult.noSendChange ?? []))
 	if (originResult.tx) {
 		const beef = new Beef()
@@ -367,17 +361,12 @@ async function inscribeStream(
 				},
 				undefined,
 				accumulatedBEEF,
-				async (tx) => {
-					const unlocking = await signP2PKHInput(
-						ctx,
-						tx,
-						0,
-						P1SAT_PROTOCOL,
-						destKeyID,
-						destCounterparty,
-					)
-					if (typeof unlocking !== 'string') throw new Error(unlocking.error)
-					return { 0: { unlockingScript: unlocking } }
+				undefined,
+				{
+					// Wallet-held prior chunk: basket+id (not BEEF outpoint)
+					spends: [
+						{ basket: ORDINALS_BASKET, id: priorSpendId },
+					],
 				},
 			)
 		} catch (e) {
@@ -388,6 +377,7 @@ async function inscribeStream(
 			return fail(`chunk-${i}-no-txid`)
 		}
 		txids.push(result.txid)
+		priorSpendId = `${result.actionId}_0`
 		allNoSendChange.push(...(result.noSendChange ?? []))
 		if (result.tx && accumulatedBEEF) {
 			const beef = Beef.fromBinary(accumulatedBEEF)
@@ -524,14 +514,19 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 				keyIDPrefix: 'inscribe',
 			})
 
+			const typeBase =
+				input.contentType.split(';')[0]?.trim() || input.contentType
+			const tags = [`type:${typeBase}`, 'origin', shaTag]
+
 			const customInstructions = resolved.customInstructions
-				? JSON.stringify({
+				? buildOrdinalCustomInstructions({
 						protocolID: resolved.customInstructions.protocolID,
 						keyID: resolved.customInstructions.keyID,
-						...(resolved.customInstructions.counterparty !== undefined && {
-							counterparty: resolved.customInstructions.counterparty,
-						}),
-						...(input.map?.name && { name: input.map.name.slice(0, 64) }),
+						counterparty: resolved.customInstructions.counterparty as
+							| string
+							| undefined,
+						tags,
+						name: input.map?.name,
 					})
 				: undefined
 
@@ -554,11 +549,6 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 				input.contentType,
 				input.map,
 			)
-
-			const tags = [`type:${input.contentType}`, 'origin', shaTag]
-			if (input.map?.name) {
-				tags.push(`name:${input.map.name}`)
-			}
 
 			if (input.signWithBAP) {
 				const sigmaResult = await inscribeWithSigma(
@@ -593,6 +583,16 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 				ctx.wallet,
 				args,
 				input.fundingProvider,
+				undefined,
+				undefined,
+				{
+					spends: [],
+					usePermissionModule:
+						input.usePermissionModule ??
+						input.useOneSatModule ??
+						input.useModule,
+					permissionScheme: '1sat',
+				},
 			)
 
 			if (!result.txid) {

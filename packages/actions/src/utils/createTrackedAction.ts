@@ -1,4 +1,10 @@
-import { P1SAT_LABEL, ensureP1SatActionLabel } from '@1sat/types'
+import {
+	type PermissionSchemeId,
+	PERMISSION_SCHEMES,
+	buildActionDispatchLabel,
+	ensureSchemeActionLabel,
+	hasSchemeDispatchLabel,
+} from '@1sat/types'
 import {
 	type CreateActionArgs,
 	type CreateActionResult,
@@ -6,11 +12,18 @@ import {
 	type WalletInterface,
 } from '@bsv/sdk'
 import type { FundingProvider } from '../funding'
+import { runCreateActionPipeline } from '../pipeline/runPipeline'
+import type { Spend } from '../pipeline/spendTargets'
+import {
+	labelsFromSpends,
+	spendsFromLabels,
+} from '../pipeline/spendTargets'
 import {
 	type CompleteSignedActionResult,
 	type SigningCallback,
 	completeSignedAction,
 } from './completeSignedAction'
+import { applyP1SatCreateAction } from '../apply/applyIntent'
 
 /**
  * Generate a random hex string for action tracking (64 bits).
@@ -45,13 +58,9 @@ function actionIdFromOutputTags(args: CreateActionArgs): string | undefined {
 }
 
 /**
- * Ensure basketed outputs have `id:<actionId>_<index>` tags and args carry
- * the bare `p 1sat action` dispatch label.
- *
- * Action id is SDK-internal (tags), not part of the label. Reuses an id
- * already present on tags when apply/prepare runs twice on the same args.
+ * Stamp `id:<actionId>_<index>` on every basketed output. No module labels.
  */
-export function ensureActionId(args: CreateActionArgs): string {
+export function stampManagedOutputIds(args: CreateActionArgs): string {
 	const existing = actionIdFromOutputTags(args)
 	const actionId = existing ?? randomActionId()
 	if (args.outputs) {
@@ -62,34 +71,94 @@ export function ensureActionId(args: CreateActionArgs): string {
 			output.tags = [...tags, tag]
 		}
 	}
-	args.labels = ensureP1SatActionLabel(args.labels)
-	if (!args.labels.includes(P1SAT_LABEL)) {
-		args.labels = [...args.labels, P1SAT_LABEL]
-	}
 	return actionId
 }
 
 /**
- * Options shared by `createTrackedAction` / `executeTrackedAction`.
+ * Opt-in: add `p <scheme> action` so WPM routes createAction to that scheme's module.
  */
-export interface TrackedActionOptions {
-	/**
-	 * When true, skip the `p 1sat action` label and per-output `id:` tags.
-	 * Use for internal plumbing (e.g. Sigma anchor).
-	 */
-	bypassP1Sat?: boolean
+export function ensureSchemeDispatchLabel(
+	args: CreateActionArgs,
+	scheme: PermissionSchemeId,
+): void {
+	args.labels = ensureSchemeActionLabel(args.labels, scheme)
+	const dispatch = buildActionDispatchLabel(scheme)
+	if (!args.labels.includes(dispatch) && !hasSchemeDispatchLabel(args.labels, scheme)) {
+		args.labels = [...args.labels, dispatch]
+	}
+}
+
+/** @deprecated Prefer {@link ensureSchemeDispatchLabel}. */
+export function ensureP1SatDispatchLabel(args: CreateActionArgs): void {
+	ensureSchemeDispatchLabel(args, PERMISSION_SCHEMES.ONESAT)
 }
 
 /**
- * Wrapper around wallet.createAction that injects per-output `id:` tags
- * and a `p 1sat action` dispatch label for the 1Sat permission module.
+ * @deprecated Prefer stampManagedOutputIds + optional ensureSchemeDispatchLabel.
+ */
+export function ensureActionId(args: CreateActionArgs): string {
+	const actionId = stampManagedOutputIds(args)
+	ensureSchemeDispatchLabel(args, PERMISSION_SCHEMES.ONESAT)
+	return actionId
+}
+
+export interface TrackedActionOptions {
+	/**
+	 * When true, skip managed id tags and module dispatch labels.
+	 * Use for internal plumbing (e.g. Sigma anchor).
+	 */
+	bypassP1Sat?: boolean
+	/**
+	 * Opt-in permission module. Default false (local shared pipeline).
+	 * When true: stamp scheme dispatch + input labels; module runs pipeline after approve.
+	 */
+	usePermissionModule?: boolean
+	/** @deprecated use usePermissionModule */
+	useOneSatModule?: boolean
+	/** @deprecated use usePermissionModule */
+	useModule?: boolean
+	/**
+	 * Which BRC-99 scheme to route when usePermissionModule is true.
+	 * Default `1sat` (collectables).
+	 */
+	permissionScheme?: PermissionSchemeId
+	/**
+	 * Inputs the pipeline must unlock.
+	 * Local: pass outpoint+CI when already loaded; basket+id loads if CI missing.
+	 * Module: encoded as `p <scheme> input` labels; base wallet materializes.
+	 */
+	spends?: Spend[]
+	/** @deprecated use spends */
+	spendTargets?: Spend[]
+}
+
+function wantsPermissionModule(opts: TrackedActionOptions): boolean {
+	return !!(opts.usePermissionModule ?? opts.useOneSatModule ?? opts.useModule)
+}
+
+function permissionSchemeOf(opts: TrackedActionOptions): PermissionSchemeId {
+	return opts.permissionScheme ?? PERMISSION_SCHEMES.ONESAT
+}
+
+/**
+ * @deprecated Prefer runCreateActionPipeline / executeTrackedAction with spends.
  */
 export async function createTrackedAction(
 	wallet: WalletInterface,
 	args: CreateActionArgs,
 	opts: TrackedActionOptions = {},
 ): Promise<CreateActionResult & { actionId: string }> {
-	const actionId = opts.bypassP1Sat ? randomActionId() : ensureActionId(args)
+	const actionId = opts.bypassP1Sat
+		? randomActionId()
+		: stampManagedOutputIds(args)
+	const spends = opts.spends ?? opts.spendTargets ?? []
+	if (!opts.bypassP1Sat && wantsPermissionModule(opts)) {
+		ensureSchemeDispatchLabel(args, permissionSchemeOf(opts))
+		if (spends.length) {
+			const extra = labelsFromSpends(spends)
+			args.labels = [...(args.labels ?? []), ...extra]
+		}
+	}
 
 	const { options, ...rest } = args
 	const createResult = await wallet.createAction({
@@ -107,6 +176,11 @@ const noOpSign: SigningCallback = async () => ({})
 
 /**
  * Execute a tracked action end-to-end.
+ *
+ * - fundingProvider: seals then fund + internalize (side door)
+ * - usePermissionModule: labels + createAction (module finishes pipeline)
+ * - local default: shared runCreateActionPipeline
+ * - legacy sign callback still honored when provided without spends
  */
 export async function executeTrackedAction(
 	wallet: WalletInterface,
@@ -116,11 +190,19 @@ export async function executeTrackedAction(
 	sign?: SigningCallback,
 	opts: TrackedActionOptions = {},
 ): Promise<CompleteSignedActionResult & { actionId: string }> {
+	const useModule = wantsPermissionModule(opts)
+	const scheme = permissionSchemeOf(opts)
+	const spends =
+		opts.spends ?? opts.spendTargets ?? spendsFromLabels(args.labels)
+
 	if (fundingProvider) {
-		const actionId = opts.bypassP1Sat ? randomActionId() : ensureActionId(args)
-
+		const actionId = opts.bypassP1Sat
+			? randomActionId()
+			: stampManagedOutputIds(args)
+		if (!opts.bypassP1Sat) {
+			await applyP1SatCreateAction(wallet, args)
+		}
 		const funded = await fundingProvider.fund(args)
-
 		const internalizeOutputs = (args.outputs ?? []).map((o, i) => ({
 			outputIndex: i,
 			protocol: 'basket insertion' as const,
@@ -130,34 +212,93 @@ export async function executeTrackedAction(
 				tags: o.tags ?? [],
 			},
 		}))
-
 		await wallet.internalizeAction({
 			tx: funded.tx,
 			outputs: internalizeOutputs,
 			description: args.description,
 			labels: args.labels,
 		})
-
 		return { txid: funded.txid, actionId }
 	}
 
-	const createResult = await createTrackedAction(wallet, args, opts)
+	if (opts.bypassP1Sat) {
+		const actionId = randomActionId()
+		const { options, ...rest } = args
+		const createResult = await wallet.createAction({
+			...rest,
+			options: { ...options, signAndProcess: false },
+		})
+		if (!createResult.signableTransaction) {
+			return {
+				txid: createResult.txid,
+				tx: createResult.tx ? Array.from(createResult.tx) : undefined,
+				noSendChange: createResult.noSendChange,
+				actionId,
+			}
+		}
+		const result = await completeSignedAction(
+			wallet,
+			createResult,
+			inputBEEF,
+			sign ?? noOpSign,
+		)
+		return { ...result, actionId }
+	}
 
-	if (!createResult.signableTransaction) {
+	if (useModule) {
+		stampManagedOutputIds(args)
+		ensureSchemeDispatchLabel(args, scheme)
+		if (spends.length) {
+			const extra = labelsFromSpends(spends)
+			const have = new Set(args.labels ?? [])
+			args.labels = [
+				...(args.labels ?? []),
+				...extra.filter((l) => !have.has(l)),
+			]
+		}
+		const actionId = stampManagedOutputIds(args)
+		const { options, ...rest } = args
+		const createResult = await wallet.createAction({
+			...rest,
+			options: { ...options, signAndProcess: false },
+		})
+		if (!createResult.signableTransaction) {
+			return {
+				txid: createResult.txid,
+				tx: createResult.tx ? Array.from(createResult.tx) : undefined,
+				noSendChange: createResult.noSendChange,
+				actionId,
+			}
+		}
 		return {
-			txid: createResult.txid,
-			tx: createResult.tx ? Array.from(createResult.tx) : undefined,
-			noSendChange: createResult.noSendChange,
-			actionId: createResult.actionId,
+			error: 'module-left-signable-transaction',
+			actionId,
 		}
 	}
 
-	const result = await completeSignedAction(
-		wallet,
-		createResult,
-		inputBEEF,
-		sign ?? noOpSign,
-	)
+	// Local shared pipeline
+	if (sign && spends.length === 0) {
+		const actionId = stampManagedOutputIds(args)
+		await applyP1SatCreateAction(wallet, args)
+		const { options, ...rest } = args
+		const createResult = await wallet.createAction({
+			...rest,
+			options: { ...options, signAndProcess: false },
+		})
+		if (!createResult.signableTransaction) {
+			return {
+				txid: createResult.txid,
+				tx: createResult.tx ? Array.from(createResult.tx) : undefined,
+				noSendChange: createResult.noSendChange,
+				actionId,
+			}
+		}
+		const beef =
+			inputBEEF ??
+			(Array.isArray(args.inputBEEF) ? (args.inputBEEF as number[]) : undefined)
+		const result = await completeSignedAction(wallet, createResult, beef, sign)
+		return { ...result, actionId }
+	}
 
-	return { ...result, actionId: createResult.actionId }
+	return runCreateActionPipeline(wallet, args, spends, { inputBEEF })
 }

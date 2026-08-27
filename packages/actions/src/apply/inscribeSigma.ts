@@ -6,12 +6,14 @@ import {
 	Script,
 	type WalletInterface,
 } from '@bsv/sdk'
+import {
+	type ArgsWithPendingSpends,
+	PENDING_RESOLVED_SPENDS_KEY,
+	type ResolvedSpend,
+} from '../pipeline/spendTargets'
 import { sealSigma } from '../signing/sigma'
 import type { OneSatContext } from '../types'
-import {
-	ensureActionId,
-	executeTrackedAction,
-} from '../utils/createTrackedAction'
+import { stampManagedOutputIds } from '../utils/createTrackedAction'
 
 /**
  * Anchor keyID for a given action. Derived from the action id so the action's
@@ -24,7 +26,7 @@ export function sigmaAnchorKeyId(actionId: string): string {
 
 /**
  * Multi-step sigma inscribe apply on **base** wallet only:
- * 1. Anchor createAction (noSend, bypassP1Sat)
+ * 1. Anchor createAction (noSend, signAndProcess default)
  * 2. Sigma-sign inscription script
  * 3. Push anchor input + seal sigma script in place
  */
@@ -52,7 +54,7 @@ export async function applyInscribeSigma(
 		isBaseWallet: true,
 	}
 
-	const anchorKeyID = sigmaAnchorKeyId(ensureActionId(args))
+	const anchorKeyID = sigmaAnchorKeyId(stampManagedOutputIds(args))
 	const { publicKey: anchorPubKey } = await wallet.getPublicKey({
 		protocolID: P1SAT_PROTOCOL,
 		keyID: anchorKeyID,
@@ -62,33 +64,27 @@ export async function applyInscribeSigma(
 	const anchorAddress = PublicKey.fromString(anchorPubKey).toAddress()
 	const anchorLockingScript = new P2PKH().lock(anchorAddress)
 
-	const anchorResult = await executeTrackedAction(
-		wallet,
-		{
-			description: 'Sigma anchor output',
-			outputs: [
-				{
-					lockingScript: anchorLockingScript.toHex(),
-					satoshis: 2,
-					outputDescription: 'Sigma anchor',
-					basket: SIGMA_BASKET,
-					customInstructions: JSON.stringify({
-						protocolID: P1SAT_PROTOCOL,
-						keyID: anchorKeyID,
-					}),
-				},
-			],
-			options: {
-				noSend: true,
-				randomizeOutputs: false,
-				acceptDelayedBroadcast: true,
+	const anchorCi = JSON.stringify({
+		protocolID: P1SAT_PROTOCOL,
+		keyID: anchorKeyID,
+	})
+	const anchorResult = await wallet.createAction({
+		description: 'Sigma anchor output',
+		outputs: [
+			{
+				lockingScript: anchorLockingScript.toHex(),
+				satoshis: 2,
+				outputDescription: 'Sigma anchor',
+				basket: SIGMA_BASKET,
+				customInstructions: anchorCi,
 			},
+		],
+		options: {
+			noSend: true,
+			randomizeOutputs: false,
+			acceptDelayedBroadcast: true,
 		},
-		undefined,
-		undefined,
-		undefined,
-		{ bypassP1Sat: true },
-	)
+	})
 
 	if (!anchorResult.txid || !anchorResult.tx) {
 		throw new Error('ordinal.inscribe-sigma apply: anchor failed')
@@ -101,11 +97,6 @@ export async function applyInscribeSigma(
 		0,
 		0,
 	)
-	if (sigmaScript.toHex().length !== out.lockingScript.length) {
-		throw new Error(
-			'ordinal.inscribe-sigma apply: sealed script size differs from placeholder',
-		)
-	}
 	out.lockingScript = sigmaScript.toHex()
 
 	// Mutate inputs array in place (or initialize then push).
@@ -118,7 +109,7 @@ export async function applyInscribeSigma(
 		unlockingScriptLength: 108,
 	})
 
-	args.inputBEEF = anchorResult.tx
+	args.inputBEEF = Array.from(anchorResult.tx)
 
 	args.options = {
 		...args.options,
@@ -129,4 +120,13 @@ export async function applyInscribeSigma(
 		trustSelf: 'known',
 		sendWith: [anchorResult.txid],
 	}
+
+	// Output record for finalize — we just created it; no DB round-trip.
+	const anchorRecord: ResolvedSpend = {
+		outpoint: `${anchorResult.txid}.0`,
+		customInstructions: anchorCi,
+	}
+	const stash = args as CreateActionArgs & ArgsWithPendingSpends
+	const prev = stash[PENDING_RESOLVED_SPENDS_KEY] ?? []
+	stash[PENDING_RESOLVED_SPENDS_KEY] = [...prev, anchorRecord]
 }

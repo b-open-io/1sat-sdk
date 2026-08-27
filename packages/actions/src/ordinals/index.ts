@@ -9,6 +9,7 @@ import { MAP as MAPTemplate } from '@1sat/templates'
 import { OrdLock } from '@1sat/templates'
 import {
 	buildInputAssetLabel,
+	displayNameForCi,
 	nameFromMap,
 	ordinalTagsFromMetadata,
 	readAssetIdTag,
@@ -46,6 +47,7 @@ import type {
 } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
 import { loadBasketOutputBeef } from '../utils/loadBasketOutput'
+import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance'
 import { ordinalSeedTags } from '../utils/ordinalSeedTags'
 import {
 	signOrdinalInput,
@@ -72,11 +74,9 @@ export async function resolveOrdinalTags(
 		origin?: string
 		name?: string
 	},
-): Promise<{ tags: string[]; basket: string }> {
-	// Extract known values from source tags or explicit fields.
-	// `type:` is hierarchical (e.g. both `type:image` and `type:image/png`)
-	// — collect every value so we can re-emit the full set.
-	const contentTypes: string[] = source?.contentType ? [source.contentType] : []
+): Promise<{ tags: string[]; basket: string; name?: string }> {
+	// Single full MIME only (BRC-147). Prefer most specific type: from tags.
+	let contentType = source?.contentType?.split(';')[0]?.trim()
 	let origin = source?.origin
 	let name = source?.name
 
@@ -84,44 +84,32 @@ export async function resolveOrdinalTags(
 		for (const tag of source.tags) {
 			if (tag.startsWith('type:')) {
 				const ct = tag.slice(5)
-				if (!contentTypes.includes(ct)) contentTypes.push(ct)
+				// Prefer values with a subtype slash over category-only.
+				if (!contentType || (!contentType.includes('/') && ct.includes('/'))) {
+					contentType = ct
+				} else if (!contentType) {
+					contentType = ct
+				}
 			}
 			if (!origin && tag === 'origin') origin = outpoint
 			else if (!origin && tag.startsWith('origin:')) origin = tag.slice(7)
+			// Legacy name: tag → CI name only (not re-emitted as a tag)
 			if (name === undefined && tag.startsWith('name:')) name = tag.slice(5)
 		}
 	}
-	// Primary content type for downstream branching (basket selection, OPNS,
-	// MAP-name extraction). Most specific value comes last when the indexer
-	// pushes hierarchical `[category, fullType]`, so pick the trailing entry.
-	const contentType =
-		contentTypes.length > 0 ? contentTypes[contentTypes.length - 1] : undefined
 
-	// Fetch missing type/origin from ORDFS metadata (seq -2 = origin resolution)
 	let resolvedContentType = contentType
 	if ((!resolvedContentType || !origin) && ctx.services) {
 		try {
 			const metadata = await ctx.services.ordfs.getMetadata(outpoint, -2)
 
-			// Canonical tags from the shared builder, then split back out —
-			// every ORDFS-derived tag decision lives in one place.
-			for (const tag of ordinalTagsFromMetadata(metadata)) {
-				if (tag.startsWith('type:')) {
-					const ct = tag.slice(5)
-					if (!contentTypes.includes(ct)) contentTypes.push(ct)
-				}
-			}
 			if (!resolvedContentType && metadata.contentType) {
-				resolvedContentType = metadata.contentType
+				resolvedContentType = metadata.contentType.split(';')[0]?.trim()
 			}
 
-			// ORDFS is authoritative for origin. A caller-supplied value is a
-			// hint at best — for a listing it is the seller's outpoint, which
-			// is not an origin at all.
+			// ORDFS is authoritative for origin.
 			origin = metadata.origin ?? origin
 
-			// Non-OPNS: MAP metadata carries the name. OpNS derives its own
-			// from the inscription content, below.
 			if (
 				name === undefined &&
 				resolvedContentType !== 'application/op-ns'
@@ -133,12 +121,7 @@ export async function resolveOrdinalTags(
 		}
 	}
 
-	// No outpoint fallback. An outpoint is not an origin — for a listing it is
-	// the seller's output, which holds no inscription. When ORDFS could not
-	// resolve one, emit no origin tag rather than a false one; the same rule
-	// `OriginIndexer` and `verifyOrdinal` follow.
-
-	// OPNS: name is inscription content
+	// OPNS: name is inscription content (for CI, not name: tag)
 	if (
 		name === undefined &&
 		resolvedContentType === 'application/op-ns' &&
@@ -153,15 +136,20 @@ export async function resolveOrdinalTags(
 		}
 	}
 
-	const tags: string[] = []
-	for (const ct of contentTypes) tags.push(`type:${ct}`)
-	if (origin) tags.push(`origin:${origin}`)
-	if (name) tags.push(`name:${name.slice(0, 64)}`)
+	const tags = ordinalTagsFromMetadata({
+		origin: origin || undefined,
+		contentType: resolvedContentType,
+	})
 
 	const basket =
 		resolvedContentType === 'application/op-ns' ? OPNS_BASKET : ORDINALS_BASKET
 
-	return { tags, basket }
+	const displayName = displayNameForCi(name)
+	return {
+		tags,
+		basket,
+		...(displayName ? { name: displayName } : {}),
+	}
 }
 
 // ============================================================================
@@ -471,10 +459,11 @@ export async function buildTransferOrdinals(
 				outputDescription: 'Ordinal self-transfer',
 				basket,
 				tags,
-				customInstructions: JSON.stringify({
+				customInstructions: buildOrdinalCustomInstructions({
 					protocolID: P1SAT_PROTOCOL,
 					keyID: outpoint,
-					...(sourceName && { name: sourceName }),
+					tags,
+					name: sourceName,
 				}),
 			})
 		} else {
@@ -579,10 +568,11 @@ export async function buildListOrdinal(
 				outputDescription: `List ordinal for ${price} sats`,
 				basket,
 				tags,
-				customInstructions: JSON.stringify({
+				customInstructions: buildOrdinalCustomInstructions({
 					protocolID: P1SAT_PROTOCOL,
 					keyID: outpoint,
-					...(sourceName && { name: sourceName }),
+					tags,
+					name: sourceName,
 				}),
 			},
 		],
@@ -826,30 +816,24 @@ export const sendOrdinals: Action<
 
 			const { sources, ...createArgs } = params
 			const args = await prepareP1SatArgs(ctx, { ...createArgs, options: { randomizeOutputs: false } })
+			const spends = sources
+				.map((o) => {
+					const id = readAssetIdTag(o.tags)
+					return id
+						? ({ basket: ORDINALS_BASKET, id })
+						: null
+				})
+				.filter((x): x is { basket: string; id: string } => !!x)
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				args,
 				input.fundingProvider,
 				params.inputBEEF as number[],
-				async (tx) => {
-					const spends: Record<number, { unlockingScript: string }> = {}
-					for (let i = 0; i < sources.length; i++) {
-						const ordinal = sources[i]
-						if (!ordinal.customInstructions) {
-							throw new Error(
-								`missing-custom-instructions-for-${ordinal.outpoint}`,
-							)
-						}
-						const unlocking = await signOrdinalInput(
-							ctx,
-							tx,
-							i,
-							ordinal.customInstructions,
-						)
-						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
-						spends[i] = { unlockingScript: unlocking }
-					}
-					return spends
+				undefined,
+				{
+					spends,
+					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					permissionScheme: '1sat',
 				},
 			)
 
@@ -943,20 +927,19 @@ export const sellOrdinal: Action<SellOrdinalRequest, OrdinalOperationResponse> =
 				}
 
 				const args = await prepareP1SatArgs(ctx, { ...createArgs, options: { randomizeOutputs: false } })
+				const sellId = readAssetIdTag(source.tags)
 				const result = await executeTrackedAction(
 					ctx.wallet,
 					args,
 					input.fundingProvider,
 					params.inputBEEF as number[],
-					async (tx) => {
-						const unlocking = await signOrdinalInput(
-							ctx,
-							tx,
-							0,
-							source.customInstructions as string,
-						)
-						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
-						return { 0: { unlockingScript: unlocking } }
+					undefined,
+					{
+						spends: sellId
+							? [{ basket: ORDINALS_BASKET, id: sellId }]
+							: [],
+						usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					permissionScheme: '1sat',
 					},
 				)
 
@@ -1087,10 +1070,11 @@ export const cancelOrdinalListing: Action<
 							outputDescription: 'Cancelled listing',
 							basket,
 							tags,
-							customInstructions: JSON.stringify({
+							customInstructions: buildOrdinalCustomInstructions({
 								protocolID: P1SAT_PROTOCOL,
 								keyID: newKeyID,
-								...(sourceName && { name: sourceName }),
+								tags,
+								name: sourceName,
 							}),
 						},
 					],
@@ -1101,9 +1085,13 @@ export const cancelOrdinalListing: Action<
 				args,
 				input.fundingProvider,
 				inputBEEF,
-				async (tx) => {
-					const unlockingScript = await cancelUnlock.sign(tx, 0)
-					return { 0: { unlockingScript: unlockingScript.toHex() } }
+				undefined,
+				{
+					spends: inputId
+						? [{ basket, id: inputId }]
+						: [],
+					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					permissionScheme: '1sat',
 				},
 			)
 
@@ -1243,18 +1231,17 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 				customInstructions?: string
 			}> = []
 
-			const name = tags.find((t) => t.startsWith('name:'))?.slice(5)
-
 			outputs.push({
 				lockingScript: new P2PKH().lock(ourOrdAddress).toHex(),
 				satoshis: 1,
 				outputDescription: 'Purchased ordinal',
 				basket,
 				tags,
-				customInstructions: JSON.stringify({
+				customInstructions: buildOrdinalCustomInstructions({
 					protocolID: P1SAT_PROTOCOL,
 					keyID: outpoint,
-					...(name && { name }),
+					tags,
+					name: resolved.name,
 				}),
 			})
 
@@ -1303,14 +1290,11 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 				args,
 				input.fundingProvider,
 				beefBinary as number[],
-				async (tx) => {
-					const unlockingScript = await buildPurchaseUnlockingScript(
-						tx,
-						0,
-						listingOutput.satoshis ?? 1,
-						listingOutput.lockingScript,
-					)
-					return { 0: { unlockingScript: unlockingScript.toHex() } }
+				undefined,
+				{
+					spends: [{ outpoint, scheme: '1sat' }],
+					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					permissionScheme: '1sat',
 				},
 			)
 
@@ -1383,30 +1367,24 @@ export const burnOrdinals: Action<
 
 			const { sources, ...createArgs } = params
 			const args = await prepareP1SatArgs(ctx, { ...createArgs, options: { randomizeOutputs: false } })
+			const spends = sources
+				.map((o) => {
+					const id = readAssetIdTag(o.tags)
+					return id
+						? ({ basket: ORDINALS_BASKET, id })
+						: null
+				})
+				.filter((x): x is { basket: string; id: string } => !!x)
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				args,
 				input.fundingProvider,
 				params.inputBEEF as number[],
-				async (tx) => {
-					const spends: Record<number, { unlockingScript: string }> = {}
-					for (let i = 0; i < sources.length; i++) {
-						const ordinal = sources[i]
-						if (!ordinal.customInstructions) {
-							throw new Error(
-								`missing-custom-instructions-for-${ordinal.outpoint}`,
-							)
-						}
-						const unlocking = await signOrdinalInput(
-							ctx,
-							tx,
-							i,
-							ordinal.customInstructions,
-						)
-						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
-						spends[i] = { unlockingScript: unlocking }
-					}
-					return spends
+				undefined,
+				{
+					spends,
+					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					permissionScheme: '1sat',
 				},
 			)
 

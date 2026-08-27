@@ -1,3 +1,9 @@
+import {
+	type PermissionSchemeId,
+	PERMISSION_SCHEME_IDS,
+	PERMISSION_SCHEMES,
+	basketForScheme,
+} from '@1sat/types'
 import type {
 	CreateActionArgs,
 	CreateActionResult,
@@ -45,19 +51,26 @@ export interface OneSatPermissionModule extends PermissionsModule {
 }
 
 /**
- * Build a permission module that gates 1Sat-asset signing via hashOutputs
- * commitments captured at createAction time.
+ * Build a permission module for one BRC-99 scheme id.
  *
- * Register the returned object in `WalletPermissionsManager` config:
+ * Register under that scheme in `WalletPermissionsManager`:
  *
- *   const oneSat = createOneSatPermissionModule({ wallet, promptHandler });
+ *   const modules = createAssetPermissionModules({ wallet, promptHandler });
  *   new WalletPermissionsManager(wallet, adminOriginator, {
- *     permissionModules: { '1sat': oneSat },
+ *     permissionModules: modules,
  *   });
  */
 export function createOneSatPermissionModule(
 	args: CreateOneSatPermissionModuleArgs,
 ): OneSatPermissionModule {
+	const schemeId: PermissionSchemeId =
+		args.schemeId ?? PERMISSION_SCHEMES.ONESAT
+	const ownedBaskets = new Set(
+		(args.baskets ?? [basketForScheme(schemeId)]).map((b) =>
+			b.trim().toLowerCase(),
+		),
+	)
+
 	const cache = new CommitmentCache(
 		args.commitmentTtlSeconds ?? DEFAULT_COMMITMENT_TTL_SECONDS,
 	)
@@ -67,6 +80,8 @@ export function createOneSatPermissionModule(
 		wallet: args.wallet,
 		promptHandler: args.promptHandler,
 		cache,
+		schemeId,
+		ownedBaskets,
 		adminOriginator: args.adminOriginator,
 		permissionStore: args.permissionStore,
 		services: args.services,
@@ -101,7 +116,14 @@ export function createOneSatPermissionModule(
 				}
 				case 'listOutputs': {
 					const next = await handleListOutputsRequest(
-						deps,
+						{
+							schemeId: deps.schemeId,
+							ownedBaskets: deps.ownedBaskets,
+							promptHandler: deps.promptHandler,
+							adminOriginator: deps.adminOriginator,
+							permissionStore: deps.permissionStore,
+							services: deps.services,
+						},
 						req.args as ListOutputsArgs,
 						req.originator,
 					)
@@ -135,4 +157,18 @@ export function createOneSatPermissionModule(
 			cache.stop()
 		},
 	}
+}
+
+/**
+ * Build one module instance per known asset scheme (`1sat`, `opns`, `bsv21`, `lock`).
+ * Hosts spread the result into `permissionModules`.
+ */
+export function createAssetPermissionModules(
+	args: Omit<CreateOneSatPermissionModuleArgs, 'schemeId' | 'baskets'>,
+): Record<PermissionSchemeId, OneSatPermissionModule> {
+	const out = {} as Record<PermissionSchemeId, OneSatPermissionModule>
+	for (const schemeId of PERMISSION_SCHEME_IDS) {
+		out[schemeId] = createOneSatPermissionModule({ ...args, schemeId })
+	}
+	return out
 }

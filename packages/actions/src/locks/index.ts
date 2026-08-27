@@ -270,6 +270,13 @@ export const lockBsv: Action<LockBsvInput, LockOperationResponse> = {
 				ctx.wallet,
 				args,
 				input.fundingProvider,
+				undefined,
+				undefined,
+				{
+					spends: [],
+					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					permissionScheme: 'lock',
+				},
 			)
 
 			if (!result.txid) {
@@ -318,7 +325,7 @@ export const lockBsv: Action<LockBsvInput, LockOperationResponse> = {
 }
 
 /** Input for unlockBsv action */
-export interface UnlockBsvInput {
+export interface UnlockBsvInput extends ActionOptions {
 	/**
 	 * When set, only unlock these tracking ids (bare or id: prefix).
 	 * When omitted, unlock all matured locks in the basket.
@@ -439,25 +446,31 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 					outputs: [],
 					lockTime: maxUntil,
 				})
+			const spends = maturedLocks
+				.map((l) => {
+					const id = readAssetIdTag(l.output.tags)
+					if (!id || !l.output.customInstructions) return null
+					return {
+						basket: LOCK_BASKET,
+						id,
+						outpoint: l.output.outpoint.replace('_', '.'),
+						customInstructions: l.output.customInstructions,
+					}
+				})
+				.filter((x): x is NonNullable<typeof x> => !!x)
+			if (spends.length === 0) {
+				return { error: 'locks-missing-id-or-ci' }
+			}
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				args,
 				undefined,
 				inputBEEF as number[],
-				async (tx) => {
-					const spends: Record<number, { unlockingScript: string }> = {}
-					for (let i = 0; i < maturedLocks.length; i++) {
-						const lock = maturedLocks[i]
-						const unlocker = Lock.unlockWithWallet(
-							ctx.wallet,
-							lock.protocolID,
-							lock.keyID,
-							'self',
-						)
-						const unlockingScript = await unlocker.sign(tx, i)
-						spends[i] = { unlockingScript: unlockingScript.toHex() }
-					}
-					return spends
+				undefined,
+				{
+					spends,
+					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					permissionScheme: 'lock',
 				},
 			)
 

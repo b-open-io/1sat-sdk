@@ -3,7 +3,8 @@ import {
 	OPNS_BASKET,
 	OPNS_REGISTER_COUNTERPARTY,
 	OPNS_REGISTER_SIG_PLACEHOLDER_LEN,
-	P1SAT_LABEL,
+	buildActionDispatchLabel,
+	buildInputAssetLabel,
 	P1SAT_PROTOCOL,
 	opnsRegisterKeyId,
 } from '@1sat/types'
@@ -63,7 +64,10 @@ async function registerArgs(
 	const lockingScript = await unsealedLock(wallet, outpoint)
 	return {
 		description: 'Publish OpNS',
-		labels: [P1SAT_LABEL, `p 1sat input ${OPNS_BASKET} test-id`],
+		labels: [
+			buildActionDispatchLabel('opns'),
+			buildInputAssetLabel(OPNS_BASKET, 'test-id'),
+		],
 		inputs: [
 			{
 				outpoint,
@@ -128,6 +132,8 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 			wallet,
 			promptHandler,
 			cache: new CommitmentCache(60),
+			schemeId: 'opns' as const,
+			ownedBaskets: new Set([OPNS_BASKET]),
 			adminOriginator: 'admin.yours.org',
 		}
 
@@ -152,12 +158,19 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 		let sealLeg = false
 		const promptHandler: PromptHandler = async (req) => {
 			expect(() => structuredClone(req)).not.toThrow()
-			promptKind = String(req.intent.kind ?? '')
-			const legs = req.intent.legs as unknown[] | undefined
-			legCount = legs?.length ?? 0
+			// Transaction IR: panels built in-module (no raw legs on the wire).
+			const panels = req.payload.panels as
+				| Array<{ title?: string; meta?: Array<{ key?: string; value?: string }> }>
+				| undefined
+			promptKind = String(req.payload.title ?? '')
+			legCount = panels?.length ?? 0
 			sealLeg = Boolean(
-				(legs as Array<{ sealPending?: boolean }> | undefined)?.some(
-					(l) => l.sealPending,
+				panels?.some((p) =>
+					p.meta?.some(
+						(m) =>
+							m.key === 'Sign' &&
+							(m.value?.includes('PushDrop') || m.value?.includes('Sigma')),
+					),
 				),
 			)
 			return true
@@ -166,6 +179,8 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 			wallet: listWallet,
 			promptHandler,
 			cache: new CommitmentCache(60),
+			schemeId: 'opns' as const,
+			ownedBaskets: new Set([OPNS_BASKET]),
 			adminOriginator: 'admin.yours.org',
 		}
 
@@ -174,7 +189,7 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 			args,
 			'https://dapp.example',
 		)
-		expect(promptKind).toBe('opns')
+		expect(promptKind).toBe('Transaction Request')
 		expect(legCount).toBeGreaterThan(0)
 		expect(sealLeg).toBe(true)
 		expect(next.outputs![0].lockingScript).not.toBe(before)
@@ -194,6 +209,8 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 			wallet: listWallet,
 			promptHandler: async () => false,
 			cache: new CommitmentCache(60),
+			schemeId: 'opns' as const,
+			ownedBaskets: new Set([OPNS_BASKET]),
 			adminOriginator: 'admin.yours.org',
 		}
 
