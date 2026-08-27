@@ -6,11 +6,11 @@
 
 import { BSV21, OrdLock, P2MS } from '@1sat/templates'
 import {
-	type Destination,
 	BSV21_DEPLOY_TAG,
-	P1SAT_INTENTS,
 	buildInputAssetLabel,
 	buildTokenLabel,
+	type Destination,
+	P1SAT_INTENTS,
 	readAssetIdTag,
 } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
@@ -22,18 +22,14 @@ import {
 	OP,
 	P2PKH,
 	PublicKey,
-	Transaction,
+	type Transaction,
 	TransactionSignature,
 	UnlockingScript,
 	Utils,
 	type WalletOutput,
 } from '@bsv/sdk'
 import { prepareP1SatArgs } from '../apply'
-import {
-	BSV21_AUTH_BASKET,
-	BSV21_BASKET,
-	P1SAT_PROTOCOL,
-} from '../constants'
+import { BSV21_AUTH_BASKET, BSV21_BASKET, P1SAT_PROTOCOL } from '../constants'
 import type {
 	Action,
 	ActionLogEntry,
@@ -939,15 +935,9 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 						result.tx,
 						tokenId,
 					)
-					console.log(
-						'[buyBsv21] Overlay submission result:',
-						overlayResult,
-					)
+					console.log('[buyBsv21] Overlay submission result:', overlayResult)
 				} catch (overlayError) {
-					console.warn(
-						'[buyBsv21] Overlay submission failed:',
-						overlayError,
-					)
+					console.warn('[buyBsv21] Overlay submission failed:', overlayError)
 				}
 			}
 

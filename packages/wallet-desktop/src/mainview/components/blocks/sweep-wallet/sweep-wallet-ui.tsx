@@ -1,5 +1,17 @@
 'use client'
 
+import {
+	AlertCircle,
+	CheckCircle2,
+	ClipboardPaste,
+	Coins,
+	ImageIcon,
+	KeyRound,
+	Loader2,
+	RotateCcw,
+	Search,
+	Wallet,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,18 +27,6 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import {
-	AlertCircle,
-	CheckCircle2,
-	ClipboardPaste,
-	Coins,
-	ImageIcon,
-	KeyRound,
-	Loader2,
-	RotateCcw,
-	Search,
-	Wallet,
-} from 'lucide-react'
 import type { ScanResult, SweepResult, SweepStep } from './use-sweep-wallet'
 
 // ---------------------------------------------------------------------------

@@ -34,9 +34,7 @@ export async function nominateInvalidReqs(
 	windowMsecs?: number,
 ): Promise<NominateInvalidResult> {
 	const cutoff =
-		windowMsecs === undefined
-			? undefined
-			: new Date(Date.now() - windowMsecs)
+		windowMsecs === undefined ? undefined : new Date(Date.now() - windowMsecs)
 	const nominated: NominatedReq[] = []
 	const limit = 100
 	let offset = 0

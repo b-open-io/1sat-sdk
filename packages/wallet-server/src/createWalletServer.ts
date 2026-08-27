@@ -9,9 +9,9 @@ import { createLogger } from 'evlog'
 import { evlog, useLogger } from 'evlog/express'
 import express, {
 	type Express,
-	type NextFunction,
 	type Request as ExpressRequest,
 	type Response as ExpressResponse,
+	type NextFunction,
 } from 'express'
 import {
 	type AccountsMiddlewareDeps,

@@ -168,4 +168,3 @@ export const sweepDeposit: Action<SweepDepositInput, SweepDepositResult> = {
 		}
 	},
 }
-

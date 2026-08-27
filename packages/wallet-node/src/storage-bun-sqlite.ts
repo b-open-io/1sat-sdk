@@ -7,12 +7,15 @@
  */
 
 import { Database } from 'bun:sqlite'
-import { Beef, Transaction as BsvTransaction } from '@bsv/sdk'
 import type { ListActionsResult, ListOutputsResult, Validation } from '@bsv/sdk'
-import { WERR_UNAUTHORIZED } from '@bsv/wallet-toolbox/out/src/sdk/WERR_errors.js'
-import { WERR_INVALID_PARAMETER } from '@bsv/wallet-toolbox/out/src/sdk/WERR_errors.js'
-import { WERR_INTERNAL } from '@bsv/wallet-toolbox/out/src/sdk/WERR_errors.js'
-import { WERR_NOT_IMPLEMENTED } from '@bsv/wallet-toolbox/out/src/sdk/WERR_errors.js'
+import { Beef, Transaction as BsvTransaction } from '@bsv/sdk'
+import {
+	applyBrc153ReferenceLabel,
+	makeBrc114ActionTimeLabel,
+	parseBrc114ActionTimeLabels,
+} from '@bsv/wallet-toolbox'
+import type { EntityTimeStamp } from '@bsv/wallet-toolbox/out/src/sdk/types.js'
+import { isListActionsSpecOp } from '@bsv/wallet-toolbox/out/src/sdk/types.js'
 import type {
 	AuthId,
 	FindCertificateFieldsArgs,
@@ -21,9 +24,9 @@ import type {
 	FindForUserSincePagedArgs,
 	FindMonitorEventsArgs,
 	FindOutputBasketsArgs,
+	FindOutputsArgs,
 	FindOutputTagMapsArgs,
 	FindOutputTagsArgs,
-	FindOutputsArgs,
 	FindProvenTxReqsArgs,
 	FindProvenTxsArgs,
 	FindSyncStatesArgs,
@@ -36,18 +39,20 @@ import type {
 	PurgeResults,
 	TrxToken,
 } from '@bsv/wallet-toolbox/out/src/sdk/WalletStorage.interfaces.js'
-import type { EntityTimeStamp } from '@bsv/wallet-toolbox/out/src/sdk/types.js'
-import { isListActionsSpecOp } from '@bsv/wallet-toolbox/out/src/sdk/types.js'
+import {
+	WERR_INTERNAL,
+	WERR_INVALID_PARAMETER,
+	WERR_NOT_IMPLEMENTED,
+	WERR_UNAUTHORIZED,
+} from '@bsv/wallet-toolbox/out/src/sdk/WERR_errors.js'
+import { getLabelToSpecOp } from '@bsv/wallet-toolbox/out/src/storage/methods/ListActionsSpecOp.js'
+import { getListOutputsSpecOp } from '@bsv/wallet-toolbox/out/src/storage/methods/ListOutputsSpecOp.js'
+import type { AdminStatsResult } from '@bsv/wallet-toolbox/out/src/storage/StorageProvider.js'
 import {
 	StorageProvider,
 	type StorageProviderOptions,
 } from '@bsv/wallet-toolbox/out/src/storage/StorageProvider.js'
-import type { AdminStatsResult } from '@bsv/wallet-toolbox/out/src/storage/StorageProvider.js'
 import type { DBType } from '@bsv/wallet-toolbox/out/src/storage/StorageReader.js'
-import { getLabelToSpecOp } from '@bsv/wallet-toolbox/out/src/storage/methods/ListActionsSpecOp.js'
-import { getListOutputsSpecOp } from '@bsv/wallet-toolbox/out/src/storage/methods/ListOutputsSpecOp.js'
-import { outputColumnsWithoutLockingScript } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/TableOutput.js'
-import { transactionColumnsWithoutRawTx } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/TableTransaction.js'
 import type {
 	TableCertificate,
 	TableCertificateField,
@@ -67,11 +72,8 @@ import type {
 	TableTxLabelMap,
 	TableUser,
 } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/index.js'
-import {
-	applyBrc153ReferenceLabel,
-	makeBrc114ActionTimeLabel,
-	parseBrc114ActionTimeLabels,
-} from '@bsv/wallet-toolbox'
+import { outputColumnsWithoutLockingScript } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/TableOutput.js'
+import { transactionColumnsWithoutRawTx } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/TableTransaction.js'
 import {
 	verifyId,
 	verifyOneOrNone,
@@ -733,9 +735,7 @@ export class StorageBunSqlite extends StorageProvider {
 
 		migrations['2026-04-20-002 add outputs userId index'] = {
 			up: (db: Database) => {
-				db.run(
-					'CREATE INDEX IF NOT EXISTS outputs_userId ON outputs(userId)',
-				)
+				db.run('CREATE INDEX IF NOT EXISTS outputs_userId ON outputs(userId)')
 			},
 			down: (db: Database) => {
 				db.run('DROP INDEX IF EXISTS outputs_userId')
@@ -1032,7 +1032,9 @@ export class StorageBunSqlite extends StorageProvider {
 		// null is preserved and bound as SQL NULL — matches Knex binding
 		// behavior, so schema NOT NULL violations surface instead of being
 		// silently rewritten to DEFAULT.
-		const filteredKeys = Object.keys(scoped).filter((k) => scoped[k] !== undefined)
+		const filteredKeys = Object.keys(scoped).filter(
+			(k) => scoped[k] !== undefined,
+		)
 		if (filteredKeys.length === 0)
 			throw new WERR_INTERNAL(`Cannot insert empty entity into ${table}`)
 
@@ -1096,7 +1098,9 @@ export class StorageBunSqlite extends StorageProvider {
 		const params = [...setParams, ...w.params]
 
 		this.db.run(sql, params as (string | number | null | Buffer)[])
-		const row = this.db.query('SELECT changes() as cnt').get() as { cnt: number } | null
+		const row = this.db.query('SELECT changes() as cnt').get() as {
+			cnt: number
+		} | null
 		return row?.cnt ?? 0
 	}
 
@@ -1421,7 +1425,7 @@ export class StorageBunSqlite extends StorageProvider {
 		if (!txid) return undefined
 		if (!this.isAvailable()) await this.makeAvailable()
 
-		let rawTx: number[] | undefined = undefined
+		let rawTx: number[] | undefined
 		if (Number.isInteger(offset) && Number.isInteger(length)) {
 			let row = this.getSql<{ rawTx: Buffer }>(
 				`SELECT ${this.dbTypeSubstring('rawTx', offset! + 1, length!)} as rawTx FROM proven_txs WHERE txid = ?`,
@@ -2177,7 +2181,9 @@ export class StorageBunSqlite extends StorageProvider {
 		}
 		const tagClause = buildOutputTagFilterSql(tagIds, isQueryModeAll)
 		if (tagClause) {
-			extraWhere = extraWhere ? `${extraWhere} AND ${tagClause.sql}` : tagClause.sql
+			extraWhere = extraWhere
+				? `${extraWhere} AND ${tagClause.sql}`
+				: tagClause.sql
 			extraParams.push(...tagClause.params)
 		}
 
@@ -2329,7 +2335,9 @@ export class StorageBunSqlite extends StorageProvider {
 		}
 		const labelClause = buildTxLabelFilterSql(labelIds, isQueryModeAll)
 		if (labelClause) {
-			extraWhere = extraWhere ? `${extraWhere} AND ${labelClause.sql}` : labelClause.sql
+			extraWhere = extraWhere
+				? `${extraWhere} AND ${labelClause.sql}`
+				: labelClause.sql
 			extraParams.push(...labelClause.params)
 		}
 
@@ -2465,7 +2473,9 @@ export class StorageBunSqlite extends StorageProvider {
 		}
 		const tagClause = buildOutputTagFilterSql(tagIds, isQueryModeAll)
 		if (tagClause) {
-			extraWhere = extraWhere ? `${extraWhere} AND ${tagClause.sql}` : tagClause.sql
+			extraWhere = extraWhere
+				? `${extraWhere} AND ${tagClause.sql}`
+				: tagClause.sql
 			extraParams.push(...tagClause.params)
 		}
 		return this.countQuery(
@@ -2543,7 +2553,9 @@ export class StorageBunSqlite extends StorageProvider {
 		}
 		const labelClause = buildTxLabelFilterSql(labelIds, isQueryModeAll)
 		if (labelClause) {
-			extraWhere = extraWhere ? `${extraWhere} AND ${labelClause.sql}` : labelClause.sql
+			extraWhere = extraWhere
+				? `${extraWhere} AND ${labelClause.sql}`
+				: labelClause.sql
 			extraParams.push(...labelClause.params)
 		}
 		return this.countQuery(
@@ -2801,8 +2813,7 @@ export class StorageBunSqlite extends StorageProvider {
 		const createdAtTo =
 			actionTimeTo !== undefined ? new Date(actionTimeTo) : undefined
 
-		let specOp: ReturnType<typeof getLabelToSpecOp>[string] | undefined =
-			undefined
+		let specOp: ReturnType<typeof getLabelToSpecOp>[string] | undefined
 		let specOpLabels: string[] = []
 		let labels: string[] = []
 
@@ -3027,7 +3038,7 @@ export class StorageBunSqlite extends StorageProvider {
 							const rawTx = await this.getRawTxOfKnownValidTransaction(
 								tx.txid as string,
 							)
-							let bsvTx: BsvTransaction | undefined = undefined
+							let bsvTx: BsvTransaction | undefined
 							if (rawTx) bsvTx = BsvTransaction.fromBinary(rawTx)
 							for (const o of inputs) {
 								await this.extendOutput(o, true, true)
@@ -3084,7 +3095,7 @@ export class StorageBunSqlite extends StorageProvider {
 			vargs.basket,
 			vargs.tags,
 		)
-		let basketId: number | undefined = undefined
+		let basketId: number | undefined
 		const basketsById: Record<number, TableOutputBasket> = {}
 
 		if (basket) {

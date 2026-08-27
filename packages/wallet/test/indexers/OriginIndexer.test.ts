@@ -140,4 +140,3 @@ describe('OriginIndexer basket routing', () => {
 		expect(txo.basket).toBe(ORDINALS_BASKET)
 	})
 })
-

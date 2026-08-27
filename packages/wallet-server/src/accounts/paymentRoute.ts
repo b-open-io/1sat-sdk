@@ -21,10 +21,10 @@ import { nextPaymentDerivation } from './middleware'
 import { createAccountsPaymentMiddleware } from './paymentMiddleware'
 import { quoteRefundedCharge } from './pricing'
 import {
-	PAYMENT_LABEL,
 	blockLabel,
 	bytesLabel,
 	latestActivePaymentForPayer,
+	PAYMENT_LABEL,
 	payerLabel,
 } from './queries'
 import type {

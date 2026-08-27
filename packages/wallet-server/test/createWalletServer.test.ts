@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { PrivateKey, ProtoWallet, type WalletInterface } from '@bsv/sdk'
 import {
-	type WalletServerHandle,
 	createWalletServer,
+	type WalletServerHandle,
 } from '../src/createWalletServer'
 import type { WalletStorageProvider } from '../src/types'
 
@@ -10,9 +10,7 @@ const TOKEN = 'test-internal-key'
 const PUBKEY = '02'.padEnd(66, 'a')
 const SERVER_PRIV = PrivateKey.fromRandom()
 const SERVER_IDENTITY = SERVER_PRIV.toPublicKey().toString()
-const SERVER_WALLET = new ProtoWallet(
-	SERVER_PRIV,
-) as unknown as WalletInterface
+const SERVER_WALLET = new ProtoWallet(SERVER_PRIV) as unknown as WalletInterface
 
 function makeStorage(): WalletStorageProvider {
 	return {

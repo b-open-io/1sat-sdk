@@ -1,3 +1,30 @@
+export {
+	type AccountsMiddlewareDeps,
+	accountsCapacityGate,
+	ERR_INSUFFICIENT_CAPACITY,
+	nextPaymentDerivation,
+} from './middleware'
+export { mountPaymentRoute, type PaymentRouteDeps } from './paymentRoute'
+export {
+	BYTES_PER_GB,
+	type CapacityInput,
+	type CapacityResult,
+	computeCapacity,
+	quoteRefundedCharge,
+	type RefundedQuote,
+	type RefundedQuoteInput,
+	refundCreditSats,
+} from './pricing'
+export {
+	blockLabel,
+	bytesLabel,
+	countPaymentsForPayer,
+	latestActivePaymentForPayer,
+	listPaymentsForPayer,
+	PAYMENT_LABEL,
+	type PaymentRecord,
+	payerLabel,
+} from './queries'
 export type {
 	AccountStatusResponse,
 	AccountsConfig,
@@ -5,31 +32,3 @@ export type {
 	IdentityKey,
 	NextPaymentDerivation,
 } from './types'
-
-export {
-	BYTES_PER_GB,
-	computeCapacity,
-	quoteRefundedCharge,
-	refundCreditSats,
-	type CapacityInput,
-	type CapacityResult,
-	type RefundedQuote,
-	type RefundedQuoteInput,
-} from './pricing'
-export {
-	type AccountsMiddlewareDeps,
-	accountsCapacityGate,
-	ERR_INSUFFICIENT_CAPACITY,
-	nextPaymentDerivation,
-} from './middleware'
-export {
-	type PaymentRecord,
-	PAYMENT_LABEL,
-	blockLabel,
-	bytesLabel,
-	countPaymentsForPayer,
-	latestActivePaymentForPayer,
-	listPaymentsForPayer,
-	payerLabel,
-} from './queries'
-export { mountPaymentRoute, type PaymentRouteDeps } from './paymentRoute'

@@ -1,5 +1,5 @@
-import { Button } from '@/components/ui/button'
 import { Bot } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 interface AgentPopoverProps {
 	onOpenAgent?: () => void

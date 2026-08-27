@@ -1,10 +1,10 @@
+import { Grid2x2, ImageOff } from 'lucide-react'
+import { useCallback, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import { Grid2x2, ImageOff } from 'lucide-react'
-import { useCallback, useState } from 'react'
 import type { OrdinalOutput } from './use-ordinals-grid'
 
 // ---------------------------------------------------------------------------

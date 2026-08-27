@@ -1,13 +1,5 @@
 'use client'
 
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from '@/components/ui/collapsible'
-import { cn } from '@/lib/utils'
 import {
 	CheckIcon,
 	CopyIcon,
@@ -18,6 +10,14 @@ import {
 } from 'lucide-react'
 import type { ComponentProps, HTMLAttributes } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { cn } from '@/lib/utils'
 
 export type CommitProps = ComponentProps<typeof Collapsible>
 

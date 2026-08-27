@@ -1,5 +1,5 @@
-import { WERR_UNAUTHORIZED } from '@bsv/wallet-toolbox/out/src/sdk/WERR_errors.js'
 import { WalletError } from '@bsv/wallet-toolbox/out/src/sdk/WalletError.js'
+import { WERR_UNAUTHORIZED } from '@bsv/wallet-toolbox/out/src/sdk/WERR_errors.js'
 import type {
 	JsonRpcResponse,
 	MakeWalletLogger,

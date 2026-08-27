@@ -6,10 +6,10 @@
  */
 import { describe, expect, it } from 'bun:test'
 import {
+	applyNavAction,
 	NAV_INITIAL_STATE,
 	type NavAction,
 	type NavState,
-	applyNavAction,
 } from './use-browser-navigation'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

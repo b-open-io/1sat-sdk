@@ -10,10 +10,10 @@ import type { WalletDesktopRPC } from '../shared/types'
 import { setLastActiveAccountId, touchAccount } from './account-registry'
 import { createRpcHandlers } from './rpc-handlers'
 import {
-	type WalletCallbacks,
 	getLegacyCallbacks,
 	lockAccount,
 	unlock,
+	type WalletCallbacks,
 } from './wallet-manager'
 
 // ============================================================================

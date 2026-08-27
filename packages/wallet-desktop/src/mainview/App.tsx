@@ -1,7 +1,7 @@
+import { useEffect, useRef, useState } from 'react'
 import { BigBlocksProvider } from '@/components/blocks/bigblocks-provider'
 import { PermissionApproval } from '@/components/blocks/permission-approval'
 import { Button } from '@/components/ui/button'
-import { useEffect, useRef, useState } from 'react'
 import { BrowserLayout } from './components/layout/browser-layout'
 import { useAppearance } from './hooks/use-appearance'
 import { useWallet } from './hooks/use-wallet'
@@ -45,7 +45,9 @@ function LoadingScreen() {
 
 function OnboardingChoice({
 	onChoose,
-}: { onChoose: (choice: OnboardingChoice) => void }) {
+}: {
+	onChoose: (choice: OnboardingChoice) => void
+}) {
 	return (
 		<div className="min-h-screen flex items-center justify-center">
 			<div className="max-w-sm w-full p-6">

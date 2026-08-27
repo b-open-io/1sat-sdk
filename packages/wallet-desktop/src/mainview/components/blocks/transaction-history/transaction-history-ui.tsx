@@ -1,8 +1,3 @@
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
-import { Skeleton } from '@/components/ui/skeleton'
-import { cn } from '@/lib/utils'
 import {
 	ArrowDownLeft,
 	ArrowUpRight,
@@ -11,6 +6,11 @@ import {
 	Loader2,
 } from 'lucide-react'
 import { useCallback } from 'react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 import type { HistoryEntry, TransactionStatus } from './use-transaction-history'
 
 // ---------------------------------------------------------------------------

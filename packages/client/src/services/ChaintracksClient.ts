@@ -1,6 +1,10 @@
 import type { ClientOptions } from '@1sat/types'
 import type { ChainTracker } from '@bsv/sdk'
-import type { BaseBlockHeader, BlockHeader, Chain } from '@bsv/wallet-toolbox-client'
+import type {
+	BaseBlockHeader,
+	BlockHeader,
+	Chain,
+} from '@bsv/wallet-toolbox-client'
 import { BaseClient } from './BaseClient'
 
 /**

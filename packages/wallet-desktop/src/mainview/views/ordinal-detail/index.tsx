@@ -1,6 +1,3 @@
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
 	AlertCircle,
 	ArrowLeft,
@@ -15,6 +12,9 @@ import {
 	XCircle,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { ORDFS_BASE } from '../../lib/url-parser'
 import { rpc } from '../../rpc'
 

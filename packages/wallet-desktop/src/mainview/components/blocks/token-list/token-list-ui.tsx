@@ -1,5 +1,7 @@
 'use client'
 
+import { Coins, ExternalLink } from 'lucide-react'
+import { useCallback } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -7,8 +9,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import { Coins, ExternalLink } from 'lucide-react'
-import { useCallback } from 'react'
 import type { TokenHolding, TokenType } from './use-token-list'
 
 // ---------------------------------------------------------------------------

@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import {
 	FollowButton,
 	type FollowResult,
@@ -5,7 +6,6 @@ import {
 import { LikeButton, type LikeResult } from '@/components/blocks/like-button'
 import { PostButton, type PostResult } from '@/components/blocks/post-button'
 import { SocialFeed, type SocialPost } from '@/components/blocks/social-feed'
-import { useCallback } from 'react'
 import { rpc } from '../../rpc'
 
 export interface SocialViewProps {

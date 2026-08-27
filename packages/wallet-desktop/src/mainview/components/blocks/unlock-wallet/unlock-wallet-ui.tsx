@@ -1,3 +1,13 @@
+import {
+	AlertCircle,
+	CheckCircle2,
+	Fingerprint,
+	KeyRound,
+	Loader2,
+	Lock,
+	ShieldCheck,
+} from 'lucide-react'
+import { useCallback, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -11,16 +21,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import {
-	AlertCircle,
-	CheckCircle2,
-	Fingerprint,
-	KeyRound,
-	Loader2,
-	Lock,
-	ShieldCheck,
-} from 'lucide-react'
-import { useCallback, useState } from 'react'
 import type { UnlockPlatform, UnlockWalletResult } from './use-unlock-wallet'
 
 // ---------------------------------------------------------------------------

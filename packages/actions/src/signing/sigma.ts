@@ -1,22 +1,18 @@
+import { Sigma } from '@1sat/templates'
 import {
-	BSM,
 	BigNumber,
+	BSM,
 	OP,
 	PublicKey,
 	Script,
 	Signature,
 	Utils,
 } from '@bsv/sdk'
-import { Sigma } from '@1sat/templates'
 import { BAP_PROTOCOL_ID } from '../constants'
 import type { OneSatContext } from '../types'
 import { resolveCurrentKeyId } from './aip'
 
 const { toArray } = Utils
-
-
-
-
 
 /**
  * Check whether a script contains OP_RETURN.

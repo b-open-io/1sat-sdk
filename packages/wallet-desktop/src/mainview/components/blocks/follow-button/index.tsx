@@ -8,15 +8,15 @@ import { type FollowResult, useFollow } from './use-follow'
 
 export {
 	FollowButtonUI,
-	followButtonVariants,
 	type FollowButtonUIProps,
+	followButtonVariants,
 } from './ui'
 export {
-	useFollow,
 	type FollowResult,
 	type FollowState,
-	type UseFollowReturn,
 	type UseFollowOptions,
+	type UseFollowReturn,
+	useFollow,
 } from './use-follow'
 
 // ---------------------------------------------------------------------------

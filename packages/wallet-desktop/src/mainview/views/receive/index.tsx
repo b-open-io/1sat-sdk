@@ -1,8 +1,8 @@
-import { Skeleton } from '@/components/ui/skeleton'
-import { cn } from '@/lib/utils'
 import { ArrowLeft, Check, Copy, QrCode } from 'lucide-react'
 import QRCode from 'qrcode'
 import { useEffect, useRef, useState } from 'react'
+import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 import { rpc } from '../../rpc'
 
 interface ReceiveViewProps {

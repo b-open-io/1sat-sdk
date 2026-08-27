@@ -29,10 +29,7 @@ export function writeMonitorPid(
  * contains that pid (avoids a short once-run clearing a serve owner that
  * started while the once-run was shutting down).
  */
-export function clearMonitorPid(
-	dataDir: string,
-	onlyPid?: number,
-): void {
+export function clearMonitorPid(dataDir: string, onlyPid?: number): void {
 	const path = monitorPidPath(dataDir)
 	try {
 		if (onlyPid !== undefined) {

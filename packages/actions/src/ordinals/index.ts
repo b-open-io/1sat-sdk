@@ -5,13 +5,12 @@
  * Returns WalletOutput[] directly from the SDK - no custom mapping needed.
  */
 
-import { MAP as MAPTemplate } from '@1sat/templates'
-import { OrdLock } from '@1sat/templates'
+import { MAP as MAPTemplate, OrdLock } from '@1sat/templates'
 import {
-	P1SAT_INTENTS,
 	buildInputAssetLabel,
 	nameFromMap,
 	ordinalTagsFromMetadata,
+	P1SAT_INTENTS,
 	readAssetIdTag,
 } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
@@ -34,9 +33,9 @@ import {
 import { prepareP1SatArgs } from '../apply'
 import {
 	OPNS_BASKET,
-	ORDINALS_BASKET,
 	ORD_LOCK_PREFIX,
 	ORD_LOCK_SUFFIX,
+	ORDINALS_BASKET,
 	P1SAT_PROTOCOL,
 } from '../constants'
 import type {
@@ -123,10 +122,7 @@ export async function resolveOrdinalTags(
 
 			// Non-OPNS: MAP metadata carries the name. OpNS derives its own
 			// from the inscription content, below.
-			if (
-				name === undefined &&
-				resolvedContentType !== 'application/op-ns'
-			) {
+			if (name === undefined && resolvedContentType !== 'application/op-ns') {
 				name = nameFromMap(metadata.map)
 			}
 		} catch {

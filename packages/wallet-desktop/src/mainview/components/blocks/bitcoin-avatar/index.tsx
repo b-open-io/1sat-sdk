@@ -7,9 +7,9 @@ import { useBitcoinAvatar } from './use-bitcoin-avatar'
 
 export { BitcoinAvatarUI, type BitcoinAvatarUIProps } from './ui'
 export {
-	useBitcoinAvatar,
-	type UseBitcoinAvatarReturn,
 	type UseBitcoinAvatarOptions,
+	type UseBitcoinAvatarReturn,
+	useBitcoinAvatar,
 } from './use-bitcoin-avatar'
 
 // ---------------------------------------------------------------------------

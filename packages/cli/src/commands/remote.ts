@@ -9,7 +9,7 @@
  */
 
 import { StorageClient } from '@1sat/wallet-node'
-import { WalletServerClient, topUpStorage } from '@1sat/wallet-server'
+import { topUpStorage, WalletServerClient } from '@1sat/wallet-server'
 import { confirm, isCancel, text } from '@clack/prompts'
 import type { GlobalFlags } from '../args'
 import { loadConfig, saveConfig } from '../config'

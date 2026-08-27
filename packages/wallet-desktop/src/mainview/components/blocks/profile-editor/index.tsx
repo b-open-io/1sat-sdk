@@ -1,3 +1,12 @@
+import {
+	AlertCircle,
+	Building2,
+	Check,
+	Loader2,
+	Upload,
+	User,
+} from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 import { BitcoinAvatar } from '@/components/blocks/bitcoin-avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,15 +21,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import {
-	AlertCircle,
-	Building2,
-	Check,
-	Loader2,
-	Upload,
-	User,
-} from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
 import type { DraftProfile } from '../../../../shared/types'
 import { rpc } from '../../../rpc'
 

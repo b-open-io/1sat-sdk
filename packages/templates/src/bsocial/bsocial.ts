@@ -236,10 +236,7 @@ export default class BSocial implements ScriptTemplate {
 		// unspendable, which a zero-satoshi data output requires. BitCom emits
 		// the bare OP_RETURN because it is also used to append data to a
 		// spendable script; BSocial outputs are always standalone.
-		return new LockingScript([
-			{ op: OP.OP_FALSE },
-			...bitcom.lock().chunks,
-		])
+		return new LockingScript([{ op: OP.OP_FALSE }, ...bitcom.lock().chunks])
 	}
 
 	/**

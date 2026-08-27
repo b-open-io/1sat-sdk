@@ -1,5 +1,8 @@
 'use client'
 
+import { ChevronRightIcon } from 'lucide-react'
+import type { ComponentProps, HTMLAttributes } from 'react'
+import { createContext, useContext, useMemo } from 'react'
 import { Badge } from '@/components/ui/badge'
 import {
 	Collapsible,
@@ -7,9 +10,6 @@ import {
 	CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
-import { ChevronRightIcon } from 'lucide-react'
-import type { ComponentProps, HTMLAttributes } from 'react'
-import { createContext, useContext, useMemo } from 'react'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
@@ -97,19 +97,27 @@ export const SchemaDisplayPath = ({
 }: SchemaDisplayPathProps) => {
 	const { path } = useContext(SchemaDisplayContext)
 
-	// Highlight path parameters
-	const highlightedPath = path.replaceAll(
-		/\{([^}]+)\}/g,
-		'<span class="text-blue-600 dark:text-blue-400">{$1}</span>',
-	)
+	// Highlight path parameters. Rendered as elements rather than an HTML
+	// string so a path segment can never inject markup.
+	const segments = path.split(/(\{[^}]+\})/g).filter(Boolean)
 
 	return (
-		<span
-			className={cn('font-mono text-sm', className)}
-			// oxlint-disable-next-line eslint-plugin-react(no-danger)
-			dangerouslySetInnerHTML={{ __html: children ?? highlightedPath }}
-			{...props}
-		/>
+		<span className={cn('font-mono text-sm', className)} {...props}>
+			{children ??
+				segments.map((segment, i) =>
+					segment.startsWith('{') && segment.endsWith('}') ? (
+						<span
+							// biome-ignore lint/suspicious/noArrayIndexKey: segments are positional and the list is static
+							key={i}
+							className="text-blue-600 dark:text-blue-400"
+						>
+							{segment}
+						</span>
+					) : (
+						segment
+					),
+				)}
+		</span>
 	)
 }
 

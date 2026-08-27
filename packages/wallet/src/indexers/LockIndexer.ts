@@ -1,7 +1,7 @@
 import { Lock } from '@1sat/templates'
 import {
-	type IndexSummary,
 	Indexer,
+	type IndexSummary,
 	LOCK_BASKET,
 	type ParseContext,
 	type ParseResult,

@@ -7,8 +7,8 @@
  * same storage with logs in <dataDir>/monitor.log.
  */
 
-import { type OneSatContext, createContext } from '@1sat/actions'
-import { type NodeWalletResult, createNodeWallet } from '@1sat/wallet-node'
+import { createContext, type OneSatContext } from '@1sat/actions'
+import { createNodeWallet, type NodeWalletResult } from '@1sat/wallet-node'
 import type { PrivateKey } from '@bsv/sdk'
 import { ensureDataDir, loadConfig } from './config'
 import { spawnDetachedMonitorOnce } from './monitor-once'

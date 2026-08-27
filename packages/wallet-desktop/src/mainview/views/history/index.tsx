@@ -1,6 +1,6 @@
-import { Empty } from '@/components/ui/empty'
 import { Clock } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Empty } from '@/components/ui/empty'
 import type { HistoryEntry } from '../../../shared/types'
 import { cn } from '../../lib/utils'
 import { rpc } from '../../rpc'

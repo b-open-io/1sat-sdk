@@ -1,7 +1,7 @@
 import {
-	type OpnsOperationResponse,
 	createContext,
 	getOpnsNames,
+	type OpnsOperationResponse,
 	opnsDeregister,
 	opnsRegister,
 } from '@1sat/actions'

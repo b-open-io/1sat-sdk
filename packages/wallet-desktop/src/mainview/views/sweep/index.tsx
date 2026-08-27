@@ -1,5 +1,3 @@
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
 	ArrowLeft,
 	Check,
@@ -9,6 +7,8 @@ import {
 	ShieldCheck,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import type { SweepScanResult } from '../../../shared/types'
 import { rpc } from '../../rpc'
 

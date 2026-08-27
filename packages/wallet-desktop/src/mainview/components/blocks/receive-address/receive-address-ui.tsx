@@ -1,3 +1,5 @@
+import { AlertCircle, Check, Copy, QrCode, RefreshCw } from 'lucide-react'
+import { type ReactNode, useMemo } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,8 +17,6 @@ import {
 	TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { AlertCircle, Check, Copy, QrCode, RefreshCw } from 'lucide-react'
-import { type ReactNode, useMemo } from 'react'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -65,13 +65,7 @@ function truncate(value: string, startLen = 8, endLen = 6): string {
  * This is a placeholder visualization — consumers should provide a real QR
  * renderer via the `renderQr` prop for production use.
  */
-function AddressPattern({
-	address,
-	size,
-}: {
-	address: string
-	size: number
-}) {
+function AddressPattern({ address, size }: { address: string; size: number }) {
 	const gridSize = 11
 	const cellSize = size / (gridSize + 2) // +2 for quiet zone
 

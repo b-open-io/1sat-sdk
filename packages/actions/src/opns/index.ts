@@ -8,15 +8,15 @@
 
 import { OpNS, OrdLock, outpointToBytes } from '@1sat/templates'
 import {
+	buildInputAssetLabel,
 	OPNS_BASKET,
 	OPNS_PUBLISHED_TAG,
 	OPNS_PUSHDROP_TEMPLATE,
 	OPNS_REGISTER_COUNTERPARTY,
 	OPNS_REGISTER_SIG_PLACEHOLDER_LEN,
+	opnsRegisterKeyId,
 	P1SAT_INTENTS,
 	P1SAT_PROTOCOL,
-	buildInputAssetLabel,
-	opnsRegisterKeyId,
 	readAssetIdTag,
 } from '@1sat/types'
 import {

@@ -1,9 +1,5 @@
 'use client'
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
-import { cn } from '@/lib/utils'
 import { CheckIcon, CopyIcon, EyeIcon, EyeOffIcon } from 'lucide-react'
 import type { ComponentProps, HTMLAttributes } from 'react'
 import {
@@ -15,6 +11,10 @@ import {
 	useRef,
 	useState,
 } from 'react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
+import { cn } from '@/lib/utils'
 
 interface EnvironmentVariablesContextType {
 	showValues: boolean

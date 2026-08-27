@@ -1,16 +1,14 @@
 export * from '@1sat/wallet'
-
-export { createRemoteWallet } from './createRemoteWallet'
+export {
+	Services,
+	StorageClient,
+	type sdk as walletSdk,
+	Wallet,
+	WalletPermissionsManager,
+	WalletStorageManager,
+} from '@bsv/wallet-toolbox/out/src/index.client.js'
 export type {
 	RemoteWalletConfig,
 	RemoteWalletResult,
 } from './createRemoteWallet'
-
-export {
-	Services,
-	StorageClient,
-	Wallet,
-	WalletPermissionsManager,
-	WalletStorageManager,
-	type sdk as walletSdk,
-} from '@bsv/wallet-toolbox/out/src/index.client.js'
+export { createRemoteWallet } from './createRemoteWallet'

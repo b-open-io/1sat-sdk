@@ -15,10 +15,10 @@ export {
 	type IdentitySelectorUIProps,
 } from './identity-selector-ui'
 export {
-	useIdentitySelector,
+	type IdentityEntry,
 	type UseIdentitySelectorOptions,
 	type UseIdentitySelectorReturn,
-	type IdentityEntry,
+	useIdentitySelector,
 } from './use-identity-selector'
 
 // ---------------------------------------------------------------------------

@@ -1,3 +1,5 @@
+import { AlertCircle, RefreshCw } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { BitcoinAvatar } from '@/components/blocks/bitcoin-avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -5,8 +7,6 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import { AlertCircle, RefreshCw } from 'lucide-react'
-import type { ReactNode } from 'react'
 import type { BapProfile } from './use-profile-card'
 
 // ---------------------------------------------------------------------------

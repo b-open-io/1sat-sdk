@@ -5,8 +5,7 @@
  */
 
 import { BSV21, OrdLock } from '@1sat/templates'
-import type { IndexedOutput } from '@1sat/types'
-import type { OrdfsMetadata } from '@1sat/types'
+import type { IndexedOutput, OrdfsMetadata } from '@1sat/types'
 import { buildTokenLabel } from '@1sat/types'
 import { formatOutpoint, parseOutpoint } from '@1sat/utils'
 import {
@@ -883,9 +882,9 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 
 // Deposit sweep: rotate plain BSV from DEPOSIT_BASKET into FUNDING_BASKET
 export {
-	sweepDeposit,
 	type SweepDepositInput,
 	type SweepDepositResult,
+	sweepDeposit,
 } from './sweepDeposit'
 
 // Export actions array for registry

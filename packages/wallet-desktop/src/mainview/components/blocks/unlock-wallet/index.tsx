@@ -1,14 +1,14 @@
 'use client'
 
 import { UnlockWalletUi } from './unlock-wallet-ui'
-import { useUnlockWallet } from './use-unlock-wallet'
 import type { UnlockPlatform, UnlockWalletResult } from './use-unlock-wallet'
+import { useUnlockWallet } from './use-unlock-wallet'
 
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 
-export { useUnlockWallet } from './use-unlock-wallet'
+export type { UnlockWalletUiProps } from './unlock-wallet-ui'
 export { UnlockWalletUi } from './unlock-wallet-ui'
 export type {
 	UnlockPlatform,
@@ -16,7 +16,7 @@ export type {
 	UseUnlockWalletOptions,
 	UseUnlockWalletReturn,
 } from './use-unlock-wallet'
-export type { UnlockWalletUiProps } from './unlock-wallet-ui'
+export { useUnlockWallet } from './use-unlock-wallet'
 
 // ---------------------------------------------------------------------------
 // Types

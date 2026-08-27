@@ -12,15 +12,15 @@ import {
 
 export {
 	FriendButtonUI,
-	friendButtonVariants,
 	type FriendButtonUIProps,
+	friendButtonVariants,
 } from './ui'
 export {
-	useFriend,
 	type FriendResult,
 	type FriendshipStatus,
-	type UseFriendReturn,
 	type UseFriendOptions,
+	type UseFriendReturn,
+	useFriend,
 } from './use-friend'
 
 // ---------------------------------------------------------------------------

@@ -12,7 +12,7 @@
  * ```
  */
 
-import { BigNumber, HD, Hash, Mnemonic, PrivateKey } from '@bsv/sdk'
+import { BigNumber, Hash, HD, Mnemonic, PrivateKey } from '@bsv/sdk'
 
 // ============================================================================
 // Types

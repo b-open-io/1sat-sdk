@@ -6,15 +6,15 @@ import {
 	usePermissionApproval,
 } from './use-permission-approval'
 
-// Re-exports
-export { usePermissionApproval } from './use-permission-approval'
+export type { PermissionApprovalUiProps } from './permission-approval-ui'
 export { PermissionApprovalUi } from './permission-approval-ui'
 export type {
 	PermissionRequest,
 	UsePermissionApprovalOptions,
 	UsePermissionApprovalReturn,
 } from './use-permission-approval'
-export type { PermissionApprovalUiProps } from './permission-approval-ui'
+// Re-exports
+export { usePermissionApproval } from './use-permission-approval'
 
 // ---------------------------------------------------------------------------
 // Types

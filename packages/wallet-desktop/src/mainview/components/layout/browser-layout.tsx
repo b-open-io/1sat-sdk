@@ -1,18 +1,3 @@
-import { SyncTerminal } from '@/components/blocks/sync-terminal'
-import { Button } from '@/components/ui/button'
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from '@/components/ui/popover'
-import { Separator } from '@/components/ui/separator'
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
 import { useHotkeys } from '@tanstack/react-hotkeys'
 import {
 	ArrowLeft,
@@ -34,6 +19,21 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Avatar from 'sigma-avatars'
+import { SyncTerminal } from '@/components/blocks/sync-terminal'
+import { Button } from '@/components/ui/button'
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from '@/components/ui/popover'
+import { Separator } from '@/components/ui/separator'
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 import {
 	type BrowserSettings,
 	loadBrowserSettings,
@@ -43,9 +43,9 @@ import type { ParsedRoute } from '../../../shared/url-types'
 import { getDisplayLabel } from '../../../shared/url-types'
 import { useBookmarks } from '../../hooks/use-bookmarks'
 import {
+	applyNavAction,
 	NAV_INITIAL_STATE,
 	type NavState,
-	applyNavAction,
 } from '../../hooks/use-browser-navigation'
 import { useSyncEvents } from '../../hooks/use-sync-events'
 import { useWallet } from '../../hooks/use-wallet'

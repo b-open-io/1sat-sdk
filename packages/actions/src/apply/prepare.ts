@@ -1,7 +1,4 @@
-import {
-	buildIntentLabel,
-	parseIntentLabel,
-} from '@1sat/types'
+import { buildIntentLabel, parseIntentLabel } from '@1sat/types'
 import type { CreateActionArgs } from '@bsv/sdk'
 import type { OneSatContext } from '../types'
 import { ensureActionId } from '../utils/createTrackedAction'

@@ -28,15 +28,16 @@ export const MIN_BIP143_PREIMAGE_BYTES = 157
  * or if varint decoding runs off the end. The caller treats null as
  * "not a BIP-143 preimage; prompt the user."
  */
-export function parsePreimage(data: number[] | Uint8Array): ParsedPreimage | null {
+export function parsePreimage(
+	data: number[] | Uint8Array,
+): ParsedPreimage | null {
 	const buf = data instanceof Uint8Array ? Array.from(data) : data
 	if (buf.length < MIN_BIP143_PREIMAGE_BYTES) return null
 
 	// Outpoint at offset 68: 32-byte txid (LE) + 4-byte vout (LE).
 	const txidBytes = buf.slice(68, 100).reverse()
 	const txid = Utils.toHex(txidBytes)
-	const vout =
-		buf[100] | (buf[101] << 8) | (buf[102] << 16) | (buf[103] << 24)
+	const vout = buf[100] | (buf[101] << 8) | (buf[102] << 16) | (buf[103] << 24)
 
 	// Varint scriptCode length at offset 104.
 	const varint = readVarint(buf, 104)

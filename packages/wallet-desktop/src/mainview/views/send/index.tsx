@@ -1,4 +1,3 @@
-import { cn } from '@/lib/utils'
 import {
 	AlertCircle,
 	ArrowLeft,
@@ -8,8 +7,10 @@ import {
 	Send,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { cn } from '@/lib/utils'
 import type { BalanceInfo } from '../../../shared/types'
 import { onBalanceUpdated, rpc } from '../../rpc'
+
 const MONO = 'font-[family-name:var(--font-mono)]'
 const SANS = 'font-[family-name:var(--font-sans)]'
 // ---------------------------------------------------------------------------

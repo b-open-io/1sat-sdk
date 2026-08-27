@@ -5,6 +5,7 @@
  * over HTTP Streamable transport with BRC-103/104 mutual authentication.
  */
 type HttpServer = ReturnType<typeof Bun.serve>
+
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import type { BrowserWindow } from 'electrobun/bun'

@@ -1,10 +1,11 @@
 import {
 	deriveDepositAddresses,
-	syncAddresses,
 	type SyncAddressesResult,
+	syncAddresses,
 } from '@1sat/actions'
 import type { SyncProgress } from '@1sat/types'
 import { useCallback, useEffect, useState } from 'react'
+import { useLog } from './LogContext'
 import {
 	button,
 	buttonDisabled,
@@ -16,7 +17,6 @@ import {
 	mono,
 	successText,
 } from './styles'
-import { useLog } from './LogContext'
 import { useOneSatContext } from './useActions'
 
 /**
@@ -41,7 +41,10 @@ export function DepositSync() {
 	const refreshBalance = useCallback(async () => {
 		if (!ctx) return
 		try {
-			const res = await ctx.wallet.listOutputs({ basket: 'default', limit: 1000 })
+			const res = await ctx.wallet.listOutputs({
+				basket: 'default',
+				limit: 1000,
+			})
 			setBalance(res.outputs.reduce((sum, o) => sum + o.satoshis, 0))
 			setBalanceError(null)
 		} catch (err: unknown) {
@@ -58,7 +61,10 @@ export function DepositSync() {
 			.execute(ctx, { startIndex: 0, count })
 			.then((res) => setAddresses(res.derivations.map((d) => d.address)))
 			.catch((err: unknown) =>
-				log('error', `deriveDepositAddresses failed: ${err instanceof Error ? err.message : String(err)}`),
+				log(
+					'error',
+					`deriveDepositAddresses failed: ${err instanceof Error ? err.message : String(err)}`,
+				),
 			)
 		void refreshBalance()
 	}, [ctx, count, log, refreshBalance])
@@ -74,7 +80,11 @@ export function DepositSync() {
 				count,
 				onProgress: (p: SyncProgress) => {
 					if (p.phase === 'error') log('error', `sync: ${p.error}`)
-					else log('info', `sync ${p.phase}${p.total != null ? ` ${p.processed ?? 0}/${p.total}` : ''}`)
+					else
+						log(
+							'info',
+							`sync ${p.phase}${p.total != null ? ` ${p.processed ?? 0}/${p.total}` : ''}`,
+						)
 				},
 			})
 			setResult(res)
@@ -96,7 +106,13 @@ export function DepositSync() {
 
 	return (
 		<div style={card}>
-			<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+			<div
+				style={{
+					display: 'flex',
+					justifyContent: 'space-between',
+					alignItems: 'center',
+				}}
+			>
 				<div style={heading}>Deposit / Owner Sync</div>
 				<button
 					style={
@@ -151,7 +167,8 @@ export function DepositSync() {
 
 			{result && (
 				<div style={successText}>
-					processed: {result.processed} · failed: {result.failed} · lastScore: {result.lastScore}
+					processed: {result.processed} · failed: {result.failed} · lastScore:{' '}
+					{result.lastScore}
 				</div>
 			)}
 			{error && <div style={errorText}>{error}</div>}

@@ -48,7 +48,7 @@ export function parsePopupParams(searchParams: URLSearchParams): PopupParams {
 	const appName = searchParams.get('appName')
 	const paramsStr = searchParams.get('params')
 
-	let params: unknown = undefined
+	let params: unknown
 	if (paramsStr) {
 		try {
 			params = JSON.parse(decodeURIComponent(paramsStr))

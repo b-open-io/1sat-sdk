@@ -1,13 +1,12 @@
-export { buildPriceUpdateTask } from './buildPriceUpdateTask'
 export type {
 	PriceUpdateTaskOptions,
 	RepriceTarget,
 } from './buildPriceUpdateTask'
+export { buildPriceUpdateTask } from './buildPriceUpdateTask'
 export { computeReprice } from './computeReprice'
-export { createAccountsConfigLoader } from './configLoader'
 export type { AccountsConfigLoaderOptions } from './configLoader'
+export { createAccountsConfigLoader } from './configLoader'
 export { resolveRateProvider } from './providers'
-export { createWhatsOnChainProvider } from './whatsOnChain'
 export type {
 	BsvUsdQuote,
 	ComputeRepriceInput,
@@ -15,3 +14,4 @@ export type {
 	RateProvider,
 	RepricerBounds,
 } from './types'
+export { createWhatsOnChainProvider } from './whatsOnChain'

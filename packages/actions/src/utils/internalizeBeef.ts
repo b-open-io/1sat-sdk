@@ -11,10 +11,10 @@
 import type { OneSatServices } from '@1sat/client'
 import type { Indexer, ParseContext, Txo } from '@1sat/types'
 import {
+	buildTokenLabel,
 	DEPOSIT_BASKET,
 	OPNS_BASKET,
 	ORDINALS_BASKET,
-	buildTokenLabel,
 } from '@1sat/types'
 import {
 	Bsv21Indexer,

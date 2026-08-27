@@ -1,5 +1,3 @@
-import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import {
 	AlertCircle,
 	ArrowUp,
@@ -10,6 +8,8 @@ import {
 	X,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import type { ChatMessage } from '../../../shared/types'
 import { useChat } from '../../hooks/use-chat'
 import { cn } from '../../lib/utils'

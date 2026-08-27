@@ -1,7 +1,7 @@
-import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { ArrowLeft, MessageCircle, Send, User } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { STACK_URL } from '../../../shared/constants'
 import { cn } from '../../lib/utils'
 

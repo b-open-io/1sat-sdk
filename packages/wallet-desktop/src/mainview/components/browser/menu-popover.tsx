@@ -1,12 +1,3 @@
-import { Button } from '@/components/ui/button'
-import { Kbd } from '@/components/ui/kbd'
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from '@/components/ui/popover'
-import { Separator } from '@/components/ui/separator'
-import { cn } from '@/lib/utils'
 import {
 	Bookmark,
 	Bot,
@@ -18,6 +9,15 @@ import {
 	Shield,
 } from 'lucide-react'
 import { useCallback, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Kbd } from '@/components/ui/kbd'
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from '@/components/ui/popover'
+import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // Types

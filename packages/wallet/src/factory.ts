@@ -2,9 +2,9 @@ import { OneSatServices } from '@1sat/client'
 import { KeyDeriver, type PrivateKey, type WalletInterface } from '@bsv/sdk'
 import { parsePrivateKey } from './parsePrivateKey'
 import {
-	type StoragePaymentHook,
 	installStorageClientPaymentAutoRetry,
 	installStoragePaymentAutoRetry,
+	type StoragePaymentHook,
 } from './storagePaymentAutoRetry'
 
 /**

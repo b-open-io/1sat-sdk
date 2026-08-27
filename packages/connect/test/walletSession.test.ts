@@ -14,8 +14,7 @@ function mockWallet(opts: {
 			opts.isAuthenticatedImpl ??
 			(async () => ({ authenticated: opts.authenticated ?? true })),
 		getPublicKey:
-			opts.getPublicKeyImpl ??
-			(async () => ({ publicKey: identity })),
+			opts.getPublicKeyImpl ?? (async () => ({ publicKey: identity })),
 		setIdentity(next: string) {
 			identity = next
 		},

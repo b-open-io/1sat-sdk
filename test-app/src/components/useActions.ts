@@ -2,10 +2,7 @@ import { createContext, type OneSatContext } from '@1sat/actions'
 import { OneSatServices } from '@1sat/client'
 import { useWallet } from '@1sat/react'
 import { useMemo } from 'react'
-import {
-	ADMIN_ORIGINATOR,
-	DAPP_ORIGINATOR,
-} from '../localCwi/constants'
+import { ADMIN_ORIGINATOR, DAPP_ORIGINATOR } from '../localCwi/constants'
 import { useLocalCwi } from '../localCwi/LocalCwiHost'
 import { withOriginator } from '../localCwi/withOriginator'
 
@@ -20,8 +17,12 @@ const services = new OneSatServices('main')
  */
 export function useOneSatContext(): OneSatContext | null {
 	const { wallet, status } = useWallet()
-	const { localEnabled, gatedWallet, adminOriginator, status: localStatus } =
-		useLocalCwi()
+	const {
+		localEnabled,
+		gatedWallet,
+		adminOriginator,
+		status: localStatus,
+	} = useLocalCwi()
 
 	return useMemo(() => {
 		if (localEnabled && localStatus === 'ready' && gatedWallet) {
@@ -39,12 +40,5 @@ export function useOneSatContext(): OneSatContext | null {
 			services,
 			isBaseWallet: false,
 		})
-	}, [
-		localEnabled,
-		localStatus,
-		gatedWallet,
-		adminOriginator,
-		wallet,
-		status,
-	])
+	}, [localEnabled, localStatus, gatedWallet, adminOriginator, wallet, status])
 }

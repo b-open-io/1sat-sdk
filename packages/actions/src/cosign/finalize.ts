@@ -32,7 +32,9 @@ export async function finalizeCosignBsv21Transfer(
 	// ----------------------------------------------------------------------
 	const session = await sessionStore.load(sessionId)
 	if (!session) {
-		throw new Error(`finalizeCosignBsv21Transfer: unknown sessionId ${sessionId}`)
+		throw new Error(
+			`finalizeCosignBsv21Transfer: unknown sessionId ${sessionId}`,
+		)
 	}
 
 	// ----------------------------------------------------------------------
@@ -120,7 +122,10 @@ export async function finalizeCosignBsv21Transfer(
 	// ----------------------------------------------------------------------
 	let overlayStatus = 'BROADCAST'
 	try {
-		const overlayResult = await services.overlay.submitBsv21(beef, session.tokenId)
+		const overlayResult = await services.overlay.submitBsv21(
+			beef,
+			session.tokenId,
+		)
 		overlayStatus = overlayResult.status ?? overlayStatus
 	} catch (err) {
 		// Overlay admission is recoverable — the tx is broadcast either way.

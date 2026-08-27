@@ -1,14 +1,14 @@
 import {
+	scanAddresses as coreScanAddresses,
 	type ScanProgress,
 	type ScanResult,
 	type TokenBalance,
-	scanAddresses as coreScanAddresses,
 } from '@1sat/actions'
 import type { IndexedOutput } from '@1sat/types'
 import { PrivateKey } from '@bsv/sdk'
 import { getServices } from './services'
 
-export type { TokenBalance, ScanProgress, ScanResult }
+export type { ScanProgress, ScanResult, TokenBalance }
 
 export interface EnrichedOrdinal extends IndexedOutput {
 	origin?: string

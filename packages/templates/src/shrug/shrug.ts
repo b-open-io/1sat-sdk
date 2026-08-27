@@ -1,11 +1,11 @@
 import { LockingScript, OP, Script, Utils } from '@bsv/sdk'
 import Inscription from '../inscription/inscription.js'
 import {
-	SHRUG_METADATA_CONTENT_TYPE,
-	type ShrugMetadata,
 	decodeShrugMetadata,
 	outpointFromBytes,
 	outpointToBytes,
+	SHRUG_METADATA_CONTENT_TYPE,
+	type ShrugMetadata,
 } from './metadata.js'
 
 /** The 13-byte UTF-8 shrug tag ¯\_(ツ)_/¯ */

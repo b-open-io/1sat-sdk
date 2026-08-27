@@ -55,7 +55,10 @@ const TITLES: Record<CorePermissionRequest['type'], string> = {
 function rows(request: CorePermissionRequest): Array<[string, string]> {
 	const out: Array<[string, string]> = [['Usage', request.usageType ?? '—']]
 	if (request.protocolID) {
-		out.push(['Protocol', `[${request.protocolID[0]}, '${request.protocolID[1]}']`])
+		out.push([
+			'Protocol',
+			`[${request.protocolID[0]}, '${request.protocolID[1]}']`,
+		])
 	}
 	if (request.counterparty) out.push(['Counterparty', request.counterparty])
 	if (request.basket) out.push(['Basket', request.basket])
@@ -67,7 +70,10 @@ function rows(request: CorePermissionRequest): Array<[string, string]> {
 	if (request.spending) {
 		out.push(['Amount', `${request.spending.satoshis.toLocaleString()} sat`])
 		for (const li of request.spending.lineItems ?? []) {
-			out.push([`  ${li.type}`, `${li.description} — ${li.satoshis.toLocaleString()} sat`])
+			out.push([
+				`  ${li.type}`,
+				`${li.description} — ${li.satoshis.toLocaleString()} sat`,
+			])
 		}
 	}
 	if (request.privileged) out.push(['Privileged', 'yes'])
@@ -123,7 +129,9 @@ export function CorePermissionPrompt({
 				{kind === 'counterparty' && (
 					<div style={rowStyle}>
 						<span style={keyStyle}>Counterparty</span>
-						<span style={valStyle}>{(request as CounterpartyRequest).counterparty}</span>
+						<span style={valStyle}>
+							{(request as CounterpartyRequest).counterparty}
+						</span>
 					</div>
 				)}
 			</div>

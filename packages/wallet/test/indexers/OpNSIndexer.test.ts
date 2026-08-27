@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import {
-	OPNS_BASKET,
-	type ParseContext,
-	type Txo,
-} from '@1sat/types'
+import { OPNS_BASKET, type ParseContext, type Txo } from '@1sat/types'
 import { P2PKH, PrivateKey, Transaction } from '@bsv/sdk'
 import type { Inscription } from '../../src/indexers/InscriptionIndexer'
 import { OpNSIndexer } from '../../src/indexers/OpNSIndexer'

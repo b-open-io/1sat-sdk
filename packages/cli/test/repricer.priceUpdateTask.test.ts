@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
-	type RepriceTarget,
 	buildPriceUpdateTask,
+	type RepriceTarget,
 } from '../src/repricer/buildPriceUpdateTask'
 import type { BsvUsdQuote, RateProvider } from '../src/repricer/types'
 

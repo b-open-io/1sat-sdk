@@ -19,21 +19,21 @@
  * is being asked to approve.
  */
 
+import { Lock, OrdLock, outpointFromBytes } from '@1sat/templates'
 import {
 	BAP_BASKET,
 	BSOCIAL_BASKET,
 	BSV21_AUTH_BASKET,
 	BSV21_BASKET,
 	LOCK_BASKET,
-	ORDFS_HOST,
 	OPNS_BASKET,
+	ORDFS_HOST,
 	ORDINALS_BASKET,
 	P1SAT_BASKET_PREFIX,
 	P1SAT_INPUT_LABEL_PREFIX,
-	SIGMA_BASKET,
 	parseIntentLabel,
+	SIGMA_BASKET,
 } from '@1sat/types'
-import { Lock, OrdLock, outpointFromBytes } from '@1sat/templates'
 import { parseAddress } from '@1sat/wallet'
 import type {
 	CreateActionArgs,

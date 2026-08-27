@@ -149,7 +149,9 @@ export function hostingExpTag(expiresAtUnix: number): string {
 	return `${HOSTING_EXP_TAG_PREFIX}${Math.floor(expiresAtUnix)}`
 }
 
-export function readHostingPayer(tags: string[] | undefined): string | undefined {
+export function readHostingPayer(
+	tags: string[] | undefined,
+): string | undefined {
 	if (!tags) return undefined
 	for (const t of tags) {
 		if (t.startsWith(HOSTING_PAYER_TAG_PREFIX)) {

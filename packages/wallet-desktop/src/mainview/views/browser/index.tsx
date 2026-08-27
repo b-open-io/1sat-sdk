@@ -1,6 +1,3 @@
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import type { WebviewTagElement } from 'electrobun/view'
 import {
 	ArrowLeft,
@@ -13,6 +10,9 @@ import {
 	X,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { STACK_URL } from '../../../shared/constants'
 import {
 	registerBrowserController,

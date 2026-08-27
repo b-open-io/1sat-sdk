@@ -7,9 +7,9 @@ import {
 	legacySendOrdinals,
 } from '../lib/legacy-send'
 import {
+	deriveAddress,
 	type EnrichedOrdinal,
 	type ScannedAssets,
-	deriveAddress,
 	scanAddresses,
 } from '../lib/scanner'
 import { executeSweep, sweepBsv21Token } from '../lib/sweeper'

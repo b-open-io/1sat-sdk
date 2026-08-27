@@ -1,7 +1,7 @@
 import { OrdLock } from '@1sat/templates'
 import {
-	type IndexSummary,
 	Indexer,
+	type IndexSummary,
 	type ParseContext,
 	type ParseResult,
 	type Txo,

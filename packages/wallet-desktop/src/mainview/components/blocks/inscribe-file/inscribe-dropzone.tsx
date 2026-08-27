@@ -1,7 +1,3 @@
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
 import {
 	Code,
 	File as FileIcon,
@@ -19,6 +15,10 @@ import {
 	useRef,
 	useState,
 } from 'react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
 
 /** Supported file categories for preview rendering */
 type FileCategory = 'image' | 'video' | 'audio' | 'code' | 'other'

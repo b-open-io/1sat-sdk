@@ -1,35 +1,35 @@
 {
-  "name": "@1sat/vault",
-  "version": "0.0.9",
-  "description": "Platform-agnostic vault interface for protecting secrets with hardware-backed encryption",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "clean": "rm -rf dist"
-  },
-  "keywords": [
-    "1sat",
-    "bsv",
-    "secure-enclave",
-    "vault",
-    "touchid",
-    "hardware",
-    "cryptokit"
-  ],
-  "license": "MIT",
-  "devDependencies": {
-    "typescript": "^5.9.3"
-  }
+	"name": "@1sat/vault",
+	"version": "0.0.9",
+	"description": "Platform-agnostic vault interface for protecting secrets with hardware-backed encryption",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"clean": "rm -rf dist"
+	},
+	"keywords": [
+		"1sat",
+		"bsv",
+		"secure-enclave",
+		"vault",
+		"touchid",
+		"hardware",
+		"cryptokit"
+	],
+	"license": "MIT",
+	"devDependencies": {
+		"typescript": "^5.9.3"
+	}
 }

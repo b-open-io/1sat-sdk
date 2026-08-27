@@ -1,4 +1,3 @@
-import { Empty } from '@/components/ui/empty'
 import {
 	ExternalLink,
 	Globe,
@@ -7,9 +6,10 @@ import {
 	RefreshCw,
 	Search,
 } from 'lucide-react'
-import { AppCatalog } from 'metanet-apps'
 import type { PublishedApp } from 'metanet-apps'
+import { AppCatalog } from 'metanet-apps'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Empty } from '@/components/ui/empty'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

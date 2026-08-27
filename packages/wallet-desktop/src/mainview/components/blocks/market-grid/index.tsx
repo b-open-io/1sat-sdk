@@ -14,13 +14,13 @@ import {
 export { ListingCardUI, type ListingCardUIProps } from './listing-card-ui'
 export { MarketGridUI, type MarketGridUIProps } from './market-grid-ui'
 export {
-	useMarketGrid,
 	type MarketListing,
 	type OneSatTxo,
 	type SortDirection,
 	type SortField,
 	type UseMarketGridOptions,
 	type UseMarketGridReturn,
+	useMarketGrid,
 } from './use-market-grid'
 
 // ---------------------------------------------------------------------------

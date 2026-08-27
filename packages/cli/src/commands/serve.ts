@@ -20,36 +20,36 @@
 
 import { join } from 'node:path'
 import {
+	createNodeWallet,
 	type NodeWalletResult,
 	type NodeWalletStorageConfig,
-	createNodeWallet,
 } from '@1sat/wallet-node'
 import {
-	KnexPendingStore,
 	createHostServer,
 	createWalletServer,
+	KnexPendingStore,
 } from '@1sat/wallet-server'
 import type { PrivateKey } from '@bsv/sdk'
 import { initLogger } from 'evlog'
 import knexLib from 'knex'
 import type { GlobalFlags } from '../args'
 import {
+	ensureDataDir,
+	loadConfig,
 	type RepricerConfig,
 	type ServerAccountsConfig,
 	type ServerMessageboxConfig,
 	type ServerStorageConfig,
-	loadConfig,
 	setConfigPath,
 } from '../config'
-import { ensureDataDir } from '../config'
 import { printCommandHelp } from '../help'
 import { loadKey } from '../keys'
 import { clearMonitorPid, writeMonitorPid } from '../monitor-lock'
 import { fatal } from '../output'
 import {
-	type RepriceTarget,
 	buildPriceUpdateTask,
 	createAccountsConfigLoader,
+	type RepriceTarget,
 	resolveRateProvider,
 } from '../repricer'
 

@@ -1,5 +1,15 @@
 'use client'
 
+import {
+	AlertCircle,
+	Blocks,
+	Check,
+	Clock,
+	Loader2,
+	Lock,
+	Unlock,
+} from 'lucide-react'
+import { useCallback, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,16 +25,6 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import {
-	AlertCircle,
-	Blocks,
-	Check,
-	Clock,
-	Loader2,
-	Lock,
-	Unlock,
-} from 'lucide-react'
-import { useCallback, useState } from 'react'
 import type { LockData, LockOperationResult, LockParams } from './use-lock-bsv'
 
 // ---------------------------------------------------------------------------

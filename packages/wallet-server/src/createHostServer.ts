@@ -10,9 +10,9 @@
 import type { Server } from 'node:http'
 import { createServer } from 'node:http'
 import {
-	type MessageBoxContext,
 	attachMessageBoxWebSockets,
 	createMessageBoxContext,
+	type MessageBoxContext,
 	registerMessageBoxPostAuthRoutes,
 	registerMessageBoxPreAuthRoutes,
 } from '@bopen-io/messagebox-server'
@@ -26,11 +26,11 @@ import {
 	mountPaymentRoute,
 } from './accounts'
 import {
-	type WalletServerAccounts,
-	type WalletServerConfig,
 	corsMiddleware,
 	dispatchHandler,
 	mountStatusRoute,
+	type WalletServerAccounts,
+	type WalletServerConfig,
 } from './createWalletServer'
 import { mountTerminalErrorHandler } from './errorHandler'
 import {

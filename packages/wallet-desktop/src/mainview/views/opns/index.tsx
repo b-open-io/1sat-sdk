@@ -1,3 +1,5 @@
+import { Globe, Loader2, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -10,8 +12,6 @@ import {
 } from '@/components/ui/dialog'
 import { Empty } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Globe, Loader2, RefreshCw } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
 import { STACK_URL } from '../../../shared/constants'
 import { rpc } from '../../rpc'
 

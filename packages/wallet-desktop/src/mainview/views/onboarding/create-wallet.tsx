@@ -1,5 +1,5 @@
-import { MnemonicFlow } from '@/components/blocks/mnemonic-flow'
 import { useCallback, useEffect, useState } from 'react'
+import { MnemonicFlow } from '@/components/blocks/mnemonic-flow'
 import { useWallet } from '../../hooks/use-wallet'
 
 export function CreateWallet({ onCancel }: { onCancel: () => void }) {

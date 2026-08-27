@@ -6,8 +6,13 @@
  * and any publisher creating ord-fs/json registry items.
  */
 
+export {
+	MANIFEST_CONTENT_TYPE,
+	REGISTRY_TYPE_SET,
+	REGISTRY_TYPES,
+	type RegistryType,
+} from './constants'
 export { buildPackageOutputs, detectContentType } from './package-tx'
-
 export type {
 	PackageBroadcastResult,
 	PackageFile,
@@ -15,10 +20,3 @@ export type {
 	PackageTxOutput,
 	PackageTxResult,
 } from './types'
-
-export {
-	MANIFEST_CONTENT_TYPE,
-	REGISTRY_TYPE_SET,
-	REGISTRY_TYPES,
-	type RegistryType,
-} from './constants'

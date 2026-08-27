@@ -1,17 +1,17 @@
-import { sellOrdinal, buyOrdinal, cancelOrdinalListing } from '@1sat/actions'
+import { buyOrdinal, cancelOrdinalListing, sellOrdinal } from '@1sat/actions'
 import { useState } from 'react'
+import { useLog } from './LogContext'
 import {
-	card,
-	heading,
-	input,
 	button,
 	buttonDisabled,
-	successText,
+	card,
 	errorText,
+	heading,
+	input,
 	label,
 	row,
+	successText,
 } from './styles'
-import { useLog } from './LogContext'
 import { useOneSatContext } from './useActions'
 
 type Tab = 'create' | 'purchase' | 'cancel'

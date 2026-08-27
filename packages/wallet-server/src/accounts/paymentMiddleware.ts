@@ -17,11 +17,11 @@
 
 import {
 	type AtomicBEEF,
+	createNonce,
 	type InternalizeActionArgs,
 	Utils,
-	type WalletInterface,
-	createNonce,
 	verifyNonce,
+	type WalletInterface,
 } from '@bsv/sdk'
 import type { NextFunction, Request, Response } from 'express'
 

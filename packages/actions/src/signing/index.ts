@@ -4,7 +4,7 @@
  * Actions for BSM (Bitcoin Signed Message) signing.
  */
 
-import { BSM, BigNumber, PublicKey, Signature, Utils } from '@bsv/sdk'
+import { BigNumber, BSM, PublicKey, Signature, Utils } from '@bsv/sdk'
 import { MESSAGE_SIGNING_PROTOCOL } from '../constants'
 import type { Action } from '../types'
 
@@ -143,28 +143,28 @@ export {
 	resolveBapSigner,
 	resolveCurrentKeyId,
 } from './aip'
-export { signWithBap, type BapSignature } from './bap'
 export {
-	appendSigmaPlaceholder,
-	sealSigma,
-	resolveSigmaAddress,
-	SIGMA_COMPACT_SIG_LEN,
-} from './sigma'
-export {
-	getAuthToken,
 	type AuthTokenRequest,
 	type AuthTokenResponse,
+	getAuthToken,
 } from './authToken'
+export { type BapSignature, signWithBap } from './bap'
 export {
-	getFriendPublicKey,
-	type FriendPubKeyRequest,
-	type FriendPubKeyResponse,
-} from './friendPubKey'
-export {
-	encryptForCounterparty,
+	type DecryptRequest,
+	type DecryptResponse,
 	decryptFromCounterparty,
 	type EncryptRequest,
 	type EncryptResponse,
-	type DecryptRequest,
-	type DecryptResponse,
+	encryptForCounterparty,
 } from './counterpartyCrypto'
+export {
+	type FriendPubKeyRequest,
+	type FriendPubKeyResponse,
+	getFriendPublicKey,
+} from './friendPubKey'
+export {
+	appendSigmaPlaceholder,
+	resolveSigmaAddress,
+	SIGMA_COMPACT_SIG_LEN,
+	sealSigma,
+} from './sigma'

@@ -1,8 +1,8 @@
 import {
 	OPNS_BASKET,
 	OPNS_REGISTER_COUNTERPARTY,
-	P1SAT_PROTOCOL,
 	opnsRegisterKeyId,
+	P1SAT_PROTOCOL,
 } from '@1sat/types'
 import {
 	type CreateActionArgs,

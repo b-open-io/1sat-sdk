@@ -5,8 +5,8 @@
  * to the MCP server at :3322 with signed auth headers on each request.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { Hash, KeyDeriver, PrivateKey, Signature, Utils } from '@bsv/sdk'
 import type { WalletProtocol } from '@bsv/sdk'
+import { Hash, KeyDeriver, PrivateKey, Signature, Utils } from '@bsv/sdk'
 import { createLogger, initLogger } from 'evlog'
 
 const { toBase64, toArray } = Utils

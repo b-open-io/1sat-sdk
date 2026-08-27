@@ -149,9 +149,7 @@ export function OneSatPermissionPrompt({
 		}
 	}, [services, trustState, p1satIntent, intent])
 
-	const summary = verified
-		? applyVerification(base, verified)
-		: base
+	const summary = verified ? applyVerification(base, verified) : base
 
 	const handle = (action: 'approve' | 'reject') => () => {
 		if (busy) return
@@ -246,7 +244,9 @@ export function OneSatPermissionPrompt({
 						{trustLabel(summary.trust.state)}
 					</span>
 					{summary.trust.note && (
-						<div className={`opp-trust-note opp-trust-note-${summary.trust.state}`}>
+						<div
+							className={`opp-trust-note opp-trust-note-${summary.trust.state}`}
+						>
 							{summary.trust.note}
 						</div>
 					)}
@@ -259,7 +259,10 @@ export function OneSatPermissionPrompt({
 						<div className="opp-row" key={`${row.key}:${row.value}`}>
 							<span className="opp-row-key">{row.key}</span>
 							<span className="opp-row-value-wrap">
-								<span className="opp-row-value" title={row.copyValue ?? row.value}>
+								<span
+									className="opp-row-value"
+									title={row.copyValue ?? row.value}
+								>
 									{row.value}
 								</span>
 								{row.copyValue && <CopyButton text={row.copyValue} />}
@@ -416,7 +419,8 @@ function applyVerification(
 	res: VerificationResult,
 ): IntentSummary {
 	const rows = base.rows.map((row) => {
-		if (row.key === 'Origin' && res.origin) return copyable('Origin', res.origin)
+		if (row.key === 'Origin' && res.origin)
+			return copyable('Origin', res.origin)
 		if (row.key === 'Type' && res.contentType) {
 			return { key: 'Type', value: res.contentType }
 		}
@@ -1003,7 +1007,8 @@ function summarizePurchase(
 	const price = sellerOutput?.satoshis
 
 	const rows: DetailRow[] = []
-	if (price !== undefined) rows.push({ key: 'Price', value: `${price.toLocaleString('en-US')} sats` })
+	if (price !== undefined)
+		rows.push({ key: 'Price', value: `${price.toLocaleString('en-US')} sats` })
 	if (isToken) {
 		if (amt) rows.push({ key: 'Amount', value: amt })
 	} else {
@@ -1147,7 +1152,6 @@ function summarizeUnknownTx(
 		rows: [{ key: 'Inputs / Outputs', value: `${ins} / ${outs}` }],
 	}
 }
-
 
 function shortenId(id: string, max = 24): string {
 	if (id.length <= max) return id

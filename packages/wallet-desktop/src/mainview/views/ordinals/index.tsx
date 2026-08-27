@@ -1,3 +1,5 @@
+import { Gem, ImageOff } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Empty } from '@/components/ui/empty'
 import {
@@ -8,8 +10,6 @@ import {
 	SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Gem, ImageOff } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
 import { STACK_URL } from '../../../shared/constants'
 import type { OrdinalInfo } from '../../../shared/types'
 import { rpc } from '../../rpc'

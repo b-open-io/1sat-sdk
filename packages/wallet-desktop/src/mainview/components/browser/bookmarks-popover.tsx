@@ -1,3 +1,5 @@
+import { Bookmark, Globe, Link, Plus, Search, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -7,8 +9,6 @@ import {
 } from '@/components/ui/popover'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
-import { Bookmark, Globe, Link, Plus, Search, Trash2 } from 'lucide-react'
-import { useState } from 'react'
 import type { UseBookmarksReturn } from '../../hooks/use-bookmarks'
 
 // ---------------------------------------------------------------------------

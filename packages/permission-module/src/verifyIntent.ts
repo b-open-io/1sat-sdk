@@ -89,7 +89,9 @@ async function verifyOrdinal(
 		// value is an outpoint by construction, not a competing assertion.
 		origin: meta.origin,
 		name:
-			typeof meta.map?.name === 'string' ? (meta.map.name as string) : undefined,
+			typeof meta.map?.name === 'string'
+				? (meta.map.name as string)
+				: undefined,
 	}
 
 	// `type:` is hierarchical — `image` and `image/png` both describe the same
@@ -135,7 +137,8 @@ async function verifyBsv21(
 	claimedSym?: string,
 ): Promise<VerificationResult> {
 	const bsv21 = services.bsv21
-	if (typeof bsv21?.getTokenDetails !== 'function') return { state: 'unverified' }
+	if (typeof bsv21?.getTokenDetails !== 'function')
+		return { state: 'unverified' }
 
 	const res = await withTimeout(bsv21.getTokenDetails(tokenId))
 	if (!res) return { state: 'unverified' }
@@ -145,7 +148,10 @@ async function verifyBsv21(
 	}
 	const sym = res.token?.sym
 	if (claimedSym && sym && claimedSym !== sym) {
-		return { state: 'mismatch', note: `Token symbol is ${sym}, not ${claimedSym}` }
+		return {
+			state: 'mismatch',
+			note: `Token symbol is ${sym}, not ${claimedSym}`,
+		}
 	}
 	return { state: 'verified' }
 }
@@ -166,7 +172,10 @@ export async function verifyIntent(
 	if (!services || !p1satIntent) return { state: 'unverified' }
 
 	try {
-		const allTags = [...inputs.map((i) => i.tags), ...outputs.map((o) => o.tags)]
+		const allTags = [
+			...inputs.map((i) => i.tags),
+			...outputs.map((o) => o.tags),
+		]
 		const findAll = (key: string) =>
 			allTags.flatMap((tags) =>
 				tags

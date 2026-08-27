@@ -1,13 +1,12 @@
 // Vault factory
-export { createVault, type Vault } from './vault'
+
+export { FileVaultStorage } from './file-storage'
 
 // Provider interface (implement per-platform)
-export type { VaultProvider, VaultAvailability } from './provider'
+export type { VaultAvailability, VaultProvider } from './provider'
 
 // Storage interface + default filesystem implementation
 export type { VaultStorage } from './storage'
-export { FileVaultStorage } from './file-storage'
-
 // Domain types
 export type {
 	ProtectResult,
@@ -16,3 +15,4 @@ export type {
 	VaultEntry,
 	VaultSummary,
 } from './types'
+export { createVault, type Vault } from './vault'

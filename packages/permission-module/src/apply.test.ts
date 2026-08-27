@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import {
+	buildIntentLabel,
 	OPNS_BASKET,
 	OPNS_REGISTER_COUNTERPARTY,
 	OPNS_REGISTER_SIG_PLACEHOLDER_LEN,
+	opnsRegisterKeyId,
 	P1SAT_INTENTS,
 	P1SAT_PROTOCOL,
-	buildIntentLabel,
-	opnsRegisterKeyId,
 } from '@1sat/types'
 import type {
 	CreateActionArgs,

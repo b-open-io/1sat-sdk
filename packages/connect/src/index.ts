@@ -1,13 +1,13 @@
 // --- Core: generic wallet connection ---
 
 export {
-	connectWallet,
-	getAvailableProviders,
-	loadLastProvider,
 	type AvailableProvider,
 	type ConnectWalletConfig,
 	type ConnectWalletOptions,
 	type ConnectWalletResult,
+	connectWallet,
+	getAvailableProviders,
+	loadLastProvider,
 	type WalletProviderConfig,
 } from './connectWallet'
 
@@ -15,8 +15,8 @@ export {
 
 export {
 	createWalletSession,
-	type DisconnectReason,
 	type DisconnectedEvent,
+	type DisconnectReason,
 	type IdentityChangeEvent,
 	type WalletSession,
 	type WalletSessionOptions,
@@ -31,12 +31,12 @@ export {
 	getStoredSigmaBapId,
 	initiateSigmaOAuth,
 	reconnectSigmaWallet,
-	setSigmaIdentity,
-	sigmaAuthClient,
 	SIGMA_URL,
 	type SigmaOAuthConfig,
 	type SigmaOAuthResult,
 	type SigmaProviderConfig,
+	setSigmaIdentity,
+	sigmaAuthClient,
 } from './sigma-oauth'
 
 // --- BRC-77 request signing ---
@@ -68,8 +68,8 @@ export {
 
 export type {
 	OneSatConfig,
-	OneSatProvider,
 	OneSatEvent,
+	OneSatProvider,
 	RpcMethod,
 } from './types'
 export { RpcMethods } from './types'

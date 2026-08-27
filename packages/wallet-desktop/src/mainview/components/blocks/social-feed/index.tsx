@@ -8,12 +8,12 @@ import { useSocialFeed } from './use-social-feed'
 export { PostCardUI, type PostCardUIProps } from './post-card-ui'
 export { SocialFeedUI, type SocialFeedUIProps } from './social-feed-ui'
 export {
-	useSocialFeed,
+	type AuthorProfile,
+	type PostSigner,
+	type SocialPost,
 	type UseSocialFeedOptions,
 	type UseSocialFeedReturn,
-	type SocialPost,
-	type PostSigner,
-	type AuthorProfile,
+	useSocialFeed,
 } from './use-social-feed'
 
 // ---------------------------------------------------------------------------

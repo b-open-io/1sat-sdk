@@ -26,10 +26,7 @@ import { P1SAT_INTENTS, P1SAT_PROTOCOL } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
 import { P2PKH, PublicKey, Script, Utils } from '@bsv/sdk'
 import { prepareP1SatArgs } from '../apply'
-import {
-	MAX_INSCRIPTION_BYTES,
-	ORDINALS_BASKET,
-} from '../constants'
+import { MAX_INSCRIPTION_BYTES, ORDINALS_BASKET } from '../constants'
 import type { Action, ActionOptions } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
 

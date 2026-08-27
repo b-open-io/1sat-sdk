@@ -13,8 +13,8 @@ import {
 	Transaction,
 	Utils,
 } from '@bsv/sdk'
-import { getP2pPaymentDestination, sendBeefP2P } from '../paymail'
 import type { FundingProvider } from '../funding'
+import { getP2pPaymentDestination, sendBeefP2P } from '../paymail'
 import type { Action, ActionOptions } from '../types'
 
 /**

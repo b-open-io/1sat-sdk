@@ -1,6 +1,6 @@
-import { Button } from '@/components/ui/button'
 import type React from 'react'
 import { type ReactElement, useState } from 'react'
+import { Button } from '@/components/ui/button'
 import type { InternalPage, ParsedRoute } from '../../shared/url-types'
 import { ImportBackup } from '../views/account-picker/import-backup'
 import { AiChatView } from '../views/ai-chat/index'
@@ -34,19 +34,25 @@ import { TxDetailView } from '../views/tx-detail/index'
 
 function SettingsSecurityView({
 	onNavigate,
-}: { onNavigate?: (url: string) => void }): ReactElement {
+}: {
+	onNavigate?: (url: string) => void
+}): ReactElement {
 	return <SettingsView params={{ tab: 'security' }} onNavigate={onNavigate} />
 }
 
 function SettingsNetworkView({
 	onNavigate,
-}: { onNavigate?: (url: string) => void }): ReactElement {
+}: {
+	onNavigate?: (url: string) => void
+}): ReactElement {
 	return <SettingsView params={{ tab: 'network' }} onNavigate={onNavigate} />
 }
 
 function SettingsAiView({
 	onNavigate,
-}: { onNavigate?: (url: string) => void }): ReactElement {
+}: {
+	onNavigate?: (url: string) => void
+}): ReactElement {
 	return <SettingsView params={{ tab: 'ai' }} onNavigate={onNavigate} />
 }
 
@@ -56,7 +62,9 @@ type OnboardingStep = 'choice' | 'create'
 
 function OnboardingCreateView({
 	onNavigate,
-}: { onNavigate?: (url: string) => void }): ReactElement {
+}: {
+	onNavigate?: (url: string) => void
+}): ReactElement {
 	const [step, setStep] = useState<OnboardingStep>('choice')
 
 	if (step === 'create') {
@@ -96,7 +104,9 @@ function OnboardingCreateView({
 
 function OnboardingImportView({
 	onNavigate,
-}: { onNavigate?: (url: string) => void }): ReactElement {
+}: {
+	onNavigate?: (url: string) => void
+}): ReactElement {
 	return (
 		<ImportBackup
 			onComplete={() => onNavigate?.('1sat://wallet/home')}

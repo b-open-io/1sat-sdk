@@ -9,8 +9,8 @@
  * once via `initVaultChannel()` so each channel + account combination gets
  * its own Secure Enclave key pair.
  */
-import { FileVaultStorage, type Vault, createVault } from '@1sat/vault'
-import { SecureEnclaveProvider, isMacOS } from '@1sat/wallet-mac'
+import { createVault, FileVaultStorage, type Vault } from '@1sat/vault'
+import { isMacOS, SecureEnclaveProvider } from '@1sat/wallet-mac'
 import { Utils } from 'electrobun/bun'
 
 let buildChannel: string | undefined

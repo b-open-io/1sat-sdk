@@ -1,11 +1,11 @@
 import EventEmitter from 'eventemitter3'
-import { WalletNotConnectedError, fromErrorResponse } from './errors'
+import { fromErrorResponse, WalletNotConnectedError } from './errors'
 import { isResponse, isValidMessage } from './messages'
 import { PopupManager } from './popup'
 import {
-	type StoredConnection,
 	clearConnection,
 	loadConnection,
+	type StoredConnection,
 	saveConnection,
 } from './storage'
 import {
@@ -17,8 +17,8 @@ import {
 	type EventHandler,
 	type InscribeRequest,
 	type InscribeResult,
-	type ListOptions,
 	type ListingResult,
+	type ListOptions,
 	type OneSatConfig,
 	type OneSatEvent,
 	type OneSatProvider,

@@ -1,7 +1,7 @@
 import {
 	Indexer,
-	OPNS_BASKET,
 	type IndexSummary,
+	OPNS_BASKET,
 	type ParseContext,
 	type ParseResult,
 	type Txo,
@@ -13,12 +13,11 @@ import type { Origin } from './OriginIndexer'
 const OPNS_TYPE = 'application/op-ns'
 
 /** OpNS inscription body is the bare name string (UTF-8), never JSON. */
-function nameFromContent(content: string | number[] | undefined): string | undefined {
+function nameFromContent(
+	content: string | number[] | undefined,
+): string | undefined {
 	if (content == null) return undefined
-	const raw =
-		typeof content === 'string'
-			? content
-			: Utils.toUTF8(content)
+	const raw = typeof content === 'string' ? content : Utils.toUTF8(content)
 	const name = raw.trim().slice(0, 64)
 	return name.length > 0 ? name : undefined
 }

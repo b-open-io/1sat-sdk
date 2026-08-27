@@ -2,9 +2,9 @@ import { describe, expect, it } from 'bun:test'
 import { Hash, Script, Utils } from '@bsv/sdk'
 import Inscription from '../inscription/inscription.js'
 import {
-	SHRUG_METADATA_CONTENT_TYPE,
 	decodeShrugMetadata,
 	encodeShrugMetadata,
+	SHRUG_METADATA_CONTENT_TYPE,
 } from './metadata.js'
 import Shrug, { SHRUG_TAG_HEX } from './shrug.js'
 

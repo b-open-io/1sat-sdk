@@ -23,15 +23,15 @@
  */
 
 import {
-	P2PKH,
-	PublicKey,
-	type WalletInterface,
 	type CreateActionArgs,
 	type CreateActionResult,
-	type SignActionArgs,
-	type SignActionResult,
 	type InternalizeActionArgs,
 	type InternalizeActionResult,
+	P2PKH,
+	PublicKey,
+	type SignActionArgs,
+	type SignActionResult,
+	type WalletInterface,
 } from '@bsv/sdk'
 import { AuthFetch } from '@bsv/sdk/auth'
 
@@ -221,10 +221,7 @@ export function installStoragePaymentAutoRetry(
  */
 export interface StorageClientLike {
 	readonly endpointUrl: string
-	processSyncChunk: (
-		args: unknown,
-		chunk: unknown,
-	) => Promise<unknown>
+	processSyncChunk: (args: unknown, chunk: unknown) => Promise<unknown>
 }
 
 /**
@@ -378,9 +375,7 @@ async function buildAndBroadcastPayment(
 	wallet: WalletInterface,
 	info: StoragePaymentRequiredInfo,
 ): Promise<void> {
-	const units = Math.ceil(
-		info.deficitBytes / info.pricing.purchaseUnitBytes,
-	)
+	const units = Math.ceil(info.deficitBytes / info.pricing.purchaseUnitBytes)
 	const keyID = `${info.nextPayment.derivationPrefix} ${info.nextPayment.derivationSuffix}`
 	const { publicKey } = await wallet.getPublicKey({
 		protocolID: BRC29_PROTOCOL_ID,
