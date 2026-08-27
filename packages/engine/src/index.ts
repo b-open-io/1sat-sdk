@@ -1,19 +1,19 @@
 // @ts-nocheck — generated proto files lack TS project references
-import { encodeAtomicBeef } from './beef_pb.js'
-import { decodeBeefParseResult } from './parse_pb.js'
 
 import type { AtomicBeef, Beef, BeefTx } from './beef_pb.js'
+import { encodeAtomicBeef } from './beef_pb.js'
 import type { BeefParseResult, IndexedOutput, OutPoint } from './parse_pb.js'
+import { decodeBeefParseResult } from './parse_pb.js'
 
 export type {
 	AtomicBeef,
 	Beef,
-	BeefTx,
 	BeefParseResult,
+	BeefTx,
 	IndexedOutput,
 	OutPoint,
 }
-export { encodeAtomicBeef, decodeBeefParseResult }
+export { decodeBeefParseResult, encodeAtomicBeef }
 
 export class Engine {
 	private instance: WebAssembly.Instance | null = null

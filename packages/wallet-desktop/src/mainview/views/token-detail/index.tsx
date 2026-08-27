@@ -1,17 +1,3 @@
-import { SendBsv21Ui, useSendBsv21 } from '@/components/blocks/send-bsv21'
-import type {
-	SendBsv21Params,
-	SendBsv21Result,
-	TokenBalance as SendTokenBalance,
-} from '@/components/blocks/send-bsv21'
-import { Button } from '@/components/ui/button'
-import {
-	Dialog,
-	DialogContent,
-	DialogHeader,
-	DialogTitle,
-} from '@/components/ui/dialog'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
 	ArrowDownLeft,
 	ArrowLeft,
@@ -21,6 +7,20 @@ import {
 	Send,
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import type {
+	SendBsv21Params,
+	SendBsv21Result,
+	TokenBalance as SendTokenBalance,
+} from '@/components/blocks/send-bsv21'
+import { SendBsv21Ui, useSendBsv21 } from '@/components/blocks/send-bsv21'
+import { Button } from '@/components/ui/button'
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog'
+import { Skeleton } from '@/components/ui/skeleton'
 import { STACK_URL } from '../../../shared/constants'
 import { rpc } from '../../rpc'
 

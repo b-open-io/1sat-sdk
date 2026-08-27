@@ -4,7 +4,7 @@ import {
 	type ParseResult,
 	type Txo,
 } from '@1sat/types'
-import { BSM, BigNumber, Hash, OP, Script, Signature, Utils } from '@bsv/sdk'
+import { BigNumber, BSM, Hash, OP, Script, Signature, Utils } from '@bsv/sdk'
 
 export interface Sigma {
 	algorithm: string

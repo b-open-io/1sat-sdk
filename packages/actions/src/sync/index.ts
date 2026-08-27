@@ -6,16 +6,16 @@
  * with the indexer pipeline, and internalizes them into the wallet.
  */
 
-import { type AddressDerivation, P1SAT_PROTOCOL } from '@1sat/types'
 import type { SyncOutput, SyncProgress } from '@1sat/types'
+import { type AddressDerivation, P1SAT_PROTOCOL } from '@1sat/types'
 import { PublicKey } from '@bsv/sdk'
-import type { Action, OneSatContext } from '../types'
-import {
-	type OutputDerivation,
-	internalizeBeef,
-} from '../utils/internalizeBeef'
 import { DEFAULT_DEPOSIT_PREFIX } from '../addresses'
 import { sweepDeposit } from '../sweep/sweepDeposit'
+import type { Action, OneSatContext } from '../types'
+import {
+	internalizeBeef,
+	type OutputDerivation,
+} from '../utils/internalizeBeef'
 import type { ProcessedTxStore } from './ProcessedTxStore'
 import { ProcessedTxStoreIdb } from './ProcessedTxStoreIdb'
 import { ProcessedTxStoreSqlite } from './ProcessedTxStoreSqlite'
@@ -285,14 +285,12 @@ async function processTxid(
 	})
 }
 
-export { syncMessages }
-export type { SyncMessagesInput, SyncMessagesResult } from './syncMessages'
-
-export { syncCosignDeliveries }
 export type {
 	SyncCosignDeliveriesInput,
 	SyncCosignDeliveriesResult,
 } from './syncCosignDeliveries'
+export type { SyncMessagesInput, SyncMessagesResult } from './syncMessages'
+export { syncCosignDeliveries, syncMessages }
 
 /** All sync actions for registry */
 export const syncActions = [syncAddresses, syncMessages, syncCosignDeliveries]

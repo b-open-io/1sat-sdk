@@ -6,9 +6,9 @@
 
 import { Lock } from '@1sat/templates'
 import {
+	buildInputAssetLabel,
 	P1SAT_INTENTS,
 	P1SAT_PROTOCOL,
-	buildInputAssetLabel,
 	readAssetIdTag,
 } from '@1sat/types'
 import {

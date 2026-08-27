@@ -1,9 +1,9 @@
 'use client'
 
+import { ExternalLink, Heart, MessageCircle } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { ExternalLink, Heart, MessageCircle } from 'lucide-react'
 import type { SocialPost } from './use-social-feed'
 
 // ---------------------------------------------------------------------------

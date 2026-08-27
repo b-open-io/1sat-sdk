@@ -3,9 +3,9 @@
  * storage database (config under server.storage in config.json).
  */
 
+import { join } from 'node:path'
 import { nominateInvalidReqs, StorageBunSqlite } from '@1sat/wallet-node'
 import { StorageProvider } from '@bsv/wallet-toolbox'
-import { join } from 'node:path'
 import type { GlobalFlags } from '../args'
 import { extractFlag } from '../args'
 import { ensureDataDir, loadConfig } from '../config'
@@ -36,10 +36,7 @@ export async function handleStorageCommand(
  * to `invalid`. Safe to run against a live serve instance — same
  * single-field status update the monitor's own review tasks perform.
  */
-async function storageUnfail(
-	args: string[],
-	opts: GlobalFlags,
-): Promise<void> {
+async function storageUnfail(args: string[], opts: GlobalFlags): Promise<void> {
 	const rawWindow = extractFlag(args, '--window')
 	if (!rawWindow) {
 		fatal(
@@ -61,7 +58,9 @@ async function storageUnfail(
 			console.log('No invalid reqs in window — nothing nominated.')
 			return
 		}
-		console.log(`Nominated ${nominated.length} invalid req(s) for unfail review:`)
+		console.log(
+			`Nominated ${nominated.length} invalid req(s) for unfail review:`,
+		)
 		for (const n of nominated) {
 			console.log(`  ${n.provenTxReqId}  ${n.txid}`)
 		}

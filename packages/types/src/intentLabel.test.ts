@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import {
-	P1SAT_INTENTS,
-	P1SAT_INTENT_LABEL_PREFIX,
-	P1SAT_LABEL,
 	buildIntentLabel,
 	hasP1SatDispatchLabel,
+	P1SAT_INTENT_LABEL_PREFIX,
+	P1SAT_INTENTS,
+	P1SAT_LABEL,
 	parseIntentLabel,
 } from './constants'
 

@@ -12,10 +12,10 @@ export {
 	type OpnsOperationResult,
 } from './opns-manager-ui'
 export {
-	useOpnsManager,
+	type OpnsName,
 	type UseOpnsManagerOptions,
 	type UseOpnsManagerReturn,
-	type OpnsName,
+	useOpnsManager,
 } from './use-opns-manager'
 
 // ---------------------------------------------------------------------------

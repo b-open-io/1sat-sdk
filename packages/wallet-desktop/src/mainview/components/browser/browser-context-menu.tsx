@@ -1,12 +1,4 @@
 import {
-	ContextMenu,
-	ContextMenuContent,
-	ContextMenuItem,
-	ContextMenuSeparator,
-	ContextMenuTrigger,
-} from '@/components/ui/context-menu'
-import { Kbd } from '@/components/ui/kbd'
-import {
 	ArrowLeft,
 	ArrowRight,
 	Bookmark,
@@ -16,6 +8,14 @@ import {
 	ExternalLink,
 	RotateCw,
 } from 'lucide-react'
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuSeparator,
+	ContextMenuTrigger,
+} from '@/components/ui/context-menu'
+import { Kbd } from '@/components/ui/kbd'
 
 interface BrowserContextMenuProps {
 	children: React.ReactNode

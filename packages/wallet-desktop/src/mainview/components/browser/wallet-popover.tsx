@@ -1,10 +1,3 @@
-import { Button } from '@/components/ui/button'
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from '@/components/ui/popover'
-import { cn } from '@/lib/utils'
 import {
 	ArrowDownLeft,
 	ArrowUpRight,
@@ -16,6 +9,13 @@ import {
 	Wallet,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
 import type { HistoryEntry, ReceiveInfo } from '../../../shared/types'
 import { useWallet } from '../../hooks/use-wallet'
 import { rpc } from '../../rpc'

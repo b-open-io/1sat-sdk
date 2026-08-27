@@ -6,8 +6,8 @@
  * @bsv/sdk SignedMessage.verify can both verify.
  */
 
-import { Hash, Random, Utils } from '@bsv/sdk'
 import type { WalletInterface } from '@bsv/sdk'
+import { Hash, Random, Utils } from '@bsv/sdk'
 
 const { toArray, toBase64, toHex } = Utils
 

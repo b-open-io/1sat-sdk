@@ -1,21 +1,22 @@
+export { applyCreateAction } from './apply'
+export { CommitmentCache } from './commitmentCache'
 export {
 	createOneSatPermissionModule,
 	type OneSatPermissionModule,
 	type PermissionsModule,
 } from './createOneSatPermissionModule'
-export { applyCreateAction } from './apply'
-export { CommitmentCache } from './commitmentCache'
+export type { EnrichedAsset, EnrichedOutput, TrustState } from './enrichIntent'
 export { computeHashOutputs } from './hashOutputs'
 export {
 	MIN_BIP143_PREIMAGE_BYTES,
-	parsePreimage,
 	type ParsedPreimage,
+	parsePreimage,
 } from './sighashParser'
 export {
-	DEFAULT_COMMITMENT_TTL_SECONDS,
 	type BasketAccessRequest,
 	type CapturedCommitment,
 	type CreateOneSatPermissionModuleArgs,
+	DEFAULT_COMMITMENT_TTL_SECONDS,
 	type PromptHandler,
 	type PromptKind,
 	type PromptRequest,
@@ -23,7 +24,6 @@ export {
 } from './types'
 export {
 	VERIFICATION_TIMEOUT_MS,
-	verifyIntent,
 	type VerificationResult,
+	verifyIntent,
 } from './verifyIntent'
-export type { EnrichedAsset, EnrichedOutput, TrustState } from './enrichIntent'

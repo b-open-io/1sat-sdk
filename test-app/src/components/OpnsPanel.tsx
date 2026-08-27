@@ -1,24 +1,24 @@
 import {
 	buyOpns,
-	listOpns,
-	registerOpns,
 	deregisterOpns,
 	type ListOpnsResult,
+	listOpns,
+	registerOpns,
 } from '@1sat/actions'
 import { readAssetIdTag } from '@1sat/types'
 import { useState } from 'react'
+import { useLog } from './LogContext'
 import {
-	card,
-	heading,
-	input,
 	button,
 	buttonDisabled,
-	successText,
+	card,
 	errorText,
+	heading,
+	input,
 	label,
 	mono,
+	successText,
 } from './styles'
-import { useLog } from './LogContext'
 import { useOneSatContext } from './useActions'
 
 /**
@@ -179,7 +179,9 @@ export function OpnsPanel() {
 					Publish (register)
 				</button>
 				<button
-					style={actDisabled ? buttonDisabled : { ...button, background: '#444' }}
+					style={
+						actDisabled ? buttonDisabled : { ...button, background: '#444' }
+					}
 					disabled={actDisabled}
 					onClick={handleDeregister}
 				>
@@ -218,7 +220,9 @@ export function OpnsPanel() {
 							style={rowBtn}
 						>
 							<div style={{ fontWeight: 600 }}>{name ?? '(unnamed)'}</div>
-							{assetId && <div style={{ ...mono, color: '#7dd3fc' }}>id: {assetId}</div>}
+							{assetId && (
+								<div style={{ ...mono, color: '#7dd3fc' }}>id: {assetId}</div>
+							)}
 							<div style={mono}>{o.outpoint}</div>
 							<div style={{ color: '#888', fontSize: '0.7rem' }}>
 								{published ? 'published' : 'unpublished'}
@@ -227,7 +231,9 @@ export function OpnsPanel() {
 					)
 				})}
 				{list && list.outputs.length === 0 && (
-					<p style={{ color: '#666', fontSize: '0.8rem' }}>No OpNS names in wallet</p>
+					<p style={{ color: '#666', fontSize: '0.8rem' }}>
+						No OpNS names in wallet
+					</p>
 				)}
 			</div>
 		</div>

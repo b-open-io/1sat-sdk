@@ -7,7 +7,7 @@
  * identity. After that, the wallet is a standard WalletInterface.
  */
 
-import { type SigmaCWIConfig, createSigmaCWI } from '@1sat/wallet'
+import { createSigmaCWI, type SigmaCWIConfig } from '@1sat/wallet'
 import {
 	type SigmaSignInOptions,
 	sigmaClient,

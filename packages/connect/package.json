@@ -1,43 +1,43 @@
 {
-  "name": "@1sat/connect",
-  "version": "0.0.88",
-  "description": "Connection layer for 1Sat wallet - popup flow, events, session management",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "bun build ./src/index.ts --outdir ./dist --target browser && tsc --emitDeclarationOnly",
-    "dev": "tsc --watch"
-  },
-  "keywords": [
-    "1sat",
-    "bsv",
-    "ordinals",
-    "wallet",
-    "sdk",
-    "connect"
-  ],
-  "license": "MIT",
-  "dependencies": {
-    "@1sat/wallet": "workspace:*",
-    "@sigma-auth/better-auth-plugin": "^0.0.92",
-    "better-auth": "^1.6.18",
-    "eventemitter3": "^5.0.1"
-  },
-  "peerDependencies": {
-    "@bsv/sdk": "^2.1.9"
-  },
-  "devDependencies": {
-    "@bsv/sdk": "^2.1.9",
-    "typescript": "^5.9.3"
-  }
+	"name": "@1sat/connect",
+	"version": "0.0.88",
+	"description": "Connection layer for 1Sat wallet - popup flow, events, session management",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "bun build ./src/index.ts --outdir ./dist --target browser && tsc --emitDeclarationOnly",
+		"dev": "tsc --watch"
+	},
+	"keywords": [
+		"1sat",
+		"bsv",
+		"ordinals",
+		"wallet",
+		"sdk",
+		"connect"
+	],
+	"license": "MIT",
+	"dependencies": {
+		"@1sat/wallet": "workspace:*",
+		"@sigma-auth/better-auth-plugin": "^0.0.92",
+		"better-auth": "^1.6.18",
+		"eventemitter3": "^5.0.1"
+	},
+	"peerDependencies": {
+		"@bsv/sdk": "^2.1.9"
+	},
+	"devDependencies": {
+		"@bsv/sdk": "^2.1.9",
+		"typescript": "^5.9.3"
+	}
 }

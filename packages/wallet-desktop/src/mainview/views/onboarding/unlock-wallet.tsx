@@ -1,8 +1,8 @@
+import { useCallback } from 'react'
 import {
 	UnlockWallet as UnlockWalletBlock,
 	type UnlockWalletResult,
 } from '@/components/blocks/unlock-wallet'
-import { useCallback } from 'react'
 import { useWallet } from '../../hooks/use-wallet'
 import { rpc } from '../../rpc'
 

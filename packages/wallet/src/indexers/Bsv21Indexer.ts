@@ -4,15 +4,13 @@ import {
 	BSV21_AUTH_BASKET,
 	BSV21_BASKET,
 	BSV21_FEE_XPUB,
-} from '@1sat/types'
-import {
-	type IndexSummary,
 	Indexer,
+	type IndexSummary,
 	type ParseContext,
 	type ParseResult,
 	type Txo,
 } from '@1sat/types'
-import { HD, Hash, Utils } from '@bsv/sdk'
+import { Hash, HD, Utils } from '@bsv/sdk'
 
 const hdKey = HD.fromString(BSV21_FEE_XPUB)
 

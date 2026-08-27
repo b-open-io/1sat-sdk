@@ -1,19 +1,3 @@
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Kbd } from '@/components/ui/kbd'
-import { Label } from '@/components/ui/label'
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
-import { Spinner } from '@/components/ui/spinner'
-import { type Step, StepIndicator } from '@/components/ui/step-indicator'
 import { useHotkeys } from '@tanstack/react-hotkeys'
 import {
 	CheckCircle2,
@@ -30,6 +14,22 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Avatar from 'sigma-avatars'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Kbd } from '@/components/ui/kbd'
+import { Label } from '@/components/ui/label'
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import { Spinner } from '@/components/ui/spinner'
+import { type Step, StepIndicator } from '@/components/ui/step-indicator'
 import {
 	AI_SETTINGS_KEY,
 	type AiProvider,

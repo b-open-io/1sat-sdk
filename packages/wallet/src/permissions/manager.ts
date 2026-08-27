@@ -6,8 +6,8 @@ import {
 	type GroupedPermissions,
 	type PermissionEventHandler,
 	type PermissionRequest,
-	type PermissionToken,
 	type PermissionsManagerConfig,
+	type PermissionToken,
 	WalletPermissionsManager,
 	type WalletPermissionsManagerCallbacks,
 } from '@bsv/wallet-toolbox-client/out/src/index.client.js'

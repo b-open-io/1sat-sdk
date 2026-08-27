@@ -1,6 +1,6 @@
-import { Button } from '@/components/ui/button'
 import { useHotkeys } from '@tanstack/react-hotkeys'
 import { useCallback, useEffect, useState } from 'react'
+import { Button } from '@/components/ui/button'
 import type { AccountInfo } from '../../../shared/types'
 import { useWallet } from '../../hooks/use-wallet'
 import { rpc } from '../../rpc'

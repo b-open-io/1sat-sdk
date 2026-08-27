@@ -1,10 +1,10 @@
+import { AlertCircle, Loader2, MessageSquare } from 'lucide-react'
+import { useCallback, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Empty } from '@/components/ui/empty'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import { AlertCircle, Loader2, MessageSquare } from 'lucide-react'
-import { useCallback, useEffect, useRef } from 'react'
 import { PostCardUI, type PostCardUIProps } from './post-card-ui'
 import type { SocialPost } from './use-social-feed'
 
@@ -92,13 +92,7 @@ function EmptyState({ onRefresh }: { onRefresh: () => void }) {
 // Error state
 // ---------------------------------------------------------------------------
 
-function ErrorState({
-	error,
-	onRetry,
-}: {
-	error: Error
-	onRetry: () => void
-}) {
+function ErrorState({ error, onRetry }: { error: Error; onRetry: () => void }) {
 	return (
 		<div
 			className="flex flex-col items-center justify-center py-12 px-4 text-center"

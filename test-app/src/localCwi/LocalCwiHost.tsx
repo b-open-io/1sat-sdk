@@ -4,24 +4,22 @@
  * - localEnabled → expose / hide window.CWI (vs extension-only)
  * - adminOriginator → actions use admin (no prompt, still apply) vs dApp (prompt)
  */
-import { createOneSatPermissionModule } from '@1sat/permission-module'
+
 import type { PromptRequest } from '@1sat/permission-module'
+import { createOneSatPermissionModule } from '@1sat/permission-module'
 import { OneSatPermissionPrompt } from '@1sat/permission-module-ui'
 import { LocalWalletPermissionsManager } from '@1sat/wallet'
-import {
-	createWebWallet,
-	IndexedDbPermissionStore,
-} from '@1sat/wallet-browser'
+import { createWebWallet, IndexedDbPermissionStore } from '@1sat/wallet-browser'
 import { PrivateKey, type WalletInterface } from '@bsv/sdk'
 import {
 	createContext,
+	type ReactNode,
 	useCallback,
 	useContext,
 	useEffect,
 	useMemo,
 	useRef,
 	useState,
-	type ReactNode,
 } from 'react'
 import {
 	CorePermissionPrompt,

@@ -21,55 +21,55 @@
 
   <script type="module">
     import {
+      clearConnection,
+      closePopup,
+      createErrorResponse,
       createOneSat,
-      isOneSatInjected,
-      isOneSatAvailable,
-      waitForOneSat,
-      getInjectedOneSat,
-      getOneSat,
-      OneSatBrowserProvider,
-      PopupManager,
+      createRequest,
+      createResponse,
 
       // Errors
       ErrorCodes,
-      OneSatError,
-      UserRejectedError,
-      WalletLockedError,
-      WalletNotConnectedError,
+      fromErrorResponse,
+      getInjectedOneSat,
+      getOneSat,
+      getPopupContext,
+      hasStoredConnection,
       InsufficientFundsError,
+      isOneSatAvailable,
+      isOneSatInjected,
+      isPopupContext,
+      isResponse,
+      isValidMessage,
+      loadConnection,
+      MessageTypes,
+      OneSatBrowserProvider,
+      OneSatError,
       PopupBlockedError,
       PopupClosedError,
-      TimeoutError,
-      fromErrorResponse,
+      PopupManager,
 
       // Messages
       PROTOCOL_VERSION,
-      MessageTypes,
-      createRequest,
-      createResponse,
-      createErrorResponse,
-      isValidMessage,
-      isResponse,
-
-      // Storage
-      saveConnection,
-      loadConnection,
-      clearConnection,
-      hasStoredConnection,
 
       // Wallet-side utils
       parsePopupParams,
-      sendResponse,
-      sendErrorResponse,
-      rejectRequest,
-      walletLockedError,
-      walletNotConnectedError,
-      closePopup,
-      isPopupContext,
-      getPopupContext,
 
       // Values
       RpcMethods,
+      rejectRequest,
+
+      // Storage
+      saveConnection,
+      sendErrorResponse,
+      sendResponse,
+      TimeoutError,
+      UserRejectedError,
+      WalletLockedError,
+      WalletNotConnectedError,
+      waitForOneSat,
+      walletLockedError,
+      walletNotConnectedError,
     } from '../../packages/connect/src/index.ts'
 
     const el = document.getElementById('results')

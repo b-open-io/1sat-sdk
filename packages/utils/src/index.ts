@@ -311,30 +311,30 @@ export function validateSubTypeData(
 // ============================================================================
 
 export {
-	// Types
-	type WalletKeys,
-	type KeyDerivationPaths,
-	// Derivation path constants
-	YOURS_WALLET_PATH,
-	YOURS_ID_PATH,
-	YOURS_ORD_PATH,
-	RELAYX_ORD_PATH,
-	RELAYX_ID_PATH,
-	RELAYX_WALLET_PATH,
-	RELAYX_SWEEP_PATH,
-	TWETCH_WALLET_PATH,
-	TWETCH_ORD_PATH,
-	AYM_WALLET_PATH,
 	AYM_ORD_PATH,
-	// Conversion utilities
-	wifToHex,
-	wifToAddress,
-	wifToPublicKey,
+	AYM_WALLET_PATH,
+	deriveIdentityKey,
 	// Key derivation functions
 	deriveKeyFromMnemonic,
-	getKeysFromMnemonicAndPaths,
 	findKeysWithVanityOrdinal,
 	generateMnemonic,
+	getKeysFromMnemonicAndPaths,
 	isValidMnemonic,
-	deriveIdentityKey,
+	type KeyDerivationPaths,
+	RELAYX_ID_PATH,
+	RELAYX_ORD_PATH,
+	RELAYX_SWEEP_PATH,
+	RELAYX_WALLET_PATH,
+	TWETCH_ORD_PATH,
+	TWETCH_WALLET_PATH,
+	// Types
+	type WalletKeys,
+	wifToAddress,
+	// Conversion utilities
+	wifToHex,
+	wifToPublicKey,
+	YOURS_ID_PATH,
+	YOURS_ORD_PATH,
+	// Derivation path constants
+	YOURS_WALLET_PATH,
 } from './keys'

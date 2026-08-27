@@ -1,5 +1,8 @@
 'use client'
 
+import { ChevronRightIcon } from 'lucide-react'
+import type { ComponentProps, HTMLAttributes } from 'react'
+import { createContext, useContext, useMemo } from 'react'
 import { Badge } from '@/components/ui/badge'
 import {
 	Collapsible,
@@ -7,9 +10,6 @@ import {
 	CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
-import { ChevronRightIcon } from 'lucide-react'
-import type { ComponentProps, HTMLAttributes } from 'react'
-import { createContext, useContext, useMemo } from 'react'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 

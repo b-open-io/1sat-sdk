@@ -12,11 +12,11 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
  * instance and passes MCP tools for tool-calling models.
  */
 import {
-	type UIMessage,
 	convertToModelMessages,
 	extractReasoningMiddleware,
 	stepCountIs,
 	streamText,
+	type UIMessage,
 	wrapLanguageModel,
 } from 'ai'
 import { ollama } from 'ai-sdk-ollama'

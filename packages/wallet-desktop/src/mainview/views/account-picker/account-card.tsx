@@ -1,3 +1,6 @@
+import { Download, Trash2 } from 'lucide-react'
+import { useCallback, useState } from 'react'
+import Avatar from 'sigma-avatars'
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -16,9 +19,6 @@ import {
 	ContextMenuSeparator,
 	ContextMenuTrigger,
 } from '@/components/ui/context-menu'
-import { Download, Trash2 } from 'lucide-react'
-import { useCallback, useState } from 'react'
-import Avatar from 'sigma-avatars'
 import type { AccountInfo } from '../../../shared/types'
 import { rpc } from '../../rpc'
 

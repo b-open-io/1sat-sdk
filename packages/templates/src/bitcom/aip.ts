@@ -1,6 +1,6 @@
 import {
-	BSM,
 	BigNumber,
+	BSM,
 	type LockingScript,
 	OP,
 	PublicKey,
@@ -11,7 +11,7 @@ import {
 	Utils,
 } from '@bsv/sdk'
 import type { Signer } from '../signer.js'
-import BitCom, { type Protocol, type BitComDecoded } from './bitcom.js'
+import BitCom, { type BitComDecoded, type Protocol } from './bitcom.js'
 
 /**
  * AIP (Author Identity Protocol) prefix for BitCom transactions

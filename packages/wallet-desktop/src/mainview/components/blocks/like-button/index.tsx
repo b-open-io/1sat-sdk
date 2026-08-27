@@ -6,12 +6,12 @@ import { type LikeResult, useLike } from './use-like'
 // Re-exports
 // ---------------------------------------------------------------------------
 
-export { LikeButtonUI, likeButtonVariants, type LikeButtonUIProps } from './ui'
+export { LikeButtonUI, type LikeButtonUIProps, likeButtonVariants } from './ui'
 export {
-	useLike,
 	type LikeResult,
-	type UseLikeReturn,
 	type UseLikeOptions,
+	type UseLikeReturn,
+	useLike,
 } from './use-like'
 
 // ---------------------------------------------------------------------------

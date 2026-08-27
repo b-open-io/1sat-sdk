@@ -15,6 +15,7 @@ import {
 	getProfile,
 	inscribe,
 	lockBsv,
+	OPNS_BASKET,
 	opnsDeregister,
 	opnsRegister,
 	publishIdentity,
@@ -25,7 +26,6 @@ import {
 	unlockBsv,
 	updateProfile,
 } from '@1sat/actions'
-import { OPNS_BASKET } from '@1sat/actions'
 import { BRC29_PROTOCOL_ID, ORDINALS_BASKET } from '@1sat/types'
 import { generateMnemonic, isValidMnemonic } from '@1sat/utils'
 import { PrivateKey, PublicKey, Utils as SdkUtils, Transaction } from '@bsv/sdk'
@@ -294,7 +294,11 @@ export function createRpcHandlers(scopedAccountId?: string) {
 			accountId,
 			displayName,
 			color,
-		}: { accountId: string; displayName?: string; color?: string }) => {
+		}: {
+			accountId: string
+			displayName?: string
+			color?: string
+		}) => {
 			try {
 				updateAccountRegistry(accountId, { displayName, color })
 				return { success: true }
@@ -350,7 +354,10 @@ export function createRpcHandlers(scopedAccountId?: string) {
 		importBackup: async ({
 			encryptedData,
 			password,
-		}: { encryptedData: string; password: string }) => {
+		}: {
+			encryptedData: string
+			password: string
+		}) => {
 			try {
 				const result = await importBackup(encryptedData, password)
 				return {
@@ -410,7 +417,10 @@ export function createRpcHandlers(scopedAccountId?: string) {
 		sendBsv: async ({
 			address,
 			amount,
-		}: { address: string; amount: number }) => {
+		}: {
+			address: string
+			amount: number
+		}) => {
 			const w = requireWallet()
 			const ctx = createContext(w.wallet, {
 				services: w.services,
@@ -428,7 +438,10 @@ export function createRpcHandlers(scopedAccountId?: string) {
 		getOrdinals: async ({
 			limit,
 			offset,
-		}: { limit?: number; offset?: number } = {}) => {
+		}: {
+			limit?: number
+			offset?: number
+		} = {}) => {
 			const w = requireWallet()
 			const ctx = createContext(w.wallet, {
 				services: w.services,
@@ -469,7 +482,10 @@ export function createRpcHandlers(scopedAccountId?: string) {
 		getTransactionHistory: async ({
 			limit,
 			offset,
-		}: { limit?: number; offset?: number } = {}) => {
+		}: {
+			limit?: number
+			offset?: number
+		} = {}) => {
 			console.log('[RPC] getTransactionHistory called')
 			const { wallet } = requireWallet()
 			const result = await wallet.listActions({
@@ -531,7 +547,9 @@ export function createRpcHandlers(scopedAccountId?: string) {
 
 		pickFile: async ({
 			allowedFileTypes,
-		}: { allowedFileTypes?: string } = {}) => {
+		}: {
+			allowedFileTypes?: string
+		} = {}) => {
 			try {
 				const filePaths = await Utils.openFileDialog({
 					allowedFileTypes: allowedFileTypes ?? '*',
@@ -666,7 +684,10 @@ export function createRpcHandlers(scopedAccountId?: string) {
 		sweepBsv: async ({
 			wif,
 			assets,
-		}: { wif: string; assets: SweepScanResult }) => {
+		}: {
+			wif: string
+			assets: SweepScanResult
+		}) => {
 			const w = requireWallet()
 			const ctx = createContext(w.wallet, {
 				services: w.services,
@@ -902,7 +923,10 @@ export function createRpcHandlers(scopedAccountId?: string) {
 		listOrdinal: async ({
 			outpoint,
 			price,
-		}: { outpoint: string; price: number }) => {
+		}: {
+			outpoint: string
+			price: number
+		}) => {
 			const w = requireWallet()
 			const ctx = createContext(w.wallet, {
 				services: w.services,
@@ -962,7 +986,11 @@ export function createRpcHandlers(scopedAccountId?: string) {
 			tokenId,
 			outpoint,
 			amount,
-		}: { tokenId: string; outpoint: string; amount: string }) => {
+		}: {
+			tokenId: string
+			outpoint: string
+			amount: string
+		}) => {
 			const w = requireWallet()
 			const ctx = createContext(w.wallet, {
 				services: w.services,
@@ -984,7 +1012,10 @@ export function createRpcHandlers(scopedAccountId?: string) {
 		getChatMessages: async ({
 			channel,
 			limit,
-		}: { channel: string; limit?: number }) => {
+		}: {
+			channel: string
+			limit?: number
+		}) => {
 			const messages = await fetchChannelMessages(channel, limit ?? 50)
 			return { messages }
 		},
@@ -992,7 +1023,10 @@ export function createRpcHandlers(scopedAccountId?: string) {
 		sendChatMessage: async ({
 			channel,
 			content,
-		}: { channel: string; content: string }) => {
+		}: {
+			channel: string
+			content: string
+		}) => {
 			const w = requireWallet()
 			const ctx = createContext(w.wallet, {
 				services: w.services,

@@ -12,7 +12,7 @@ export function withOriginator(
 		get(target, prop, receiver) {
 			const value = Reflect.get(target, prop, receiver)
 			if (typeof value !== 'function') return value
-			return function (...args: unknown[]) {
+			return (...args: unknown[]) => {
 				if (args.length < 2 || args[1] === undefined) {
 					return (value as (...a: unknown[]) => unknown).call(
 						target,

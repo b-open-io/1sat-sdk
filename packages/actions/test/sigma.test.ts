@@ -21,9 +21,7 @@ const testAddress = testPubKey.toAddress()
 function createMockContext(): OneSatContext {
 	return {
 		wallet: {
-			createSignature: async (args: {
-				hashToDirectlySign: number[]
-			}) => {
+			createSignature: async (args: { hashToDirectlySign: number[] }) => {
 				const hash = new BigNumber(args.hashToDirectlySign)
 				const sig = ECDSA.sign(hash, testKey, true)
 				return { signature: sig.toDER() }

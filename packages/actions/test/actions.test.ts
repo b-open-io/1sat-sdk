@@ -18,10 +18,10 @@ import {
 import { readAssetIdTag } from '@1sat/types'
 import { BSM, PublicKey, Utils } from '@bsv/sdk'
 import {
-	type TestContext,
 	createTestContext,
 	deriveDepositAddress,
 	destroyTestContext,
+	type TestContext,
 } from './setup'
 
 let primary: TestContext
@@ -125,9 +125,7 @@ describe('Phase 2 — Create assets', () => {
 		expect(result.txid!.length).toBe(64)
 
 		const listed = await listOrdinals.execute(primary.ctx, {})
-		const row = listed.outputs.find((o) =>
-			o.outpoint.startsWith(result.txid!),
-		)
+		const row = listed.outputs.find((o) => o.outpoint.startsWith(result.txid!))
 		const id = readAssetIdTag(row?.tags)
 		expect(id).toBeDefined()
 		inscribedId = id!

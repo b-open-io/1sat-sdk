@@ -31,7 +31,7 @@
  */
 
 import { HD, Mnemonic, PrivateKey } from '@bsv/sdk'
-import { type OneSatBackup, decryptBackup, encryptBackup } from 'bitcoin-backup'
+import { decryptBackup, encryptBackup, type OneSatBackup } from 'bitcoin-backup'
 import browser from 'webextension-polyfill'
 
 // ============================================================================

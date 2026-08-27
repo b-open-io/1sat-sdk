@@ -25,11 +25,11 @@ import { isBillableMethod } from '../dispatch'
 import type { WalletStorageProvider } from '../types'
 import { quoteRefundedCharge } from './pricing'
 import {
-	PAYMENT_LABEL,
 	blockLabel,
 	bytesLabel,
 	countPaymentsForPayer,
 	latestActivePaymentForPayer,
+	PAYMENT_LABEL,
 	payerLabel,
 } from './queries'
 import type {

@@ -1,7 +1,7 @@
 import {
-	P1SAT_LABEL,
 	buildActionIdLabel,
 	hasP1SatDispatchLabel,
+	P1SAT_LABEL,
 	parseActionIdLabel,
 } from '@1sat/types'
 import {
@@ -13,8 +13,8 @@ import {
 import type { FundingProvider } from '../funding'
 import {
 	type CompleteSignedActionResult,
-	type SigningCallback,
 	completeSignedAction,
+	type SigningCallback,
 } from './completeSignedAction'
 
 /**

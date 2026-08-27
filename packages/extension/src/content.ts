@@ -170,4 +170,4 @@ export function createContentBridge(options: ContentBridgeOptions = {}): void {
 }
 
 // Export for direct use
-export { INJECT_SOURCE, CONTENT_SOURCE }
+export { CONTENT_SOURCE, INJECT_SOURCE }

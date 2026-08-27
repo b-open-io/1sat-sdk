@@ -12,6 +12,11 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
 import type { WalletInterface } from '@bsv/sdk'
 import type { Server } from 'bun'
 import { createLogger, createRequestLogger } from 'evlog'
+import {
+	WALLET_HOST,
+	WALLET_HTTP_PORT,
+	WALLET_HTTPS_PORT,
+} from '../shared/constants'
 import type { PermissionRequest } from '../shared/types'
 import {
 	CHAT_REQUIRED_HEADER,
@@ -19,12 +24,6 @@ import {
 	validateChatAuth,
 } from './ai-chat-handler'
 import { getWallet } from './wallet-manager'
-
-import {
-	WALLET_HOST,
-	WALLET_HTTPS_PORT,
-	WALLET_HTTP_PORT,
-} from '../shared/constants'
 
 const HTTP_PORT = WALLET_HTTP_PORT
 const HTTPS_PORT = WALLET_HTTPS_PORT

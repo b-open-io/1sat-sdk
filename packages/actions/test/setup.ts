@@ -1,8 +1,8 @@
-import { type OneSatContext, createContext } from '@1sat/actions'
+import { createContext, type OneSatContext } from '@1sat/actions'
 import {
 	BRC29_PROTOCOL_ID,
-	type OneSatServices,
 	createRemoteWallet,
+	type OneSatServices,
 } from '@1sat/wallet-remote'
 import { PublicKey, Utils } from '@bsv/sdk'
 import type { Wallet } from '@bsv/wallet-toolbox/out/src/index.client.js'

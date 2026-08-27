@@ -1,12 +1,6 @@
 'use client'
 
 import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from '@/components/ui/collapsible'
-import { cn } from '@/lib/utils'
-import {
 	ChevronRightIcon,
 	FileIcon,
 	FolderIcon,
@@ -20,6 +14,12 @@ import {
 	useMemo,
 	useState,
 } from 'react'
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { cn } from '@/lib/utils'
 
 interface FileTreeContextType {
 	expandedPaths: Set<string>

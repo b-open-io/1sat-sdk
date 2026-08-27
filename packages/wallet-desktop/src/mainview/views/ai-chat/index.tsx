@@ -1,13 +1,3 @@
-import { Message, MessageContent } from '@/components/ai-elements/message'
-import {
-	Reasoning,
-	ReasoningContent,
-	ReasoningTrigger,
-} from '@/components/ai-elements/reasoning'
-import { Tool, ToolHeader } from '@/components/ai-elements/tool'
-import { Button } from '@/components/ui/button'
-import { Empty } from '@/components/ui/empty'
-import { cn } from '@/lib/utils'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport, isToolUIPart } from 'ai'
 import {
@@ -19,6 +9,16 @@ import {
 	Sparkles,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Message, MessageContent } from '@/components/ai-elements/message'
+import {
+	Reasoning,
+	ReasoningContent,
+	ReasoningTrigger,
+} from '@/components/ai-elements/reasoning'
+import { Tool, ToolHeader } from '@/components/ai-elements/tool'
+import { Button } from '@/components/ui/button'
+import { Empty } from '@/components/ui/empty'
+import { cn } from '@/lib/utils'
 import { WALLET_HTTP_URL } from '../../../shared/constants'
 
 const MONO = 'font-[family-name:var(--font-mono)]'

@@ -5,6 +5,48 @@
  * All actions work with any BRC-100 compatible wallet interface via OneSatContext.
  */
 
+// Export action registry
+export { ActionRegistry, actionRegistry, type McpTool } from './action-registry'
+// Export module actions and types
+export * from './addresses'
+// P1Sat apply (base-wallet seal / validate; module re-exports dispatch)
+export {
+	type ApplyFn,
+	applyInscribeSigma,
+	applyOpnsRegister,
+	applyP1SatIntent,
+	applyValidateOnly,
+	P1SAT_APPLY_REGISTRY,
+	prepareP1SatArgs,
+	sigmaAnchorKeyId,
+	stampScriptDerivedTags,
+} from './apply'
+export * from './collections'
+// Export constants
+export * from './constants'
+// Export cosign module (cosigner-validated BSV21 transfer actions)
+export * from './cosign'
+// Export funding provider types
+export type {
+	FundingProvider,
+	FundingResult,
+} from './funding'
+export * from './identity'
+export * from './inscriptions'
+export * from './locks'
+export * from './mnee'
+export * from './opns'
+export * from './ordinals'
+export * from './payments'
+// Export registry module (on-chain package builder)
+export * from './registry'
+export * from './signing'
+export * from './social'
+// Export sweep module (uses external signing, not action-based)
+export * from './sweep'
+// Export sync module
+export * from './sync'
+export * from './tokens'
 // Export action types and helpers
 export {
 	type Action,
@@ -12,35 +54,13 @@ export {
 	type ActionLogEntry,
 	type ActionMetadata,
 	type ActionOptions,
+	createContext,
 	type JsonSchemaProperty,
 	type OneSatContext,
-	createContext,
 } from './types'
-
-// Export action registry
-export { ActionRegistry, actionRegistry, type McpTool } from './action-registry'
-
-// Export constants
-export * from './constants'
-
-// P1Sat apply (base-wallet seal / validate; module re-exports dispatch)
 export {
-	applyP1SatIntent,
-	applyOpnsRegister,
-	applyInscribeSigma,
-	applyValidateOnly,
-	prepareP1SatArgs,
-	sigmaAnchorKeyId,
-	stampScriptDerivedTags,
-	P1SAT_APPLY_REGISTRY,
-	type ApplyFn,
-} from './apply'
-
-// Export shared utilities
-export { signP2PKHInput } from './utils/signP2PKH'
-export {
-	completeSignedAction,
 	type CompleteSignedActionResult,
+	completeSignedAction,
 	type SigningCallback,
 } from './utils/completeSignedAction'
 export {
@@ -48,52 +68,22 @@ export {
 	executeTrackedAction,
 	randomActionId,
 } from './utils/createTrackedAction'
-
-// Export funding provider types
-export type {
-	FundingProvider,
-	FundingResult,
-} from './funding'
 export { getDisplayValue } from './utils/displayValue'
-export { ordinalSeedTags } from './utils/ordinalSeedTags'
 export {
+	type InternalizeBeefOptions,
+	type InternalizeBeefResult,
+	internalizeBeef,
+	type OutputDerivation,
+} from './utils/internalizeBeef'
+export {
+	type LoadBasketOutputResult,
 	loadBasketOutput,
 	loadBasketOutputBeef,
 	toIdTag,
-	type LoadBasketOutputResult,
 } from './utils/loadBasketOutput'
-export {
-	internalizeBeef,
-	type InternalizeBeefOptions,
-	type InternalizeBeefResult,
-	type OutputDerivation,
-} from './utils/internalizeBeef'
-
-// Export module actions and types
-export * from './addresses'
-export * from './collections'
-export * from './payments'
-export * from './ordinals'
-export * from './tokens'
-export * from './inscriptions'
-export * from './locks'
-export * from './signing'
-export * from './social'
-export * from './identity'
-export * from './opns'
-export * from './mnee'
-
-// Export cosign module (cosigner-validated BSV21 transfer actions)
-export * from './cosign'
-
-// Export sweep module (uses external signing, not action-based)
-export * from './sweep'
-
-// Export sync module
-export * from './sync'
-
-// Export registry module (on-chain package builder)
-export * from './registry'
+export { ordinalSeedTags } from './utils/ordinalSeedTags'
+// Export shared utilities
+export { signP2PKHInput } from './utils/signP2PKH'
 
 import { actionRegistry } from './action-registry'
 import { addressesActions } from './addresses'

@@ -1,17 +1,17 @@
 import { HttpError, type OneSatServices } from '@1sat/client'
 import {
-	type IndexSummary,
 	Indexer,
+	type IndexSummary,
 	OPNS_BASKET,
 	ORDINALS_BASKET,
+	ordinalTagsFromMetadata,
 	type ParseContext,
 	type ParseResult,
 	type Txo,
-	ordinalTagsFromMetadata,
 } from '@1sat/types'
 import type { Inscription } from './InscriptionIndexer'
-import type { Sigma } from './SigmaIndexer'
 import { parseAddress } from './parseAddress'
+import type { Sigma } from './SigmaIndexer'
 
 export interface Origin {
 	outpoint?: string

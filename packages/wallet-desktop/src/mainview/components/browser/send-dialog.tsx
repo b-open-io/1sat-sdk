@@ -1,3 +1,12 @@
+import { Utils } from '@bsv/sdk'
+import {
+	AlertCircle,
+	ArrowLeft,
+	CheckCircle2,
+	Loader2,
+	SendHorizonal,
+} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
 	Dialog,
@@ -10,15 +19,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useWallet } from '@/hooks/use-wallet'
 import { cn } from '@/lib/utils'
-import { Utils } from '@bsv/sdk'
-import {
-	AlertCircle,
-	ArrowLeft,
-	CheckCircle2,
-	Loader2,
-	SendHorizonal,
-} from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
 
 // ---------------------------------------------------------------------------
 // Constants

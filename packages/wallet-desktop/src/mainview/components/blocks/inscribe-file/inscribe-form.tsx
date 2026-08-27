@@ -1,13 +1,13 @@
 'use client'
 
+import { Plus, X } from 'lucide-react'
+import { useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { Plus, X } from 'lucide-react'
-import { useCallback } from 'react'
 import { ContentTypeSelect } from './content-type-select'
 
 export interface MetadataEntry {

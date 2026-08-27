@@ -1,7 +1,16 @@
 import { sendOrdinals } from '@1sat/actions'
 import { useState } from 'react'
-import { card, heading, input, button, buttonDisabled, successText, errorText, label } from './styles'
 import { useLog } from './LogContext'
+import {
+	button,
+	buttonDisabled,
+	card,
+	errorText,
+	heading,
+	input,
+	label,
+	successText,
+} from './styles'
 import { useOneSatContext } from './useActions'
 
 export function SendOrdinals() {

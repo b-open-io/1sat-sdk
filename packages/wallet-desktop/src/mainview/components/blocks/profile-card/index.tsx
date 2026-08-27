@@ -10,10 +10,10 @@ import { useProfileCard } from './use-profile-card'
 
 export { ProfileCardUI, type ProfileCardUIProps } from './profile-card-ui'
 export {
-	useProfileCard,
+	type BapProfile,
 	type UseProfileCardOptions,
 	type UseProfileCardReturn,
-	type BapProfile,
+	useProfileCard,
 } from './use-profile-card'
 
 // ---------------------------------------------------------------------------

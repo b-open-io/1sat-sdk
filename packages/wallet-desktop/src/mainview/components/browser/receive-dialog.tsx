@@ -1,3 +1,6 @@
+import { Check, Copy } from 'lucide-react'
+import QRCode from 'qrcode'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
 	Dialog,
@@ -9,9 +12,6 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { useWallet } from '@/hooks/use-wallet'
 import { cn } from '@/lib/utils'
-import { Check, Copy } from 'lucide-react'
-import QRCode from 'qrcode'
-import { useCallback, useEffect, useRef, useState } from 'react'
 
 // ---------------------------------------------------------------------------
 // QR canvas renderer

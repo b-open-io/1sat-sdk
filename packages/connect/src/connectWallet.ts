@@ -1,6 +1,6 @@
-import { type WebCWIConfig, createWebCWI } from '@1sat/wallet'
-import { WalletClient } from '@bsv/sdk'
+import { createWebCWI, type WebCWIConfig } from '@1sat/wallet'
 import type { WalletInterface } from '@bsv/sdk'
+import { WalletClient } from '@bsv/sdk'
 
 export interface WalletProviderConfig {
 	/** Unique identifier for this provider */

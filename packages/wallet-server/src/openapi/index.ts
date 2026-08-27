@@ -7,14 +7,14 @@
 
 import type { Express } from 'express'
 import {
-	type PathsFragment,
-	TAG_DOCS,
 	accountPaths,
 	authPaths,
 	hostingPaths,
 	messageboxPaths,
+	type PathsFragment,
 	paymailPaths,
 	storagePaths,
+	TAG_DOCS,
 } from './fragments'
 
 export interface OpenApiSurfaces {

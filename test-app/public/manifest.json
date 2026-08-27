@@ -1,50 +1,50 @@
 {
-  "name": "1Sat SDK Test App",
-  "description": "QA test harness for @1sat/actions + @1sat/connect with Yours Wallet",
-  "metanet": {
-    "groupPermissions": {
-      "description": "1Sat SDK test app needs to interact with 1Sat assets (ordinals, BSV21 tokens, locks, OpNS)",
-      "protocolPermissions": [
-        {
-          "protocolID": [1, "identity key retrieval"],
-          "description": "Read your identity public key"
-        },
-        {
-          "protocolID": [0, "p 1sat"],
-          "description": "Sign 1Sat asset transactions (ordinals, BSV21, locks, OpNS, deposits)"
-        }
-      ],
-      "basketAccess": [
-        {
-          "basket": "p 1sat ordinals",
-          "description": "Read and write ordinal outputs",
-          "operations": ["insert", "remove", "list"]
-        },
-        {
-          "basket": "p 1sat bsv21",
-          "description": "Read and write BSV21 token outputs",
-          "operations": ["insert", "remove", "list"]
-        },
-        {
-          "basket": "p 1sat lock",
-          "description": "Read and write timelocked outputs",
-          "operations": ["insert", "remove", "list"]
-        },
-        {
-          "basket": "p 1sat opns",
-          "description": "Read and write OpNS name outputs",
-          "operations": ["insert", "remove", "list"]
-        },
-        {
-          "basket": "p 1sat bsocial",
-          "description": "Read and write BSocial post outputs",
-          "operations": ["insert", "remove", "list"]
-        }
-      ],
-      "spendingAuthorization": {
-        "amount": 100000,
-        "description": "Spend up to 100,000 satoshis for testing"
-      }
-    }
-  }
+	"name": "1Sat SDK Test App",
+	"description": "QA test harness for @1sat/actions + @1sat/connect with Yours Wallet",
+	"metanet": {
+		"groupPermissions": {
+			"description": "1Sat SDK test app needs to interact with 1Sat assets (ordinals, BSV21 tokens, locks, OpNS)",
+			"protocolPermissions": [
+				{
+					"protocolID": [1, "identity key retrieval"],
+					"description": "Read your identity public key"
+				},
+				{
+					"protocolID": [0, "p 1sat"],
+					"description": "Sign 1Sat asset transactions (ordinals, BSV21, locks, OpNS, deposits)"
+				}
+			],
+			"basketAccess": [
+				{
+					"basket": "p 1sat ordinals",
+					"description": "Read and write ordinal outputs",
+					"operations": ["insert", "remove", "list"]
+				},
+				{
+					"basket": "p 1sat bsv21",
+					"description": "Read and write BSV21 token outputs",
+					"operations": ["insert", "remove", "list"]
+				},
+				{
+					"basket": "p 1sat lock",
+					"description": "Read and write timelocked outputs",
+					"operations": ["insert", "remove", "list"]
+				},
+				{
+					"basket": "p 1sat opns",
+					"description": "Read and write OpNS name outputs",
+					"operations": ["insert", "remove", "list"]
+				},
+				{
+					"basket": "p 1sat bsocial",
+					"description": "Read and write BSocial post outputs",
+					"operations": ["insert", "remove", "list"]
+				}
+			],
+			"spendingAuthorization": {
+				"amount": 100000,
+				"description": "Spend up to 100,000 satoshis for testing"
+			}
+		}
+	}
 }

@@ -2,25 +2,23 @@
  * CWI (Compute With Integrity) — BRC-100 WalletInterface senders + shared types
  */
 
-export {
-	CWIEventName,
-	type CWIResponseDetail,
-	type CWIRequest,
-	type CWIResponse,
-	type CWIRequestMessage,
-	type CWIResponseMessage,
-	CWI_EVENT_NAMES,
-	isCWIEventName,
-} from './types'
-
-export { createCWI, type CWITransport } from './factory'
-
+export { ChromeCWI, createChromeCWI } from './chrome'
 // Senders
-export { createEventCWI, CWI as EventCWI } from './event'
-export { createChromeCWI, ChromeCWI } from './chrome'
-export { createWebCWI, type WebCWIConfig, type WebCWIResult } from './web'
+export { CWI as EventCWI, createEventCWI } from './event'
+export { type CWITransport, createCWI } from './factory'
 export {
 	createSigmaCWI,
 	type SigmaCWIConfig,
 	type SigmaCWIResult,
 } from './sigma'
+export {
+	CWI_EVENT_NAMES,
+	CWIEventName,
+	type CWIRequest,
+	type CWIRequestMessage,
+	type CWIResponse,
+	type CWIResponseDetail,
+	type CWIResponseMessage,
+	isCWIEventName,
+} from './types'
+export { createWebCWI, type WebCWIConfig, type WebCWIResult } from './web'

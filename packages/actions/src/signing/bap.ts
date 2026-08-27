@@ -1,4 +1,4 @@
-import { BSM, BigNumber, PublicKey, Signature, Utils } from '@bsv/sdk'
+import { BigNumber, BSM, PublicKey, Signature, Utils } from '@bsv/sdk'
 import { BAP_PROTOCOL_ID } from '../constants'
 import { computeBapId } from '../identity'
 import type { OneSatContext } from '../types'

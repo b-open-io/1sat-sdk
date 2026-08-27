@@ -4,7 +4,7 @@
 
 import type { OneSatServices } from '@1sat/client'
 import { outpointFromBytes } from '@1sat/templates'
-import { P1SAT_PROTOCOL, opnsRegisterKeyId } from '@1sat/types'
+import { opnsRegisterKeyId, P1SAT_PROTOCOL } from '@1sat/types'
 import {
 	type LockingScript,
 	ProtoWallet,

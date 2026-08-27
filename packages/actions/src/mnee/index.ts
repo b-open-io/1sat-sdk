@@ -21,7 +21,7 @@ import {
 	LockingScript,
 	OP,
 	PublicKey,
-	Script,
+	type Script,
 	Transaction,
 	TransactionSignature,
 	UnlockingScript,

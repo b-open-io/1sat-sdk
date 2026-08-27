@@ -1,34 +1,34 @@
 {
-  "name": "test-sdk-app",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@1sat/actions": "workspace:*",
-    "@1sat/client": "workspace:*",
-    "@1sat/connect": "workspace:*",
-    "@1sat/permission-module": "workspace:*",
-    "@1sat/permission-module-ui": "workspace:*",
-    "@1sat/react": "workspace:*",
-    "@1sat/templates": "workspace:*",
-    "@1sat/types": "workspace:*",
-    "@1sat/wallet": "workspace:*",
-    "@1sat/wallet-browser": "workspace:*",
-    "@bsv/sdk": "^2.1.9",
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5",
-    "@bsv/wallet-toolbox-client": "2.4.4"
-  },
-  "devDependencies": {
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.1",
-    "typescript": "~5.9.3",
-    "vite": "^8.0.8"
-  }
+	"name": "test-sdk-app",
+	"private": true,
+	"version": "0.0.0",
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"build": "tsc -b && vite build",
+		"preview": "vite preview"
+	},
+	"dependencies": {
+		"@1sat/actions": "workspace:*",
+		"@1sat/client": "workspace:*",
+		"@1sat/connect": "workspace:*",
+		"@1sat/permission-module": "workspace:*",
+		"@1sat/permission-module-ui": "workspace:*",
+		"@1sat/react": "workspace:*",
+		"@1sat/templates": "workspace:*",
+		"@1sat/types": "workspace:*",
+		"@1sat/wallet": "workspace:*",
+		"@1sat/wallet-browser": "workspace:*",
+		"@bsv/sdk": "^2.1.9",
+		"react": "^19.2.5",
+		"react-dom": "^19.2.5",
+		"@bsv/wallet-toolbox-client": "2.4.4"
+	},
+	"devDependencies": {
+		"@types/react": "^19.2.14",
+		"@types/react-dom": "^19.2.3",
+		"@vitejs/plugin-react": "^6.0.1",
+		"typescript": "~5.9.3",
+		"vite": "^8.0.8"
+	}
 }

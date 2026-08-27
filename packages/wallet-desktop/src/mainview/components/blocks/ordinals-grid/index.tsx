@@ -12,10 +12,10 @@ export {
 	type OrdinalsGridUIProps,
 } from './ordinals-grid-ui'
 export {
-	useOrdinalsGrid,
 	type OrdinalOutput,
 	type UseOrdinalsGridOptions,
 	type UseOrdinalsGridReturn,
+	useOrdinalsGrid,
 } from './use-ordinals-grid'
 
 // ---------------------------------------------------------------------------

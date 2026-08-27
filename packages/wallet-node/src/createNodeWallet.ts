@@ -1,8 +1,8 @@
 import type { OneSatServices } from '@1sat/client'
 import {
+	createWalletCore,
 	DEFAULT_FEE_MODEL,
 	type TaskStateStore,
-	createWalletCore,
 } from '@1sat/wallet'
 import type { PrivateKey } from '@bsv/sdk'
 import {
@@ -10,9 +10,9 @@ import {
 	Services,
 	StorageClient,
 	StorageProvider,
+	type sdk,
 	Wallet,
 	WalletStorageManager,
-	type sdk,
 } from '@bsv/wallet-toolbox'
 import { createFsTaskStateStore } from './fsTaskStateStore'
 import { StorageBunSqlite } from './storage-bun-sqlite'
@@ -157,8 +157,7 @@ export async function createNodeWallet(
 		remoteStorage: core.remoteClients[0],
 		setActiveStorage: core.setActiveStorage,
 		addRemote: core.addRemote,
-		getActiveStorage:
-			core.getActiveStorage as () => sdk.WalletStorageProvider,
+		getActiveStorage: core.getActiveStorage as () => sdk.WalletStorageProvider,
 	}
 }
 

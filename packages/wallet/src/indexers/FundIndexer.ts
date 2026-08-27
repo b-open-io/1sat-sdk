@@ -1,6 +1,6 @@
 import {
-	type IndexSummary,
 	Indexer,
+	type IndexSummary,
 	type ParseContext,
 	type ParseResult,
 	type Txo,

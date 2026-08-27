@@ -1,44 +1,44 @@
 {
-  "name": "@1sat/react",
-  "version": "0.0.85",
-  "description": "React hooks and components for 1Sat wallet integration",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "bun run build.ts && tsc --emitDeclarationOnly",
-    "dev": "tsc --watch"
-  },
-  "keywords": [
-    "1sat",
-    "bsv",
-    "ordinals",
-    "wallet",
-    "sdk",
-    "react",
-    "hooks"
-  ],
-  "license": "MIT",
-  "dependencies": {
-    "@1sat/connect": "workspace:*"
-  },
-  "peerDependencies": {
-    "@bsv/sdk": "^2.1.9",
-    "react": "^18.0.0 || ^19.0.0"
-  },
-  "devDependencies": {
-    "@bsv/sdk": "^2.1.9",
-    "@types/react": "^19.0.0",
-    "react": "^19.0.0",
-    "typescript": "^5.9.3"
-  }
+	"name": "@1sat/react",
+	"version": "0.0.85",
+	"description": "React hooks and components for 1Sat wallet integration",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "bun run build.ts && tsc --emitDeclarationOnly",
+		"dev": "tsc --watch"
+	},
+	"keywords": [
+		"1sat",
+		"bsv",
+		"ordinals",
+		"wallet",
+		"sdk",
+		"react",
+		"hooks"
+	],
+	"license": "MIT",
+	"dependencies": {
+		"@1sat/connect": "workspace:*"
+	},
+	"peerDependencies": {
+		"@bsv/sdk": "^2.1.9",
+		"react": "^18.0.0 || ^19.0.0"
+	},
+	"devDependencies": {
+		"@bsv/sdk": "^2.1.9",
+		"@types/react": "^19.0.0",
+		"react": "^19.0.0",
+		"typescript": "^5.9.3"
+	}
 }

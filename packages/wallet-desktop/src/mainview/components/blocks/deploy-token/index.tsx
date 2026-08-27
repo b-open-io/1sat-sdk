@@ -12,16 +12,16 @@ import {
 // ---------------------------------------------------------------------------
 
 export {
+	type DeployTokenFormState,
 	DeployTokenUI,
 	type DeployTokenUIProps,
-	type DeployTokenFormState,
 } from './ui'
 export {
-	useDeployToken,
 	type DeployTokenParams,
 	type DeployTokenResult,
 	type UseDeployTokenOptions,
 	type UseDeployTokenReturn,
+	useDeployToken,
 } from './use-deploy-token'
 
 // ---------------------------------------------------------------------------

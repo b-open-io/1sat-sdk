@@ -36,8 +36,7 @@ export async function applyInscribeSigma(
 	if (!outputs?.length) {
 		throw new Error('ordinal.inscribe-sigma apply: missing outputs')
 	}
-	const out =
-		outputs.find((o) => o.basket === ORDINALS_BASKET) ?? outputs[0]
+	const out = outputs.find((o) => o.basket === ORDINALS_BASKET) ?? outputs[0]
 	if (!out?.lockingScript) {
 		throw new Error('ordinal.inscribe-sigma apply: missing inscription output')
 	}

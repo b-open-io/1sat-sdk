@@ -34,95 +34,91 @@
  */
 
 // ============================================================================
-// Inject Script
+// Background Script
 // ============================================================================
-export { injectOneSatProvider } from './inject'
+export {
+	type BackgroundHandlerResult,
+	createBackgroundHandler,
+	keepAlive,
+	openApprovalPopup,
+} from './background'
 
 // ============================================================================
 // Content Script
 // ============================================================================
-export { createContentBridge, INJECT_SOURCE, CONTENT_SOURCE } from './content'
-
-// ============================================================================
-// Background Script
-// ============================================================================
-export {
-	createBackgroundHandler,
-	openApprovalPopup,
-	keepAlive,
-	type BackgroundHandlerResult,
-} from './background'
-
+export { CONTENT_SOURCE, createContentBridge, INJECT_SOURCE } from './content'
 // ============================================================================
 // Errors
 // ============================================================================
 export {
+	DisconnectedError,
+	fromExtensionError,
+	InsufficientFundsError,
+	InternalError,
+	InvalidParamsError,
+	InvalidTransactionError,
+	MethodNotFoundError,
 	OneSatExtensionError,
+	toExtensionError,
+	UnauthorizedError,
+	UnsupportedMethodError,
 	UserRejectedError,
 	WalletLockedError,
 	WalletNotConnectedError,
-	InsufficientFundsError,
-	InvalidTransactionError,
-	UnauthorizedError,
-	UnsupportedMethodError,
-	DisconnectedError,
-	InternalError,
-	InvalidParamsError,
-	MethodNotFoundError,
-	toExtensionError,
-	fromExtensionError,
 } from './errors'
-
+// ============================================================================
+// Inject Script
+// ============================================================================
+export { injectOneSatProvider } from './inject'
+// Provider types (re-exported for convenience)
+export type {
+	BalanceResult,
+	CancelListingRequest,
+	ConnectResult,
+	CreateListingRequest,
+	EventHandler,
+	InscribeRequest,
+	InscribeResult,
+	ListingResult,
+	ListOptions,
+	OneSatEvent,
+	OneSatProvider,
+	OrdinalOutput,
+	PurchaseListingRequest,
+	SendOrdinalsRequest,
+	SendResult,
+	SignMessageResult,
+	SignTransactionRequest,
+	SignTransactionResult,
+	TokenOutput,
+	TransferTokenRequest,
+} from './provider-types'
 // ============================================================================
 // Types
 // ============================================================================
 export {
-	// Message types
-	MessageType,
-	RpcMethod,
+	type ApprovalData,
+	type BackgroundHandlerConfig,
+	type ConnectedSite,
+	type ContentBridgeOptions,
 	ErrorCode,
-	// Type exports
-	type MessageTypeValue,
-	type RpcMethodValue,
 	type ErrorCodeValue,
-	type ExtensionRequest,
-	type ExtensionResponse,
+	type ExtensionError,
 	type ExtensionEvent,
 	type ExtensionMessage,
-	type ExtensionError,
-	type InjectOptions,
-	type ContentBridgeOptions,
-	type RequestSender,
+	type ExtensionRequest,
+	type ExtensionResponse,
 	type Handler,
 	type HandlerMap,
-	type BackgroundHandlerConfig,
-	type ApprovalData,
-	type ConnectedSite,
-	type WalletAddresses,
-	type Utxo,
 	type InitState,
+	type InjectOptions,
+	// Message types
+	MessageType,
+	// Type exports
+	type MessageTypeValue,
+	type RequestSender,
+	RpcMethod,
+	type RpcMethodValue,
+	type Utxo,
+	type WalletAddresses,
 } from './types'
-
-// Provider types (re-exported for convenience)
-export type {
-	OneSatProvider,
-	OneSatEvent,
-	EventHandler,
-	ConnectResult,
-	SignTransactionRequest,
-	SignTransactionResult,
-	SignMessageResult,
-	InscribeRequest,
-	InscribeResult,
-	SendOrdinalsRequest,
-	SendResult,
-	CreateListingRequest,
-	ListingResult,
-	PurchaseListingRequest,
-	CancelListingRequest,
-	TransferTokenRequest,
-	BalanceResult,
-	OrdinalOutput,
-	TokenOutput,
-	ListOptions,
-} from './provider-types'

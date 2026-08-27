@@ -1,9 +1,9 @@
 'use client'
 
+import { cva, type VariantProps } from 'class-variance-authority'
+import { Check, Loader2, UserCheck, UserPlus, UserX, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { type VariantProps, cva } from 'class-variance-authority'
-import { Check, Loader2, UserCheck, UserPlus, UserX, X } from 'lucide-react'
 import type { FriendshipStatus } from './use-friend'
 
 // ---------------------------------------------------------------------------

@@ -15,7 +15,11 @@ function OrdinalCard({
 	ordinal,
 	isSelected,
 	onToggle,
-}: { ordinal: EnrichedOrdinal; isSelected: boolean; onToggle: () => void }) {
+}: {
+	ordinal: EnrichedOrdinal
+	isSelected: boolean
+	onToggle: () => void
+}) {
 	const ct = ordinal.contentType ?? ''
 	const isImage = isImageType(ct)
 	const subtype = ct.includes('/') ? ct.split('/')[1] : ct

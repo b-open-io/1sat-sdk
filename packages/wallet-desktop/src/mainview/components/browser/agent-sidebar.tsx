@@ -1,3 +1,7 @@
+import { useChat } from '@ai-sdk/react'
+import { DefaultChatTransport, isToolUIPart } from 'ai'
+import { ArrowUp, ArrowUpRight, Bot, Loader2, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Message, MessageContent } from '@/components/ai-elements/message'
 import {
 	Reasoning,
@@ -8,10 +12,6 @@ import { Tool, ToolHeader } from '@/components/ai-elements/tool'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
-import { useChat } from '@ai-sdk/react'
-import { DefaultChatTransport, isToolUIPart } from 'ai'
-import { ArrowUp, ArrowUpRight, Bot, Loader2, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { WALLET_HTTP_URL } from '../../../shared/constants'
 import type { ParsedRoute } from '../../../shared/url-types'
 import { getDisplayLabel } from '../../../shared/url-types'

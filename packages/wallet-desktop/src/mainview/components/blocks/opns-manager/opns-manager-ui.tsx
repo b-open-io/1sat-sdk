@@ -1,5 +1,7 @@
 'use client'
 
+import { Globe, Loader2, RefreshCw } from 'lucide-react'
+import { useCallback, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,8 +22,6 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import { Globe, Loader2, RefreshCw } from 'lucide-react'
-import { useCallback, useState } from 'react'
 
 // ---------------------------------------------------------------------------
 // Types

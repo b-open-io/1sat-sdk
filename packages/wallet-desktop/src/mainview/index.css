@@ -111,11 +111,14 @@
 	--sidebar-accent-foreground: oklch(0.12 0.01 96);
 	--sidebar-border: oklch(0 0 0 / 8%);
 	--sidebar-ring: oklch(0.6 0 0);
-	--font-sans: "Geist Sans", ui-sans-serif, system-ui, -apple-system,
-		BlinkMacSystemFont, sans-serif;
-	--font-serif: "Spectral", ui-serif, Georgia, Cambria, "Times New Roman", serif;
-	--font-mono: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
-		Consolas, monospace;
+	--font-sans:
+		"Geist Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+		sans-serif;
+	--font-serif:
+		"Spectral", ui-serif, Georgia, Cambria, "Times New Roman", serif;
+	--font-mono:
+		"Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+		monospace;
 	--font-pixel: "Geist Pixel", monospace;
 	--tracking-normal: 0em;
 	--spacing: 0.25rem;

@@ -14,12 +14,12 @@ import {
 
 export { SyncTerminalUI, type SyncTerminalUIProps } from './sync-terminal-ui'
 export {
-	useSyncTerminal,
-	type UseSyncTerminalOptions,
-	type UseSyncTerminalReturn,
 	type SyncEvent,
 	type SyncEventLevel,
 	type SyncStatus,
+	type UseSyncTerminalOptions,
+	type UseSyncTerminalReturn,
+	useSyncTerminal,
 } from './use-sync-terminal'
 
 // ---------------------------------------------------------------------------

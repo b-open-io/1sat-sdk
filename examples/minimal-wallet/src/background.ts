@@ -8,13 +8,13 @@
 import {
 	type BalanceResult,
 	type ConnectResult,
+	createBackgroundHandler,
+	keepAlive,
+	openApprovalPopup,
 	type SignMessageResult,
 	UnauthorizedError,
 	UserRejectedError,
 	type Utxo,
-	createBackgroundHandler,
-	keepAlive,
-	openApprovalPopup,
 } from '@1sat/extension'
 import { KeyStore } from '@1sat/extension/keys'
 import { BSM } from '@bsv/sdk'

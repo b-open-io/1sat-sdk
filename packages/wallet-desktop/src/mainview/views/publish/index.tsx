@@ -1,4 +1,3 @@
-import { cn } from '@/lib/utils'
 import {
 	AlertCircle,
 	AlertTriangle,
@@ -26,6 +25,7 @@ import {
 	X,
 } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { cn } from '@/lib/utils'
 import type { OpnsNameInfo } from '../../../shared/types'
 import { Button } from '../../components/ui/button'
 import { rpc } from '../../rpc'

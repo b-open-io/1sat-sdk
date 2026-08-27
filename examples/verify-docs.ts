@@ -7,30 +7,13 @@
  * Usage:
  *   bun run examples/verify-docs.ts
  */
-import {
-	ErrorCodes,
-	InsufficientFundsError,
-	OneSatBrowserProvider,
-	type OneSatConfig,
-	OneSatError,
-	PopupBlockedError,
-	PopupClosedError,
-	RpcMethods,
-	TimeoutError,
-	UserRejectedError,
-	WalletLockedError,
-	WalletNotConnectedError,
-	createOneSat,
-	fromErrorResponse,
-	getInjectedOneSat,
-	isOneSatAvailable,
-	isOneSatInjected,
-	waitForOneSat,
-} from '../packages/connect/src/index'
 
 // Type-only re-exports verified at compile time — if any is missing, tsc fails.
 import type {
 	BalanceResult,
+	CancelListingRequest,
+	ConnectResult,
+	CreateListingRequest,
 	// CWI transport types
 	CWIHandshakeReason,
 	CWIRequestMessage,
@@ -43,14 +26,11 @@ import type {
 	CWITransportEventHandler,
 	CWITransportName,
 	CWIWalletStatus,
-	CancelListingRequest,
-	ConnectResult,
-	CreateListingRequest,
 	EventHandler,
 	InscribeRequest,
 	InscribeResult,
-	ListOptions,
 	ListingResult,
+	ListOptions,
 	MobileFallbackMode,
 	OneSatEvent,
 	OneSatProvider,
@@ -66,6 +46,26 @@ import type {
 	TransferTokenRequest,
 	TransportMode,
 	Utxo,
+} from '../packages/connect/src/index'
+import {
+	createOneSat,
+	ErrorCodes,
+	fromErrorResponse,
+	getInjectedOneSat,
+	InsufficientFundsError,
+	isOneSatAvailable,
+	isOneSatInjected,
+	OneSatBrowserProvider,
+	type OneSatConfig,
+	OneSatError,
+	PopupBlockedError,
+	PopupClosedError,
+	RpcMethods,
+	TimeoutError,
+	UserRejectedError,
+	WalletLockedError,
+	WalletNotConnectedError,
+	waitForOneSat,
 } from '../packages/connect/src/index'
 
 // Reference every type so biome sees them as used

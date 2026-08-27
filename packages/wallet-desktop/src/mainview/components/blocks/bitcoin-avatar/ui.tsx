@@ -1,7 +1,7 @@
 'use client'
 
-import { cn } from '@/lib/utils'
 import Avatar, { shadcnColorPrefixColors } from 'sigma-avatars'
+import { cn } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // Types

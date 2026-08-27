@@ -9,7 +9,7 @@ import { type AddressDerivation, BRC29_PROTOCOL_ID } from '@1sat/types'
 import { P2PKH } from '@bsv/sdk'
 
 // Re-export from @1sat/types for backwards compatibility
-export { BRC29_PROTOCOL_ID, type AddressDerivation }
+export { type AddressDerivation, BRC29_PROTOCOL_ID }
 
 /**
  * AddressManager manages BRC-29 receive addresses.

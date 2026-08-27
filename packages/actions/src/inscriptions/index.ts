@@ -6,10 +6,9 @@
 
 import { Inscription, MAP as MAPTemplate } from '@1sat/templates'
 import type { Destination } from '@1sat/types'
-import { P1SAT_INTENTS, P1SAT_PROTOCOL, buildActionIdLabel } from '@1sat/types'
+import { buildActionIdLabel, P1SAT_INTENTS, P1SAT_PROTOCOL } from '@1sat/types'
 import { Beef, Hash, type LockingScript, Script, Utils } from '@bsv/sdk'
 import { prepareP1SatArgs, sigmaAnchorKeyId } from '../apply'
-import { appendSigmaPlaceholder } from '../signing/sigma'
 import {
 	DEFAULT_STREAM_CHUNK_SIZE,
 	MAX_INSCRIPTION_BYTES,
@@ -17,6 +16,7 @@ import {
 	ORDFS_STREAM_PARAM,
 	ORDINALS_BASKET,
 } from '../constants'
+import { appendSigmaPlaceholder } from '../signing/sigma'
 import type { Action, ActionOptions, OneSatContext } from '../types'
 import {
 	ensureActionId,

@@ -11,6 +11,13 @@
  */
 
 export {
+	type BuildCosignDestinationInput,
+	type BuildCosignDestinationResult,
+	buildCosignDestination,
+} from './buildDestination'
+export { finalizeCosignBsv21Transfer } from './finalize'
+export { prepareCosignBsv21Transfer } from './prepare'
+export {
 	COSIGN_DEFAULT_SIGHASH,
 	COSIGN_PROTOCOL_ID,
 	type CosignOwnerSig,
@@ -28,10 +35,3 @@ export {
 	type PrepareCosignBsv21TransferInput,
 	type PrepareCosignBsv21TransferResult,
 } from './types'
-export { prepareCosignBsv21Transfer } from './prepare'
-export { finalizeCosignBsv21Transfer } from './finalize'
-export {
-	buildCosignDestination,
-	type BuildCosignDestinationInput,
-	type BuildCosignDestinationResult,
-} from './buildDestination'

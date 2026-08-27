@@ -11,12 +11,15 @@
  * SMALLINT 0/1 to match the validate-helpers' coercion pattern exactly.
  */
 
-import { Beef, Transaction as BsvTransaction } from '@bsv/sdk'
 import type { ListActionsResult, ListOutputsResult, Validation } from '@bsv/sdk'
-import { WERR_UNAUTHORIZED } from '@bsv/wallet-toolbox/out/src/sdk/WERR_errors.js'
-import { WERR_INVALID_PARAMETER } from '@bsv/wallet-toolbox/out/src/sdk/WERR_errors.js'
-import { WERR_INTERNAL } from '@bsv/wallet-toolbox/out/src/sdk/WERR_errors.js'
-import { WERR_NOT_IMPLEMENTED } from '@bsv/wallet-toolbox/out/src/sdk/WERR_errors.js'
+import { Beef, Transaction as BsvTransaction } from '@bsv/sdk'
+import {
+	applyBrc153ReferenceLabel,
+	makeBrc114ActionTimeLabel,
+	parseBrc114ActionTimeLabels,
+} from '@bsv/wallet-toolbox'
+import type { EntityTimeStamp } from '@bsv/wallet-toolbox/out/src/sdk/types.js'
+import { isListActionsSpecOp } from '@bsv/wallet-toolbox/out/src/sdk/types.js'
 import type {
 	AuthId,
 	FindCertificateFieldsArgs,
@@ -25,9 +28,9 @@ import type {
 	FindForUserSincePagedArgs,
 	FindMonitorEventsArgs,
 	FindOutputBasketsArgs,
+	FindOutputsArgs,
 	FindOutputTagMapsArgs,
 	FindOutputTagsArgs,
-	FindOutputsArgs,
 	FindProvenTxReqsArgs,
 	FindProvenTxsArgs,
 	FindSyncStatesArgs,
@@ -40,18 +43,20 @@ import type {
 	PurgeResults,
 	TrxToken,
 } from '@bsv/wallet-toolbox/out/src/sdk/WalletStorage.interfaces.js'
-import type { EntityTimeStamp } from '@bsv/wallet-toolbox/out/src/sdk/types.js'
-import { isListActionsSpecOp } from '@bsv/wallet-toolbox/out/src/sdk/types.js'
+import {
+	WERR_INTERNAL,
+	WERR_INVALID_PARAMETER,
+	WERR_NOT_IMPLEMENTED,
+	WERR_UNAUTHORIZED,
+} from '@bsv/wallet-toolbox/out/src/sdk/WERR_errors.js'
+import { getLabelToSpecOp } from '@bsv/wallet-toolbox/out/src/storage/methods/ListActionsSpecOp.js'
+import { getListOutputsSpecOp } from '@bsv/wallet-toolbox/out/src/storage/methods/ListOutputsSpecOp.js'
+import type { AdminStatsResult } from '@bsv/wallet-toolbox/out/src/storage/StorageProvider.js'
 import {
 	StorageProvider,
 	type StorageProviderOptions,
 } from '@bsv/wallet-toolbox/out/src/storage/StorageProvider.js'
-import type { AdminStatsResult } from '@bsv/wallet-toolbox/out/src/storage/StorageProvider.js'
 import type { DBType } from '@bsv/wallet-toolbox/out/src/storage/StorageReader.js'
-import { getLabelToSpecOp } from '@bsv/wallet-toolbox/out/src/storage/methods/ListActionsSpecOp.js'
-import { getListOutputsSpecOp } from '@bsv/wallet-toolbox/out/src/storage/methods/ListOutputsSpecOp.js'
-import { outputColumnsWithoutLockingScript } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/TableOutput.js'
-import { transactionColumnsWithoutRawTx } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/TableTransaction.js'
 import type {
 	TableCertificate,
 	TableCertificateField,
@@ -71,11 +76,8 @@ import type {
 	TableTxLabelMap,
 	TableUser,
 } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/index.js'
-import {
-	applyBrc153ReferenceLabel,
-	makeBrc114ActionTimeLabel,
-	parseBrc114ActionTimeLabels,
-} from '@bsv/wallet-toolbox'
+import { outputColumnsWithoutLockingScript } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/TableOutput.js'
+import { transactionColumnsWithoutRawTx } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/TableTransaction.js'
 import {
 	verifyId,
 	verifyOneOrNone,
@@ -298,12 +300,13 @@ export class StoragePg extends StorageProvider {
 			// the override into other pg consumers in the same process.
 			const customTypes = {
 				getTypeParser(oid: number, format?: unknown) {
-					if (oid === 20)
-						return (v: string) => Number.parseInt(v, 10)
-					return (pgMod.types.getTypeParser as unknown as (
-						oid: number,
-						format?: unknown,
-					) => unknown)(oid, format)
+					if (oid === 20) return (v: string) => Number.parseInt(v, 10)
+					return (
+						pgMod.types.getTypeParser as unknown as (
+							oid: number,
+							format?: unknown,
+						) => unknown
+					)(oid, format)
 				},
 			}
 			this.pool = new pgMod.Pool({
@@ -366,7 +369,9 @@ export class StoragePg extends StorageProvider {
 		const existingRes = await exec.query<{ name: string }>(
 			'SELECT name FROM knex_migrations',
 		)
-		const existingMigrations = new Set<string>(existingRes.rows.map((r) => r.name))
+		const existingMigrations = new Set<string>(
+			existingRes.rows.map((r) => r.name),
+		)
 
 		const migrations = this.getMigrationDefinitions(
 			storageName,
@@ -378,7 +383,8 @@ export class StoragePg extends StorageProvider {
 		const batchRes = await exec.query<{ maxbatch: number | null }>(
 			'SELECT MAX(batch) AS maxbatch FROM knex_migrations',
 		)
-		if (batchRes.rows[0]?.maxbatch != null) batch = Number(batchRes.rows[0].maxbatch)
+		if (batchRes.rows[0]?.maxbatch != null)
+			batch = Number(batchRes.rows[0].maxbatch)
 		batch++
 
 		for (const name of sortedNames) {
@@ -441,10 +447,16 @@ export class StoragePg extends StorageProvider {
 	private getMigrationDefinitions(
 		storageName: string,
 		storageIdentityKey: string,
-	): Record<string, { up: (e: Executor) => Promise<void>; down: (e: Executor) => Promise<void> }> {
+	): Record<
+		string,
+		{ up: (e: Executor) => Promise<void>; down: (e: Executor) => Promise<void> }
+	> {
 		const migrations: Record<
 			string,
-			{ up: (e: Executor) => Promise<void>; down: (e: Executor) => Promise<void> }
+			{
+				up: (e: Executor) => Promise<void>
+				down: (e: Executor) => Promise<void>
+			}
 		> = {}
 
 		migrations['2024-12-26-001 initial migration'] = {
@@ -740,7 +752,9 @@ export class StoragePg extends StorageProvider {
 				)
 			},
 			down: async (db) => {
-				await db.query(`ALTER TABLE users DROP COLUMN IF EXISTS "activeStorage"`)
+				await db.query(
+					`ALTER TABLE users DROP COLUMN IF EXISTS "activeStorage"`,
+				)
 			},
 		}
 
@@ -829,9 +843,15 @@ export class StoragePg extends StorageProvider {
 			},
 			down: async (db) => {
 				await db.query(`DROP INDEX IF EXISTS idx_tx_labels_map_tx_deleted`)
-				await db.query(`DROP INDEX IF EXISTS idx_output_tags_map_output_deleted_tag`)
-				await db.query(`DROP INDEX IF EXISTS idx_outputs_user_basket_spendable_outputid`)
-				await db.query(`DROP INDEX IF EXISTS idx_outputs_user_spendable_outputid`)
+				await db.query(
+					`DROP INDEX IF EXISTS idx_output_tags_map_output_deleted_tag`,
+				)
+				await db.query(
+					`DROP INDEX IF EXISTS idx_outputs_user_basket_spendable_outputid`,
+				)
+				await db.query(
+					`DROP INDEX IF EXISTS idx_outputs_user_spendable_outputid`,
+				)
 			},
 		}
 
@@ -846,7 +866,9 @@ export class StoragePg extends StorageProvider {
 			},
 			down: async (db) => {
 				await db.query(`DROP INDEX IF EXISTS idx_outputs_spentby`)
-				await db.query(`DROP INDEX IF EXISTS idx_outputs_user_basket_spendable_satoshis`)
+				await db.query(
+					`DROP INDEX IF EXISTS idx_outputs_user_basket_spendable_satoshis`,
+				)
 			},
 		}
 
@@ -1001,7 +1023,10 @@ export class StoragePg extends StorageProvider {
 		trx?: PgTrxToken,
 	): Promise<T[]> {
 		this.whenLastAccess = new Date()
-		const r = await this.exec(trx).query<T>(convertPlaceholders(sql), params as unknown[])
+		const r = await this.exec(trx).query<T>(
+			convertPlaceholders(sql),
+			params as unknown[],
+		)
 		return r.rows
 	}
 
@@ -1011,7 +1036,10 @@ export class StoragePg extends StorageProvider {
 		trx?: PgTrxToken,
 	): Promise<T | null> {
 		this.whenLastAccess = new Date()
-		const r = await this.exec(trx).query<T>(convertPlaceholders(sql), params as unknown[])
+		const r = await this.exec(trx).query<T>(
+			convertPlaceholders(sql),
+			params as unknown[],
+		)
 		return r.rows[0] ?? null
 	}
 
@@ -1233,7 +1261,9 @@ export class StoragePg extends StorageProvider {
 		// null is preserved and bound as SQL NULL — matches prior behavior,
 		// so schema NOT NULL violations surface instead of being silently
 		// rewritten to DEFAULT.
-		const filteredKeys = Object.keys(scoped).filter((k) => scoped[k] !== undefined)
+		const filteredKeys = Object.keys(scoped).filter(
+			(k) => scoped[k] !== undefined,
+		)
 		if (filteredKeys.length === 0)
 			throw new WERR_INTERNAL(`Cannot insert empty entity into ${table}`)
 
@@ -1310,9 +1340,7 @@ export class StoragePg extends StorageProvider {
 		return new Date()
 	}
 
-	override validateEntityDate(
-		date: Date | string | number,
-	): Date | string {
+	override validateEntityDate(date: Date | string | number): Date | string {
 		// pg driver accepts Date objects directly for TIMESTAMPTZ columns.
 		return this.validateDate(date)
 	}
@@ -1547,10 +1575,7 @@ export class StoragePg extends StorageProvider {
 		)
 	}
 
-	async getProvenOrRawTx(
-		txid: string,
-		trx?: TrxToken,
-	): Promise<ProvenOrRawTx> {
+	async getProvenOrRawTx(txid: string, trx?: TrxToken): Promise<ProvenOrRawTx> {
 		const r: ProvenOrRawTx = {
 			proven: undefined,
 			rawTx: undefined,
@@ -1592,7 +1617,7 @@ export class StoragePg extends StorageProvider {
 		if (!txid) return undefined
 		if (!this.isAvailable()) await this.makeAvailable()
 
-		let rawTx: number[] | undefined = undefined
+		let rawTx: number[] | undefined
 		if (Number.isInteger(offset) && Number.isInteger(length)) {
 			let row = await this.getSql<{ rawTx: Buffer }>(
 				`SELECT ${this.dbTypeSubstring('"rawTx"', offset! + 1, length!)} as "rawTx" FROM proven_txs WHERE txid = ?`,
@@ -1648,7 +1673,11 @@ export class StoragePg extends StorageProvider {
 		}
 
 		return this.validateEntities(
-			(await this.allSql(sql, params, args.trx as PgTrxToken | undefined)) as unknown as TableProvenTx[],
+			(await this.allSql(
+				sql,
+				params,
+				args.trx as PgTrxToken | undefined,
+			)) as unknown as TableProvenTx[],
 		)
 	}
 
@@ -1679,7 +1708,11 @@ export class StoragePg extends StorageProvider {
 		}
 
 		return this.validateEntities(
-			(await this.allSql(sql, params, args.trx as PgTrxToken | undefined)) as unknown as TableProvenTxReq[],
+			(await this.allSql(
+				sql,
+				params,
+				args.trx as PgTrxToken | undefined,
+			)) as unknown as TableProvenTxReq[],
 			undefined,
 			['notified'],
 		)
@@ -1712,7 +1745,11 @@ export class StoragePg extends StorageProvider {
 		}
 
 		return this.validateEntities(
-			(await this.allSql(sql, params, args.trx as PgTrxToken | undefined)) as unknown as TableTxLabelMap[],
+			(await this.allSql(
+				sql,
+				params,
+				args.trx as PgTrxToken | undefined,
+			)) as unknown as TableTxLabelMap[],
 			undefined,
 			['isDeleted'],
 		)
@@ -1745,7 +1782,11 @@ export class StoragePg extends StorageProvider {
 		}
 
 		return this.validateEntities(
-			(await this.allSql(sql, params, args.trx as PgTrxToken | undefined)) as unknown as TableOutputTagMap[],
+			(await this.allSql(
+				sql,
+				params,
+				args.trx as PgTrxToken | undefined,
+			)) as unknown as TableOutputTagMap[],
 			undefined,
 			['isDeleted'],
 		)
@@ -1756,9 +1797,16 @@ export class StoragePg extends StorageProvider {
 	// -----------------------------------------------------------------------
 
 	async insertProvenTx(tx: TableProvenTx, trx?: TrxToken): Promise<number> {
-		const e = (await this.validateEntityForInsert(tx, trx)) as Record<string, unknown>
+		const e = (await this.validateEntityForInsert(tx, trx)) as Record<
+			string,
+			unknown
+		>
 		if (e.provenTxId === 0) e.provenTxId = undefined
-		const id = await this.insertRow('proven_txs', e, trx as PgTrxToken | undefined)
+		const id = await this.insertRow(
+			'proven_txs',
+			e,
+			trx as PgTrxToken | undefined,
+		)
 		tx.provenTxId = id
 		return id
 	}
@@ -1767,15 +1815,25 @@ export class StoragePg extends StorageProvider {
 		tx: TableProvenTxReq,
 		trx?: TrxToken,
 	): Promise<number> {
-		const e = (await this.validateEntityForInsert(tx, trx)) as Record<string, unknown>
+		const e = (await this.validateEntityForInsert(tx, trx)) as Record<
+			string,
+			unknown
+		>
 		if (e.provenTxReqId === 0) e.provenTxReqId = undefined
-		const id = await this.insertRow('proven_tx_reqs', e, trx as PgTrxToken | undefined)
+		const id = await this.insertRow(
+			'proven_tx_reqs',
+			e,
+			trx as PgTrxToken | undefined,
+		)
 		tx.provenTxReqId = id
 		return id
 	}
 
 	async insertUser(user: TableUser, trx?: TrxToken): Promise<number> {
-		const e = (await this.validateEntityForInsert(user, trx)) as Record<string, unknown>
+		const e = (await this.validateEntityForInsert(user, trx)) as Record<
+			string,
+			unknown
+		>
 		if (e.userId === 0) e.userId = undefined
 		const id = await this.insertRow('users', e, trx as PgTrxToken | undefined)
 		user.userId = id
@@ -1806,7 +1864,11 @@ export class StoragePg extends StorageProvider {
 		if (e.logger) e.logger = undefined
 		const fields = e.fields as TableCertificateField[] | undefined
 		if (e.fields) e.fields = undefined
-		const id = await this.insertRow('certificates', e, trx as PgTrxToken | undefined)
+		const id = await this.insertRow(
+			'certificates',
+			e,
+			trx as PgTrxToken | undefined,
+		)
 		certificate.certificateId = id
 		if (fields) {
 			for (const field of fields) {
@@ -1822,7 +1884,10 @@ export class StoragePg extends StorageProvider {
 		certificateField: TableCertificateField,
 		trx?: TrxToken,
 	): Promise<void> {
-		const e = (await this.validateEntityForInsert(certificateField, trx)) as Record<string, unknown>
+		const e = (await this.validateEntityForInsert(
+			certificateField,
+			trx,
+		)) as Record<string, unknown>
 		await this.insertRow('certificate_fields', e, trx as PgTrxToken | undefined)
 	}
 
@@ -1834,7 +1899,11 @@ export class StoragePg extends StorageProvider {
 			'isDeleted',
 		])) as Record<string, unknown>
 		if (e.basketId === 0) e.basketId = undefined
-		const id = await this.insertRow('output_baskets', e, trx as PgTrxToken | undefined)
+		const id = await this.insertRow(
+			'output_baskets',
+			e,
+			trx as PgTrxToken | undefined,
+		)
 		basket.basketId = id
 		return id
 	}
@@ -1843,9 +1912,16 @@ export class StoragePg extends StorageProvider {
 		tx: TableTransaction,
 		trx?: TrxToken,
 	): Promise<number> {
-		const e = (await this.validateEntityForInsert(tx, trx)) as Record<string, unknown>
+		const e = (await this.validateEntityForInsert(tx, trx)) as Record<
+			string,
+			unknown
+		>
 		if (e.transactionId === 0) e.transactionId = undefined
-		const id = await this.insertRow('transactions', e, trx as PgTrxToken | undefined)
+		const id = await this.insertRow(
+			'transactions',
+			e,
+			trx as PgTrxToken | undefined,
+		)
 		tx.transactionId = id
 		return id
 	}
@@ -1854,15 +1930,25 @@ export class StoragePg extends StorageProvider {
 		commission: TableCommission,
 		trx?: TrxToken,
 	): Promise<number> {
-		const e = (await this.validateEntityForInsert(commission, trx)) as Record<string, unknown>
+		const e = (await this.validateEntityForInsert(commission, trx)) as Record<
+			string,
+			unknown
+		>
 		if (e.commissionId === 0) e.commissionId = undefined
-		const id = await this.insertRow('commissions', e, trx as PgTrxToken | undefined)
+		const id = await this.insertRow(
+			'commissions',
+			e,
+			trx as PgTrxToken | undefined,
+		)
 		commission.commissionId = id
 		return id
 	}
 
 	async insertOutput(output: TableOutput, trx?: TrxToken): Promise<number> {
-		const e = (await this.validateEntityForInsert(output, trx)) as Record<string, unknown>
+		const e = (await this.validateEntityForInsert(output, trx)) as Record<
+			string,
+			unknown
+		>
 		if (e.outputId === 0) e.outputId = undefined
 		const id = await this.insertRow('outputs', e, trx as PgTrxToken | undefined)
 		output.outputId = id
@@ -1874,7 +1960,11 @@ export class StoragePg extends StorageProvider {
 			'isDeleted',
 		])) as Record<string, unknown>
 		if (e.outputTagId === 0) e.outputTagId = undefined
-		const id = await this.insertRow('output_tags', e, trx as PgTrxToken | undefined)
+		const id = await this.insertRow(
+			'output_tags',
+			e,
+			trx as PgTrxToken | undefined,
+		)
 		tag.outputTagId = id
 		return id
 	}
@@ -1894,7 +1984,11 @@ export class StoragePg extends StorageProvider {
 			'isDeleted',
 		])) as Record<string, unknown>
 		if (e.txLabelId === 0) e.txLabelId = undefined
-		const id = await this.insertRow('tx_labels', e, trx as PgTrxToken | undefined)
+		const id = await this.insertRow(
+			'tx_labels',
+			e,
+			trx as PgTrxToken | undefined,
+		)
 		label.txLabelId = id
 		return id
 	}
@@ -1913,9 +2007,16 @@ export class StoragePg extends StorageProvider {
 		event: TableMonitorEvent,
 		trx?: TrxToken,
 	): Promise<number> {
-		const e = (await this.validateEntityForInsert(event, trx)) as Record<string, unknown>
+		const e = (await this.validateEntityForInsert(event, trx)) as Record<
+			string,
+			unknown
+		>
 		if (e.id === 0) e.id = undefined
-		const id = await this.insertRow('monitor_events', e, trx as PgTrxToken | undefined)
+		const id = await this.insertRow(
+			'monitor_events',
+			e,
+			trx as PgTrxToken | undefined,
+		)
 		event.id = id
 		return id
 	}
@@ -1931,7 +2032,11 @@ export class StoragePg extends StorageProvider {
 			['init'],
 		)) as Record<string, unknown>
 		if (e.syncStateId === 0) e.syncStateId = undefined
-		const id = await this.insertRow('sync_states', e, trx as PgTrxToken | undefined)
+		const id = await this.insertRow(
+			'sync_states',
+			e,
+			trx as PgTrxToken | undefined,
+		)
 		syncState.syncStateId = id
 		return id
 	}
@@ -2262,7 +2367,10 @@ export class StoragePg extends StorageProvider {
 		args: FindCertificateFieldsArgs,
 	): Promise<TableCertificateField[]> {
 		return this.validateEntities(
-			(await this.selectQuery('certificate_fields', args)) as unknown as TableCertificateField[],
+			(await this.selectQuery(
+				'certificate_fields',
+				args,
+			)) as unknown as TableCertificateField[],
 		)
 	}
 
@@ -2312,7 +2420,10 @@ export class StoragePg extends StorageProvider {
 				'undefined. Commissions may not be found by lockingScript value.',
 			)
 		return this.validateEntities(
-			(await this.selectQuery('commissions', args)) as unknown as TableCommission[],
+			(await this.selectQuery(
+				'commissions',
+				args,
+			)) as unknown as TableCommission[],
 			undefined,
 			['isRedeemed'],
 		)
@@ -2322,7 +2433,10 @@ export class StoragePg extends StorageProvider {
 		args: FindOutputBasketsArgs,
 	): Promise<TableOutputBasket[]> {
 		return this.validateEntities(
-			(await this.selectQuery('output_baskets', args)) as unknown as TableOutputBasket[],
+			(await this.selectQuery(
+				'output_baskets',
+				args,
+			)) as unknown as TableOutputBasket[],
 			undefined,
 			['isDeleted'],
 		)
@@ -2347,12 +2461,16 @@ export class StoragePg extends StorageProvider {
 		}
 		const tagClause = buildOutputTagFilterSql(tagIds, isQueryModeAll)
 		if (tagClause) {
-			extraWhere = extraWhere ? `${extraWhere} AND ${tagClause.sql}` : tagClause.sql
+			extraWhere = extraWhere
+				? `${extraWhere} AND ${tagClause.sql}`
+				: tagClause.sql
 			extraParams.push(...tagClause.params)
 		}
 
 		const columns = args.noScript
-			? outputColumnsWithoutLockingScript.map((c) => `outputs.${this.quoteCol(c)}`)
+			? outputColumnsWithoutLockingScript.map(
+					(c) => `outputs.${this.quoteCol(c)}`,
+				)
 			: undefined
 
 		const r = (await this.selectQuery<QueryResultRow>(
@@ -2394,7 +2512,10 @@ export class StoragePg extends StorageProvider {
 
 	async findOutputTags(args: FindOutputTagsArgs): Promise<TableOutputTag[]> {
 		return this.validateEntities(
-			(await this.selectQuery('output_tags', args)) as unknown as TableOutputTag[],
+			(await this.selectQuery(
+				'output_tags',
+				args,
+			)) as unknown as TableOutputTag[],
 			undefined,
 			['isDeleted'],
 		)
@@ -2453,13 +2574,19 @@ export class StoragePg extends StorageProvider {
 				'undefined. ProvenTxs may not be found by merklePath value.',
 			)
 		return this.validateEntities(
-			(await this.selectQuery('proven_txs', args)) as unknown as TableProvenTx[],
+			(await this.selectQuery(
+				'proven_txs',
+				args,
+			)) as unknown as TableProvenTx[],
 		)
 	}
 
 	async findSyncStates(args: FindSyncStatesArgs): Promise<TableSyncState[]> {
 		return this.validateEntities(
-			(await this.selectQuery('sync_states', args)) as unknown as TableSyncState[],
+			(await this.selectQuery(
+				'sync_states',
+				args,
+			)) as unknown as TableSyncState[],
 			['when'],
 			['init'],
 		)
@@ -2499,12 +2626,16 @@ export class StoragePg extends StorageProvider {
 		}
 		const labelClause = buildTxLabelFilterSql(labelIds, isQueryModeAll)
 		if (labelClause) {
-			extraWhere = extraWhere ? `${extraWhere} AND ${labelClause.sql}` : labelClause.sql
+			extraWhere = extraWhere
+				? `${extraWhere} AND ${labelClause.sql}`
+				: labelClause.sql
 			extraParams.push(...labelClause.params)
 		}
 
 		const columns = args.noRawTx
-			? transactionColumnsWithoutRawTx.map((c) => `transactions.${this.quoteCol(c)}`)
+			? transactionColumnsWithoutRawTx.map(
+					(c) => `transactions.${this.quoteCol(c)}`,
+				)
 			: undefined
 
 		const r = (await this.selectQuery<QueryResultRow>(
@@ -2582,7 +2713,10 @@ export class StoragePg extends StorageProvider {
 		args: FindMonitorEventsArgs,
 	): Promise<TableMonitorEvent[]> {
 		return this.validateEntities(
-			(await this.selectQuery('monitor_events', args)) as unknown as TableMonitorEvent[],
+			(await this.selectQuery(
+				'monitor_events',
+				args,
+			)) as unknown as TableMonitorEvent[],
 			['when'],
 			undefined,
 		)
@@ -2635,7 +2769,9 @@ export class StoragePg extends StorageProvider {
 		}
 		const tagClause = buildOutputTagFilterSql(tagIds, isQueryModeAll)
 		if (tagClause) {
-			extraWhere = extraWhere ? `${extraWhere} AND ${tagClause.sql}` : tagClause.sql
+			extraWhere = extraWhere
+				? `${extraWhere} AND ${tagClause.sql}`
+				: tagClause.sql
 			extraParams.push(...tagClause.params)
 		}
 		return await this.countQuery(
@@ -2713,7 +2849,9 @@ export class StoragePg extends StorageProvider {
 		}
 		const labelClause = buildTxLabelFilterSql(labelIds, isQueryModeAll)
 		if (labelClause) {
-			extraWhere = extraWhere ? `${extraWhere} AND ${labelClause.sql}` : labelClause.sql
+			extraWhere = extraWhere
+				? `${extraWhere} AND ${labelClause.sql}`
+				: labelClause.sql
 			extraParams.push(...labelClause.params)
 		}
 		return await this.countQuery(
@@ -2824,11 +2962,9 @@ export class StoragePg extends StorageProvider {
 			[transactionId],
 			trx as PgTrxToken | undefined,
 		)
-		return this.validateEntities(
-			rows as unknown as TableTxLabel[],
-			undefined,
-			['isDeleted'],
-		)
+		return this.validateEntities(rows as unknown as TableTxLabel[], undefined, [
+			'isDeleted',
+		])
 	}
 
 	async getTagsForOutputId(
@@ -2984,7 +3120,7 @@ export class StoragePg extends StorageProvider {
 		const createdAtTo =
 			actionTimeTo !== undefined ? new Date(actionTimeTo) : undefined
 
-		let specOp: ReturnType<typeof getLabelToSpecOp>[string] | undefined = undefined
+		let specOp: ReturnType<typeof getLabelToSpecOp>[string] | undefined
 		let specOpLabels: string[] = []
 		let labels: string[] = []
 
@@ -3206,7 +3342,7 @@ export class StoragePg extends StorageProvider {
 							const rawTx = await this.getRawTxOfKnownValidTransaction(
 								tx.txid as string,
 							)
-							let bsvTx: BsvTransaction | undefined = undefined
+							let bsvTx: BsvTransaction | undefined
 							if (rawTx) bsvTx = BsvTransaction.fromBinary(rawTx)
 							for (const o of inputs) {
 								await this.extendOutput(o, true, true)
@@ -3260,8 +3396,11 @@ export class StoragePg extends StorageProvider {
 
 		const r: ListOutputsResult = { totalOutputs: 0, outputs: [] }
 
-		let { specOp, basket, tags } = getListOutputsSpecOp(vargs.basket, vargs.tags)
-		let basketId: number | undefined = undefined
+		let { specOp, basket, tags } = getListOutputsSpecOp(
+			vargs.basket,
+			vargs.tags,
+		)
+		let basketId: number | undefined
 		const basketsById: Record<number, TableOutputBasket> = {}
 
 		if (basket) {
@@ -3327,7 +3466,12 @@ export class StoragePg extends StorageProvider {
 			'"spendingDescription"',
 		]
 		if (vargs.includeLockingScripts || specOp?.includeOutputScripts)
-			columns = [...columns, '"lockingScript"', '"scriptLength"', '"scriptOffset"']
+			columns = [
+				...columns,
+				'"lockingScript"',
+				'"scriptLength"',
+				'"scriptOffset"',
+			]
 
 		const noTags = tagIds.length === 0
 		const includeSpent = specOp?.includeSpent ? specOp.includeSpent : false
@@ -3347,7 +3491,9 @@ export class StoragePg extends StorageProvider {
 					whereParts.push('spendable = 1')
 				}
 				whereParts.push(txStatusOk)
-				const row = await this.getSql<{ totalSatoshis: number | string | null }>(
+				const row = await this.getSql<{
+					totalSatoshis: number | string | null
+				}>(
 					`SELECT SUM(satoshis) as "totalSatoshis" FROM outputs WHERE ${whereParts.join(' AND ')}`,
 					params,
 				)

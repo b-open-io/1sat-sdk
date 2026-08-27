@@ -1,5 +1,15 @@
 'use client'
 
+import { useHotkeys } from '@tanstack/react-hotkeys'
+import {
+	Check,
+	ChevronLeft,
+	ChevronRight,
+	ClipboardCopy,
+	Loader2,
+	X,
+} from 'lucide-react'
+import { useMemo } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,16 +23,6 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { useHotkeys } from '@tanstack/react-hotkeys'
-import {
-	Check,
-	ChevronLeft,
-	ChevronRight,
-	ClipboardCopy,
-	Loader2,
-	X,
-} from 'lucide-react'
-import { useMemo } from 'react'
 import { MnemonicGridUi } from './mnemonic-grid-ui'
 import type {
 	MnemonicFlowMode,

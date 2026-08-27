@@ -24,7 +24,11 @@ export interface CapturedCommitment {
 }
 
 /** Kinds of prompts the module asks the host wallet to show. */
-export type PromptKind = 'transaction' | 'signature' | 'protocol' | 'basketAccess'
+export type PromptKind =
+	| 'transaction'
+	| 'signature'
+	| 'protocol'
+	| 'basketAccess'
 
 /**
  * Structured request handed to the wallet's promptHandler.
@@ -77,9 +81,17 @@ export type PromptHandler = (request: PromptRequest) => Promise<boolean>
  */
 export interface VerificationServices {
 	ordfs?: {
-		bulkMetadata?(
-			outpoints: string[],
-		): Promise<Record<string, { contentType?: string; contentLength?: number; origin?: string; map?: Record<string, unknown> } | null>>
+		bulkMetadata?(outpoints: string[]): Promise<
+			Record<
+				string,
+				{
+					contentType?: string
+					contentLength?: number
+					origin?: string
+					map?: Record<string, unknown>
+				} | null
+			>
+		>
 		/**
 		 * Content URL for card thumbnails. Supplied by the injected services so
 		 * previews resolve against the same host the app reads content from.

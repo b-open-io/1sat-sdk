@@ -1,5 +1,3 @@
-import { Empty } from '@/components/ui/empty'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
 	Activity,
 	ArrowDownLeft,
@@ -10,6 +8,8 @@ import {
 	Timer,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { Empty } from '@/components/ui/empty'
+import { Skeleton } from '@/components/ui/skeleton'
 import type {
 	HistoryEntry,
 	LockDataInfo,

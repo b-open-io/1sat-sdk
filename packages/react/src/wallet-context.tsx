@@ -1,18 +1,18 @@
 import {
 	type AvailableProvider,
 	type ConnectWalletResult,
-	type DisconnectReason,
-	type WalletProviderConfig,
-	type WalletSession,
 	connectWallet,
 	createWalletSession,
+	type DisconnectReason,
 	getAvailableProviders,
 	reconnectSigmaWallet,
+	type WalletProviderConfig,
+	type WalletSession,
 } from '@1sat/connect'
 import type { WalletInterface } from '@bsv/sdk'
 import {
-	type ReactNode,
 	createContext,
+	type ReactNode,
 	useCallback,
 	useContext,
 	useEffect,

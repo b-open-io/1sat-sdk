@@ -1,4 +1,4 @@
-import { deriveDepositAddresses, type AddressDerivation } from '@1sat/actions'
+import { type AddressDerivation, deriveDepositAddresses } from '@1sat/actions'
 import { useEffect, useState } from 'react'
 import { useOneSatContext } from './useActions'
 
@@ -10,23 +10,23 @@ const DEPOSIT_ADDRESS_COUNT = 5
  * the same address set under a shared identity key.
  */
 export function useMneeAddresses() {
-  const ctx = useOneSatContext()
-  const [addresses, setAddresses] = useState<string[]>([])
-  const [derivations, setDerivations] = useState<AddressDerivation[]>([])
+	const ctx = useOneSatContext()
+	const [addresses, setAddresses] = useState<string[]>([])
+	const [derivations, setDerivations] = useState<AddressDerivation[]>([])
 
-  useEffect(() => {
-    if (!ctx) return
-    deriveDepositAddresses
-      .execute(ctx, {
-        startIndex: 0,
-        count: DEPOSIT_ADDRESS_COUNT,
-      })
-      .then((res) => {
-        setDerivations(res.derivations)
-        setAddresses(res.derivations.map((d) => d.address))
-      })
-      .catch(() => {})
-  }, [ctx])
+	useEffect(() => {
+		if (!ctx) return
+		deriveDepositAddresses
+			.execute(ctx, {
+				startIndex: 0,
+				count: DEPOSIT_ADDRESS_COUNT,
+			})
+			.then((res) => {
+				setDerivations(res.derivations)
+				setAddresses(res.derivations.map((d) => d.address))
+			})
+			.catch(() => {})
+	}, [ctx])
 
-  return { addresses, derivations }
+	return { addresses, derivations }
 }

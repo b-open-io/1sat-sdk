@@ -1,21 +1,21 @@
 import {
+	type ListOrdinalsResult,
 	listOrdinals,
 	ONESAT_MAINNET_CONTENT_URL,
-	type ListOrdinalsResult,
 } from '@1sat/actions'
 import { readAssetIdTag } from '@1sat/types'
+import type { WalletOutput } from '@bsv/sdk'
 import { useEffect, useState } from 'react'
+import { useLog } from './LogContext'
 import {
-	card,
-	heading,
 	button,
 	buttonDisabled,
+	card,
 	errorText,
+	heading,
 	mono,
 } from './styles'
-import { useLog } from './LogContext'
 import { useOneSatContext } from './useActions'
-import type { WalletOutput } from '@bsv/sdk'
 
 function getTagValue(
 	tags: string[] | undefined,
@@ -129,9 +129,7 @@ export function OrdinalsList() {
 								)}
 								<div style={mono}>{ord.outpoint}</div>
 								<div style={metaStyle}>
-									{contentType && (
-										<span style={badgeStyle}>{contentType}</span>
-									)}
+									{contentType && <span style={badgeStyle}>{contentType}</span>}
 									<span>{ord.spendable ? 'spendable' : 'locked'}</span>
 									{origin && origin !== ord.outpoint && (
 										<span>origin: {origin.slice(0, 12)}...</span>

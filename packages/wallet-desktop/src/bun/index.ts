@@ -9,8 +9,8 @@ import Electrobun, {
 	ApplicationMenu,
 	BrowserView,
 	BrowserWindow,
-	Utils,
 	Updater,
+	Utils,
 } from 'electrobun/bun'
 import { createLogger } from 'evlog'
 import type { WalletDesktopRPC } from '../shared/types'

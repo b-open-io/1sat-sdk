@@ -1,67 +1,66 @@
 // Main app component
-export { SweepApp, type SweepAppProps } from './components/SweepApp'
+
+export {
+	Bsv20Section,
+	Bsv21Section,
+	FundingSection,
+	LockedSection,
+	OrdinalsSection,
+	RunSection,
+} from './components/asset-preview'
 
 // Feature components
 export { ConnectWallet } from './components/connect-wallet'
-export { WifInput } from './components/wif-input'
-export {
-	FundingSection,
-	OrdinalsSection,
-	Bsv21Section,
-	Bsv20Section,
-	LockedSection,
-	RunSection,
-} from './components/asset-preview'
 export { OpnsSection } from './components/opns-section'
-export { TxHistory, type TxRecord } from './components/tx-history'
+export { SweepApp, type SweepAppProps } from './components/SweepApp'
 export { SweepProgress } from './components/sweep-progress'
-
+export { TxHistory, type TxRecord } from './components/tx-history'
 // UI primitives
 export { Badge, badgeVariants } from './components/ui/badge'
 export { Button, buttonVariants } from './components/ui/button'
 export {
 	Card,
-	CardHeader,
-	CardFooter,
-	CardTitle,
 	CardAction,
-	CardDescription,
 	CardContent,
+	CardDescription,
+	CardFooter,
+	CardHeader,
+	CardTitle,
 } from './components/ui/card'
 export { Input } from './components/ui/input'
-export { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs'
-
-// Lib
-export { configureServices, getServices } from './lib/services'
+export { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
+export { WifInput } from './components/wif-input'
 export {
-	connectWallet,
-	getWallet,
-	getIdentityKey,
-	getProvider,
-	disconnectWallet,
-	isConnected,
-} from './lib/wallet'
+	type LegacySendResult,
+	legacyBurnOrdinals,
+	legacySendBsv,
+	legacySendOrdinals,
+} from './lib/legacy-send'
 export {
 	deriveAddress,
+	type EnrichedOrdinal,
+	type ScannedAssets,
+	type ScanProgress,
 	scanAddress,
 	scanAddresses,
-	type ScannedAssets,
-	type EnrichedOrdinal,
 	type TokenBalance,
-	type ScanProgress,
 } from './lib/scanner'
+// Lib
+export { configureServices, getServices } from './lib/services'
 export {
 	executeSweep,
 	SWEEP_BATCH_SIZE,
 	type SweepResult,
 } from './lib/sweeper'
-export {
-	legacySendBsv,
-	legacySendOrdinals,
-	legacyBurnOrdinals,
-	type LegacySendResult,
-} from './lib/legacy-send'
 export { cn, formatSats, formatTokenAmount, truncate } from './lib/utils'
+export {
+	connectWallet,
+	disconnectWallet,
+	getIdentityKey,
+	getProvider,
+	getWallet,
+	isConnected,
+} from './lib/wallet'
 
 // Types
 export type { LegacyKeys } from './types'

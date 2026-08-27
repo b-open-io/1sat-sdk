@@ -2,8 +2,8 @@ import {
 	type IPermissionStore,
 	type ListGrantsFilter,
 	type PermissionKey,
-	type StoredGrant,
 	permissionKeyToString,
+	type StoredGrant,
 } from '@1sat/wallet'
 
 const DEFAULT_DATABASE_NAME = '1sat-wallet-permissions'

@@ -11,15 +11,15 @@ import {
 
 export { SweepWalletUi, type SweepWalletUiProps } from './sweep-wallet-ui'
 export {
-	useSweepWallet,
 	type ScanResult,
-	type SweepResult,
-	type SweepStep,
 	type SweepFundingUtxo,
 	type SweepOrdinalUtxo,
+	type SweepResult,
+	type SweepStep,
 	type SweepTokenGroup,
 	type UseSweepWalletOptions,
 	type UseSweepWalletReturn,
+	useSweepWallet,
 } from './use-sweep-wallet'
 
 // ---------------------------------------------------------------------------

@@ -1,4 +1,22 @@
 import {
+	CheckCircle2,
+	Download,
+	ExternalLink,
+	Globe,
+	Info,
+	Loader2,
+	Monitor,
+	Moon,
+	RefreshCw,
+	RotateCcw,
+	ShieldCheck,
+	Sun,
+	Trash2,
+	XCircle,
+} from 'lucide-react'
+import { Switch } from 'radix-ui'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import {
 	type ScanResult,
 	type SweepResult,
 	SweepWallet,
@@ -30,33 +48,15 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
-	CheckCircle2,
-	Download,
-	ExternalLink,
-	Globe,
-	Info,
-	Loader2,
-	Monitor,
-	Moon,
-	RefreshCw,
-	RotateCcw,
-	ShieldCheck,
-	Sun,
-	Trash2,
-	XCircle,
-} from 'lucide-react'
-import { Switch } from 'radix-ui'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import {
 	type BrowserSettings,
-	STACK_URL as STACK_BASE_URL,
+	loadBrowserSettings,
 	type SearchMode,
-	WALLET_HTTPS_PORT,
+	STACK_URL as STACK_BASE_URL,
+	saveBrowserSettings,
 	WALLET_HTTP_PORT,
 	WALLET_HTTP_URL,
+	WALLET_HTTPS_PORT,
 	WALLET_MCP_PORT,
-	loadBrowserSettings,
-	saveBrowserSettings,
 } from '../../../shared/constants'
 import type { AppVersionInfo, UpdateStatusPayload } from '../../../shared/types'
 import { type AppearanceMode, useAppearance } from '../../hooks/use-appearance'

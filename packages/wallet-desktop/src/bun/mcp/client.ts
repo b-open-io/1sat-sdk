@@ -4,7 +4,7 @@
  * Connects to the local MCP server on :3322 with BRC-31 authentication.
  * Provides tools for use with the AI SDK's streamText().
  */
-import { type MCPClient, createMCPClient } from '@ai-sdk/mcp'
+import { createMCPClient, type MCPClient } from '@ai-sdk/mcp'
 import {
 	clearSession,
 	ensureSession,

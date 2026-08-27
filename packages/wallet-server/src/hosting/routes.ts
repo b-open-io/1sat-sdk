@@ -12,9 +12,9 @@
 
 import {
 	HOSTING_BASKET,
-	P1SAT_PROTOCOL,
 	hostingExpTag,
 	hostingPayerTag,
+	P1SAT_PROTOCOL,
 	readHostingExp,
 } from '@1sat/types'
 import {

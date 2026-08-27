@@ -156,7 +156,8 @@ function makeMockWallet(identityKey: PrivateKey): WalletInterface {
 			const beefObj = new Beef()
 			// Merge any source txs we have.
 			for (const inp of tx.inputs) {
-				if (inp.sourceTransaction) beefObj.mergeTransaction(inp.sourceTransaction)
+				if (inp.sourceTransaction)
+					beefObj.mergeTransaction(inp.sourceTransaction)
 			}
 			beefObj.mergeTransaction(tx)
 			const txid = tx.id('hex')
@@ -308,9 +309,7 @@ describe('prepareCosignBsv21Transfer', () => {
 				tokenId: TOKEN_ID,
 				tokenInputs: [{ outpoint: `${plainTx.id('hex')}.0` }],
 				inputBEEF: Array.from(inputBEEF),
-				destinations: [
-					{ recipientIdentityKey: 'rr'.repeat(33), amount: '1' },
-				],
+				destinations: [{ recipientIdentityKey: 'rr'.repeat(33), amount: '1' }],
 				senderIdentityKey: 'aa',
 				sessionStore,
 			}),
@@ -346,9 +345,7 @@ describe('prepareCosignBsv21Transfer', () => {
 				tokenId: TOKEN_ID,
 				tokenInputs: [{ outpoint: `${sourceTx.id('hex')}.0` }],
 				inputBEEF: Array.from(inputBEEF),
-				destinations: [
-					{ recipientIdentityKey: 'rr'.repeat(33), amount: '50' },
-				],
+				destinations: [{ recipientIdentityKey: 'rr'.repeat(33), amount: '50' }],
 				senderIdentityKey: 'aa',
 				sessionStore,
 			}),

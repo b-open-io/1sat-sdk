@@ -1,5 +1,17 @@
 // Services
-export { OneSatServices } from '@1sat/client'
+// API Clients
+export {
+	ArcadeClient,
+	BaseClient,
+	BeefClient,
+	Bsv21Client,
+	ChaintracksClient,
+	OneSatServices,
+	OrdfsClient,
+	OverlayClient,
+	OwnerClient,
+	TxoClient,
+} from '@1sat/client'
 export type {
 	Bsv21OutputData,
 	Bsv21TokenData,
@@ -8,132 +20,102 @@ export type {
 	OrdfsMetadata,
 	SyncOutput,
 } from '@1sat/types'
-
-// Signers
-export { ReadOnlySigner } from './signers/ReadOnlySigner'
-
-// API Clients
-export {
-	ArcadeClient,
-	BaseClient,
-	BeefClient,
-	Bsv21Client,
-	ChaintracksClient,
-	OrdfsClient,
-	OwnerClient,
-	OverlayClient,
-	TxoClient,
-} from '@1sat/client'
-
-// Indexers
-export {
-	Bsv21Indexer,
-	CosignIndexer,
-	deriveFundAddress,
-	FundIndexer,
-	Indexer,
-	InscriptionIndexer,
-	LockIndexer,
-	Listing,
-	MapIndexer,
-	OpNSIndexer,
-	OrdLockIndexer,
-	OriginIndexer,
-	Outpoint,
-	parseAddress,
-	SigmaIndexer,
-	type Bsv21,
-	type CosignData,
-	type File,
-	type IndexData,
-	type IndexSummary,
-	type Inscription,
-	type Origin,
-	type ParseContext,
-	type ParseResult,
-	type Sigma,
-	type Txo,
-} from './indexers'
-
 // Address sync
 export {
+	type AddressDerivation,
 	AddressManager,
 	BRC29_PROTOCOL_ID,
-	type AddressDerivation,
 } from './address-sync'
-
 // Backup
 export {
-	FileBackupProvider,
-	FileRestoreReader,
-	Zip,
-	ZipDeflate,
-	unzip,
 	type BackupManifest,
 	type BackupProgressCallback,
 	type BackupProgressEvent,
+	FileBackupProvider,
+	FileRestoreReader,
 	type Unzipped,
+	unzip,
+	Zip,
+	ZipDeflate,
 } from './backup'
-
 // CWI (Compute With Integrity)
 export {
 	ChromeCWI,
 	CWI_EVENT_NAMES,
 	CWIEventName,
-	EventCWI,
-	createChromeCWI,
-	createCWI,
-	createEventCWI,
-	createSigmaCWI,
-	createWebCWI,
-	isCWIEventName,
 	type CWIRequest,
 	type CWIRequestMessage,
 	type CWIResponse,
 	type CWIResponseDetail,
 	type CWIResponseMessage,
 	type CWITransport,
+	createChromeCWI,
+	createCWI,
+	createEventCWI,
+	createSigmaCWI,
+	createWebCWI,
+	EventCWI,
+	isCWIEventName,
 	type SigmaCWIConfig,
 	type SigmaCWIResult,
 	type WebCWIConfig,
 	type WebCWIResult,
 } from './cwi'
+// Indexers
+export {
+	type Bsv21,
+	Bsv21Indexer,
+	type CosignData,
+	CosignIndexer,
+	deriveFundAddress,
+	type File,
+	FundIndexer,
+	type IndexData,
+	Indexer,
+	type IndexSummary,
+	type Inscription,
+	InscriptionIndexer,
+	Listing,
+	LockIndexer,
+	MapIndexer,
+	OpNSIndexer,
+	OrdLockIndexer,
+	type Origin,
+	OriginIndexer,
+	Outpoint,
+	type ParseContext,
+	type ParseResult,
+	parseAddress,
+	type Sigma,
+	SigmaIndexer,
+	type Txo,
+} from './indexers'
+// Signers
+export { ReadOnlySigner } from './signers/ReadOnlySigner'
 
 // Note: Storage utilities (StorageIdb, WalletStorageManager, Chain) should be
 // imported directly from '@bsv/wallet-toolbox/mobile'
 
-// Factory utilities
-export { parsePrivateKey } from './parsePrivateKey'
-
 // Factory core
 export {
-	createWalletCore,
-	DEFAULT_FEE_MODEL,
-	DEFAULT_CONNECTION_TIMEOUT,
 	type Chain,
+	createWalletCore,
+	DEFAULT_CONNECTION_TIMEOUT,
+	DEFAULT_FEE_MODEL,
 	type TaskStateStore,
 	type WalletCoreConfig,
 	type WalletCoreResult,
 } from './factory'
-
-// 507 auto-retry
-export {
-	installStoragePaymentAutoRetry,
-	StoragePaymentError,
-	type AutoRetryConfig,
-	type StoragePaymentHook,
-	type StoragePaymentRequiredInfo,
-} from './storagePaymentAutoRetry'
-
-// Invalid-req recovery nomination for TaskUnFail
-export {
-	buildReviewInvalidTask,
-	nominateInvalidReqs,
-	type NominatedReq,
-	type NominateInvalidResult,
-	type ReviewInvalidTaskOptions,
-} from './reviewInvalidTask'
-
+// Factory utilities
+export { parsePrivateKey } from './parsePrivateKey'
+export type {
+	IPermissionStore,
+	ListGrantsFilter,
+	LocalWalletPermissionsManagerOptions,
+	PermissionKey,
+	PermissionType,
+	StoredGrant,
+} from './permissions'
 // Permissions — local-storage-backed WalletPermissionsManager
 export {
 	filterGroupedByMissing,
@@ -145,11 +127,19 @@ export {
 	permissionKeysFromGroup,
 	permissionKeyToString,
 } from './permissions'
-export type {
-	IPermissionStore,
-	ListGrantsFilter,
-	LocalWalletPermissionsManagerOptions,
-	PermissionKey,
-	PermissionType,
-	StoredGrant,
-} from './permissions'
+// Invalid-req recovery nomination for TaskUnFail
+export {
+	buildReviewInvalidTask,
+	type NominatedReq,
+	type NominateInvalidResult,
+	nominateInvalidReqs,
+	type ReviewInvalidTaskOptions,
+} from './reviewInvalidTask'
+// 507 auto-retry
+export {
+	type AutoRetryConfig,
+	installStoragePaymentAutoRetry,
+	StoragePaymentError,
+	type StoragePaymentHook,
+	type StoragePaymentRequiredInfo,
+} from './storagePaymentAutoRetry'
