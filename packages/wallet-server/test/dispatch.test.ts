@@ -162,8 +162,11 @@ describe('dispatch', () => {
 			{ method: 'listOutputs', params: [{}, {}], id: 8, identity: IDENTITY },
 		)
 		const listCall = calls.find((c) => c.method === 'listOutputs')
+		expect(listCall).toBeDefined()
 		expect(listCall?.args[0]).toMatchObject({ reqAuthUserId: 42 })
-		expect((listCall?.args[0] as { userId?: number }).userId).toBeUndefined()
+		expect(
+			(listCall?.args[0] as { userId?: number } | undefined)?.userId,
+		).toBeUndefined()
 	})
 
 	test('adminStats rejects non-admin caller', async () => {
