@@ -227,6 +227,7 @@ Per-operation detail lives in sibling skills, not here:
 - Ordinals (transfer, list, purchase): see ../ordinals
 - Tokens (deploy, mint, send, burn): see ../tokens
 - Locks: see ../locks
+- Permission module (host WPM, view scopes): see ../permission-module
 - Message signing (BSM): see ../signing
 - BAP identity (publish, profile, attest): see ../identity
 - Social posts: see ../social
