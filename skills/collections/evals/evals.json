@@ -1,0 +1,74 @@
+{
+  "skill_name": "collections",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "We want to create a new 1Sat collection with @1sat/actions. Can I call mintCollection and mintCollectionItem today and expect the collection overlay to list it? Show me how I would list its items. Do not use tools or edit files.",
+      "expected_output": "Separates the shipped stack rules from current SDK support, warns that current collection actions lack SIGMA, and describes only optional self-hosted collection routes.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "collections-1-sdk-sigma-gap",
+          "text": "The response states that the current mintCollection and mintCollectionItem actions lack SIGMA and therefore do not meet the shipped collection overlay's admission rules.",
+          "type": "qualitative"
+        },
+        {
+          "id": "collections-1-list-route",
+          "text": "The response gives GET /collection/{collectionId}/items as the item-list route and does not claim that the route is currently available on api.1sat.app.",
+          "type": "qualitative"
+        },
+        {
+          "id": "collections-1-deployment-gate",
+          "text": "The response explains that pkg/collection defaults to disabled and that a deployment must enable the module and register collection item topics before collection queries work.",
+          "type": "qualitative"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Review this proposed 1Sat collection design against the shipped 1sat-stack implementation: put collectionId inside the BSV21 JSON payload, accept either AIP or SIGMA, and require every item signer to match the collection root's current owner. Tell me what to change. Do not use tools or edit files.",
+      "expected_output": "Keeps BSV21 collection-agnostic, explains the script-level composition, rejects invented signer/root authority, and states that AIP does not meet current admission.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "collections-2-bsv21-boundary",
+          "text": "The response keeps collection-specific construction outside the generic BSV21 package and explains that collection MAP and SIGMA may be composed at the output-script layer.",
+          "type": "qualitative"
+        },
+        {
+          "id": "collections-2-no-root-authority",
+          "text": "The response states that the shipped overlay records the verified item signer but does not compare it with the collection root signer or current owner.",
+          "type": "qualitative"
+        },
+        {
+          "id": "collections-2-no-aip",
+          "text": "The response states that AIP does not satisfy the shipped overlay's valid-SIGMA admission requirement.",
+          "type": "qualitative"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I want collection items to reuse one image through an ord-fs/json dot entry. What fields actually determine whether each item is admitted, and does transferring an item change the collection index? Do not use tools or edit files.",
+      "expected_output": "Treats ORDFS content as orthogonal, names nested collectionId plus valid SIGMA and one-sat inscription requirements, and explains mint-only indexing.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "collections-3-ordfs-boundary",
+          "text": "The response explains that ORDFS content resolution, including an ord-fs/json dot entry, is independent of collection admission.",
+          "type": "qualitative"
+        },
+        {
+          "id": "collections-3-admission-fields",
+          "text": "The response names all shipped item-admission requirements: an exactly one-satoshi inscription output, collectionItem MAP metadata whose JSON-encoded subTypeData contains collectionId, and valid transaction-bound SIGMA.",
+          "type": "qualitative"
+        },
+        {
+          "id": "collections-3-mint-only",
+          "text": "The response states that the collection index is mint-only and does not follow transfers or change membership when ownership changes.",
+          "type": "qualitative"
+        }
+      ]
+    }
+  ]
+}

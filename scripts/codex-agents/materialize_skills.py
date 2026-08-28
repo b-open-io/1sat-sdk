@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 MANIFEST_FILE = ".1sat-package-skills.json"
-AUTHORED_SKILLS = {"codex-agent-setup"}
+AUTHORED_SKILLS = {"codex-agent-setup", "mintflow", "test-app"}
 TRUE_DISABLE = re.compile(r"(?m)^(disable[-_]model[-_]invocation):\s*true\s*$")
 
 
@@ -146,7 +146,9 @@ def load_manifest(path: Path) -> dict[str, Any]:
 def check(root: Path, rendered: dict[str, dict[str, bytes]], manifest: dict[str, Any]) -> int:
     skills_root = root / "skills"
     problems: list[str] = []
-    expected_names = set(rendered) | AUTHORED_SKILLS
+    expected_names = set(rendered) | {
+        name for name in AUTHORED_SKILLS if (skills_root / name).is_dir()
+    }
     actual_names = {
         path.name
         for path in skills_root.iterdir()

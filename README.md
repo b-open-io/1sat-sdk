@@ -37,10 +37,13 @@ install.
 
 ```bash
 # CLI tool usage and commands
-npx skills add b-open-io/1sat-sdk --skill 1sat-cli
+npx skills add b-open-io/1sat-sdk --skill cli
 
 # Unified BSV indexing API (api.1sat.app)
-npx skills add b-open-io/1sat-sdk --skill 1sat-stack
+npx skills add b-open-io/1sat-sdk --skill stack-api
+
+# 1Sat collection overlay contract and compatibility
+npx skills add b-open-io/1sat-sdk --skill collections
 
 # Wallet popup + React hooks for browser dApps
 npx skills add b-open-io/1sat-sdk --skill dapp-connect
@@ -49,28 +52,28 @@ npx skills add b-open-io/1sat-sdk --skill dapp-connect
 npx skills add b-open-io/1sat-sdk --skill ordinals-marketplace
 
 # BSV21 fungible token operations
-npx skills add b-open-io/1sat-sdk --skill token-operations
+npx skills add b-open-io/1sat-sdk --skill tokens
 
 # Transaction building with BRC-100 actions
-npx skills add b-open-io/1sat-sdk --skill transaction-building
+npx skills add b-open-io/1sat-sdk --skill action-patterns
 
 # Wallet setup (BRC-100, storage, sync)
 npx skills add b-open-io/1sat-sdk --skill wallet-setup
 
 # Mint and inscribe ordinals/NFTs
-npx skills add b-open-io/1sat-sdk --skill wallet-create-ordinals
+npx skills add b-open-io/1sat-sdk --skill ordinals-create
 
 # Time-lock BSV until block height
-npx skills add b-open-io/1sat-sdk --skill timelock
+npx skills add b-open-io/1sat-sdk --skill locks
 
 # Sweep/import from external WIF
-npx skills add b-open-io/1sat-sdk --skill sweep-import
+npx skills add b-open-io/1sat-sdk --skill sweep
 
 # Claim names at 1sat.name; publish and manage them from the wallet
 npx skills add b-open-io/1sat-sdk --skill opns
 
 # Extract inscribed media from blockchain
-npx skills add b-open-io/1sat-sdk --skill extract-blockchain-media
+npx skills add b-open-io/1sat-sdk --skill blockchain-media
 ```
 
 </details>
@@ -98,6 +101,7 @@ bun add @1sat/wallet-browser  # or @1sat/wallet-node
 
 - **Connect** — Wallet popup connection (1sat.market) with extension auto-detection
 - **Ordinals** — Inscribe, transfer, and list NFTs
+- **Collections** — Overlay admission, discovery, item lookup, and SDK compatibility guidance
 - **Tokens** — Full support for BSV20 (tick) and BSV21 (origin) standards
 - **Marketplace** — Create, purchase, and cancel OrdLock listings
 - **Signing** — BSM message signing and Sigma protocol for data attestation

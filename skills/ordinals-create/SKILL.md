@@ -1,6 +1,6 @@
 ---
 name: ordinals-create
-description: "This skill should be used when a user wants to mint, inscribe, or create an ordinal or NFT on BSV blockchain — such as 'mint this image as an ordinal', 'create an NFT on BSV', 'inscribe this file on-chain', 'how do I create an ordinal collection', 'I want to permanently store a file on blockchain', or 'how much does it cost to mint'. Uses @1sat/actions from the 1sat-sdk to construct and broadcast inscription transactions via a BRC-100 wallet."
+description: "This skill should be used when a user wants to mint, inscribe, or create an ordinal or NFT on BSV blockchain — such as 'mint this image as an ordinal', 'create an NFT on BSV', 'inscribe this file on-chain', 'I want to permanently store a file on blockchain', or 'how much does it cost to mint'. Uses @1sat/actions from the 1sat-sdk to construct and broadcast inscription transactions via a BRC-100 wallet. For indexed 1Sat collections, also load the collections skill before recommending an action."
 allowed-tools: "Bash(bun:*)"
 disable-model-invocation: false
 ---
@@ -31,8 +31,11 @@ bun run <SKILL_DIR>/scripts/mint.ts <wif> <file-path> <metadata-json>
 | Action | Description |
 |--------|-------------|
 | `inscribe` | Create a single inscription from base64 content |
+| `listOrdinals` | List owned ordinals after mint (metadata/tags; print `id`) |
 | `mintCollection` | Create a collection parent inscription |
 | `mintCollectionItem` | Create an item inscription linked to a parent collection |
+
+CLI: `ordinals inscribe` (was `ordinals mint`). Marketplace send/sell/buy: see `../ordinals-marketplace/SKILL.md`.
 
 ## Calling Pattern
 
@@ -124,6 +127,12 @@ Minting creates:
 
 A collection is an ordinal inscription carrying MAP metadata with `subType="collection"`; a collection item is an inscription with `subType="collectionItem"` whose `subTypeData.collectionId` points at the parent collection's origin outpoint.
 
+> **Indexer compatibility:** the shipped `1sat-stack` collection overlay also
+> requires valid SIGMA on both roots and items. The current actions below do not
+> add SIGMA, so they create the legacy MAP shape but are not admitted by that
+> overlay. Load `../../client/skills/collections/SKILL.md` and verify the
+> installed SDK before using these helpers for an indexed collection.
+
 ### Create a Collection (`mintCollection`)
 
 ```typescript
@@ -188,15 +197,9 @@ Inscription cost depends on file size:
 
 ## Identity & Provenance
 
-### AIP Signatures for Authorship
-
-Ordinals can include AIP (Author Identity Protocol) signatures to prove authorship via BAP identity. The AIP signature links the ordinal to the creator's BAP identity key — verifiable by anyone on-chain.
-
-```
-OP_RETURN | <inscription data> | "|" | AIP_PREFIX | "BITCOIN_ECDSA" | <signing_address> | <signature>
-```
-
-The signing address resolves to a BAP identity via the overlay, establishing provenance.
+For a transaction-bound authorship signature, use the inscription action's
+`signWithBAP: true` path, which produces SIGMA. AIP is a different protocol and
+does not satisfy the collection overlay's SIGMA admission requirement.
 
 ### NFTs as Subscription Tokens
 
