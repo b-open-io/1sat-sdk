@@ -3,9 +3,9 @@ import {
 	OPNS_BASKET,
 	OPNS_REGISTER_COUNTERPARTY,
 	OPNS_REGISTER_SIG_PLACEHOLDER_LEN,
+	P1SAT_PROTOCOL,
 	buildActionDispatchLabel,
 	buildInputAssetLabel,
-	P1SAT_PROTOCOL,
 	opnsRegisterKeyId,
 } from '@1sat/types'
 import type {
@@ -33,6 +33,23 @@ function mockBaseWallet(): WalletInterface {
 		async createSignature(_args: CreateSignatureArgs) {
 			const sig = new Array(70).fill(0x30)
 			return { signature: sig }
+		},
+		async listOutputs() {
+			return {
+				totalOutputs: 1,
+				outputs: [
+					{
+						satoshis: 1,
+						spendable: true,
+						outpoint: `${'aa'.repeat(32)}.0`,
+						tags: ['id:test-id'],
+						customInstructions: JSON.stringify({
+							protocolID: P1SAT_PROTOCOL,
+							keyID: 'test',
+						}),
+					},
+				],
+			}
 		},
 	} as unknown as WalletInterface
 }
@@ -144,13 +161,6 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 
 	test('dApp prompts then applies on approve', async () => {
 		const wallet = mockBaseWallet()
-		const listWallet = {
-			...wallet,
-			async listOutputs() {
-				return { totalOutputs: 0, outputs: [] }
-			},
-		} as unknown as WalletInterface
-
 		const args = await registerArgs(wallet)
 		const before = args.outputs![0].lockingScript
 		let promptKind = ''
@@ -160,7 +170,10 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 			expect(() => structuredClone(req)).not.toThrow()
 			// Transaction IR: panels built in-module (no raw legs on the wire).
 			const panels = req.payload.panels as
-				| Array<{ title?: string; meta?: Array<{ key?: string; value?: string }> }>
+				| Array<{
+						title?: string
+						meta?: Array<{ key?: string; value?: string }>
+				  }>
 				| undefined
 			promptKind = String(req.payload.title ?? '')
 			legCount = panels?.length ?? 0
@@ -176,7 +189,7 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 			return true
 		}
 		const deps = {
-			wallet: listWallet,
+			wallet,
 			promptHandler,
 			cache: new CommitmentCache(60),
 			schemeId: 'opns' as const,
@@ -197,16 +210,10 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 
 	test('dApp reject does not apply', async () => {
 		const wallet = mockBaseWallet()
-		const listWallet = {
-			...wallet,
-			async listOutputs() {
-				return { totalOutputs: 0, outputs: [] }
-			},
-		} as unknown as WalletInterface
 		const args = await registerArgs(wallet)
 		const before = args.outputs![0].lockingScript
 		const deps = {
-			wallet: listWallet,
+			wallet,
 			promptHandler: async () => false,
 			cache: new CommitmentCache(60),
 			schemeId: 'opns' as const,

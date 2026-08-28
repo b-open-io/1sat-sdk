@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.199
+
+### Changed
+- Apply is the only `id:` stamp; `prepareP1SatArgs` is a no-op.
+- View scopes: collection/app/creator force `tagQueryMode: all`; `id` leaves the caller mode.
+- Sigma inscribe stamps `creator:<signing address>` from the SIGMA tape.
+
 ## 0.0.192
 
 ### Removed

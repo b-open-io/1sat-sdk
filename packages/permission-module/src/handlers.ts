@@ -1,11 +1,11 @@
-import type { PermissionSchemeId } from '@1sat/types'
-import type { IPermissionStore } from '@1sat/wallet'
 import {
+	type ResolvedSpend,
 	embellishCreateActionArgs,
 	finishCreateAction,
-	type ResolvedSpend,
 	spendsFromLabels,
 } from '@1sat/actions'
+import type { PermissionSchemeId } from '@1sat/types'
+import type { IPermissionStore } from '@1sat/wallet'
 import type {
 	CreateActionArgs,
 	CreateActionResult,
@@ -14,10 +14,7 @@ import type {
 	WalletInterface,
 } from '@bsv/sdk'
 import { Transaction } from '@bsv/sdk'
-import {
-	buildTransactionPrompt,
-	type TokenMetaMap,
-} from './buildPromptIntent'
+import { type TokenMetaMap, buildTransactionPrompt } from './buildPromptIntent'
 import type { CommitmentCache } from './commitmentCache'
 import { enrichIntent } from './enrichIntent'
 import { computeHashOutputs } from './hashOutputs'
@@ -128,7 +125,8 @@ async function resolveTokenMeta(
 	for (const leg of enriched.legs) {
 		const id =
 			leg.tokenId ??
-			leg.tags?.find((t) => t.startsWith('bsv21:') && t !== 'bsv21:deploy')
+			leg.tags
+				?.find((t) => t.startsWith('bsv21:') && t !== 'bsv21:deploy')
 				?.slice(6)
 		if (id) ids.add(id)
 	}
@@ -371,5 +369,3 @@ export async function handleGetPublicKeyRequest(
 function isAdmin(deps: HandlerDeps, originator: string): boolean {
 	return !!deps.adminOriginator && originator === deps.adminOriginator
 }
-
-

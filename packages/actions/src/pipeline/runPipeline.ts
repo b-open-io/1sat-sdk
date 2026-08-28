@@ -8,12 +8,11 @@ import {
 	type CompleteSignedActionResult,
 	completeSignedAction,
 } from '../utils/completeSignedAction'
-import { stampManagedOutputIds } from '../utils/createTrackedAction'
 import {
 	type ArgsWithPendingSpends,
+	PENDING_RESOLVED_SPENDS_KEY,
 	type ResolvedSpend,
 	type Spend,
-	PENDING_RESOLVED_SPENDS_KEY,
 	mergeResolvedSpends,
 } from './spendTargets'
 import { buildSpendsForResolved, materializeSpends } from './unlockInput'
@@ -44,8 +43,7 @@ export async function runCreateActionPipeline(
 		options: args.options ? { ...args.options } : undefined,
 	}
 
-	const actionId = stampManagedOutputIds(argsCopy)
-	await applyP1SatCreateAction(wallet, argsCopy)
+	const actionId = await applyP1SatCreateAction(wallet, argsCopy)
 
 	const records = await collectOutputRecords(wallet, argsCopy, spends)
 	if ('error' in records) {
@@ -119,8 +117,7 @@ export async function embellishCreateActionArgs(
 	actionId: string
 	resolvedSpends: ResolvedSpend[]
 }> {
-	const actionId = stampManagedOutputIds(args)
-	await applyP1SatCreateAction(wallet, args)
+	const actionId = await applyP1SatCreateAction(wallet, args)
 
 	const records = await collectOutputRecords(wallet, args, spends)
 	if ('error' in records) {

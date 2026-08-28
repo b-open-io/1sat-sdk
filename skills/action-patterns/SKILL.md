@@ -76,7 +76,7 @@ const createResult = await wallet.createAction({
     lockingScript: '76a914...88ac',
     satoshis: 1,
     outputDescription: 'Transferred ordinal',
-    basket: 'ordinals',
+    basket: '1sat',
     tags: ['type:image/png', 'origin:abc...'],
     customInstructions: JSON.stringify({ protocolID, keyID }),
   }],
@@ -194,18 +194,23 @@ The wallet organizes outputs into baskets:
 
 | Basket | Contents |
 |--------|----------|
-| `ordinals` | Ordinal inscriptions (NFTs) |
+| `1sat` | Ordinal inscriptions (NFTs) |
 | `bsv21` | BSV-21 fungible tokens |
-| `bsocial` | Social protocol outputs (posts, likes, follows) |
-| `locks` | Time-locked BSV |
-| `opns` | OpNS name ordinals |
-| `bap` | BAP identity outputs |
+| `opns` | OpNS names |
+| `lock` | Time-locked BSV |
+| `sigma` | Temporary Sigma inscribe anchors |
+| `bsocial` | Social posts |
+| `bap` | BAP identity |
+| `hosting` | Host receipts |
+| `1sat-deposit` | Inbound BSV queue |
+
+Storage baskets are plain names. `p 1sat …` is **not** a basket: createAction uses labels (`p <scheme> action`, `p <scheme> input id <key>`); `listOutputs` view grants are `p 1sat all|collection|app|creator|id` (rewritten to `1sat`).
 
 Tags on outputs provide metadata for filtering and for the ID-tag BEEF resolution used by two-phase actions:
 
 ```typescript
 const result = await wallet.listOutputs({
-  basket: 'ordinals',
+  basket: '1sat',
   includeTags: true,
   includeCustomInstructions: true,
   include: 'entire transactions', // include BEEF for spending

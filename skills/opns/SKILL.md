@@ -206,7 +206,7 @@ same OpNS-origin plus latest-ORDFS resolution before returning the public key.
 
 ## OpNS Baskets and Tags
 
-OpNS ordinals are stored in the `opns` basket (not `ordinals`):
+OpNS ordinals are stored in the `opns` basket (not `1sat`):
 
 ```typescript
 // List only OpNS names

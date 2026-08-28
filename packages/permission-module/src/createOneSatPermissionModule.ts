@@ -1,7 +1,7 @@
 import {
-	type PermissionSchemeId,
-	PERMISSION_SCHEME_IDS,
 	PERMISSION_SCHEMES,
+	PERMISSION_SCHEME_IDS,
+	type PermissionSchemeId,
 	basketForScheme,
 } from '@1sat/types'
 import type {

@@ -12,5 +12,7 @@ export type ApplyFn = (
  * leftover callers.
  */
 export const P1SAT_APPLY_REGISTRY: Record<string, ApplyFn> = {
-	default: applyP1SatCreateAction,
+	default: async (wallet, args) => {
+		await applyP1SatCreateAction(wallet, args)
+	},
 }

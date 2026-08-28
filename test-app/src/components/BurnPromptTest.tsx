@@ -5,7 +5,6 @@
 import { BSV21 } from '@1sat/templates'
 import {
 	BSV21_BASKET,
-	P1SAT_LABEL,
 	P1SAT_PROTOCOL,
 	buildInputAssetLabel,
 	readAssetIdTag,
@@ -35,38 +34,18 @@ export function BurnPromptTest() {
 		log('info', `burn-test: ${mode}`)
 
 		try {
-			// Prefer plain basket; fall back to legacy p-basket until migrated
-			const baskets = [BSV21_BASKET, 'p 1sat bsv21']
-			let list: Awaited<ReturnType<typeof ctx.wallet.listOutputs>> | null =
-				null
-			let sourceBasket = BSV21_BASKET
-			let utxo:
-				| NonNullable<
-						Awaited<ReturnType<typeof ctx.wallet.listOutputs>>
-				  >['outputs'][0]
-				| undefined
-			for (const basket of baskets) {
-				try {
-					list = await ctx.wallet.listOutputs({
-						basket,
-						includeTags: true,
-						includeCustomInstructions: true,
-						include: 'entire transactions',
-						limit: 50,
-					})
-					utxo = list.outputs.find((o) => {
-						const a = tag(o.tags, 'amt')
-						return a && BigInt(a) >= 2n
-					})
-					if (utxo) {
-						sourceBasket = basket
-						break
-					}
-				} catch {
-					/* basket missing or denied */
-				}
-			}
-			if (!list || !utxo) throw new Error('no bsv21 utxo with amt >= 2')
+			const list = await ctx.wallet.listOutputs({
+				basket: BSV21_BASKET,
+				includeTags: true,
+				includeCustomInstructions: true,
+				include: 'entire transactions',
+				limit: 50,
+			})
+			const utxo = list.outputs.find((o) => {
+				const a = tag(o.tags, 'amt')
+				return a && BigInt(a) >= 2n
+			})
+			if (!utxo) throw new Error('no bsv21 utxo with amt >= 2')
 
 			const tokenId =
 				tag(utxo.tags, 'bsv21') ??
@@ -90,14 +69,8 @@ export function BurnPromptTest() {
 
 			const id = readAssetIdTag(utxo.tags)
 			const labels = [
-				...(flags.useOneSatModule
-					? [
-							sourceBasket === 'bsv21'
-								? 'p bsv21 action'
-								: P1SAT_LABEL,
-						]
-					: []),
-				...(id ? [buildInputAssetLabel(sourceBasket, id)] : []),
+				...(flags.useOneSatModule ? ['p bsv21 action'] : []),
+				...(id ? [buildInputAssetLabel(BSV21_BASKET, id)] : []),
 			]
 
 			const args: CreateActionArgs = {

@@ -140,15 +140,14 @@ which would make the admin-vs-dApp distinction untestable.
 agent-browser --session onesat eval --stdin <<'EVALEOF'
 (async () => {
   const { publicKey } = await window.CWI.getPublicKey({ identityKey: true });
-  const outs = await window.CWI.listOutputs({ basket: 'p 1sat ordinals', includeTags: true });
+  const outs = await window.CWI.listOutputs({ basket: '1sat', includeTags: true });
   return JSON.stringify({ publicKey, count: outs.totalOutputs });
 })()
 EVALEOF
 ```
 
-Calling `createAction` through `window.CWI` with a `p 1sat intent …` label is the cheapest way to
-drive a single intent's card without going through the UI — useful for the intents that have no UI
-trigger.
+Calling `createAction` through `window.CWI` with a `p 1sat action` (or `p <scheme> action`) label is the cheapest way to
+drive a permission card without going through the UI.
 
 **Caveat:** a prompt blocks on `promptHandler`, which resolves from a React modal. An `eval` that
 triggers a prompt will hang until something clicks Approve/Reject, so drive the click in a separate
@@ -305,7 +304,7 @@ through the UI and the resulting tags read back from the wallet.
 | `cancelOrdinalListing` | `ordinal.cancel-listing` | **1** — "Cancel listing", Original price | ✅ |
 | `sendOrdinals` | `ordinal.transfer` | **1** — "Send ordinal", Recipient from script | ✅ |
 | `lockBsv` | `lock.lock` | **1** — "Lock BSV", Amount + until block | ✅ |
-| `unlockBsv` | `lock.unlock` | basket `p 1sat lock` | `no-matured-locks` (tip 959478 < 959600) — correct |
+| `unlockBsv` | `lock.unlock` | basket `lock` | `no-matured-locks` (tip 959478 < 959600) — correct |
 | `sendBsv` | — | **none** | ✅ — inside the manifest's 100k spend grant |
 | `signBsm` | — | core protocol `[1,'message signing']` | ✅ |
 

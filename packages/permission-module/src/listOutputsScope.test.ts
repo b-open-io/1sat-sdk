@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import type { ListOutputsArgs } from '@bsv/sdk'
-import { handleListOutputsRequest } from './basketAccess'
 import type { BasketAccessDeps } from './basketAccess'
-import type { PromptHandler } from './types'
+import { handleListOutputsRequest } from './basketAccess'
 import { CommitmentCache } from './commitmentCache'
+import type { PromptHandler } from './types'
 
 function mockStore() {
 	const map = new Map<string, { expiry: number }>()
@@ -137,7 +137,22 @@ describe('handleListOutputsRequest scopes', () => {
 		expect(prompted).toBe(false)
 		expect(next.basket).toBe('1sat')
 		expect(next.tags).toEqual(['id:abc123'])
-		expect(next.tagQueryMode).toBe('all')
+		expect(next.tagQueryMode).toBeUndefined()
+	})
+
+	test('p 1sat id leaves caller tagQueryMode', async () => {
+		const next = await handleListOutputsRequest(
+			deps({ promptHandler: async () => true }),
+			{
+				basket: 'p 1sat id',
+				tags: ['id:abc123', 'id:def456'],
+				tagQueryMode: 'any',
+			} as ListOutputsArgs,
+			'id-any.example',
+		)
+		expect(next.basket).toBe('1sat')
+		expect(next.tags).toEqual(['id:abc123', 'id:def456'])
+		expect(next.tagQueryMode).toBe('any')
 	})
 
 	test('p 1sat id requires id: tag', async () => {

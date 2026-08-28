@@ -106,7 +106,7 @@ if (result.txid) {
 1. Creates an OrdLock script that encodes the price and payment address
 2. The ordinal is locked in this script — only a valid purchase or cancel can spend it
 3. The listing is submitted to the marketplace overlay for indexing
-4. Tags are updated: `ordlock` tag is added, basket remains `ordinals`
+4. Tags are updated: `ordlock` tag is added, basket remains `1sat`
 
 ## Purchase a Listed Ordinal
 

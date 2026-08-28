@@ -1,9 +1,7 @@
 import {
-	type PermissionSchemeId,
 	PERMISSION_SCHEMES,
-	buildActionDispatchLabel,
+	type PermissionSchemeId,
 	ensureSchemeActionLabel,
-	hasSchemeDispatchLabel,
 } from '@1sat/types'
 import {
 	type CreateActionArgs,
@@ -11,19 +9,16 @@ import {
 	Utils,
 	type WalletInterface,
 } from '@bsv/sdk'
+import { applyP1SatCreateAction } from '../apply/applyIntent'
 import type { FundingProvider } from '../funding'
 import { runCreateActionPipeline } from '../pipeline/runPipeline'
 import type { Spend } from '../pipeline/spendTargets'
-import {
-	labelsFromSpends,
-	spendsFromLabels,
-} from '../pipeline/spendTargets'
+import { labelsFromSpends, spendsFromLabels } from '../pipeline/spendTargets'
 import {
 	type CompleteSignedActionResult,
 	type SigningCallback,
 	completeSignedAction,
 } from './completeSignedAction'
-import { applyP1SatCreateAction } from '../apply/applyIntent'
 
 /**
  * Generate a random hex string for action tracking (64 bits).
@@ -82,10 +77,6 @@ export function ensureSchemeDispatchLabel(
 	scheme: PermissionSchemeId,
 ): void {
 	args.labels = ensureSchemeActionLabel(args.labels, scheme)
-	const dispatch = buildActionDispatchLabel(scheme)
-	if (!args.labels.includes(dispatch) && !hasSchemeDispatchLabel(args.labels, scheme)) {
-		args.labels = [...args.labels, dispatch]
-	}
 }
 
 /** @deprecated Prefer {@link ensureSchemeDispatchLabel}. */
@@ -198,10 +189,7 @@ export async function executeTrackedAction(
 	if (fundingProvider) {
 		const actionId = opts.bypassP1Sat
 			? randomActionId()
-			: stampManagedOutputIds(args)
-		if (!opts.bypassP1Sat) {
-			await applyP1SatCreateAction(wallet, args)
-		}
+			: await applyP1SatCreateAction(wallet, args)
 		const funded = await fundingProvider.fund(args)
 		const internalizeOutputs = (args.outputs ?? []).map((o, i) => ({
 			outputIndex: i,
@@ -246,7 +234,6 @@ export async function executeTrackedAction(
 	}
 
 	if (useModule) {
-		stampManagedOutputIds(args)
 		ensureSchemeDispatchLabel(args, scheme)
 		if (spends.length) {
 			const extra = labelsFromSpends(spends)
@@ -256,12 +243,12 @@ export async function executeTrackedAction(
 				...extra.filter((l) => !have.has(l)),
 			]
 		}
-		const actionId = stampManagedOutputIds(args)
 		const { options, ...rest } = args
 		const createResult = await wallet.createAction({
 			...rest,
 			options: { ...options, signAndProcess: false },
 		})
+		const actionId = actionIdFromOutputTags(args) ?? randomActionId()
 		if (!createResult.signableTransaction) {
 			return {
 				txid: createResult.txid,
@@ -278,8 +265,7 @@ export async function executeTrackedAction(
 
 	// Local shared pipeline
 	if (sign && spends.length === 0) {
-		const actionId = stampManagedOutputIds(args)
-		await applyP1SatCreateAction(wallet, args)
+		const actionId = await applyP1SatCreateAction(wallet, args)
 		const { options, ...rest } = args
 		const createResult = await wallet.createAction({
 			...rest,

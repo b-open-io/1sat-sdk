@@ -1,20 +1,13 @@
 import type { PermissionSchemeId } from '@1sat/types'
 import { nameFromMap } from '@1sat/types'
 import type { IPermissionStore } from '@1sat/wallet'
-import type {
-	InternalizeActionArgs,
-	ListOutputsArgs,
-} from '@bsv/sdk'
+import type { InternalizeActionArgs, ListOutputsArgs } from '@bsv/sdk'
 import type {
 	BasketAccessRequest,
 	PromptHandler,
 	VerificationServices,
 } from './types'
-import {
-	axisTagValues,
-	parseViewBasket,
-	viewGrantKey,
-} from './viewScope'
+import { axisTagValues, parseViewBasket, viewGrantKey } from './viewScope'
 
 /** Deps needed for basket / view-scope gating (no createAction pipeline). */
 export interface BasketAccessDeps {
@@ -166,9 +159,10 @@ function parseViewGrantKey(key: string): {
 	scope?: string
 	value?: string
 } {
-	const m = /^p\s+[a-z0-9]+\s+(all|collection|app|creator|id)(?:\s+(.+))?$/i.exec(
-		key.trim(),
-	)
+	const m =
+		/^p\s+[a-z0-9]+\s+(all|collection|app|creator|id)(?:\s+(.+))?$/i.exec(
+			key.trim(),
+		)
 	if (!m) return {}
 	return {
 		scope: m[1].toLowerCase(),
@@ -231,7 +225,9 @@ async function enrichBasketAccessRequests(
 
 /**
  * listOutputs onRequest:
- * - `p <scheme> <scope>` → parse scope, view grant, normalize to storage, inject scope tag
+ * - `p <scheme> <scope>` → parse scope, view grant, normalize to storage
+ * - collection/app/creator: force tagQueryMode `all`
+ * - id: leave the caller's query mode
  * - plain owned storage basket → ordinary basket access
  */
 export async function handleListOutputsRequest(
@@ -256,9 +252,7 @@ export async function handleListOutputsRequest(
 
 	const parsed = parseViewBasket(deps.schemeId, raw)
 	if (!parsed.ok) {
-		throw new Error(
-			`Permission module (${deps.schemeId}): ${parsed.error}`,
-		)
+		throw new Error(`Permission module (${deps.schemeId}): ${parsed.error}`)
 	}
 
 	// Non-all scopes: values live in tags (may contain _ . : illegal in baskets)
@@ -287,8 +281,7 @@ export async function handleListOutputsRequest(
 		basket: parsed.storageBasket,
 	}
 
-	// Axis tags already on the request are mandatory: force all so any cannot drop them
-	if (parsed.axisPrefix && (args.tags?.length ?? 0) > 0) {
+	if (parsed.axisPrefix && !parsed.autoAllowView) {
 		next.tagQueryMode = 'all'
 	}
 

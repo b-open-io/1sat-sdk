@@ -41,7 +41,7 @@
 
 ## Domain notes
 
-### OpNS (`p 1sat opns`)
+### OpNS (`opns`)
 
 | Kind | Actions / paths |
 |------|------------------|
@@ -53,19 +53,19 @@
 - Self-moves: **id-first lookup**, OPNS basket, carry tags (no `resolveOrdinalTags` for filing).
 - Dedicated OpNS cancel (not bare `cancelListing` without filing).
 
-### Ordinals (`p 1sat ordinals`)
+### Ordinals (`1sat`)
 
 - Same id-first rule as OpNS for self-moves: transfer-self, list, cancel.
 - Ingress: inscribe, purchase, sweep, sync.
 - `resolveOrdinalTags` at most for **true external ingress** fill-in; not for owned self-spends.
 
-### BSV21 (`p 1sat bsv21` / auth)
+### BSV21 (`bsv21`)
 
 - Value API for send; internal UTXOs have `id:`.
 - Fix: self destination must basket/tag; deploy/mint paths should stamp `id:` on kept outs.
 - No requirement that user pass input ids for send.
 
-### Locks (`p 1sat lock`)
+### Locks (`lock`)
 
 - Create with `id:`.
 - Unlock: `ids?: string[]` or all unlockable → funding.

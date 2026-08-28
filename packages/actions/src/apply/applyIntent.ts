@@ -22,8 +22,8 @@ import { stampScriptDerivedTags } from './stampScriptTags'
 export async function applyP1SatCreateAction(
 	wallet: WalletInterface,
 	args: CreateActionArgs,
-): Promise<void> {
-	stampManagedOutputIds(args)
+): Promise<string> {
+	const actionId = stampManagedOutputIds(args)
 
 	if (hasUnsealedOpnsRegister(args)) {
 		await applyOpnsRegister(wallet, args)
@@ -37,6 +37,7 @@ export async function applyP1SatCreateAction(
 	// Same path for local (WPM encrypts after) and module (may re-encrypt).
 	await stampBsv21OutputCustomInstructions(wallet, args)
 	await stampOrdinalOutputCustomInstructions(wallet, args)
+	return actionId
 }
 
 /** @deprecated Use {@link applyP1SatCreateAction} */
@@ -71,8 +72,7 @@ function hasUnsealedSigmaInscribe(args: CreateActionArgs): boolean {
 	if (args.inputs?.length) return false
 	const outputs = args.outputs
 	if (!outputs?.length) return false
-	const out =
-		outputs.find((o) => o.basket === ORDINALS_BASKET) ?? outputs[0]
+	const out = outputs.find((o) => o.basket === ORDINALS_BASKET) ?? outputs[0]
 	if (!out?.lockingScript) return false
 	try {
 		const script = Script.fromHex(out.lockingScript)
