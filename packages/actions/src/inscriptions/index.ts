@@ -4,12 +4,10 @@
  * Actions for creating inscriptions, including multi-tx OrdFS streams.
  */
 
-import { Inscription, MAP as MAPTemplate } from '@1sat/templates'
 import type { Destination } from '@1sat/types'
 import { P1SAT_PROTOCOL } from '@1sat/types'
-import { Beef, Hash, type LockingScript, Script, Utils } from '@bsv/sdk'
-import { prepareP1SatArgs, sigmaAnchorKeyId } from '../apply'
-import { appendSigmaPlaceholder } from '../signing/sigma'
+import { Beef, Hash, type Script, Utils } from '@bsv/sdk'
+import { prepareP1SatArgs } from '../apply'
 import {
 	DEFAULT_STREAM_CHUNK_SIZE,
 	MAX_INSCRIPTION_BYTES,
@@ -17,17 +15,15 @@ import {
 	ORDFS_STREAM_PARAM,
 	ORDINALS_BASKET,
 } from '../constants'
+import { appendSigmaPlaceholder } from '../signing/sigma'
 import type { Action, ActionOptions, OneSatContext } from '../types'
-import {
-	executeTrackedAction,
-	stampManagedOutputIds,
-} from '../utils/createTrackedAction'
+import { executeTrackedAction } from '../utils/createTrackedAction'
+import { buildInscriptionScript } from '../utils/inscriptionScript'
 import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance'
 import {
 	type ResolvedDestination,
 	resolveDestination,
 } from '../utils/resolveDestination'
-import { signP2PKHInput } from '../utils/signP2PKH'
 import { splitStreamChunks, wantsStreamInscription } from './stream'
 
 // ============================================================================
@@ -84,25 +80,6 @@ export interface InscribeResponse {
 // Internal helpers
 // ============================================================================
 
-function buildInscriptionScript(
-	lockingScript: LockingScript,
-	content: Uint8Array,
-	contentType: string,
-	map?: Record<string, string>,
-): Script {
-	const suffix = new Script()
-	for (const chunk of lockingScript.chunks) suffix.chunks.push(chunk)
-	if (map && Object.keys(map).length > 0) {
-		const mapScript = MAPTemplate.set(map)
-		for (const chunk of mapScript.chunks) suffix.chunks.push(chunk)
-	}
-
-	const inscription = Inscription.create(content, contentType, {
-		scriptSuffix: suffix,
-	})
-	return new Script(inscription.lock().chunks)
-}
-
 async function inscribeWithSigma(
 	ctx: OneSatContext,
 	lockingScript: Script,
@@ -115,22 +92,22 @@ async function inscribeWithSigma(
 	// its on-chain size; apply creates the anchor and swaps the signature in.
 	const placeholderScript = await appendSigmaPlaceholder(ctx, lockingScript)
 	const args = await prepareP1SatArgs(ctx, {
-			description: 'Create inscription',
-			outputs: [
-				{
-					lockingScript: placeholderScript.toHex(),
-					satoshis: 1,
-					outputDescription: 'Inscription',
-					basket: ORDINALS_BASKET,
-					tags,
-					customInstructions: outputCustomInstructions,
-				},
-			],
-			options: {
-				randomizeOutputs: false,
-				acceptDelayedBroadcast: true,
+		description: 'Create inscription',
+		outputs: [
+			{
+				lockingScript: placeholderScript.toHex(),
+				satoshis: 1,
+				outputDescription: 'Inscription',
+				basket: ORDINALS_BASKET,
+				tags,
+				customInstructions: outputCustomInstructions,
 			},
-		})
+		],
+		options: {
+			randomizeOutputs: false,
+			acceptDelayedBroadcast: true,
+		},
+	})
 
 	const result = await executeTrackedAction(
 		ctx.wallet,
@@ -140,8 +117,9 @@ async function inscribeWithSigma(
 		undefined,
 		{
 			spends: [],
-			usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
-					permissionScheme: '1sat',
+			usePermissionModule:
+				input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+			permissionScheme: '1sat',
 		},
 	)
 
@@ -364,9 +342,7 @@ async function inscribeStream(
 				undefined,
 				{
 					// Wallet-held prior chunk: basket+id (not BEEF outpoint)
-					spends: [
-						{ basket: ORDINALS_BASKET, id: priorSpendId },
-					],
+					spends: [{ basket: ORDINALS_BASKET, id: priorSpendId }],
 				},
 			)
 		} catch (e) {
@@ -563,22 +539,22 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 			}
 
 			const args = await prepareP1SatArgs(ctx, {
-					description: 'Create inscription',
-					outputs: [
-						{
-							lockingScript: lockingScript.toHex(),
-							satoshis: 1,
-							outputDescription: 'Inscription',
-							basket: ORDINALS_BASKET,
-							tags,
-							customInstructions,
-						},
-					],
-					options: {
-						acceptDelayedBroadcast: false,
-						randomizeOutputs: false,
+				description: 'Create inscription',
+				outputs: [
+					{
+						lockingScript: lockingScript.toHex(),
+						satoshis: 1,
+						outputDescription: 'Inscription',
+						basket: ORDINALS_BASKET,
+						tags,
+						customInstructions,
 					},
-				})
+				],
+				options: {
+					acceptDelayedBroadcast: false,
+					randomizeOutputs: false,
+				},
+			})
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				args,

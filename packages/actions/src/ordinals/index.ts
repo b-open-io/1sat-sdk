@@ -20,6 +20,7 @@ import {
 	Beef,
 	BigNumber,
 	type CreateActionArgs,
+	Hash,
 	LockingScript,
 	OP,
 	P2PKH,
@@ -33,6 +34,7 @@ import {
 } from '@bsv/sdk'
 import { prepareP1SatArgs } from '../apply'
 import {
+	MAX_INSCRIPTION_BYTES,
 	OPNS_BASKET,
 	ORDINALS_BASKET,
 	ORD_LOCK_PREFIX,
@@ -46,13 +48,11 @@ import type {
 	OneSatContext,
 } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
+import { buildInscriptionScript } from '../utils/inscriptionScript'
 import { loadBasketOutputBeef } from '../utils/loadBasketOutput'
 import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance'
 import { ordinalSeedTags } from '../utils/ordinalSeedTags'
-import {
-	signOrdinalInput,
-	unlockingScriptLengthForInstructions,
-} from '../utils/signOrdinalInput'
+import { unlockingScriptLengthForInstructions } from '../utils/signOrdinalInput'
 
 // ============================================================================
 // Helpers
@@ -110,10 +110,7 @@ export async function resolveOrdinalTags(
 			// ORDFS is authoritative for origin.
 			origin = metadata.origin ?? origin
 
-			if (
-				name === undefined &&
-				resolvedContentType !== 'application/op-ns'
-			) {
+			if (name === undefined && resolvedContentType !== 'application/op-ns') {
 				name = nameFromMap(metadata.map)
 			}
 		} catch {
@@ -167,6 +164,15 @@ export interface TransferItem {
 	address?: string
 	/** Optional MAP metadata to append to the output script */
 	map?: Record<string, string>
+	/**
+	 * Optional new inscription payload for the transfer output
+	 * (reinscription). Field names deliberately match InscribeRequest
+	 * (base64Content, contentType) — the new envelope replaces the source
+	 * ordinal's content while the coin (and its origin chain) carries
+	 * forward, making this the versioning mechanism for revisioned
+	 * documents/assets.
+	 */
+	inscription?: { base64Content: string; contentType: string }
 }
 
 export interface TransferOrdinalsRequest extends ActionOptions {
@@ -385,10 +391,32 @@ export async function buildTransferOrdinals(
 	const beefParts: number[][] = []
 
 	for (const item of transfers) {
-		const { id, counterparty, address, map } = item
+		const { id, counterparty, address, map, inscription } = item
 		if (!id) return { error: 'missing-id' }
 		if (!counterparty && !address) {
 			return { error: 'must-provide-counterparty-or-address' }
+		}
+
+		// Reinscription payload: decode + validate up front, same bounds as
+		// the `inscribe` action, before touching the network.
+		let inscriptionContent: number[] | undefined
+		let inscriptionShaTag: string | undefined
+		if (inscription) {
+			if (!inscription.contentType || inscription.contentType.length > 255) {
+				return { error: 'inscription-content-type-invalid' }
+			}
+			try {
+				inscriptionContent = Utils.toArray(inscription.base64Content, 'base64')
+			} catch {
+				return { error: 'inscription-content-invalid' }
+			}
+			if (!inscriptionContent.length) {
+				return { error: 'inscription-content-empty' }
+			}
+			if (inscriptionContent.length > MAX_INSCRIPTION_BYTES) {
+				return { error: 'inscription-too-large' }
+			}
+			inscriptionShaTag = `sha256:${Utils.toHex(Hash.sha256(inscriptionContent))}`
 		}
 
 		const loaded = await loadOrdinalSpend(ctx, id)
@@ -424,7 +452,17 @@ export async function buildTransferOrdinals(
 			return { error: 'must-provide-counterparty-or-address' }
 		}
 
-		const tags = ordinalSeedTags(ordinal)
+		// Reinscribed outputs carry the NEW content type (the old `type:` tags
+		// are stale once the envelope changes) plus the new content's sha256,
+		// mirroring `inscribe`'s tag convention. The origin tag is preserved
+		// unconditionally — the origin chain is the version history.
+		const tags = inscription
+			? [
+					...ordinalSeedTags(ordinal).filter((t) => !t.startsWith('type:')),
+					`type:${inscription.contentType}`,
+					...(inscriptionShaTag ? [inscriptionShaTag] : []),
+				]
+			: ordinalSeedTags(ordinal)
 		const basket = ORDINALS_BASKET
 
 		inputs?.push({
@@ -440,7 +478,18 @@ export async function buildTransferOrdinals(
 
 		const p2pkhScript = new P2PKH().lock(recipientAddress)
 		let lockingScript: string
-		if (map && Object.keys(map).length > 0) {
+		if (inscription && inscriptionContent) {
+			// Reinscription: envelope first, then P2PKH (+ MAP) suffix — the
+			// exact composition the `inscribe` action puts on chain, via the
+			// shared helper, so indexers see identical shapes either way.
+			const envelopeScript = buildInscriptionScript(
+				p2pkhScript,
+				new Uint8Array(inscriptionContent),
+				inscription.contentType,
+				map,
+			)
+			lockingScript = envelopeScript.toHex()
+		} else if (map && Object.keys(map).length > 0) {
 			const mapScript = MAPTemplate.set(map)
 			const combined = new Script()
 			for (const chunk of p2pkhScript.chunks) combined.chunks.push(chunk)
@@ -737,7 +786,8 @@ export const sendOrdinals: Action<
 > = {
 	meta: {
 		name: 'sendOrdinals',
-		description: 'Transfer one or more ordinals to new owners',
+		description:
+			'Transfer one or more ordinals to new owners, optionally reinscribing new content onto the output (versioning: the origin chain tracks revision history)',
 		category: 'ordinals',
 		inputSchema: {
 			type: 'object',
@@ -764,6 +814,22 @@ export const sendOrdinals: Action<
 								type: 'object',
 								description:
 									'Optional MAP metadata to append to the output script',
+							},
+							inscription: {
+								type: 'object',
+								description:
+									"Optional new inscription payload to write onto the transfer output (reinscription). Replaces the coin's content while its origin chain carries forward — the versioning mechanism for revisioned documents/assets.",
+								properties: {
+									base64Content: {
+										type: 'string',
+										description: 'Base64 encoded content',
+									},
+									contentType: {
+										type: 'string',
+										description: 'Content type (MIME type)',
+									},
+								},
+								required: ['base64Content', 'contentType'],
 							},
 						},
 						required: ['id'],
@@ -815,13 +881,14 @@ export const sendOrdinals: Action<
 			}
 
 			const { sources, ...createArgs } = params
-			const args = await prepareP1SatArgs(ctx, { ...createArgs, options: { randomizeOutputs: false } })
+			const args = await prepareP1SatArgs(ctx, {
+				...createArgs,
+				options: { randomizeOutputs: false },
+			})
 			const spends = sources
 				.map((o) => {
 					const id = readAssetIdTag(o.tags)
-					return id
-						? ({ basket: ORDINALS_BASKET, id })
-						: null
+					return id ? { basket: ORDINALS_BASKET, id } : null
 				})
 				.filter((x): x is { basket: string; id: string } => !!x)
 			const result = await executeTrackedAction(
@@ -832,7 +899,10 @@ export const sendOrdinals: Action<
 				undefined,
 				{
 					spends,
-					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					usePermissionModule:
+						input.usePermissionModule ??
+						input.useOneSatModule ??
+						input.useModule,
 					permissionScheme: '1sat',
 				},
 			)
@@ -926,7 +996,10 @@ export const sellOrdinal: Action<SellOrdinalRequest, OrdinalOperationResponse> =
 					return { error: 'missing-custom-instructions' }
 				}
 
-				const args = await prepareP1SatArgs(ctx, { ...createArgs, options: { randomizeOutputs: false } })
+				const args = await prepareP1SatArgs(ctx, {
+					...createArgs,
+					options: { randomizeOutputs: false },
+				})
 				const sellId = readAssetIdTag(source.tags)
 				const result = await executeTrackedAction(
 					ctx.wallet,
@@ -935,11 +1008,12 @@ export const sellOrdinal: Action<SellOrdinalRequest, OrdinalOperationResponse> =
 					params.inputBEEF as number[],
 					undefined,
 					{
-						spends: sellId
-							? [{ basket: ORDINALS_BASKET, id: sellId }]
-							: [],
-						usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
-					permissionScheme: '1sat',
+						spends: sellId ? [{ basket: ORDINALS_BASKET, id: sellId }] : [],
+						usePermissionModule:
+							input.usePermissionModule ??
+							input.useOneSatModule ??
+							input.useModule,
+						permissionScheme: '1sat',
 					},
 				)
 
@@ -1051,35 +1125,35 @@ export const cancelOrdinalListing: Action<
 
 			const inputId = readAssetIdTag(listing.tags)
 			const args = await prepareP1SatArgs(ctx, {
-					description: 'Cancel ordinal listing',
-					inputBEEF,
-					...(inputId && {
-						labels: [buildInputAssetLabel(basket, inputId)],
-					}),
-					inputs: [
-						{
-							outpoint,
-							inputDescription: 'Listed ordinal',
-							unlockingScriptLength: 108,
-						},
-					],
-					outputs: [
-						{
-							lockingScript: new P2PKH().lock(cancelAddress).toHex(),
-							satoshis: 1,
-							outputDescription: 'Cancelled listing',
-							basket,
+				description: 'Cancel ordinal listing',
+				inputBEEF,
+				...(inputId && {
+					labels: [buildInputAssetLabel(basket, inputId)],
+				}),
+				inputs: [
+					{
+						outpoint,
+						inputDescription: 'Listed ordinal',
+						unlockingScriptLength: 108,
+					},
+				],
+				outputs: [
+					{
+						lockingScript: new P2PKH().lock(cancelAddress).toHex(),
+						satoshis: 1,
+						outputDescription: 'Cancelled listing',
+						basket,
+						tags,
+						customInstructions: buildOrdinalCustomInstructions({
+							protocolID: P1SAT_PROTOCOL,
+							keyID: newKeyID,
 							tags,
-							customInstructions: buildOrdinalCustomInstructions({
-								protocolID: P1SAT_PROTOCOL,
-								keyID: newKeyID,
-								tags,
-								name: sourceName,
-							}),
-						},
-					],
-					options: { randomizeOutputs: false },
-				})
+							name: sourceName,
+						}),
+					},
+				],
+				options: { randomizeOutputs: false },
+			})
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				args,
@@ -1087,10 +1161,11 @@ export const cancelOrdinalListing: Action<
 				inputBEEF,
 				undefined,
 				{
-					spends: inputId
-						? [{ basket, id: inputId }]
-						: [],
-					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					spends: inputId ? [{ basket, id: inputId }] : [],
+					usePermissionModule:
+						input.usePermissionModule ??
+						input.useOneSatModule ??
+						input.useModule,
 					permissionScheme: '1sat',
 				},
 			)
@@ -1293,7 +1368,10 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 				undefined,
 				{
 					spends: [{ outpoint, scheme: '1sat' }],
-					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					usePermissionModule:
+						input.usePermissionModule ??
+						input.useOneSatModule ??
+						input.useModule,
 					permissionScheme: '1sat',
 				},
 			)
@@ -1366,13 +1444,14 @@ export const burnOrdinals: Action<
 			}
 
 			const { sources, ...createArgs } = params
-			const args = await prepareP1SatArgs(ctx, { ...createArgs, options: { randomizeOutputs: false } })
+			const args = await prepareP1SatArgs(ctx, {
+				...createArgs,
+				options: { randomizeOutputs: false },
+			})
 			const spends = sources
 				.map((o) => {
 					const id = readAssetIdTag(o.tags)
-					return id
-						? ({ basket: ORDINALS_BASKET, id })
-						: null
+					return id ? { basket: ORDINALS_BASKET, id } : null
 				})
 				.filter((x): x is { basket: string; id: string } => !!x)
 			const result = await executeTrackedAction(
@@ -1383,7 +1462,10 @@ export const burnOrdinals: Action<
 				undefined,
 				{
 					spends,
-					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					usePermissionModule:
+						input.usePermissionModule ??
+						input.useOneSatModule ??
+						input.useModule,
 					permissionScheme: '1sat',
 				},
 			)

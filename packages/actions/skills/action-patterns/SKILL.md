@@ -176,7 +176,7 @@ _54 actions, generated from the registry — do not edit by hand._
 | `ordinals` | `cancelOrdinalListing` |  | Cancel an ordinal listing and return the ordinal to the wallet |
 | `ordinals` | `listOrdinals` |  | List ordinals/inscriptions (metadata by default; optional BEEF) |
 | `ordinals` | `sellOrdinal` |  | List an ordinal for sale on the global orderbook |
-| `ordinals` | `sendOrdinals` |  | Transfer one or more ordinals to new owners |
+| `ordinals` | `sendOrdinals` |  | Transfer one or more ordinals to new owners, optionally reinscribing new content onto the output (versioning: the origin chain tracks revision history) |
 | `payments` | `getMneeBalance` | ✓ | Get MNEE stablecoin balance across yours wallet addresses |
 | `payments` | `getMneeConfig` | ✓ | Get MNEE service configuration including cosigner and fee structure |
 | `payments` | `getMneeHistory` | ✓ | Get MNEE transaction history with parsed amounts and counterparties |
