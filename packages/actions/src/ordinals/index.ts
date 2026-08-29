@@ -5,7 +5,7 @@
  * Returns WalletOutput[] directly from the SDK - no custom mapping needed.
  */
 
-import { MAP as MAPTemplate } from '@1sat/templates'
+import { MAP as MAPTemplate, buildInscriptionScript } from '@1sat/templates'
 import { OrdLock } from '@1sat/templates'
 import {
 	buildInputAssetLabel,
@@ -48,7 +48,6 @@ import type {
 	OneSatContext,
 } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
-import { buildInscriptionScript } from '../utils/inscriptionScript'
 import { loadBasketOutputBeef } from '../utils/loadBasketOutput'
 import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance'
 import { ordinalSeedTags } from '../utils/ordinalSeedTags'

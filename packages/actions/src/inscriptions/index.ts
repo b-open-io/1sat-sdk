@@ -4,6 +4,7 @@
  * Actions for creating inscriptions, including multi-tx OrdFS streams.
  */
 
+import { buildInscriptionScript } from '@1sat/templates'
 import type { Destination } from '@1sat/types'
 import { P1SAT_PROTOCOL } from '@1sat/types'
 import { Beef, Hash, type Script, Utils } from '@bsv/sdk'
@@ -18,7 +19,6 @@ import {
 import { appendSigmaPlaceholder } from '../signing/sigma'
 import type { Action, ActionOptions, OneSatContext } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
-import { buildInscriptionScript } from '../utils/inscriptionScript'
 import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance'
 import {
 	type ResolvedDestination,
