@@ -11,6 +11,7 @@ import {
 } from '@bsv/sdk'
 import { MAX_INSCRIPTION_BYTES, ORDINALS_BASKET } from '../src/constants'
 import { buildTransferOrdinals } from '../src/ordinals/index'
+import { hasUnsealedSigmaPlaceholder } from '../src/signing/sigma'
 import type { OneSatContext } from '../src/types'
 
 // ============================================================================
@@ -248,7 +249,7 @@ describe('buildTransferOrdinals — reinscription', () => {
 		expect('error' in result && result.error).toBe('inscription-too-large')
 	})
 
-	it('self-spend: preserves origin, drops the stale type tag, adds the new type and sha256 tags', async () => {
+	it('self-spend reinscribe: keeps origin and origin type; does not retag as the new envelope', async () => {
 		const ordinal = makeOrdinal([
 			'type:application/json',
 			`origin:${SOURCE_OUTPOINT}`,
@@ -269,9 +270,9 @@ describe('buildTransferOrdinals — reinscription', () => {
 		expect(output?.basket).toBe(ORDINALS_BASKET)
 		const tags = output?.tags ?? []
 		expect(tags).toContain(SOURCE_ORIGIN_TAG)
-		expect(tags).toContain(`type:${contentType}`)
-		expect(tags).not.toContain('type:application/json')
-		expect(tags.some((t) => t.startsWith('sha256:'))).toBe(true)
+		expect(tags).toContain('type:application/json')
+		expect(tags).not.toContain(`type:${contentType}`)
+		expect(tags.some((t) => t.startsWith('sha256:'))).toBe(false)
 		// ordinalSeedTags does not copy name: tags — display names live in
 		// customInstructions (buildOrdinalCustomInstructions) on this path.
 		expect(tags).not.toContain('name:old-doc')
@@ -290,5 +291,44 @@ describe('buildTransferOrdinals — reinscription', () => {
 
 		const tags = result.outputs?.[0]?.tags ?? []
 		expect(tags).toEqual(['type:application/json', SOURCE_ORIGIN_TAG])
+	})
+
+	it('rejects signWithBAP without an inscription payload', async () => {
+		const ordinal = makeOrdinal([
+			'type:application/json',
+			`origin:${SOURCE_OUTPOINT}`,
+		])
+		const result = await buildTransferOrdinals(makeCtx(ordinal), {
+			transfers: [
+				{ id: 'abc', address: recipientAddress, signWithBAP: true },
+			],
+		})
+		expect('error' in result && result.error).toBe(
+			'sign-with-bap-requires-inscription',
+		)
+	})
+
+	it('appends an unsealed SIGMA tape at vin 0 when signWithBAP is set', async () => {
+		const ordinal = makeOrdinal([
+			'type:application/json',
+			`origin:${SOURCE_OUTPOINT}`,
+		])
+		const result = await buildTransferOrdinals(makeCtx(ordinal), {
+			transfers: [
+				{
+					id: 'abc',
+					address: recipientAddress,
+					inscription: { base64Content, contentType },
+					signWithBAP: true,
+				},
+			],
+		})
+		if ('error' in result) throw new Error(result.error)
+
+		const script = Script.fromHex(result.outputs?.[0]?.lockingScript as string)
+		expect(hasUnsealedSigmaPlaceholder(script, 0)).toBe(true)
+		const decoded = Inscription.decode(script)
+		expect(decoded?.file.type).toBe(contentType)
+		expect(Array.from(decoded?.file.content ?? [])).toEqual(Array.from(content))
 	})
 })

@@ -36,6 +36,7 @@ import {
 	DAPP_ORIGINATOR,
 	REMOTE_BACKUP_URL,
 	STORAGE_IDENTITY_KEY,
+	STORAGE_IDENTITY_STORAGE_KEY,
 	TOGGLE_ADMIN_KEY,
 	TOGGLE_LOCAL_KEY,
 	TOGGLE_ONESAT_MODULE_KEY,
@@ -130,6 +131,32 @@ function loadOrCreateWif(): string {
 	return wif
 }
 
+/**
+ * Per-profile store id for WalletStorageManager. Must be unique per install
+ * (remote sync_state is keyed by userId + this value). Persist so reloads
+ * of this origin/profile reuse it. Never send the old shared constant
+ * `'1sat-test-app'` — that collided across every test-app on the host.
+ */
+function loadOrCreateStorageIdentityKey(): string {
+	try {
+		const existing = localStorage.getItem(STORAGE_IDENTITY_STORAGE_KEY)
+		if (existing && existing !== STORAGE_IDENTITY_KEY) return existing
+	} catch {
+		/* ignore */
+	}
+	const id = `1sat-test-app-${crypto.randomUUID()}`
+	try {
+		localStorage.setItem(STORAGE_IDENTITY_STORAGE_KEY, id)
+	} catch {
+		/* ignore */
+	}
+	return id
+}
+
+/** One createWebWallet per page. Strict Mode would otherwise race two. */
+let webWalletPromise: Promise<Awaited<ReturnType<typeof createWebWallet>>> | null =
+	null
+
 export function LocalCwiHost({ children }: { children: ReactNode }) {
 	const [status, setStatus] = useState<LocalCwiStatus>('booting')
 	const [error, setError] = useState<string | null>(null)
@@ -204,22 +231,26 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 				setStatus('booting')
 				const wif = loadOrCreateWif()
 				const privateKey = PrivateKey.fromWif(wif)
+				const storageIdentityKey = loadOrCreateStorageIdentityKey()
 
-				const web = await createWebWallet({
-					privateKey,
-					chain: 'main',
-					storageIdentityKey: STORAGE_IDENTITY_KEY,
-					// Local stays active; remote is a backup so test assets survive
-					// losing the browser profile. Without it the only record of each
-					// asset's derivation is this profile's IndexedDB — the key alone
-					// cannot rediscover outputs locked at per-asset keyIDs.
-					// Non-fatal when unreachable.
-					backups: [REMOTE_BACKUP_URL],
-				})
-				if (cancelled) {
-					await web.destroy()
-					return
+				if (!webWalletPromise) {
+					webWalletPromise = createWebWallet({
+						privateKey,
+						chain: 'main',
+						storageIdentityKey,
+						// Local stays active; remote is a backup so test assets survive
+						// losing the browser profile. Without it the only record of each
+						// asset's derivation is this profile's IndexedDB — the key alone
+						// cannot rediscover outputs locked at per-asset keyIDs.
+						// Non-fatal when unreachable.
+						backups: [REMOTE_BACKUP_URL],
+					}).catch((e) => {
+						webWalletPromise = null
+						throw e
+					})
 				}
+				const web = await webWalletPromise
+				if (cancelled) return
 				destroyRef.current = web.destroy
 				// Exposed for harness inspection — confirm the remote backup attached
 				// and that BackupSync has somewhere to write.
@@ -319,9 +350,9 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 				delete window.CWI
 			}
 			gatedRef.current = null
-			const destroy = destroyRef.current
-			destroyRef.current = null
-			void destroy?.()
+			// Shared createWebWallet lives for the page lifetime. Destroying
+			// here races React Strict Mode (mount/unmount/mount) and used to
+			// insert duplicate remote sync_state rows.
 		}
 	}, [promptHandler])
 

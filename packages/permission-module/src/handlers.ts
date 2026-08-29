@@ -194,10 +194,10 @@ function buildContentUrlMap(
 		: never,
 ): Record<string, string> {
 	const out: Record<string, string> = {}
-	const addOrigin = (tags: string[]): void => {
-		const tag = tags.find((t) => t.startsWith('origin:'))
+	const addPointer = (tags: string[], prefix: 'origin:' | 'content:'): void => {
+		const tag = tags.find((t) => t.startsWith(prefix))
 		if (!tag) return
-		const value = tag.slice('origin:'.length)
+		const value = tag.slice(prefix.length)
 		if (!value || out[value]) return
 		out[value] = enriched.contentUrlForOrigin(value)
 	}
@@ -221,12 +221,25 @@ function buildContentUrlMap(
 			out[icon] = enriched.contentUrlForOrigin(icon.replace('_', '.'))
 		}
 	}
+	const addOutpoint = (outpoint: string | undefined): void => {
+		if (!outpoint) return
+		const value = outpoint.includes('.')
+			? `${outpoint.slice(0, 64)}_${outpoint.slice(65)}`
+			: outpoint
+		if (!value || out[value]) return
+		out[value] = enriched.contentUrlForOrigin(value)
+		if (!out[outpoint]) out[outpoint] = out[value]
+	}
 	for (const asset of enriched.inputs) {
-		addOrigin(asset.tags)
+		addPointer(asset.tags, 'origin:')
+		addPointer(asset.tags, 'content:')
+		// Genesis inscriptions tag bare `origin`; the spent outpoint is the media.
+		if (asset.tags.includes('origin')) addOutpoint(asset.outpoint)
 		addIcon(asset.tags)
 	}
 	for (const output of enriched.outputs) {
-		addOrigin(output.tags)
+		addPointer(output.tags, 'origin:')
+		addPointer(output.tags, 'content:')
 		addIcon(output.tags)
 		// Avatar on an OpNS bind comes from the script, not a tag.
 		const avatar = output.opnsAvatarOrigin

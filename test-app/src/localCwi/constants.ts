@@ -10,6 +10,9 @@ export const ADMIN_ORIGINATOR = 'test-app-admin'
 export const DAPP_ORIGINATOR =
 	typeof window !== 'undefined' ? window.location.host : 'localhost:5174'
 
+/** localStorage key for this profile's wallet-toolbox store id. */
+export const STORAGE_IDENTITY_STORAGE_KEY = '1sat-test-app-storage-id'
+/** @deprecated Shared store id — collided on remote sync_state. Use loadOrCreate. */
 export const STORAGE_IDENTITY_KEY = '1sat-test-app'
 /**
  * Remote backup for the embedded wallet. Local stays active; this exists so the

@@ -126,7 +126,26 @@ export function OneSatPermissionPrompt({
 						className={classes.join(' ')}
 						key={`panel-${i}-${panel.title}`}
 					>
+						{panel.prior ? (
+						<div className="opp-preview-pair" aria-label="Previous and new inscription">
+							<PanelPreview
+								panel={{
+									...panel,
+									previewKind: panel.prior.previewKind,
+									imageUrl: panel.prior.imageUrl,
+									contentUrl: panel.prior.contentUrl,
+									previewText: panel.prior.previewText,
+									prior: undefined,
+								}}
+							/>
+							<span className="opp-preview-arrow" aria-hidden>
+								→
+							</span>
+							<PanelPreview panel={panel} />
+						</div>
+					) : (
 						<PanelPreview panel={panel} />
+					)}
 						<div className="opp-featured-meta">
 							<div className="opp-featured-title">{panel.title}</div>
 							{panel.subtitle && (

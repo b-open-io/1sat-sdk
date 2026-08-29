@@ -20,7 +20,6 @@ import {
 	Beef,
 	BigNumber,
 	type CreateActionArgs,
-	Hash,
 	LockingScript,
 	OP,
 	P2PKH,
@@ -47,6 +46,7 @@ import type {
 	ActionOptions,
 	OneSatContext,
 } from '../types'
+import { appendSigmaPlaceholder } from '../signing/sigma'
 import { executeTrackedAction } from '../utils/createTrackedAction'
 import { loadBasketOutputBeef } from '../utils/loadBasketOutput'
 import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance'
@@ -172,6 +172,8 @@ export interface TransferItem {
 	 * documents/assets.
 	 */
 	inscription?: { base64Content: string; contentType: string }
+	/** Sign the new envelope with BAP identity (Sigma). Requires `inscription`. */
+	signWithBAP?: boolean
 }
 
 export interface TransferOrdinalsRequest extends ActionOptions {
@@ -390,16 +392,19 @@ export async function buildTransferOrdinals(
 	const beefParts: number[][] = []
 
 	for (const item of transfers) {
-		const { id, counterparty, address, map, inscription } = item
+		const { id, counterparty, address, map, inscription, signWithBAP } =
+			item
 		if (!id) return { error: 'missing-id' }
 		if (!counterparty && !address) {
 			return { error: 'must-provide-counterparty-or-address' }
+		}
+		if (signWithBAP && !inscription) {
+			return { error: 'sign-with-bap-requires-inscription' }
 		}
 
 		// Reinscription payload: decode + validate up front, same bounds as
 		// the `inscribe` action, before touching the network.
 		let inscriptionContent: number[] | undefined
-		let inscriptionShaTag: string | undefined
 		if (inscription) {
 			if (!inscription.contentType || inscription.contentType.length > 255) {
 				return { error: 'inscription-content-type-invalid' }
@@ -415,7 +420,6 @@ export async function buildTransferOrdinals(
 			if (inscriptionContent.length > MAX_INSCRIPTION_BYTES) {
 				return { error: 'inscription-too-large' }
 			}
-			inscriptionShaTag = `sha256:${Utils.toHex(Hash.sha256(inscriptionContent))}`
 		}
 
 		const loaded = await loadOrdinalSpend(ctx, id)
@@ -451,17 +455,10 @@ export async function buildTransferOrdinals(
 			return { error: 'must-provide-counterparty-or-address' }
 		}
 
-		// Reinscribed outputs carry the NEW content type (the old `type:` tags
-		// are stale once the envelope changes) plus the new content's sha256,
-		// mirroring `inscribe`'s tag convention. The origin tag is preserved
-		// unconditionally — the origin chain is the version history.
-		const tags = inscription
-			? [
-					...ordinalSeedTags(ordinal).filter((t) => !t.startsWith('type:')),
-					`type:${inscription.contentType}`,
-					...(inscriptionShaTag ? [inscriptionShaTag] : []),
-				]
-			: ordinalSeedTags(ordinal)
+		// BRC-147: origin / type: are the collectable identity (first envelope),
+		// not the current tip's bytes. Reinscription writes a new envelope on
+		// the sat; tags still seed like a normal self-keep.
+		const tags = ordinalSeedTags(ordinal)
 		const basket = ORDINALS_BASKET
 
 		inputs?.push({
@@ -488,6 +485,16 @@ export async function buildTransferOrdinals(
 				map,
 			)
 			lockingScript = envelopeScript.toHex()
+			if (signWithBAP) {
+				const vin = (inputs?.length ?? 1) - 1
+				lockingScript = (
+					await appendSigmaPlaceholder(
+						ctx,
+						Script.fromHex(lockingScript),
+						vin,
+					)
+				).toHex()
+			}
 		} else if (map && Object.keys(map).length > 0) {
 			const mapScript = MAPTemplate.set(map)
 			const combined = new Script()
@@ -829,6 +836,11 @@ export const sendOrdinals: Action<
 									},
 								},
 								required: ['base64Content', 'contentType'],
+							},
+							signWithBAP: {
+								type: 'boolean',
+								description:
+									'Sign the reinscription envelope with BAP identity (Sigma). Requires inscription.',
 							},
 						},
 						required: ['id'],

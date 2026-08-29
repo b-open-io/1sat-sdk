@@ -160,6 +160,7 @@ export interface TxLeg {
 export type OrdinalOperation =
 	| 'inscribe'
 	| 'transfer'
+	| 'reinscribe'
 	| 'burn'
 	| 'list'
 	| 'cancel-listing'
@@ -810,7 +811,13 @@ function buildOrdinalEdges(
 	for (const inp of collectableIns) {
 		usedIn.add(inp.id)
 		const name = displayNameFrom(inp.tags, inp.customInstructions)
-		const origin = tagValue(inp.tags, 'origin')
+		// Bare `origin` means this output is the genesis — the spent outpoint
+		// is the origin. `origin:` is the resolved pointer after first move.
+		const origin =
+			tagValue(inp.tags, 'origin') ??
+			(inp.tags.includes('origin')
+				? formatOrdinalOutpoint(inp.outpoint)
+				: undefined)
 		const spend = {
 			basket: inp.basket,
 			id: inp.id,
@@ -938,11 +945,31 @@ function buildOrdinalEdges(
 
 		// transfer: external only when the collectable leaves the wallet basket
 		const external = Boolean(next.recipient) && !next.basket
+		const create = external ? next : { ...next, recipient: undefined }
+		const reinscribed = Boolean(
+			next.inscriptionType ||
+				next.inscriptionText ||
+				next.inscriptionDataUrl,
+		)
+		if (reinscribed) {
+			edges.push(
+				edge(
+					'reinscribe',
+					spend,
+					create,
+					name ? `Reinscribe “${name}”` : 'Reinscribe collectable',
+					external && next.recipient
+						? `New content, to ${truncate(next.recipient, 18)}`
+						: 'New content on the same coin',
+				),
+			)
+			continue
+		}
 		edges.push(
 			edge(
 				'transfer',
 				spend,
-				external ? next : { ...next, recipient: undefined },
+				create,
 				name
 					? external
 						? `Send “${name}”`

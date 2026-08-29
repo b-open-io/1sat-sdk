@@ -101,6 +101,26 @@ function findPlaceholderTape(
 	})
 }
 
+/** True when the script tail is an unsigned SIGMA tape for `vin`. */
+export function hasUnsealedSigmaPlaceholder(
+	script: Script,
+	vin = 0,
+): boolean {
+	return !!findPlaceholderTape(script.toBinary(), vin)
+}
+
+/** First vin in `0..=maxVin` whose unsigned SIGMA tape is on `script`. */
+export function findUnsealedSigmaVin(
+	script: Script,
+	maxVin: number,
+): number | undefined {
+	const bin = script.toBinary()
+	for (let vin = 0; vin <= maxVin; vin++) {
+		if (findPlaceholderTape(bin, vin)) return vin
+	}
+	return undefined
+}
+
 /**
  * Append an unsigned SIGMA tape: zero address push + zero signature.
  * No BAP getPublicKey — apply fills both fields and rewrites the tape.

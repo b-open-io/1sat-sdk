@@ -11,6 +11,7 @@ import type {
 	PreviewKind,
 	PromptDetailRow,
 	PromptPanel,
+	PromptPreview,
 	TransactionPrompt,
 } from './promptModel'
 
@@ -576,6 +577,22 @@ function panelFromOrdinalEdge(
 			}
 			break
 		}
+		case 'reinscribe':
+			actionTitle = 'Reinscribe'
+			if (edge.create?.recipient) {
+				meta.push(copyable('To', edge.create.recipient))
+			}
+			if (
+				edge.create?.sealPending ||
+				edge.create?.sealKind === 'sigma' ||
+				edge.create?.template === 'sigma'
+			) {
+				meta.push({
+					key: 'Sign',
+					value: 'BAP identity (Sigma)',
+				})
+			}
+			break
 		case 'inscribe':
 			actionTitle = 'Inscribe'
 			if (
@@ -642,7 +659,15 @@ function panelFromOrdinalEdge(
 	const previewKind = previewKindFromContentType(contentTypeResolved)
 	const inlineText = edge.create?.inscriptionText
 	const inlineImage = edge.create?.inscriptionDataUrl
-	const mediaUrl = inlineImage ?? originUrl
+	// Reinscribe: new body is the output script. Don't fall back to origin
+	// URL — that's the spent inscription, shown on `prior`.
+	const mediaUrl =
+		inlineImage ??
+		(edge.operation === 'reinscribe' ? undefined : originUrl)
+	const prior =
+		edge.operation === 'reinscribe'
+			? priorPreviewFromSpend(edge.spend, contentUrls, originUrl)
+			: undefined
 	return {
 		variant: 'ordinal',
 		previewKind: mediaUrl && previewKind === 'none' ? 'image' : previewKind,
@@ -657,5 +682,31 @@ function panelFromOrdinalEdge(
 		title: actionTitle,
 		...(assetName ? { subtitle: assetName } : {}),
 		meta,
+		...(prior ? { prior } : {}),
+	}
+}
+
+function priorPreviewFromSpend(
+	spend: OrdinalEdge['spend'],
+	contentUrls: Record<string, string>,
+	originUrl?: string,
+): PromptPreview | undefined {
+	if (!spend) return undefined
+	const content = spend.tags
+		.find((t) => t.startsWith('content:'))
+		?.slice('content:'.length)
+	const origin = spend.origin
+	const url =
+		(content && contentUrls[content]) ||
+		(origin && contentUrls[origin]) ||
+		contentUrls[spend.outpoint] ||
+		originUrl
+	const kind = previewKindFromContentType(contentTypeFromTags(spend.tags))
+	const previewKind = url && kind === 'none' ? 'image' : kind
+	if (previewKind === 'none' && !url) return undefined
+	return {
+		previewKind,
+		...(previewKind === 'image' && url ? { imageUrl: url } : {}),
+		...(previewKind !== 'image' && url ? { contentUrl: url } : {}),
 	}
 }

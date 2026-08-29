@@ -32,16 +32,8 @@ export interface PromptDetailRow {
 	copyValue?: string
 }
 
-/**
- * One self-contained card block (ordinal edge, lock/pay, token, …).
- * Media and action copy are settled before this crosses the wire.
- */
-export interface PromptPanel {
-	title: string
-	subtitle?: string
-	subtitleCopy?: string
-	meta?: PromptDetailRow[]
-	variant?: PanelVariant
+/** Media for one preview slot (current output, or spent tip on reinscribe). */
+export interface PromptPreview {
 	previewKind?: PreviewKind
 	/** Image / avatar URL when preview is image or opns avatar. */
 	imageUrl?: string
@@ -49,6 +41,16 @@ export interface PromptPanel {
 	contentUrl?: string
 	/** Inline body when the script was decoded (mint / no OrdFS URL yet). */
 	previewText?: string
+}
+
+export interface PromptPanel extends PromptPreview {
+	title: string
+	subtitle?: string
+	subtitleCopy?: string
+	meta?: PromptDetailRow[]
+	variant?: PanelVariant
+	/** Spent-side preview on a reinscribe panel (before → after). */
+	prior?: PromptPreview
 	/** Full sat amount for value panels — never truncated in the UI. */
 	amountSats?: number
 	valueIcon?: ValueIcon
