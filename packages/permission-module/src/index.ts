@@ -56,6 +56,7 @@ export {
 	type PromptFunding,
 	type PromptIndexerFee,
 	type PromptPanel,
+	type PromptPreview,
 	type PromptTrust,
 	type PromptVerifyContext,
 	type TransactionPrompt,

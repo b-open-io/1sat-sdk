@@ -149,6 +149,24 @@ export const promptStyles = `
   background: color-mix(in srgb, var(--opp-card-bg) 85%, #450a0a 15%);
 }
 
+.opp-preview-pair {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.opp-preview-arrow {
+  color: var(--opp-muted);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.opp-preview-pair .opp-featured-image {
+  width: 64px;
+  height: 64px;
+}
+
 .opp-featured-image {
   width: 80px;
   height: 80px;

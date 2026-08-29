@@ -1,12 +1,12 @@
-import { OPNS_BASKET, ORDINALS_BASKET } from '@1sat/types'
+import { OPNS_BASKET } from '@1sat/types'
 import {
 	type CreateActionArgs,
 	LockingScript,
 	PushDrop,
 	Script,
-	Utils,
 	type WalletInterface,
 } from '@bsv/sdk'
+import { findUnsealedSigmaVin } from '../signing/sigma'
 import { stampManagedOutputIds } from '../utils/createTrackedAction'
 import { stampBsv21OutputCustomInstructions } from '../utils/stampBsv21OutputCi'
 import { stampOrdinalOutputCustomInstructions } from '../utils/stampOrdinalOutputCi'
@@ -28,7 +28,7 @@ export async function applyP1SatCreateAction(
 	if (hasUnsealedOpnsRegister(args)) {
 		await applyOpnsRegister(wallet, args)
 	}
-	if (hasUnsealedSigmaInscribe(args)) {
+	if (hasUnsealedSigmaTape(args)) {
 		await applyInscribeSigma(wallet, args)
 	}
 
@@ -67,31 +67,18 @@ function hasUnsealedOpnsRegister(args: CreateActionArgs): boolean {
 	}
 }
 
-function hasUnsealedSigmaInscribe(args: CreateActionArgs): boolean {
-	// Already has anchor input — sealed or mid-flight.
-	if (args.inputs?.length) return false
+function hasUnsealedSigmaTape(args: CreateActionArgs): boolean {
 	const outputs = args.outputs
 	if (!outputs?.length) return false
-	const out = outputs.find((o) => o.basket === ORDINALS_BASKET) ?? outputs[0]
-	if (!out?.lockingScript) return false
-	try {
-		const script = Script.fromHex(out.lockingScript)
-		const bin = script.toBinary()
-		// SIGMA ascii in script + likely zero-filled compact sig region
-		const sigma = Utils.toArray('SIGMA')
-		return containsSubarray(bin, sigma)
-	} catch {
-		return false
-	}
-}
-
-function containsSubarray(hay: number[], needle: number[]): boolean {
-	if (needle.length === 0 || hay.length < needle.length) return false
-	outer: for (let i = 0; i <= hay.length - needle.length; i++) {
-		for (let j = 0; j < needle.length; j++) {
-			if (hay[i + j] !== needle[j]) continue outer
+	const maxVin = Math.max(0, (args.inputs?.length ?? 1) - 1)
+	for (const out of outputs) {
+		if (!out.lockingScript) continue
+		try {
+			const script = Script.fromHex(out.lockingScript)
+			if (findUnsealedSigmaVin(script, maxVin) != null) return true
+		} catch {
+			continue
 		}
-		return true
 	}
 	return false
 }
