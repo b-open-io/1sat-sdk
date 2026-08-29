@@ -48,6 +48,7 @@ describe('reinscribe ordinal edge', () => {
 				{
 					lockingScript,
 					satoshis: 1,
+					outputDescription: 'Reinscribed ordinal',
 					basket: ORDINALS_BASKET,
 					tags: [`origin:${ORIGIN}`, 'type:text/plain'],
 				},
@@ -83,6 +84,7 @@ describe('reinscribe ordinal edge', () => {
 				{
 					lockingScript: new P2PKH().lock(address).toHex(),
 					satoshis: 1,
+					outputDescription: 'Ordinal self-transfer',
 					basket: ORDINALS_BASKET,
 					tags: [`origin:${ORIGIN}`],
 				},
