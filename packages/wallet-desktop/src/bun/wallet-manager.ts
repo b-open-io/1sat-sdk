@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, renameSync, unlinkSync } from 'node:fs'
+import {
+	chmodSync,
+	existsSync,
+	mkdirSync,
+	renameSync,
+	unlinkSync,
+} from 'node:fs'
 /**
  * Wallet lifecycle manager — multi-instance.
  *
@@ -14,6 +20,10 @@ import { HD, Hash, Mnemonic, PrivateKey } from '@bsv/sdk'
 import { BAP } from 'bsv-bap'
 import { Utils } from 'electrobun/bun'
 import type { BalanceInfo, SyncEvent, WalletStatus } from '../shared/types'
+import {
+	loadStorageIdentityKey,
+	storageIdentityKeyForCreate,
+} from './storage-identity'
 import {
 	createDesktopVault,
 	hasStoredKey,
@@ -74,7 +84,9 @@ function dbPath(accountId: string): string {
 }
 
 function ensureAccountDir(accountId: string): void {
-	mkdirSync(accountDir(accountId), { recursive: true })
+	const path = accountDir(accountId)
+	mkdirSync(path, { recursive: true, mode: 0o700 })
+	chmodSync(path, 0o700)
 }
 
 function deriveRootKey(mnemonic: string): PrivateKey {
@@ -235,13 +247,16 @@ export async function create(
 
 	await protectRootKey(v, accountId, rootKeyHex)
 	ensureAccountDir(accountId)
+	const databasePath = dbPath(accountId)
+	const storageIdentityKey = storageIdentityKeyForCreate(databasePath)
 
 	const walletResult = await createNodeWallet({
 		privateKey: rootKey.toWif(),
 		chain: 'main',
-		storageIdentityKey: `1sat-wallet:${identityKey}`,
-		storage: { provider: 'bun-sqlite', filename: dbPath(accountId) },
+		storageIdentityKey,
+		storage: { provider: 'bun-sqlite', filename: databasePath },
 	})
+	chmodSync(databasePath, 0o600)
 
 	const instance: WalletInstance = {
 		accountId,
@@ -285,16 +300,18 @@ export async function unlock(
 	const v = getVault()
 	const rootKeyHex = await retrieveRootKey(v, accountId)
 	const rootKey = PrivateKey.fromHex(rootKeyHex)
-	const identityKey = rootKey.toPublicKey().toString()
 
 	ensureAccountDir(accountId)
+	const databasePath = dbPath(accountId)
+	const storageIdentityKey = loadStorageIdentityKey(databasePath)
 
 	const walletResult = await createNodeWallet({
 		privateKey: rootKey.toWif(),
 		chain: 'main',
-		storageIdentityKey: `1sat-wallet:${identityKey}`,
-		storage: { provider: 'bun-sqlite', filename: dbPath(accountId) },
+		storageIdentityKey,
+		storage: { provider: 'bun-sqlite', filename: databasePath },
 	})
+	chmodSync(databasePath, 0o600)
 
 	const instance: WalletInstance = {
 		accountId,
