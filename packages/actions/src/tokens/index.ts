@@ -215,8 +215,9 @@ export interface MintBsv21Input extends ActionOptions {
 	 */
 	auth?: { destination: Destination }
 	/**
-	 * Permanently end minting — no continuing auth output is emitted. Required
-	 * to be explicit since this is destructive (the token can never mint again).
+	 * Permanently end minting — no continuing auth output is emitted. May be
+	 * used alone to terminate authority without a final mint, or with `mint` to
+	 * mint a final supply. Cannot be combined with `auth`.
 	 */
 	endMinting?: boolean
 }
@@ -1412,7 +1413,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 	meta: {
 		name: 'mintBsv21',
 		description:
-			'Spend an auth UTXO to mint new supply and/or re-issue authority',
+			'Spend an auth UTXO to mint supply, re-issue authority, or permanently end minting',
 		category: 'tokens',
 		requiresServices: true,
 		inputSchema: {
@@ -1430,7 +1431,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 				endMinting: {
 					type: 'boolean',
 					description:
-						'Required when auth is omitted — explicit confirmation that minting ends.',
+						'Permanently end minting, alone or after a final mint; cannot be combined with auth.',
 				},
 			},
 			required: ['tokenId'],
@@ -1440,10 +1441,10 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 		try {
 			const { tokenId, mint, auth, endMinting } = input
 
-			if (!mint && !auth && endMinting) {
-				return { error: 'cannot-end-minting-without-mint' }
+			if (auth && endMinting) {
+				return { error: 'auth-and-end-minting-are-mutually-exclusive' }
 			}
-			if (!mint && !auth) {
+			if (!mint && !auth && !endMinting) {
 				return { error: 'must-provide-mint-or-auth' }
 			}
 
@@ -1463,6 +1464,9 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 
 			// Look up the token's metadata for tag enrichment.
 			const tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId)
+			if (!tokenDetails.status.is_active) {
+				return { error: 'token-not-active' }
+			}
 
 			// Find a spendable auth UTXO for this token (same basket as balance).
 			const authList = await ctx.wallet.listOutputs({
@@ -1577,10 +1581,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 			// Counting the caller's optional `auth` input undercounts the default
 			// continuing-self authority emitted whenever endMinting is false.
 			const tokenOutputCount = outputs.length
-			if (
-				tokenDetails.status.is_active &&
-				tokenDetails.status.fee_per_output > 0
-			) {
+			if (tokenOutputCount > 0 && tokenDetails.status.fee_per_output > 0) {
 				outputs.push({
 					lockingScript: new P2PKH()
 						.lock(tokenDetails.status.fee_address)
@@ -1604,7 +1605,9 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 			const mintArgs = await prepareP1SatArgs(ctx, {
 					description: mint
 						? `Mint ${mintAmount} ${symbol}`
-						: `Re-issue ${symbol} authority`,
+						: endMinting
+							? `End ${symbol} mint authority`
+							: `Re-issue ${symbol} authority`,
 					labels: [
 						buildTokenLabel(tokenId),
 						...(authInputId

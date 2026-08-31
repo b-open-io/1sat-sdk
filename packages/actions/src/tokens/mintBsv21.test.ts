@@ -48,7 +48,10 @@ function authorityOutput(options?: {
 	}
 }
 
-function makeContext(authorities: WalletOutput[]) {
+function makeContext(
+	authorities: WalletOutput[],
+	options?: { isActive?: boolean; feePerOutput?: number },
+) {
 	let created: CreateActionArgs | undefined
 	const listCalls: Parameters<WalletInterface['listOutputs']>[0][] = []
 	const wallet: Partial<WalletInterface> = {
@@ -75,9 +78,9 @@ function makeContext(authorities: WalletOutput[]) {
 				getTokenDetails: async () => ({
 					token: { id: TOKEN_ID, sym: 'TEST', dec: 0 },
 					status: {
-						is_active: true,
+						is_active: options?.isActive ?? true,
 						fee_address: FEE_ADDRESS,
-						fee_per_output: 1_000,
+						fee_per_output: options?.feePerOutput ?? 1_000,
 					},
 				}),
 			},
@@ -139,6 +142,63 @@ describe('mintBsv21 authority selection', () => {
 		expect(result.error).toBe('no-auth-utxo-for-token')
 		expect(harness.created()).toBeUndefined()
 	})
+
+	test('fails when no authority exists', async () => {
+		const harness = makeContext([])
+
+		const result = await mintBsv21.execute(harness.ctx, {
+			tokenId: TOKEN_ID,
+			endMinting: true,
+		})
+
+		expect(result.error).toBe('no-auth-utxo-for-token')
+		expect(harness.created()).toBeUndefined()
+	})
+
+	test('fails when the matching authority has no spend instructions', async () => {
+		const authority = authorityOutput({ deploy: true })
+		authority.customInstructions = undefined
+		const harness = makeContext([authority])
+
+		const result = await mintBsv21.execute(harness.ctx, {
+			tokenId: TOKEN_ID,
+			endMinting: true,
+		})
+
+		expect(result.error).toBe('auth-utxo-missing-custom-instructions')
+		expect(harness.created()).toBeUndefined()
+	})
+
+	test('fails closed when the token overlay is inactive', async () => {
+		const harness = makeContext([authorityOutput({ deploy: true })], {
+			isActive: false,
+		})
+
+		const result = await mintBsv21.execute(harness.ctx, {
+			tokenId: TOKEN_ID,
+			endMinting: true,
+		})
+
+		expect(result.error).toBe('token-not-active')
+		expect(harness.listCalls).toHaveLength(0)
+		expect(harness.created()).toBeUndefined()
+	})
+})
+
+describe('mintBsv21 authority termination contract', () => {
+	test('rejects an auth destination combined with permanent termination', async () => {
+		const harness = makeContext([authorityOutput({ deploy: true })])
+
+		const result = await mintBsv21.execute(harness.ctx, {
+			tokenId: TOKEN_ID,
+			auth: { destination: { address: DESTINATION_ADDRESS } },
+			endMinting: true,
+		})
+
+		expect(result.error).toBe('auth-and-end-minting-are-mutually-exclusive')
+		expect(harness.listCalls).toHaveLength(0)
+		expect(harness.created()).toBeUndefined()
+	})
 })
 
 describe('mintBsv21 overlay output fees', () => {
@@ -182,6 +242,14 @@ describe('mintBsv21 overlay output fees', () => {
 			expectedFee: 1_000,
 			expectedTokenOutputs: 1,
 		},
+		{
+			name: 'authority-only termination',
+			input: {
+				endMinting: true,
+			},
+			expectedFee: 0,
+			expectedTokenOutputs: 0,
+		},
 	]
 
 	for (const scenario of cases) {
@@ -193,7 +261,13 @@ describe('mintBsv21 overlay output fees', () => {
 			})
 
 			expect(result.error).toBeUndefined()
-			expect(feeOutput(harness.created())?.satoshis).toBe(scenario.expectedFee)
+			if (scenario.expectedFee === 0) {
+				expect(feeOutput(harness.created())).toBeUndefined()
+			} else {
+				expect(feeOutput(harness.created())?.satoshis).toBe(
+					scenario.expectedFee,
+				)
+			}
 			const tokenOutputs =
 				harness
 					.created()
@@ -201,6 +275,26 @@ describe('mintBsv21 overlay output fees', () => {
 						(output) => output.outputDescription !== 'Overlay processing fee',
 					) ?? []
 			expect(tokenOutputs).toHaveLength(scenario.expectedTokenOutputs)
+			if (scenario.name === 'authority-only termination') {
+				expect(harness.created()?.description).toBe('End TEST mint authority')
+				expect(harness.created()?.inputs?.[0]?.outpoint).toBe(AUTH_OUTPOINT)
+				expect(result.authOutpoint).toBeUndefined()
+			}
 		})
 	}
+
+	test('does not emit a zero-satoshi fee output when the fee rate is zero', async () => {
+		const harness = makeContext([authorityOutput({ deploy: true })], {
+			feePerOutput: 0,
+		})
+		const result = await mintBsv21.execute(harness.ctx, {
+			tokenId: TOKEN_ID,
+			mint: { amount: '1', destination: { address: DESTINATION_ADDRESS } },
+			endMinting: true,
+		})
+
+		expect(result.error).toBeUndefined()
+		expect(feeOutput(harness.created())).toBeUndefined()
+		expect(harness.created()?.outputs).toHaveLength(1)
+	})
 })
