@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.201
+
+### Added
+- `registry:base` and `registry:item`, matching the current shadcn/ui registry item vocabulary.
+- `registry:asset`, a 1Sat MAP type for generic on-chain asset packages. It is package metadata, not a shadcn/ui registry item type.
+
 ## 0.0.199
 
 ### Changed
