@@ -224,7 +224,7 @@ export function createRpcHandlers(scopedAccountId?: string) {
 					resolvedName = await resolveProfileName()
 				}
 				if (resolvedName && !displayName) {
-					updateAccountRegistry(accountId, { displayName: resolvedName })
+					await updateAccountRegistry(accountId, { displayName: resolvedName })
 				}
 				return { success: true, accountId }
 			} catch (err) {
@@ -273,7 +273,7 @@ export function createRpcHandlers(scopedAccountId?: string) {
 					resolvedName = await resolveProfileName()
 				}
 				if (resolvedName && !displayName) {
-					updateAccountRegistry(accountId, { displayName: resolvedName })
+					await updateAccountRegistry(accountId, { displayName: resolvedName })
 				}
 				return { success: true, accountId }
 			} catch (err) {
@@ -290,7 +290,7 @@ export function createRpcHandlers(scopedAccountId?: string) {
 			color,
 		}: { accountId: string; displayName?: string; color?: string }) => {
 			try {
-				updateAccountRegistry(accountId, { displayName, color })
+				await updateAccountRegistry(accountId, { displayName, color })
 				return { success: true }
 			} catch (err) {
 				return {
@@ -335,8 +335,8 @@ export function createRpcHandlers(scopedAccountId?: string) {
 			return { account: id ? (getAccount(id) ?? null) : null }
 		},
 
-		setShowPickerOnStartup: ({ show }: { show: boolean }) => {
-			setShowPickerOnStartup(show)
+		setShowPickerOnStartup: async ({ show }: { show: boolean }) => {
+			await setShowPickerOnStartup(show)
 			return { success: true }
 		},
 

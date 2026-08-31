@@ -14,6 +14,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
+	acquireAccountStorageLease,
 	createStorageIdentityKey,
 	loadStorageIdentityKey,
 	loadWalletUserIdentityKey,
@@ -177,6 +178,55 @@ describe('desktop storage identity', () => {
 		).toBe('acquired')
 	})
 
+	test('account lease blocks another process and crash-releases', async () => {
+		const accountsRoot = join(temporaryDirectory(), 'accounts')
+		const modulePath = join(import.meta.dir, 'storage-identity.ts')
+		const child = Bun.spawn(
+			[
+				process.execPath,
+				'-e',
+				`import { acquireAccountStorageLease } from ${JSON.stringify(modulePath)}; const lease = acquireAccountStorageLease(${JSON.stringify(accountsRoot)}, '0123abcd'); console.log('leased'); await Bun.sleep(60_000); lease.release();`,
+			],
+			{ stdout: 'pipe' },
+		)
+		const reader = child.stdout.getReader()
+		const firstOutput = await reader.read()
+		expect(new TextDecoder().decode(firstOutput.value)).toContain('leased')
+
+		expect(() => acquireAccountStorageLease(accountsRoot, '0123abcd')).toThrow(
+			'open in another app process',
+		)
+		child.kill()
+		await child.exited
+
+		const recovered = acquireAccountStorageLease(accountsRoot, '0123abcd')
+		recovered.release()
+		expect(
+			statSync(join(accountsRoot, '.leases', '0123abcd.sqlite')).mode & 0o777,
+		).toBe(0o600)
+	})
+
+	test('delete takes or retains the account lease before removing storage', () => {
+		const managerSource = readFileSync(
+			new URL('./wallet-manager.ts', import.meta.url),
+			'utf8',
+		)
+		const start = managerSource.indexOf('export async function deleteWallet')
+		const end = managerSource.indexOf(
+			'// ============================================================================',
+			start,
+		)
+		const deleteSource = managerSource.slice(start, end)
+		const leaseIndex = deleteSource.indexOf('acquireAccountStorageLease')
+		const vaultDeleteIndex = deleteSource.indexOf('removeStoredKey')
+		const databaseDeleteIndex = deleteSource.indexOf('unlinkSync')
+
+		expect(leaseIndex).toBeGreaterThan(-1)
+		expect(leaseIndex).toBeLessThan(vaultDeleteIndex)
+		expect(leaseIndex).toBeLessThan(databaseDeleteIndex)
+		expect(deleteSource).toContain('storageLease.release()')
+	})
+
 	test('missing, legacy, and corrupt databases fail closed', async () => {
 		const missingPath = join(temporaryDirectory(), 'wallet.db')
 		expect(() => loadStorageIdentityKey(missingPath)).toThrow(
@@ -304,6 +354,10 @@ describe('desktop storage identity', () => {
 			new URL('./rpc-handlers.ts', import.meta.url),
 			'utf8',
 		)
+		const registrySource = readFileSync(
+			new URL('./account-registry-core.ts', import.meta.url),
+			'utf8',
+		)
 
 		expect(indexSource).not.toContain('migrateLegacyWallet')
 		expect(indexSource).not.toContain('legacyVaultLabel')
@@ -316,9 +370,11 @@ describe('desktop storage identity', () => {
 		expect(backupSource).not.toContain('protectRootKey')
 		expect(backupSource).not.toContain('createDesktopVault')
 		expect(managerSource).toContain('withAccountSingleFlight(accountId')
-		expect(managerSource).toContain('withStorageLifecycleLock(accountsRoot()')
-		expect(managerSource).toContain('installIfAccountMissing')
-		expect(managerSource).toContain('addAccount(account)')
+		expect(managerSource).toContain('withStorageLifecycleLock(root')
+		expect(managerSource).toContain('acquireAccountStorageLease(accountsRoot()')
+		expect(managerSource).toContain('await addAccount(account)')
 		expect(rpcSource).not.toContain('addAccount(')
+		expect(registrySource).toContain('withStorageLifecycleLock')
+		expect(registrySource).toContain('this.reload()')
 	})
 })

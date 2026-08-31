@@ -13,9 +13,64 @@ import {
 } from 'node:fs'
 
 const STORAGE_IDENTITY_PATTERN = /^1sat-wallet-[0-9a-f]{32}$/
+const ACCOUNT_ID_PATTERN = /^[0-9a-f]{8}$/
 
 export function createStorageIdentityKey(): string {
 	return `1sat-wallet-${randomBytes(16).toString('hex')}`
+}
+
+export interface AccountStorageLease {
+	readonly accountId: string
+	release(): void
+}
+
+/**
+ * Retain an OS-released, cross-process lease while an account database is in
+ * use. Lease files are persistent and must never be unlinked or replaced.
+ */
+export function acquireAccountStorageLease(
+	accountsRoot: string,
+	accountId: string,
+): AccountStorageLease {
+	if (!ACCOUNT_ID_PATTERN.test(accountId)) {
+		throw new Error('Invalid account ID for storage lease')
+	}
+	mkdirSync(accountsRoot, { recursive: true, mode: 0o700 })
+	chmodSync(accountsRoot, 0o700)
+	const leaseDirectory = `${accountsRoot}/.leases`
+	mkdirSync(leaseDirectory, { recursive: true, mode: 0o700 })
+	chmodSync(leaseDirectory, 0o700)
+	const leasePath = `${leaseDirectory}/${accountId}.sqlite`
+	const database = new Database(leasePath, { create: true })
+	let locked = false
+	try {
+		chmodSync(leasePath, 0o600)
+		database.exec('PRAGMA busy_timeout = 0')
+		database.exec('BEGIN IMMEDIATE')
+		locked = true
+	} catch (error) {
+		database.close()
+		const message = error instanceof Error ? error.message : String(error)
+		if (/busy|locked/i.test(message)) {
+			throw new Error('Wallet account is open in another app process')
+		}
+		throw error
+	}
+
+	let released = false
+	return {
+		accountId,
+		release: () => {
+			if (released) return
+			released = true
+			try {
+				if (locked) database.exec('ROLLBACK')
+			} finally {
+				locked = false
+				database.close()
+			}
+		},
+	}
 }
 
 export async function withStorageLifecycleLock<T>(

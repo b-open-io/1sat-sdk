@@ -50,8 +50,11 @@ export function decodeBapAccountBackup(backup: {
 	) {
 		throw new Error('BAP account backup contains an invalid member identity')
 	}
-	const counter = payload.counter ?? 0
-	if (!Number.isSafeInteger(counter) || counter < 0) {
+	const counter = payload.counter
+	if (
+		counter !== undefined &&
+		(!Number.isSafeInteger(counter) || counter < 0)
+	) {
 		throw new Error('BAP account backup contains an invalid rotation counter')
 	}
 
@@ -61,15 +64,20 @@ export function decodeBapAccountBackup(backup: {
 	} catch {
 		throw new Error('BAP account backup contains an invalid member private key')
 	}
-	const currentKey = rootKey.deriveChild(
-		rootKey.toPublicKey(),
-		`bap:${counter}`,
-	)
-	const signingKey = currentKey.deriveChild(
-		currentKey.toPublicKey(),
-		BAP_SIGNING_INVOICE,
-	)
-	if (signingKey.toPublicKey().toAddress() !== payload.address) {
+	const expectedAddress =
+		counter === undefined
+			? rootKey.toPublicKey().toAddress()
+			: (() => {
+					const currentKey = rootKey.deriveChild(
+						rootKey.toPublicKey(),
+						`bap:${counter}`,
+					)
+					return currentKey
+						.deriveChild(currentKey.toPublicKey(), BAP_SIGNING_INVOICE)
+						.toPublicKey()
+						.toAddress()
+				})()
+	if (expectedAddress !== payload.address) {
 		throw new Error('BAP account backup member key does not match its address')
 	}
 
