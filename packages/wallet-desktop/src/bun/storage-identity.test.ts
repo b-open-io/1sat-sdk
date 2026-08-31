@@ -3,16 +3,21 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import {
 	existsSync,
 	mkdtempSync,
+	mkdirSync,
 	readFileSync,
 	rmSync,
 	statSync,
+	symlinkSync,
+	writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
 	createStorageIdentityKey,
 	loadStorageIdentityKey,
+	loadWalletUserIdentityKey,
 	prepareStorageIdentityKey,
+	sweepStaleStorageIdentityFiles,
 } from './storage-identity'
 
 const temporaryDirectories: string[] = []
@@ -54,6 +59,25 @@ describe('desktop storage identity', () => {
 		writeSettings(databasePath, created)
 
 		expect(loadStorageIdentityKey(databasePath)).toBe(created)
+	})
+
+	test('wallet user identity requires exactly one database user', () => {
+		const databasePath = join(temporaryDirectory(), 'wallet.db')
+		const storageIdentityKey = createStorageIdentityKey()
+		writeSettings(databasePath, storageIdentityKey)
+		const database = new Database(databasePath)
+		database.exec('CREATE TABLE users (identityKey TEXT NOT NULL)')
+		database.query('INSERT INTO users (identityKey) VALUES (?)').run('root-key')
+		database.close()
+
+		expect(loadWalletUserIdentityKey(databasePath)).toBe('root-key')
+
+		const second = new Database(databasePath)
+		second.query('INSERT INTO users (identityKey) VALUES (?)').run('other-key')
+		second.close()
+		expect(() => loadWalletUserIdentityKey(databasePath)).toThrow(
+			'exactly one wallet user',
+		)
 	})
 
 	test('interrupted first setup leaves no final database and retry succeeds', async () => {
@@ -136,6 +160,39 @@ describe('desktop storage identity', () => {
 		expect(initialized).toBe(false)
 	})
 
+	test('stale sweep removes only validated regular staging database files', () => {
+		const root = temporaryDirectory()
+		const accountsRoot = join(root, 'accounts')
+		const accountPath = join(accountsRoot, '0123abcd')
+		const invalidAccountPath = join(accountsRoot, 'not-an-account')
+		mkdirSync(accountPath, { recursive: true })
+		mkdirSync(invalidAccountPath, { recursive: true })
+
+		const stem = 'wallet.db.creating-0123456789abcdef'
+		for (const suffix of ['', '-wal', '-shm']) {
+			writeFileSync(join(accountPath, `${stem}${suffix}`), '')
+		}
+		for (const filename of [
+			`${stem}.tasks.json`,
+			'wallet.db.creating-short',
+			'wallet.db',
+		]) {
+			writeFileSync(join(accountPath, filename), '')
+		}
+		const invalidAccountFile = join(invalidAccountPath, stem)
+		writeFileSync(invalidAccountFile, '')
+		const symlinkPath = join(accountPath, 'wallet.db.creating-fedcba9876543210')
+		symlinkSync(join(accountPath, 'wallet.db'), symlinkPath)
+
+		expect(sweepStaleStorageIdentityFiles(accountsRoot)).toBe(3)
+		expect(existsSync(join(accountPath, stem))).toBe(false)
+		expect(existsSync(`${join(accountPath, stem)}-wal`)).toBe(false)
+		expect(existsSync(`${join(accountPath, stem)}-shm`)).toBe(false)
+		expect(existsSync(join(accountPath, `${stem}.tasks.json`))).toBe(true)
+		expect(existsSync(invalidAccountFile)).toBe(true)
+		expect(existsSync(symlinkPath)).toBe(true)
+	})
+
 	test('identity is absent from WebView config and RPC source surfaces', () => {
 		const directory = temporaryDirectory()
 		const walletDatabasePath = join(directory, 'wallet.db')
@@ -171,10 +228,26 @@ describe('desktop storage identity', () => {
 			new URL('./vault-manager.ts', import.meta.url),
 			'utf8',
 		)
+		const backupSource = readFileSync(
+			new URL('./backup-import.ts', import.meta.url),
+			'utf8',
+		)
+		const rpcSource = readFileSync(
+			new URL('./rpc-handlers.ts', import.meta.url),
+			'utf8',
+		)
 
 		expect(indexSource).not.toContain('migrateLegacyWallet')
 		expect(indexSource).not.toContain('legacyVaultLabel')
 		expect(managerSource).not.toContain('function migrateLegacyWallet')
+		expect(managerSource).not.toContain("const prefix = 'g1sat-wallet-'")
+		expect(managerSource).toContain("const prefix = '1sat-wallet-'")
 		expect(vaultSource).not.toContain('function legacyVaultLabel')
+		expect(backupSource).toContain('installImportedAccount')
+		expect(backupSource).not.toContain('protectRootKey')
+		expect(backupSource).not.toContain('createDesktopVault')
+		expect(managerSource).toContain('withAccountSingleFlight(accountId')
+		expect(managerSource).toContain('if (!existingAccount) addAccount(account)')
+		expect(rpcSource).not.toContain('addAccount(')
 	})
 })

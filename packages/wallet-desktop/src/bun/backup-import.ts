@@ -25,9 +25,7 @@ import {
 } from 'bitcoin-backup'
 import { BAP } from 'bsv-bap'
 import type { AccountInfo } from '../shared/types'
-import { addAccount, getAccount } from './account-registry'
-import { createDesktopVault, protectRootKey } from './vault-manager'
-import { computeAccountId } from './wallet-manager'
+import { installImportedAccount } from './wallet-manager'
 
 export interface ImportResult {
 	accounts: AccountInfo[]
@@ -86,28 +84,16 @@ async function importFromMnemonic(mnemonic: string): Promise<ImportResult> {
 	const master = HD.fromSeed(seed)
 	const rootKey = master.privKey
 	const identityKey = rootKey.toPublicKey().toString()
-	const accountId = computeAccountId(identityKey)
-
-	if (getAccount(accountId)) {
-		return {
-			accounts: [getAccount(accountId)!],
-			errors: ['This wallet is already imported'],
-		}
-	}
-
-	const vault = createDesktopVault()
-	await protectRootKey(vault, accountId, rootKey.toHex())
-
-	const account: AccountInfo = {
-		id: accountId,
+	const { account, alreadyImported } = await installImportedAccount({
+		rootKey,
 		identityKey,
 		displayName: identityKey.slice(0, 8),
 		color: 'blue',
-		createdAt: new Date().toISOString(),
-		lastUsedAt: new Date().toISOString(),
+	})
+	return {
+		accounts: [account],
+		errors: alreadyImported ? ['This wallet is already imported'] : [],
 	}
-	addAccount(account)
-	return { accounts: [account], errors: [] }
 }
 
 /**
@@ -123,7 +109,11 @@ async function importDecryptedBackup(
 	}
 
 	if (isAccountBackup(backup)) {
-		return importSingleKey(PrivateKey.fromWif(backup.wif), backup.label)
+		return importSingleKey(
+			PrivateKey.fromWif(backup.wif),
+			backup.label,
+			backup.id,
+		)
 	}
 
 	if (isWifBackup(backup)) {
@@ -155,30 +145,18 @@ async function importDecryptedBackup(
 async function importSingleKey(
 	pk: PrivateKey,
 	label?: string,
+	identityKey = pk.toPublicKey().toString(),
 ): Promise<ImportResult> {
-	const identityKey = pk.toPublicKey().toString()
-	const accountId = computeAccountId(identityKey)
-
-	if (getAccount(accountId)) {
-		return {
-			accounts: [getAccount(accountId)!],
-			errors: ['This wallet is already imported'],
-		}
-	}
-
-	const vault = createDesktopVault()
-	await protectRootKey(vault, accountId, pk.toHex())
-
-	const account: AccountInfo = {
-		id: accountId,
+	const { account, alreadyImported } = await installImportedAccount({
+		rootKey: pk,
 		identityKey,
 		displayName: label ?? identityKey.slice(0, 8),
 		color: 'violet',
-		createdAt: new Date().toISOString(),
-		lastUsedAt: new Date().toISOString(),
+	})
+	return {
+		accounts: [account],
+		errors: alreadyImported ? ['This wallet is already imported'] : [],
 	}
-	addAccount(account)
-	return { accounts: [account], errors: [] }
 }
 
 /**
@@ -194,7 +172,7 @@ async function importFromMasterBackup(
 	// Initialize BAP from the master backup
 	let bap: BAP
 	if (isType42Backup(backup)) {
-		bap = new BAP(backup.rootPk)
+		bap = new BAP({ rootPk: backup.rootPk })
 	} else if (isLegacyBackup(backup)) {
 		bap = new BAP(backup.xprv)
 	} else {
@@ -221,14 +199,14 @@ async function importFromMasterBackup(
 			console.log(`[backup-import] Checking identity ${nextId.bapId}...`)
 			const exists = await checkIdentityOnChain(nextId.bapId)
 			if (!exists) {
-				console.log(`[backup-import] Not found on chain, stopping discovery`)
+				console.log('[backup-import] Not found on chain, stopping discovery')
 				bap.removeId(nextId.bapId)
 				break
 			}
 			discovered++
 			console.log(`[backup-import] Found on chain! (${discovered} discovered)`)
 		} catch (err) {
-			console.error(`[backup-import] Discovery error:`, err)
+			console.error('[backup-import] Discovery error:', err)
 			break
 		}
 	}
@@ -239,8 +217,7 @@ async function importFromMasterBackup(
 
 	// Create wallet accounts for all identities
 	const allIds = bap.listIds()
-	const vault = createDesktopVault()
-	const masterRootKeyHex = getMasterRootKey(backup)
+	const masterRootKey = getMasterRootKey(backup)
 	const colors = [
 		'blue',
 		'amber',
@@ -255,15 +232,6 @@ async function importFromMasterBackup(
 	for (let i = 0; i < allIds.length; i++) {
 		const bapId = allIds[i]
 		try {
-			const accountId = computeAccountId(bapId)
-
-			if (getAccount(accountId)) {
-				accounts.push(getAccount(accountId)!)
-				continue
-			}
-
-			await protectRootKey(vault, accountId, masterRootKeyHex)
-
 			// Try to get display name from on-chain profile
 			let displayName = backup.label ?? `Identity ${i + 1}`
 			try {
@@ -275,15 +243,13 @@ async function importFromMasterBackup(
 				// Use default
 			}
 
-			const account: AccountInfo = {
-				id: accountId,
+			const { account } = await installImportedAccount({
+				rootKey: masterRootKey,
 				identityKey: bapId,
 				displayName,
 				color: colors[i % colors.length],
 				createdAt: backup.createdAt ?? new Date().toISOString(),
-				lastUsedAt: new Date().toISOString(),
-			}
-			addAccount(account)
+			})
 			accounts.push(account)
 		} catch (err) {
 			errors.push(
@@ -295,11 +261,11 @@ async function importFromMasterBackup(
 	return { accounts, errors }
 }
 
-function getMasterRootKey(backup: BapMasterBackup): string {
+function getMasterRootKey(backup: BapMasterBackup): PrivateKey {
 	if (isType42Backup(backup)) {
-		return PrivateKey.fromWif(backup.rootPk).toHex()
+		return PrivateKey.fromWif(backup.rootPk)
 	}
-	return HD.fromString(backup.xprv).privKey.toHex()
+	return HD.fromString(backup.xprv).privKey
 }
 
 const STACK_URL = 'http://127.0.0.1:8080'
@@ -321,7 +287,7 @@ async function checkIdentityOnChain(bapId: string): Promise<boolean> {
 		if (res.ok) {
 			const data = await res.json()
 			if (data?.idKey || data?.rootAddress) {
-				console.log(`[backup-import] Found via local stack identity/get`)
+				console.log('[backup-import] Found via local stack identity/get')
 				return true
 			}
 		}
@@ -337,7 +303,7 @@ async function checkIdentityOnChain(bapId: string): Promise<boolean> {
 		if (res.ok) {
 			const data = await res.json()
 			if (data && !data.message?.includes('not found')) {
-				console.log(`[backup-import] Found via local stack profile`)
+				console.log('[backup-import] Found via local stack profile')
 				return true
 			}
 		}
@@ -356,7 +322,7 @@ async function checkIdentityOnChain(bapId: string): Promise<boolean> {
 		if (res.ok) {
 			const data = await res.json()
 			if (data?.idKey || data?.rootAddress || data?.status === 'OK') {
-				console.log(`[backup-import] Found via remote BAP API identity/get`)
+				console.log('[backup-import] Found via remote BAP API identity/get')
 				return true
 			}
 		}
@@ -372,7 +338,7 @@ async function checkIdentityOnChain(bapId: string): Promise<boolean> {
 		if (res.ok) {
 			const data = await res.json()
 			if (data?.status === 'OK' || data?.result) {
-				console.log(`[backup-import] Found via remote BAP API profile`)
+				console.log('[backup-import] Found via remote BAP API profile')
 				return true
 			}
 		}

@@ -13,13 +13,27 @@ import { StorageBunSqlite, createNodeWallet } from '@1sat/wallet-node'
 import { HD, Hash, Mnemonic, PrivateKey } from '@bsv/sdk'
 import { BAP } from 'bsv-bap'
 import { Utils } from 'electrobun/bun'
-import type { BalanceInfo, SyncEvent, WalletStatus } from '../shared/types'
+import type {
+	AccountInfo,
+	BalanceInfo,
+	SyncEvent,
+	WalletStatus,
+} from '../shared/types'
+import {
+	addAccount,
+	getAccount,
+	removeAccount,
+	setLastActiveAccountId,
+} from './account-registry'
 import {
 	loadStorageIdentityKey,
+	loadWalletUserIdentityKey,
 	prepareStorageIdentityKey,
+	sweepStaleStorageIdentityFiles,
 } from './storage-identity'
 import {
 	createDesktopVault,
+	getBuildChannel,
 	hasStoredKey,
 	protectRootKey,
 	removeStoredKey,
@@ -38,6 +52,8 @@ export interface WalletCallbacks {
 
 interface WalletInstance {
 	accountId: string
+	identityKey: string
+	rootIdentityKey: string
 	wallet: NodeWalletResult
 	callbacks: WalletCallbacks
 }
@@ -50,6 +66,7 @@ let vault: Vault | undefined
 
 /** Map of running wallet instances, keyed by accountId */
 const wallets = new Map<string, WalletInstance>()
+const accountOperations = new Map<string, Promise<void>>()
 
 /**
  * Global status for the picker window (before any account is opened).
@@ -83,6 +100,31 @@ function ensureAccountDir(accountId: string): void {
 	chmodSync(path, 0o700)
 }
 
+async function withAccountSingleFlight<T>(
+	accountId: string,
+	operation: () => Promise<T>,
+): Promise<T> {
+	const previous = accountOperations.get(accountId) ?? Promise.resolve()
+	let release = () => {}
+	const gate = new Promise<void>((resolve) => {
+		release = resolve
+	})
+	const tail = previous.then(
+		() => gate,
+		() => gate,
+	)
+	accountOperations.set(accountId, tail)
+	await previous.catch(() => {})
+	try {
+		return await operation()
+	} finally {
+		release()
+		if (accountOperations.get(accountId) === tail) {
+			accountOperations.delete(accountId)
+		}
+	}
+}
+
 function deriveRootKey(mnemonic: string): PrivateKey {
 	const seed = Mnemonic.fromString(mnemonic).toSeed()
 	const master = HD.fromSeed(seed)
@@ -96,7 +138,7 @@ export function deriveBapId(rootKeyWif: string): {
 	bapId: string
 	ids: string
 } {
-	const bap = new BAP(rootKeyWif)
+	const bap = new BAP({ rootPk: rootKeyWif })
 	const ids = bap.listIds()
 	if (ids.length === 0) {
 		const firstId = bap.newId()
@@ -116,6 +158,19 @@ export function computeAccountId(identityKey: string): string {
 		.slice(0, 4)
 		.map((b) => b.toString(16).padStart(2, '0'))
 		.join('')
+}
+
+function verifyAccountIdentity(accountId: string, identityKey: string): void {
+	if (
+		!/^[0-9a-f]{8}$/.test(accountId) ||
+		computeAccountId(identityKey) !== accountId
+	) {
+		throw new Error('Account ID does not match its wallet identity')
+	}
+}
+
+export function sweepStaleAccountStorageArtifacts(): number {
+	return sweepStaleStorageIdentityFiles(`${Utils.paths.userData}/accounts`)
 }
 
 /** Push balance for a specific account's wallet. */
@@ -223,21 +278,32 @@ export function getOpenAccountIds(): string[] {
 	return Array.from(wallets.keys())
 }
 
-/**
- * Create a new wallet from a mnemonic.
- * Returns the identity public key and BAP ID for registry purposes.
- */
-export async function create(
-	accountId: string,
-	mnemonic: string,
-	_passphrase: string,
-	callbacks: WalletCallbacks = {},
-): Promise<{ identityKey: string; bapId: string }> {
-	const v = getVault()
-	const rootKey = deriveRootKey(mnemonic)
-	const rootKeyHex = rootKey.toHex()
-	const identityKey = rootKey.toPublicKey().toString()
-	const { bapId } = deriveBapId(rootKey.toWif())
+interface InstallAccountKeyResult {
+	instance?: WalletInstance
+	newlyOpened: boolean
+}
+
+async function installAccountKeyUnlocked(args: {
+	accountId: string
+	identityKey: string
+	rootKey: PrivateKey
+	callbacks?: WalletCallbacks
+	openWallet: boolean
+}): Promise<InstallAccountKeyResult> {
+	const { accountId, identityKey, rootKey, callbacks = {}, openWallet } = args
+	verifyAccountIdentity(accountId, identityKey)
+	const rootIdentityKey = rootKey.toPublicKey().toString()
+	const existing = wallets.get(accountId)
+	if (existing) {
+		if (
+			existing.identityKey !== identityKey ||
+			existing.rootIdentityKey !== rootIdentityKey
+		) {
+			throw new Error('Open wallet does not match the requested account key')
+		}
+		if (openWallet) existing.callbacks = callbacks
+		return { instance: existing, newlyOpened: false }
+	}
 
 	ensureAccountDir(accountId)
 	const databasePath = dbPath(accountId)
@@ -269,8 +335,19 @@ export async function create(
 		},
 	)
 
-	// The vault is written only after a complete database is atomically installed.
-	await protectRootKey(v, accountId, rootKeyHex)
+	if (loadWalletUserIdentityKey(databasePath) !== rootIdentityKey) {
+		throw new Error('Wallet database belongs to a different root key')
+	}
+
+	await protectRootKey(
+		getVault(),
+		accountId,
+		rootKey.toHex(),
+		identityKey,
+		rootIdentityKey,
+	)
+
+	if (!openWallet) return { newlyOpened: false }
 
 	const walletResult = await createNodeWallet({
 		privateKey: rootKey.toWif(),
@@ -282,23 +359,108 @@ export async function create(
 
 	const instance: WalletInstance = {
 		accountId,
+		identityKey,
+		rootIdentityKey,
 		wallet: walletResult,
 		callbacks,
 	}
 	wallets.set(accountId, instance)
-
-	callbacks.onStatusChanged?.('unlocked')
 	wireMonitorEvents(instance)
+	return { instance, newlyOpened: true }
+}
 
-	callbacks.onSyncEvent?.({
-		timestamp: Date.now(),
-		source: 'wallet',
-		level: 'success',
-		message: 'Wallet created',
+export async function installImportedAccount(args: {
+	rootKey: PrivateKey
+	identityKey?: string
+	displayName: string
+	color: string
+	createdAt?: string
+}): Promise<{ account: AccountInfo; alreadyImported: boolean }> {
+	const identityKey = args.identityKey ?? args.rootKey.toPublicKey().toString()
+	const accountId = computeAccountId(identityKey)
+	return withAccountSingleFlight(accountId, async () => {
+		const existing = getAccount(accountId)
+		await installAccountKeyUnlocked({
+			accountId,
+			identityKey,
+			rootKey: args.rootKey,
+			openWallet: false,
+		})
+		if (existing) return { account: existing, alreadyImported: true }
+
+		const account: AccountInfo = {
+			id: accountId,
+			identityKey,
+			displayName: args.displayName,
+			color: args.color,
+			createdAt: args.createdAt ?? new Date().toISOString(),
+			lastUsedAt: new Date().toISOString(),
+		}
+		addAccount(account)
+		return { account, alreadyImported: false }
 	})
+}
 
-	await pushBalance(instance)
-	return { identityKey, bapId }
+/**
+ * Create a new wallet from a mnemonic.
+ * Returns the identity public key and BAP ID for registry purposes.
+ */
+export async function create(
+	accountId: string,
+	mnemonic: string,
+	_passphrase: string,
+	callbacks: WalletCallbacks = {},
+	accountOptions: {
+		displayName?: string
+		color?: string
+		createdAt?: string
+	} = {},
+): Promise<{
+	account: AccountInfo
+	alreadyCreated: boolean
+	identityKey: string
+	bapId: string
+}> {
+	const rootKey = deriveRootKey(mnemonic)
+	const identityKey = rootKey.toPublicKey().toString()
+	const { bapId } = deriveBapId(rootKey.toWif())
+	const result = await withAccountSingleFlight(accountId, async () => {
+		const existingAccount = getAccount(accountId)
+		if (existingAccount && existingAccount.identityKey !== identityKey) {
+			throw new Error('Registered account does not match the requested key')
+		}
+		const { instance, newlyOpened } = await installAccountKeyUnlocked({
+			accountId,
+			identityKey,
+			rootKey,
+			callbacks,
+			openWallet: true,
+		})
+		const now = new Date().toISOString()
+		const account: AccountInfo = existingAccount ?? {
+			id: accountId,
+			identityKey,
+			bapId,
+			displayName: accountOptions.displayName ?? bapId.slice(0, 12),
+			color: accountOptions.color ?? 'blue',
+			createdAt: accountOptions.createdAt ?? now,
+			lastUsedAt: now,
+		}
+		if (!existingAccount) addAccount(account)
+		setLastActiveAccountId(accountId)
+		callbacks.onStatusChanged?.('unlocked')
+		if (newlyOpened) {
+			callbacks.onSyncEvent?.({
+				timestamp: Date.now(),
+				source: 'wallet',
+				level: 'success',
+				message: 'Wallet created',
+			})
+		}
+		if (instance) await pushBalance(instance)
+		return { account, alreadyCreated: Boolean(existingAccount) }
+	})
+	return { ...result, identityKey, bapId }
 }
 
 /**
@@ -310,62 +472,79 @@ export async function unlock(
 	_passphrase: string,
 	callbacks: WalletCallbacks = {},
 ): Promise<void> {
-	// If already open, just update callbacks
-	if (wallets.has(accountId)) {
-		const existing = wallets.get(accountId)!
-		existing.callbacks = callbacks
+	await withAccountSingleFlight(accountId, async () => {
+		const existing = wallets.get(accountId)
+		if (existing) {
+			existing.callbacks = callbacks
+			callbacks.onStatusChanged?.('unlocked')
+			await pushBalance(existing)
+			return
+		}
+
+		const account = getAccount(accountId)
+		if (!account) throw new Error('Account not found')
+		verifyAccountIdentity(accountId, account.identityKey)
+		const { rootKeyHex, rootIdentityKey: storedRootIdentityKey } =
+			await retrieveRootKey(getVault(), accountId, account.identityKey)
+		const rootKey = PrivateKey.fromHex(rootKeyHex)
+		const rootIdentityKey = rootKey.toPublicKey().toString()
+		if (
+			storedRootIdentityKey
+				? storedRootIdentityKey !== rootIdentityKey
+				: account.identityKey !== rootIdentityKey
+		) {
+			throw new Error('Vault root key does not match the wallet identity')
+		}
+
+		ensureAccountDir(accountId)
+		const databasePath = dbPath(accountId)
+		const storageIdentityKey = loadStorageIdentityKey(databasePath)
+		if (loadWalletUserIdentityKey(databasePath) !== rootIdentityKey) {
+			throw new Error('Wallet database belongs to a different root key')
+		}
+
+		const walletResult = await createNodeWallet({
+			privateKey: rootKey.toWif(),
+			chain: 'main',
+			storageIdentityKey,
+			storage: { provider: 'bun-sqlite', filename: databasePath },
+		})
+		chmodSync(databasePath, 0o600)
+
+		const instance: WalletInstance = {
+			accountId,
+			identityKey: account.identityKey,
+			rootIdentityKey,
+			wallet: walletResult,
+			callbacks,
+		}
+		wallets.set(accountId, instance)
 		callbacks.onStatusChanged?.('unlocked')
-		await pushBalance(existing)
-		return
-	}
-
-	const v = getVault()
-	const rootKeyHex = await retrieveRootKey(v, accountId)
-	const rootKey = PrivateKey.fromHex(rootKeyHex)
-
-	ensureAccountDir(accountId)
-	const databasePath = dbPath(accountId)
-	const storageIdentityKey = loadStorageIdentityKey(databasePath)
-
-	const walletResult = await createNodeWallet({
-		privateKey: rootKey.toWif(),
-		chain: 'main',
-		storageIdentityKey,
-		storage: { provider: 'bun-sqlite', filename: databasePath },
+		wireMonitorEvents(instance)
+		callbacks.onSyncEvent?.({
+			timestamp: Date.now(),
+			source: 'wallet',
+			level: 'success',
+			message: 'Wallet unlocked via Touch ID',
+		})
+		callbacks.onSyncEvent?.({
+			timestamp: Date.now(),
+			source: 'wallet',
+			level: 'log',
+			message: 'Monitor started',
+		})
+		await pushBalance(instance)
 	})
-	chmodSync(databasePath, 0o600)
-
-	const instance: WalletInstance = {
-		accountId,
-		wallet: walletResult,
-		callbacks,
-	}
-	wallets.set(accountId, instance)
-
-	callbacks.onStatusChanged?.('unlocked')
-	wireMonitorEvents(instance)
-
-	callbacks.onSyncEvent?.({
-		timestamp: Date.now(),
-		source: 'wallet',
-		level: 'success',
-		message: 'Wallet unlocked via Touch ID',
-	})
-
-	callbacks.onSyncEvent?.({
-		timestamp: Date.now(),
-		source: 'wallet',
-		level: 'log',
-		message: 'Monitor started',
-	})
-
-	await pushBalance(instance)
 }
 
 /**
  * Lock a specific account's wallet — destroys the in-memory instance.
  */
 export async function lockAccount(accountId: string): Promise<void> {
+	await withAccountSingleFlight(accountId, () => lockAccountUnlocked(accountId))
+}
+
+async function lockAccountUnlocked(accountId: string): Promise<void> {
 	const instance = wallets.get(accountId)
 	if (instance) {
 		instance.callbacks.onSyncEvent?.({
@@ -383,9 +562,11 @@ export async function lockAccount(accountId: string): Promise<void> {
  * Lock all wallets (used during shutdown).
  */
 export async function lockAll(): Promise<void> {
-	for (const [accountId, instance] of wallets) {
-		await instance.wallet.destroy()
-		wallets.delete(accountId)
+	const accountIds = new Set([...wallets.keys(), ...accountOperations.keys()])
+	for (const accountId of accountIds) {
+		await withAccountSingleFlight(accountId, () =>
+			lockAccountUnlocked(accountId),
+		)
 	}
 	setGlobalStatus('account-selection')
 }
@@ -394,36 +575,32 @@ export async function lockAll(): Promise<void> {
  * Delete a specific account's wallet — removes the vault entry and the SQLite DB.
  */
 export async function deleteWallet(accountId: string): Promise<void> {
-	// Close wallet if running
-	if (wallets.has(accountId)) {
-		await lockAccount(accountId)
-	}
+	await withAccountSingleFlight(accountId, async () => {
+		await lockAccountUnlocked(accountId)
 
-	const v = getVault()
-	try {
-		await removeStoredKey(v, accountId)
-	} catch {
-		// Key may not exist
-	}
+		const v = getVault()
+		if (hasStoredKey(v, accountId)) await removeStoredKey(v, accountId)
 
-	const dir = accountDir(accountId)
-	const path = dbPath(accountId)
+		const dir = accountDir(accountId)
+		const path = dbPath(accountId)
 
-	for (const suffix of ['', '-wal', '-shm']) {
-		const filePath = `${path}${suffix}`
-		if (existsSync(filePath)) {
-			unlinkSync(filePath)
+		for (const suffix of ['', '-wal', '-shm']) {
+			const filePath = `${path}${suffix}`
+			if (existsSync(filePath)) {
+				unlinkSync(filePath)
+			}
 		}
-	}
 
-	try {
-		if (existsSync(dir)) {
-			const { rmdirSync } = await import('node:fs')
-			rmdirSync(dir)
+		try {
+			if (existsSync(dir)) {
+				const { rmdirSync } = await import('node:fs')
+				rmdirSync(dir)
+			}
+		} catch {
+			// Directory may not be empty
 		}
-	} catch {
-		// Directory may not be empty
-	}
+		removeAccount(accountId)
+	})
 }
 
 // ============================================================================
@@ -493,12 +670,9 @@ export function getLegacyCallbacks(): WalletCallbacks {
  * but have no registry entry.
  */
 export async function recoverOrphanedAccounts(): Promise<number> {
-	const { addAccount, getAccount } = await import('./account-registry')
-	const { getBuildChannel } = await import('./vault-manager')
-
 	const v = getVault()
 	const channel = getBuildChannel()
-	const prefix = 'g1sat-wallet-'
+	const prefix = '1sat-wallet-'
 	const suffix = `-${channel}`
 	const secrets = v.listSecrets()
 	let recovered = 0
@@ -509,12 +683,27 @@ export async function recoverOrphanedAccounts(): Promise<number> {
 		if (secret.label === `1sat-wallet-root-key-${channel}`) continue
 
 		const accountId = secret.label.slice(prefix.length, -suffix.length)
-		if (!accountId || getAccount(accountId)) continue
+		if (!/^[0-9a-f]{8}$/.test(accountId) || getAccount(accountId)) continue
 
 		try {
+			const databasePath = dbPath(accountId)
+			loadStorageIdentityKey(databasePath)
 			const { plaintext: rootKeyHex } = await v.unlockSecret(secret.label)
 			const rootKey = PrivateKey.fromHex(rootKeyHex)
-			const identityKey = rootKey.toPublicKey().toString()
+			const rootIdentityKey = rootKey.toPublicKey().toString()
+			if (loadWalletUserIdentityKey(databasePath) !== rootIdentityKey) {
+				throw new Error('Wallet database belongs to a different root key')
+			}
+
+			const identityKey = secret.metadata?.identityKey ?? rootIdentityKey
+			if (
+				secret.metadata &&
+				(secret.metadata.accountId !== accountId ||
+					secret.metadata.rootIdentityKey !== rootIdentityKey)
+			) {
+				throw new Error('Vault metadata does not match the recovered account')
+			}
+			verifyAccountIdentity(accountId, identityKey)
 
 			addAccount({
 				id: accountId,
@@ -525,7 +714,6 @@ export async function recoverOrphanedAccounts(): Promise<number> {
 				lastUsedAt: new Date().toISOString(),
 			})
 
-			const { setLastActiveAccountId } = await import('./account-registry')
 			setLastActiveAccountId(accountId)
 			recovered++
 		} catch {

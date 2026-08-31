@@ -48,12 +48,9 @@ import type {
 	TokenBalance,
 } from '../shared/types'
 import {
-	addAccount,
 	getAccount,
 	getShowPickerOnStartup,
 	listAccounts,
-	removeAccount,
-	setLastActiveAccountId,
 	setShowPickerOnStartup,
 	updateAccount as updateAccountRegistry,
 } from './account-registry'
@@ -204,31 +201,31 @@ export function createRpcHandlers(scopedAccountId?: string) {
 			color?: string
 		}) => {
 			try {
-				// Derive identity key to compute accountId
 				const { Mnemonic: M, HD: H } = await import('@bsv/sdk')
 				const seed = M.fromString(mnemonic).toSeed()
 				const master = H.fromSeed(seed)
-				const identityKey = master.privKey.toPublicKey().toString()
-				const accountId = computeAccountId(identityKey)
-
-				const { bapId } = await create(accountId, mnemonic, passphrase ?? '')
+				const accountId = computeAccountId(
+					master.privKey.toPublicKey().toString(),
+				)
+				const { alreadyCreated } = await create(
+					accountId,
+					mnemonic,
+					passphrase ?? '',
+					{},
+					{ displayName, color },
+				)
+				if (alreadyCreated) {
+					return { success: false, error: 'This wallet already exists' }
+				}
 
 				// Try to resolve BAP profile for display name
 				let resolvedName = displayName
 				if (!resolvedName) {
 					resolvedName = await resolveProfileName()
 				}
-
-				addAccount({
-					id: accountId,
-					identityKey,
-					bapId,
-					displayName: resolvedName ?? bapId.slice(0, 12),
-					color: color ?? 'blue',
-					createdAt: new Date().toISOString(),
-					lastUsedAt: new Date().toISOString(),
-				})
-				setLastActiveAccountId(accountId)
+				if (resolvedName && !displayName) {
+					updateAccountRegistry(accountId, { displayName: resolvedName })
+				}
 				return { success: true, accountId }
 			} catch (err) {
 				return {
@@ -256,31 +253,28 @@ export function createRpcHandlers(scopedAccountId?: string) {
 				const { Mnemonic: M, HD: H } = await import('@bsv/sdk')
 				const seed = M.fromString(mnemonic).toSeed()
 				const master = H.fromSeed(seed)
-				const identityKey = master.privKey.toPublicKey().toString()
-				const accountId = computeAccountId(identityKey)
-
-				if (getAccount(accountId)) {
+				const accountId = computeAccountId(
+					master.privKey.toPublicKey().toString(),
+				)
+				const { alreadyCreated } = await create(
+					accountId,
+					mnemonic,
+					passphrase ?? '',
+					{},
+					{ displayName, color },
+				)
+				if (alreadyCreated) {
 					return { success: false, error: 'This wallet is already imported' }
 				}
-
-				const { bapId } = await create(accountId, mnemonic, passphrase ?? '')
 
 				// Try to resolve BAP profile for display name
 				let resolvedName = displayName
 				if (!resolvedName) {
 					resolvedName = await resolveProfileName()
 				}
-
-				addAccount({
-					id: accountId,
-					identityKey,
-					bapId,
-					displayName: resolvedName ?? bapId.slice(0, 12),
-					color: color ?? 'blue',
-					createdAt: new Date().toISOString(),
-					lastUsedAt: new Date().toISOString(),
-				})
-				setLastActiveAccountId(accountId)
+				if (resolvedName && !displayName) {
+					updateAccountRegistry(accountId, { displayName: resolvedName })
+				}
 				return { success: true, accountId }
 			} catch (err) {
 				return {
@@ -309,7 +303,6 @@ export function createRpcHandlers(scopedAccountId?: string) {
 		deleteAccount: async ({ accountId }: { accountId: string }) => {
 			try {
 				await deleteWallet(accountId)
-				removeAccount(accountId)
 				if (listAccounts().length === 0) {
 					// No accounts left
 				}

@@ -12,6 +12,7 @@
 import { FileVaultStorage, type Vault, createVault } from '@1sat/vault'
 import { SecureEnclaveProvider, isMacOS } from '@1sat/wallet-mac'
 import { Utils } from 'electrobun/bun'
+import { protectRootKeyOnce } from './vault-secret'
 
 let buildChannel: string | undefined
 
@@ -58,18 +59,43 @@ export async function protectRootKey(
 	vault: Vault,
 	accountId: string,
 	rootKeyHex: string,
+	identityKey: string,
+	rootIdentityKey: string,
 ): Promise<void> {
-	await vault.protectSecret(vaultLabelForAccount(accountId), rootKeyHex)
+	const label = vaultLabelForAccount(accountId)
+	const existing = vault.listSecrets().find((secret) => secret.label === label)
+	await protectRootKeyOnce({
+		accountId,
+		identityKey,
+		label,
+		rootIdentityKey,
+		rootKeyHex,
+		existing,
+		unlock: (secretLabel) => vault.unlockSecret(secretLabel),
+		protect: async (secretLabel, plaintext, metadata) => {
+			await vault.protectSecret(secretLabel, plaintext, metadata)
+		},
+	})
 }
 
 export async function retrieveRootKey(
 	vault: Vault,
 	accountId: string,
-): Promise<string> {
-	const { plaintext } = await vault.unlockSecret(
+	identityKey: string,
+): Promise<{ rootKeyHex: string; rootIdentityKey?: string }> {
+	const { plaintext, metadata } = await vault.unlockSecret(
 		vaultLabelForAccount(accountId),
 	)
-	return plaintext
+	if (
+		metadata &&
+		(metadata.accountId !== accountId || metadata.identityKey !== identityKey)
+	) {
+		throw new Error('Vault account metadata does not match the wallet identity')
+	}
+	return {
+		rootKeyHex: plaintext,
+		rootIdentityKey: metadata?.rootIdentityKey,
+	}
 }
 
 export function hasStoredKey(vault: Vault, accountId: string): boolean {
