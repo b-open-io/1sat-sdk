@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.202
+
+### Fixed
+- BSV21 authority deployment and minting now select the newly created authority by its transaction outpoint instead of assuming a fixed output position.
+- Mint funding now counts every transaction output, including both overlay remittance outputs, so fee estimates no longer underfund one authority-mint path.
+
 ## 0.0.201
 
 ### Added
