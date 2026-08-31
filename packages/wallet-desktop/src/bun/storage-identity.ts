@@ -6,7 +6,9 @@ import {
 	existsSync,
 	linkSync,
 	lstatSync,
+	mkdirSync,
 	readdirSync,
+	statSync,
 	unlinkSync,
 } from 'node:fs'
 
@@ -14,6 +16,32 @@ const STORAGE_IDENTITY_PATTERN = /^1sat-wallet-[0-9a-f]{32}$/
 
 export function createStorageIdentityKey(): string {
 	return `1sat-wallet-${randomBytes(16).toString('hex')}`
+}
+
+export async function withStorageLifecycleLock<T>(
+	accountsRoot: string,
+	operation: () => Promise<T> | T,
+	busyTimeoutMs = 30_000,
+): Promise<T> {
+	mkdirSync(accountsRoot, { recursive: true, mode: 0o700 })
+	chmodSync(accountsRoot, 0o700)
+	const coordinatorPath = `${accountsRoot}/.lifecycle.sqlite`
+	const coordinator = new Database(coordinatorPath, { create: true })
+	chmodSync(coordinatorPath, 0o600)
+	const timeout = Math.max(0, Math.min(Math.trunc(busyTimeoutMs), 30_000))
+	let locked = false
+	try {
+		coordinator.exec(`PRAGMA busy_timeout = ${timeout}`)
+		coordinator.exec('BEGIN IMMEDIATE')
+		locked = true
+		return await operation()
+	} finally {
+		try {
+			if (locked) coordinator.exec('ROLLBACK')
+		} finally {
+			coordinator.close()
+		}
+	}
 }
 
 export function loadStorageIdentityKey(databasePath: string): string {
@@ -87,7 +115,7 @@ export async function prepareStorageIdentityKey(
 	if (existsSync(databasePath)) return loadStorageIdentityKey(databasePath)
 
 	const storageIdentityKey = createStorageIdentityKey()
-	const stagedDatabasePath = `${databasePath}.creating-${randomBytes(8).toString('hex')}`
+	const stagedDatabasePath = `${databasePath}.creating-${process.pid}-${Date.now()}-${randomBytes(8).toString('hex')}`
 
 	try {
 		await initialize(stagedDatabasePath, storageIdentityKey)
@@ -111,12 +139,34 @@ export async function prepareStorageIdentityKey(
 }
 
 const ACCOUNT_DIRECTORY_PATTERN = /^[0-9a-f]{8}$/
-const STAGED_DATABASE_PATTERN =
+const OWNED_STAGED_DATABASE_PATTERN =
+	/^wallet\.db\.creating-(\d+)-(\d{13})-[0-9a-f]{16}(?:-wal|-shm)?$/
+const LEGACY_STAGED_DATABASE_PATTERN =
 	/^wallet\.db\.creating-[0-9a-f]{16}(?:-wal|-shm)?$/
+const DEFAULT_STALE_STAGE_AGE_MS = 24 * 60 * 60 * 1000
+
+function processIsAlive(pid: number): boolean {
+	try {
+		process.kill(pid, 0)
+		return true
+	} catch (error) {
+		return (error as { code?: string }).code === 'EPERM'
+	}
+}
 
 /** Remove only staging files created by prepareStorageIdentityKey. */
-export function sweepStaleStorageIdentityFiles(accountsRoot: string): number {
+export function sweepStaleStorageIdentityFiles(
+	accountsRoot: string,
+	options: {
+		isProcessAlive?: (pid: number) => boolean
+		now?: number
+		staleAfterMs?: number
+	} = {},
+): number {
 	if (!existsSync(accountsRoot)) return 0
+	const now = options.now ?? Date.now()
+	const staleAfterMs = options.staleAfterMs ?? DEFAULT_STALE_STAGE_AGE_MS
+	const isProcessAlive = options.isProcessAlive ?? processIsAlive
 	let removed = 0
 	let accountEntries: Dirent[]
 	try {
@@ -140,10 +190,26 @@ export function sweepStaleStorageIdentityFiles(accountsRoot: string): number {
 			continue
 		}
 		for (const filename of filenames) {
-			if (!STAGED_DATABASE_PATTERN.test(filename)) continue
 			const path = `${accountPath}/${filename}`
 			try {
 				if (!lstatSync(path).isFile()) continue
+				const ownedMatch = filename.match(OWNED_STAGED_DATABASE_PATTERN)
+				if (ownedMatch) {
+					const ownerPid = Number(ownedMatch[1])
+					const createdAt = Number(ownedMatch[2])
+					if (
+						!Number.isSafeInteger(ownerPid) ||
+						!Number.isSafeInteger(createdAt) ||
+						now - createdAt < staleAfterMs ||
+						isProcessAlive(ownerPid)
+					) {
+						continue
+					}
+				} else if (LEGACY_STAGED_DATABASE_PATTERN.test(filename)) {
+					if (now - statSync(path).mtimeMs < staleAfterMs) continue
+				} else {
+					continue
+				}
 				unlinkSync(path)
 				removed++
 			} catch {

@@ -19,9 +19,11 @@ import type {
 	SyncEvent,
 	WalletStatus,
 } from '../shared/types'
+import { installIfAccountMissing } from './account-install'
 import {
 	addAccount,
 	getAccount,
+	reloadAccountRegistry,
 	removeAccount,
 	setLastActiveAccountId,
 } from './account-registry'
@@ -30,6 +32,7 @@ import {
 	loadWalletUserIdentityKey,
 	prepareStorageIdentityKey,
 	sweepStaleStorageIdentityFiles,
+	withStorageLifecycleLock,
 } from './storage-identity'
 import {
 	createDesktopVault,
@@ -87,7 +90,11 @@ function getVault(): Vault {
 }
 
 function accountDir(accountId: string): string {
-	return `${Utils.paths.userData}/accounts/${accountId}`
+	return `${accountsRoot()}/${accountId}`
+}
+
+function accountsRoot(): string {
+	return `${Utils.paths.userData}/accounts`
 }
 
 function dbPath(accountId: string): string {
@@ -169,8 +176,11 @@ function verifyAccountIdentity(accountId: string, identityKey: string): void {
 	}
 }
 
-export function sweepStaleAccountStorageArtifacts(): number {
-	return sweepStaleStorageIdentityFiles(`${Utils.paths.userData}/accounts`)
+export function sweepStaleAccountStorageArtifacts(): Promise<number> {
+	const root = accountsRoot()
+	return withStorageLifecycleLock(root, () =>
+		sweepStaleStorageIdentityFiles(root),
+	)
 }
 
 /** Push balance for a specific account's wallet. */
@@ -379,25 +389,35 @@ export async function installImportedAccount(args: {
 	const identityKey = args.identityKey ?? args.rootKey.toPublicKey().toString()
 	const accountId = computeAccountId(identityKey)
 	return withAccountSingleFlight(accountId, async () => {
-		const existing = getAccount(accountId)
-		await installAccountKeyUnlocked({
-			accountId,
-			identityKey,
-			rootKey: args.rootKey,
-			openWallet: false,
-		})
-		if (existing) return { account: existing, alreadyImported: true }
+		return withStorageLifecycleLock(accountsRoot(), async () => {
+			reloadAccountRegistry()
+			const existing = getAccount(accountId)
+			const installation = await installIfAccountMissing({
+				existing,
+				identityKey,
+				install: () =>
+					installAccountKeyUnlocked({
+						accountId,
+						identityKey,
+						rootKey: args.rootKey,
+						openWallet: false,
+					}),
+			})
+			if (installation.alreadyExists) {
+				return { account: installation.account, alreadyImported: true }
+			}
 
-		const account: AccountInfo = {
-			id: accountId,
-			identityKey,
-			displayName: args.displayName,
-			color: args.color,
-			createdAt: args.createdAt ?? new Date().toISOString(),
-			lastUsedAt: new Date().toISOString(),
-		}
-		addAccount(account)
-		return { account, alreadyImported: false }
+			const account: AccountInfo = {
+				id: accountId,
+				identityKey,
+				displayName: args.displayName,
+				color: args.color,
+				createdAt: args.createdAt ?? new Date().toISOString(),
+				lastUsedAt: new Date().toISOString(),
+			}
+			addAccount(account)
+			return { account, alreadyImported: false }
+		})
 	})
 }
 
@@ -425,40 +445,49 @@ export async function create(
 	const identityKey = rootKey.toPublicKey().toString()
 	const { bapId } = deriveBapId(rootKey.toWif())
 	const result = await withAccountSingleFlight(accountId, async () => {
-		const existingAccount = getAccount(accountId)
-		if (existingAccount && existingAccount.identityKey !== identityKey) {
-			throw new Error('Registered account does not match the requested key')
-		}
-		const { instance, newlyOpened } = await installAccountKeyUnlocked({
-			accountId,
-			identityKey,
-			rootKey,
-			callbacks,
-			openWallet: true,
-		})
-		const now = new Date().toISOString()
-		const account: AccountInfo = existingAccount ?? {
-			id: accountId,
-			identityKey,
-			bapId,
-			displayName: accountOptions.displayName ?? bapId.slice(0, 12),
-			color: accountOptions.color ?? 'blue',
-			createdAt: accountOptions.createdAt ?? now,
-			lastUsedAt: now,
-		}
-		if (!existingAccount) addAccount(account)
-		setLastActiveAccountId(accountId)
-		callbacks.onStatusChanged?.('unlocked')
-		if (newlyOpened) {
-			callbacks.onSyncEvent?.({
-				timestamp: Date.now(),
-				source: 'wallet',
-				level: 'success',
-				message: 'Wallet created',
+		return withStorageLifecycleLock(accountsRoot(), async () => {
+			reloadAccountRegistry()
+			const existingAccount = getAccount(accountId)
+			const installation = await installIfAccountMissing({
+				existing: existingAccount,
+				identityKey,
+				install: () =>
+					installAccountKeyUnlocked({
+						accountId,
+						identityKey,
+						rootKey,
+						callbacks,
+						openWallet: true,
+					}),
 			})
-		}
-		if (instance) await pushBalance(instance)
-		return { account, alreadyCreated: Boolean(existingAccount) }
+			if (installation.alreadyExists) {
+				return { account: installation.account, alreadyCreated: true }
+			}
+			const { instance, newlyOpened } = installation.installed
+			const now = new Date().toISOString()
+			const account: AccountInfo = {
+				id: accountId,
+				identityKey,
+				bapId,
+				displayName: accountOptions.displayName ?? bapId.slice(0, 12),
+				color: accountOptions.color ?? 'blue',
+				createdAt: accountOptions.createdAt ?? now,
+				lastUsedAt: now,
+			}
+			addAccount(account)
+			setLastActiveAccountId(accountId)
+			callbacks.onStatusChanged?.('unlocked')
+			if (newlyOpened) {
+				callbacks.onSyncEvent?.({
+					timestamp: Date.now(),
+					source: 'wallet',
+					level: 'success',
+					message: 'Wallet created',
+				})
+			}
+			if (instance) await pushBalance(instance)
+			return { account, alreadyCreated: false }
+		})
 	})
 	return { ...result, identityKey, bapId }
 }
@@ -576,30 +605,33 @@ export async function lockAll(): Promise<void> {
  */
 export async function deleteWallet(accountId: string): Promise<void> {
 	await withAccountSingleFlight(accountId, async () => {
-		await lockAccountUnlocked(accountId)
+		await withStorageLifecycleLock(accountsRoot(), async () => {
+			reloadAccountRegistry()
+			await lockAccountUnlocked(accountId)
 
-		const v = getVault()
-		if (hasStoredKey(v, accountId)) await removeStoredKey(v, accountId)
+			const v = getVault()
+			if (hasStoredKey(v, accountId)) await removeStoredKey(v, accountId)
 
-		const dir = accountDir(accountId)
-		const path = dbPath(accountId)
+			const dir = accountDir(accountId)
+			const path = dbPath(accountId)
 
-		for (const suffix of ['', '-wal', '-shm']) {
-			const filePath = `${path}${suffix}`
-			if (existsSync(filePath)) {
-				unlinkSync(filePath)
+			for (const suffix of ['', '-wal', '-shm']) {
+				const filePath = `${path}${suffix}`
+				if (existsSync(filePath)) {
+					unlinkSync(filePath)
+				}
 			}
-		}
 
-		try {
-			if (existsSync(dir)) {
-				const { rmdirSync } = await import('node:fs')
-				rmdirSync(dir)
+			try {
+				if (existsSync(dir)) {
+					const { rmdirSync } = await import('node:fs')
+					rmdirSync(dir)
+				}
+			} catch {
+				// Directory may not be empty
 			}
-		} catch {
-			// Directory may not be empty
-		}
-		removeAccount(accountId)
+			removeAccount(accountId)
+		})
 	})
 }
 
@@ -670,6 +702,13 @@ export function getLegacyCallbacks(): WalletCallbacks {
  * but have no registry entry.
  */
 export async function recoverOrphanedAccounts(): Promise<number> {
+	return withStorageLifecycleLock(accountsRoot(), async () => {
+		reloadAccountRegistry()
+		return recoverOrphanedAccountsUnlocked()
+	})
+}
+
+async function recoverOrphanedAccountsUnlocked(): Promise<number> {
 	const v = getVault()
 	const channel = getBuildChannel()
 	const prefix = '1sat-wallet-'

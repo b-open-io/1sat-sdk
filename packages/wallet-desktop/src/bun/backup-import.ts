@@ -25,6 +25,7 @@ import {
 } from 'bitcoin-backup'
 import { BAP } from 'bsv-bap'
 import type { AccountInfo } from '../shared/types'
+import { decodeBapAccountBackup } from './bap-account-backup'
 import { installImportedAccount } from './wallet-manager'
 
 export interface ImportResult {
@@ -109,11 +110,8 @@ async function importDecryptedBackup(
 	}
 
 	if (isAccountBackup(backup)) {
-		return importSingleKey(
-			PrivateKey.fromWif(backup.wif),
-			backup.label,
-			backup.id,
-		)
+		const member = decodeBapAccountBackup(backup)
+		return importSingleKey(member.rootKey, backup.label, member.identityKey)
 	}
 
 	if (isWifBackup(backup)) {

@@ -2,12 +2,13 @@ import { Database } from 'bun:sqlite'
 import { afterEach, describe, expect, test } from 'bun:test'
 import {
 	existsSync,
-	mkdtempSync,
 	mkdirSync,
+	mkdtempSync,
 	readFileSync,
 	rmSync,
 	statSync,
 	symlinkSync,
+	utimesSync,
 	writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -18,6 +19,7 @@ import {
 	loadWalletUserIdentityKey,
 	prepareStorageIdentityKey,
 	sweepStaleStorageIdentityFiles,
+	withStorageLifecycleLock,
 } from './storage-identity'
 
 const temporaryDirectories: string[] = []
@@ -131,6 +133,50 @@ describe('desktop storage identity', () => {
 		expect(loadStorageIdentityKey(databasePath)).toBe(first)
 	})
 
+	test('coordinator database excludes another connection and releases cleanly', async () => {
+		const accountsRoot = join(temporaryDirectory(), 'accounts')
+		await withStorageLifecycleLock(accountsRoot, () => {})
+		const coordinatorPath = join(accountsRoot, '.lifecycle.sqlite')
+		const holder = new Database(coordinatorPath)
+		holder.exec('BEGIN IMMEDIATE')
+
+		await expect(
+			withStorageLifecycleLock(accountsRoot, () => 'unexpected', 0),
+		).rejects.toThrow()
+		holder.exec('ROLLBACK')
+		holder.close()
+
+		expect(
+			await withStorageLifecycleLock(accountsRoot, () => 'acquired', 0),
+		).toBe('acquired')
+		expect(statSync(coordinatorPath).mode & 0o777).toBe(0o600)
+	})
+
+	test('coordinator database excludes another process until it exits', async () => {
+		const accountsRoot = join(temporaryDirectory(), 'accounts')
+		await withStorageLifecycleLock(accountsRoot, () => {})
+		const coordinatorPath = join(accountsRoot, '.lifecycle.sqlite')
+		const child = Bun.spawn(
+			[
+				process.execPath,
+				'-e',
+				`import { Database } from 'bun:sqlite'; const db = new Database(${JSON.stringify(coordinatorPath)}); db.exec('BEGIN IMMEDIATE'); console.log('locked'); await Bun.sleep(300); db.exec('ROLLBACK'); db.close();`,
+			],
+			{ stdout: 'pipe' },
+		)
+		const reader = child.stdout.getReader()
+		const firstOutput = await reader.read()
+		expect(new TextDecoder().decode(firstOutput.value)).toContain('locked')
+
+		await expect(
+			withStorageLifecycleLock(accountsRoot, () => 'unexpected', 0),
+		).rejects.toThrow()
+		expect(await child.exited).toBe(0)
+		expect(
+			await withStorageLifecycleLock(accountsRoot, () => 'acquired', 0),
+		).toBe('acquired')
+	})
+
 	test('missing, legacy, and corrupt databases fail closed', async () => {
 		const missingPath = join(temporaryDirectory(), 'wallet.db')
 		expect(() => loadStorageIdentityKey(missingPath)).toThrow(
@@ -161,6 +207,8 @@ describe('desktop storage identity', () => {
 	})
 
 	test('stale sweep removes only validated regular staging database files', () => {
+		const now = 1_700_000_000_000
+		const twoDaysAgo = now - 2 * 24 * 60 * 60 * 1000
 		const root = temporaryDirectory()
 		const accountsRoot = join(root, 'accounts')
 		const accountPath = join(accountsRoot, '0123abcd')
@@ -170,8 +218,18 @@ describe('desktop storage identity', () => {
 
 		const stem = 'wallet.db.creating-0123456789abcdef'
 		for (const suffix of ['', '-wal', '-shm']) {
-			writeFileSync(join(accountPath, `${stem}${suffix}`), '')
+			const path = join(accountPath, `${stem}${suffix}`)
+			writeFileSync(path, '')
+			utimesSync(path, twoDaysAgo / 1000, twoDaysAgo / 1000)
 		}
+		const activeStem = `wallet.db.creating-4242-${twoDaysAgo}-0123456789abcdef`
+		const staleDeadStem = `wallet.db.creating-5252-${twoDaysAgo}-0123456789abcdef`
+		const youngDeadStem = `wallet.db.creating-5252-${now - 100}-fedcba9876543210`
+		for (const suffix of ['', '-wal', '-shm']) {
+			writeFileSync(join(accountPath, `${activeStem}${suffix}`), '')
+			writeFileSync(join(accountPath, `${staleDeadStem}${suffix}`), '')
+		}
+		writeFileSync(join(accountPath, youngDeadStem), '')
 		for (const filename of [
 			`${stem}.tasks.json`,
 			'wallet.db.creating-short',
@@ -184,11 +242,21 @@ describe('desktop storage identity', () => {
 		const symlinkPath = join(accountPath, 'wallet.db.creating-fedcba9876543210')
 		symlinkSync(join(accountPath, 'wallet.db'), symlinkPath)
 
-		expect(sweepStaleStorageIdentityFiles(accountsRoot)).toBe(3)
+		expect(
+			sweepStaleStorageIdentityFiles(accountsRoot, {
+				now,
+				isProcessAlive: (pid) => pid === 4242,
+			}),
+		).toBe(6)
 		expect(existsSync(join(accountPath, stem))).toBe(false)
 		expect(existsSync(`${join(accountPath, stem)}-wal`)).toBe(false)
 		expect(existsSync(`${join(accountPath, stem)}-shm`)).toBe(false)
 		expect(existsSync(join(accountPath, `${stem}.tasks.json`))).toBe(true)
+		expect(existsSync(join(accountPath, activeStem))).toBe(true)
+		expect(existsSync(join(accountPath, `${activeStem}-wal`))).toBe(true)
+		expect(existsSync(join(accountPath, `${activeStem}-shm`))).toBe(true)
+		expect(existsSync(join(accountPath, staleDeadStem))).toBe(false)
+		expect(existsSync(join(accountPath, youngDeadStem))).toBe(true)
 		expect(existsSync(invalidAccountFile)).toBe(true)
 		expect(existsSync(symlinkPath)).toBe(true)
 	})
@@ -244,10 +312,13 @@ describe('desktop storage identity', () => {
 		expect(managerSource).toContain("const prefix = '1sat-wallet-'")
 		expect(vaultSource).not.toContain('function legacyVaultLabel')
 		expect(backupSource).toContain('installImportedAccount')
+		expect(backupSource).toContain('decodeBapAccountBackup')
 		expect(backupSource).not.toContain('protectRootKey')
 		expect(backupSource).not.toContain('createDesktopVault')
 		expect(managerSource).toContain('withAccountSingleFlight(accountId')
-		expect(managerSource).toContain('if (!existingAccount) addAccount(account)')
+		expect(managerSource).toContain('withStorageLifecycleLock(accountsRoot()')
+		expect(managerSource).toContain('installIfAccountMissing')
+		expect(managerSource).toContain('addAccount(account)')
 		expect(rpcSource).not.toContain('addAccount(')
 	})
 })

@@ -64,7 +64,7 @@ try {
 
 // Each channel gets its own Secure Enclave key namespace
 initVaultChannel(buildChannel)
-sweepStaleAccountStorageArtifacts()
+await sweepStaleAccountStorageArtifacts()
 
 // ============================================================================
 // Recover vault accounts whose registry entry is missing.

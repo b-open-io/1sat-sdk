@@ -24,6 +24,11 @@ const DEFAULT_REGISTRY: RegistryData = {
 
 let cached: RegistryData | undefined
 
+/** Refresh cached state after acquiring the cross-process lifecycle lock. */
+export function reloadAccountRegistry(): void {
+	cached = undefined
+}
+
 function read(): RegistryData {
 	if (cached) return cached
 	const raw = getConfigStore().get(REGISTRY_KEY)
