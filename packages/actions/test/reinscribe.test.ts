@@ -10,7 +10,10 @@ import {
 	type WalletOutput,
 } from '@bsv/sdk'
 import { MAX_INSCRIPTION_BYTES, ORDINALS_BASKET } from '../src/constants'
-import { buildTransferOrdinals } from '../src/ordinals/index'
+import {
+	buildOrdinalTransferDeliveries,
+	buildTransferOrdinals,
+} from '../src/ordinals/index'
 import { hasUnsealedSigmaPlaceholder } from '../src/signing/sigma'
 import type { OneSatContext } from '../src/types'
 
@@ -65,6 +68,34 @@ function makeCtx(ordinal: WalletOutput): OneSatContext {
 // ============================================================================
 
 describe('buildTransferOrdinals — reinscription', () => {
+	it('describes counterparty delivery without choosing a transport', () => {
+		const ordinal = makeOrdinal([
+			'type:application/json',
+			`origin:${SOURCE_OUTPOINT}`,
+		])
+		const recipientIdentityKey = PrivateKey.fromRandom()
+			.toPublicKey()
+			.toString()
+		const senderIdentityKey = PrivateKey.fromRandom().toPublicKey().toString()
+
+		expect(
+			buildOrdinalTransferDeliveries(
+				[{ id: 'abc', counterparty: recipientIdentityKey }],
+				[ordinal],
+				senderIdentityKey,
+			),
+		).toEqual([
+			{
+				outputIndex: 0,
+				keyID: SOURCE_OUTPOINT,
+				protocolID: [0, 'onesat'],
+				senderIdentityKey,
+				counterparty: senderIdentityKey,
+				recipientIdentityKey,
+			},
+		])
+	})
+
 	it('produces a script Inscription.decode parses back to the exact content and contentType', async () => {
 		const ordinal = makeOrdinal([
 			'type:application/json',

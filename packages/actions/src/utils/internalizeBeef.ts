@@ -51,8 +51,12 @@ import { randomActionId } from './createTrackedAction'
 /** A single output to internalize, with its derivation info. */
 export interface OutputDerivation {
 	outputIndex: number
-	derivationPrefix: string
-	derivationSuffix: string
+	/** Exact wallet keyID, used by direct P1SAT counterparty transfers. */
+	keyID?: string
+	/** BRC-29 derivation prefix. Required when keyID is not supplied. */
+	derivationPrefix?: string
+	/** BRC-29 derivation suffix. Required when keyID is not supplied. */
+	derivationSuffix?: string
 	senderIdentityKey: string
 	/**
 	 * Protocol the receiver derived under — recorded verbatim in the
@@ -135,6 +139,15 @@ export async function internalizeBeef(
 	const derivationByVout = new Map<number, OutputDerivation>()
 	if (outputs) {
 		for (const out of outputs) {
+			if (
+				!out.keyID &&
+				(out.derivationPrefix === undefined ||
+					out.derivationSuffix === undefined)
+			) {
+				throw new Error(
+					'Each output derivation requires keyID or derivationPrefix and derivationSuffix',
+				)
+			}
 			derivationByVout.set(out.outputIndex, out)
 		}
 	}
@@ -283,7 +296,7 @@ async function parseTransaction(
 	return ctx
 }
 
-function buildInternalizeOutput(
+export function buildInternalizeOutput(
 	txo: Txo,
 	derivation: OutputDerivation,
 	actionId: string,
@@ -302,20 +315,31 @@ function buildInternalizeOutput(
 		const sym = (txo.data.bsv21?.data as { sym?: string })?.sym
 		const remittance = remittanceFromOrdinalTags(tags)
 
-		return {
-			outputIndex: vout,
-			protocol: 'basket insertion',
-			insertionRemittance: {
-				basket,
-				tags,
-				customInstructions: JSON.stringify({
+		const customInstructions = derivation.keyID
+			? buildOrdinalCustomInstructions({
+					protocolID: derivation.protocolID,
+					keyID: derivation.keyID,
+					counterparty: derivation.counterparty,
+					tags,
+					name: nameTag?.slice(5),
+					extra: { senderIdentityKey: derivation.senderIdentityKey },
+				})
+			: JSON.stringify({
 					derivationPrefix: derivation.derivationPrefix,
 					derivationSuffix: derivation.derivationSuffix,
 					senderIdentityKey: derivation.senderIdentityKey,
 					...remittance,
 					...(nameTag && { name: nameTag.slice(5).slice(0, 64) }),
 					...(sym && { sym }),
-				}),
+				})
+
+		return {
+			outputIndex: vout,
+			protocol: 'basket insertion',
+			insertionRemittance: {
+				basket,
+				tags,
+				customInstructions,
 			},
 		}
 	}
@@ -328,7 +352,9 @@ function buildInternalizeOutput(
 	if (txo.basket && txo.basket !== 'fund') {
 		const tags = [...collectTags(txo), idTag]
 		const nameTag = tags.find((t) => t.startsWith('name:'))
-		const keyID = `${derivation.derivationPrefix} ${derivation.derivationSuffix}`
+		const keyID =
+			derivation.keyID ??
+			`${derivation.derivationPrefix} ${derivation.derivationSuffix}`
 		const bsv21 = txo.data.bsv21?.data as
 			| {
 					id?: string

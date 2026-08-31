@@ -48,6 +48,7 @@ import type {
 } from '../types'
 import { appendSigmaPlaceholder } from '../signing/sigma'
 import { executeTrackedAction } from '../utils/createTrackedAction'
+import type { OutputDerivation } from '../utils/internalizeBeef'
 import { loadBasketOutputBeef } from '../utils/loadBasketOutput'
 import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance'
 import { ordinalSeedTags } from '../utils/ordinalSeedTags'
@@ -223,7 +224,35 @@ export interface BuyOrdinalRequest extends ActionOptions {
 export interface OrdinalOperationResponse {
 	txid?: string
 	tx?: number[]
+	deliveries?: OrdinalTransferDelivery[]
 	error?: string
+}
+
+/** Transport-neutral instructions for internalizing a counterparty transfer. */
+export interface OrdinalTransferDelivery extends OutputDerivation {
+	recipientIdentityKey: PubKeyHex
+}
+
+export function buildOrdinalTransferDeliveries(
+	transfers: readonly TransferItem[],
+	sources: readonly WalletOutput[],
+	senderIdentityKey: PubKeyHex,
+): OrdinalTransferDelivery[] {
+	return transfers.flatMap((transfer, outputIndex) => {
+		if (!transfer.counterparty || transfer.counterparty === 'self') return []
+		const source = sources[outputIndex]
+		if (!source) throw new Error(`Missing ordinal source at index ${outputIndex}`)
+		return [
+			{
+				outputIndex,
+				keyID: source.outpoint,
+				protocolID: P1SAT_PROTOCOL,
+				senderIdentityKey,
+				counterparty: senderIdentityKey,
+				recipientIdentityKey: transfer.counterparty,
+			},
+		]
+	})
 }
 
 // ============================================================================
@@ -856,6 +885,20 @@ export const sendOrdinals: Action<
 			if ('error' in params) {
 				return params
 			}
+			const hasCounterpartyDelivery = input.transfers.some(
+				(transfer) =>
+					transfer.counterparty && transfer.counterparty !== 'self',
+			)
+			const senderIdentityKey = hasCounterpartyDelivery
+				? (await ctx.wallet.getPublicKey({ identityKey: true })).publicKey
+				: undefined
+			const deliveries = senderIdentityKey
+				? buildOrdinalTransferDeliveries(
+						input.transfers,
+						params.sources,
+						senderIdentityKey,
+					)
+				: []
 
 			console.log(
 				'[sendOrdinals] params:',
@@ -942,7 +985,10 @@ export const sendOrdinals: Action<
 				})
 			}
 
-			return result
+			return {
+				...result,
+				...(deliveries.length > 0 && { deliveries }),
+			}
 		} catch (error) {
 			console.error('[sendOrdinals]', error)
 			if (ctx.debug && ctx.log) {
