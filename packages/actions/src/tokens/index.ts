@@ -1467,14 +1467,20 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 			// Find a spendable auth UTXO for this token (same basket as balance).
 			const authList = await ctx.wallet.listOutputs({
 				basket: BSV21_BASKET,
-				tags: [BSV21_AUTH_TAG, `bsv21:${tokenId}`],
+				// A deploy+auth output cannot carry bsv21:<tokenId> when it is
+				// created because its txid is not known yet. Load authority
+				// candidates by the canonical auth tag, then resolve the token id
+				// from CI/tags/deploy outpoint with matchesTokenId below.
+				tags: [BSV21_AUTH_TAG],
 				tagQueryMode: 'all',
 				includeTags: true,
 				includeCustomInstructions: true,
 				include: 'entire transactions',
 				limit: 1000,
 			})
-			const authUtxo = authList.outputs[0]
+			const authUtxo = authList.outputs.find((output) =>
+				matchesTokenId(output, tokenId),
+			)
 			if (!authUtxo) {
 				return { error: 'no-auth-utxo-for-token' }
 			}
@@ -1567,7 +1573,10 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 			}
 
 			// Optional fee output to overlay fund address (per token output).
-			const tokenOutputCount = (mint ? 1 : 0) + (auth ? 1 : 0)
+			// At this point outputs contains exactly the emitted BSV21 outputs.
+			// Counting the caller's optional `auth` input undercounts the default
+			// continuing-self authority emitted whenever endMinting is false.
+			const tokenOutputCount = outputs.length
 			if (
 				tokenDetails.status.is_active &&
 				tokenDetails.status.fee_per_output > 0
