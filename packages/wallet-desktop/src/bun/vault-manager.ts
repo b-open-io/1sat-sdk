@@ -40,13 +40,6 @@ export function vaultLabelForAccount(accountId: string): string {
 	return `1sat-wallet-${accountId}-${getBuildChannel()}`
 }
 
-/**
- * The old single-account vault label format, used for migration detection.
- */
-export function legacyVaultLabel(): string {
-	return `1sat-wallet-root-key-${getBuildChannel()}`
-}
-
 export function createDesktopVault(): Vault {
 	const vaultDir = `${Utils.paths.userData}/vault`
 	const storage = new FileVaultStorage(vaultDir)

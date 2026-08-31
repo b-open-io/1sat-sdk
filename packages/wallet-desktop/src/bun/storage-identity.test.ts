@@ -1,12 +1,18 @@
 import { Database } from 'bun:sqlite'
 import { afterEach, describe, expect, test } from 'bun:test'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import {
+	existsSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	statSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
 	createStorageIdentityKey,
 	loadStorageIdentityKey,
-	storageIdentityKeyForCreate,
+	prepareStorageIdentityKey,
 } from './storage-identity'
 
 const temporaryDirectories: string[] = []
@@ -34,11 +40,8 @@ afterEach(() => {
 
 describe('desktop storage identity', () => {
 	test('two installs of the same wallet get different provider identities', () => {
-		const firstPath = join(temporaryDirectory(), 'wallet.db')
-		const secondPath = join(temporaryDirectory(), 'wallet.db')
-
-		const first = storageIdentityKeyForCreate(firstPath)
-		const second = storageIdentityKeyForCreate(secondPath)
+		const first = createStorageIdentityKey()
+		const second = createStorageIdentityKey()
 
 		expect(first).toMatch(/^1sat-wallet-[0-9a-f]{32}$/)
 		expect(second).toMatch(/^1sat-wallet-[0-9a-f]{32}$/)
@@ -50,11 +53,61 @@ describe('desktop storage identity', () => {
 		const created = createStorageIdentityKey()
 		writeSettings(databasePath, created)
 
-		expect(storageIdentityKeyForCreate(databasePath)).toBe(created)
 		expect(loadStorageIdentityKey(databasePath)).toBe(created)
 	})
 
-	test('missing and legacy deterministic identities fail closed', () => {
+	test('interrupted first setup leaves no final database and retry succeeds', async () => {
+		const databasePath = join(temporaryDirectory(), 'wallet.db')
+		let interruptedPath = ''
+
+		await expect(
+			prepareStorageIdentityKey(databasePath, async (stagedPath) => {
+				interruptedPath = stagedPath
+				const database = new Database(stagedPath)
+				database.exec('CREATE TABLE incomplete (value TEXT)')
+				database.close()
+				throw new Error('interrupted setup')
+			}),
+		).rejects.toThrow('interrupted setup')
+
+		expect(existsSync(databasePath)).toBe(false)
+		expect(existsSync(interruptedPath)).toBe(false)
+
+		const storageIdentityKey = await prepareStorageIdentityKey(
+			databasePath,
+			async (stagedPath, identityKey) => {
+				writeSettings(stagedPath, identityKey)
+			},
+		)
+
+		expect(loadStorageIdentityKey(databasePath)).toBe(storageIdentityKey)
+		expect(statSync(databasePath).mode & 0o777).toBe(0o600)
+	})
+
+	test('concurrent first setup converges on the identity published first', async () => {
+		const databasePath = join(temporaryDirectory(), 'wallet.db')
+		let ready = 0
+		let release: () => void = () => {}
+		const gate = new Promise<void>((resolve) => {
+			release = resolve
+		})
+		const initialize = async (stagedPath: string, identityKey: string) => {
+			writeSettings(stagedPath, identityKey)
+			ready++
+			if (ready === 2) release()
+			await gate
+		}
+
+		const [first, second] = await Promise.all([
+			prepareStorageIdentityKey(databasePath, initialize),
+			prepareStorageIdentityKey(databasePath, initialize),
+		])
+
+		expect(first).toBe(second)
+		expect(loadStorageIdentityKey(databasePath)).toBe(first)
+	})
+
+	test('missing, legacy, and corrupt databases fail closed', async () => {
 		const missingPath = join(temporaryDirectory(), 'wallet.db')
 		expect(() => loadStorageIdentityKey(missingPath)).toThrow(
 			'missing its local storage identity',
@@ -73,6 +126,14 @@ describe('desktop storage identity', () => {
 		expect(() => loadStorageIdentityKey(corruptPath)).toThrow(
 			'no readable local storage identity',
 		)
+
+		let initialized = false
+		await expect(
+			prepareStorageIdentityKey(corruptPath, async () => {
+				initialized = true
+			}),
+		).rejects.toThrow('no readable local storage identity')
+		expect(initialized).toBe(false)
 	})
 
 	test('identity is absent from WebView config and RPC source surfaces', () => {
@@ -95,5 +156,25 @@ describe('desktop storage identity', () => {
 			)
 			expect(source).not.toContain('storageIdentityKey')
 		}
+	})
+
+	test('startup does not migrate unsupported legacy wallets', () => {
+		const indexSource = readFileSync(
+			new URL('./index.ts', import.meta.url),
+			'utf8',
+		)
+		const managerSource = readFileSync(
+			new URL('./wallet-manager.ts', import.meta.url),
+			'utf8',
+		)
+		const vaultSource = readFileSync(
+			new URL('./vault-manager.ts', import.meta.url),
+			'utf8',
+		)
+
+		expect(indexSource).not.toContain('migrateLegacyWallet')
+		expect(indexSource).not.toContain('legacyVaultLabel')
+		expect(managerSource).not.toContain('function migrateLegacyWallet')
+		expect(vaultSource).not.toContain('function legacyVaultLabel')
 	})
 })

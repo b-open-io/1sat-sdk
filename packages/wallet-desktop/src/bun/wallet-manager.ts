@@ -1,10 +1,4 @@
-import {
-	chmodSync,
-	existsSync,
-	mkdirSync,
-	renameSync,
-	unlinkSync,
-} from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, unlinkSync } from 'node:fs'
 /**
  * Wallet lifecycle manager — multi-instance.
  *
@@ -15,14 +9,14 @@ import {
  */
 import type { Vault } from '@1sat/vault'
 import type { NodeWalletResult } from '@1sat/wallet-node'
-import { createNodeWallet } from '@1sat/wallet-node'
+import { StorageBunSqlite, createNodeWallet } from '@1sat/wallet-node'
 import { HD, Hash, Mnemonic, PrivateKey } from '@bsv/sdk'
 import { BAP } from 'bsv-bap'
 import { Utils } from 'electrobun/bun'
 import type { BalanceInfo, SyncEvent, WalletStatus } from '../shared/types'
 import {
 	loadStorageIdentityKey,
-	storageIdentityKeyForCreate,
+	prepareStorageIdentityKey,
 } from './storage-identity'
 import {
 	createDesktopVault,
@@ -245,10 +239,38 @@ export async function create(
 	const identityKey = rootKey.toPublicKey().toString()
 	const { bapId } = deriveBapId(rootKey.toWif())
 
-	await protectRootKey(v, accountId, rootKeyHex)
 	ensureAccountDir(accountId)
 	const databasePath = dbPath(accountId)
-	const storageIdentityKey = storageIdentityKeyForCreate(databasePath)
+	const storageIdentityKey = await prepareStorageIdentityKey(
+		databasePath,
+		async (stagedDatabasePath, stagedStorageIdentityKey) => {
+			const stagedWallet = await createNodeWallet({
+				privateKey: rootKey.toWif(),
+				chain: 'main',
+				storageIdentityKey: stagedStorageIdentityKey,
+				storage: { provider: 'bun-sqlite', filename: stagedDatabasePath },
+				skipInitialMonitor: true,
+			})
+			try {
+				const stagedStorage = stagedWallet.getActiveStorage()
+				if (!(stagedStorage instanceof StorageBunSqlite)) {
+					throw new Error('Staged wallet did not use SQLite storage')
+				}
+				stagedStorage.db.run('PRAGMA wal_checkpoint(TRUNCATE)')
+				const row = stagedStorage.db
+					.query<{ journal_mode: string }, []>('PRAGMA journal_mode = DELETE')
+					.get()
+				if (row?.journal_mode.toLowerCase() !== 'delete') {
+					throw new Error('Could not checkpoint staged wallet database')
+				}
+			} finally {
+				await stagedWallet.destroy()
+			}
+		},
+	)
+
+	// The vault is written only after a complete database is atomically installed.
+	await protectRootKey(v, accountId, rootKeyHex)
 
 	const walletResult = await createNodeWallet({
 		privateKey: rootKey.toWif(),
@@ -464,41 +486,6 @@ export function getLegacyCallbacks(): WalletCallbacks {
 		onBalanceUpdated: (balance) => legacyBalanceCb?.(balance),
 		onSyncEvent: (event) => legacySyncCb?.(event),
 	}
-}
-
-// ============================================================================
-// Migration: single-account → multi-account
-// ============================================================================
-
-export async function migrateLegacyWallet(
-	legacyLabel: string,
-): Promise<{ accountId: string; identityKey: string } | null> {
-	const v = getVault()
-	const secrets = v.listSecrets()
-	const hasLegacy = secrets.some((s) => s.label === legacyLabel)
-	if (!hasLegacy) return null
-
-	const { plaintext: rootKeyHex } = await v.unlockSecret(legacyLabel)
-	const rootKey = PrivateKey.fromHex(rootKeyHex)
-	const identityKey = rootKey.toPublicKey().toString()
-	const accountId = computeAccountId(identityKey)
-
-	await protectRootKey(v, accountId, rootKeyHex)
-
-	const oldDbPath = `${Utils.paths.userData}/wallet.db`
-	const newDir = accountDir(accountId)
-	mkdirSync(newDir, { recursive: true })
-
-	for (const suffix of ['', '-wal', '-shm']) {
-		const src = `${oldDbPath}${suffix}`
-		if (existsSync(src)) {
-			renameSync(src, `${newDir}/wallet.db${suffix}`)
-		}
-	}
-
-	await v.removeSecret(legacyLabel)
-
-	return { accountId, identityKey }
 }
 
 /**
