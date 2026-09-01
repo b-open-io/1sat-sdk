@@ -31,11 +31,43 @@ export interface ResolvedBind {
 	avatarOrigin?: string
 }
 
+/**
+ * Backend that maps an alias to an identity for one domain. Returns null
+ * when the alias does not resolve (404 at the route).
+ */
+export interface PaymailResolver {
+	resolve(alias: string, domain: string): Promise<ResolvedBind | null>
+}
+
+export interface RegisteredUser {
+	username: string
+	identityKey: string
+	createdAt: Date
+}
+
+/** Registry of user-registered names (the 1sat.app backend). */
+export interface UserStore {
+	get(alias: string): Promise<RegisteredUser | null>
+	getByIdentity(identityKey: string): Promise<RegisteredUser | null>
+	/**
+	 * Idempotent per identity: re-claiming your own username succeeds, a
+	 * username held by another identity throws.
+	 */
+	claim(username: string, identityKey: string): Promise<RegisteredUser>
+}
+
 export interface PaymailDeps {
 	/** Public base URL for capability document (e.g. https://1sat.app) */
 	baseUrl: string
 	/** Stack root URL (OpNS, beef, tx broadcast) */
 	stackUrl: string
+	/**
+	 * Domain resolved from the registered-users table instead of OpNS
+	 * (e.g. 1sat.app). Unset = every domain resolves via OpNS.
+	 */
+	userDomain?: string
+	/** Backing store for userDomain resolution. */
+	userStore?: UserStore
 	/** In-flight payment refs store */
 	pendingStore: PendingStore
 	/** Pending TTL ms (default 15m) */

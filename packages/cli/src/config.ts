@@ -117,6 +117,13 @@ export interface ServerPaymailConfig {
 	 */
 	requireEntitlement?: boolean
 	/**
+	 * Domain served from the registered-users table (e.g. "1sat.app").
+	 * Aliases on this domain resolve username→identity key via the
+	 * `paymail_users` table; every other domain (e.g. "1sat.name") keeps
+	 * resolving through on-chain OpNS binds. Unset = OpNS for all domains.
+	 */
+	userDomain?: string
+	/**
 	 * Wallet storage URL for entitlement listOutputs (and optional later
 	 * subscribe). Defaults to local wallet serve URL like messagebox.
 	 */

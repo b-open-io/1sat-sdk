@@ -46,12 +46,22 @@ export type {
 } from './createHostServer'
 export { mountPaymailRoutes } from './paymail/routes'
 export { KnexPendingStore, DEFAULT_TTL_MS } from './paymail/pending'
+export {
+	KnexUserStore,
+	UsernameTakenError,
+	USERNAME_RE,
+	normalizeUsername,
+} from './paymail/users'
+export { createRegistryResolver } from './paymail/resolvers'
 export { checkHostingEntitlement } from './paymail/entitlement'
 export type {
 	PaymailDeps,
+	PaymailResolver,
 	PendingPayment,
 	PendingStore,
+	RegisteredUser,
 	ResolvedBind,
+	UserStore,
 } from './paymail/types'
 export {
 	mountHostingRoutes,

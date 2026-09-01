@@ -13,13 +13,15 @@ import {
 	PublicProfileRoute,
 	ReceiveBeefTransactionRoute,
 	ReceiveTransactionRoute,
+	RequestSenderValidationCapability,
 } from '@bsv/paymail'
 import { Transaction, Utils } from '@bsv/sdk'
-import type { Express } from 'express'
+import type { Express, Request } from 'express'
 import { createPaymentDestination, verifyPaymentOutputs } from './destination'
 import { checkHostingEntitlement } from './entitlement'
 import { MessageBoxClient } from './messagebox'
 import { resolvePaymailBind } from './resolve'
+import { createRegistryResolver } from './resolvers'
 import type { PaymailDeps } from './types'
 
 /**
@@ -79,17 +81,36 @@ export async function mountPaymailRoutes(
 		)
 	}
 
-	async function resolveAndAuthorize(alias: string) {
+	const registryResolver =
+		deps.userDomain && deps.userStore
+			? createRegistryResolver(deps.userStore)
+			: null
+
+	async function resolveAndAuthorize(alias: string, domain: string) {
 		try {
-			const bind = await resolvePaymailBind(services, alias)
-			if (gateOn && deps.hostWallet) {
+			const viaRegistry =
+				registryResolver != null &&
+				domain.toLowerCase() === deps.userDomain?.toLowerCase()
+			const bind = viaRegistry
+				? await registryResolver?.resolve(alias, domain)
+				: await resolvePaymailBind(services, alias)
+			if (!bind) throw new NotFoundError()
+			if (deps.userStore) {
+				const user = await deps.userStore.getByIdentity(bind.identityKey)
+				if (!user) {
+					console.warn(
+						`[paymail] ${alias}@${domain}: identity ${bind.identityKey} has no registered username`,
+					)
+					throw new NotFoundError()
+				}
+			} else if (gateOn && deps.hostWallet) {
 				const ent = await checkHostingEntitlement(
 					deps.hostWallet,
 					bind.identityKey,
 				)
 				if (!ent.active) {
 					console.warn(
-						`[paymail] ${alias}: identity ${bind.identityKey} has no active hosting subscription`,
+						`[paymail] ${alias}@${domain}: identity ${bind.identityKey} has no active hosting subscription`,
 					)
 					throw new NotFoundError()
 				}
@@ -98,88 +119,90 @@ export async function mountPaymailRoutes(
 		} catch (err) {
 			if (err instanceof NotFoundError) throw err
 			console.warn(
-				`[paymail] ${alias}: bind resolution failed: ${err instanceof Error ? err.message : String(err)}`,
+				`[paymail] ${alias}@${domain}: resolution failed: ${err instanceof Error ? err.message : String(err)}`,
 			)
 			throw new NotFoundError()
 		}
 	}
 
 	const paymailClient = new PaymailClient()
+	const paymailRoutes = [
+		new PublicKeyInfrastructureRoute({
+			domainLogicHandler: async (params: PaymailRouteParams) => {
+				const { name, domain } =
+					PublicKeyInfrastructureRoute.getNameAndDomain(params)
+				const bind = await resolveAndAuthorize(name, domain)
+				return {
+					bsvalias: '1.0' as const,
+					handle: `${name}@${domain}`,
+					pubkey: bind.identityKey,
+				}
+			},
+		}),
+		new PublicProfileRoute({
+			domainLogicHandler: async (params: PaymailRouteParams) => {
+				const { name, domain } = PublicProfileRoute.getNameAndDomain(params)
+				const bind = await resolveAndAuthorize(name, domain)
+				return {
+					// Presentation only — falls back to the resolved name, which
+					// is the unique value for its backend.
+					name: bind.profileName || name,
+					avatar: bind.avatarOrigin
+						? `${ordfsBaseUrl}/${bind.avatarOrigin}`
+						: '',
+				}
+			},
+		}),
+		new P2pPaymentDestinationRoute({
+			domainLogicHandler: async (params, rawBody) => {
+				const body = rawBody as P2pDestinationBody
+				const { name, domain } =
+					P2pPaymentDestinationRoute.getNameAndDomain(params)
+				const bind = await resolveAndAuthorize(name, domain)
+				const pending = await createPaymentDestination(deps.pendingStore, {
+					alias: name,
+					domain,
+					identityPubKey: bind.identityKey,
+					satoshis: Number(body.satoshis ?? 0),
+					ttlMs: deps.pendingTtlMs,
+				})
+				return {
+					reference: pending.reference,
+					outputs: [
+						{ satoshis: pending.satoshis, script: pending.outputScript },
+					],
+				}
+			},
+		}),
+		new ReceiveBeefTransactionRoute({
+			verifySignature: false,
+			paymailClient,
+			domainLogicHandler: async (params, rawBody) => {
+				const body = rawBody as ReceiveBeefBody
+				// Senders post plain BEEF per BRC-70; fromBEEF accepts
+				// V1, V2, and Atomic. Normalize to atomic for downstream
+				// internalization by the recipient wallet.
+				const tx = Transaction.fromBEEF(Utils.toArray(body.beef, 'hex'))
+				return finishReceive(tx, tx.toAtomicBEEF(), body.reference)
+			},
+		}),
+		new ReceiveTransactionRoute({
+			verifySignature: false,
+			paymailClient,
+			domainLogicHandler: async (params, rawBody) => {
+				const body = rawBody as ReceiveHexBody
+				const tx = Transaction.fromHex(body.hex)
+				await populateAncestors(tx)
+				const beefBytes = tx.toAtomicBEEF()
+				return finishReceive(tx, beefBytes, body.reference)
+			},
+		}),
+	]
+
 	const router = new PaymailRouter({
 		baseUrl: deps.baseUrl,
 		basePath: '/bsvalias',
-		routes: [
-			new PublicKeyInfrastructureRoute({
-				domainLogicHandler: async (params: PaymailRouteParams) => {
-					const { name, domain } =
-						PublicKeyInfrastructureRoute.getNameAndDomain(params)
-					const bind = await resolveAndAuthorize(name)
-					return {
-						bsvalias: '1.0' as const,
-						handle: `${name}@${domain}`,
-						pubkey: bind.identityKey,
-					}
-				},
-			}),
-			new PublicProfileRoute({
-				domainLogicHandler: async (params: PaymailRouteParams) => {
-					const { name } = PublicProfileRoute.getNameAndDomain(params)
-					const bind = await resolveAndAuthorize(name)
-					return {
-						// Presentation only — falls back to the OpNS name, which is
-						// the unique, owned value.
-						name: bind.profileName || name,
-						avatar: bind.avatarOrigin
-							? `${ordfsBaseUrl}/${bind.avatarOrigin}`
-							: '',
-					}
-				},
-			}),
-			new P2pPaymentDestinationRoute({
-				domainLogicHandler: async (params, rawBody) => {
-					const body = rawBody as P2pDestinationBody
-					const { name, domain } =
-						P2pPaymentDestinationRoute.getNameAndDomain(params)
-					const bind = await resolveAndAuthorize(name)
-					const pending = await createPaymentDestination(deps.pendingStore, {
-						alias: name,
-						domain,
-						identityPubKey: bind.identityKey,
-						satoshis: Number(body.satoshis ?? 0),
-						ttlMs: deps.pendingTtlMs,
-					})
-					return {
-						reference: pending.reference,
-						outputs: [
-							{ satoshis: pending.satoshis, script: pending.outputScript },
-						],
-					}
-				},
-			}),
-			new ReceiveBeefTransactionRoute({
-				verifySignature: false,
-				paymailClient,
-				domainLogicHandler: async (params, rawBody) => {
-					const body = rawBody as ReceiveBeefBody
-					// Senders post plain BEEF per BRC-70; fromBEEF accepts
-					// V1, V2, and Atomic. Normalize to atomic for downstream
-					// internalization by the recipient wallet.
-					const tx = Transaction.fromBEEF(Utils.toArray(body.beef, 'hex'))
-					return finishReceive(tx, tx.toAtomicBEEF(), body.reference)
-				},
-			}),
-			new ReceiveTransactionRoute({
-				verifySignature: false,
-				paymailClient,
-				domainLogicHandler: async (params, rawBody) => {
-					const body = rawBody as ReceiveHexBody
-					const tx = Transaction.fromHex(body.hex)
-					await populateAncestors(tx)
-					const beefBytes = tx.toAtomicBEEF()
-					return finishReceive(tx, beefBytes, body.reference)
-				},
-			}),
-		],
+		routes: paymailRoutes,
 		errorHandler: (err, req, res, next) => {
 			if (err instanceof NotFoundError) {
 				console.warn(`[paymail] 404 ${req.method} ${req.path}: ${err.message}`)
@@ -243,7 +266,48 @@ export async function mountPaymailRoutes(
 		return { txid, note: 'Payment received' }
 	}
 
+	// One process answers several apex domains (e.g. 1sat.app + 1sat.name), so
+	// the capability document must reflect the requested Host, not the single
+	// baseUrl baked into the PaymailRouter's own well-known route. Registered
+	// first, it shadows the router's.
+	app.get('/.well-known/bsvalias', (req: Request, res) => {
+		const origin = requestOrigin(req, deps.baseUrl)
+		const capabilities: Record<string, string | boolean> = {}
+		for (const route of paymailRoutes) {
+			const endpoint = route
+				.getEndpoint()
+				.replaceAll(':paymail', '{alias}@{domain.tld}')
+				.replaceAll(':pubkey', '{pubkey}')
+			capabilities[route.getCode()] = joinUrl(origin, '/bsvalias', endpoint)
+		}
+		capabilities[RequestSenderValidationCapability.getCode()] = false
+		res.type('application/json').send({ bsvalias: '1.0', capabilities })
+	})
+
 	app.use(router.getRouter())
+}
+
+function requestOrigin(req: Request, fallback: string): string {
+	const header = (value: string | string[] | undefined): string | undefined =>
+		Array.isArray(value) ? value[0] : value
+	const host = header(req.headers['x-forwarded-host']) || req.headers.host
+	if (!host) return fallback
+	const fwdProto = header(req.headers['x-forwarded-proto'])
+	const proto = fwdProto
+		? fwdProto.split(',')[0]?.trim() || 'https'
+		: (req.socket as { encrypted?: boolean }).encrypted
+			? 'https'
+			: 'http'
+	return `${proto}://${host}`
+}
+
+function joinUrl(...parts: string[]): string {
+	return parts
+		.map((p, i) =>
+			i === 0 ? p.replace(/\/+$/, '') : p.replace(/^\/+|\/+$/g, ''),
+		)
+		.filter((p) => p !== '')
+		.join('/')
 }
 
 function isRejected(txStatus: string | undefined): boolean {

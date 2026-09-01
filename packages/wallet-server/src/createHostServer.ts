@@ -40,7 +40,7 @@ import {
 import { mountOpenApiRoutes } from './openapi'
 import { checkHostingEntitlement } from './paymail/entitlement'
 import { mountPaymailRoutes } from './paymail/routes'
-import type { PaymailDeps } from './paymail/types'
+import type { PaymailDeps, UserStore } from './paymail/types'
 import { buildAuthMiddleware } from './sessions/redisSessionManager'
 
 export interface HostServerMessageboxConfig {
@@ -56,7 +56,11 @@ export interface HostServerConfig {
 	serverIdentityKey: string
 	listen: { port: number; host?: string }
 	accounts?: WalletServerAccounts
-	hosting?: { getConfig: HostingConfigProvider }
+	hosting?: {
+		getConfig: HostingConfigProvider
+		/** 1sat.app name registry; subscribe can claim a username when set. */
+		userStore?: UserStore
+	}
 	paymail?: PaymailDeps
 	messagebox?: HostServerMessageboxConfig
 	/**
@@ -170,6 +174,7 @@ export async function createHostServer(
 			wallet,
 			getConfig: config.hosting.getConfig,
 			authMiddleware,
+			...(config.hosting.userStore && { userStore: config.hosting.userStore }),
 		})
 	}
 
@@ -194,8 +199,20 @@ export async function createHostServer(
 						?.message
 					const raw = message?.recipients ?? message?.recipient
 					const recipients = Array.isArray(raw) ? raw : raw != null ? [raw] : []
+					const userStore = config.hosting?.userStore
 					for (const recipient of recipients) {
 						if (typeof recipient !== 'string') continue
+						if (userStore) {
+							const user = await userStore.getByIdentity(recipient)
+							if (!user) {
+								return res.status(403).json({
+									status: 'error',
+									code: 'ERR_HOSTING_REQUIRED',
+									description: 'Recipient does not have a registered username',
+								})
+							}
+							continue
+						}
 						const ent = await checkHostingEntitlement(wallet, recipient)
 						if (!ent.active) {
 							return res.status(403).json({

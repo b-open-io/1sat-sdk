@@ -16,6 +16,8 @@ export interface HostingStatus {
 	identityKey: string
 	active: boolean
 	expiresAt?: number
+	/** Registered 1sat.app username, when the host exposes a name registry. */
+	username?: string
 	priceSats?: number
 	priceUsd?: number
 	periodSeconds?: number
@@ -24,6 +26,7 @@ export interface HostingStatus {
 export interface HostingSubscribeResult {
 	status: string
 	identityKey: string
+	username?: string
 	expiresAt: number
 	txid: string
 }
@@ -50,14 +53,16 @@ export class HostingClient {
 		return res.json() as Promise<HostingStatus>
 	}
 
-	async subscribe(): Promise<HostingSubscribeResult> {
+	async subscribe(opts?: {
+		username?: string
+	}): Promise<HostingSubscribeResult> {
 		if (!this.wallet) throw new Error('wallet required for subscribe')
 		const auth = new AuthFetch(this.wallet)
 		// AuthFetch retries 402 with payment when wallet can pay.
 		const res = await auth.fetch(`${this.baseUrl}/hosting/subscribe`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: '{}',
+			body: JSON.stringify(opts?.username ? { username: opts.username } : {}),
 		})
 		if (!res.ok) {
 			const text = await res.text()

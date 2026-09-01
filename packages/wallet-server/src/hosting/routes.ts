@@ -31,6 +31,8 @@ import {
 } from '@bsv/sdk'
 import type { Express, NextFunction, Request, Response } from 'express'
 import { createAccountsPaymentMiddleware } from '../accounts/paymentMiddleware'
+import type { UserStore } from '../paymail/types'
+import { UsernameTakenError, normalizeUsername } from '../paymail/users'
 
 export interface HostingConfig {
 	enabled: boolean
@@ -51,6 +53,8 @@ export function mountHostingRoutes(
 		wallet: WalletInterface
 		getConfig: HostingConfigProvider
 		authMiddleware: (req: Request, res: Response, next: NextFunction) => unknown
+		/** Optional 1sat.app name registry; enables username on subscribe. */
+		userStore?: UserStore
 	},
 ): void {
 	const root = basePath === '/' ? '' : basePath.replace(/\/$/, '')
@@ -73,10 +77,13 @@ export function mountHostingRoutes(
 				})
 			}
 			const status = await hostingStatus(deps.wallet, identityKey)
+			const user = await deps.userStore?.getByIdentity(identityKey)
 			return res.json({
 				enabled: true,
 				identityKey,
 				...status,
+				active: status.active || user != null,
+				...(user && { username: user.username }),
 				priceSats: cfg.priceSats,
 				...(cfg.priceUsd !== undefined && { priceUsd: cfg.priceUsd }),
 				periodSeconds: cfg.periodSeconds,
@@ -111,6 +118,52 @@ export function mountHostingRoutes(
 				return res.status(404).json({ error: 'hosting disabled' })
 			}
 
+			// Optional 1sat.app username claim rides the same subscribe call.
+			// Validated + claimed before minting so a bad name fails cheap.
+			const raw = (req.body as { username?: unknown } | undefined)?.username
+			let username: string | undefined
+			if (raw !== undefined && raw !== null && raw !== '') {
+				if (!deps.userStore) {
+					return res
+						.status(400)
+						.json({ error: 'username registration not enabled' })
+				}
+				const normalized = normalizeUsername(raw)
+				if (!normalized) {
+					return res.status(400).json({
+						error:
+							'invalid username: lowercase letters, digits, hyphens; 3-63 chars, no leading/trailing hyphen',
+					})
+				}
+				try {
+					const claimed = await deps.userStore.claim(normalized, identityKey)
+					username = claimed.username
+				} catch (err) {
+					if (err instanceof UsernameTakenError) {
+						return res.status(409).json({ error: err.message })
+					}
+					throw err
+				}
+			}
+
+			if (!username && deps.userStore) {
+				const existing = await deps.userStore.getByIdentity(identityKey)
+				if (existing) username = existing.username
+				else {
+					return res.status(400).json({ error: 'username required' })
+				}
+			}
+
+			if (cfg.priceSats === 0) {
+				return res.json({
+					status: 'ok',
+					identityKey,
+					...(username && { username }),
+					expiresAt: 0,
+					txid: '',
+				})
+			}
+
 			try {
 				const result = await mintOrReplaceReceipt(
 					deps.wallet,
@@ -120,6 +173,7 @@ export function mountHostingRoutes(
 				return res.json({
 					status: 'ok',
 					identityKey,
+					...(username && { username }),
 					expiresAt: result.expiresAt,
 					txid: result.txid,
 				})

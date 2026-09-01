@@ -26,6 +26,7 @@ import {
 } from '@1sat/wallet-node'
 import {
 	KnexPendingStore,
+	KnexUserStore,
 	createHostServer,
 	createWalletServer,
 } from '@1sat/wallet-server'
@@ -428,6 +429,8 @@ async function startWalletServer(
 	)
 	const pendingStore = new KnexPendingStore(knex)
 	await pendingStore.init()
+	const userStore = new KnexUserStore(knex)
+	await userStore.init()
 
 	const handle = await createHostServer({
 		wallet: walletResult.wallet,
@@ -436,12 +439,21 @@ async function startWalletServer(
 		serverIdentityKey: walletResult.wallet.identityKey,
 		listen: { port: resolved.port, host: resolved.host },
 		accounts: accounts?.walletServerAccounts,
-		hosting,
+		hosting: hosting
+			? {
+					...hosting,
+					...(paymailCfg?.userDomain && { userStore }),
+				}
+			: undefined,
 		paymail: {
 			baseUrl:
 				paymailCfg?.baseUrl ?? `http://${resolved.host}:${resolved.port}`,
 			stackUrl: paymailCfg?.stackUrl ?? resolved.stackUrl,
 			pendingStore,
+			...(paymailCfg?.userDomain && {
+				userDomain: paymailCfg.userDomain,
+				userStore,
+			}),
 			hostWallet: hostingEnabled ? walletResult.wallet : undefined,
 			requireEntitlement: hostingEnabled,
 			messageboxUrl: `http://127.0.0.1:${resolved.port}/messagebox`,
