@@ -53,6 +53,7 @@ import { getListOutputsSpecOp } from '@bsv/wallet-toolbox/out/src/storage/method
 import { outputColumnsWithoutLockingScript } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/TableOutput.js'
 import { transactionColumnsWithoutRawTx } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/TableTransaction.js'
 import type {
+	TableActionBatch,
 	TableCertificate,
 	TableCertificateField,
 	TableCertificateX,
@@ -3802,5 +3803,20 @@ export class StoragePg extends StorageProvider {
 
 	async adminStats(_adminIdentityKey: string): Promise<AdminStatsResult> {
 		throw new WERR_NOT_IMPLEMENTED('adminStats, only MySQL is supported')
+	}
+
+	// -----------------------------------------------------------------------
+	// Action batching — not implemented by this backend. The base
+	// StorageProvider throws NOT_IMPLEMENTED, which makes the monitor's
+	// CleanupActionBatches task fail every cycle. These providers never
+	// create action batches, so an empty set is the truthful answer and the
+	// task becomes a harmless no-op instead of an error.
+	// -----------------------------------------------------------------------
+
+	async findExpiredActionBatches(
+		_now: Date,
+		_trx?: TrxToken,
+	): Promise<TableActionBatch[]> {
+		return []
 	}
 }
