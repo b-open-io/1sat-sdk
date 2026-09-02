@@ -154,6 +154,9 @@ export * from './sync'
 // Export registry module (on-chain package builder)
 export * from './registry'
 
+// Export ordfs module (ord-fs/json directory writing)
+export * from './ordfs'
+
 import { actionRegistry } from './action-registry'
 import { addressesActions } from './addresses'
 import { collectionsActions } from './collections'
@@ -162,6 +165,7 @@ import { inscriptionsActions } from './inscriptions'
 import { locksActions } from './locks'
 import { mneeActions } from './mnee'
 import { opnsActions } from './opns'
+import { ordfsActions } from './ordfs'
 import { ordinalsActions } from './ordinals'
 import { paymentsActions } from './payments'
 import { signingActions } from './signing'
@@ -185,6 +189,7 @@ actionRegistry.registerAll([
 	...opnsActions,
 	...syncActions,
 	...mneeActions,
+	...ordfsActions,
 ])
 
 // Re-export SDK types that consumers commonly need

@@ -206,10 +206,42 @@ export default class BitCom {
 	 * @returns number - Position of OP_RETURN, or -1 if not found
 	 */
 	private static findReturn(scriptBytes: number[], from: number): number {
-		for (let i = from; i < scriptBytes.length; i++) {
-			if (scriptBytes[i] === OP.OP_RETURN) {
-				return i
+		let i = from
+		while (i < scriptBytes.length) {
+			const opcode = scriptBytes[i]
+			if (opcode === OP.OP_RETURN) return i
+
+			// Skip pushed data instead of scanning through it for a byte that only
+			// happens to equal OP_RETURN (0x6a). MIME types such as ord-fs/json
+			// contain that byte and previously hid the real BitCom tape.
+			if (opcode >= 1 && opcode <= 75) {
+				i += 1 + opcode
+				continue
 			}
+			if (opcode === OP.OP_PUSHDATA1) {
+				if (i + 1 >= scriptBytes.length) return -1
+				i += 2 + scriptBytes[i + 1]
+				continue
+			}
+			if (opcode === OP.OP_PUSHDATA2) {
+				if (i + 2 >= scriptBytes.length) return -1
+				const length = scriptBytes[i + 1] | (scriptBytes[i + 2] << 8)
+				i += 3 + length
+				continue
+			}
+			if (opcode === OP.OP_PUSHDATA4) {
+				if (i + 4 >= scriptBytes.length) return -1
+				const length =
+					(scriptBytes[i + 1] |
+						(scriptBytes[i + 2] << 8) |
+						(scriptBytes[i + 3] << 16) |
+						(scriptBytes[i + 4] << 24)) >>>
+					0
+				i += 5 + length
+				continue
+			}
+
+			i++
 		}
 		return -1
 	}
