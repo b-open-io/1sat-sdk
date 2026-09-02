@@ -31,14 +31,14 @@
  * AIP does not.
  */
 
-import { P1SAT_INTENTS, P1SAT_PROTOCOL } from '@1sat/types'
-import { Utils } from '@bsv/sdk'
+import { P1SAT_PROTOCOL } from '@1sat/types'
+import { Script, Utils } from '@bsv/sdk'
 import { prepareP1SatArgs } from '../apply'
 import { ORDINALS_BASKET } from '../constants'
 import { applyBapAip } from '../signing/aip'
+import { appendSigmaPlaceholder } from '../signing/sigma'
 import type { Action, ActionOptions, OneSatContext } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
-import { executeSigmaAction } from '../utils/executeSigmaAction'
 import { resolveDestination } from '../utils/resolveDestination'
 import { buildOrdFsDirOutputs } from './outputs'
 import type { OrdfsDirFile, OrdfsDirWriteMode } from './outputs'
@@ -78,9 +78,6 @@ export interface DeployOrdfsDirFile {
 	contentType: string
 }
 
-/** @deprecated Use {@link DeployOrdfsDirFile}. */
-export type InscribeOrdfsDirFile = DeployOrdfsDirFile
-
 export interface DeployOrdfsDirRequest extends ActionOptions {
 	/**
 	 * Files to publish, in the order their outputs are created. Paths use
@@ -105,9 +102,6 @@ export interface DeployOrdfsDirRequest extends ActionOptions {
 	sign?: boolean
 }
 
-/** @deprecated Use {@link DeployOrdfsDirRequest}. */
-export type InscribeOrdfsDirRequest = DeployOrdfsDirRequest
-
 export interface DeployOrdfsDirResponse {
 	/** Transaction ID of the publish transaction, when broadcast succeeded. */
 	txid?: string
@@ -121,14 +115,9 @@ export interface DeployOrdfsDirResponse {
 	 * nothing at them is a spendable/ownable ordinal.
 	 */
 	origins?: string[]
-	/** The write mode actually used, echoed back for convenience. */
-	writeMode?: OrdfsDirWriteMode
 	/** Error message when the publish failed. */
 	error?: string
 }
-
-/** @deprecated Use {@link DeployOrdfsDirResponse}. */
-export type InscribeOrdfsDirResponse = DeployOrdfsDirResponse
 
 // ============================================================================
 // Action
@@ -265,15 +254,12 @@ export const deployOrdfsDir: Action<
 					})
 				: undefined
 
-			if (writeMode !== 'b' && sign) {
-				return await publishWithSigma(ctx, built, input, customInstructions)
-			}
-
-			return await publishOutputs(
+			return await publish(
 				ctx,
 				built,
 				input,
 				writeMode,
+				writeMode !== 'b' && sign,
 				customInstructions,
 			)
 		} catch (error) {
@@ -293,12 +279,6 @@ export const deployOrdfsDir: Action<
 		}
 	},
 }
-
-/** @deprecated Use {@link deployOrdfsDir}. */
-export const inscribeOrdfsDir = deployOrdfsDir
-
-/** @deprecated Use {@link deployOrdfsDir}. */
-export const uploadOrdfsDir = deployOrdfsDir
 
 // ============================================================================
 // Internal publish helpers
@@ -351,75 +331,48 @@ function toActionOutputs(
 }
 
 /**
- * Publish the outputs directly — used for unsigned publishes (either write
- * mode) and for signed `writeMode: 'b'` publishes (AIP is already folded into
- * `built` by the caller; there's no anchor to spend).
+ * Publish the outputs. When `sigma` is set, the root manifest gets a zeroed
+ * SIGMA placeholder so it is already its on-chain size; the shared apply
+ * pipeline detects the unsealed tape, creates the anchor input, and seals the
+ * signature (see `apply/inscribeSigma.ts`). AIP for an all-B tree is already
+ * folded into `built` by the caller.
  */
-async function publishOutputs(
+async function publish(
 	ctx: OneSatContext,
 	built: BuiltOutputs,
 	input: DeployOrdfsDirRequest,
 	writeMode: OrdfsDirWriteMode,
+	sigma: boolean,
 	manifestCustomInstructions?: string,
 ): Promise<DeployOrdfsDirResponse> {
 	const outputs = toActionOutputs(built, writeMode, manifestCustomInstructions)
+	if (sigma) {
+		const manifest = outputs[built.manifestVout]
+		manifest.lockingScript = (
+			await appendSigmaPlaceholder(ctx, Script.fromHex(manifest.lockingScript))
+		).toHex()
+	}
 
-	const args = await prepareP1SatArgs(
-		ctx,
-		{
-			description: 'Publish ord-fs directory',
-			outputs,
-			options: {
-				acceptDelayedBroadcast: false,
-				randomizeOutputs: false,
-			},
+	const args = await prepareP1SatArgs(ctx, {
+		description: 'Publish ord-fs directory',
+		outputs,
+		options: {
+			randomizeOutputs: false,
+			acceptDelayedBroadcast: sigma,
 		},
-		P1SAT_INTENTS.ORDFS_DEPLOY,
-	)
+	})
 	const result = await executeTrackedAction(
 		ctx.wallet,
 		args,
 		input.fundingProvider,
-	)
-
-	if (!result.txid) return { error: 'no-txid-returned' }
-
-	return {
-		txid: result.txid,
-		manifestVout: built.manifestVout,
-		origins: originsFor(result.txid, built.outputs.length),
-		writeMode,
-	}
-}
-
-/**
- * Publish with SIGMA authorship through the shared placeholder/seal apply
- * flow. Only called for signed mixed or all-inscription publishes.
- */
-async function publishWithSigma(
-	ctx: OneSatContext,
-	built: BuiltOutputs,
-	input: DeployOrdfsDirRequest,
-	manifestCustomInstructions?: string,
-): Promise<DeployOrdfsDirResponse> {
-	const outputs = toActionOutputs(
-		built,
-		input.writeMode ?? 'mixed',
-		manifestCustomInstructions,
-	)
-	const result = await executeSigmaAction(
-		ctx,
+		undefined,
+		undefined,
 		{
-			description: 'Publish ord-fs directory',
-			outputs,
-			options: {
-				randomizeOutputs: false,
-				acceptDelayedBroadcast: true,
-			},
+			spends: [],
+			usePermissionModule:
+				input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+			permissionScheme: '1sat',
 		},
-		P1SAT_INTENTS.ORDFS_DEPLOY_SIGMA,
-		input.fundingProvider,
-		built.manifestVout,
 	)
 
 	if (!result.txid) return { error: 'no-txid-returned' }
@@ -428,7 +381,6 @@ async function publishWithSigma(
 		txid: result.txid,
 		manifestVout: built.manifestVout,
 		origins: originsFor(result.txid, built.outputs.length),
-		writeMode: input.writeMode ?? 'mixed',
 	}
 }
 

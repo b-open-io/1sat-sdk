@@ -17,32 +17,66 @@ export const ORD_PREFIX = 'ord'
 // ============================================================================
 
 export const FUNDING_BASKET = 'default'
-// 1Sat asset baskets are P-prefixed so WalletPermissionsManager routes
-// listOutputs / internalizeAction / etc. for them through the 1Sat
-// permission module rather than through the generic basket-access flow.
-// This:
-//   - lets the 1Sat module gate access with its own UX
-//   - avoids the double-encryption bug WPM has when a non-P basket is
-//     internalized alongside a P-label
-export const ORDINALS_BASKET = 'p 1sat ordinals'
-export const BSV21_BASKET = 'p 1sat bsv21'
-export const BSV21_AUTH_BASKET = 'p 1sat bsv21-auth'
-export const BSV21_DEPLOY_FUNDING_BASKET = 'p 1sat bsv21-deploy-funding'
+/**
+ * Preferred inventory baskets (BRC-147 collectables = `1sat`). Plain names —
+ * not P-baskets. Permission routing for createAction stays on `p 1sat …`
+ * **labels**; basket list/internalize uses the known-set check in the module
+ * when registered, else generic WPM basket access.
+ *
+ * Legacy `p 1sat …` baskets are not dual-read — migrate once via
+ * {@link LEGACY_P1SAT_BASKET_MIGRATIONS} / `moveBasketOutputs`.
+ */
+/** Collectables / ordinals inventory (BRC-147). */
+export const ONESAT_BASKET = '1sat'
+/** @deprecated Prefer {@link ONESAT_BASKET}; same string. */
+export const ORDINALS_BASKET = ONESAT_BASKET
+export const BSV21_BASKET = 'bsv21'
+/** @deprecated Auth UTXOs live in {@link BSV21_BASKET} with {@link BSV21_AUTH_TAG}. */
+export const BSV21_AUTH_BASKET = BSV21_BASKET
+/** Tag on mint-authority BSV21 outputs (no amt). */
+export const BSV21_AUTH_TAG = 'bsv21:auth'
 /** Tag on a single-CA deploy output; tokenId is the outpoint (`txid_vout`). */
 export const BSV21_DEPLOY_TAG = 'bsv21:deploy'
-export const OPNS_BASKET = 'p 1sat opns'
+export const OPNS_BASKET = 'opns'
 /**
  * Host-wallet basket for subscription receipt dust (1 sat to host).
  * Customer identity is **not** in the locking script — only wallet-local tags.
  */
-export const HOSTING_BASKET = 'p 1sat hosting'
-export const LOCK_BASKET = 'p 1sat lock'
-export const SIGMA_BASKET = 'p 1sat sigma'
-export const BSOCIAL_BASKET = 'p 1sat bsocial'
-// BAP records are 0-sat data outputs (identity registry), never externally
-// spendable. They don't interact with the WPM double-encryption path so
-// they stay non-P.
+export const HOSTING_BASKET = 'hosting'
+export const LOCK_BASKET = 'lock'
+export const SIGMA_BASKET = 'sigma'
+export const BSOCIAL_BASKET = 'bsocial'
 export const BAP_BASKET = 'bap'
+
+/** All preferred 1Sat asset baskets (for module basket-access gating). */
+export const ONESAT_ASSET_BASKETS: readonly string[] = [
+	ONESAT_BASKET,
+	BSV21_BASKET,
+	OPNS_BASKET,
+	HOSTING_BASKET,
+	LOCK_BASKET,
+	SIGMA_BASKET,
+	BSOCIAL_BASKET,
+	BAP_BASKET,
+]
+
+/** Legacy P-basket → preferred basket. Migrate only; no dual-read. */
+export const LEGACY_P1SAT_BASKET_MIGRATIONS: ReadonlyArray<{
+	from: string
+	to: string
+}> = [
+	{ from: 'p 1sat ordinals', to: ONESAT_BASKET },
+	{ from: 'p 1sat bsv21', to: BSV21_BASKET },
+	{ from: 'p 1sat opns', to: OPNS_BASKET },
+	{ from: 'p 1sat hosting', to: HOSTING_BASKET },
+	{ from: 'p 1sat lock', to: LOCK_BASKET },
+	{ from: 'p 1sat sigma', to: SIGMA_BASKET },
+	{ from: 'p 1sat bsocial', to: BSOCIAL_BASKET },
+]
+
+export function isOneSatAssetBasket(basket: string): boolean {
+	return ONESAT_ASSET_BASKETS.includes(basket)
+}
 
 /**
  * Holding basket for plain BSV received at the user's P1SAT-derived
@@ -102,12 +136,25 @@ export const ONESAT_TESTNET_CONTENT_URL = 'https://testnet.api.1sat.app/content'
 // ============================================================================
 
 /**
- * 1Sat ecosystem signing protocol. All 1Sat asset operations (ordinals,
- * BSV21, locks, OPNS, cosign, MNEE, deposits) sign and derive under this
- * protocol. The `'p '` prefix routes calls to the registered 1Sat permission
- * module per BRC-0098.
+ * Preferred default key-derivation protocol for new 1Sat asset outputs.
+ * Plain name — not a BRC-99 P-protocol. Spends always use whatever
+ * `protocolID` was recorded in customInstructions (including legacy
+ * `[0,'p 1sat']` rows).
  */
-export const P1SAT_PROTOCOL: [0 | 1 | 2, string] = [0, 'p 1sat']
+// BRC-100 / wallet-toolbox require protocol names length ≥ 5 ("1sat" is 4).
+export const ONESAT_PROTOCOL: [0 | 1 | 2, string] = [0, 'onesat']
+
+/**
+ * BRC-98 / BRC-165 module probe protocol (`p <scheme> <rest>` → `p 1sat probe`).
+ * Used by {@link hasOneSatModule}. Not for inventory keys or spend unlock CI.
+ */
+export const P1SAT_MODULE_PROTOCOL: [0 | 1 | 2, string] = [0, 'p 1sat probe']
+
+/**
+ * @deprecated Prefer {@link ONESAT_PROTOCOL} for new keys.
+ * Module probe is {@link P1SAT_MODULE_PROTOCOL}. Same as ONESAT_PROTOCOL.
+ */
+export const P1SAT_PROTOCOL: [0 | 1 | 2, string] = ONESAT_PROTOCOL
 
 // ============================================================================
 // OpNS identity bind (PushDrop on name UTXO)
@@ -149,9 +196,7 @@ export function hostingExpTag(expiresAtUnix: number): string {
 	return `${HOSTING_EXP_TAG_PREFIX}${Math.floor(expiresAtUnix)}`
 }
 
-export function readHostingPayer(
-	tags: string[] | undefined,
-): string | undefined {
+export function readHostingPayer(tags: string[] | undefined): string | undefined {
 	if (!tags) return undefined
 	for (const t of tags) {
 		if (t.startsWith(HOSTING_PAYER_TAG_PREFIX)) {
@@ -171,155 +216,95 @@ export function readHostingExp(tags: string[] | undefined): number | undefined {
 	return undefined
 }
 
-/**
- * Generic dispatch-trigger label. Added by `createTrackedAction` when no
- * asset-specific labels are present, so the module still gets a chance
- * to capture the hashOutputs commitment for any 1Sat-asset createAction.
- *
- * Asset-specific labels (built via {@link buildInputAssetLabel} /
- * {@link buildOutputAssetLabel}) carry per-asset lookup keys the module
- * uses to render the prompt with rich detail (ordinal name, token amount,
- * etc.). The wallet-toolbox enforces a `'p <scheme> <payload>'` shape, so
- * a bare `'p 1sat'` is invalid; we use `'p 1sat action'` as the fallback.
- */
-export const P1SAT_LABEL = 'p 1sat action'
+// ============================================================================
+// Permission schemes (BRC-99) — one scheme id per asset class
+// ============================================================================
 
 /**
- * Intent label prefix. Payload is `<domain>.<verb>` (e.g. `opns.register`).
- * When present, replaces the need for bare {@link P1SAT_LABEL} as the
- * WPM dispatch trigger for createAction.
+ * Registered permission scheme ids. Each maps to one primary storage basket
+ * of the same name (except where a profile documents otherwise).
  */
-export const P1SAT_INTENT_LABEL_PREFIX = 'p 1sat intent '
-
-/** Well-known P1Sat createAction intents (permission apply dispatch keys). */
-export const P1SAT_INTENTS = {
-	OPNS_REGISTER: 'opns.register',
-	OPNS_DEREGISTER: 'opns.deregister',
-	OPNS_LIST: 'opns.list',
-	OPNS_TRANSFER: 'opns.transfer',
-	OPNS_CANCEL_LISTING: 'opns.cancel-listing',
-	OPNS_PURCHASE: 'opns.purchase',
-	ORDINAL_TRANSFER: 'ordinal.transfer',
-	ORDINAL_LIST: 'ordinal.list',
-	ORDINAL_CANCEL_LISTING: 'ordinal.cancel-listing',
-	ORDINAL_PURCHASE: 'ordinal.purchase',
-	ORDINAL_BURN: 'ordinal.burn',
-	ORDINAL_INSCRIBE: 'ordinal.inscribe',
-	ORDINAL_INSCRIBE_SIGMA: 'ordinal.inscribe-sigma',
-	ORDFS_DEPLOY: 'ordfs.deploy',
-	ORDFS_DEPLOY_SIGMA: 'ordfs.deploy-sigma',
-	ORDINAL_MINT_COLLECTION: 'ordinal.mint-collection',
-	ORDINAL_MINT_ITEM: 'ordinal.mint-item',
-	LOCK_LOCK: 'lock.lock',
-	LOCK_UNLOCK: 'lock.unlock',
-	BSV21_TRANSFER: 'bsv21.transfer',
-	BSV21_PURCHASE: 'bsv21.purchase',
-	BSV21_MINT: 'bsv21.mint',
-	BSV21_DEPLOY: 'bsv21.deploy',
+export const PERMISSION_SCHEMES = {
+	ONESAT: '1sat',
+	OPNS: 'opns',
+	BSV21: 'bsv21',
+	LOCK: 'lock',
 } as const
 
-export type P1SatIntent = (typeof P1SAT_INTENTS)[keyof typeof P1SAT_INTENTS]
+export type PermissionSchemeId =
+	(typeof PERMISSION_SCHEMES)[keyof typeof PERMISSION_SCHEMES]
 
-/** All known intent id strings (for fail-closed checks). */
-export const P1SAT_INTENT_IDS: ReadonlySet<string> = new Set(
-	Object.values(P1SAT_INTENTS),
-)
+/** Scheme ids that ship with the shared permission-module toolkit. */
+export const PERMISSION_SCHEME_IDS: readonly PermissionSchemeId[] = [
+	PERMISSION_SCHEMES.ONESAT,
+	PERMISSION_SCHEMES.OPNS,
+	PERMISSION_SCHEMES.BSV21,
+	PERMISSION_SCHEMES.LOCK,
+]
 
-/**
- * True if `intent` is a known P1Sat intent id.
- */
-export function isKnownP1SatIntent(intent: string): intent is P1SatIntent {
-	return P1SAT_INTENT_IDS.has(intent)
+const PERMISSION_SCHEME_SET = new Set<string>(PERMISSION_SCHEME_IDS)
+
+export function isPermissionSchemeId(s: string): s is PermissionSchemeId {
+	return PERMISSION_SCHEME_SET.has(s)
 }
 
-/**
- * Build `p 1sat intent <domain>.<verb>`.
- */
-export function buildIntentLabel(intent: string): string {
-	return `${P1SAT_INTENT_LABEL_PREFIX}${intent}`
+/** Primary storage basket for a scheme (today: scheme id === basket name). */
+export function basketForScheme(scheme: PermissionSchemeId): string {
+	return scheme
 }
 
+/** Scheme that owns a storage basket, if any. */
+export function schemeForBasket(basket: string): PermissionSchemeId | undefined {
+	const b = basket.trim()
+	return isPermissionSchemeId(b) ? b : undefined
+}
+
+/** Dispatch label: `p <scheme> action` — routes createAction when no input label. */
+export function buildActionDispatchLabel(scheme: PermissionSchemeId): string {
+	return `p ${scheme} action`
+}
+
+/** @deprecated Prefer {@link buildActionDispatchLabel}(`1sat`). */
+export const P1SAT_LABEL = buildActionDispatchLabel(PERMISSION_SCHEMES.ONESAT)
+
 /**
- * First `p 1sat intent …` label payload, or undefined.
+ * True if labels already route createAction to `scheme` (any well-formed
+ * `p <scheme> <payload>` label, including bare action dispatch).
  */
-export function parseIntentLabel(
+export function hasSchemeDispatchLabel(
 	labels: string[] | undefined,
-): string | undefined {
-	if (!labels) return undefined
-	for (const label of labels) {
-		if (!label.startsWith(P1SAT_INTENT_LABEL_PREFIX)) continue
-		const intent = label.slice(P1SAT_INTENT_LABEL_PREFIX.length).trim()
-		if (intent) return intent
-	}
-	return undefined
-}
-
-/**
- * Action-id label prefix. Payload is the hex actionId that also appears in
- * each basketed output's `id:<actionId>_<index>` tag.
- *
- * The actionId is the action's correlator: it is stamped before apply runs,
- * so both the action and apply can derive the same intermediate keyIDs
- * (e.g. the Sigma anchor) without passing anything between them. Nothing may
- * travel back from apply to the action — `WalletPermissionsManager` rebuilds
- * `labels` into a new array before the module sees the args, so writes there
- * are not visible to the caller.
- */
-export const P1SAT_ACTION_ID_LABEL_PREFIX = 'p 1sat action-id '
-
-/**
- * Build `p 1sat action-id <actionId>`.
- */
-export function buildActionIdLabel(actionId: string): string {
-	return `${P1SAT_ACTION_ID_LABEL_PREFIX}${actionId}`
-}
-
-/**
- * First `p 1sat action-id …` label payload, or undefined.
- */
-export function parseActionIdLabel(
-	labels: string[] | undefined,
-): string | undefined {
-	if (!labels) return undefined
-	for (const label of labels) {
-		if (!label.startsWith(P1SAT_ACTION_ID_LABEL_PREFIX)) continue
-		const actionId = label.slice(P1SAT_ACTION_ID_LABEL_PREFIX.length).trim()
-		if (actionId) return actionId
-	}
-	return undefined
-}
-
-/**
- * True if labels already route createAction to the 1Sat permission module
- * (bare action label or any intent label).
- */
-export function hasP1SatDispatchLabel(labels: string[] | undefined): boolean {
+	scheme: PermissionSchemeId,
+): boolean {
 	if (!labels?.length) return false
-	if (labels.includes(P1SAT_LABEL)) return true
-	return labels.some((l) => l.startsWith(P1SAT_INTENT_LABEL_PREFIX))
+	const prefix = `p ${scheme} `
+	return labels.some((l) => l.startsWith(prefix) && l.length > prefix.length)
 }
 
-/**
- * Shared `'p 1sat '` prefix on every 1Sat asset basket. Used by the
- * WalletPermissionsManager to route basket-scoped calls (listOutputs,
- * internalizeAction, etc.) through the 1Sat permission module.
- */
-export const P1SAT_BASKET_PREFIX = 'p 1sat '
+/** True if any known asset scheme is addressed by a P-label. */
+export function hasAssetDispatchLabel(labels: string[] | undefined): boolean {
+	if (!labels?.length) return false
+	return PERMISSION_SCHEME_IDS.some((s) => hasSchemeDispatchLabel(labels, s))
+}
 
-/**
- * Label prefix recognized by the 1Sat permission module. Carries the
- * `'p 1sat'` dispatch trigger; payload is `'<basket-suffix> <id>'`
- * where `<basket-suffix>` is the asset basket name with the shared
- * `'p 1sat '` prefix stripped (e.g. `'ordinals'`, `'bsv21'`). Encoding
- * only the suffix keeps the payload space-free so the parser can split
- * cleanly on the boundary between basket and id.
- *
- * Outputs don't need a label: the SDK sets tags directly on
- * `args.outputs[i].tags` (unencrypted, visible to the module), and
- * `args.outputs[i].lockingScript` is cryptographically committed to
- * the final tx. The module reads both directly.
- */
-export const P1SAT_INPUT_LABEL_PREFIX = 'p 1sat input '
+/** @deprecated Prefer {@link hasSchemeDispatchLabel} / {@link hasAssetDispatchLabel}. */
+export function hasP1SatDispatchLabel(labels: string[] | undefined): boolean {
+	return hasSchemeDispatchLabel(labels, PERMISSION_SCHEMES.ONESAT)
+}
+
+/** Ensure `p <scheme> action` is present (unless another payload label for that scheme exists). */
+export function ensureSchemeActionLabel(
+	labels: string[] | undefined,
+	scheme: PermissionSchemeId,
+): string[] {
+	const next = labels ?? []
+	if (hasSchemeDispatchLabel(next, scheme)) return next
+	return [...next, buildActionDispatchLabel(scheme)]
+}
+
+/** @deprecated Prefer {@link ensureSchemeActionLabel}(`labels`, `1sat`). */
+export function ensureP1SatActionLabel(labels: string[] | undefined): string[] {
+	return ensureSchemeActionLabel(labels, PERMISSION_SCHEMES.ONESAT)
+}
 
 /**
  * Byte length of the zero-filled signature field carried by an unsealed
@@ -331,50 +316,143 @@ export const P1SAT_INPUT_LABEL_PREFIX = 'p 1sat input '
 export const OPNS_REGISTER_SIG_PLACEHOLDER_LEN = 72
 
 /**
- * Build a label that points the 1Sat permission module at a specific
- * input asset record in the wallet's storage.
+ * Build `p <scheme> input id <key>` for a held row.
  *
- * `id` is the per-output asset id assigned by `createTrackedAction`
- * (`id:<actionId>_<vout>`) — the value stored on the input's `id:` tag,
- * without the `id:` prefix. The module resolves the record via
- * `listOutputs({ basket, tags: [id:<id>], tagQueryMode: 'all' })` — a
- * single indexed lookup, not a basket scan.
- *
- * Inputs without an `id:` tag (e.g. created before tracked-action ids
- * existed) can't be enriched; callers should skip emitting the label
- * for those rather than scanning by outpoint.
- *
- * The shared {@link P1SAT_BASKET_PREFIX} is stripped from the basket
- * before encoding so basket names with embedded spaces don't collide
- * with the basket↔id space delimiter. Non-P1Sat baskets pass through
- * unstripped — those won't resolve in the permission module and the
- * input simply drops from enrichment (graceful degradation to the
- * generic transaction approval UI).
- *
- * @param basket - Asset basket (typically a P1Sat basket constant).
- * @param id     - The asset id, i.e. the `id:` tag value on the input.
+ * `id` is the bare BRC-164 `id:` tag value (no `id:` prefix) and MUST NOT
+ * contain spaces. `basket` selects the scheme (scheme id === basket name).
  */
 export function buildInputAssetLabel(basket: string, id: string): string {
-	const suffix = basket.startsWith(P1SAT_BASKET_PREFIX)
-		? basket.slice(P1SAT_BASKET_PREFIX.length)
-		: basket
-	return `${P1SAT_INPUT_LABEL_PREFIX}${suffix} ${id}`
+	const b = basket.trim()
+	const assetId = id.trim()
+	if (!b) throw new Error('Input label requires a basket name')
+	if (!assetId || /\s/.test(assetId)) {
+		throw new Error('Input id must be a non-empty string without spaces')
+	}
+	const scheme = schemeForBasket(b)
+	if (!scheme) {
+		throw new Error(`No permission scheme for basket "${b}"`)
+	}
+	return `p ${scheme} input id ${assetId}`
 }
 
 /**
- * BRC-111 P-label prefix used to tag actions with a BSV21 token id so the
- * wallet can filter transaction history per token via
- * `wallet.listActions({ labels: [...] })`. As a `'p 1sat '`-prefixed label
- * it routes through the 1Sat permission module instead of triggering the
- * wallet-toolbox's per-label Protocol Permission prompt.
+ * Build `p <scheme> input <outpoint>` for an external (non-wallet) spend
+ * (outpoint is one of the action's beefed inputs).
  */
-export const P1SAT_TOKEN_LABEL_PREFIX = 'p 1sat bsv21 '
+export function buildExternalInputLabel(
+	scheme: PermissionSchemeId,
+	outpoint: string,
+): string {
+	const op = outpoint.trim()
+	if (!op || /\s/.test(op)) {
+		throw new Error('External input outpoint must be a single token')
+	}
+	if (!isOutpointToken(op)) {
+		throw new Error('External input label requires an outpoint-shaped token')
+	}
+	return `p ${scheme} input ${op}`
+}
+
+export interface ParsedInputAssetLabel {
+	scheme: PermissionSchemeId
+	basket: string
+	id: string
+}
 
 /**
- * Build a BSV21 token label, e.g. `'p 1sat bsv21 <tokenId>'`.
+ * Parse held-row input labels (`p <scheme> input id <key>` only).
+ */
+export function parseInputAssetLabels(
+	labels: string[] | undefined,
+): ParsedInputAssetLabel[] {
+	if (!labels?.length) return []
+	const refs: ParsedInputAssetLabel[] = []
+	for (const label of labels) {
+		const parsed = parseOneInputLabel(label)
+		if (!parsed || parsed.kind !== 'id') continue
+		refs.push({
+			scheme: parsed.scheme,
+			basket: parsed.basket,
+			id: parsed.id,
+		})
+	}
+	return refs
+}
+
+export type ParsedInputLabel =
+	| { kind: 'id'; scheme: PermissionSchemeId; basket: string; id: string }
+	| { kind: 'outpoint'; scheme: PermissionSchemeId; outpoint: string }
+
+/**
+ * Parse a single `p <scheme> input …` label.
+ *
+ * - Held: `p <scheme> input id <key>`
+ * - External: `p <scheme> input <outpoint>` (outpoint-shaped single token)
+ */
+export function parseOneInputLabel(label: string): ParsedInputLabel | undefined {
+	if (!label.startsWith('p ')) return undefined
+	const rest = label.slice(2)
+	const sp = rest.indexOf(' ')
+	if (sp <= 0) return undefined
+	const schemeTok = rest.slice(0, sp)
+	if (!isPermissionSchemeId(schemeTok)) return undefined
+	const afterScheme = rest.slice(sp + 1).trim()
+	if (!afterScheme.startsWith('input ')) return undefined
+	const payload = afterScheme.slice('input '.length).trim()
+	if (!payload) return undefined
+
+	// Held: `input id <key>`
+	if (payload.startsWith('id ')) {
+		const key = payload.slice(3).trim()
+		if (!key || /\s/.test(key) || isOutpointToken(key)) return undefined
+		return {
+			kind: 'id',
+			scheme: schemeTok,
+			basket: basketForScheme(schemeTok),
+			id: key,
+		}
+	}
+
+	// External: single outpoint-shaped token only
+	if (!payload.includes(' ') && isOutpointToken(payload)) {
+		return {
+			kind: 'outpoint',
+			scheme: schemeTok,
+			outpoint: normalizeOutpointDot(payload),
+		}
+	}
+
+	return undefined
+}
+
+function isOutpointToken(s: string): boolean {
+	if (s.length < 66) return false
+	const sep = s[64]
+	if (sep !== '.' && sep !== '_') return false
+	const txid = s.slice(0, 64)
+	const vout = s.slice(65)
+	return /^[0-9a-fA-F]{64}$/.test(txid) && /^\d+$/.test(vout)
+}
+
+function normalizeOutpointDot(s: string): string {
+	if (s.length >= 66 && s[64] === '_') return `${s.slice(0, 64)}.${s.slice(65)}`
+	return s
+}
+
+/**
+ * BRC-111 P-label for BSV21 token history filtering via listActions.
+ * Routes through the `bsv21` permission scheme.
+ */
+export const BSV21_TOKEN_LABEL_PREFIX = 'p bsv21 token '
+
+/** @deprecated Prefer {@link BSV21_TOKEN_LABEL_PREFIX}. */
+export const P1SAT_TOKEN_LABEL_PREFIX = BSV21_TOKEN_LABEL_PREFIX
+
+/**
+ * Build a BSV21 token history label, e.g. `'p bsv21 token <tokenId>'`.
  */
 export function buildTokenLabel(tokenId: string): string {
-	return `${P1SAT_TOKEN_LABEL_PREFIX}${tokenId}`
+	return `${BSV21_TOKEN_LABEL_PREFIX}${tokenId}`
 }
 
 /**

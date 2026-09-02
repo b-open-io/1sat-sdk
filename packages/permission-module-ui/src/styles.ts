@@ -127,6 +127,46 @@ export const promptStyles = `
   padding: 16px;
 }
 
+/* Subtle danger chrome for burn / destructive token ops */
+.opp-featured-danger {
+  border-color: rgba(220, 38, 38, 0.45);
+  background: color-mix(in srgb, var(--opp-card-bg) 88%, #7f1d1d 12%);
+}
+
+.opp-featured-danger .opp-featured-title {
+  color: #f87171;
+}
+
+.opp-featured-danger .opp-featured-image,
+.opp-featured-danger .opp-featured-placeholder {
+  border: 1px solid rgba(220, 38, 38, 0.35);
+  background: rgba(127, 29, 29, 0.25);
+  color: #fca5a5;
+}
+
+.opp-dark .opp-featured-danger {
+  border-color: rgba(248, 113, 113, 0.4);
+  background: color-mix(in srgb, var(--opp-card-bg) 85%, #450a0a 15%);
+}
+
+.opp-preview-pair {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.opp-preview-arrow {
+  color: var(--opp-muted);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.opp-preview-pair .opp-featured-image {
+  width: 64px;
+  height: 64px;
+}
+
 .opp-featured-image {
   width: 80px;
   height: 80px;
@@ -148,6 +188,89 @@ export const promptStyles = `
   justify-content: center;
   color: var(--opp-muted);
   font-size: 18px;
+}
+
+.opp-preview-opns {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.opp-preview-opns-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  object-fit: cover;
+  background: rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
+}
+
+.opp-preview-opns-name {
+  font-size: 11px;
+  font-weight: 600;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  color: var(--opp-fg, inherit);
+}
+
+.opp-preview-text {
+  margin: 0;
+  padding: 6px;
+  box-sizing: border-box;
+  overflow: hidden;
+  font-size: 9px;
+  line-height: 1.25;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
+  color: var(--opp-muted);
+}
+
+.opp-preview-json {
+  white-space: pre;
+  overflow: auto;
+}
+
+.opp-preview-frame {
+  border: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #fff;
+  pointer-events: none;
+}
+
+.opp-preview-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  background: rgba(229, 169, 32, 0.12);
+  border: 1px solid rgba(229, 169, 32, 0.35);
+  color: var(--opp-fg, inherit);
+}
+
+.opp-preview-value-icon {
+  width: 32px;
+  height: 32px;
+  color: #E5A920;
+}
+
+/* Amount subtitles must never ellipsis — full sat counts are the point. */
+.opp-featured-subtitle-text.opp-amount {
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
+  font-variant-numeric: tabular-nums;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: keep-all;
 }
 
 .opp-featured-meta {
@@ -181,6 +304,38 @@ export const promptStyles = `
   text-overflow: ellipsis;
   min-width: 0;
   font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
+}
+
+.opp-featured-meta-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--opp-muted);
+}
+
+.opp-featured-meta-line-bare {
+  align-items: center;
+}
+
+.opp-featured-meta-key {
+  flex-shrink: 0;
+  opacity: 0.75;
+  min-width: 2.5em;
+}
+
+.opp-featured-meta-value {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+}
+
+.opp-featured-meta-value-mono {
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
+  font-size: 11px;
 }
 
 .opp-trust-wrap {

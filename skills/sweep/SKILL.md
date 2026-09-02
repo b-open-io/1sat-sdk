@@ -90,7 +90,7 @@ const result = await sweepOrdinals.execute(ctx, {
 1. Each ordinal gets a unique derived address via the P1SAT protocol (keyID = the input outpoint)
 2. Tags are set from resolved metadata: `type:{contentType}`, `origin:{origin}`, `name:{name}`
 3. Custom instructions are stored for future spending
-4. OpNS ordinals go to the `opns` basket; others go to `ordinals`
+4. OpNS ordinals go to the `opns` basket; others go to `1sat`
 5. BSV-20 tokens are rejected (use `sweepBsv21` instead)
 6. Output order is preserved (`randomizeOutputs: false`) to maintain ordinal positions
 

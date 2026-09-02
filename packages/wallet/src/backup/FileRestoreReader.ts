@@ -1,5 +1,4 @@
-import type { sdk } from '@bsv/wallet-toolbox-client/out/src/index.client.js'
-import type { TableSettings } from '@bsv/wallet-toolbox-client/out/src/storage/schema/tables/TableSettings.js'
+import type { sdk, TableSettings } from '@bsv/wallet-toolbox-client'
 import { decode } from '@msgpack/msgpack'
 import type { Unzipped } from 'fflate'
 import type { BackupManifest } from './types'

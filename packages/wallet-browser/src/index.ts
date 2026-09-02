@@ -12,10 +12,10 @@ export {
 	Monitor,
 	Services,
 	StorageClient,
+	StorageIdb,
 	StorageProvider,
 	Wallet,
 	WalletPermissionsManager,
 	WalletStorageManager,
 	type sdk as walletSdk,
 } from '@bsv/wallet-toolbox-client'
-export { StorageIdb } from '@bsv/wallet-toolbox-client/out/src/index.client.js'

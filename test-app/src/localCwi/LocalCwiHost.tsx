@@ -4,8 +4,9 @@
  * - localEnabled → expose / hide window.CWI (vs extension-only)
  * - adminOriginator → actions use admin (no prompt, still apply) vs dApp (prompt)
  */
-import { createOneSatPermissionModule } from '@1sat/permission-module'
+import { createAssetPermissionModules } from '@1sat/permission-module'
 import type { PromptRequest } from '@1sat/permission-module'
+import type { VerificationServices } from '@1sat/permission-module'
 import { OneSatPermissionPrompt } from '@1sat/permission-module-ui'
 import { LocalWalletPermissionsManager } from '@1sat/wallet'
 import {
@@ -32,10 +33,13 @@ import {
 } from './CorePermissionPrompt'
 import {
 	ADMIN_ORIGINATOR,
+	DAPP_ORIGINATOR,
 	REMOTE_BACKUP_URL,
 	STORAGE_IDENTITY_KEY,
+	STORAGE_IDENTITY_STORAGE_KEY,
 	TOGGLE_ADMIN_KEY,
 	TOGGLE_LOCAL_KEY,
+	TOGGLE_ONESAT_MODULE_KEY,
 	WIF_STORAGE_KEY,
 } from './constants'
 
@@ -65,6 +69,14 @@ export type LocalCwiContextValue = {
 	/** Actions bind admin originator (silent apply) vs dApp (prompt). */
 	adminOriginator: boolean
 	setAdminOriginator: (on: boolean) => void
+	/**
+	 * When true, 1sat asset actions pass useOneSatModule (p 1sat labels → module).
+	 * When false, local pipeline (generic WPM prompts may still appear).
+	 */
+	useOneSatModule: boolean
+	setUseOneSatModule: (on: boolean) => void
+	/** Clear stored permission grants (dApp + admin) so prompts replay. */
+	clearPermissionGrants: () => Promise<number>
 }
 
 const LocalCwiContext = createContext<LocalCwiContextValue | null>(null)
@@ -119,6 +131,32 @@ function loadOrCreateWif(): string {
 	return wif
 }
 
+/**
+ * Per-profile store id for WalletStorageManager. Must be unique per install
+ * (remote sync_state is keyed by userId + this value). Persist so reloads
+ * of this origin/profile reuse it. Never send the old shared constant
+ * `'1sat-test-app'` — that collided across every test-app on the host.
+ */
+function loadOrCreateStorageIdentityKey(): string {
+	try {
+		const existing = localStorage.getItem(STORAGE_IDENTITY_STORAGE_KEY)
+		if (existing && existing !== STORAGE_IDENTITY_KEY) return existing
+	} catch {
+		/* ignore */
+	}
+	const id = `1sat-test-app-${crypto.randomUUID()}`
+	try {
+		localStorage.setItem(STORAGE_IDENTITY_STORAGE_KEY, id)
+	} catch {
+		/* ignore */
+	}
+	return id
+}
+
+/** One createWebWallet per page. Strict Mode would otherwise race two. */
+let webWalletPromise: Promise<Awaited<ReturnType<typeof createWebWallet>>> | null =
+	null
+
 export function LocalCwiHost({ children }: { children: ReactNode }) {
 	const [status, setStatus] = useState<LocalCwiStatus>('booting')
 	const [error, setError] = useState<string | null>(null)
@@ -133,10 +171,17 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 	const [adminOriginator, setAdminOriginatorState] = useState(() =>
 		readToggle(TOGGLE_ADMIN_KEY, false),
 	)
+	const [useOneSatModule, setUseOneSatModuleState] = useState(() =>
+		readToggle(TOGGLE_ONESAT_MODULE_KEY, true, sessionStorage),
+	)
 	const [prompt, setPrompt] = useState<PromptState | null>(null)
 	const [coreQueue, setCoreQueue] = useState<CoreEntry[]>([])
+	const [promptServices, setPromptServices] = useState<
+		VerificationServices | undefined
+	>(undefined)
 	const destroyRef = useRef<(() => Promise<void>) | null>(null)
 	const gatedRef = useRef<LocalWalletPermissionsManager | null>(null)
+	const permissionStoreRef = useRef<IndexedDbPermissionStore | null>(null)
 
 	const promptHandler = useCallback((request: PromptRequest) => {
 		return new Promise<boolean>((resolve) => {
@@ -161,6 +206,22 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 		setAdminOriginatorState(on)
 	}, [])
 
+	const setUseOneSatModule = useCallback((on: boolean) => {
+		writeToggle(TOGGLE_ONESAT_MODULE_KEY, on, sessionStorage)
+		setUseOneSatModuleState(on)
+	}, [])
+
+	const clearPermissionGrants = useCallback(async () => {
+		const store = permissionStoreRef.current
+		if (!store) return 0
+		const a = await store.deleteAllForOriginator(DAPP_ORIGINATOR)
+		const b = await store.deleteAllForOriginator(ADMIN_ORIGINATOR)
+		// Also clear host-only variants if any
+		const host = typeof window !== 'undefined' ? window.location.host : ''
+		const c = host ? await store.deleteAllForOriginator(host) : 0
+		return a + b + c
+	}, [])
+
 	// Boot wallet once
 	useEffect(() => {
 		let cancelled = false
@@ -170,22 +231,26 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 				setStatus('booting')
 				const wif = loadOrCreateWif()
 				const privateKey = PrivateKey.fromWif(wif)
+				const storageIdentityKey = loadOrCreateStorageIdentityKey()
 
-				const web = await createWebWallet({
-					privateKey,
-					chain: 'main',
-					storageIdentityKey: STORAGE_IDENTITY_KEY,
-					// Local stays active; remote is a backup so test assets survive
-					// losing the browser profile. Without it the only record of each
-					// asset's derivation is this profile's IndexedDB — the key alone
-					// cannot rediscover outputs locked at per-asset keyIDs.
-					// Non-fatal when unreachable.
-					backups: [REMOTE_BACKUP_URL],
-				})
-				if (cancelled) {
-					await web.destroy()
-					return
+				if (!webWalletPromise) {
+					webWalletPromise = createWebWallet({
+						privateKey,
+						chain: 'main',
+						storageIdentityKey,
+						// Local stays active; remote is a backup so test assets survive
+						// losing the browser profile. Without it the only record of each
+						// asset's derivation is this profile's IndexedDB — the key alone
+						// cannot rediscover outputs locked at per-asset keyIDs.
+						// Non-fatal when unreachable.
+						backups: [REMOTE_BACKUP_URL],
+					}).catch((e) => {
+						webWalletPromise = null
+						throw e
+					})
 				}
+				const web = await webWalletPromise
+				if (cancelled) return
 				destroyRef.current = web.destroy
 				// Exposed for harness inspection — confirm the remote backup attached
 				// and that BackupSync has somewhere to write.
@@ -197,9 +262,19 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 				const permissionStore = new IndexedDbPermissionStore({
 					scope: '1sat-test-app',
 				})
+				permissionStoreRef.current = permissionStore
 
 				const baseWallet = web.wallet
-				const oneSatModule = createOneSatPermissionModule({
+				// Prompt UI needs services to run verifyIntent (badge upgrade).
+				// Module also gets them for any server-side enrich helpers.
+				setPromptServices(web.services)
+				;(window as unknown as Record<string, unknown>).__promptServices =
+					web.services
+				// Base (ungated) wallet for harness repair / decrypt paths.
+				// Do not use for dApp simulation — use window.CWI.
+				;(window as unknown as Record<string, unknown>).__baseWallet =
+					baseWallet
+				const assetModules = createAssetPermissionModules({
 					wallet: baseWallet,
 					// Enables live verification of purchase cards. Optional —
 					// without it every purchase stays `unverified`.
@@ -212,7 +287,7 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 				const gated = new LocalWalletPermissionsManager(
 					baseWallet,
 					ADMIN_ORIGINATOR,
-					{ permissionModules: { '1sat': oneSatModule } },
+					{ permissionModules: assetModules },
 					{ store: permissionStore },
 				)
 
@@ -275,9 +350,9 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 				delete window.CWI
 			}
 			gatedRef.current = null
-			const destroy = destroyRef.current
-			destroyRef.current = null
-			void destroy?.()
+			// Shared createWebWallet lives for the page lifetime. Destroying
+			// here races React Strict Mode (mount/unmount/mount) and used to
+			// insert duplicate remote sync_state rows.
 		}
 	}, [promptHandler])
 
@@ -362,6 +437,9 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 			setLocalEnabled,
 			adminOriginator,
 			setAdminOriginator,
+			useOneSatModule,
+			setUseOneSatModule,
+			clearPermissionGrants,
 		}),
 		[
 			status,
@@ -372,6 +450,9 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 			setLocalEnabled,
 			adminOriginator,
 			setAdminOriginator,
+			useOneSatModule,
+			setUseOneSatModule,
+			clearPermissionGrants,
 		],
 	)
 
@@ -386,6 +467,7 @@ export function LocalCwiHost({ children }: { children: ReactNode }) {
 							onApprove={onApprove}
 							onReject={onReject}
 							theme="dark"
+							services={promptServices}
 						/>
 					</div>
 				</div>

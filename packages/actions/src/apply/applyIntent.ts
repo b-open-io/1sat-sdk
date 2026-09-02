@@ -1,39 +1,84 @@
-import { parseIntentLabel } from '@1sat/types'
-import type { CreateActionArgs, WalletInterface } from '@bsv/sdk'
-import { P1SAT_APPLY_REGISTRY } from './registry'
+import { OPNS_BASKET } from '@1sat/types'
+import {
+	type CreateActionArgs,
+	LockingScript,
+	PushDrop,
+	Script,
+	type WalletInterface,
+} from '@bsv/sdk'
+import { findUnsealedSigmaVin } from '../signing/sigma'
+import { stampManagedOutputIds } from '../utils/createTrackedAction'
+import { stampBsv21OutputCustomInstructions } from '../utils/stampBsv21OutputCi'
+import { stampOrdinalOutputCustomInstructions } from '../utils/stampOrdinalOutputCi'
+import { applyInscribeSigma } from './inscribeSigma'
+import { applyOpnsRegister } from './opnsRegister'
 import { stampScriptDerivedTags } from './stampScriptTags'
 
 /**
- * Dispatch apply by intent, then stamp script-derived tags.
- *
- * Its own module so both callers share it without a cycle: `index.ts`
- * re-exports it, and `prepare.ts` (the base-wallet path) calls it. Reaching for
- * `P1SAT_APPLY_REGISTRY` directly instead skips the stamping — that is exactly
- * the bug this split exists to prevent.
- *
- * Mutates `args` in place (never replace inputs/outputs arrays). Unknown
- * labeled intents fail closed.
- *
- * @param wallet - Base wallet only (field-sig / nested CA must not hit WPM)
- * @param args - createAction args to mutate
- * @param intent - Explicit intent; falls back to `p 1sat intent …` label
+ * Authoritative enrich (local pipeline + module embellish):
+ * managed `id:` tags, seals, script-derived tags, BSV-21 + ordinal/OpNS CI.
+ * Does **not** add module dispatch labels — those are opt-in via prepare.
  */
+export async function applyP1SatCreateAction(
+	wallet: WalletInterface,
+	args: CreateActionArgs,
+): Promise<string> {
+	const actionId = stampManagedOutputIds(args)
+
+	if (hasUnsealedOpnsRegister(args)) {
+		await applyOpnsRegister(wallet, args)
+	}
+	if (hasUnsealedSigmaTape(args)) {
+		await applyInscribeSigma(wallet, args)
+	}
+
+	stampScriptDerivedTags(args)
+	// Tags/script + spent-input carry → CI. Keeps derivation.
+	// Same path for local (WPM encrypts after) and module (may re-encrypt).
+	await stampBsv21OutputCustomInstructions(wallet, args)
+	await stampOrdinalOutputCustomInstructions(wallet, args)
+	return actionId
+}
+
+/** @deprecated Use {@link applyP1SatCreateAction} */
 export async function applyP1SatIntent(
 	wallet: WalletInterface,
 	args: CreateActionArgs,
-	intent?: string,
+	_intent?: string,
 ): Promise<void> {
-	const resolved = intent ?? parseIntentLabel(args.labels)
+	await applyP1SatCreateAction(wallet, args)
+}
 
-	if (resolved) {
-		const fn = P1SAT_APPLY_REGISTRY[resolved]
-		if (!fn) {
-			throw new Error(`1Sat apply: unknown intent "${resolved}"`)
-		}
-		await fn(wallet, args)
+function hasUnsealedOpnsRegister(args: CreateActionArgs): boolean {
+	const outputs = args.outputs
+	if (!outputs?.length || !args.inputs?.[0]?.outpoint) return false
+	const out =
+		outputs.find((o) => o.basket === OPNS_BASKET) ??
+		outputs.find((o) => o.satoshis === 1)
+	if (!out?.lockingScript) return false
+	try {
+		const fields = PushDrop.decode(
+			LockingScript.fromHex(out.lockingScript),
+		).fields
+		const last = fields[fields.length - 1]
+		return !!last?.length && last.every((b) => b === 0)
+	} catch {
+		return false
 	}
+}
 
-	// After apply, so seals (PushDrop, sigma) are already on the outputs and the
-	// tags are stamped from the scripts that will actually be committed.
-	stampScriptDerivedTags(args)
+function hasUnsealedSigmaTape(args: CreateActionArgs): boolean {
+	const outputs = args.outputs
+	if (!outputs?.length) return false
+	const maxVin = Math.max(0, (args.inputs?.length ?? 1) - 1)
+	for (const out of outputs) {
+		if (!out.lockingScript) continue
+		try {
+			const script = Script.fromHex(out.lockingScript)
+			if (findUnsealedSigmaVin(script, maxVin) != null) return true
+		} catch {
+			continue
+		}
+	}
+	return false
 }

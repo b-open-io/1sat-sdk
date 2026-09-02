@@ -119,7 +119,7 @@ agent-browser --session onesat eval --stdin <<'EOF'
 (async () => {
   const admin = 'test-app-admin';
   const outs = await window.CWI.listOutputs(
-    { basket: 'p 1sat ordinals', includeTags: true }, admin);
+    { basket: '1sat', includeTags: true }, admin);
   return JSON.stringify(outs.outputs.map(o => o.tags));
 })()
 EOF

@@ -149,6 +149,7 @@ export {
 	sealSigma,
 	resolveSigmaAddress,
 	SIGMA_COMPACT_SIG_LEN,
+	SIGMA_ADDRESS_PLACEHOLDER_LEN,
 } from './sigma'
 export {
 	getAuthToken,

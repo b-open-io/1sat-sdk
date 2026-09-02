@@ -3,10 +3,12 @@ import { Utils } from '@bsv/sdk'
 import { useState } from 'react'
 import { card, heading, input, button, buttonDisabled, successText, errorText, label } from './styles'
 import { useLog } from './LogContext'
+import { useActionFlags } from './useActionFlags'
 import { useOneSatContext } from './useActions'
 
 export function Inscribe() {
   const ctx = useOneSatContext()
+  const flags = useActionFlags()
   const { log } = useLog()
   const [text, setText] = useState('')
   const [contentType, setContentType] = useState('text/plain')
@@ -49,6 +51,7 @@ export function Inscribe() {
         contentType: mime,
         signWithBAP,
         ...(map && { map }),
+        ...flags,
       })
 
       if (res.error) throw new Error(res.error)

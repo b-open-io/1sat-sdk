@@ -10,7 +10,7 @@ import {
 	type PermissionsManagerConfig,
 	WalletPermissionsManager,
 	type WalletPermissionsManagerCallbacks,
-} from '@bsv/wallet-toolbox-client/out/src/index.client.js'
+} from '@bsv/wallet-toolbox-client'
 import {
 	isExpired,
 	normalizeOriginator,

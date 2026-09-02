@@ -8,9 +8,9 @@ import { BSV21, OrdLock, P2MS } from '@1sat/templates'
 import {
 	type Destination,
 	BSV21_DEPLOY_TAG,
-	P1SAT_INTENTS,
 	buildInputAssetLabel,
 	buildTokenLabel,
+	formatOrdinalOutpoint,
 	readAssetIdTag,
 } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
@@ -30,7 +30,7 @@ import {
 } from '@bsv/sdk'
 import { prepareP1SatArgs } from '../apply'
 import {
-	BSV21_AUTH_BASKET,
+	BSV21_AUTH_TAG,
 	BSV21_BASKET,
 	P1SAT_PROTOCOL,
 } from '../constants'
@@ -42,23 +42,61 @@ import type {
 } from '../types'
 import { executeTrackedAction } from '../utils/createTrackedAction'
 import { getDisplayValue } from '../utils/displayValue'
+import {
+	bsv21FieldsFromOutput,
+	bsv21FilterTags,
+	buildBsv21CustomInstructions,
+	normalizeBsv21TokenId,
+} from '../utils/bsv21Remittance'
 import { resolveDestination } from '../utils/resolveDestination'
 import { signP2PKHInput } from '../utils/signP2PKH'
 
-/** tokenId from tags, or deploy outpoint when tagged bsv21:deploy. */
+/** tokenId: CI `id` → tag `bsv21:<id>` → deploy outpoint. */
 function tokenIdFromOutput(o: WalletOutput): string | undefined {
-	const idTag = o.tags?.find(
-		(t) => t.startsWith('bsv21:') && t !== BSV21_DEPLOY_TAG,
-	)
-	if (idTag) return idTag.slice(6)
-	if (o.tags?.includes(BSV21_DEPLOY_TAG)) {
-		return o.outpoint.replace('.', '_')
-	}
-	return undefined
+	return bsv21FieldsFromOutput({
+		tags: o.tags,
+		customInstructions: o.customInstructions,
+		outpoint: o.outpoint,
+	}).tokenId
 }
 
 function matchesTokenId(o: WalletOutput, tokenId: string): boolean {
-	return tokenIdFromOutput(o) === tokenId
+	const id = tokenIdFromOutput(o)
+	if (!id) return false
+	return normalizeBsv21TokenId(id) === normalizeBsv21TokenId(tokenId)
+}
+
+function amtFromOutput(o: WalletOutput): string | undefined {
+	return bsv21FieldsFromOutput({
+		tags: o.tags,
+		customInstructions: o.customInstructions,
+		outpoint: o.outpoint,
+	}).amt
+}
+
+/** Value tips only — skip pure auth rows in balances. */
+function isBalanceableBsv21Output(o: WalletOutput): boolean {
+	const f = bsv21FieldsFromOutput({
+		tags: o.tags,
+		customInstructions: o.customInstructions,
+		outpoint: o.outpoint,
+	})
+	// Auth-only UTXOs (not deploy+mint value)
+	if (f.isAuth && !f.isDeploy) return false
+	const op = parseBsv21Op(o)
+	if (op === 'auth' || op === 'deploy+auth') return false
+	return !!f.amt && f.amt !== '0'
+}
+
+function parseBsv21Op(o: WalletOutput): string | undefined {
+	const ci = o.customInstructions
+	if (!ci) return undefined
+	try {
+		const op = (JSON.parse(ci) as { op?: string }).op
+		return typeof op === 'string' ? op : undefined
+	} catch {
+		return undefined
+	}
 }
 
 // ============================================================================
@@ -102,6 +140,14 @@ export interface SendBsv21Input extends ActionOptions {
 	tokenId: string
 	/** Recipients to send tokens to */
 	recipients: SendBsv21Recipient[]
+	/**
+	 * When true (default): require overlay token active + validate each
+	 * candidate input; only spend overlay-approved UTXOs; hard-fail if the
+	 * overlay call fails or remaining tips cannot cover the send.
+	 * When false: select from wallet tips only (no action-level overlay
+	 * gate). Module prompt verify is independent of this flag.
+	 */
+	validateOverlay?: boolean
 }
 
 export interface PurchaseBsv21Request extends ActionOptions {
@@ -169,8 +215,9 @@ export interface MintBsv21Input extends ActionOptions {
 	 */
 	auth?: { destination: Destination }
 	/**
-	 * Permanently end minting — no continuing auth output is emitted. Required
-	 * to be explicit since this is destructive (the token can never mint again).
+	 * Permanently end minting — no continuing auth output is emitted. May be
+	 * used alone to terminate authority without a final mint, or with `mint` to
+	 * mint a final supply. Cannot be combined with `auth`.
 	 */
 	endMinting?: boolean
 }
@@ -327,17 +374,20 @@ export const getBsv21Balances: Action<GetBsv21BalancesInput, Bsv21Balance[]> = {
 		>()
 
 		for (const o of outputs) {
-			const tokenId = tokenIdFromOutput(o)
-			const amtTag = o.tags?.find((t) => t.startsWith('amt:'))?.slice(4)
-			if (!tokenId || !amtTag) continue
+			if (!isBalanceableBsv21Output(o)) continue
+			const fields = bsv21FieldsFromOutput({
+				tags: o.tags,
+				customInstructions: o.customInstructions,
+				outpoint: o.outpoint,
+			})
+			const tokenId = fields.tokenId
+			const amtStr = fields.amt
+			if (!tokenId || !amtStr) continue
 
-			const amt = BigInt(amtTag)
-			const dec = Number.parseInt(
-				o.tags?.find((t) => t.startsWith('dec:'))?.slice(4) || '0',
-				10,
-			)
-			const symTag = getDisplayValue(o, 'sym', 'sym')
-			const rawIcon = o.tags?.find((t) => t.startsWith('icon:'))?.slice(5)
+			const amt = BigInt(amtStr)
+			const dec = Number.parseInt(fields.dec || '0', 10)
+			const symTag = fields.sym ?? getDisplayValue(o, 'sym', 'sym')
+			const rawIcon = fields.icon
 			const icon = rawIcon?.startsWith('_')
 				? `${tokenId.split('_')[0]}${rawIcon}`
 				: rawIcon
@@ -401,6 +451,11 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 						required: ['amount', 'destination'],
 					},
 				},
+				validateOverlay: {
+					type: 'boolean',
+					description:
+						'Default true. When true, require active token + per-input overlay unspent check (hard fail). When false, spend wallet tips only.',
+				},
 			},
 			required: ['tokenId', 'recipients'],
 		},
@@ -431,16 +486,36 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 			}
 
 			const totalAmount = resolved.reduce((sum, r) => sum + r.amount, 0n)
+			const validateOverlay = input.validateOverlay !== false
 
-			if (!ctx.services) {
-				return { error: 'services-required' }
-			}
+			type TokenDetails = Awaited<
+				ReturnType<
+					NonNullable<NonNullable<typeof ctx.services>['bsv21']>['getTokenDetails']
+				>
+			>
+			let tokenDetails: TokenDetails | undefined
 
-			const tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId)
-			if (!tokenDetails.status.is_active) {
-				return { error: 'token-not-active' }
+			if (validateOverlay) {
+				if (!ctx.services?.bsv21) {
+					return { error: 'services-required' }
+				}
+				try {
+					tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId)
+				} catch (e) {
+					console.error('[sendBsv21] getTokenDetails failed:', e)
+					return { error: 'token-not-found' }
+				}
+				if (!tokenDetails.status.is_active) {
+					return { error: 'token-not-active' }
+				}
+			} else if (ctx.services?.bsv21) {
+				// Best-effort meta/fees only — never gate the send.
+				try {
+					tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId)
+				} catch {
+					tokenDetails = undefined
+				}
 			}
-			const { fee_address, fee_per_output } = tokenDetails.status
 
 			const listResult = await ctx.wallet.listOutputs({
 				basket: BSV21_BASKET,
@@ -454,21 +529,18 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				matchesTokenId(o, tokenId),
 			)
 
-			// Batch-validate all candidate outpoints against the overlay
+			// When validateOverlay: only spend tips the overlay still lists unspent.
 			const validOutpoints = new Set<string>()
-			let overlayValidated = false
-			if (ctx.services?.bsv21) {
+			if (validateOverlay) {
 				const candidateOutpoints = tokenUtxos.map((o) => o.outpoint)
 				try {
-					const validated = await ctx.services.bsv21.validateOutputs(
+					const validated = await ctx.services!.bsv21!.validateOutputs(
 						tokenId,
 						candidateOutpoints,
 						{ unspent: true },
 					)
-					overlayValidated = true
 					for (const v of validated) {
-						const normalizedOutpoint = v.outpoint.replace('_', '.')
-						validOutpoints.add(normalizedOutpoint)
+						validOutpoints.add(v.outpoint.replace('_', '.'))
 					}
 				} catch (e) {
 					console.error('[sendBsv21] overlay validation error:', e)
@@ -482,11 +554,11 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 			for (const utxo of tokenUtxos) {
 				if (totalIn >= totalAmount) break
 
-				const amtTag = utxo.tags?.find((t) => t.startsWith('amt:'))
-				if (!amtTag) continue
-				const utxoAmount = BigInt(amtTag.slice(4))
+				const amtStr = amtFromOutput(utxo)
+				if (!amtStr) continue
+				const utxoAmount = BigInt(amtStr)
 
-				if (overlayValidated && !validOutpoints.has(utxo.outpoint)) {
+				if (validateOverlay && !validOutpoints.has(utxo.outpoint)) {
 					continue
 				}
 
@@ -495,7 +567,11 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 			}
 
 			if (totalIn < totalAmount) {
-				return { error: 'insufficient-tokens' }
+				return {
+					error: validateOverlay
+						? 'insufficient-valid-tokens'
+						: 'insufficient-tokens',
+				}
 			}
 
 			const outputs: Array<{
@@ -510,13 +586,22 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 			const p2pkh = new P2PKH()
 			const recipientKeyIDs: Array<string | undefined> = []
 
-			// Build recipient outputs
-			const tokenTags = [
-				`bsv21:${tokenId}`,
-				`dec:${tokenDetails.token.dec ?? 0}`,
-				...(tokenDetails.token.sym ? [`sym:${tokenDetails.token.sym}`] : []),
-				...(tokenDetails.token.icon ? [`icon:${tokenDetails.token.icon}`] : []),
-			]
+			// Meta: overlay when present, else first selected tip CI.
+			const fromTip = selected[0]
+				? bsv21FieldsFromOutput({
+						tags: selected[0].tags,
+						customInstructions: selected[0].customInstructions,
+						outpoint: selected[0].outpoint,
+					})
+				: {}
+			const tokenTags = bsv21FilterTags({ tokenId })
+			const tokenMeta = {
+				id: tokenId,
+				op: 'transfer' as const,
+				sym: tokenDetails?.token.sym ?? fromTip.sym,
+				dec: tokenDetails?.token.dec ?? fromTip.dec ?? 0,
+				icon: tokenDetails?.token.icon ?? fromTip.icon,
+			}
 			for (const r of resolved) {
 				const recipientResolved = await resolveDestination(ctx, r.destination, {
 					protocolID: P1SAT_PROTOCOL,
@@ -527,7 +612,7 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				const transferScript = BSV21.transfer(tokenId, r.amount).lock(
 					recipientResolved.lockingScript,
 				)
-				// Self destinations stay in the BSV21 basket with full tags + id:.
+				// Self destinations stay in the BSV21 basket with filter tags + CI.
 				const isSelf =
 					r.destination.counterparty === 'self' ||
 					recipientResolved.customInstructions?.counterparty === 'self'
@@ -537,20 +622,18 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 					outputDescription: `Send ${r.amount} tokens`,
 					...(isSelf && {
 						basket: BSV21_BASKET,
-						tags: [...tokenTags, `amt:${r.amount}`],
+						tags: tokenTags,
 						// Only when the wallet actually derived the key. A literal
 						// address or lockingScript destination has no derivation, and
 						// inventing a keyID here would record a triple that was never
 						// used to lock this output — leaving it unspendable from its
 						// own record.
 						...(recipientResolved.customInstructions?.keyID && {
-							customInstructions: JSON.stringify({
+							customInstructions: buildBsv21CustomInstructions({
+								token: { ...tokenMeta, amt: String(r.amount) },
 								protocolID: P1SAT_PROTOCOL,
 								keyID: recipientResolved.customInstructions.keyID,
 								counterparty: 'self',
-								...(tokenDetails.token.sym && {
-									sym: tokenDetails.token.sym,
-								}),
 							}),
 						}),
 					}),
@@ -581,36 +664,34 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 					satoshis: 1,
 					outputDescription: 'Token change',
 					basket: BSV21_BASKET,
-					tags: [
-						`bsv21:${tokenId}`,
-						`amt:${change}`,
-						`dec:${tokenDetails.token.dec ?? 0}`,
-						...(tokenDetails.token.sym
-							? [`sym:${tokenDetails.token.sym}`]
-							: []),
-						...(tokenDetails.token.icon
-							? [`icon:${tokenDetails.token.icon}`]
-							: []),
-					],
-					customInstructions: JSON.stringify({
+					tags: tokenTags,
+					customInstructions: buildBsv21CustomInstructions({
+						token: { ...tokenMeta, amt: String(change) },
 						protocolID: P1SAT_PROTOCOL,
 						keyID: changeKeyID,
-						...(tokenDetails.token.sym && {
-							sym: tokenDetails.token.sym,
-						}),
+						counterparty: 'self',
 					}),
 				})
 			}
 
-			// Fee output to overlay fund address (per token output)
-			outputs.push({
-				lockingScript: p2pkh.lock(fee_address).toHex(),
-				satoshis: fee_per_output * tokenOutputCount,
-				outputDescription: 'Overlay processing fee',
-				tags: ['fee:overlay'],
-			})
+			// Fee out when we have fund params (required path always has details).
+			const fee_address = tokenDetails?.status?.fee_address
+			const fee_per_output = tokenDetails?.status?.fee_per_output
+			if (
+				typeof fee_address === 'string' &&
+				fee_address &&
+				typeof fee_per_output === 'number' &&
+				fee_per_output > 0
+			) {
+				outputs.push({
+					lockingScript: p2pkh.lock(fee_address).toHex(),
+					satoshis: fee_per_output * tokenOutputCount,
+					outputDescription: 'Overlay processing fee',
+					tags: ['fee:overlay'],
+				})
+			}
 
-			const symbol = tokenDetails.token.sym || tokenId.slice(0, 8)
+			const symbol = tokenMeta.sym || tokenId.slice(0, 8)
 
 			let inputBEEF = listResult.BEEF
 			if (!inputBEEF || (inputBEEF as number[]).length === 0) {
@@ -631,9 +712,7 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				.map((o) => readAssetIdTag(o.tags))
 				.filter((id): id is string => Boolean(id))
 				.map((id) => buildInputAssetLabel(BSV21_BASKET, id))
-			const sendArgs = await prepareP1SatArgs(
-				ctx,
-				{
+			const sendArgs = await prepareP1SatArgs(ctx, {
 					description: `Send ${symbol} to ${resolved.length} recipient${resolved.length > 1 ? 's' : ''}`,
 					labels: [buildTokenLabel(tokenId), ...inputLabels],
 					inputBEEF,
@@ -644,34 +723,25 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 					})),
 					outputs,
 					options: { randomizeOutputs: false },
-				},
-				P1SAT_INTENTS.BSV21_TRANSFER,
-			)
+				})
+			const spends = selected
+				.map((o) => {
+					const id = readAssetIdTag(o.tags)
+					return id
+						? ({ basket: BSV21_BASKET, id })
+						: null
+				})
+				.filter((t): t is { basket: string; id: string } => !!t)
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				sendArgs,
 				input.fundingProvider,
 				inputBEEF as number[],
-				async (tx) => {
-					const spends: Record<number, { unlockingScript: string }> = {}
-					for (let i = 0; i < selected.length; i++) {
-						const utxo = selected[i]
-						if (!utxo.customInstructions) continue
-						const { protocolID, keyID, counterparty } = JSON.parse(
-							utxo.customInstructions,
-						)
-						const unlocking = await signP2PKHInput(
-							ctx,
-							tx,
-							i,
-							protocolID,
-							keyID,
-							counterparty,
-						)
-						if (typeof unlocking !== 'string') throw new Error(unlocking.error)
-						spends[i] = { unlockingScript: unlocking }
-					}
-					return spends
+				undefined,
+				{
+					spends,
+					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					permissionScheme: 'bsv21',
 				},
 			)
 
@@ -843,21 +913,19 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 				satoshis: 1,
 				outputDescription: 'Purchased tokens',
 				basket: BSV21_BASKET,
-				tags: [
-					`bsv21:${tokenId}`,
-					`amt:${tokenAmount}`,
-					`dec:${tokenDetails.token.dec ?? 0}`,
-					...(tokenDetails.token.sym ? [`sym:${tokenDetails.token.sym}`] : []),
-					...(tokenDetails.token.icon
-						? [`icon:${tokenDetails.token.icon}`]
-						: []),
-				],
-				customInstructions: JSON.stringify({
+				tags: bsv21FilterTags({ tokenId }),
+				customInstructions: buildBsv21CustomInstructions({
+					token: {
+						id: tokenId,
+						amt: String(tokenAmount),
+						op: 'transfer',
+						sym: tokenDetails.token.sym,
+						dec: tokenDetails.token.dec ?? 0,
+						icon: tokenDetails.token.icon,
+					},
 					protocolID: P1SAT_PROTOCOL,
 					keyID: bsv21KeyID,
-					...(tokenDetails.token.sym && {
-						sym: tokenDetails.token.sym,
-					}),
+					counterparty: 'self',
 				}),
 			})
 
@@ -898,9 +966,7 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 
 			const beefBinary = beef.toBinary()
 
-			const buyArgs = await prepareP1SatArgs(
-				ctx,
-				{
+			const buyArgs = await prepareP1SatArgs(ctx, {
 					description: `Purchase ${tokenAmount} tokens for ${payoutSatoshis} sats`,
 					labels: [buildTokenLabel(tokenId)],
 					inputBEEF: beefBinary,
@@ -913,22 +979,17 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 					],
 					outputs,
 					options: { randomizeOutputs: false },
-				},
-				P1SAT_INTENTS.BSV21_PURCHASE,
-			)
+				})
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				buyArgs,
 				input.fundingProvider,
 				beefBinary as number[],
-				async (tx) => {
-					const unlockingScript = await buildPurchaseUnlockingScript(
-						tx,
-						0,
-						listingOutput.satoshis ?? 1,
-						listingOutput.lockingScript,
-					)
-					return { 0: { unlockingScript: unlockingScript.toHex() } }
+				undefined,
+				{
+					spends: [{ outpoint, scheme: 'bsv21' }],
+					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					permissionScheme: 'bsv21',
 				},
 			)
 
@@ -993,9 +1054,9 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 }
 
 /**
- * Single createAction deploy. Tags include `bsv21:deploy` + metadata;
- * tokenId is the resulting outpoint (`txid_0`). Balance queries treat
- * deploy rows as that token when outpoint matches.
+ * Deploy via createAction. Tags: `bsv21:deploy` (+ auth). No `bsv21:<tokenId>`
+ * (id = this outpoint, known only after the tx). Balance/selection resolve id
+ * from outpoint when that tag is present.
  */
 async function executeBsv21Deploy(args: {
 	ctx: OneSatContext
@@ -1007,8 +1068,15 @@ async function executeBsv21Deploy(args: {
 		counterparty?: import('@bsv/sdk').WalletCounterparty
 	}
 	basket: string
-	/** Tags without tokenId — always includes bsv21:deploy. */
+	/** Filter tags (`bsv21:deploy` / `bsv21:auth`). */
 	buildTags: () => string[]
+	/** Load-bearing CI fields (no `id` — readers use deploy outpoint). */
+	token: {
+		amt: string
+		op: string
+		dec?: string | number
+		icon?: string
+	}
 	description: string
 	outputDescription: string
 	fundingProvider?: import('../funding').FundingProvider
@@ -1020,19 +1088,30 @@ async function executeBsv21Deploy(args: {
 }> {
 	const { ctx, symbol, deployScript, basket } = args
 
+	// Deploy filing: `bsv21:deploy` (+ optional auth). No `bsv21:<tokenId>`
+	// (id = outpoint after mine). Never amt/sym/dec/icon tags.
+	const tags = args.buildTags().filter(
+		(t) => t === BSV21_DEPLOY_TAG || t === BSV21_AUTH_TAG,
+	)
+	if (!tags.includes(BSV21_DEPLOY_TAG)) tags.push(BSV21_DEPLOY_TAG)
+
 	const customInstructions = args.destinationCustomInstructions
-		? JSON.stringify({
+		? buildBsv21CustomInstructions({
+				token: {
+					// No `id` — readers use deploy outpoint as token id.
+					amt: args.token.amt,
+					op: args.token.op,
+					sym: symbol,
+					dec: args.token.dec,
+					icon: args.token.icon,
+				},
 				protocolID: args.destinationCustomInstructions.protocolID,
 				keyID: args.destinationCustomInstructions.keyID,
-				...(args.destinationCustomInstructions.counterparty !== undefined && {
-					counterparty: args.destinationCustomInstructions.counterparty,
-				}),
-				sym: symbol,
+				counterparty: args.destinationCustomInstructions.counterparty as
+					| string
+					| undefined,
 			})
 		: undefined
-
-	const tags = args.buildTags()
-	if (!tags.includes(BSV21_DEPLOY_TAG)) tags.push(BSV21_DEPLOY_TAG)
 
 	const caArgs: CreateActionArgs = {
 		description: args.description,
@@ -1049,11 +1128,7 @@ async function executeBsv21Deploy(args: {
 		options: { randomizeOutputs: false },
 	}
 
-	const prepared = await prepareP1SatArgs(
-		ctx,
-		caArgs,
-		P1SAT_INTENTS.BSV21_DEPLOY,
-	)
+	const prepared = await prepareP1SatArgs(ctx, caArgs)
 	const result = await executeTrackedAction(
 		ctx.wallet,
 		prepared,
@@ -1143,16 +1218,13 @@ export const deployBsv21Mint: Action<
 				basket: BSV21_BASKET,
 				description: `Deploy ${symbol} (${amount} fixed supply)`,
 				outputDescription: `Deploy ${symbol}`,
-				buildTags: () => {
-					const tags = [
-						BSV21_DEPLOY_TAG,
-						`amt:${amount}`,
-						`dec:${decimals}`,
-						`sym:${symbol}`,
-					]
-					if (icon) tags.push(`icon:${icon}`)
-					return tags
+				token: {
+					amt: String(amount),
+					op: 'deploy+mint',
+					dec: decimals,
+					icon,
 				},
+				buildTags: () => [BSV21_DEPLOY_TAG],
 			})
 
 			if (result.error) return { error: result.error }
@@ -1264,14 +1336,16 @@ export const deployBsv21Auth: Action<
 				symbol,
 				deployScript,
 				destinationCustomInstructions: resolved.customInstructions,
-				basket: BSV21_AUTH_BASKET,
+				basket: BSV21_BASKET,
 				description: `Deploy ${symbol} (mintable)`,
 				outputDescription: `Deploy ${symbol} auth`,
-				buildTags: () => {
-					const tags = [BSV21_DEPLOY_TAG, `dec:${decimals}`, `sym:${symbol}`]
-					if (icon) tags.push(`icon:${icon}`)
-					return tags
+				token: {
+					amt: '0',
+					op: 'deploy+auth',
+					dec: decimals,
+					icon,
 				},
+				buildTags: () => [BSV21_DEPLOY_TAG, BSV21_AUTH_TAG],
 			})
 
 			if (result.error) return { error: result.error }
@@ -1299,7 +1373,7 @@ export const deployBsv21Auth: Action<
 							index: 0,
 							protocolID: P1SAT_PROTOCOL,
 							keyID: resolved.customInstructions?.keyID,
-							basket: BSV21_AUTH_BASKET,
+							basket: BSV21_BASKET,
 							satoshis: 1,
 						},
 					],
@@ -1339,7 +1413,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 	meta: {
 		name: 'mintBsv21',
 		description:
-			'Spend an auth UTXO to mint new supply and/or re-issue authority',
+			'Spend an auth UTXO to mint supply, re-issue authority, or permanently end minting',
 		category: 'tokens',
 		requiresServices: true,
 		inputSchema: {
@@ -1357,7 +1431,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 				endMinting: {
 					type: 'boolean',
 					description:
-						'Required when auth is omitted — explicit confirmation that minting ends.',
+						'Permanently end minting, alone or after a final mint; cannot be combined with auth.',
 				},
 			},
 			required: ['tokenId'],
@@ -1367,10 +1441,10 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 		try {
 			const { tokenId, mint, auth, endMinting } = input
 
-			if (!mint && !auth && endMinting) {
-				return { error: 'cannot-end-minting-without-mint' }
+			if (auth && endMinting) {
+				return { error: 'auth-and-end-minting-are-mutually-exclusive' }
 			}
-			if (!mint && !auth) {
+			if (!mint && !auth && !endMinting) {
 				return { error: 'must-provide-mint-or-auth' }
 			}
 
@@ -1390,17 +1464,26 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 
 			// Look up the token's metadata for tag enrichment.
 			const tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId)
+			if (!tokenDetails.status.is_active) {
+				return { error: 'token-not-active' }
+			}
 
-			// Find a spendable auth UTXO for this token.
+			// Find a spendable auth UTXO for this token (same basket as balance).
 			const authList = await ctx.wallet.listOutputs({
-				basket: BSV21_AUTH_BASKET,
+				basket: BSV21_BASKET,
+				// A deploy+auth output cannot carry bsv21:<tokenId> when it is
+				// created because its txid is not known yet. Load authority
+				// candidates by the canonical auth tag, then resolve the token id
+				// from CI/tags/deploy outpoint with matchesTokenId below.
+				tags: [BSV21_AUTH_TAG],
+				tagQueryMode: 'all',
 				includeTags: true,
 				includeCustomInstructions: true,
 				include: 'entire transactions',
 				limit: 1000,
 			})
-			const authUtxo = authList.outputs.find((o) =>
-				o.tags?.includes(`bsv21:${tokenId}`),
+			const authUtxo = authList.outputs.find((output) =>
+				matchesTokenId(output, tokenId),
 			)
 			if (!authUtxo) {
 				return { error: 'no-auth-utxo-for-token' }
@@ -1434,30 +1517,29 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 				const mintScript = BSV21.mint(tokenId, mintAmount).lock(
 					mintResolved.lockingScript,
 				)
-				const mintTags = [
-					`bsv21:${tokenId}`,
-					`amt:${mintAmount}`,
-					`dec:${tokenDetails.token.dec ?? 0}`,
-					...(tokenDetails.token.sym ? [`sym:${tokenDetails.token.sym}`] : []),
-					...(tokenDetails.token.icon
-						? [`icon:${tokenDetails.token.icon}`]
-						: []),
-				]
-				const mintCI = mintResolved.customInstructions
-					? JSON.stringify({
-							...mintResolved.customInstructions,
-							...(tokenDetails.token.sym && { sym: tokenDetails.token.sym }),
-						})
-					: tokenDetails.token.sym
-						? JSON.stringify({ sym: tokenDetails.token.sym })
-						: undefined
+				const mintMeta = {
+					id: tokenId,
+					amt: String(mintAmount),
+					op: 'mint' as const,
+					sym: tokenDetails.token.sym,
+					dec: tokenDetails.token.dec ?? 0,
+					icon: tokenDetails.token.icon,
+				}
 				outputs.push({
 					lockingScript: mintScript.toHex(),
 					satoshis: 1,
 					outputDescription: `Mint ${mintAmount} tokens`,
 					basket: BSV21_BASKET,
-					tags: mintTags,
-					customInstructions: mintCI,
+					tags: bsv21FilterTags({ tokenId }),
+					customInstructions: mintResolved.customInstructions
+						? buildBsv21CustomInstructions({
+								token: mintMeta,
+								protocolID: mintResolved.customInstructions.protocolID,
+								keyID: mintResolved.customInstructions.keyID,
+								counterparty: mintResolved.customInstructions
+									.counterparty as string | undefined,
+							})
+						: buildBsv21CustomInstructions({ token: mintMeta }),
 				})
 			}
 
@@ -1467,39 +1549,39 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 					keyIDPrefix: `bsv21-auth-${tokenId}`,
 				})
 				const authScript = BSV21.auth(tokenId).lock(authResolved.lockingScript)
-				const authTags = [
-					`bsv21:${tokenId}`,
-					`dec:${tokenDetails.token.dec ?? 0}`,
-					...(tokenDetails.token.sym ? [`sym:${tokenDetails.token.sym}`] : []),
-					...(tokenDetails.token.icon
-						? [`icon:${tokenDetails.token.icon}`]
-						: []),
-				]
-				const authCustomInstructions = authResolved.customInstructions
-					? JSON.stringify({
-							...authResolved.customInstructions,
-							...(tokenDetails.token.sym && { sym: tokenDetails.token.sym }),
-						})
-					: tokenDetails.token.sym
-						? JSON.stringify({ sym: tokenDetails.token.sym })
-						: undefined
+				const authMeta = {
+					id: tokenId,
+					amt: '0',
+					op: 'auth' as const,
+					sym: tokenDetails.token.sym,
+					dec: tokenDetails.token.dec ?? 0,
+					icon: tokenDetails.token.icon,
+				}
 				authOutputIndex = outputs.length
 				outputs.push({
 					lockingScript: authScript.toHex(),
 					satoshis: 1,
 					outputDescription: 'Continuing mint authority',
-					basket: BSV21_AUTH_BASKET,
-					tags: authTags,
-					customInstructions: authCustomInstructions,
+					basket: BSV21_BASKET,
+					tags: bsv21FilterTags({ tokenId, auth: true }),
+					customInstructions: authResolved.customInstructions
+						? buildBsv21CustomInstructions({
+								token: authMeta,
+								protocolID: authResolved.customInstructions.protocolID,
+								keyID: authResolved.customInstructions.keyID,
+								counterparty: authResolved.customInstructions
+									.counterparty as string | undefined,
+							})
+						: buildBsv21CustomInstructions({ token: authMeta }),
 				})
 			}
 
 			// Optional fee output to overlay fund address (per token output).
-			const tokenOutputCount = (mint ? 1 : 0) + (auth ? 1 : 0)
-			if (
-				tokenDetails.status.is_active &&
-				tokenDetails.status.fee_per_output > 0
-			) {
+			// At this point outputs contains exactly the emitted BSV21 outputs.
+			// Counting the caller's optional `auth` input undercounts the default
+			// continuing-self authority emitted whenever endMinting is false.
+			const tokenOutputCount = outputs.length
+			if (tokenOutputCount > 0 && tokenDetails.status.fee_per_output > 0) {
 				outputs.push({
 					lockingScript: new P2PKH()
 						.lock(tokenDetails.status.fee_address)
@@ -1520,16 +1602,16 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 
 			const symbol = tokenDetails.token.sym || tokenId.slice(0, 8)
 			const authInputId = readAssetIdTag(authUtxo.tags)
-			const mintArgs = await prepareP1SatArgs(
-				ctx,
-				{
+			const mintArgs = await prepareP1SatArgs(ctx, {
 					description: mint
 						? `Mint ${mintAmount} ${symbol}`
-						: `Re-issue ${symbol} authority`,
+						: endMinting
+							? `End ${symbol} mint authority`
+							: `Re-issue ${symbol} authority`,
 					labels: [
 						buildTokenLabel(tokenId),
 						...(authInputId
-							? [buildInputAssetLabel(BSV21_AUTH_BASKET, authInputId)]
+							? [buildInputAssetLabel(BSV21_BASKET, authInputId)]
 							: []),
 					],
 					inputBEEF,
@@ -1542,9 +1624,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 					],
 					outputs,
 					options: { randomizeOutputs: false },
-				},
-				P1SAT_INTENTS.BSV21_MINT,
-			)
+				})
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				mintArgs,

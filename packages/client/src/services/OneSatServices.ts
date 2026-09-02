@@ -8,8 +8,9 @@ import {
 	Utils,
 	type WalletLoggerInterface,
 } from '@bsv/sdk'
-import type { TableOutput, sdk as toolboxSdk } from '@bsv/wallet-toolbox-client'
-import { WalletError } from '@bsv/wallet-toolbox-client/out/src/sdk/WalletError.js'
+import { type TableOutput, sdk as toolboxSdk } from '@bsv/wallet-toolbox-client'
+
+const { WalletError } = toolboxSdk
 import {
 	AdminClient,
 	ArcadeClient,

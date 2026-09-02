@@ -67,7 +67,9 @@ await unlockBsv.execute(ctx, { ids: [id1, id2] })
 
 Unlocked value returns to funding (not asset tag carry).
 
-## Tags
+## Storage
+
+Basket `lock` (not `locks`).
 
 | Tag | Meaning |
 |-----|---------|

@@ -12,6 +12,7 @@ import {
 	row,
 } from './styles'
 import { useLog } from './LogContext'
+import { useActionFlags } from './useActionFlags'
 import { useOneSatContext } from './useActions'
 
 type Tab = 'create' | 'purchase' | 'cancel'
@@ -48,6 +49,7 @@ export function Listings() {
 
 function CreateListing() {
 	const ctx = useOneSatContext()
+	const flags = useActionFlags()
 	const { log } = useLog()
 	const [id, setId] = useState('')
 	const [price, setPrice] = useState('')
@@ -69,7 +71,9 @@ function CreateListing() {
 			const res = await sellOrdinal.execute(ctx, {
 				id,
 				price: Number(price),
-				...(payAddress && { payAddress }),
+				...(payAddress && { payAddress,
+				...flags,
+			}),
 			})
 
 			if (res.error) throw new Error(res.error)
@@ -141,6 +145,7 @@ function PurchaseListing() {
 		try {
 			const res = await buyOrdinal.execute(ctx, {
 				outpoint: listingOutpoint,
+				...flags,
 			})
 
 			if (res.error) throw new Error(res.error)
@@ -195,7 +200,9 @@ function CancelListing() {
 		log('info', `cancelOrdinalListing: id=${id}`)
 
 		try {
-			const res = await cancelOrdinalListing.execute(ctx, { id })
+			const res = await cancelOrdinalListing.execute(ctx, { id,
+				...flags,
+			})
 
 			if (res.error) throw new Error(res.error)
 			setResult(res.txid ?? 'no txid')

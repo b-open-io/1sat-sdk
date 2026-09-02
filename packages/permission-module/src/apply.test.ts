@@ -3,9 +3,9 @@ import {
 	OPNS_BASKET,
 	OPNS_REGISTER_COUNTERPARTY,
 	OPNS_REGISTER_SIG_PLACEHOLDER_LEN,
-	P1SAT_INTENTS,
 	P1SAT_PROTOCOL,
-	buildIntentLabel,
+	buildActionDispatchLabel,
+	buildInputAssetLabel,
 	opnsRegisterKeyId,
 } from '@1sat/types'
 import type {
@@ -31,9 +31,25 @@ function mockBaseWallet(): WalletInterface {
 			return { publicKey: protocolKey }
 		},
 		async createSignature(_args: CreateSignatureArgs) {
-			// 70-byte DER-ish stub — PushDrop only embeds the bytes
 			const sig = new Array(70).fill(0x30)
 			return { signature: sig }
+		},
+		async listOutputs() {
+			return {
+				totalOutputs: 1,
+				outputs: [
+					{
+						satoshis: 1,
+						spendable: true,
+						outpoint: `${'aa'.repeat(32)}.0`,
+						tags: ['id:test-id'],
+						customInstructions: JSON.stringify({
+							protocolID: P1SAT_PROTOCOL,
+							keyID: 'test',
+						}),
+					},
+				],
+			}
 		},
 	} as unknown as WalletInterface
 }
@@ -66,8 +82,8 @@ async function registerArgs(
 	return {
 		description: 'Publish OpNS',
 		labels: [
-			buildIntentLabel(P1SAT_INTENTS.OPNS_REGISTER),
-			'p 1sat input opns test-id',
+			buildActionDispatchLabel('opns'),
+			buildInputAssetLabel(OPNS_BASKET, 'test-id'),
 		],
 		inputs: [
 			{
@@ -88,15 +104,15 @@ async function registerArgs(
 	}
 }
 
-describe('applyCreateAction / opns.register', () => {
-	test('replaces the zeroed signature in place (same outputs array ref)', async () => {
+describe('applyCreateAction / script seal', () => {
+	test('seals zeroed PushDrop signature in place', async () => {
 		const wallet = mockBaseWallet()
 		const args = await registerArgs(wallet)
 		const outputsRef = args.outputs!
 		const out = outputsRef[0]
 		const before = out.lockingScript
 
-		await applyCreateAction(wallet, args, P1SAT_INTENTS.OPNS_REGISTER)
+		await applyCreateAction(wallet, args)
 
 		expect(args.outputs).toBe(outputsRef)
 		expect(out.lockingScript).not.toBe(before)
@@ -106,27 +122,16 @@ describe('applyCreateAction / opns.register', () => {
 		).fields
 		const signature = fields[fields.length - 1]
 		expect(signature.some((b) => b !== 0)).toBe(true)
-		// Placeholder was sized to the longest DER signature, so the sealed
-		// script is never larger than what was estimated.
 		expect(out.lockingScript.length).toBeLessThanOrEqual(before.length)
 	})
 
-	test('unknown intent fails closed', async () => {
+	test('no-op when script is already sealed', async () => {
 		const wallet = mockBaseWallet()
 		const args = await registerArgs(wallet)
-		args.labels = [buildIntentLabel('nope.unknown')]
-		await expect(applyCreateAction(wallet, args)).rejects.toThrow(
-			/unknown intent/,
-		)
-	})
-
-	test('validate-only intents leave lockingScript unchanged', async () => {
-		const wallet = mockBaseWallet()
-		const args = await registerArgs(wallet)
-		args.labels = [buildIntentLabel(P1SAT_INTENTS.OPNS_DEREGISTER)]
-		const before = args.outputs![0].lockingScript
-		await applyCreateAction(wallet, args, P1SAT_INTENTS.OPNS_DEREGISTER)
-		expect(args.outputs![0].lockingScript).toBe(before)
+		await applyCreateAction(wallet, args)
+		const sealed = args.outputs![0].lockingScript
+		await applyCreateAction(wallet, args)
+		expect(args.outputs![0].lockingScript).toBe(sealed)
 	})
 })
 
@@ -144,6 +149,8 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 			wallet,
 			promptHandler,
 			cache: new CommitmentCache(60),
+			schemeId: 'opns' as const,
+			ownedBaskets: new Set([OPNS_BASKET]),
 			adminOriginator: 'admin.yours.org',
 		}
 
@@ -154,31 +161,39 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 
 	test('dApp prompts then applies on approve', async () => {
 		const wallet = mockBaseWallet()
-		// enrichIntent listOutputs will fail → empty inputs; still applies
-		const listWallet = {
-			...wallet,
-			async listOutputs() {
-				return { totalOutputs: 0, outputs: [] }
-			},
-		} as unknown as WalletInterface
-
 		const args = await registerArgs(wallet)
 		const before = args.outputs![0].lockingScript
-		let promptSummary = ''
+		let promptKind = ''
+		let legCount = 0
+		let sealLeg = false
 		const promptHandler: PromptHandler = async (req) => {
-			// A host may hand this request to a renderer in another process — the
-			// browser extension writes it through chrome.storage. Anything that
-			// cannot be structured-cloned (a promise, a function) arrives as `{}`
-			// and breaks the prompt, so the payload must survive a round trip.
 			expect(() => structuredClone(req)).not.toThrow()
-			promptSummary = req.summary
-			expect(req.intent.p1satIntent).toBe('opns.register')
+			// Transaction IR: panels built in-module (no raw legs on the wire).
+			const panels = req.payload.panels as
+				| Array<{
+						title?: string
+						meta?: Array<{ key?: string; value?: string }>
+				  }>
+				| undefined
+			promptKind = String(req.payload.title ?? '')
+			legCount = panels?.length ?? 0
+			sealLeg = Boolean(
+				panels?.some((p) =>
+					p.meta?.some(
+						(m) =>
+							m.key === 'Sign' &&
+							(m.value?.includes('PushDrop') || m.value?.includes('Sigma')),
+					),
+				),
+			)
 			return true
 		}
 		const deps = {
-			wallet: listWallet,
+			wallet,
 			promptHandler,
 			cache: new CommitmentCache(60),
+			schemeId: 'opns' as const,
+			ownedBaskets: new Set([OPNS_BASKET]),
 			adminOriginator: 'admin.yours.org',
 		}
 
@@ -187,24 +202,22 @@ describe('handleCreateActionRequest admin vs dApp', () => {
 			args,
 			'https://dapp.example',
 		)
-		expect(promptSummary.toLowerCase()).toContain('publish')
+		expect(promptKind).toBe('Transaction Request')
+		expect(legCount).toBeGreaterThan(0)
+		expect(sealLeg).toBe(true)
 		expect(next.outputs![0].lockingScript).not.toBe(before)
 	})
 
 	test('dApp reject does not apply', async () => {
 		const wallet = mockBaseWallet()
-		const listWallet = {
-			...wallet,
-			async listOutputs() {
-				return { totalOutputs: 0, outputs: [] }
-			},
-		} as unknown as WalletInterface
 		const args = await registerArgs(wallet)
 		const before = args.outputs![0].lockingScript
 		const deps = {
-			wallet: listWallet,
+			wallet,
 			promptHandler: async () => false,
 			cache: new CommitmentCache(60),
+			schemeId: 'opns' as const,
+			ownedBaskets: new Set([OPNS_BASKET]),
 			adminOriginator: 'admin.yours.org',
 		}
 
