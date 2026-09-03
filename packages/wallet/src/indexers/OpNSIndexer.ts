@@ -1,24 +1,23 @@
 import {
+	type IndexSummary,
 	Indexer,
 	OPNS_BASKET,
-	type IndexSummary,
 	type ParseContext,
 	type ParseResult,
 	type Txo,
 } from '@1sat/types'
 import { Utils } from '@bsv/sdk'
-import type { Inscription } from './InscriptionIndexer'
-import type { Origin } from './OriginIndexer'
+import type { Inscription } from './InscriptionIndexer.js'
+import type { Origin } from './OriginIndexer.js'
 
 const OPNS_TYPE = 'application/op-ns'
 
 /** OpNS inscription body is the bare name string (UTF-8), never JSON. */
-function nameFromContent(content: string | number[] | undefined): string | undefined {
+function nameFromContent(
+	content: string | number[] | undefined,
+): string | undefined {
 	if (content == null) return undefined
-	const raw =
-		typeof content === 'string'
-			? content
-			: Utils.toUTF8(content)
+	const raw = typeof content === 'string' ? content : Utils.toUTF8(content)
 	const name = raw.trim().slice(0, 64)
 	return name.length > 0 ? name : undefined
 }

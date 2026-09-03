@@ -10,7 +10,7 @@
  */
 
 import { Transaction, Utils } from '@bsv/sdk'
-import { BaseClient } from './BaseClient'
+import { BaseClient } from './BaseClient.js'
 
 // ============================================================================
 // Types
@@ -287,7 +287,6 @@ export class MneeClient extends BaseClient {
 			return undefined
 		}
 	}
-
 
 	// ===== History =====
 

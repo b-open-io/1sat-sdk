@@ -10,13 +10,13 @@ import { type SpawnOptions, spawn } from 'node:child_process'
 import { appendFileSync, closeSync, openSync } from 'node:fs'
 import { join } from 'node:path'
 import { createNodeWallet } from '@1sat/wallet-node'
-import { ensureDataDir, loadConfig } from './config'
-import { loadKey } from './keys'
+import { ensureDataDir, loadConfig } from './config.js'
+import { loadKey } from './keys.js'
 import {
 	clearMonitorPid,
 	readLiveMonitorPid,
 	writeMonitorPid,
-} from './monitor-lock'
+} from './monitor-lock.js'
 
 export const MONITOR_LOG_FILENAME = 'monitor.log'
 

@@ -8,8 +8,8 @@ import {
 	type Txo,
 } from '@1sat/types'
 import { OP, Script, Utils } from '@bsv/sdk'
-import { MapIndexer } from './MapIndexer'
-import { parseAddress } from './parseAddress'
+import { MapIndexer } from './MapIndexer.js'
+import { parseAddress } from './parseAddress.js'
 
 export interface File {
 	hash: string

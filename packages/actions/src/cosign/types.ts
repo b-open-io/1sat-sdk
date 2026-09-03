@@ -14,8 +14,8 @@
  *      drop into messagebox payloads.
  */
 
-import type { WalletProtocol } from '@bsv/sdk'
 import { P1SAT_PROTOCOL } from '@1sat/types'
+import type { WalletProtocol } from '@bsv/sdk'
 
 /**
  * Protocol used to derive cosign-locked destination keys. Unified under

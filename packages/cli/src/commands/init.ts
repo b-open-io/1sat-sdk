@@ -20,10 +20,10 @@ import {
 	select,
 	text,
 } from '@clack/prompts'
-import type { GlobalFlags } from '../args'
-import { ensureConfigDir, loadConfig, saveConfig } from '../config'
-import { hasKey, saveKey } from '../keys'
-import { fatal, formatSuccess, formatValue, formatWarning } from '../output'
+import type { GlobalFlags } from '../args.js'
+import { ensureConfigDir, loadConfig, saveConfig } from '../config.js'
+import { hasKey, saveKey } from '../keys.js'
+import { fatal, formatSuccess, formatValue, formatWarning } from '../output.js'
 
 export async function handleInitCommand(
 	_args: string[],

@@ -5,12 +5,12 @@
  */
 
 import { createSocialPost } from '@1sat/actions'
-import type { GlobalFlags } from '../args'
-import { extractFlag, extractFlags } from '../args'
-import { loadContext } from '../context'
-import { printCommandHelp } from '../help'
-import { loadKey } from '../keys'
-import { fatal, output } from '../output'
+import type { GlobalFlags } from '../args.js'
+import { extractFlag, extractFlags } from '../args.js'
+import { loadContext } from '../context.js'
+import { printCommandHelp } from '../help.js'
+import { loadKey } from '../keys.js'
+import { fatal, output } from '../output.js'
 
 export async function handleSocialCommand(
 	args: string[],

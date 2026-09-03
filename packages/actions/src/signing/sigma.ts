@@ -1,3 +1,4 @@
+import { Sigma } from '@1sat/templates'
 import {
 	BSM,
 	BigNumber,
@@ -7,10 +8,9 @@ import {
 	Signature,
 	Utils,
 } from '@bsv/sdk'
-import { Sigma } from '@1sat/templates'
-import { BAP_PROTOCOL_ID } from '../constants'
-import type { OneSatContext } from '../types'
-import { resolveCurrentKeyId } from './aip'
+import { BAP_PROTOCOL_ID } from '../constants.js'
+import type { OneSatContext } from '../types.js'
+import { resolveCurrentKeyId } from './aip.js'
 
 const { toArray } = Utils
 
@@ -102,10 +102,7 @@ function findPlaceholderTape(
 }
 
 /** True when the script tail is an unsigned SIGMA tape for `vin`. */
-export function hasUnsealedSigmaPlaceholder(
-	script: Script,
-	vin = 0,
-): boolean {
+export function hasUnsealedSigmaPlaceholder(script: Script, vin = 0): boolean {
 	return !!findPlaceholderTape(script.toBinary(), vin)
 }
 
@@ -132,12 +129,7 @@ export async function appendSigmaPlaceholder(
 ): Promise<Script> {
 	return concatScript(
 		lockingScript,
-		sigmaTapeBytes(
-			hasOpReturn(lockingScript),
-			ZERO_ADDRESS(),
-			ZERO_SIG(),
-			vin,
-		),
+		sigmaTapeBytes(hasOpReturn(lockingScript), ZERO_ADDRESS(), ZERO_SIG(), vin),
 	)
 }
 

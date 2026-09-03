@@ -4,7 +4,7 @@ import type {
 	IndexedOutput,
 	TokenDetailResponse,
 } from '@1sat/types'
-import { BaseClient } from './BaseClient'
+import { BaseClient } from './BaseClient.js'
 
 /**
  * Query options for /outputs validation endpoints.

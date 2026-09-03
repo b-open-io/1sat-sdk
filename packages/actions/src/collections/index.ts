@@ -25,19 +25,12 @@ import type {
 import { P1SAT_PROTOCOL } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
 import { P2PKH, PublicKey, Script, Utils } from '@bsv/sdk'
-import { prepareP1SatArgs, sigmaAnchorKeyId } from '../apply'
-import {
-	MAX_INSCRIPTION_BYTES,
-	ORDINALS_BASKET,
-} from '../constants'
-import { appendSigmaPlaceholder } from '../signing/sigma'
-import type { Action, ActionOptions, OneSatContext } from '../types'
-import {
-	executeTrackedAction,
-	stampManagedOutputIds,
-} from '../utils/createTrackedAction'
-import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance'
-import { signP2PKHInput } from '../utils/signP2PKH'
+import { prepareP1SatArgs } from '../apply/index.js'
+import { MAX_INSCRIPTION_BYTES, ORDINALS_BASKET } from '../constants.js'
+import { appendSigmaPlaceholder } from '../signing/sigma.js'
+import type { Action, ActionOptions, OneSatContext } from '../types.js'
+import { executeTrackedAction } from '../utils/createTrackedAction.js'
+import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance.js'
 
 // ============================================================================
 // Types

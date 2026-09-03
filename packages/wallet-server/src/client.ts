@@ -9,7 +9,7 @@
 import { BaseClient } from '@1sat/client'
 import type { WalletInterface } from '@bsv/sdk'
 import { AuthFetch } from '@bsv/sdk/auth'
-import type { AccountStatusResponse } from './accounts/types'
+import type { AccountStatusResponse } from './accounts/types.js'
 
 export interface WalletServerClientOptions {
 	timeout?: number

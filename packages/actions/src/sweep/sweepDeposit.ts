@@ -16,9 +16,9 @@
 
 import { DEPOSIT_BASKET, P1SAT_PROTOCOL } from '@1sat/types'
 import type { WalletCounterparty, WalletProtocol } from '@bsv/sdk'
-import type { Action, ActionOptions } from '../types'
-import { executeTrackedAction } from '../utils/createTrackedAction'
-import { signP2PKHInput } from '../utils/signP2PKH'
+import type { Action, ActionOptions } from '../types.js'
+import { executeTrackedAction } from '../utils/createTrackedAction.js'
+import { signP2PKHInput } from '../utils/signP2PKH.js'
 
 // ============================================================================
 // Types
@@ -168,4 +168,3 @@ export const sweepDeposit: Action<SweepDepositInput, SweepDepositResult> = {
 		}
 	},
 }
-

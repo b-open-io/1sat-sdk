@@ -11,17 +11,17 @@ import {
 	TAG_DOCS,
 	accountPaths,
 	authPaths,
-	hostingPaths,
 	messageboxPaths,
 	paymailPaths,
+	registrationPaths,
 	storagePaths,
-} from './fragments'
+} from './fragments.js'
 
 export interface OpenApiSurfaces {
 	storage?: boolean
 	accounts?: boolean
-	/** Getter so a live config toggle is reflected without restart. */
-	hosting?: () => boolean
+	/** Account registry (username + profile) mounted. */
+	registration?: boolean
 	paymail?: boolean
 	messagebox?: boolean
 }
@@ -41,13 +41,12 @@ export function buildOpenApiSpec(options: OpenApiOptions): object {
 		Object.assign(paths, storagePaths())
 		tags.add('storage')
 	}
-	if (options.surfaces.accounts) {
+	if (options.surfaces.accounts || options.surfaces.registration) {
 		Object.assign(paths, accountPaths())
 		tags.add('account')
 	}
-	if (options.surfaces.hosting?.()) {
-		Object.assign(paths, hostingPaths())
-		tags.add('hosting')
+	if (options.surfaces.registration) {
+		Object.assign(paths, registrationPaths())
 	}
 	if (options.surfaces.paymail) {
 		Object.assign(paths, paymailPaths())

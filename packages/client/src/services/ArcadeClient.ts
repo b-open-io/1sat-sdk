@@ -4,7 +4,7 @@ import type {
 	TransactionStatus,
 } from '@1sat/types'
 import { Utils } from '@bsv/sdk'
-import { BaseClient } from './BaseClient'
+import { BaseClient } from './BaseClient.js'
 
 /**
  * Client for /1sat/arcade/* routes.

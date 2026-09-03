@@ -1,7 +1,7 @@
-import type { sdk, TableSettings } from '@bsv/wallet-toolbox-client'
+import type { TableSettings, sdk } from '@bsv/wallet-toolbox-client'
 import { decode } from '@msgpack/msgpack'
 import type { Unzipped } from 'fflate'
-import type { BackupManifest } from './types'
+import type { BackupManifest } from './types.js'
 
 type RequestSyncChunkArgs = sdk.RequestSyncChunkArgs
 type SyncChunk = sdk.SyncChunk

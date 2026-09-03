@@ -39,45 +39,26 @@ export interface PaymailResolver {
 	resolve(alias: string, domain: string): Promise<ResolvedBind | null>
 }
 
-export interface RegisteredUser {
-	username: string
-	identityKey: string
-	createdAt: Date
-}
-
-/** Registry of user-registered names (the 1sat.app backend). */
-export interface UserStore {
-	get(alias: string): Promise<RegisteredUser | null>
-	getByIdentity(identityKey: string): Promise<RegisteredUser | null>
-	/**
-	 * Idempotent per identity: re-claiming your own username succeeds, a
-	 * username held by another identity throws.
-	 */
-	claim(username: string, identityKey: string): Promise<RegisteredUser>
-}
-
 export interface PaymailDeps {
 	/** Public base URL for capability document (e.g. https://1sat.app) */
 	baseUrl: string
 	/** Stack root URL (OpNS, beef, tx broadcast) */
 	stackUrl: string
 	/**
-	 * Domain resolved from the registered-users table instead of OpNS
+	 * Domain resolved from the host accounts table instead of OpNS
 	 * (e.g. 1sat.app). Unset = every domain resolves via OpNS.
 	 */
 	userDomain?: string
-	/** Backing store for userDomain resolution. */
-	userStore?: UserStore
+	/**
+	 * Host account registry. Resolves `userDomain` aliases, and when set
+	 * gates every domain: an alias only resolves when its identity holds a
+	 * registered account on this host.
+	 */
+	accountStore?: import('../accounts/store.js').AccountStore
 	/** In-flight payment refs store */
 	pendingStore: PendingStore
 	/** Pending TTL ms (default 15m) */
 	pendingTtlMs?: number
-	/**
-	 * Host wallet for subscription receipt checks + messagebox AuthFetch.
-	 * Gate is on when requireEntitlement is true.
-	 */
-	hostWallet?: import('@bsv/sdk').WalletInterface
-	requireEntitlement?: boolean
 	/**
 	 * Messagebox URL for payment_inbox delivery after receive.
 	 * When unified with messagebox on the same app, point at this server's

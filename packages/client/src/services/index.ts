@@ -1,20 +1,20 @@
-export { AdminClient } from './AdminClient'
-export { BapClient } from './BapClient'
-export { BaseClient } from './BaseClient'
-export { ChaintracksClient } from './ChaintracksClient'
-export { BeefClient } from './BeefClient'
-export { ArcadeClient } from './ArcadeClient'
-export { TxoClient } from './TxoClient'
-export { OwnerClient, type TxoStreamEvent } from './OwnerClient'
-export { OrdfsClient } from './OrdfsClient'
-export { Bsv21Client, type OutputQueryOptions } from './Bsv21Client'
-export { MarketClient, type ListingSearchOptions } from './MarketClient'
+export { AdminClient } from './AdminClient.js'
+export { BapClient } from './BapClient.js'
+export { BaseClient } from './BaseClient.js'
+export { ChaintracksClient } from './ChaintracksClient.js'
+export { BeefClient } from './BeefClient.js'
+export { ArcadeClient } from './ArcadeClient.js'
+export { TxoClient } from './TxoClient.js'
+export { OwnerClient, type TxoStreamEvent } from './OwnerClient.js'
+export { OrdfsClient } from './OrdfsClient.js'
+export { Bsv21Client, type OutputQueryOptions } from './Bsv21Client.js'
+export { MarketClient, type ListingSearchOptions } from './MarketClient.js'
 export {
 	OpnsClient,
 	type OpnsOriginResult,
 	type OpnsMineResult,
-} from './OpnsClient'
-export { OverlayClient } from './OverlayClient'
+} from './OpnsClient.js'
+export { OverlayClient } from './OverlayClient.js'
 export {
 	MneeClient,
 	type MneeConfig,
@@ -24,5 +24,5 @@ export {
 	type MneeTransferStatus,
 	type MneeSyncEntry,
 	type MneeFeeTier,
-} from './MneeClient'
-export { OneSatServices } from './OneSatServices'
+} from './MneeClient.js'
+export { OneSatServices } from './OneSatServices.js'

@@ -4,12 +4,12 @@
  */
 
 import type { WalletInterface } from '@bsv/sdk'
-import { type CWITransport, createCWI } from './factory'
+import { type CWITransport, createCWI } from './factory.js'
 import type {
 	CWIEventName,
 	CWIRequestMessage,
 	CWIResponseMessage,
-} from './types'
+} from './types.js'
 
 const DEFAULT_WALLET_URL = 'https://1satwallet.com'
 const DEFAULT_IFRAME_PATH = '/wallet/cwi'

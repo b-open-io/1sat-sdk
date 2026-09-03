@@ -14,17 +14,17 @@ import {
 	parseInputAssetLabels,
 } from '@1sat/types'
 import type { CreateActionArgs, WalletInterface } from '@bsv/sdk'
-import { loadBasketOutput } from './loadBasketOutput'
+import { loadBasketOutput } from './loadBasketOutput.js'
 import {
+	type OrdinalRemittanceFields,
 	overwriteOrdinalCiFields,
 	remittanceFromOrdinalTags,
-	type OrdinalRemittanceFields,
-} from './ordinalRemittance'
+} from './ordinalRemittance.js'
 import {
 	encryptWalletMetadataCi,
 	ensurePlaintextCi,
 	looksLikeJson,
-} from './walletMetadataCi'
+} from './walletMetadataCi.js'
 
 const COLLECTABLE_BASKETS = new Set([
 	ONESAT_BASKET,

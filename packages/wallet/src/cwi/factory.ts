@@ -3,7 +3,7 @@
  */
 
 import type { WalletInterface } from '@bsv/sdk'
-import { CWIEventName } from './types'
+import { CWIEventName } from './types.js'
 
 /**
  * Transport function signature - sends a message and returns response

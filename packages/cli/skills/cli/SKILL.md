@@ -10,8 +10,9 @@ Bun-native command-line interface for 1Sat Ordinals and BSV operations. Binary n
 ## Usage
 
 ```bash
-# Run any command directly — no install needed
-bunx @1sat/cli <command>
+# Run any command directly — no install needed (Node ≥ 22.13 or Bun ≥ 1.2)
+npx @1sat/cli <command>
+bunx --bun @1sat/cli <command>   # force Bun when both are installed
 
 # Optional: install globally for frequent use
 bun add -g @1sat/cli

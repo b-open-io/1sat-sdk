@@ -25,7 +25,7 @@ import {
 	OverlayClient,
 	OwnerClient,
 	TxoClient,
-} from './index'
+} from './index.js'
 
 type Chain = toolboxSdk.Chain
 type BlockHeader = toolboxSdk.BlockHeader

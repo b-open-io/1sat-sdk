@@ -5,8 +5,8 @@
  */
 
 import { BSM, BigNumber, PublicKey, Signature, Utils } from '@bsv/sdk'
-import { MESSAGE_SIGNING_PROTOCOL } from '../constants'
-import type { Action } from '../types'
+import { MESSAGE_SIGNING_PROTOCOL } from '../constants.js'
+import type { Action } from '../types.js'
 
 // ============================================================================
 // Types
@@ -120,12 +120,12 @@ export const signBsm: Action<SignBsmRequest, SignBsmResponse> = {
 // Module exports
 // ============================================================================
 
-import { getAuthToken } from './authToken'
+import { getAuthToken } from './authToken.js'
 import {
 	decryptFromCounterparty,
 	encryptForCounterparty,
-} from './counterpartyCrypto'
-import { getFriendPublicKey } from './friendPubKey'
+} from './counterpartyCrypto.js'
+import { getFriendPublicKey } from './friendPubKey.js'
 
 /** All signing actions for registry */
 export const signingActions = [
@@ -142,25 +142,25 @@ export {
 	applyBapAip,
 	resolveBapSigner,
 	resolveCurrentKeyId,
-} from './aip'
-export { signWithBap, type BapSignature } from './bap'
+} from './aip.js'
+export { signWithBap, type BapSignature } from './bap.js'
 export {
 	appendSigmaPlaceholder,
 	sealSigma,
 	resolveSigmaAddress,
 	SIGMA_COMPACT_SIG_LEN,
 	SIGMA_ADDRESS_PLACEHOLDER_LEN,
-} from './sigma'
+} from './sigma.js'
 export {
 	getAuthToken,
 	type AuthTokenRequest,
 	type AuthTokenResponse,
-} from './authToken'
+} from './authToken.js'
 export {
 	getFriendPublicKey,
 	type FriendPubKeyRequest,
 	type FriendPubKeyResponse,
-} from './friendPubKey'
+} from './friendPubKey.js'
 export {
 	encryptForCounterparty,
 	decryptFromCounterparty,
@@ -168,4 +168,4 @@ export {
 	type EncryptResponse,
 	type DecryptRequest,
 	type DecryptResponse,
-} from './counterpartyCrypto'
+} from './counterpartyCrypto.js'

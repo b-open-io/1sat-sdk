@@ -7,7 +7,7 @@ import {
 	type WalletCounterparty,
 	type WalletProtocol,
 } from '@bsv/sdk'
-import type { OneSatContext } from '../types'
+import type { OneSatContext } from '../types.js'
 
 /**
  * Sign a P2PKH input using the wallet's key derivation.

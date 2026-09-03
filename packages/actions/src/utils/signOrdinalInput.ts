@@ -9,8 +9,8 @@ import {
 	type WalletCounterparty,
 	type WalletProtocol,
 } from '@bsv/sdk'
-import type { OneSatContext } from '../types'
-import { signP2PKHInput } from './signP2PKH'
+import type { OneSatContext } from '../types.js'
+import { signP2PKHInput } from './signP2PKH.js'
 
 /** @deprecated use OPNS_PUSHDROP_TEMPLATE from @1sat/types */
 export const PUSHDROP_TEMPLATE = OPNS_PUSHDROP_TEMPLATE

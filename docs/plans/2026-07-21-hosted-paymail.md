@@ -1,6 +1,11 @@
 # Host pack, Paymail & Messagebox
 
-Status: **In Progress** — unified host server implemented + smoke-tested; cutover + gaps below  
+Status: **Superseded (2026-09-02)** — the paid host pack (receipts, expiry,
+`/hosting/*`, entitlement gate) was removed. Registration is now a free,
+permanent host account with username + profile under `/account/*`; see
+`2026-08-31-paymail-domain-resolvers.md`. The PushDrop bind, unified host
+server, and messagebox composition sections below still describe shipped
+code.  
 Last updated: 2026-07-22
 
 ## Goal

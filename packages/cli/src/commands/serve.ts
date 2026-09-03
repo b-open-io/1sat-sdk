@@ -1,7 +1,7 @@
 /**
  * `1sat serve` command — launch the unified host server and/or monitor.
  *
- *   1sat serve              Host server (storage + hosting + paymail + messagebox) + monitor
+ *   1sat serve              Host server (storage + accounts + paymail + messagebox) + monitor
  *   1sat serve wallet       Wallet storage server only
  *   1sat serve monitor      Monitor daemon only
  *
@@ -13,7 +13,7 @@
  *   1sat config set server.port 8100
  *   1sat config set server.host 0.0.0.0
  *   1sat config set server.accounts.enabled true
- *   1sat config set server.hosting.enabled true
+ *   1sat config set server.paymail.userDomain 1sat.app
  *   1sat config set server.paymail.baseUrl https://1sat.app
  *   1sat config set server.monitor.enabled false
  */
@@ -25,15 +25,15 @@ import {
 	createNodeWallet,
 } from '@1sat/wallet-node'
 import {
+	KnexAccountStore,
 	KnexPendingStore,
-	KnexUserStore,
 	createHostServer,
 	createWalletServer,
 } from '@1sat/wallet-server'
 import type { PrivateKey } from '@bsv/sdk'
 import { initLogger } from 'evlog'
 import knexLib from 'knex'
-import type { GlobalFlags } from '../args'
+import type { GlobalFlags } from '../args.js'
 import {
 	type RepricerConfig,
 	type ServerAccountsConfig,
@@ -41,18 +41,18 @@ import {
 	type ServerStorageConfig,
 	loadConfig,
 	setConfigPath,
-} from '../config'
-import { ensureDataDir } from '../config'
-import { printCommandHelp } from '../help'
-import { loadKey } from '../keys'
-import { clearMonitorPid, writeMonitorPid } from '../monitor-lock'
-import { fatal } from '../output'
+} from '../config.js'
+import { ensureDataDir } from '../config.js'
+import { printCommandHelp } from '../help.js'
+import { loadKey } from '../keys.js'
+import { clearMonitorPid, writeMonitorPid } from '../monitor-lock.js'
+import { fatal } from '../output.js'
 import {
 	type RepriceTarget,
 	buildPriceUpdateTask,
 	createAccountsConfigLoader,
 	resolveRateProvider,
-} from '../repricer'
+} from '../repricer/index.js'
 
 const DEFAULT_HOST = '127.0.0.1'
 const DEFAULT_PORT = 8100
@@ -60,7 +60,6 @@ const DEFAULT_STACK_URL = 'https://api.1sat.app'
 const DEFAULT_BASELINE_BYTES = 1024 * 1024 * 1024 // 1 GB
 const DEFAULT_PURCHASE_UNIT_BYTES = 1_073_741_824 // 1 GB chunks for production
 const DEFAULT_SATS_PER_UNIT = 1_000_000
-const DEFAULT_HOSTING_PRICE_SATS = 10_000
 const DEFAULT_DURATION_BLOCKS = 4383
 const DEFAULT_STORAGE_IDENTITY_KEY = '1sat-cli-default'
 
@@ -299,18 +298,6 @@ async function runWithStorage(
 				},
 			})
 		}
-		const hostingCfg = loadConfig().server?.hosting
-		if (hostingCfg?.enabled === true && (hostingCfg.targetUsd ?? 0) > 0) {
-			targets.push({
-				name: 'hosting',
-				targetUsd: hostingCfg.targetUsd!,
-				readCurrentSats: () =>
-					loadConfig().server?.hosting?.priceSats ?? DEFAULT_HOSTING_PRICE_SATS,
-				onPersist: async (sats) => {
-					setConfigPath('server.hosting.priceSats', sats)
-				},
-			})
-		}
 		if (r?.enabled && targets.length > 0) {
 			walletResult.monitor.addTask(
 				buildPriceUpdateTask({
@@ -368,21 +355,6 @@ async function startWalletServer(
 	mode: ServeMode,
 ): Promise<{ stop(): Promise<void> }> {
 	const config = loadConfig()
-	const hostingCfg = config.server?.hosting
-	const hostingEnabled = hostingCfg?.enabled === true
-	const hosting = hostingEnabled
-		? {
-				getConfig: () => {
-					const h = loadConfig().server?.hosting
-					return {
-						enabled: h?.enabled === true,
-						priceSats: h?.priceSats ?? DEFAULT_HOSTING_PRICE_SATS,
-						priceUsd: h?.targetUsd,
-						periodSeconds: h?.periodSeconds ?? 2_592_000,
-					}
-				},
-			}
-		: undefined
 
 	const sessionStoreCfg = config.server?.sessionStore
 	const sessionStore = sessionStoreCfg?.redisUrl
@@ -401,14 +373,10 @@ async function startWalletServer(
 			publicPath: '/',
 			internalPath: null,
 			accounts: accounts?.walletServerAccounts,
-			hosting,
 			sessionStore,
 		})
 		const port = await handle.start()
-		const notes = [
-			resolved.accounts.enabled ? 'accounts: on' : '',
-			hostingEnabled ? 'hosting: on' : '',
-		]
+		const notes = [resolved.accounts.enabled ? 'accounts: on' : '']
 			.filter(Boolean)
 			.join(', ')
 		console.log(
@@ -417,7 +385,9 @@ async function startWalletServer(
 		return { stop: () => handle.stop() }
 	}
 
-	// Unified host: storage + messagebox + paymail + hosting
+	// Unified host: storage + accounts + paymail + messagebox. The account
+	// registry is always on: it is the paymail user-domain backend and the
+	// entitlement gate for paymail resolution and messagebox delivery.
 	const serverCfg = config.server ?? {}
 	const paymailCfg = serverCfg.paymail
 	const messageboxCfg = serverCfg.messagebox
@@ -429,8 +399,8 @@ async function startWalletServer(
 	)
 	const pendingStore = new KnexPendingStore(knex)
 	await pendingStore.init()
-	const userStore = new KnexUserStore(knex)
-	await userStore.init()
+	const accountStore = new KnexAccountStore(knex)
+	await accountStore.init()
 
 	const handle = await createHostServer({
 		wallet: walletResult.wallet,
@@ -439,23 +409,14 @@ async function startWalletServer(
 		serverIdentityKey: walletResult.wallet.identityKey,
 		listen: { port: resolved.port, host: resolved.host },
 		accounts: accounts?.walletServerAccounts,
-		hosting: hosting
-			? {
-					...hosting,
-					...(paymailCfg?.userDomain && { userStore }),
-				}
-			: undefined,
+		accountStore,
 		paymail: {
 			baseUrl:
 				paymailCfg?.baseUrl ?? `http://${resolved.host}:${resolved.port}`,
 			stackUrl: paymailCfg?.stackUrl ?? resolved.stackUrl,
 			pendingStore,
-			...(paymailCfg?.userDomain && {
-				userDomain: paymailCfg.userDomain,
-				userStore,
-			}),
-			hostWallet: hostingEnabled ? walletResult.wallet : undefined,
-			requireEntitlement: hostingEnabled,
+			accountStore,
+			...(paymailCfg?.userDomain && { userDomain: paymailCfg.userDomain }),
 			messageboxUrl: `http://127.0.0.1:${resolved.port}/messagebox`,
 			hostPrivateKey: resolved.privateKey,
 		},
@@ -467,7 +428,7 @@ async function startWalletServer(
 	const port = await handle.start()
 	const notes = [
 		resolved.accounts.enabled ? 'accounts: on' : '',
-		hostingEnabled ? 'hosting: on' : '',
+		paymailCfg?.userDomain ? `paymail users: ${paymailCfg.userDomain}` : '',
 	]
 		.filter(Boolean)
 		.join(', ')

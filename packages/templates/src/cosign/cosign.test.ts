@@ -8,7 +8,7 @@ import {
 	UnlockingScript,
 	Utils,
 } from '@bsv/sdk'
-import Cosign from './cosign'
+import Cosign from './cosign.js'
 
 function sighashFromPreimage(preimage: number[]): number[] {
 	// Spend interpreter signs single-SHA256 of the preimage (it adds the second SHA-256 internally during verification)

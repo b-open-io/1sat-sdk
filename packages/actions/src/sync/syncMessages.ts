@@ -9,7 +9,7 @@
 
 import { MessageBoxClient } from '@bsv/message-box-client'
 import { Beef, Utils } from '@bsv/sdk'
-import type { Action } from '../types'
+import type { Action } from '../types.js'
 
 // ============================================================================
 // Types

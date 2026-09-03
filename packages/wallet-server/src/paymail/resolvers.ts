@@ -1,21 +1,23 @@
 /**
  * PaymailResolver backends. The OpNS resolver (resolvePaymailBind, used as
- * the default in routes) resolves on-chain PushDrop binds; the registry
- * resolver maps a domain's aliases through the registered-users table.
- * Both end at an identity key.
+ * the default in routes) resolves on-chain PushDrop binds; the account
+ * resolver maps the host's user domain through the accounts table. Both
+ * end at an identity key.
  */
 
-import type { PaymailResolver, ResolvedBind, UserStore } from './types'
+import type { AccountStore } from '../accounts/store.js'
+import type { PaymailResolver, ResolvedBind } from './types.js'
 
-export function createRegistryResolver(store: UserStore): PaymailResolver {
+export function createAccountResolver(store: AccountStore): PaymailResolver {
 	return {
 		async resolve(alias: string): Promise<ResolvedBind | null> {
-			const user = await store.get(alias)
-			if (!user) return null
+			const account = await store.getByUsername(alias)
+			if (!account) return null
 			return {
-				identityKey: user.identityKey,
+				identityKey: account.identityKey,
 				outpoint: '',
-				profileName: user.username,
+				profileName: account.displayName ?? account.username,
+				...(account.avatarOrigin && { avatarOrigin: account.avatarOrigin }),
 			}
 		},
 	}

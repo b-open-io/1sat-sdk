@@ -15,7 +15,7 @@ import {
 	Hash,
 	LockingScript,
 	PublicKey,
-	Transaction,
+	type Transaction,
 	TransactionSignature,
 	Utils,
 } from '@bsv/sdk'
@@ -28,7 +28,7 @@ import {
 	type CosignTransferSession,
 	type PrepareCosignBsv21TransferInput,
 	type PrepareCosignBsv21TransferResult,
-} from './types'
+} from './types.js'
 
 /** Estimated unlocking script length: <approverSig><ownerSig><ownerPubKey> = ~185 bytes. */
 const COSIGN_UNLOCK_SCRIPT_LENGTH = 185
@@ -49,10 +49,11 @@ export async function prepareCosignBsv21Transfer(
 	} = input
 
 	if (tokenInputs.length === 0) {
-		throw new Error('prepareCosignBsv21Transfer: at least one tokenInput required')
+		throw new Error(
+			'prepareCosignBsv21Transfer: at least one tokenInput required',
+		)
 	}
-	const hasMultisig =
-		!!multisigDestinations && multisigDestinations.length > 0
+	const hasMultisig = !!multisigDestinations && multisigDestinations.length > 0
 	if (
 		destinations.length === 0 &&
 		!hasMultisig &&
@@ -228,7 +229,9 @@ export async function prepareCosignBsv21Transfer(
 		for (const burn of burns) {
 			const amountBig = BigInt(burn.amount)
 			if (amountBig <= 0n) {
-				throw new Error('prepareCosignBsv21Transfer: burn amount must be positive')
+				throw new Error(
+					'prepareCosignBsv21Transfer: burn amount must be positive',
+				)
 			}
 			const burnInscription = BSV21.burn(tokenId, amountBig)
 			// Lock with no suffix — the inscription itself is the entire output.
@@ -293,7 +296,8 @@ export async function prepareCosignBsv21Transfer(
 	// Wire source transactions back into inputs so sighash format works.
 	for (const inp of finalTx.inputs) {
 		if (!inp.sourceTransaction && inp.sourceTXID) {
-			const src = signableBeef.findTxid(inp.sourceTXID) ?? beef.findTxid(inp.sourceTXID)
+			const src =
+				signableBeef.findTxid(inp.sourceTXID) ?? beef.findTxid(inp.sourceTXID)
 			if (src?.tx) inp.sourceTransaction = src.tx
 		}
 	}
@@ -382,7 +386,8 @@ function computeCosignSighash(tx: Transaction, inputIndex: number): number[] {
 		otherInputs: tx.inputs
 			.filter((_, i) => i !== inputIndex)
 			.map((other) => ({
-				sourceTXID: other.sourceTXID ?? other.sourceTransaction?.id('hex') ?? '',
+				sourceTXID:
+					other.sourceTXID ?? other.sourceTransaction?.id('hex') ?? '',
 				sourceOutputIndex: other.sourceOutputIndex,
 				sequence: other.sequence ?? 0xffffffff,
 			})),

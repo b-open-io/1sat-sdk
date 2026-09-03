@@ -6,8 +6,8 @@ import {
 	type WalletInterface,
 	type WalletOutput,
 } from '@bsv/sdk'
-import type { OneSatContext } from '../types'
-import { type MintBsv21Input, mintBsv21 } from './index'
+import type { OneSatContext } from '../types.js'
+import { type MintBsv21Input, mintBsv21 } from './index.js'
 
 const TOKEN_TXID = 'a'.repeat(64)
 const TOKEN_ID = `${TOKEN_TXID}_0`

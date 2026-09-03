@@ -9,16 +9,16 @@ import {
 	Utils,
 	type WalletInterface,
 } from '@bsv/sdk'
-import { applyP1SatCreateAction } from '../apply/applyIntent'
-import type { FundingProvider } from '../funding'
-import { runCreateActionPipeline } from '../pipeline/runPipeline'
-import type { Spend } from '../pipeline/spendTargets'
-import { labelsFromSpends, spendsFromLabels } from '../pipeline/spendTargets'
+import { applyP1SatCreateAction } from '../apply/applyIntent.js'
+import type { FundingProvider } from '../funding/index.js'
+import { runCreateActionPipeline } from '../pipeline/runPipeline.js'
+import type { Spend } from '../pipeline/spendTargets.js'
+import { labelsFromSpends, spendsFromLabels } from '../pipeline/spendTargets.js'
 import {
 	type CompleteSignedActionResult,
 	type SigningCallback,
 	completeSignedAction,
-} from './completeSignedAction'
+} from './completeSignedAction.js'
 
 /**
  * Generate a random hex string for action tracking (64 bits).

@@ -1,4 +1,4 @@
-import type { RegistryType } from './constants'
+import type { RegistryType } from './constants.js'
 
 /**
  * A file to include in a registry package inscription.

@@ -1,10 +1,10 @@
 /**
- * Unified host server: wallet storage RPC + hosting + paymail + messagebox
+ * Unified host server: wallet storage RPC + accounts + paymail + messagebox
  * in one process with one host identity.
  *
  * Auth zoning:
- * - public: paymail bsvalias, GET /hosting/price
- * - BRC-100: storage RPC, /account/*, /hosting/status|subscribe, messagebox
+ * - public: paymail bsvalias, OpenAPI docs
+ * - BRC-100: storage RPC, /account/*, messagebox
  */
 
 import type { Server } from 'node:http'
@@ -24,24 +24,21 @@ import {
 	type AccountsMiddlewareDeps,
 	accountsCapacityGate,
 	mountPaymentRoute,
-} from './accounts'
+	mountRegistrationRoutes,
+} from './accounts/index.js'
+import type { AccountStore } from './accounts/store.js'
 import {
 	type WalletServerAccounts,
 	type WalletServerConfig,
 	corsMiddleware,
 	dispatchHandler,
 	mountStatusRoute,
-} from './createWalletServer'
-import { mountTerminalErrorHandler } from './errorHandler'
-import {
-	type HostingConfigProvider,
-	mountHostingRoutes,
-} from './hosting/routes'
-import { mountOpenApiRoutes } from './openapi'
-import { checkHostingEntitlement } from './paymail/entitlement'
-import { mountPaymailRoutes } from './paymail/routes'
-import type { PaymailDeps, UserStore } from './paymail/types'
-import { buildAuthMiddleware } from './sessions/redisSessionManager'
+} from './createWalletServer.js'
+import { mountTerminalErrorHandler } from './errorHandler.js'
+import { mountOpenApiRoutes } from './openapi/index.js'
+import { mountPaymailRoutes } from './paymail/routes.js'
+import type { PaymailDeps } from './paymail/types.js'
+import { buildAuthMiddleware } from './sessions/redisSessionManager.js'
 
 export interface HostServerMessageboxConfig {
 	/** Knex instance for message tables */
@@ -56,11 +53,14 @@ export interface HostServerConfig {
 	serverIdentityKey: string
 	listen: { port: number; host?: string }
 	accounts?: WalletServerAccounts
-	hosting?: {
-		getConfig: HostingConfigProvider
-		/** 1sat.app name registry; subscribe can claim a username when set. */
-		userStore?: UserStore
-	}
+	/**
+	 * Host account registry. Enables POST /account/register and
+	 * PUT /account/profile, reports the account on GET /account/status, and
+	 * gates messagebox delivery on the recipient holding an account. Pass the
+	 * same store as `paymail.accountStore` so paymail resolution is gated the
+	 * same way.
+	 */
+	accountStore?: AccountStore
 	paymail?: PaymailDeps
 	messagebox?: HostServerMessageboxConfig
 	/**
@@ -88,7 +88,7 @@ export async function createHostServer(
 
 	const { wallet } = config
 	// One authMiddleware instance for every authed surface (storage, account,
-	// hosting, messagebox), so a single /.well-known/auth handshake authenticates
+	// messagebox), so a single /.well-known/auth handshake authenticates
 	// a client everywhere. With a session store, sessions are mirrored to
 	// Redis and hydrated on demand so any instance can validate any session.
 	const authMiddleware = buildAuthMiddleware(wallet, config.sessionStore)
@@ -97,26 +97,12 @@ export async function createHostServer(
 	if (config.paymail) {
 		await mountPaymailRoutes(app, config.paymail)
 	}
-	if (config.hosting) {
-		app.get('/hosting/price', (_req, res) => {
-			const cfg = config.hosting!.getConfig()
-			if (!cfg.enabled)
-				return res.status(404).json({ error: 'hosting disabled' })
-			return res.json({
-				priceSats: cfg.priceSats,
-				...(cfg.priceUsd !== undefined && { priceUsd: cfg.priceUsd }),
-				periodSeconds: cfg.periodSeconds,
-			})
-		})
-	}
 	mountOpenApiRoutes(app, {
 		serverIdentityKey: config.serverIdentityKey,
 		surfaces: {
 			storage: true,
 			accounts: config.accounts != null,
-			hosting: config.hosting
-				? () => config.hosting!.getConfig().enabled
-				: undefined,
+			registration: config.accountStore != null,
 			paymail: config.paymail != null,
 			messagebox: config.messagebox != null,
 		},
@@ -166,16 +152,12 @@ export async function createHostServer(
 			walletStorage: accountsDeps.walletStorage as never,
 			serverIdentityKey: accountsDeps.serverIdentityKey,
 			currentBlock: accountsDeps.currentBlock,
+			accountStore: config.accountStore,
 		})
 	}
 
-	if (config.hosting) {
-		mountHostingRoutes(app, '/', {
-			wallet,
-			getConfig: config.hosting.getConfig,
-			authMiddleware,
-			...(config.hosting.userStore && { userStore: config.hosting.userStore }),
-		})
+	if (config.accountStore) {
+		mountRegistrationRoutes(app, '/', { store: config.accountStore })
 	}
 
 	// --- messagebox (own router; host owns the auth) --------------------------
@@ -189,37 +171,25 @@ export async function createHostServer(
 		const mbRouter = Router()
 		registerMessageBoxPreAuthRoutes(mbRouter)
 
-		// Host pack gate: when hosting is enabled, recipients must hold an active
-		// receipt before this server stores messages for them. Runs before auth —
-		// it only inspects the request body.
-		if (config.hosting?.getConfig().enabled) {
+		// Account gate: recipients must hold an account on this host before it
+		// stores messages for them. Runs before auth — it only inspects the
+		// request body.
+		const accountStore = config.accountStore
+		if (accountStore) {
 			mbRouter.post('/sendMessage', async (req, res, next) => {
 				try {
 					const message = (req.body as { message?: Record<string, unknown> })
 						?.message
 					const raw = message?.recipients ?? message?.recipient
 					const recipients = Array.isArray(raw) ? raw : raw != null ? [raw] : []
-					const userStore = config.hosting?.userStore
 					for (const recipient of recipients) {
 						if (typeof recipient !== 'string') continue
-						if (userStore) {
-							const user = await userStore.getByIdentity(recipient)
-							if (!user) {
-								return res.status(403).json({
-									status: 'error',
-									code: 'ERR_HOSTING_REQUIRED',
-									description: 'Recipient does not have a registered username',
-								})
-							}
-							continue
-						}
-						const ent = await checkHostingEntitlement(wallet, recipient)
-						if (!ent.active) {
+						const account = await accountStore.getByIdentity(recipient)
+						if (!account) {
 							return res.status(403).json({
 								status: 'error',
-								code: 'ERR_HOSTING_REQUIRED',
-								description:
-									'Recipient does not have an active hosting subscription',
+								code: 'ERR_ACCOUNT_REQUIRED',
+								description: 'Recipient has no account on this host',
 							})
 						}
 					}
@@ -299,7 +269,7 @@ function listenWithLog(
 				host: config.listen.host ?? '0.0.0.0',
 				port,
 				paymail: config.paymail != null,
-				hosting: config.hosting != null,
+				registration: config.accountStore != null,
 				messagebox: config.messagebox != null,
 				websockets,
 			})

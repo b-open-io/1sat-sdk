@@ -4,7 +4,7 @@
 
 import type { OneSatServices } from '@1sat/client'
 import type { WalletInterface } from '@bsv/sdk'
-import type { FundingProvider } from './funding'
+import type { FundingProvider } from './funding/index.js'
 
 /**
  * Context passed to all actions.

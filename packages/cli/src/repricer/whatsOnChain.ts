@@ -1,4 +1,4 @@
-import type { BsvUsdQuote, RateProvider } from './types'
+import type { BsvUsdQuote, RateProvider } from './types.js'
 
 export interface WhatsOnChainOptions {
 	chain: 'main' | 'test'

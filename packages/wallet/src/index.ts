@@ -10,7 +10,7 @@ export type {
 } from '@1sat/types'
 
 // Signers
-export { ReadOnlySigner } from './signers/ReadOnlySigner'
+export { ReadOnlySigner } from './signers/ReadOnlySigner.js'
 
 // API Clients
 export {
@@ -53,14 +53,14 @@ export {
 	type ParseResult,
 	type Sigma,
 	type Txo,
-} from './indexers'
+} from './indexers/index.js'
 
 // Address sync
 export {
 	AddressManager,
 	BRC29_PROTOCOL_ID,
 	type AddressDerivation,
-} from './address-sync'
+} from './address-sync/index.js'
 
 // Backup
 export {
@@ -73,7 +73,7 @@ export {
 	type BackupProgressCallback,
 	type BackupProgressEvent,
 	type Unzipped,
-} from './backup'
+} from './backup/index.js'
 
 // CWI (Compute With Integrity)
 export {
@@ -97,13 +97,13 @@ export {
 	type SigmaCWIResult,
 	type WebCWIConfig,
 	type WebCWIResult,
-} from './cwi'
+} from './cwi/index.js'
 
 // Note: Storage utilities (StorageIdb, WalletStorageManager, Chain) should be
 // imported directly from '@bsv/wallet-toolbox/mobile'
 
 // Factory utilities
-export { parsePrivateKey } from './parsePrivateKey'
+export { parsePrivateKey } from './parsePrivateKey.js'
 
 // Factory core
 export {
@@ -114,7 +114,7 @@ export {
 	type TaskStateStore,
 	type WalletCoreConfig,
 	type WalletCoreResult,
-} from './factory'
+} from './factory.js'
 
 // 507 auto-retry
 export {
@@ -123,7 +123,7 @@ export {
 	type AutoRetryConfig,
 	type StoragePaymentHook,
 	type StoragePaymentRequiredInfo,
-} from './storagePaymentAutoRetry'
+} from './storagePaymentAutoRetry.js'
 
 // Invalid-req recovery nomination for TaskUnFail
 export {
@@ -132,7 +132,7 @@ export {
 	type NominatedReq,
 	type NominateInvalidResult,
 	type ReviewInvalidTaskOptions,
-} from './reviewInvalidTask'
+} from './reviewInvalidTask.js'
 
 // Permissions — local-storage-backed WalletPermissionsManager
 export {
@@ -144,7 +144,7 @@ export {
 	permissionKeyFromRequest,
 	permissionKeysFromGroup,
 	permissionKeyToString,
-} from './permissions'
+} from './permissions/index.js'
 export type {
 	IPermissionStore,
 	ListGrantsFilter,
@@ -152,4 +152,4 @@ export type {
 	PermissionKey,
 	PermissionType,
 	StoredGrant,
-} from './permissions'
+} from './permissions/index.js'

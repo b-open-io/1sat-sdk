@@ -17,12 +17,14 @@ import {
 } from '@bsv/paymail'
 import { Transaction, Utils } from '@bsv/sdk'
 import type { Express, Request } from 'express'
-import { createPaymentDestination, verifyPaymentOutputs } from './destination'
-import { checkHostingEntitlement } from './entitlement'
-import { MessageBoxClient } from './messagebox'
-import { resolvePaymailBind } from './resolve'
-import { createRegistryResolver } from './resolvers'
-import type { PaymailDeps } from './types'
+import {
+	createPaymentDestination,
+	verifyPaymentOutputs,
+} from './destination.js'
+import { MessageBoxClient } from './messagebox.js'
+import { resolvePaymailBind } from './resolve.js'
+import { createAccountResolver } from './resolvers.js'
+import type { PaymailDeps } from './types.js'
 
 /**
  * Request bodies as each route hands them to its handler.
@@ -70,7 +72,6 @@ export async function mountPaymailRoutes(
 	// Avatars resolve through the same ORDFS host used for name resolution;
 	// content lives at /content, matching OrdfsClient.
 	const ordfsBaseUrl = `${deps.stackUrl.replace(/\/$/, '')}/content`
-	const gateOn = deps.requireEntitlement === true && deps.hostWallet != null
 	const messageBox =
 		deps.messageboxUrl && deps.hostPrivateKey
 			? MessageBoxClient.fromPrivateKey(deps.messageboxUrl, deps.hostPrivateKey)
@@ -81,36 +82,38 @@ export async function mountPaymailRoutes(
 		)
 	}
 
-	const registryResolver =
-		deps.userDomain && deps.userStore
-			? createRegistryResolver(deps.userStore)
+	const accountResolver =
+		deps.userDomain && deps.accountStore
+			? createAccountResolver(deps.accountStore)
 			: null
+	if (deps.userDomain && !deps.accountStore) {
+		console.warn(
+			`[paymail] userDomain ${deps.userDomain} set without accountStore — resolving it via OpNS`,
+		)
+	}
 
+	/**
+	 * Alias → identity for one domain, then the account gate: whichever
+	 * backend resolved it, the identity must hold an account on this host.
+	 * The user domain is the accounts table itself, so its gate is implicit.
+	 */
 	async function resolveAndAuthorize(alias: string, domain: string) {
 		try {
-			const viaRegistry =
-				registryResolver != null &&
+			const viaAccounts =
+				accountResolver != null &&
 				domain.toLowerCase() === deps.userDomain?.toLowerCase()
-			const bind = viaRegistry
-				? await registryResolver?.resolve(alias, domain)
-				: await resolvePaymailBind(services, alias)
+			if (viaAccounts) {
+				const bind = await accountResolver.resolve(alias, domain)
+				if (!bind) throw new NotFoundError()
+				return bind
+			}
+			const bind = await resolvePaymailBind(services, alias)
 			if (!bind) throw new NotFoundError()
-			if (deps.userStore) {
-				const user = await deps.userStore.getByIdentity(bind.identityKey)
-				if (!user) {
+			if (deps.accountStore) {
+				const account = await deps.accountStore.getByIdentity(bind.identityKey)
+				if (!account) {
 					console.warn(
-						`[paymail] ${alias}@${domain}: identity ${bind.identityKey} has no registered username`,
-					)
-					throw new NotFoundError()
-				}
-			} else if (gateOn && deps.hostWallet) {
-				const ent = await checkHostingEntitlement(
-					deps.hostWallet,
-					bind.identityKey,
-				)
-				if (!ent.active) {
-					console.warn(
-						`[paymail] ${alias}@${domain}: identity ${bind.identityKey} has no active hosting subscription`,
+						`[paymail] ${alias}@${domain}: identity ${bind.identityKey} has no account on this host`,
 					)
 					throw new NotFoundError()
 				}

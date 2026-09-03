@@ -13,12 +13,12 @@ import {
 } from '@1sat/actions'
 import type { WalletInterface } from '@bsv/sdk'
 import { confirm, isCancel } from '@clack/prompts'
-import type { GlobalFlags } from '../args'
-import { extractFlag, extractFlags } from '../args'
-import { loadContext } from '../context'
-import { printCommandHelp } from '../help'
-import { loadKey } from '../keys'
-import { fatal, formatValue, output, printKeyValue } from '../output'
+import type { GlobalFlags } from '../args.js'
+import { extractFlag, extractFlags } from '../args.js'
+import { loadContext } from '../context.js'
+import { printCommandHelp } from '../help.js'
+import { loadKey } from '../keys.js'
+import { fatal, formatValue, output, printKeyValue } from '../output.js'
 
 /**
  * BRC-100 methods reached by passing the method's own args as one JSON
@@ -526,7 +526,9 @@ async function walletMigrateBaskets(
 		if (opts.json) {
 			output(result, opts)
 		} else {
-			console.log(`Moved ${result.totalMoved} output(s) across legacy baskets\n`)
+			console.log(
+				`Moved ${result.totalMoved} output(s) across legacy baskets\n`,
+			)
 			for (const r of result.results) {
 				if (r.moved === 0 && r.errors.length === 0) continue
 				console.log(

@@ -6,7 +6,7 @@ import {
 	type WalletCounterparty,
 	type WalletProtocol,
 } from '@bsv/sdk'
-import type { OneSatContext } from '../types'
+import type { OneSatContext } from '../types.js'
 
 /**
  * Result of resolving a {@link Destination} into a concrete output spec.

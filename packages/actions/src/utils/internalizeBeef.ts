@@ -10,11 +10,7 @@
 
 import type { OneSatServices } from '@1sat/client'
 import type { Indexer, ParseContext, Txo } from '@1sat/types'
-import {
-	DEPOSIT_BASKET,
-	OPNS_BASKET,
-	ORDINALS_BASKET,
-} from '@1sat/types'
+import { DEPOSIT_BASKET, OPNS_BASKET, ORDINALS_BASKET } from '@1sat/types'
 import {
 	Bsv21Indexer,
 	CosignIndexer,
@@ -28,13 +24,6 @@ import {
 	SigmaIndexer,
 } from '@1sat/wallet'
 import {
-	buildBsv21CustomInstructions,
-} from './bsv21Remittance'
-import {
-	buildOrdinalCustomInstructions,
-	remittanceFromOrdinalTags,
-} from './ordinalRemittance'
-import {
 	Beef,
 	type InternalizeActionArgs,
 	type InternalizeOutput,
@@ -42,7 +31,12 @@ import {
 	type WalletCounterparty,
 	type WalletInterface,
 } from '@bsv/sdk'
-import { randomActionId } from './createTrackedAction'
+import { buildBsv21CustomInstructions } from './bsv21Remittance.js'
+import { randomActionId } from './createTrackedAction.js'
+import {
+	buildOrdinalCustomInstructions,
+	remittanceFromOrdinalTags,
+} from './ordinalRemittance.js'
 
 // ============================================================================
 // Types

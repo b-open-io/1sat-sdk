@@ -35,9 +35,7 @@ export function spendToLabel(s: Spend): string | undefined {
 	if (s.basket && s.id) return buildInputAssetLabel(s.basket, s.id)
 	if (s.outpoint) {
 		const scheme =
-			s.scheme ??
-			(s.basket ? schemeForBasket(s.basket) : undefined) ??
-			'1sat'
+			s.scheme ?? (s.basket ? schemeForBasket(s.basket) : undefined) ?? '1sat'
 		return buildExternalInputLabel(scheme, s.outpoint)
 	}
 	return undefined

@@ -6,13 +6,13 @@ import {
 	Script,
 	type WalletInterface,
 } from '@bsv/sdk'
-import { findUnsealedSigmaVin } from '../signing/sigma'
-import { stampManagedOutputIds } from '../utils/createTrackedAction'
-import { stampBsv21OutputCustomInstructions } from '../utils/stampBsv21OutputCi'
-import { stampOrdinalOutputCustomInstructions } from '../utils/stampOrdinalOutputCi'
-import { applyInscribeSigma } from './inscribeSigma'
-import { applyOpnsRegister } from './opnsRegister'
-import { stampScriptDerivedTags } from './stampScriptTags'
+import { findUnsealedSigmaVin } from '../signing/sigma.js'
+import { stampManagedOutputIds } from '../utils/createTrackedAction.js'
+import { stampBsv21OutputCustomInstructions } from '../utils/stampBsv21OutputCi.js'
+import { stampOrdinalOutputCustomInstructions } from '../utils/stampOrdinalOutputCi.js'
+import { applyInscribeSigma } from './inscribeSigma.js'
+import { applyOpnsRegister } from './opnsRegister.js'
+import { stampScriptDerivedTags } from './stampScriptTags.js'
 
 /**
  * Authoritative enrich (local pipeline + module embellish):

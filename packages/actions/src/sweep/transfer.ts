@@ -8,8 +8,8 @@
 
 import { parseOutpoint } from '@1sat/utils'
 import { P2PKH, PrivateKey, Transaction } from '@bsv/sdk'
-import type { OneSatContext } from '../types'
-import type { SweepInput } from './types'
+import type { OneSatContext } from '../types.js'
+import type { SweepInput } from './types.js'
 
 export interface LegacySendOrdinalsRequest {
 	/** Ordinal UTXOs (1 sat each) */

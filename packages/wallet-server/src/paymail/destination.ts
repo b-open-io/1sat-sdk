@@ -5,8 +5,8 @@
 
 import { BRC29_PROTOCOL_ID } from '@1sat/types'
 import { KeyDeriver, P2PKH, PrivateKey, PublicKey, Utils } from '@bsv/sdk'
-import { DEFAULT_TTL_MS, generateReference } from './pending'
-import type { PendingPayment, PendingStore } from './types'
+import { DEFAULT_TTL_MS, generateReference } from './pending.js'
+import type { PendingPayment, PendingStore } from './types.js'
 
 function randomB64(n: number): string {
 	const b = new Uint8Array(n)

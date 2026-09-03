@@ -1,5 +1,5 @@
 import type { ClientOptions, IndexedOutput } from '@1sat/types'
-import { BaseClient } from './BaseClient'
+import { BaseClient } from './BaseClient.js'
 
 export interface ListingSearchOptions {
 	/** Listing status: active, sale, cancel (default: active) */

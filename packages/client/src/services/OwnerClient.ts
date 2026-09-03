@@ -6,7 +6,7 @@ import type {
 	SyncProgress,
 	TxoQueryOptions,
 } from '@1sat/types'
-import { BaseClient } from './BaseClient'
+import { BaseClient } from './BaseClient.js'
 
 /**
  * Event types emitted by the OwnerTxos SSE stream.

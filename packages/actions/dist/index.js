@@ -5,65 +5,65 @@
  * All actions work with any BRC-100 compatible wallet interface via OneSatContext.
  */
 // Export action types and helpers
-export { createContext, } from './types';
+export { createContext, } from './types.js';
 // Export action registry
-export { ActionRegistry, actionRegistry } from './action-registry';
+export { ActionRegistry, actionRegistry } from './action-registry.js';
 // Export constants
-export * from './constants';
+export * from './constants.js';
 // P1Sat apply (base-wallet seal / validate; module re-exports dispatch)
-export { applyP1SatCreateAction, applyP1SatIntent, applyOpnsRegister, applyInscribeSigma, applyValidateOnly, prepareP1SatArgs, sigmaAnchorKeyId, stampScriptDerivedTags, P1SAT_APPLY_REGISTRY, } from './apply';
+export { applyP1SatCreateAction, applyP1SatIntent, applyOpnsRegister, applyInscribeSigma, applyValidateOnly, prepareP1SatArgs, sigmaAnchorKeyId, stampScriptDerivedTags, P1SAT_APPLY_REGISTRY, } from './apply/index.js';
 // Export shared utilities
-export { signP2PKHInput } from './utils/signP2PKH';
-export { completeSignedAction, } from './utils/completeSignedAction';
-export { createTrackedAction, executeTrackedAction, randomActionId, stampManagedOutputIds, ensureP1SatDispatchLabel, ensureActionId, } from './utils/createTrackedAction';
-export { hasOneSatModule } from './utils/hasOneSatModule';
-export { spendsFromLabels, labelsFromSpends, spendToLabel, spendTargetsFromLabels, labelsFromSpendTargets, spendTargetToLabel, buildSpendsForTargets, buildSpendsForResolved, materializeSpends, resolveSpendTargets, unlockByScript, buildPurchaseUnlockingScript, runCreateActionPipeline, finishCreateAction, embellishCreateActionArgs, } from './pipeline';
-export { getDisplayValue } from './utils/displayValue';
-export { ordinalSeedTags } from './utils/ordinalSeedTags';
-export { loadBasketOutput, loadBasketOutputBeef, toIdTag, } from './utils/loadBasketOutput';
-export { bsv21FieldsFromOutput, bsv21FilterTags, buildBsv21CustomInstructions, parseBsv21CustomInstructions, overwriteBsv21CiFields, } from './utils/bsv21Remittance';
-export { stampBsv21OutputCustomInstructions } from './utils/stampBsv21OutputCi';
-export { stampOrdinalOutputCustomInstructions } from './utils/stampOrdinalOutputCi';
-export { overwriteOrdinalCiFields, remittanceFromOrdinalTags, buildOrdinalCustomInstructions, } from './utils/ordinalRemittance';
-export { ensurePlaintextCi, encryptWalletMetadataCi, looksLikeJson, METADATA_ENCRYPTION_PROTOCOL, } from './utils/walletMetadataCi';
-export { internalizeBeef, } from './utils/internalizeBeef';
-export { moveBasketOutputs, migrateLegacyP1SatBaskets, } from './utils/moveBasket';
+export { signP2PKHInput } from './utils/signP2PKH.js';
+export { completeSignedAction, } from './utils/completeSignedAction.js';
+export { createTrackedAction, executeTrackedAction, randomActionId, stampManagedOutputIds, ensureP1SatDispatchLabel, ensureActionId, } from './utils/createTrackedAction.js';
+export { hasOneSatModule } from './utils/hasOneSatModule.js';
+export { spendsFromLabels, labelsFromSpends, spendToLabel, spendTargetsFromLabels, labelsFromSpendTargets, spendTargetToLabel, buildSpendsForTargets, buildSpendsForResolved, materializeSpends, resolveSpendTargets, unlockByScript, buildPurchaseUnlockingScript, runCreateActionPipeline, finishCreateAction, embellishCreateActionArgs, } from './pipeline/index.js';
+export { getDisplayValue } from './utils/displayValue.js';
+export { ordinalSeedTags } from './utils/ordinalSeedTags.js';
+export { loadBasketOutput, loadBasketOutputBeef, toIdTag, } from './utils/loadBasketOutput.js';
+export { bsv21FieldsFromOutput, bsv21FilterTags, buildBsv21CustomInstructions, parseBsv21CustomInstructions, overwriteBsv21CiFields, } from './utils/bsv21Remittance.js';
+export { stampBsv21OutputCustomInstructions } from './utils/stampBsv21OutputCi.js';
+export { stampOrdinalOutputCustomInstructions } from './utils/stampOrdinalOutputCi.js';
+export { overwriteOrdinalCiFields, remittanceFromOrdinalTags, buildOrdinalCustomInstructions, } from './utils/ordinalRemittance.js';
+export { ensurePlaintextCi, encryptWalletMetadataCi, looksLikeJson, METADATA_ENCRYPTION_PROTOCOL, } from './utils/walletMetadataCi.js';
+export { internalizeBeef, } from './utils/internalizeBeef.js';
+export { moveBasketOutputs, migrateLegacyP1SatBaskets, } from './utils/moveBasket.js';
 // Export module actions and types
-export * from './addresses';
-export * from './collections';
-export * from './payments';
-export * from './ordinals';
-export * from './tokens';
-export * from './inscriptions';
-export * from './locks';
-export * from './signing';
-export * from './social';
-export * from './identity';
-export * from './opns';
-export * from './mnee';
+export * from './addresses/index.js';
+export * from './collections/index.js';
+export * from './payments/index.js';
+export * from './ordinals/index.js';
+export * from './tokens/index.js';
+export * from './inscriptions/index.js';
+export * from './locks/index.js';
+export * from './signing/index.js';
+export * from './social/index.js';
+export * from './identity/index.js';
+export * from './opns/index.js';
+export * from './mnee/index.js';
 // Export cosign module (cosigner-validated BSV21 transfer actions)
-export * from './cosign';
+export * from './cosign/index.js';
 // Export sweep module (uses external signing, not action-based)
-export * from './sweep';
+export * from './sweep/index.js';
 // Export sync module
-export * from './sync';
+export * from './sync/index.js';
 // Export registry module (on-chain package builder)
-export * from './registry';
-import { actionRegistry } from './action-registry';
-import { addressesActions } from './addresses';
-import { collectionsActions } from './collections';
-import { identityActions } from './identity';
-import { inscriptionsActions } from './inscriptions';
-import { locksActions } from './locks';
-import { mneeActions } from './mnee';
-import { opnsActions } from './opns';
-import { ordinalsActions } from './ordinals';
-import { paymentsActions } from './payments';
-import { signingActions } from './signing';
-import { socialActions } from './social';
-import { sweepActions } from './sweep';
-import { syncActions } from './sync';
-import { tokensActions } from './tokens';
+export * from './registry/index.js';
+import { actionRegistry } from './action-registry.js';
+import { addressesActions } from './addresses/index.js';
+import { collectionsActions } from './collections/index.js';
+import { identityActions } from './identity/index.js';
+import { inscriptionsActions } from './inscriptions/index.js';
+import { locksActions } from './locks/index.js';
+import { mneeActions } from './mnee/index.js';
+import { opnsActions } from './opns/index.js';
+import { ordinalsActions } from './ordinals/index.js';
+import { paymentsActions } from './payments/index.js';
+import { signingActions } from './signing/index.js';
+import { socialActions } from './social/index.js';
+import { sweepActions } from './sweep/index.js';
+import { syncActions } from './sync/index.js';
+import { tokensActions } from './tokens/index.js';
 actionRegistry.registerAll([
     ...addressesActions,
     ...collectionsActions,

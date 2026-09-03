@@ -6,7 +6,7 @@
 
 import { type AddressDerivation, P1SAT_PROTOCOL } from '@1sat/types'
 import { PublicKey } from '@bsv/sdk'
-import type { Action } from '../types'
+import type { Action } from '../types.js'
 
 // ============================================================================
 // Types

@@ -31,7 +31,7 @@ import {
 	Utils,
 	type WalletOutput,
 } from '@bsv/sdk'
-import { prepareP1SatArgs } from '../apply'
+import { prepareP1SatArgs } from '../apply/index.js'
 import {
 	MAX_INSCRIPTION_BYTES,
 	OPNS_BASKET,
@@ -39,19 +39,19 @@ import {
 	ORD_LOCK_PREFIX,
 	ORD_LOCK_SUFFIX,
 	P1SAT_PROTOCOL,
-} from '../constants'
+} from '../constants.js'
+import { appendSigmaPlaceholder } from '../signing/sigma.js'
 import type {
 	Action,
 	ActionLogEntry,
 	ActionOptions,
 	OneSatContext,
-} from '../types'
-import { appendSigmaPlaceholder } from '../signing/sigma'
-import { executeTrackedAction } from '../utils/createTrackedAction'
-import { loadBasketOutputBeef } from '../utils/loadBasketOutput'
-import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance'
-import { ordinalSeedTags } from '../utils/ordinalSeedTags'
-import { unlockingScriptLengthForInstructions } from '../utils/signOrdinalInput'
+} from '../types.js'
+import { executeTrackedAction } from '../utils/createTrackedAction.js'
+import { loadBasketOutputBeef } from '../utils/loadBasketOutput.js'
+import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance.js'
+import { ordinalSeedTags } from '../utils/ordinalSeedTags.js'
+import { unlockingScriptLengthForInstructions } from '../utils/signOrdinalInput.js'
 
 // ============================================================================
 // Helpers
@@ -392,8 +392,7 @@ export async function buildTransferOrdinals(
 	const beefParts: number[][] = []
 
 	for (const item of transfers) {
-		const { id, counterparty, address, map, inscription, signWithBAP } =
-			item
+		const { id, counterparty, address, map, inscription, signWithBAP } = item
 		if (!id) return { error: 'missing-id' }
 		if (!counterparty && !address) {
 			return { error: 'must-provide-counterparty-or-address' }
@@ -488,11 +487,7 @@ export async function buildTransferOrdinals(
 			if (signWithBAP) {
 				const vin = (inputs?.length ?? 1) - 1
 				lockingScript = (
-					await appendSigmaPlaceholder(
-						ctx,
-						Script.fromHex(lockingScript),
-						vin,
-					)
+					await appendSigmaPlaceholder(ctx, Script.fromHex(lockingScript), vin)
 				).toHex()
 			}
 		} else if (map && Object.keys(map).length > 0) {

@@ -1,27 +1,27 @@
-export { createWalletRpcHandler } from './createWalletRpcHandler'
-export type { WalletRpcHandler } from './createWalletRpcHandler'
+export { createWalletRpcHandler } from './createWalletRpcHandler.js'
+export type { WalletRpcHandler } from './createWalletRpcHandler.js'
 
-export { createBearerServer } from './createBearerServer'
+export { createBearerServer } from './createBearerServer.js'
 export type {
 	BearerServerConfig,
 	BearerServerHandle,
-} from './createBearerServer'
+} from './createBearerServer.js'
 
-export { createWalletServer } from './createWalletServer'
+export { createWalletServer } from './createWalletServer.js'
 export type {
 	WalletServerConfig,
 	WalletServerHandle,
-} from './createWalletServer'
+} from './createWalletServer.js'
 
-export { WalletServerClient } from './client'
-export { topUpStorage } from './topUp'
-export type { TopUpResult } from './topUp'
+export { WalletServerClient } from './client.js'
+export { topUpStorage } from './topUp.js'
+export type { TopUpResult } from './topUp.js'
 
-export { BILLABLE_METHODS, dispatch, isBillableMethod } from './dispatch'
-export type { DispatchContext, DispatchInput } from './dispatch'
+export { BILLABLE_METHODS, dispatch, isBillableMethod } from './dispatch.js'
+export type { DispatchContext, DispatchInput } from './dispatch.js'
 
-export * from './resolvers'
-export * from './accounts'
+export * from './resolvers/index.js'
+export * from './accounts/index.js'
 
 export type {
 	IdentityResolver,
@@ -35,55 +35,35 @@ export type {
 	ResolvedIdentity,
 	WalletRpcHandlerConfig,
 	WalletStorageProvider,
-} from './types'
+} from './types.js'
 
-export type { WalletServerAccounts } from './createWalletServer'
-export { createHostServer } from './createHostServer'
+export type { WalletServerAccounts } from './createWalletServer.js'
+export { createHostServer } from './createHostServer.js'
 export type {
 	HostServerConfig,
 	HostServerHandle,
 	HostServerMessageboxConfig,
-} from './createHostServer'
-export { mountPaymailRoutes } from './paymail/routes'
-export { KnexPendingStore, DEFAULT_TTL_MS } from './paymail/pending'
-export {
-	KnexUserStore,
-	UsernameTakenError,
-	USERNAME_RE,
-	normalizeUsername,
-} from './paymail/users'
-export { createRegistryResolver } from './paymail/resolvers'
-export { checkHostingEntitlement } from './paymail/entitlement'
+} from './createHostServer.js'
+export { mountPaymailRoutes } from './paymail/routes.js'
+export { KnexPendingStore, DEFAULT_TTL_MS } from './paymail/pending.js'
+export { createAccountResolver } from './paymail/resolvers.js'
 export type {
 	PaymailDeps,
 	PaymailResolver,
 	PendingPayment,
 	PendingStore,
-	RegisteredUser,
 	ResolvedBind,
-	UserStore,
-} from './paymail/types'
-export {
-	mountHostingRoutes,
-	type HostingConfig,
-	type HostingConfigProvider,
-} from './hosting/routes'
-export {
-	HostingClient,
-	type HostingPrice,
-	type HostingStatus,
-	type HostingSubscribeResult,
-} from './hosting/client'
-export { buildOpenApiSpec, mountOpenApiRoutes } from './openapi'
-export type { OpenApiOptions, OpenApiSurfaces } from './openapi'
+} from './paymail/types.js'
+export { buildOpenApiSpec, mountOpenApiRoutes } from './openapi/index.js'
+export type { OpenApiOptions, OpenApiSurfaces } from './openapi/index.js'
 export {
 	RedisSessionManager,
 	buildAuthMiddleware,
 	createSessionRedis,
 	wrapAuthWithSessionHydration,
-} from './sessions/redisSessionManager'
+} from './sessions/redisSessionManager.js'
 export type {
 	RedisSessionManagerOptions,
 	SessionRedis,
 	SessionStoreConfig,
-} from './sessions/redisSessionManager'
+} from './sessions/redisSessionManager.js'

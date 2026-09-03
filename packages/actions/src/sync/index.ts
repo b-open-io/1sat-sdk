@@ -9,18 +9,18 @@
 import { type AddressDerivation, P1SAT_PROTOCOL } from '@1sat/types'
 import type { SyncOutput, SyncProgress } from '@1sat/types'
 import { PublicKey } from '@bsv/sdk'
-import type { Action, OneSatContext } from '../types'
+import { DEFAULT_DEPOSIT_PREFIX } from '../addresses/index.js'
+import { sweepDeposit } from '../sweep/sweepDeposit.js'
+import type { Action, OneSatContext } from '../types.js'
 import {
 	type OutputDerivation,
 	internalizeBeef,
-} from '../utils/internalizeBeef'
-import { DEFAULT_DEPOSIT_PREFIX } from '../addresses'
-import { sweepDeposit } from '../sweep/sweepDeposit'
-import type { ProcessedTxStore } from './ProcessedTxStore'
-import { ProcessedTxStoreIdb } from './ProcessedTxStoreIdb'
-import { ProcessedTxStoreSqlite } from './ProcessedTxStoreSqlite'
-import { syncCosignDeliveries } from './syncCosignDeliveries'
-import { syncMessages } from './syncMessages'
+} from '../utils/internalizeBeef.js'
+import type { ProcessedTxStore } from './ProcessedTxStore.js'
+import { ProcessedTxStoreIdb } from './ProcessedTxStoreIdb.js'
+import { ProcessedTxStoreSqlite } from './ProcessedTxStoreSqlite.js'
+import { syncCosignDeliveries } from './syncCosignDeliveries.js'
+import { syncMessages } from './syncMessages.js'
 
 const REORG_SAFE_DEPTH = 6
 
@@ -71,8 +71,19 @@ async function openStore(
 	const dir = dataDir || process.cwd()
 	const dbPath = `${dir}/sync-${identityKey.slice(0, 16)}.db`
 
-	// Dynamic import for SQLite — only available in Node/Bun
-	const { Database } = await import('bun:sqlite')
+	// Runtime built-in SQLite: bun:sqlite under Bun, node:sqlite under Node.
+	// Loaded via getBuiltinModule so bundlers never see the specifier.
+	const load = (
+		globalThis as { process?: { getBuiltinModule?: (id: string) => unknown } }
+	).process?.getBuiltinModule
+	if (typeof load !== 'function') {
+		throw new Error('SQLite sync store needs Bun ≥ 1.1 or Node ≥ 22.13')
+	}
+	const Database = (
+		'Bun' in globalThis
+			? (load('bun:sqlite') as { Database: unknown }).Database
+			: (load('node:sqlite') as { DatabaseSync: unknown }).DatabaseSync
+	) as Parameters<typeof ProcessedTxStoreSqlite.open>[1]
 	return ProcessedTxStoreSqlite.open(dbPath, Database)
 }
 
@@ -286,17 +297,17 @@ async function processTxid(
 }
 
 export { syncMessages }
-export type { SyncMessagesInput, SyncMessagesResult } from './syncMessages'
+export type { SyncMessagesInput, SyncMessagesResult } from './syncMessages.js'
 
 export { syncCosignDeliveries }
 export type {
 	SyncCosignDeliveriesInput,
 	SyncCosignDeliveriesResult,
-} from './syncCosignDeliveries'
+} from './syncCosignDeliveries.js'
 
 /** All sync actions for registry */
 export const syncActions = [syncAddresses, syncMessages, syncCosignDeliveries]
 
-export type { ProcessedTxStore } from './ProcessedTxStore'
-export { ProcessedTxStoreIdb } from './ProcessedTxStoreIdb'
-export { ProcessedTxStoreSqlite } from './ProcessedTxStoreSqlite'
+export type { ProcessedTxStore } from './ProcessedTxStore.js'
+export { ProcessedTxStoreIdb } from './ProcessedTxStoreIdb.js'
+export { ProcessedTxStoreSqlite } from './ProcessedTxStoreSqlite.js'

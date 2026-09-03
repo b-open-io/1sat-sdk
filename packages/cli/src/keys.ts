@@ -17,7 +17,7 @@ import { join } from 'node:path'
 import { PrivateKey } from '@bsv/sdk'
 import { isCancel, password as promptPassword } from '@clack/prompts'
 import { type WifBackup, decryptBackup, encryptBackup } from 'bitcoin-backup'
-import { ensureConfigDir, getConfigDir } from './config'
+import { ensureConfigDir, getConfigDir } from './config.js'
 
 const KEYS_FILE = 'keys.bep'
 

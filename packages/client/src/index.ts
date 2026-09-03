@@ -2,7 +2,7 @@
  * @1sat/client - API clients for 1Sat services
  */
 
-export { HttpError } from './errors'
+export { HttpError } from './errors.js'
 export {
 	AdminClient,
 	ArcadeClient,
@@ -29,4 +29,4 @@ export {
 	OverlayClient,
 	TxoClient,
 	type OutputQueryOptions,
-} from './services'
+} from './services/index.js'

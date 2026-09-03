@@ -4,8 +4,8 @@
  */
 
 import type { WalletInterface } from '@bsv/sdk'
-import { type CWITransport, createCWI } from './factory'
-import type { CWIEventName, CWIResponseDetail } from './types'
+import { type CWITransport, createCWI } from './factory.js'
+import type { CWIEventName, CWIResponseDetail } from './types.js'
 
 /**
  * chrome.runtime.sendMessage-based transport for extension context.

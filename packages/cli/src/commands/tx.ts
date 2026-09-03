@@ -3,9 +3,9 @@
  */
 
 import { Transaction } from '@bsv/sdk'
-import type { GlobalFlags } from '../args'
-import { printCommandHelp } from '../help'
-import { fatal, output } from '../output'
+import type { GlobalFlags } from '../args.js'
+import { printCommandHelp } from '../help.js'
+import { fatal, output } from '../output.js'
 
 export async function handleTxCommand(
 	args: string[],

@@ -21,13 +21,13 @@ import {
 	LockingScript,
 	OP,
 	PublicKey,
-	Script,
+	type Script,
 	Transaction,
 	TransactionSignature,
 	UnlockingScript,
 	Utils,
 } from '@bsv/sdk'
-import type { Action, OneSatContext } from '../types'
+import type { Action, OneSatContext } from '../types.js'
 
 // ============================================================================
 // Helpers

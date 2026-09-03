@@ -3,7 +3,7 @@
  */
 import { readFileSync } from 'node:fs'
 import { Utils } from '@bsv/sdk'
-import { fatal } from './output'
+import { fatal } from './output.js'
 
 export function parseBeefFlag(value: string | undefined): number[] | undefined {
 	if (!value) return undefined

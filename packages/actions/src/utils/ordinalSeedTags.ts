@@ -31,7 +31,11 @@ export function ordinalSeedTags(source: WalletOutput): string[] {
 			if (!out.includes(normalized)) out.push(normalized)
 			continue
 		}
-		if (t.startsWith('type:') || t.startsWith('app:') || t.startsWith('creator:')) {
+		if (
+			t.startsWith('type:') ||
+			t.startsWith('app:') ||
+			t.startsWith('creator:')
+		) {
 			if (!out.includes(t)) out.push(t)
 		}
 	}

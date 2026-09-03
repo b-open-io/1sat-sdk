@@ -1,8 +1,8 @@
 import type {
-	sdk,
 	TableSettings,
 	TableSyncState,
 	TableUser,
+	sdk,
 } from '@bsv/wallet-toolbox-client'
 import { encode } from '@msgpack/msgpack'
 import { Zip, ZipDeflate } from 'fflate'

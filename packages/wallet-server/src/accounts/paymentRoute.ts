@@ -17,21 +17,23 @@
 
 import type { WalletInterface } from '@bsv/sdk'
 import type { Express, NextFunction, Request, Response } from 'express'
-import { nextPaymentDerivation } from './middleware'
-import { createAccountsPaymentMiddleware } from './paymentMiddleware'
-import { quoteRefundedCharge } from './pricing'
+import { nextPaymentDerivation } from './middleware.js'
+import { createAccountsPaymentMiddleware } from './paymentMiddleware.js'
+import { quoteRefundedCharge } from './pricing.js'
 import {
 	PAYMENT_LABEL,
 	blockLabel,
 	bytesLabel,
 	latestActivePaymentForPayer,
 	payerLabel,
-} from './queries'
+} from './queries.js'
+import { registrationStatus } from './registrationRoutes.js'
+import type { AccountStore } from './store.js'
 import type {
 	AccountStatusResponse,
 	AccountsConfigProvider,
 	IdentityKey,
-} from './types'
+} from './types.js'
 
 interface StorageWithMeter {
 	findOrInsertUser(identityKey: string): Promise<{ user: { userId: number } }>
@@ -44,6 +46,8 @@ export interface PaymentRouteDeps {
 	walletStorage: StorageWithMeter
 	serverIdentityKey: IdentityKey
 	currentBlock: () => Promise<number>
+	/** Host account registry, for the registration facet of the status body. */
+	accountStore?: AccountStore
 }
 
 type AuthedRequest = Request & { auth?: { identityKey?: string } }
@@ -96,6 +100,7 @@ async function buildAccountStatus(
 	const userId = userResult?.user?.userId
 	const usedBytes =
 		userId == null ? 0 : await deps.walletStorage.measureUsedBytes(userId)
+	const registration = await registrationStatus(deps.accountStore, identityKey)
 
 	if (!config.enabled) {
 		return {
@@ -104,6 +109,7 @@ async function buildAccountStatus(
 			accountsEnabled: false,
 			currentBlock,
 			usedBytes,
+			...registration,
 		}
 	}
 
@@ -134,6 +140,7 @@ async function buildAccountStatus(
 			durationBlocks: config.durationBlocks,
 		},
 		nextPayment,
+		...registration,
 	}
 }
 

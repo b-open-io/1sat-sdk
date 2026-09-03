@@ -1,11 +1,11 @@
 import { OneSatServices } from '@1sat/client'
 import { KeyDeriver, type PrivateKey, type WalletInterface } from '@bsv/sdk'
-import { parsePrivateKey } from './parsePrivateKey'
+import { parsePrivateKey } from './parsePrivateKey.js'
 import {
 	type StoragePaymentHook,
 	installStorageClientPaymentAutoRetry,
 	installStoragePaymentAutoRetry,
-} from './storagePaymentAutoRetry'
+} from './storagePaymentAutoRetry.js'
 
 /**
  * Minimal structural view of a `WalletStorageProvider`. Kept structural so

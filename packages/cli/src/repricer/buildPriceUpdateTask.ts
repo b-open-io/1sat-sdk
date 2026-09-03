@@ -1,5 +1,5 @@
-import { computeReprice } from './computeReprice'
-import type { RateProvider, RepricerBounds } from './types'
+import { computeReprice } from './computeReprice.js'
+import type { RateProvider, RepricerBounds } from './types.js'
 
 /** One price the repricer maintains from the shared BSV/USD quote. */
 export interface RepriceTarget {

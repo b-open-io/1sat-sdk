@@ -7,7 +7,7 @@ import {
 	type TransactionOutput,
 	Utils,
 } from '@bsv/sdk'
-import Sigma, { SigmaAlgorithm } from './sigma'
+import Sigma, { SigmaAlgorithm } from './sigma.js'
 
 const { toHex, toArray } = Utils
 

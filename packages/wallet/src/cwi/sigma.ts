@@ -5,12 +5,12 @@
  */
 
 import type { WalletInterface } from '@bsv/sdk'
-import { type CWITransport, createCWI } from './factory'
+import { type CWITransport, createCWI } from './factory.js'
 import type {
 	CWIEventName,
 	CWIRequestMessage,
 	CWIResponseMessage,
-} from './types'
+} from './types.js'
 
 const DEFAULT_IFRAME_PATH = '/signer'
 const DEFAULT_REQUEST_TIMEOUT_MS = 120_000

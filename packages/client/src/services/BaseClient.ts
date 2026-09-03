@@ -1,5 +1,5 @@
 import type { ClientOptions } from '@1sat/types'
-import { HttpError } from '../errors'
+import { HttpError } from '../errors.js'
 
 /**
  * Base client with shared HTTP utilities for all 1sat-stack API clients.

@@ -3,12 +3,12 @@ import {
 	BINARY_ENCODING_HEADER,
 	stringifyJsonRpc,
 } from '@bsv/wallet-toolbox/out/src/storage/remoting/BinaryJson.js'
-import { dispatch } from './dispatch'
+import { dispatch } from './dispatch.js'
 import type {
 	JsonRpcRequest,
 	JsonRpcResponse,
 	WalletRpcHandlerConfig,
-} from './types'
+} from './types.js'
 
 export type WalletRpcHandler = (req: Request) => Promise<Response>
 

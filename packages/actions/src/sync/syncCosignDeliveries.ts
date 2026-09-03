@@ -17,12 +17,12 @@
 import { BSV21_BASKET } from '@1sat/types'
 import { MessageBoxClient } from '@bsv/message-box-client'
 import { Utils } from '@bsv/sdk'
-import type { Action } from '../types'
+import type { Action } from '../types.js'
 import {
 	bsv21FilterTags,
 	overwriteBsv21CiFields,
-} from '../utils/bsv21Remittance'
-import { looksLikeJson } from '../utils/walletMetadataCi'
+} from '../utils/bsv21Remittance.js'
+import { looksLikeJson } from '../utils/walletMetadataCi.js'
 
 // ============================================================================
 // Types
@@ -137,8 +137,7 @@ export const syncCosignDeliveries: Action<
 					let icon: string | undefined
 					if (ctx.services) {
 						try {
-							const details =
-								await ctx.services.bsv21.getTokenDetails(tokenId)
+							const details = await ctx.services.bsv21.getTokenDetails(tokenId)
 							sym = details.token.sym
 							dec = details.token.dec
 							icon = details.token.icon

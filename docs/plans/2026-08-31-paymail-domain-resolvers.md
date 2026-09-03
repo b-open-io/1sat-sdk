@@ -1,77 +1,98 @@
-# Plan: Domain-based paymail resolvers (1sat.name + 1sat.app)
+# Plan: Host accounts + domain-based paymail resolvers (1sat.name + 1sat.app)
 
 Status: **Code complete** (deploy + 1sat-name UI follow-ups remain)
-Date: 2026-08-31
+Date: 2026-08-31, reworked 2026-09-02
 
 ## Goal
 
 One unified host server serves paymail for two domains with different
-resolution backends, both gated on the same (now free) user registration:
+resolution backends, both gated on the identity holding an **account** on
+the host:
 
 | Domain | Resolver | Source of name→identity |
 |--------|----------|-------------------------|
 | `1sat.name` | OpNS (existing) | On-chain PushDrop bind on the name's tip UTXO (`resolvePaymailBind`) |
-| `1sat.app` | Registered users (new) | `paymail_users` table (username → identity key) |
+| `1sat.app` | Host accounts (new) | `accounts` table (username → identity key) |
 
-Rules (locked with operator):
+## Decisions (locked with operator, 2026-09-02)
 
-- Registration is **free**: hosting `priceSats` is configured to `0`. The
-  existing subscribe flow (402 middleware passes through at 0) still mints a
-  `HOSTING_BASKET` receipt, so `checkHostingEntitlement` — paymail gate and
-  messagebox gate — keeps working unchanged for new and existing subscribers.
-- A user registers a **global 1sat.app username** (one claim, one identity).
-  That single registration entitles them to resolve **all OpNS names they own**
-  at `1sat.name` for free (the gate is per identity, not per name).
+- **One account per identity on the host.** The paymail username, its
+  profile, storage metering, and messagebox entitlement are facets of the
+  same account, not separate registrations. Storage capacity stays derived
+  from payment labels on the host wallet; the `accounts` row is the only
+  thing written down about the account itself.
+- **Registration is free and permanent.** One username per identity, one
+  identity per username, no renames. If a charge is ever wanted, it gets
+  designed then; the old receipt/expiry subscription model was removed
+  rather than left dormant.
+- **Profile fields on the account.** `displayName` and `avatarOrigin`
+  (`txid_vout` of an image ordinal, served through ORDFS), so 1sat.app
+  handles get the same public-profile capability OpNS names get from
+  PushDrop slots 1 and 2. Uploads in the UI inscribe the image first, then
+  register the origin; the host stores no image bytes.
+- **The account is the entitlement.** Paymail resolution on every domain and
+  messagebox delivery require the resolved/recipient identity to hold an
+  account. No receipts, no expiry.
 - 1sat.name names remain entirely OpNS-driven; the DB never maps them.
-- Messagebox needs no change: one box per host keyed by identity key,
-  auto-created on first send.
+- No migration: there were no real registrations under the interim
+  `paymail_users` table, which is simply no longer created.
 
-## Changes (all in `packages/wallet-server` unless noted)
+## Surface (`packages/wallet-server`)
 
-1. **Resolver seam** — `paymail/types.ts`
-   - `PaymailResolver { resolve(alias, domain): Promise<ResolvedBind | null> }`.
-   - `PaymailDeps.userDomain` + `PaymailDeps.userStore` (registry backend).
-     Unset ⇒ today's behavior (OpNS for every domain).
+| Route | Auth | Purpose |
+|-------|------|---------|
+| `GET /account/status` | BRC-104 | Storage facet (unchanged) + `registrationEnabled` and `account` (username, displayName, avatarOrigin, createdAt; `null` when unregistered) |
+| `POST /account/register` | BRC-104 | `{ username, displayName?, avatarOrigin? }` → account. 400 invalid, 409 taken / already registered. Idempotent for the same username. |
+| `PUT /account/profile` | BRC-104 | `{ displayName?, avatarOrigin? }`; absent = unchanged, `null` = clear. 404 when unregistered. |
+| `/.well-known/bsvalias` | public | Built per request Host so one process answers both apexes |
+| `/bsvalias/*` | public | Dispatch by domain: `userDomain` → accounts, else OpNS; both gated on account |
+| `POST /messagebox/sendMessage` | BRC-104 | 403 `ERR_ACCOUNT_REQUIRED` when a recipient has no account |
 
-2. **User store** — `paymail/users.ts` (new)
-   - `UserStore` interface (`get`, `claim`), `KnexUserStore` creating
-     `paymail_users(username PK, identity_key, created_at)` alongside
-     `paymail_pending` on the host's knex.
-   - `claim` is idempotent per identity; a username held by another identity
-     is a conflict (409 at the route).
+Code:
 
-3. **Registry resolver** — `paymail/resolvers.ts` (new)
-   - `createRegistryResolver(store)`: DB lookup → `ResolvedBind`
-     (`outpoint: ''`, no profile slots for now); null ⇒ 404.
+- `accounts/store.ts` — `AccountStore`, `KnexAccountStore` (`accounts`
+  table, auto-created), username/profile normalizers, error classes.
+- `accounts/registrationRoutes.ts` — register/profile routes,
+  `registrationStatus` facet, `accountView` wire shape.
+- `accounts/client.ts` — `AccountClient` (status/register/updateProfile).
+- `paymail/resolvers.ts` — `createAccountResolver`.
+- `paymail/routes.ts` — `resolveAndAuthorize` dispatch + account gate.
+- `createHostServer` / `createWalletServer` — `accountStore` option; the
+  CLI host always creates one on the messagebox knex.
 
-4. **Domain dispatch** — `paymail/routes.ts`
-   - `resolveAndAuthorize(alias, domain)`: registry resolver when
-     `domain === userDomain`, else existing OpNS path. Entitlement gate
-     applies to both, unchanged.
-   - Serve `/.well-known/bsvalias` **per request Host** (forwarded
-     host/proto, fallback `baseUrl`) instead of the fixed-baseUrl document the
-     `PaymailRouter` bakes in — required because one process answers two
-     apex domains.
+Removed: `hosting/*`, `paymail/entitlement.ts`, `paymail/users.ts`,
+`HOSTING_*` constants, `server.hosting.*` config, the hosting repricer
+target, `PaymailDeps.hostWallet/requireEntitlement`.
 
-5. **Free registration** — `hosting/routes.ts`
-   - `POST /hosting/subscribe` accepts optional `{ username }`: validated
-     (`^[a-z0-9][a-z0-9-]{1,62}$`, lowercased), claimed via `UserStore`,
-     returned in the response. `GET /hosting/status` reports the username.
-   - `mountHostingRoutes` + `createHostServer` take an optional `userStore`.
+## Config
 
-6. **CLI wiring** — `packages/cli` (`serve.ts`, `config.ts`)
-   - `server.paymail.userDomain` config; `KnexUserStore` init'd on the same
-     knex as pending/messagebox; passed into `PaymailDeps` and hosting deps.
+```
+server.paymail.userDomain   1sat.app     # aliases resolved from accounts
+server.paymail.baseUrl      https://1sat.app
+```
+
+`server.hosting.*` is gone; delete it from existing config files.
 
 ## Deployment (out of repo)
 
-- nginx: add `1sat.name` apex → same `wallet_backend` upstream + TLS; both
-  apexes serve `/.well-known/bsvalias` (no SRV).
-- config: `server.hosting.priceSats 0`, `server.paymail.userDomain 1sat.app`.
-- Follow-up: `1sat-name` frontend `VITE_PAYMAIL_DOMAIN` → `1sat.name`.
+- Publish `@1sat/types`, `@1sat/actions`, `@1sat/wallet-server`, `@1sat/cli`.
+- `1sat.name` is served by Vercel (SPA catch-all), so its
+  `/.well-known/bsvalias` and `/bsvalias/*` must be rewritten to the host
+  (e.g. `https://1sat.app/...`). The domain rides in the path, so the host
+  dispatches `alice@1sat.name` to OpNS regardless of which apex answered.
+- Disable Go `pkg/paymail` on api.1sat.app once both apexes resolve through
+  the host.
+
+## Follow-ups (1sat-name)
+
+- Account page: register username + profile via `/account/*`; drop the
+  `/hosting/*` calls and price display; avatar picker (own ordinals) plus
+  upload-as-inscription.
+- My Names: show `name@1sat.name` and note that an account is required.
 
 ## Verification
 
-- Unit: `KnexUserStore` claim/lookup/conflict (sqlite knex), registry
-  resolver, username validation, per-Host capability doc.
-- `bun run lint && bun run build && bun test`.
+- `bun test packages/wallet-server` (accounts store, routes, resolver,
+  domain dispatch, capability doc, OpenAPI).
+- `bun run lint`, per-package `tsc --noEmit` / builds for types, actions,
+  wallet-server, cli.

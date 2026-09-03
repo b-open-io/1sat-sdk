@@ -1,4 +1,4 @@
-import type { ComputeRepriceInput, ComputeRepriceResult } from './types'
+import type { ComputeRepriceInput, ComputeRepriceResult } from './types.js'
 
 const SATS_PER_BSV = 100_000_000
 

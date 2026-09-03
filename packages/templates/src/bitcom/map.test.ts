@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { Script, Utils } from '@bsv/sdk'
-import MAP, { MAP_PREFIX, MAPCommand } from './map'
+import MAP, { MAP_PREFIX, MAPCommand } from './map.js'
 
 const { toArray } = Utils
 

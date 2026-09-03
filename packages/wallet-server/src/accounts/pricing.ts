@@ -1,4 +1,4 @@
-import type { AccountsConfig } from './types'
+import type { AccountsConfig } from './types.js'
 
 /** Minimal payment view needed for pricing math. */
 export interface PaymentForPricing {

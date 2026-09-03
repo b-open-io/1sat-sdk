@@ -1,5 +1,5 @@
-import type { RateProvider } from './types'
-import { createWhatsOnChainProvider } from './whatsOnChain'
+import type { RateProvider } from './types.js'
+import { createWhatsOnChainProvider } from './whatsOnChain.js'
 
 export interface ResolveProviderOptions {
 	chain: 'main' | 'test'

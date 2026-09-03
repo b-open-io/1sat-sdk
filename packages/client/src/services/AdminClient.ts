@@ -1,5 +1,5 @@
 import type { ClientOptions } from '@1sat/types'
-import { BaseClient } from './BaseClient'
+import { BaseClient } from './BaseClient.js'
 
 export class AdminClient extends BaseClient {
 	constructor(baseUrl: string, options: ClientOptions = {}) {

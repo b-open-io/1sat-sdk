@@ -1,5 +1,5 @@
 import type { ClientOptions } from '@1sat/types'
-import { BaseClient } from './BaseClient'
+import { BaseClient } from './BaseClient.js'
 
 /** Topic manager metadata returned by listTopicManagers */
 export interface TopicManagerInfo {

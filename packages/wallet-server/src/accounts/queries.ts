@@ -15,7 +15,7 @@
  */
 
 import type { WalletInterface } from '@bsv/sdk'
-import type { IdentityKey } from './types'
+import type { IdentityKey } from './types.js'
 
 export const PAYMENT_LABEL = 'wallet-storage-payment'
 

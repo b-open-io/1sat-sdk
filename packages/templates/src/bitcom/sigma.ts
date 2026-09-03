@@ -198,7 +198,8 @@ export default class Sigma implements ScriptTemplate {
 					(bytes[start] |
 						(bytes[start + 1] << 8) |
 						(bytes[start + 2] << 16) |
-						(bytes[start + 3] << 24)) >>> 0
+						(bytes[start + 3] << 24)) >>>
+					0
 				start += 4
 			}
 			const next = start + len

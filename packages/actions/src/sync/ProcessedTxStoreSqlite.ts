@@ -1,4 +1,4 @@
-import type { ProcessedTxStore } from './ProcessedTxStore'
+import type { ProcessedTxStore } from './ProcessedTxStore.js'
 
 interface SqliteDatabase {
 	exec(sql: string): void

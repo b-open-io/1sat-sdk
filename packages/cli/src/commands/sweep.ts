@@ -13,12 +13,12 @@ import {
 } from '@1sat/actions'
 import { PrivateKey } from '@bsv/sdk'
 import { confirm, isCancel } from '@clack/prompts'
-import type { GlobalFlags } from '../args'
-import { extractFlag } from '../args'
-import { loadContext } from '../context'
-import { printCommandHelp } from '../help'
-import { loadKey } from '../keys'
-import { fatal, formatLabel, formatValue, output } from '../output'
+import type { GlobalFlags } from '../args.js'
+import { extractFlag } from '../args.js'
+import { loadContext } from '../context.js'
+import { printCommandHelp } from '../help.js'
+import { loadKey } from '../keys.js'
+import { fatal, formatLabel, formatValue, output } from '../output.js'
 
 export async function handleSweepCommand(
 	args: string[],

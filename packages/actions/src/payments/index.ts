@@ -13,9 +13,9 @@ import {
 	Transaction,
 	Utils,
 } from '@bsv/sdk'
-import { getP2pPaymentDestination, sendBeefP2P } from '../paymail'
-import type { FundingProvider } from '../funding'
-import type { Action, ActionOptions } from '../types'
+import type { FundingProvider } from '../funding/index.js'
+import { getP2pPaymentDestination, sendBeefP2P } from '../paymail.js'
+import type { Action, ActionOptions } from '../types.js'
 
 /**
  * Plain BSV sends don't carry any P1Sat semantics — no asset inputs,

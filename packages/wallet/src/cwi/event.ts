@@ -4,8 +4,8 @@
  */
 
 import type { WalletInterface } from '@bsv/sdk'
-import { type CWITransport, createCWI } from './factory'
-import type { CWIEventName } from './types'
+import { type CWITransport, createCWI } from './factory.js'
+import type { CWIEventName } from './types.js'
 
 // Event name for requests (listened by content script)
 const YOURS_REQUEST = 'YoursRequest'

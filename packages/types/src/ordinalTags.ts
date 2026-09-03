@@ -1,4 +1,4 @@
-import type { OrdfsMetadata } from './services'
+import type { OrdfsMetadata } from './services.js'
 
 /** Longest display name we put in customInstructions (not tags). */
 export const MAX_NAME_TAG_LENGTH = 64
