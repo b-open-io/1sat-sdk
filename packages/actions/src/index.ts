@@ -121,6 +121,16 @@ export {
 	type OutputDerivation,
 } from './utils/internalizeBeef.js'
 export {
+	parseOutpointBeef,
+	OUTPOINT_BEEF_PREFIX,
+	type ParsedOutpointBeef,
+} from './utils/outpointBeef.js'
+export {
+	internalizeOutpointBeef,
+	type TipDerivation,
+	type InternalizeOutpointBeefResult,
+} from './utils/internalizeOutpointBeef.js'
+export {
 	moveBasketOutputs,
 	migrateLegacyP1SatBaskets,
 	type MoveBasketOptions,

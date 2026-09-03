@@ -27,6 +27,8 @@ export { stampOrdinalOutputCustomInstructions } from './utils/stampOrdinalOutput
 export { overwriteOrdinalCiFields, remittanceFromOrdinalTags, buildOrdinalCustomInstructions, } from './utils/ordinalRemittance.js';
 export { ensurePlaintextCi, encryptWalletMetadataCi, looksLikeJson, METADATA_ENCRYPTION_PROTOCOL, } from './utils/walletMetadataCi.js';
 export { internalizeBeef, } from './utils/internalizeBeef.js';
+export { parseOutpointBeef, OUTPOINT_BEEF_PREFIX, } from './utils/outpointBeef.js';
+export { internalizeOutpointBeef, } from './utils/internalizeOutpointBeef.js';
 export { moveBasketOutputs, migrateLegacyP1SatBaskets, } from './utils/moveBasket.js';
 // Export module actions and types
 export * from './addresses/index.js';
