@@ -108,8 +108,6 @@ bun run build
 
 ## npm Login & Publish Auth
 
-Mechanics (pty, catching the auth URL, opening it, waiting, registry lag) are in the `npm-publish` skill and its `scripts/npm-auth-run.sh`; use that to run every login/publish command below.
-
 ### First-time login
 ```bash
 npm login
