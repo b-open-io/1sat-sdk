@@ -33,6 +33,7 @@ import type {
 	PreDispatchHook,
 	WalletStorageProvider,
 } from './types.js'
+import { mountStorageV1 } from './v1.js'
 
 export interface WalletServerAccounts {
 	getConfig: AccountsConfigProvider
@@ -227,6 +228,9 @@ function mountPublicRoute(
 	postHandlers.push(dispatchHandler(config))
 
 	app.post(path, ...postHandlers)
+
+	// Go toolbox v0.184+ AuthFetch client. Same BRC-104 session as POST /.
+	mountStorageV1(app, config, { basePath: joinPath(path, 'storage/v1') })
 }
 
 export function dispatchHandler(config: WalletServerConfig) {

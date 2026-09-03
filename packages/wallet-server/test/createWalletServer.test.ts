@@ -10,9 +10,7 @@ const TOKEN = 'test-internal-key'
 const PUBKEY = '02'.padEnd(66, 'a')
 const SERVER_PRIV = PrivateKey.fromRandom()
 const SERVER_IDENTITY = SERVER_PRIV.toPublicKey().toString()
-const SERVER_WALLET = new ProtoWallet(
-	SERVER_PRIV,
-) as unknown as WalletInterface
+const SERVER_WALLET = new ProtoWallet(SERVER_PRIV) as unknown as WalletInterface
 
 function makeStorage(): WalletStorageProvider {
 	return {
@@ -128,6 +126,11 @@ describe('createWalletServer — public route requires BRC-100 auth', () => {
 
 	afterAll(async () => {
 		await handle.stop()
+	})
+
+	test('rejects unauthenticated GET /storage/v1/settings', async () => {
+		const res = await fetch(`http://localhost:${port}/storage/v1/settings`)
+		expect([400, 401, 403].includes(res.status)).toBe(true)
 	})
 
 	test('rejects unauthenticated requests on /', async () => {

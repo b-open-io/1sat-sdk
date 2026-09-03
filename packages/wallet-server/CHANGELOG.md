@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `/storage/v1` REST adapter (Go `go-wallet-toolbox` v0.184+ `storage.NewClient`). Mounted behind the same BRC-104 auth as `POST /` on `createWalletServer` and `createHostServer`. `GET /storage/v1/settings` → `makeAvailable` (TableSettings); `POST /storage/v1/users` → `findOrInsertUser`; remaining RegisterRoutes (actions, list, certificates, balance, sync, migrate when the provider has it). Errors are `{ "error": "..." }`. JSON-RPC `POST /` is unchanged.
+
 ## 0.0.41
 
 ### Fixed

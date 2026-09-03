@@ -38,6 +38,8 @@ export type {
 } from './types.js'
 
 export type { WalletServerAccounts } from './createWalletServer.js'
+export { mountStorageV1 } from './v1.js'
+export type { MountStorageV1Options } from './v1.js'
 export { createHostServer } from './createHostServer.js'
 export type {
 	HostServerConfig,

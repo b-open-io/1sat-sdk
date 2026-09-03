@@ -24,7 +24,7 @@ export const TAG_DOCS: TagDoc[] = [
 		name: 'storage',
 		'x-displayName': 'Wallet storage',
 		description:
-			'Remote storage for BRC-100 wallets. A wallet-toolbox client connects here to persist and sync its outputs, actions, and certificates.',
+			'Remote storage for BRC-100 wallets. TypeScript clients use JSON-RPC `POST /`. Go `go-wallet-toolbox` v0.184+ uses REST `GET/POST /storage/v1/*`. Both require the same BRC-103/104 session.',
 	},
 	{
 		name: 'account',
@@ -120,6 +120,253 @@ export function storagePaths(): PathsFragment {
 						description: 'JSON-RPC response (result or error object).',
 					},
 				},
+			},
+		},
+		...storageV1Paths(),
+	}
+}
+
+const v1Error = {
+	type: 'object',
+	required: ['error'],
+	properties: { error: { type: 'string' } },
+}
+
+const tableSettings = {
+	type: 'object',
+	properties: {
+		storageIdentityKey: { type: 'string' },
+		storageName: { type: 'string' },
+		chain: { type: 'string' },
+		dbtype: { type: 'string' },
+		maxOutputScript: { type: 'integer' },
+		created_at: { type: 'string', format: 'date-time' },
+		updated_at: { type: 'string', format: 'date-time' },
+	},
+}
+
+function storageV1Paths(): PathsFragment {
+	const v1ErrorResponse = {
+		description: 'Go v1adapter error envelope.',
+		content: { 'application/json': { schema: v1Error } },
+	}
+	const argsBody = {
+		required: true,
+		content: {
+			'application/json': {
+				schema: {
+					type: 'object',
+					description:
+						'Argument struct at the JSON root, or `{ "args": { … } }` as sent by the Go V1 client.',
+				},
+			},
+		},
+	}
+	const ok = { description: 'Provider result JSON.' }
+	return {
+		'/storage/v1/settings': {
+			get: {
+				tags: ['storage'],
+				summary: 'Storage settings (MakeAvailable)',
+				description:
+					'Authenticated `makeAvailable` / TableSettings. Required by Go `storage.NewClient` boot (`InitWalletCore`). Unauthenticated requests are 401.',
+				security: brc104,
+				responses: {
+					'200': {
+						description: 'TableSettings.',
+						content: { 'application/json': { schema: tableSettings } },
+					},
+					'401': v1ErrorResponse,
+				},
+			},
+		},
+		'/storage/v1/users': {
+			post: {
+				tags: ['storage'],
+				summary: 'Find or insert the authenticated user',
+				security: brc104,
+				requestBody: {
+					required: true,
+					content: {
+						'application/json': {
+							schema: {
+								type: 'object',
+								required: ['identityKey'],
+								properties: { identityKey: { type: 'string' } },
+							},
+						},
+					},
+				},
+				responses: {
+					'200': ok,
+					'401': v1ErrorResponse,
+				},
+			},
+		},
+		'/storage/v1/migrate': {
+			post: {
+				tags: ['storage'],
+				summary: 'Migrate storage settings (if the provider supports it)',
+				security: brc104,
+				responses: {
+					'200': ok,
+					'400': v1ErrorResponse,
+					'401': v1ErrorResponse,
+				},
+			},
+		},
+		'/storage/v1/actions': {
+			post: {
+				tags: ['storage'],
+				summary: 'createAction',
+				security: brc104,
+				requestBody: {
+					required: true,
+					content: {
+						'application/json': {
+							schema: {
+								type: 'object',
+								required: ['args'],
+								properties: { args: { type: 'object' } },
+							},
+						},
+					},
+				},
+				responses: {
+					'200': ok,
+					'400': v1ErrorResponse,
+					'401': v1ErrorResponse,
+				},
+			},
+		},
+		'/storage/v1/actions/process': {
+			post: {
+				tags: ['storage'],
+				summary: 'processAction',
+				security: brc104,
+				requestBody: argsBody,
+				responses: { '200': ok, '401': v1ErrorResponse },
+			},
+		},
+		'/storage/v1/actions/abort': {
+			post: {
+				tags: ['storage'],
+				summary: 'abortAction',
+				security: brc104,
+				requestBody: argsBody,
+				responses: { '200': ok, '401': v1ErrorResponse },
+			},
+		},
+		'/storage/v1/actions/internalize': {
+			post: {
+				tags: ['storage'],
+				summary: 'internalizeAction',
+				security: brc104,
+				requestBody: argsBody,
+				responses: { '200': ok, '401': v1ErrorResponse },
+			},
+		},
+		'/storage/v1/list/actions': {
+			post: {
+				tags: ['storage'],
+				summary: 'listActions',
+				security: brc104,
+				requestBody: argsBody,
+				responses: { '200': ok, '401': v1ErrorResponse },
+			},
+		},
+		'/storage/v1/list/outputs': {
+			post: {
+				tags: ['storage'],
+				summary: 'listOutputs',
+				security: brc104,
+				requestBody: argsBody,
+				responses: { '200': ok, '401': v1ErrorResponse },
+			},
+		},
+		'/storage/v1/list/certificates': {
+			post: {
+				tags: ['storage'],
+				summary: 'listCertificates',
+				security: brc104,
+				requestBody: argsBody,
+				responses: { '200': ok, '401': v1ErrorResponse },
+			},
+		},
+		'/storage/v1/list/transactions': {
+			post: {
+				tags: ['storage'],
+				summary: 'listTransactions',
+				security: brc104,
+				requestBody: argsBody,
+				responses: { '200': ok, '401': v1ErrorResponse },
+			},
+		},
+		'/storage/v1/balance': {
+			post: {
+				tags: ['storage'],
+				summary: 'getBalance',
+				security: brc104,
+				requestBody: argsBody,
+				responses: { '200': ok, '401': v1ErrorResponse },
+			},
+		},
+		'/storage/v1/certificates': {
+			post: {
+				tags: ['storage'],
+				summary: 'insertCertificateAuth',
+				security: brc104,
+				requestBody: argsBody,
+				responses: { '200': ok, '401': v1ErrorResponse },
+			},
+		},
+		'/storage/v1/certificates/relinquish': {
+			post: {
+				tags: ['storage'],
+				summary: 'relinquishCertificate',
+				security: brc104,
+				requestBody: argsBody,
+				responses: { '200': ok, '401': v1ErrorResponse },
+			},
+		},
+		'/storage/v1/outputs/relinquish': {
+			post: {
+				tags: ['storage'],
+				summary: 'relinquishOutput',
+				security: brc104,
+				requestBody: argsBody,
+				responses: { '200': ok, '401': v1ErrorResponse },
+			},
+		},
+		'/storage/v1/sync/active': {
+			post: {
+				tags: ['storage'],
+				summary: 'setActive',
+				security: brc104,
+				requestBody: argsBody,
+				responses: { '200': ok, '401': v1ErrorResponse },
+			},
+		},
+		'/storage/v1/sync/chunk': {
+			post: {
+				tags: ['storage'],
+				summary: 'getSyncChunk',
+				security: brc104,
+				requestBody: argsBody,
+				responses: {
+					'200': ok,
+					'401': v1ErrorResponse,
+					'403': v1ErrorResponse,
+				},
+			},
+		},
+		'/storage/v1/sync/state': {
+			post: {
+				tags: ['storage'],
+				summary: 'findOrInsertSyncStateAuth',
+				security: brc104,
+				requestBody: argsBody,
+				responses: { '200': ok, '401': v1ErrorResponse },
 			},
 		},
 	}

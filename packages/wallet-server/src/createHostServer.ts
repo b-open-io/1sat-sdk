@@ -4,7 +4,7 @@
  *
  * Auth zoning:
  * - public: paymail bsvalias, OpenAPI docs
- * - BRC-100: storage RPC, /account/*, messagebox
+ * - BRC-100: storage RPC, /storage/v1, /account/*, messagebox
  */
 
 import type { Server } from 'node:http'
@@ -39,6 +39,7 @@ import { mountOpenApiRoutes } from './openapi/index.js'
 import { mountPaymailRoutes } from './paymail/routes.js'
 import type { PaymailDeps } from './paymail/types.js'
 import { buildAuthMiddleware } from './sessions/redisSessionManager.js'
+import { mountStorageV1 } from './v1.js'
 
 export interface HostServerMessageboxConfig {
 	/** Knex instance for message tables */
@@ -87,10 +88,11 @@ export async function createHostServer(
 	app.use(corsMiddleware)
 
 	const { wallet } = config
-	// One authMiddleware instance for every authed surface (storage, account,
-	// messagebox), so a single /.well-known/auth handshake authenticates
-	// a client everywhere. With a session store, sessions are mirrored to
-	// Redis and hydrated on demand so any instance can validate any session.
+	// One authMiddleware instance for every authed surface (storage RPC,
+	// /storage/v1, account, messagebox), so a single /.well-known/auth
+	// handshake authenticates a client everywhere. With a session store,
+	// sessions are mirrored to Redis and hydrated on demand so any instance
+	// can validate any session.
 	const authMiddleware = buildAuthMiddleware(wallet, config.sessionStore)
 
 	// --- public surface -------------------------------------------------------
@@ -119,7 +121,7 @@ export async function createHostServer(
 			}
 		: undefined
 
-	// Wallet storage JSON-RPC: auth + optional capacity gate + dispatch
+	// Wallet storage JSON-RPC + Go v1 REST: auth + optional capacity gate + dispatch
 	const postHandlers: Array<(req: never, res: never, next: never) => unknown> =
 		[]
 	if (accountsDeps) {
@@ -129,6 +131,9 @@ export async function createHostServer(
 		dispatchHandler(config as unknown as WalletServerConfig) as never,
 	)
 	app.post('/', authMiddleware as never, ...(postHandlers as never[]))
+	mountStorageV1(app, config, {
+		authMiddleware: authMiddleware as never,
+	})
 
 	// BRC-104 handshake endpoint. The middleware keys on
 	// `req.path === '/.well-known/auth'`, so mount it route-level — an

@@ -12,6 +12,8 @@ describe('buildOpenApiSpec', () => {
 		}) as { paths: Record<string, unknown> }
 
 		expect(spec.paths['/']).toBeDefined()
+		expect(spec.paths['/storage/v1/settings']).toBeDefined()
+		expect(spec.paths['/storage/v1/users']).toBeDefined()
 		expect(spec.paths['/.well-known/auth']).toBeDefined()
 		expect(spec.paths['/messagebox/sendMessage']).toBeDefined()
 		expect(spec.paths['/account/status']).toBeUndefined()

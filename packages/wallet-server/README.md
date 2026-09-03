@@ -2,7 +2,7 @@
 
 BRC-100 wallet storage RPC server. Symmetric counterpart to `@1sat/wallet-remote`.
 
-Exposes a `WalletStorageProvider` (typically `StorageKnex` backed by postgres) over JSON-RPC. Supports two identity resolution modes:
+Exposes a `WalletStorageProvider` (typically `StorageKnex` backed by postgres) over JSON-RPC `POST /` and the Go toolbox v0.184 REST adapter at `GET/POST /storage/v1/*` (same BRC-104 auth). Supports two identity resolution modes:
 
 - **BRC-100 mutual auth** — for public or direct client access
 - **Bearer token + trusted identity header** — for proxy deployments where an upstream (e.g. 1sat-stack) has already authenticated the caller
