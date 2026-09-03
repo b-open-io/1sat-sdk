@@ -1,6 +1,6 @@
 {
   "name": "@1sat/types",
-  "version": "0.0.40",
+  "version": "0.0.41",
   "description": "Type definitions for 1Sat Ordinals SDK",
   "type": "module",
   "main": "./dist/index.js",

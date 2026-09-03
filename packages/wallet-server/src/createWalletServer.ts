@@ -1,4 +1,3 @@
-import type { Server } from 'node:http'
 import type { WalletInterface } from '@bsv/sdk'
 import {
 	BINARY_ENCODING,
@@ -141,7 +140,9 @@ export function createWalletServer(
 	}
 	mountTerminalErrorHandler(app)
 
-	let server: Server | undefined
+	// Inferred from express so the type matches whichever @types/node express
+	// resolves, rather than a second copy imported via node:http.
+	let server: ReturnType<Express['listen']> | undefined
 
 	return {
 		app,
