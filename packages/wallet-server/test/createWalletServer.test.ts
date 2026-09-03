@@ -130,7 +130,7 @@ describe('createWalletServer — public route requires BRC-100 auth', () => {
 
 	test('rejects unauthenticated GET /storage/v1/settings', async () => {
 		const res = await fetch(`http://localhost:${port}/storage/v1/settings`)
-		expect([400, 401, 403].includes(res.status)).toBe(true)
+		expect(res.status).toBe(401)
 	})
 
 	test('rejects unauthenticated requests on /', async () => {

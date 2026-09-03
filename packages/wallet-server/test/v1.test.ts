@@ -254,8 +254,7 @@ describe('createWalletServer — v1 behind BRC-104', () => {
 
 	test('unauthenticated GET /storage/v1/settings is rejected', async () => {
 		const res = await fetch(`http://127.0.0.1:${port}/storage/v1/settings`)
-		expect([400, 401, 403].includes(res.status)).toBe(true)
-		expect(res.status).not.toBe(200)
+		expect(res.status).toBe(401)
 	})
 
 	test('unauthenticated POST / JSON-RPC is still rejected', async () => {
@@ -269,7 +268,7 @@ describe('createWalletServer — v1 behind BRC-104', () => {
 				id: 'rpc',
 			}),
 		})
-		expect([400, 401, 403].includes(res.status)).toBe(true)
+		expect(res.status).toBe(401)
 	})
 })
 
@@ -294,8 +293,7 @@ describe('createHostServer — v1 behind BRC-104', () => {
 
 	test('unauthenticated GET /storage/v1/settings is rejected', async () => {
 		const res = await fetch(`http://127.0.0.1:${port}/storage/v1/settings`)
-		expect([400, 401, 403].includes(res.status)).toBe(true)
-		expect(res.status).not.toBe(200)
+		expect(res.status).toBe(401)
 	})
 
 	test('GET / OpenAPI docs stay public', async () => {
