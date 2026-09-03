@@ -11,6 +11,7 @@
  * SMALLINT 0/1 to match the validate-helpers' coercion pattern exactly.
  */
 
+import { createRequire } from 'node:module'
 import { Beef, Transaction as BsvTransaction } from '@bsv/sdk'
 import type { ListActionsResult, ListOutputsResult, Validation } from '@bsv/sdk'
 import {
@@ -290,9 +291,11 @@ export class StoragePg extends StorageProvider {
 			this.pool = options.pool
 			this.ownsPool = false
 		} else if (options.dbUrl) {
-			// Lazy-require so browsers/other runtimes that will never reach this
-			// path don't fail on `pg`'s node-specific imports.
-			const pgMod = require('pg') as typeof import('pg')
+			// Lazy-load so browsers/other runtimes that will never reach this
+			// path don't fail on `pg`'s node-specific imports. createRequire
+			// rather than a bare `require`: ESM under Node has no require global
+			// (Bun's does), and this must stay synchronous for the constructor.
+			const pgMod = createRequire(import.meta.url)('pg') as typeof import('pg')
 			// Per-pool type resolver instead of the global `types.setTypeParser`.
 			// Returning bigint as JS number is safe for satoshis / byte lengths
 			// (values well under 2^53). Scoping to this pool prevents leaking
