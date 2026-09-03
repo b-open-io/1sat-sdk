@@ -77,6 +77,7 @@ with `bun run scripts/gen-action-index.ts`).
 | desktop-mcp | `packages/wallet-desktop/skills/desktop-mcp` | wallet-desktop MCP browser-automation tools |
 | sdk-publish | `.claude/skills/sdk-publish` | Internal maintainer workflow; not distributed by the public plugin |
 | test-app | `skills/test-app` | Driving the test-app harness to exercise actions, tags and permission prompts against a real gated wallet |
+| legacy-brc100-migrate | `skills/legacy-brc100-migrate` | End-to-end cutover of a PAYPK/ORDPK / js-1sat-ord / Redis treasury onto BRC-100 (`wallet.1sat.app`, WALLET_STORAGE_URL, 1sat 0 vs BRC-29) |
 
 ## Coding Conventions
 - Use Bun for all scripts and package operations.
