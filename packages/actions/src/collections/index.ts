@@ -363,6 +363,7 @@ export const mintCollection: Action<MintCollectionInput, MintCollectionOutput> =
 					customInstructions: buildOrdinalCustomInstructions({
 						protocolID: P1SAT_PROTOCOL,
 						keyID,
+						counterparty: 'self',
 						tags,
 						name: displayName,
 					}),
@@ -527,6 +528,7 @@ export const mintCollectionItem: Action<
 				customInstructions: buildOrdinalCustomInstructions({
 					protocolID: P1SAT_PROTOCOL,
 					keyID,
+					counterparty: 'self',
 					tags,
 					name: displayName,
 				}),

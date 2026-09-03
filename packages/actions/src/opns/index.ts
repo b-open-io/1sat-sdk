@@ -521,6 +521,7 @@ export const deregisterOpns: Action<
 						customInstructions: buildOrdinalCustomInstructions({
 							protocolID: P1SAT_PROTOCOL,
 							keyID: outpoint,
+							counterparty: 'self',
 							tags,
 							name,
 						}),
@@ -630,6 +631,7 @@ export const sellOpns: Action<SellOpnsRequest, OpnsOperationResponse> = {
 						customInstructions: buildOrdinalCustomInstructions({
 							protocolID: P1SAT_PROTOCOL,
 							keyID: outpoint,
+							counterparty: 'self',
 							tags,
 							name,
 						}),
@@ -737,6 +739,7 @@ export const sendOpns: Action<SendOpnsRequest, OpnsOperationResponse> = {
 								customInstructions: buildOrdinalCustomInstructions({
 									protocolID: P1SAT_PROTOCOL,
 									keyID: outpoint,
+									counterparty: 'self',
 									tags,
 									name,
 								}),
@@ -847,6 +850,7 @@ export const cancelOpnsListing: Action<
 						customInstructions: buildOrdinalCustomInstructions({
 							protocolID: P1SAT_PROTOCOL,
 							keyID: newKeyID,
+							counterparty: 'self',
 							tags,
 							name,
 						}),

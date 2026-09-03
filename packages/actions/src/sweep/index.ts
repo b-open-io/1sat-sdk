@@ -441,6 +441,13 @@ export const sweepOrdinals: Action<
 				}
 
 				const mapName = meta?.map?.name
+				// OPNS names live in the origin's inscription content, not MAP.
+				// A map.name hint must not suppress resolveOrdinalTags' content
+				// lookup, so only forward it for non-OPNS ordinals.
+				const isOpns =
+					contentType?.split(';')[0]?.trim() === 'application/op-ns'
+				const nameHint =
+					!isOpns && typeof mapName === 'string' ? mapName : undefined
 				const {
 					tags,
 					basket,
@@ -448,7 +455,9 @@ export const sweepOrdinals: Action<
 				} = await resolveOrdinalTags(ctx, input.outpoint, {
 					contentType,
 					origin: meta?.origin,
-					name: typeof mapName === 'string' ? mapName : undefined,
+					name: nameHint,
+					map: meta?.map as Record<string, unknown> | undefined,
+					parent: meta?.parent,
 				})
 
 				const pubKeyResult = await ctx.wallet.getPublicKey({
@@ -467,7 +476,9 @@ export const sweepOrdinals: Action<
 
 				const ordName =
 					resolvedName ??
-					(typeof mapName === 'string' ? mapName.slice(0, 64) : undefined)
+					(!isOpns && typeof mapName === 'string'
+						? mapName.slice(0, 64)
+						: undefined)
 				outputs.push({
 					lockingScript: new P2PKH().lock(derivedAddress).toHex(),
 					satoshis: 1,

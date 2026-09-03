@@ -58,11 +58,15 @@ import { unlockingScriptLengthForInstructions } from '../utils/signOrdinalInput.
 // ============================================================================
 
 /**
- * Resolve ordinal tags (type, origin, name) and basket for a self-spend output.
+ * Resolve ordinal tags (type, origin, collection, content, app, name) and
+ * basket for a self-spend output.
  * Fetches missing data from ORDFS when services are available.
  *
  * Source can be either existing tags (from a WalletOutput) or explicit fields
  * (from metadata or function args). Both are normalized into the same resolution.
+ * Pass `map`/`parent` through when the caller already holds ORDFS metadata
+ * (e.g. sweep's bulkMetadata) so `collection:`/`content:`/`app:` survive
+ * without a per-outpoint refetch.
  */
 export async function resolveOrdinalTags(
 	ctx: OneSatContext,
@@ -72,12 +76,16 @@ export async function resolveOrdinalTags(
 		contentType?: string
 		origin?: string
 		name?: string
+		map?: Record<string, unknown>
+		parent?: string
 	},
 ): Promise<{ tags: string[]; basket: string; name?: string }> {
 	// Single full MIME only (BRC-147). Prefer most specific type: from tags.
 	let contentType = source?.contentType?.split(';')[0]?.trim()
 	let origin = source?.origin
 	let name = source?.name
+	let map = source?.map
+	let parent = source?.parent
 
 	if (source?.tags) {
 		for (const tag of source.tags) {
@@ -109,6 +117,13 @@ export async function resolveOrdinalTags(
 			// ORDFS is authoritative for origin.
 			origin = metadata.origin ?? origin
 
+			if (map === undefined && metadata.map) {
+				map = metadata.map as Record<string, unknown>
+			}
+			if (parent === undefined && metadata.parent) {
+				parent = metadata.parent
+			}
+
 			if (name === undefined && resolvedContentType !== 'application/op-ns') {
 				name = nameFromMap(metadata.map)
 			}
@@ -135,6 +150,8 @@ export async function resolveOrdinalTags(
 	const tags = ordinalTagsFromMetadata({
 		origin: origin || undefined,
 		contentType: resolvedContentType,
+		map,
+		parent,
 	})
 
 	const basket =
@@ -214,6 +231,10 @@ export interface BuyOrdinalRequest extends ActionOptions {
 	origin?: string
 	/** Optional name from MAP metadata - looked up from ordfs API if not provided */
 	name?: string
+	/** Optional MAP metadata - looked up from ordfs API if not provided */
+	map?: Record<string, unknown>
+	/** Optional OrdFS parent outpoint - looked up from ordfs API if not provided */
+	parent?: string
 	/** Basket for the purchased output (default: ordinals) */
 	basket?: string
 	/** Tags for the purchased output; default resolveOrdinalTags for ordinals ingress */
@@ -512,6 +533,7 @@ export async function buildTransferOrdinals(
 				customInstructions: buildOrdinalCustomInstructions({
 					protocolID: P1SAT_PROTOCOL,
 					keyID: outpoint,
+					counterparty: 'self',
 					tags,
 					name: sourceName,
 				}),
@@ -621,6 +643,7 @@ export async function buildListOrdinal(
 				customInstructions: buildOrdinalCustomInstructions({
 					protocolID: P1SAT_PROTOCOL,
 					keyID: outpoint,
+					counterparty: 'self',
 					tags,
 					name: sourceName,
 				}),
@@ -1153,6 +1176,7 @@ export const cancelOrdinalListing: Action<
 						customInstructions: buildOrdinalCustomInstructions({
 							protocolID: P1SAT_PROTOCOL,
 							keyID: newKeyID,
+							counterparty: 'self',
 							tags,
 							name: sourceName,
 						}),
@@ -1266,6 +1290,8 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 				contentType: input.contentType,
 				origin: input.origin,
 				name: input.name,
+				map: input.map,
+				parent: input.parent,
 			})
 			const tags = input.tags?.length
 				? [...new Set([...input.tags, ...resolved.tags])]
@@ -1321,6 +1347,7 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 				customInstructions: buildOrdinalCustomInstructions({
 					protocolID: P1SAT_PROTOCOL,
 					keyID: outpoint,
+					counterparty: 'self',
 					tags,
 					name: resolved.name,
 				}),
