@@ -35,8 +35,8 @@ import {
 } from '@1sat/templates'
 import type { Protocol } from '@1sat/templates'
 import { type LockingScript, P2PKH, Script, Utils } from '@bsv/sdk'
-import type { OneSatContext } from '../types'
-import { type OrdfsDirManifest, buildOrdfsDirManifest } from './manifest'
+import type { OneSatContext } from '../types.js'
+import { type OrdfsDirManifest, buildOrdfsDirManifest } from './manifest.js'
 
 /**
  * A file to include in an ord-fs directory inscription.

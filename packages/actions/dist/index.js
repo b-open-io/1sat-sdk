@@ -49,6 +49,8 @@ export * from './sweep/index.js';
 export * from './sync/index.js';
 // Export registry module (on-chain package builder)
 export * from './registry/index.js';
+// Export ordfs module (ord-fs/json directory writing)
+export * from './ordfs/index.js';
 import { actionRegistry } from './action-registry.js';
 import { addressesActions } from './addresses/index.js';
 import { collectionsActions } from './collections/index.js';
@@ -57,6 +59,7 @@ import { inscriptionsActions } from './inscriptions/index.js';
 import { locksActions } from './locks/index.js';
 import { mneeActions } from './mnee/index.js';
 import { opnsActions } from './opns/index.js';
+import { ordfsActions } from './ordfs/index.js';
 import { ordinalsActions } from './ordinals/index.js';
 import { paymentsActions } from './payments/index.js';
 import { signingActions } from './signing/index.js';
@@ -79,5 +82,6 @@ actionRegistry.registerAll([
     ...opnsActions,
     ...syncActions,
     ...mneeActions,
+    ...ordfsActions,
 ]);
 //# sourceMappingURL=index.js.map

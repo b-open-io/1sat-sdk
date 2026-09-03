@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import { Script, Utils } from '@bsv/sdk'
-import BitCom from './bitcom'
-import MAP from './map'
+import BitCom from './bitcom.js'
+import MAP from './map.js'
 
 describe('BitCom decoding', () => {
 	it('ignores OP_RETURN bytes inside pushed prefix data', () => {

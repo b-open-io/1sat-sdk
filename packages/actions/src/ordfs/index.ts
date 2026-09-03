@@ -33,22 +33,22 @@
 
 import { P1SAT_PROTOCOL } from '@1sat/types'
 import { Script, Utils } from '@bsv/sdk'
-import { prepareP1SatArgs } from '../apply'
-import { ORDINALS_BASKET } from '../constants'
-import { applyBapAip } from '../signing/aip'
-import { appendSigmaPlaceholder } from '../signing/sigma'
-import type { Action, ActionOptions, OneSatContext } from '../types'
-import { executeTrackedAction } from '../utils/createTrackedAction'
-import { resolveDestination } from '../utils/resolveDestination'
-import { buildOrdFsDirOutputs } from './outputs'
-import type { OrdfsDirFile, OrdfsDirWriteMode } from './outputs'
+import { prepareP1SatArgs } from '../apply/index.js'
+import { ORDINALS_BASKET } from '../constants.js'
+import { applyBapAip } from '../signing/aip.js'
+import { appendSigmaPlaceholder } from '../signing/sigma.js'
+import type { Action, ActionOptions, OneSatContext } from '../types.js'
+import { executeTrackedAction } from '../utils/createTrackedAction.js'
+import { resolveDestination } from '../utils/resolveDestination.js'
+import { buildOrdFsDirOutputs } from './outputs.js'
+import type { OrdfsDirFile, OrdfsDirWriteMode } from './outputs.js'
 
-export { buildOrdfsDirManifest, MAX_ORDFS_DIRECTORY_DEPTH } from './manifest'
+export { buildOrdfsDirManifest, MAX_ORDFS_DIRECTORY_DEPTH } from './manifest.js'
 export type {
 	OrdfsDirManifest,
 	OrdfsSubdirManifest,
-} from './manifest'
-export { buildOrdFsDirOutputs } from './outputs'
+} from './manifest.js'
+export { buildOrdFsDirOutputs } from './outputs.js'
 export type {
 	BuildOrdFsDirOutputsOptions,
 	BuildOrdFsDirOutputsResult,
@@ -56,7 +56,7 @@ export type {
 	OrdfsDirOutput,
 	OrdfsDirWriteMode,
 	OrdfsLocking,
-} from './outputs'
+} from './outputs.js'
 
 // ============================================================================
 // Types

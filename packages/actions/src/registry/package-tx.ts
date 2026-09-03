@@ -7,14 +7,14 @@ import {
 	PrivateKeySigner,
 } from '@1sat/templates'
 import { P2PKH, type PrivateKey, Script, Utils } from '@bsv/sdk'
-import { buildOrdfsDirManifest } from '../ordfs/manifest'
-import { MANIFEST_CONTENT_TYPE } from './constants'
+import { buildOrdfsDirManifest } from '../ordfs/manifest.js'
+import { MANIFEST_CONTENT_TYPE } from './constants.js'
 import type {
 	PackageFile,
 	PackageMapMetadata,
 	PackageTxOutput,
 	PackageTxResult,
-} from './types'
+} from './types.js'
 
 /**
  * Known fields on PackageMapMetadata that are handled explicitly

@@ -28,7 +28,7 @@
  * server will refuse to resolve.
  */
 
-import { MANIFEST_CONTENT_TYPE } from '../registry/constants'
+import { MANIFEST_CONTENT_TYPE } from '../registry/constants.js'
 
 /**
  * Maximum number of directory levels a file path may nest under, mirroring
