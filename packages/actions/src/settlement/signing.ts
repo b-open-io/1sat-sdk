@@ -138,13 +138,17 @@ export async function authorizeSettlementInputs(
 }
 
 function collectAuthorizedSpends(
-	plan: SettlementPlanV1,
 	template: SettlementTemplateV1,
 	authorizations: SettlementAuthorizationV1[],
 ): Record<number, { unlockingScript: string }> {
-	if (authorizations.length !== 2) {
+	const expectedOwners = new Set(
+		template.manifest.inputs
+			.filter((input) => input.purpose !== 'bsv-funding')
+			.map((input) => input.owner),
+	)
+	if (authorizations.length !== expectedOwners.size) {
 		throw new Error(
-			'settlement-signing: both participant authorizations required',
+			'settlement-signing: every asset owner authorization required',
 		)
 	}
 	const spends: Record<number, { unlockingScript: string }> = {}
@@ -157,7 +161,7 @@ function collectAuthorizedSpends(
 			'settlement authorization',
 		)
 		if (
-			!plan.parties.includes(authorization.owner) ||
+			!expectedOwners.has(authorization.owner) ||
 			owners.has(authorization.owner)
 		) {
 			throw new Error(
@@ -228,7 +232,7 @@ export async function finalizeSettlementAction(
 				now,
 				maxEvidenceAgeMs: options.maxEvidenceAgeMs,
 			})
-			return collectAuthorizedSpends(plan, reconstructed, authorizations)
+			return collectAuthorizedSpends(reconstructed, authorizations)
 		},
 	)
 }

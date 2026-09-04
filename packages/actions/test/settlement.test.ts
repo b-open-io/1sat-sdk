@@ -175,6 +175,19 @@ function signableBeef(
 	return beef.toBinaryAtomic(tx.id('hex'))
 }
 
+function signingWallet(key: PrivateKey): WalletInterface {
+	return {
+		createSignature: async (args: { hashToDirectlySign?: number[] }) => ({
+			signature: Array.from(
+				ECDSA.sign(new BigNumber(args.hashToDirectlySign!), key, true).toDER(),
+			),
+		}),
+		getPublicKey: async () => ({
+			publicKey: Utils.toHex(key.toPublicKey().encode(true) as number[]),
+		}),
+	} as WalletInterface
+}
+
 function mixedFixture() {
 	const ordinalScript = Inscription.fromText('vector-a', 'text/plain', {
 		scriptSuffix: new P2PKH().lock(KEY_A.toAddress()),
@@ -625,28 +638,13 @@ describe('atomic settlement templates', () => {
 			now: NOW,
 			maxEvidenceAgeMs: MAX_AGE,
 		})
-		const walletFor = (key: PrivateKey): WalletInterface =>
-			({
-				createSignature: async (args: { hashToDirectlySign?: number[] }) => ({
-					signature: Array.from(
-						ECDSA.sign(
-							new BigNumber(args.hashToDirectlySign!),
-							key,
-							true,
-						).toDER(),
-					),
-				}),
-				getPublicKey: async () => ({
-					publicKey: Utils.toHex(key.toPublicKey().encode(true) as number[]),
-				}),
-			}) as WalletInterface
 		const authorize = async (
 			owner: string,
 			key: PrivateKey,
 			templateToAuthorize = template,
 		) => {
 			return authorizeSettlementInputs(
-				walletFor(key),
+				signingWallet(key),
 				fixture.plan,
 				templateToAuthorize,
 				owner,
@@ -744,6 +742,109 @@ describe('atomic settlement templates', () => {
 				{ now: NOW, maxEvidenceAgeMs: MAX_AGE },
 			),
 		).rejects.toThrow('reference or transaction substitution')
+	})
+
+	test('finalizes a BSV-for-ordinal trade with only the asset owner authorization', async () => {
+		const ordinal = sourceTransaction(
+			Inscription.fromText('for-sale', 'text/plain', {
+				scriptSuffix: new P2PKH().lock(KEY_B.toAddress()),
+			})
+				.lock()
+				.toHex(),
+		)
+		const source = sourceBeef([ordinal])
+		const input = assetInput(ordinal, PARTY_B, 'ordinal', source.hash)
+		const ordinalReceipt = p2pkh(KEY_A)
+		const bsvPayment = p2pkh(KEY_B)
+		const plan = planFor(
+			[
+				{ owner: PARTY_A, items: [{ kind: 'bsv', satoshis: '50' }] },
+				{
+					owner: PARTY_B,
+					items: [{ kind: 'ordinal', outpoint: input.outpoint }],
+				},
+			],
+			[input],
+			[
+				destination({
+					legIndex: 0,
+					owner: PARTY_A,
+					purpose: 'ordinal-receipt',
+					lockingScript: ordinalReceipt,
+					satoshis: '1',
+					sourceOrdinal: input.outpoint,
+				}),
+				destination({
+					legIndex: 0,
+					owner: PARTY_B,
+					purpose: 'bsv-payment',
+					lockingScript: bsvPayment,
+					satoshis: '50',
+				}),
+			],
+			[source],
+			[],
+		)
+		const beef = signableBeef(
+			[ordinal],
+			[
+				{ lockingScript: ordinalReceipt, satoshis: 1 },
+				{ lockingScript: bsvPayment, satoshis: 50 },
+			],
+			{ change: 40 },
+		)
+		const template = reconstructSettlementTemplate(plan, beef, {
+			now: NOW,
+			maxEvidenceAgeMs: MAX_AGE,
+		})
+		const ordinalInput = template.manifest.inputs.find(
+			(entry) => entry.owner === PARTY_B,
+		)!
+		const authorization = await authorizeSettlementInputs(
+			signingWallet(KEY_B),
+			plan,
+			template,
+			PARTY_B,
+			[
+				{
+					inputIndex: ordinalInput.index,
+					protocolID: [2, '1sat settlement'],
+					keyID: 'fixture',
+				},
+			],
+			{ now: NOW, maxEvidenceAgeMs: MAX_AGE },
+		)
+		let finalizedSpends = 0
+		const builder = {
+			signAction: async (args: { spends?: Record<number, unknown> }) => {
+				finalizedSpends = Object.keys(args.spends ?? {}).length
+				return { txid: 'e'.repeat(64), tx: beef }
+			},
+			abortAction: async () => ({ aborted: true }),
+		} as WalletInterface
+		const localAction = {
+			reference: 'bsv-builder-local-only',
+			createResult: {
+				signableTransaction: { reference: 'bsv-builder-local-only', tx: beef },
+			},
+			template,
+		}
+
+		const result = await finalizeSettlementAction(
+			builder,
+			plan,
+			localAction,
+			[authorization],
+			{ now: NOW, maxEvidenceAgeMs: MAX_AGE },
+		)
+		expect(result.txid).toBe('e'.repeat(64))
+		expect(finalizedSpends).toBe(1)
+		await expect(
+			finalizeSettlementAction(builder, plan, localAction, [], {
+				now: NOW,
+				maxEvidenceAgeMs: MAX_AGE,
+			}),
+		).rejects.toThrow('every asset owner authorization required')
 	})
 })
 

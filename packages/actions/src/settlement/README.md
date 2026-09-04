@@ -14,12 +14,16 @@ two-party swaps in one Bitcoin transaction.
    `createAction({ signAndProcess: false, randomizeOutputs: false })`; the
    returned reference remains in `BuilderLocalSettlementActionV1` and must
    never be relayed or persisted by the coordinator.
-4. Each owner reviews the reconstructed candidate and calls
+4. Each asset owner reviews the reconstructed candidate and calls
    `authorizeSettlementInputs` in its own wallet process. The existing ordinal
    signing helper chooses P2PKH or PushDrop from the source script and uses only
    `SIGHASH_ALL | SIGHASH_FORKID`.
 5. The builder combines both locally verified unlocking-script sets with
    `finalizeSettlementAction`, which calls `signAction` for the fixed action.
+
+When the builder contributes only ordinary BSV, it has no custom asset input to
+authorize separately. Its BRC-100 wallet authorizes and signs the funding inputs
+when `signAction` completes the retained action.
 
 Every authorization rebuilds the manifest from the final funded AtomicBEEF.
 Inputs are located by outpoint, outputs by exact script and satoshis, and every
