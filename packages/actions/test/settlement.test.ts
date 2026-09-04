@@ -273,6 +273,75 @@ function mixedFixture() {
 	return { ordinal, token75, token40, plan, outputs }
 }
 
+function oversizedOutputFixture(): SettlementPlanV1 {
+	const sourceTransactions: Transaction[] = []
+	const inputs: SettlementAssetInputV1[] = []
+	const destinations: SettlementDestinationV1[] = []
+	const policies: OverlayPolicyV1[] = []
+	const items = new Map<string, SettlementOfferV1['items']>([
+		[PARTY_A, []],
+		[PARTY_B, []],
+	])
+	for (let index = 0; index < MAX_SETTLEMENT_ASSET_INPUTS; index += 1) {
+		const tokenId = `${(index + 1).toString(16).padStart(64, '0')}_0`
+		const owner = index === MAX_SETTLEMENT_ASSET_INPUTS - 1 ? PARTY_B : PARTY_A
+		const recipient = owner === PARTY_A ? PARTY_B : PARTY_A
+		const ownerKey = owner === PARTY_A ? KEY_A : KEY_B
+		const recipientKey = recipient === PARTY_A ? KEY_A : KEY_B
+		const legIndex = owner === PARTY_A ? index : 0
+		const source = sourceTransaction(
+			BSV21.transfer(tokenId, 2n)
+				.lock(new P2PKH().lock(ownerKey.toAddress()))
+				.toHex(),
+		)
+		sourceTransactions.push(source)
+		inputs.push(
+			assetInput(source, owner, 'bsv21', '', {
+				id: tokenId,
+				amount: '2',
+			}),
+		)
+		items.get(owner)!.push({ kind: 'bsv21', tokenId, amount: '1' })
+		destinations.push(
+			destination({
+				legIndex,
+				owner: recipient,
+				purpose: 'bsv21-receipt',
+				lockingScript: BSV21.transfer(tokenId, 1n)
+					.lock(new P2PKH().lock(recipientKey.toAddress()))
+					.toHex(),
+				satoshis: '1',
+				tokenId,
+				tokenAmount: '1',
+			}),
+			destination({
+				legIndex,
+				owner,
+				purpose: 'bsv21-change',
+				lockingScript: BSV21.transfer(tokenId, 1n)
+					.lock(new P2PKH().lock(ownerKey.toAddress()))
+					.toHex(),
+				satoshis: '1',
+				tokenId,
+				tokenAmount: '1',
+			}),
+		)
+		policies.push(overlayPolicy(tokenId, '1'))
+	}
+	const source = sourceBeef(sourceTransactions)
+	for (const input of inputs) input.sourceBeefHash = source.hash
+	return planFor(
+		[...items.entries()].map(([owner, ownerItems]) => ({
+			owner,
+			items: ownerItems,
+		})),
+		inputs,
+		destinations,
+		[source],
+		policies,
+	)
+}
+
 describe('settlement terms', () => {
 	test('rejects unknown fields, wrong ordering, and noncanonical quantities', () => {
 		const fixture = mixedFixture()
@@ -323,6 +392,58 @@ describe('settlement terms', () => {
 				maxEvidenceAgeMs: MAX_AGE,
 			}),
 		).toThrow('too many asset items')
+	})
+
+	test('requires exactly one satoshi for ordinal source and receipt', () => {
+		const sourceBad = structuredClone(mixedFixture().plan)
+		const sourceInput = sourceBad.contributions
+			.flatMap((contribution) => contribution.inputs)
+			.find((input) => input.purpose === 'ordinal')!
+		sourceInput.sourceSatoshis = '2'
+		expect(() =>
+			validateSettlementPlan(sourceBad, {
+				now: NOW,
+				maxEvidenceAgeMs: MAX_AGE,
+			}),
+		).toThrow('ordinal input must contain one satoshi')
+
+		const receiptBad = structuredClone(mixedFixture().plan)
+		const receipt = receiptBad.contributions
+			.flatMap((contribution) => contribution.destinations)
+			.find((destination) => destination.purpose === 'ordinal-receipt')!
+		receipt.satoshis = '2'
+		expect(() =>
+			validateSettlementPlan(receiptBad, {
+				now: NOW,
+				maxEvidenceAgeMs: MAX_AGE,
+			}),
+		).toThrow('ordinal receipt must contain one satoshi')
+	})
+
+	test('rejects non-finite freshness configuration', () => {
+		expect(() =>
+			validateSettlementPlan(mixedFixture().plan, {
+				now: NOW,
+				maxEvidenceAgeMs: Number.NaN,
+			}),
+		).toThrow('invalid evidence age')
+	})
+
+	test('rejects expected outputs above the transaction bound before wallet allocation', async () => {
+		let createActionCalled = false
+		const wallet = {
+			createAction: async () => {
+				createActionCalled = true
+				throw new Error('wallet should not be called')
+			},
+		} as unknown as WalletInterface
+		await expect(
+			prepareSettlementAction(wallet, oversizedOutputFixture(), {
+				now: NOW,
+				maxEvidenceAgeMs: MAX_AGE,
+			}),
+		).rejects.toThrow('expected outputs exceed entry limit')
+		expect(createActionCalled).toBe(false)
 	})
 })
 
@@ -388,6 +509,17 @@ describe('deterministic BSV21 selection', () => {
 				maxEvidenceAgeMs: MAX_AGE,
 			}),
 		).toThrow('expected nonnegative safe integer')
+		expect(() =>
+			selectBsv21Tips(
+				TOKEN_1,
+				'10',
+				Array.from({ length: MAX_SETTLEMENT_ASSET_INPUTS + 1 }, () => base),
+				{ now: NOW, maxEvidenceAgeMs: MAX_AGE },
+			),
+		).toThrow('too many candidates')
+		expect(() => run({ ...base, amount: '1'.repeat(21) })).toThrow(
+			'noncanonical amount',
+		)
 	})
 })
 

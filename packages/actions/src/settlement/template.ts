@@ -331,6 +331,9 @@ function expectedOutputs(
 			})
 		}
 	}
+	if (outputs.length > MAX_SETTLEMENT_OUTPUTS) {
+		throw new Error('settlement-template: expected outputs exceed entry limit')
+	}
 	return outputs
 }
 

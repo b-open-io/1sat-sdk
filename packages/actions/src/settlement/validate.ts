@@ -18,6 +18,7 @@ const HEX_64 = /^[0-9a-f]{64}$/
 const COMPRESSED_KEY = /^(02|03)[0-9a-f]{64}$/
 const DECIMAL = /^(0|[1-9][0-9]*)$/
 const POSITIVE_DECIMAL = /^[1-9][0-9]*$/
+const MAX_DECIMAL_DIGITS = 20
 const OUTPOINT = /^([0-9a-f]{64})_(0|[1-9][0-9]*)$/
 const HASH = /^[0-9a-f]{64}$/
 const LOWER_HEX = /^(?:[0-9a-f]{2})+$/
@@ -39,6 +40,9 @@ export function parseSettlementAmount(
 	context: string,
 	options: { allowZero?: boolean; max?: bigint } = {},
 ): bigint {
+	if (typeof value !== 'string' || value.length > MAX_DECIMAL_DIGITS) {
+		throw new Error(`${context}: noncanonical amount`)
+	}
 	const pattern = options.allowZero ? DECIMAL : POSITIVE_DECIMAL
 	if (!pattern.test(value)) throw new Error(`${context}: noncanonical amount`)
 	const amount = BigInt(value)
@@ -178,6 +182,9 @@ export function selectBsv21Tips(
 	) {
 		throw new Error('selectBsv21Tips: invalid evidence age')
 	}
+	if (candidates.length > MAX_SETTLEMENT_ASSET_INPUTS) {
+		throw new Error('selectBsv21Tips: too many candidates')
+	}
 	const candidateOutpoints = new Set<string>()
 	const eligible = candidates.map((candidate, index) => {
 		assertSettlementOutpoint(
@@ -304,6 +311,9 @@ function validateContribution(
 		parseSettlementAmount(input.sourceSatoshis, 'input.sourceSatoshis', {
 			max: BigInt(Number.MAX_SAFE_INTEGER),
 		})
+		if (input.purpose === 'ordinal' && input.sourceSatoshis !== '1') {
+			throw new Error('settlementPlan: ordinal input must contain one satoshi')
+		}
 		if (
 			!HASH.test(input.sourceScriptHash) ||
 			!HASH.test(input.sourceBeefHash)
@@ -352,6 +362,14 @@ function validateContribution(
 		parseSettlementAmount(destination.satoshis, 'destination.satoshis', {
 			max: BigInt(Number.MAX_SAFE_INTEGER),
 		})
+		if (
+			destination.purpose === 'ordinal-receipt' &&
+			destination.satoshis !== '1'
+		) {
+			throw new Error(
+				'settlementPlan: ordinal receipt must contain one satoshi',
+			)
+		}
 		if (destination.purpose.startsWith('bsv21')) {
 			if (!destination.tokenId || !destination.tokenAmount) {
 				throw new Error('settlementPlan: incomplete BSV21 destination')
@@ -394,6 +412,12 @@ export function validateSettlementPlan(
 ): SettlementPlanV1 {
 	const now = options.now ?? Date.now()
 	assertSafeTime(now, 'now')
+	if (
+		!Number.isSafeInteger(options.maxEvidenceAgeMs) ||
+		options.maxEvidenceAgeMs < 0
+	) {
+		throw new Error('settlementPlan: invalid evidence age')
+	}
 	assertExactKeys(
 		plan as unknown as Record<string, unknown>,
 		[
