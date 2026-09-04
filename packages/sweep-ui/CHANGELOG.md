@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.91
+
+### Changed
+- Picks up `@1sat/actions@0.0.207` for counterparty ordinal delivery metadata.
+
 ## 0.0.90
 
 ### Changed

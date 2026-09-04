@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.207
+
+### Added
+- Counterparty ordinal and OpNS transfers now return the same transport-neutral delivery metadata, including the exact key needed by the recipient wallet.
+
+### Changed
+- Recipient wallets can internalize direct P1SAT transfers with the exact transfer key instead of reconstructing a derivation pair.
+
 ## 0.0.206
 
 ### Fixed
