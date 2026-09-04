@@ -16,32 +16,24 @@ import {
 	type WalletInterface,
 } from '@bsv/sdk'
 import {
-	type LockedOfferCommitmentV1,
 	MAX_BSV21_AMOUNT,
 	MAX_SETTLEMENT_ASSET_INPUTS,
 	type OverlayPolicyV1,
-	SETTLEMENT_PROTOCOL,
-	SETTLEMENT_VERSION,
 	type SettlementAssetInputV1,
 	type SettlementContributionV1,
 	type SettlementDestinationV1,
+	type SettlementOfferV1,
 	type SettlementPlanV1,
-	assertExactKeys,
 	authorizeSettlementInputs,
-	canonicalizeSettlementJson,
-	digestSettlementObject,
 	finalizeSettlementAction,
 	hashSettlementBytes,
-	lockedOfferDigest,
 	prepareSettlementAction,
 	reconstructSettlementTemplate,
 	selectBsv21Tips,
-	validateLockedOffer,
 	validateSettlementPlan,
 } from '../src/settlement'
 
 const NOW = 1_800_000_000_000
-const EXPIRES = NOW + 60_000
 const MAX_AGE = 5_000
 const TOKEN_1 = `${'1'.repeat(64)}_0`
 const TOKEN_2 = `${'2'.repeat(64)}_0`
@@ -119,43 +111,28 @@ function overlayPolicy(tokenId: string, feePerOutput: string): OverlayPolicyV1 {
 	}
 }
 
-function lockedOffer(
-	offers: LockedOfferCommitmentV1['offers'],
-): LockedOfferCommitmentV1 {
-	return {
-		protocol: SETTLEMENT_PROTOCOL,
-		version: SETTLEMENT_VERSION,
-		chain: 'main',
-		sessionId: 'session-vector',
-		parties: PARTIES,
-		offers: [...offers].sort((a, b) => a.owner.localeCompare(b.owner)),
-		builder: PARTY_A,
-		feePayer: PARTY_A,
-		expiresAt: EXPIRES,
-	}
-}
-
 function planFor(
-	offer: LockedOfferCommitmentV1,
+	offers: SettlementOfferV1[],
 	inputs: SettlementAssetInputV1[],
 	destinations: SettlementDestinationV1[],
 	sources: Array<{ hash: string; beef: number[] }>,
 	policies: OverlayPolicyV1[],
 ): SettlementPlanV1 {
-	const digest = lockedOfferDigest(offer, NOW)
 	const contributions = PARTIES.map((owner) => {
 		return {
 			owner,
-			offerDigest: digest,
 			inputs: inputs.filter((input) => input.owner === owner),
 			destinations: destinations.filter((output) => output.owner === owner),
 		}
 	}) as [SettlementContributionV1, SettlementContributionV1]
 	return {
-		lockedOffer: offer,
-		offerDigest: digest,
-		settlementId: 'settlement-vector',
-		attempt: 1,
+		chain: 'main',
+		parties: PARTIES,
+		offers: [...offers].sort((a, b) => a.owner.localeCompare(b.owner)) as [
+			SettlementOfferV1,
+			SettlementOfferV1,
+		],
+		builder: PARTY_A,
 		contributions,
 		overlayPolicies: policies,
 		sourceBEEFs: sources,
@@ -262,20 +239,18 @@ function mixedFixture() {
 			tokenAmount: '15',
 		}),
 	]
-	const offer = lockedOffer([
+	const offers: SettlementOfferV1[] = [
 		{
 			owner: PARTY_A,
-			revision: 3,
 			items: [{ kind: 'ordinal', outpoint: inputs[0].outpoint }],
 		},
 		{
 			owner: PARTY_B,
-			revision: 7,
 			items: [{ kind: 'bsv21', tokenId: TOKEN_1, amount: '100' }],
 		},
-	])
+	]
 	const policy = overlayPolicy(TOKEN_1, '3')
-	const plan = planFor(offer, inputs, destinations, [source], [policy])
+	const plan = planFor(offers, inputs, destinations, [source], [policy])
 	const outputs = [
 		{ lockingScript: ordinalReceipt, satoshis: 1 },
 		{ lockingScript: tokenReceipt, satoshis: 1 },
@@ -285,89 +260,56 @@ function mixedFixture() {
 	return { ordinal, token75, token40, plan, outputs }
 }
 
-describe('settlement canonical commitments', () => {
-	test('uses RFC 8785 key ordering and stable SHA-256 commitments', () => {
-		expect(canonicalizeSettlementJson({ z: 1, a: ['x', true] })).toBe(
-			'{"a":["x",true],"z":1}',
-		)
-		expect(digestSettlementObject({ z: 1, a: ['x', true] })).toBe(
-			digestSettlementObject({ a: ['x', true], z: 1 }),
-		)
-		expect(canonicalizeSettlementJson({ value: 1.5 })).toBe('{"value":1.5}')
-		expect(() => canonicalizeSettlementJson({ value: Number.NaN })).toThrow(
-			'finite',
-		)
-		expect(() => canonicalizeSettlementJson({ value: undefined })).toThrow(
-			'unsupported undefined',
-		)
-		expect(() => canonicalizeSettlementJson(new Date(0))).toThrow('plain JSON')
-		expect(() =>
-			canonicalizeSettlementJson({ value: Number.MAX_SAFE_INTEGER + 1 }),
-		).toThrow('integers must be safe')
-		expect(() => canonicalizeSettlementJson(new Array(1))).toThrow(
-			'JSON values',
-		)
-		const cyclic: { self?: unknown } = {}
-		cyclic.self = cyclic
-		expect(() => canonicalizeSettlementJson(cyclic)).toThrow('cyclic')
-		const inherited = Object.create({ required: true }) as Record<
-			string,
-			unknown
-		>
-		expect(() => assertExactKeys(inherited, ['required'])).toThrow(
-			'missing field',
-		)
-		const inheritedOptional = Object.create({ optional: true }) as Record<
-			string,
-			unknown
-		>
-		expect(() => assertExactKeys(inheritedOptional, [], ['optional'])).toThrow(
-			'inherited field',
-		)
-		expect(() => canonicalizeSettlementJson({ value: '\ud800' })).toThrow(
-			'invalid Unicode',
-		)
-	})
-
-	test('rejects unknown offer fields, wrong ordering, expiry, and noncanonical quantities', () => {
+describe('settlement terms', () => {
+	test('rejects unknown fields, wrong ordering, and noncanonical quantities', () => {
 		const fixture = mixedFixture()
-		expect(validateLockedOffer(fixture.plan.lockedOffer, NOW)).toBeTruthy()
+		expect(
+			validateSettlementPlan(fixture.plan, {
+				now: NOW,
+				maxEvidenceAgeMs: MAX_AGE,
+			}),
+		).toBeTruthy()
 		expect(() =>
-			validateLockedOffer(
+			validateSettlementPlan(
 				{
-					...fixture.plan.lockedOffer,
+					...fixture.plan,
 					surprise: true,
-				} as LockedOfferCommitmentV1,
-				NOW,
+				} as SettlementPlanV1,
+				{ now: NOW, maxEvidenceAgeMs: MAX_AGE },
 			),
 		).toThrow('unknown field')
 		expect(() =>
-			validateLockedOffer(
+			validateSettlementPlan(
 				{
-					...fixture.plan.lockedOffer,
+					...fixture.plan,
 					parties: [...PARTIES].reverse() as [string, string],
 				},
-				NOW,
+				{ now: NOW, maxEvidenceAgeMs: MAX_AGE },
 			),
 		).toThrow('sorted')
-		expect(() =>
-			validateLockedOffer({ ...fixture.plan.lockedOffer, expiresAt: NOW }, NOW),
-		).toThrow('expired')
-		const bad = structuredClone(fixture.plan.lockedOffer)
+		const bad = structuredClone(fixture.plan)
 		bad.offers.find((entry) => entry.owner === PARTY_B)!.items[0] = {
 			kind: 'bsv21',
 			tokenId: TOKEN_1,
 			amount: '0100',
 		}
-		expect(() => validateLockedOffer(bad, NOW)).toThrow('noncanonical amount')
-		const oversized = structuredClone(fixture.plan.lockedOffer)
+		expect(() =>
+			validateSettlementPlan(bad, {
+				now: NOW,
+				maxEvidenceAgeMs: MAX_AGE,
+			}),
+		).toThrow('noncanonical amount')
+		const oversized = structuredClone(fixture.plan)
 		oversized.offers[0].items = Array.from(
 			{ length: MAX_SETTLEMENT_ASSET_INPUTS + 1 },
 			() => ({ kind: 'ordinal' as const, outpoint: `${'a'.repeat(64)}_0` }),
 		)
-		expect(() => validateLockedOffer(oversized, NOW)).toThrow(
-			'too many asset items',
-		)
+		expect(() =>
+			validateSettlementPlan(oversized, {
+				now: NOW,
+				maxEvidenceAgeMs: MAX_AGE,
+			}),
+		).toThrow('too many asset items')
 	})
 })
 
@@ -492,9 +434,9 @@ describe('atomic settlement templates', () => {
 			maxEvidenceAgeMs: MAX_AGE,
 		})
 		expect(captured?.inputs?.[0].outpoint).toBe(
-			fixture.plan.lockedOffer.offers.find((offer) => offer.owner === PARTY_A)!
-				.items[0].kind === 'ordinal'
-				? fixture.plan.lockedOffer.offers
+			fixture.plan.offers.find((offer) => offer.owner === PARTY_A)!.items[0]
+				.kind === 'ordinal'
+				? fixture.plan.offers
 						.find((offer) => offer.owner === PARTY_A)!
 						.items[0].outpoint.replace('_', '.')
 				: '',
@@ -520,7 +462,6 @@ describe('atomic settlement templates', () => {
 			now: NOW,
 			maxEvidenceAgeMs: MAX_AGE,
 		})
-		expect(template.templateHash).toBe(template.manifest.unsignedTxHash)
 		expect(
 			template.manifest.inputs.filter((input) => input.purpose === 'bsv21'),
 		).toHaveLength(2)
@@ -719,7 +660,6 @@ describe('atomic settlement templates', () => {
 				{
 					now: NOW,
 					maxEvidenceAgeMs: MAX_AGE,
-					authorizationExpiresAt: NOW + 30_000,
 				},
 			)
 		}
@@ -846,19 +786,17 @@ describe('ordinal-only and BSV21-only modes', () => {
 				sourceOrdinal: inputs[1].outpoint,
 			}),
 		]
-		const offer = lockedOffer([
+		const offers: SettlementOfferV1[] = [
 			{
 				owner: PARTY_A,
-				revision: 1,
 				items: [{ kind: 'ordinal', outpoint: inputs[0].outpoint }],
 			},
 			{
 				owner: PARTY_B,
-				revision: 1,
 				items: [{ kind: 'ordinal', outpoint: inputs[1].outpoint }],
 			},
-		])
-		const plan = planFor(offer, inputs, outputs, [source], [])
+		]
+		const plan = planFor(offers, inputs, outputs, [source], [])
 		const template = reconstructSettlementTemplate(
 			plan,
 			signableBeef(
@@ -934,20 +872,18 @@ describe('ordinal-only and BSV21-only modes', () => {
 			tokenOutput(PARTY_A, 'bsv21-receipt', TOKEN_2, '9', KEY_A),
 			tokenOutput(PARTY_B, 'bsv21-change', TOKEN_2, '3', KEY_B),
 		]
-		const offer = lockedOffer([
+		const offers: SettlementOfferV1[] = [
 			{
 				owner: PARTY_A,
-				revision: 2,
 				items: [{ kind: 'bsv21', tokenId: TOKEN_1, amount: '30' }],
 			},
 			{
 				owner: PARTY_B,
-				revision: 2,
 				items: [{ kind: 'bsv21', tokenId: TOKEN_2, amount: '9' }],
 			},
-		])
+		]
 		const policies = [overlayPolicy(TOKEN_1, '2'), overlayPolicy(TOKEN_2, '5')]
-		const plan = planFor(offer, inputs, destinations, [source], policies)
+		const plan = planFor(offers, inputs, destinations, [source], policies)
 		const expectedOutputs = [
 			...destinations.map((output) => ({
 				lockingScript: output.lockingScript,

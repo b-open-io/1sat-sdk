@@ -6,20 +6,19 @@ two-party swaps in one Bitcoin transaction.
 
 ## Flow
 
-1. Canonicalize and validate the mutually locked offer with
-   `lockedOfferDigest`.
-2. Select active BSV21 transfer tips with `selectBsv21Tips`.
-3. Supply both contributions, source AtomicBEEFs, receiver-controlled
-   destinations, and fresh per-token overlay policies in a `SettlementPlanV1`.
-4. The fixed builder calls `prepareSettlementAction`. Its wallet funds a
+1. Select active BSV21 transfer tips with `selectBsv21Tips`.
+2. Supply the agreed assets, both contributions, source AtomicBEEFs,
+   receiver-controlled destinations, and fresh per-token overlay policies in a
+   `SettlementPlanV1`.
+3. The fixed builder calls `prepareSettlementAction`. Its wallet funds a
    `createAction({ signAndProcess: false, randomizeOutputs: false })`; the
    returned reference remains in `BuilderLocalSettlementActionV1` and must
    never be relayed or persisted by the coordinator.
-5. Each owner reviews the reconstructed template and calls
+4. Each owner reviews the reconstructed candidate and calls
    `authorizeSettlementInputs` in its own wallet process. The existing ordinal
    signing helper chooses P2PKH or PushDrop from the source script and uses only
    `SIGHASH_ALL | SIGHASH_FORKID`.
-6. The builder combines both locally verified authorizations with
+5. The builder combines both locally verified unlocking-script sets with
    `finalizeSettlementAction`, which calls `signAction` for the fixed action.
 
 Every authorization rebuilds the manifest from the final funded AtomicBEEF.
@@ -37,10 +36,12 @@ per token ID, change is exact, and overlay fees are committed per token.
 - Presence, offer transport, signed coordinator envelopes, nonces, reservation
   policy, state transitions, recovery, and wallet internalization are application
   responsibilities rather than SDK wire primitives.
+- The SDK does not define or sign an offer JSON object. Bitcoin input signatures
+  authorize the candidate transaction.
 - Receiver-controlled destinations are committed by the final transaction
   signature. Applications still need to obtain those destinations from the
   intended wallet; the SDK does not accept a caller-supplied "verified" boolean.
-- Any attempt rebuild requires a new attempt number, wallet action, final
-  template review, and signatures. Do not patch a template in place.
+- Any candidate rebuild requires a new wallet action, final transaction review,
+  and signatures. Do not patch a signed candidate in place.
 
 The conformance vectors live in `packages/actions/test/settlement.test.ts`.

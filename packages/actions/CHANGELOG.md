@@ -22,15 +22,16 @@
 ### Added
 - Atomic two-party settlement primitives for 1Sat Ordinal NFTs, BSV21, and
   mixed swaps.
-- RFC 8785 offer commitments, deterministic BSV21 selection, final
-  funded-transaction reconstruction, permission-aware per-owner signing, and
-  local script verification before broadcast.
+- Deterministic BSV21 selection, final funded-transaction reconstruction,
+  permission-aware per-owner signing, and local script verification before
+  broadcast.
 - Conformance vectors for Ordinal NFT/BSV21, NFT-for-NFT, and multi-token
   BSV21 exchanges.
 
 ### Security
-- Reject malformed settlement status types and non-I-JSON commitment values.
-- Bind every authorization directly to the exact unsigned transaction hash.
+- Reject malformed settlement status types at wallet trust boundaries.
+- Verify every returned unlocking script against the exact candidate
+  transaction.
 
 ## 0.0.203
 

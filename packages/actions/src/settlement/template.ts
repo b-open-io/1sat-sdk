@@ -4,11 +4,9 @@ import {
 	type CreateActionInput,
 	type CreateActionOutput,
 	Hash,
-	LockingScript,
 	P2PKH,
 	Script,
 	Transaction,
-	UnlockingScript,
 	Utils,
 	type WalletInterface,
 } from '@bsv/sdk'
@@ -26,12 +24,7 @@ import type {
 	TemplateManifestV1,
 	TemplateOverlayPolicyV1,
 } from './types.js'
-import {
-	MAX_SETTLEMENT_BEEF_BYTES,
-	MAX_SETTLEMENT_OUTPUTS,
-	SETTLEMENT_PROTOCOL,
-	SETTLEMENT_VERSION,
-} from './types.js'
+import { MAX_SETTLEMENT_BEEF_BYTES, MAX_SETTLEMENT_OUTPUTS } from './types.js'
 import {
 	assertHex64,
 	assertSettlementOutpoint,
@@ -57,27 +50,6 @@ function omitUndefined<T extends Record<string, unknown>>(value: T): T {
 	return Object.fromEntries(
 		Object.entries(value).filter(([, child]) => child !== undefined),
 	) as T
-}
-
-function unsignedTransaction(tx: Transaction): Transaction {
-	const unsigned = new Transaction(tx.version, [], [], tx.lockTime)
-	for (const input of tx.inputs) {
-		const txid = input.sourceTXID ?? input.sourceTransaction?.id('hex')
-		if (!txid) throw new Error('settlement-template: missing source txid')
-		unsigned.addInput({
-			sourceTXID: txid,
-			sourceOutputIndex: input.sourceOutputIndex,
-			unlockingScript: new UnlockingScript(),
-			sequence: input.sequence ?? 0xffffffff,
-		})
-	}
-	for (const output of tx.outputs) {
-		unsigned.addOutput({
-			lockingScript: LockingScript.fromHex(output.lockingScript.toHex()),
-			satoshis: output.satoshis,
-		})
-	}
-	return unsigned
 }
 
 function decodeSourceBeefs(plan: SettlementPlanV1): {
@@ -113,7 +85,7 @@ function orderedAssetInputs(plan: SettlementPlanV1): SettlementAssetInputV1[] {
 	const inputs = allAssetInputs(plan)
 	const ordinals: SettlementAssetInputV1[] = []
 	const tokens: SettlementAssetInputV1[] = []
-	for (const ownerOffer of plan.lockedOffer.offers) {
+	for (const ownerOffer of plan.offers) {
 		for (const item of ownerOffer.items) {
 			if (item.kind === 'ordinal') {
 				ordinals.push(
@@ -166,10 +138,10 @@ function orderedDestinations(
 			)!,
 		)
 	}
-	for (const ownerOffer of plan.lockedOffer.offers) {
+	for (const ownerOffer of plan.offers) {
 		for (const [legIndex, item] of ownerOffer.items.entries()) {
 			if (item.kind === 'ordinal') continue
-			const recipient = plan.lockedOffer.parties.find(
+			const recipient = plan.parties.find(
 				(party) => party !== ownerOffer.owner,
 			)!
 			ordered.push(
@@ -538,16 +510,8 @@ function reconstructManifest(
 			}
 		})
 	return {
-		protocol: SETTLEMENT_PROTOCOL,
-		version: SETTLEMENT_VERSION,
-		chain: plan.lockedOffer.chain,
-		sessionId: plan.lockedOffer.sessionId,
-		settlementId: plan.settlementId,
-		attempt: plan.attempt,
-		offerDigest: plan.offerDigest,
-		builder: plan.lockedOffer.builder,
-		expiresAt: plan.lockedOffer.expiresAt,
-		unsignedTxHash: hashSettlementBytes(unsignedTransaction(tx).toBinary()),
+		chain: plan.chain,
+		builder: plan.builder,
 		inputs: manifestInputs,
 		outputs: manifestOutputs,
 		overlayPolicies,
@@ -589,10 +553,6 @@ export function reconstructSettlementTemplate(
 	const manifest = reconstructManifest(plan, tx, expected)
 	return {
 		manifest,
-		// BRC-178 binds authorization directly to the unsigned transaction.
-		// The manifest is derived review data, not a second wire commitment.
-		templateHash: manifest.unsignedTxHash,
-		signableBeefHash: hashSettlementBytes(signableBeef),
 		signableBeef: Array.from(signableBeef),
 	}
 }
@@ -626,7 +586,7 @@ export async function prepareSettlementAction(
 		outputDescription: `Atomic settlement ${output.purpose}`,
 	}))
 	const createResult = await wallet.createAction({
-		description: `Atomic settlement ${plan.settlementId}`,
+		description: 'Atomic two-party settlement',
 		inputs: createInputs,
 		inputBEEF: sourceBeef.toBinary(),
 		outputs: createOutputs,

@@ -4,9 +4,6 @@ import type {
 	WalletProtocol,
 } from '@bsv/sdk'
 
-/** Provisional profile name from draft BRC-178. Recheck the number before merge. */
-export const SETTLEMENT_PROTOCOL = 'brc-178' as const
-export const SETTLEMENT_VERSION = 1 as const
 export const SETTLEMENT_SIGHASH_SCOPE = 0x41 as const
 export const MAX_BSV21_AMOUNT = 18_446_744_073_709_551_615n
 export const MAX_SETTLEMENT_ASSET_INPUTS = 256
@@ -17,27 +14,14 @@ export const MAX_SETTLEMENT_SCRIPT_BYTES = 100_000
 export type SettlementChain = 'main' | 'test'
 export type SettlementIdentity = string
 
-export type LockedOfferItemV1 =
+export type SettlementAssetV1 =
 	| { kind: 'ordinal'; outpoint: string }
 	| { kind: 'bsv21'; tokenId: string; amount: string }
 	| { kind: 'bsv'; satoshis: string }
 
-export interface LockedOfferV1 {
+export interface SettlementOfferV1 {
 	owner: SettlementIdentity
-	revision: number
-	items: LockedOfferItemV1[]
-}
-
-export interface LockedOfferCommitmentV1 {
-	protocol: typeof SETTLEMENT_PROTOCOL
-	version: typeof SETTLEMENT_VERSION
-	chain: SettlementChain
-	sessionId: string
-	parties: [SettlementIdentity, SettlementIdentity]
-	offers: LockedOfferV1[]
-	builder: SettlementIdentity
-	feePayer: SettlementIdentity
-	expiresAt: number
+	items: SettlementAssetV1[]
 }
 
 export interface Bsv21TipCandidateV1 {
@@ -97,16 +81,15 @@ export interface OverlayPolicyV1 {
 
 export interface SettlementContributionV1 {
 	owner: SettlementIdentity
-	offerDigest: string
 	inputs: SettlementAssetInputV1[]
 	destinations: SettlementDestinationV1[]
 }
 
 export interface SettlementPlanV1 {
-	lockedOffer: LockedOfferCommitmentV1
-	offerDigest: string
-	settlementId: string
-	attempt: number
+	chain: SettlementChain
+	parties: [SettlementIdentity, SettlementIdentity]
+	offers: [SettlementOfferV1, SettlementOfferV1]
+	builder: SettlementIdentity
 	contributions: [SettlementContributionV1, SettlementContributionV1]
 	overlayPolicies: OverlayPolicyV1[]
 	sourceBEEFs: Array<{ hash: string; beef: number[] }>
@@ -153,16 +136,8 @@ export interface TemplateOverlayPolicyV1 {
 }
 
 export interface TemplateManifestV1 {
-	protocol: typeof SETTLEMENT_PROTOCOL
-	version: typeof SETTLEMENT_VERSION
 	chain: SettlementChain
-	sessionId: string
-	settlementId: string
-	attempt: number
-	offerDigest: string
 	builder: SettlementIdentity
-	expiresAt: number
-	unsignedTxHash: string
 	inputs: TemplateManifestInputV1[]
 	outputs: TemplateManifestOutputV1[]
 	overlayPolicies: TemplateOverlayPolicyV1[]
@@ -170,8 +145,6 @@ export interface TemplateManifestV1 {
 
 export interface SettlementTemplateV1 {
 	manifest: TemplateManifestV1
-	templateHash: string
-	signableBeefHash: string
 	signableBeef: number[]
 }
 
@@ -189,8 +162,6 @@ export interface SettlementSigningMetadataV1 {
 }
 
 export interface SettlementAuthorizationV1 {
-	templateHash: string
 	owner: SettlementIdentity
-	authorizationExpiresAt: number
 	spends: Record<number, { unlockingScript: string }>
 }

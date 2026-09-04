@@ -1,9 +1,8 @@
-import { assertExactKeys, digestSettlementObject } from './canonical.js'
+import { assertExactKeys } from './canonical.js'
 import type {
 	Bsv21TipCandidateV1,
-	LockedOfferCommitmentV1,
-	LockedOfferItemV1,
 	SelectedBsv21TipsV1,
+	SettlementAssetV1,
 	SettlementContributionV1,
 	SettlementPlanV1,
 } from './types.js'
@@ -13,8 +12,6 @@ import {
 	MAX_SETTLEMENT_BEEF_BYTES,
 	MAX_SETTLEMENT_OUTPUTS,
 	MAX_SETTLEMENT_SCRIPT_BYTES,
-	SETTLEMENT_PROTOCOL,
-	SETTLEMENT_VERSION,
 } from './types.js'
 
 const HEX_64 = /^[0-9a-f]{64}$/
@@ -63,7 +60,7 @@ function assertSafeTime(value: number, context: string): void {
 	}
 }
 
-function assertOfferItem(item: LockedOfferItemV1, context: string): void {
+function assertOfferItem(item: SettlementAssetV1, context: string): void {
 	const record = item as unknown as Record<string, unknown>
 	if (item.kind === 'ordinal') {
 		assertExactKeys(record, ['kind', 'outpoint'], [], context)
@@ -86,74 +83,42 @@ function assertOfferItem(item: LockedOfferItemV1, context: string): void {
 	throw new Error(`${context}: unsupported offer item`)
 }
 
-export function validateLockedOffer(
-	offer: LockedOfferCommitmentV1,
-	now = Date.now(),
-): LockedOfferCommitmentV1 {
-	assertSafeTime(now, 'now')
-	assertExactKeys(
-		offer as unknown as Record<string, unknown>,
-		[
-			'protocol',
-			'version',
-			'chain',
-			'sessionId',
-			'parties',
-			'offers',
-			'builder',
-			'feePayer',
-			'expiresAt',
-		],
-		[],
-		'lockedOffer',
-	)
-	if (
-		offer.protocol !== SETTLEMENT_PROTOCOL ||
-		offer.version !== SETTLEMENT_VERSION
-	) {
-		throw new Error('lockedOffer: unsupported protocol or version')
+function validateSettlementTerms(plan: SettlementPlanV1): void {
+	if (plan.chain !== 'main' && plan.chain !== 'test') {
+		throw new Error('settlementPlan: invalid chain')
 	}
-	if (offer.chain !== 'main' && offer.chain !== 'test') {
-		throw new Error('lockedOffer: invalid chain')
+	if (!Array.isArray(plan.parties) || plan.parties.length !== 2) {
+		throw new Error('settlementPlan: exactly two parties required')
 	}
-	if (!offer.sessionId) throw new Error('lockedOffer: empty sessionId')
-	if (!Array.isArray(offer.parties) || offer.parties.length !== 2) {
-		throw new Error('lockedOffer: exactly two parties required')
+	for (const [index, party] of plan.parties.entries()) {
+		assertIdentity(party, `settlementPlan.parties[${index}]`)
 	}
-	for (const [index, party] of offer.parties.entries()) {
-		assertIdentity(party, `lockedOffer.parties[${index}]`)
-	}
-	if (offer.parties[0] >= offer.parties[1]) {
+	if (plan.parties[0] >= plan.parties[1]) {
 		throw new Error(
-			'lockedOffer: parties must be unique and lexicographically sorted',
+			'settlementPlan: parties must be unique and lexicographically sorted',
 		)
 	}
-	assertIdentity(offer.builder, 'lockedOffer.builder')
-	if (!offer.parties.includes(offer.builder)) {
-		throw new Error('lockedOffer: builder is not a participant')
+	assertIdentity(plan.builder, 'settlementPlan.builder')
+	if (!plan.parties.includes(plan.builder)) {
+		throw new Error('settlementPlan: builder is not a participant')
 	}
-	if (offer.builder !== offer.feePayer) {
-		throw new Error('lockedOffer: builder and feePayer must match')
-	}
-	assertSafeTime(offer.expiresAt, 'lockedOffer.expiresAt')
-	if (offer.expiresAt <= now) throw new Error('lockedOffer: expired')
-	if (!Array.isArray(offer.offers) || offer.offers.length !== 2) {
-		throw new Error('lockedOffer: exactly two owner offers required')
+	if (!Array.isArray(plan.offers) || plan.offers.length !== 2) {
+		throw new Error('settlementPlan: exactly two owner offers required')
 	}
 
 	const ordinalOutpoints = new Set<string>()
 	const seenOwners = new Set<string>()
-	for (const [offerIndex, ownerOffer] of offer.offers.entries()) {
-		const context = `lockedOffer.offers[${offerIndex}]`
+	for (const [offerIndex, ownerOffer] of plan.offers.entries()) {
+		const context = `settlementPlan.offers[${offerIndex}]`
 		assertExactKeys(
 			ownerOffer as unknown as Record<string, unknown>,
-			['owner', 'revision', 'items'],
+			['owner', 'items'],
 			[],
 			context,
 		)
 		assertIdentity(ownerOffer.owner, `${context}.owner`)
 		if (
-			!offer.parties.includes(ownerOffer.owner) ||
+			!plan.parties.includes(ownerOffer.owner) ||
 			seenOwners.has(ownerOffer.owner)
 		) {
 			throw new Error(
@@ -161,9 +126,6 @@ export function validateLockedOffer(
 			)
 		}
 		seenOwners.add(ownerOffer.owner)
-		if (!Number.isSafeInteger(ownerOffer.revision) || ownerOffer.revision < 0) {
-			throw new Error(`${context}: invalid revision`)
-		}
 		if (!Array.isArray(ownerOffer.items) || ownerOffer.items.length === 0) {
 			throw new Error(`${context}: at least one item required`)
 		}
@@ -176,34 +138,26 @@ export function validateLockedOffer(
 			assertOfferItem(item, `${context}.items[${itemIndex}]`)
 			if (item.kind === 'ordinal') {
 				if (ordinalOutpoints.has(item.outpoint)) {
-					throw new Error('lockedOffer: duplicate ordinal outpoint')
+					throw new Error('settlementPlan: duplicate ordinal outpoint')
 				}
 				ordinalOutpoints.add(item.outpoint)
 			} else if (item.kind === 'bsv21') {
 				if (ownerTokenIds.has(item.tokenId)) {
-					throw new Error('lockedOffer: duplicate owner/token BSV21 leg')
+					throw new Error('settlementPlan: duplicate owner/token BSV21 leg')
 				}
 				ownerTokenIds.add(item.tokenId)
 			} else {
-				if (ownerBsv) throw new Error('lockedOffer: duplicate BSV leg')
+				if (ownerBsv) throw new Error('settlementPlan: duplicate BSV leg')
 				ownerBsv = true
-				if (ownerOffer.owner !== offer.builder) {
-					throw new Error('lockedOffer: BSV payer must be the builder')
+				if (ownerOffer.owner !== plan.builder) {
+					throw new Error('settlementPlan: BSV payer must be the builder')
 				}
 			}
 		}
 	}
-	if (offer.offers[0].owner >= offer.offers[1].owner) {
-		throw new Error('lockedOffer: offers must be sorted by owner')
+	if (plan.offers[0].owner >= plan.offers[1].owner) {
+		throw new Error('settlementPlan: offers must be sorted by owner')
 	}
-	return offer
-}
-
-export function lockedOfferDigest(
-	offer: LockedOfferCommitmentV1,
-	now = Date.now(),
-): string {
-	return digestSettlementObject(validateLockedOffer(offer, now))
 }
 
 export function selectBsv21Tips(
@@ -305,15 +259,12 @@ function validateContribution(
 ): void {
 	assertExactKeys(
 		contribution as unknown as Record<string, unknown>,
-		['owner', 'offerDigest', 'inputs', 'destinations'],
+		['owner', 'inputs', 'destinations'],
 		[],
 		'contribution',
 	)
-	if (!plan.lockedOffer.parties.includes(contribution.owner)) {
+	if (!plan.parties.includes(contribution.owner)) {
 		throw new Error('settlementPlan: contribution owner is not a participant')
-	}
-	if (contribution.offerDigest !== plan.offerDigest) {
-		throw new Error('settlementPlan: contribution offer digest mismatch')
 	}
 	const outpoints = new Set<string>()
 	for (const input of contribution.inputs) {
@@ -389,7 +340,7 @@ function validateContribution(
 		) {
 			throw new Error('settlementPlan: invalid destination leg index')
 		}
-		if (!plan.lockedOffer.parties.includes(destination.owner)) {
+		if (!plan.parties.includes(destination.owner)) {
 			throw new Error('settlementPlan: destination owner substitution')
 		}
 		if (!LOWER_HEX.test(destination.lockingScript)) {
@@ -446,10 +397,10 @@ export function validateSettlementPlan(
 	assertExactKeys(
 		plan as unknown as Record<string, unknown>,
 		[
-			'lockedOffer',
-			'offerDigest',
-			'settlementId',
-			'attempt',
+			'chain',
+			'parties',
+			'offers',
+			'builder',
 			'contributions',
 			'overlayPolicies',
 			'sourceBEEFs',
@@ -457,14 +408,7 @@ export function validateSettlementPlan(
 		[],
 		'settlementPlan',
 	)
-	validateLockedOffer(plan.lockedOffer, now)
-	if (lockedOfferDigest(plan.lockedOffer, now) !== plan.offerDigest) {
-		throw new Error('settlementPlan: locked offer digest mismatch')
-	}
-	if (!plan.settlementId) throw new Error('settlementPlan: empty settlement ID')
-	if (!Number.isSafeInteger(plan.attempt) || plan.attempt < 1) {
-		throw new Error('settlementPlan: invalid attempt')
-	}
+	validateSettlementTerms(plan)
 	if (plan.contributions.length !== 2) {
 		throw new Error('settlementPlan: exactly two contributions required')
 	}
@@ -550,10 +494,8 @@ export function validateSettlementPlan(
 		inputOutpoints.add(input.outpoint)
 	}
 
-	for (const ownerOffer of plan.lockedOffer.offers) {
-		const recipient = plan.lockedOffer.parties.find(
-			(party) => party !== ownerOffer.owner,
-		)!
+	for (const ownerOffer of plan.offers) {
+		const recipient = plan.parties.find((party) => party !== ownerOffer.owner)!
 		for (const [legIndex, item] of ownerOffer.items.entries()) {
 			if (item.kind === 'ordinal') {
 				const inputs = allInputs.filter(
@@ -652,9 +594,7 @@ export function validateSettlementPlan(
 		}
 	}
 	for (const input of allInputs) {
-		const ownerOffer = plan.lockedOffer.offers.find(
-			(offer) => offer.owner === input.owner,
-		)!
+		const ownerOffer = plan.offers.find((offer) => offer.owner === input.owner)!
 		const agreed = ownerOffer.items.some((item) =>
 			input.purpose === 'ordinal'
 				? item.kind === 'ordinal' && item.outpoint === input.outpoint
@@ -663,7 +603,7 @@ export function validateSettlementPlan(
 		if (!agreed) throw new Error('settlementPlan: unagreed asset input')
 	}
 
-	const expectedDestinations = plan.lockedOffer.offers.reduce(
+	const expectedDestinations = plan.offers.reduce(
 		(count, ownerOffer) =>
 			count +
 			ownerOffer.items.length +

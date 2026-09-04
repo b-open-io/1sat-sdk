@@ -3,11 +3,7 @@ import { createContext } from '../types.js'
 import { completeSignedAction } from '../utils/completeSignedAction.js'
 import { signOrdinalInput } from '../utils/signOrdinalInput.js'
 import { assertValidInputUnlock } from '../utils/verifyInputUnlock.js'
-import {
-	assertExactKeys,
-	digestSettlementObject,
-	hashSettlementBytes,
-} from './canonical.js'
+import { assertExactKeys } from './canonical.js'
 import { reconstructSettlementTemplate } from './template.js'
 import type {
 	BuilderLocalSettlementActionV1,
@@ -39,7 +35,7 @@ function mergedSigningTransaction(
 	return tx
 }
 
-function assertTemplateEqual(
+function reconstructTemplate(
 	plan: SettlementPlanV1,
 	template: SettlementTemplateV1,
 	options: { now: number; maxEvidenceAgeMs: number },
@@ -50,10 +46,7 @@ function assertTemplateEqual(
 		options,
 	)
 	if (
-		reconstructed.templateHash !== template.templateHash ||
-		reconstructed.signableBeefHash !== template.signableBeefHash ||
-		digestSettlementObject(reconstructed.manifest) !==
-			digestSettlementObject(template.manifest)
+		JSON.stringify(reconstructed.manifest) !== JSON.stringify(template.manifest)
 	) {
 		throw new Error('settlement-signing: template substitution')
 	}
@@ -68,8 +61,10 @@ function assertLocalActionBinding(
 		!signable?.reference ||
 		!signable.tx ||
 		signable.reference !== localAction.reference ||
-		hashSettlementBytes(Array.from(signable.tx)) !==
-			localAction.template.signableBeefHash
+		signable.tx.length !== localAction.template.signableBeef.length ||
+		Array.from(signable.tx).some(
+			(value, index) => value !== localAction.template.signableBeef[index],
+		)
 	) {
 		throw new Error(
 			'settlement-signing: builder action reference or transaction substitution',
@@ -86,21 +81,13 @@ export async function authorizeSettlementInputs(
 	options: {
 		now?: number
 		maxEvidenceAgeMs: number
-		authorizationExpiresAt: number
 	},
 ): Promise<SettlementAuthorizationV1> {
 	const now = options.now ?? Date.now()
-	if (
-		!plan.lockedOffer.parties.includes(owner) ||
-		!Number.isSafeInteger(options.authorizationExpiresAt) ||
-		options.authorizationExpiresAt <= now ||
-		options.authorizationExpiresAt > plan.lockedOffer.expiresAt
-	) {
-		throw new Error(
-			'settlement-signing: invalid signer or authorization expiry',
-		)
+	if (!plan.parties.includes(owner)) {
+		throw new Error('settlement-signing: invalid signer')
 	}
-	const reconstructed = assertTemplateEqual(plan, template, {
+	const reconstructed = reconstructTemplate(plan, template, {
 		now,
 		maxEvidenceAgeMs: options.maxEvidenceAgeMs,
 	})
@@ -121,7 +108,7 @@ export async function authorizeSettlementInputs(
 		)
 	}
 
-	const context = createContext(wallet, { chain: plan.lockedOffer.chain })
+	const context = createContext(wallet, { chain: plan.chain })
 	const spends: Record<number, { unlockingScript: string }> = {}
 	for (const input of ownedInputs) {
 		const metadataForInput = byIndex.get(input.index)
@@ -145,9 +132,7 @@ export async function authorizeSettlementInputs(
 		spends[input.index] = { unlockingScript }
 	}
 	return {
-		templateHash: reconstructed.templateHash,
 		owner,
-		authorizationExpiresAt: options.authorizationExpiresAt,
 		spends,
 	}
 }
@@ -156,7 +141,6 @@ function collectAuthorizedSpends(
 	plan: SettlementPlanV1,
 	template: SettlementTemplateV1,
 	authorizations: SettlementAuthorizationV1[],
-	now: number,
 ): Record<number, { unlockingScript: string }> {
 	if (authorizations.length !== 2) {
 		throw new Error(
@@ -168,19 +152,16 @@ function collectAuthorizedSpends(
 	for (const authorization of authorizations) {
 		assertExactKeys(
 			authorization as unknown as Record<string, unknown>,
-			['templateHash', 'owner', 'authorizationExpiresAt', 'spends'],
+			['owner', 'spends'],
 			[],
 			'settlement authorization',
 		)
 		if (
-			authorization.templateHash !== template.templateHash ||
-			authorization.authorizationExpiresAt <= now ||
-			authorization.authorizationExpiresAt > plan.lockedOffer.expiresAt ||
-			!plan.lockedOffer.parties.includes(authorization.owner) ||
+			!plan.parties.includes(authorization.owner) ||
 			owners.has(authorization.owner)
 		) {
 			throw new Error(
-				'settlement-signing: stale, replayed, or substituted authorization',
+				'settlement-signing: duplicated or substituted authorization',
 			)
 		}
 		owners.add(authorization.owner)
@@ -243,11 +224,11 @@ export async function finalizeSettlementAction(
 		localAction.createResult,
 		inputBeef,
 		async () => {
-			const reconstructed = assertTemplateEqual(plan, localAction.template, {
+			const reconstructed = reconstructTemplate(plan, localAction.template, {
 				now,
 				maxEvidenceAgeMs: options.maxEvidenceAgeMs,
 			})
-			return collectAuthorizedSpends(plan, reconstructed, authorizations, now)
+			return collectAuthorizedSpends(plan, reconstructed, authorizations)
 		},
 	)
 }
