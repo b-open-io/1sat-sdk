@@ -6,48 +6,45 @@
 
 import { BSV21, OrdLock, P2MS } from '@1sat/templates'
 import {
-	type Destination,
 	BSV21_DEPLOY_TAG,
+	type Destination,
 	buildInputAssetLabel,
 	buildTokenLabel,
-	formatOrdinalOutpoint,
 	readAssetIdTag,
 } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
 import {
-	Beef,
 	BigNumber,
 	type CreateActionArgs,
 	LockingScript,
 	OP,
 	P2PKH,
 	PublicKey,
-	Transaction,
+	Script,
+	type Transaction,
 	TransactionSignature,
 	UnlockingScript,
 	Utils,
 	type WalletOutput,
 } from '@bsv/sdk'
 import { prepareP1SatArgs } from '../apply'
-import {
-	BSV21_AUTH_TAG,
-	BSV21_BASKET,
-	P1SAT_PROTOCOL,
-} from '../constants'
+import { BSV21_AUTH_TAG, BSV21_BASKET, P1SAT_PROTOCOL } from '../constants'
+import { appendSigmaPlaceholder } from '../signing/sigma'
 import type {
 	Action,
 	ActionLogEntry,
 	ActionOptions,
 	OneSatContext,
 } from '../types'
-import { executeTrackedAction } from '../utils/createTrackedAction'
-import { getDisplayValue } from '../utils/displayValue'
+import { appendMapSuffix } from '../utils/appendMapSuffix'
 import {
 	bsv21FieldsFromOutput,
 	bsv21FilterTags,
 	buildBsv21CustomInstructions,
 	normalizeBsv21TokenId,
 } from '../utils/bsv21Remittance'
+import { executeTrackedAction } from '../utils/createTrackedAction'
+import { getDisplayValue } from '../utils/displayValue'
 import { resolveDestination } from '../utils/resolveDestination'
 import { signP2PKHInput } from '../utils/signP2PKH'
 
@@ -180,6 +177,10 @@ export interface DeployBsv21MintInput extends ActionOptions {
 	icon?: string
 	/** Recipient of the supply. Defaults to self. */
 	destination?: Destination
+	/** Optional MAP metadata appended outside the BSV21 inscription payload. */
+	map?: Record<string, string>
+	/** Add transaction-bound SIGMA authorship. Defaults to false. */
+	signWithBAP?: boolean
 }
 
 export interface DeployBsv21AuthInput extends ActionOptions {
@@ -191,6 +192,10 @@ export interface DeployBsv21AuthInput extends ActionOptions {
 	icon?: string
 	/** Auth-holder for the deploy+auth UTXO (= the first auth). Defaults to self. */
 	destination?: Destination
+	/** Optional MAP metadata appended outside the BSV21 inscription payload. */
+	map?: Record<string, string>
+	/** Add transaction-bound SIGMA authorship. Defaults to false. */
+	signWithBAP?: boolean
 }
 
 export interface DeployBsv21Response extends TokenOperationResponse {
@@ -490,7 +495,9 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 
 			type TokenDetails = Awaited<
 				ReturnType<
-					NonNullable<NonNullable<typeof ctx.services>['bsv21']>['getTokenDetails']
+					NonNullable<
+						NonNullable<typeof ctx.services>['bsv21']
+					>['getTokenDetails']
 				>
 			>
 			let tokenDetails: TokenDetails | undefined
@@ -713,23 +720,21 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				.filter((id): id is string => Boolean(id))
 				.map((id) => buildInputAssetLabel(BSV21_BASKET, id))
 			const sendArgs = await prepareP1SatArgs(ctx, {
-					description: `Send ${symbol} to ${resolved.length} recipient${resolved.length > 1 ? 's' : ''}`,
-					labels: [buildTokenLabel(tokenId), ...inputLabels],
-					inputBEEF,
-					inputs: selected.map((o) => ({
-						outpoint: o.outpoint,
-						inputDescription: 'Token input',
-						unlockingScriptLength: 108,
-					})),
-					outputs,
-					options: { randomizeOutputs: false },
-				})
+				description: `Send ${symbol} to ${resolved.length} recipient${resolved.length > 1 ? 's' : ''}`,
+				labels: [buildTokenLabel(tokenId), ...inputLabels],
+				inputBEEF,
+				inputs: selected.map((o) => ({
+					outpoint: o.outpoint,
+					inputDescription: 'Token input',
+					unlockingScriptLength: 108,
+				})),
+				outputs,
+				options: { randomizeOutputs: false },
+			})
 			const spends = selected
 				.map((o) => {
 					const id = readAssetIdTag(o.tags)
-					return id
-						? ({ basket: BSV21_BASKET, id })
-						: null
+					return id ? { basket: BSV21_BASKET, id } : null
 				})
 				.filter((t): t is { basket: string; id: string } => !!t)
 			const result = await executeTrackedAction(
@@ -740,7 +745,10 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				undefined,
 				{
 					spends,
-					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					usePermissionModule:
+						input.usePermissionModule ??
+						input.useOneSatModule ??
+						input.useModule,
 					permissionScheme: 'bsv21',
 				},
 			)
@@ -967,19 +975,19 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 			const beefBinary = beef.toBinary()
 
 			const buyArgs = await prepareP1SatArgs(ctx, {
-					description: `Purchase ${tokenAmount} tokens for ${payoutSatoshis} sats`,
-					labels: [buildTokenLabel(tokenId)],
-					inputBEEF: beefBinary,
-					inputs: [
-						{
-							outpoint,
-							inputDescription: 'Listed token',
-							unlockingScriptLength: 1402,
-						},
-					],
-					outputs,
-					options: { randomizeOutputs: false },
-				})
+				description: `Purchase ${tokenAmount} tokens for ${payoutSatoshis} sats`,
+				labels: [buildTokenLabel(tokenId)],
+				inputBEEF: beefBinary,
+				inputs: [
+					{
+						outpoint,
+						inputDescription: 'Listed token',
+						unlockingScriptLength: 1402,
+					},
+				],
+				outputs,
+				options: { randomizeOutputs: false },
+			})
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				buyArgs,
@@ -988,7 +996,10 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 				undefined,
 				{
 					spends: [{ outpoint, scheme: 'bsv21' }],
-					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					usePermissionModule:
+						input.usePermissionModule ??
+						input.useOneSatModule ??
+						input.useModule,
 					permissionScheme: 'bsv21',
 				},
 			)
@@ -1000,15 +1011,9 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 						result.tx,
 						tokenId,
 					)
-					console.log(
-						'[buyBsv21] Overlay submission result:',
-						overlayResult,
-					)
+					console.log('[buyBsv21] Overlay submission result:', overlayResult)
 				} catch (overlayError) {
-					console.warn(
-						'[buyBsv21] Overlay submission failed:',
-						overlayError,
-					)
+					console.warn('[buyBsv21] Overlay submission failed:', overlayError)
 				}
 			}
 
@@ -1061,7 +1066,7 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 async function executeBsv21Deploy(args: {
 	ctx: OneSatContext
 	symbol: string
-	deployScript: LockingScript
+	deployScript: Script
 	destinationCustomInstructions?: {
 		protocolID: unknown
 		keyID: string
@@ -1080,6 +1085,8 @@ async function executeBsv21Deploy(args: {
 	description: string
 	outputDescription: string
 	fundingProvider?: import('../funding').FundingProvider
+	/** Route the output through the shared SIGMA placeholder/seal flow. */
+	signWithBAP?: boolean
 }): Promise<{
 	txid?: string
 	tx?: number[]
@@ -1090,9 +1097,9 @@ async function executeBsv21Deploy(args: {
 
 	// Deploy filing: `bsv21:deploy` (+ optional auth). No `bsv21:<tokenId>`
 	// (id = outpoint after mine). Never amt/sym/dec/icon tags.
-	const tags = args.buildTags().filter(
-		(t) => t === BSV21_DEPLOY_TAG || t === BSV21_AUTH_TAG,
-	)
+	const tags = args
+		.buildTags()
+		.filter((t) => t === BSV21_DEPLOY_TAG || t === BSV21_AUTH_TAG)
 	if (!tags.includes(BSV21_DEPLOY_TAG)) tags.push(BSV21_DEPLOY_TAG)
 
 	const customInstructions = args.destinationCustomInstructions
@@ -1126,6 +1133,17 @@ async function executeBsv21Deploy(args: {
 			},
 		],
 		options: { randomizeOutputs: false },
+	}
+
+	if (args.signWithBAP) {
+		if (args.fundingProvider) {
+			throw new Error(
+				'sigma-incompatible-with-funding-provider: external funders cannot sign the wallet-owned SIGMA anchor input',
+			)
+		}
+		caArgs.outputs![0].lockingScript = (
+			await appendSigmaPlaceholder(ctx, deployScript)
+		).toHex()
 	}
 
 	const prepared = await prepareP1SatArgs(ctx, caArgs)
@@ -1173,6 +1191,15 @@ export const deployBsv21Mint: Action<
 					description: 'Decimal places (0-18, default 0)',
 				},
 				icon: { type: 'string', description: 'Icon URL or data URI' },
+				map: {
+					type: 'object',
+					description: 'Optional MAP metadata for the deploy output',
+				},
+				signWithBAP: {
+					type: 'boolean',
+					description: 'Add transaction-bound SIGMA authorship',
+					default: false,
+				},
 				destination: {
 					type: 'object',
 					description:
@@ -1190,6 +1217,8 @@ export const deployBsv21Mint: Action<
 				decimals = 0,
 				icon,
 				destination,
+				map,
+				signWithBAP = false,
 			} = input
 
 			const amount =
@@ -1203,12 +1232,14 @@ export const deployBsv21Mint: Action<
 				keyIDPrefix: `bsv21-deploy-${symbol}`,
 			})
 
-			const deployScript = BSV21.deployMint(
-				symbol,
-				amount,
-				decimals,
-				icon,
-			).lock(resolved.lockingScript)
+			const deployScript = appendMapSuffix(
+				new Script(
+					BSV21.deployMint(symbol, amount, decimals, icon).lock(
+						resolved.lockingScript,
+					).chunks,
+				),
+				map,
+			)
 
 			const result = await executeBsv21Deploy({
 				ctx,
@@ -1218,6 +1249,8 @@ export const deployBsv21Mint: Action<
 				basket: BSV21_BASKET,
 				description: `Deploy ${symbol} (${amount} fixed supply)`,
 				outputDescription: `Deploy ${symbol}`,
+				fundingProvider: input.fundingProvider,
+				signWithBAP,
 				token: {
 					amt: String(amount),
 					op: 'deploy+mint',
@@ -1250,6 +1283,8 @@ export const deployBsv21Mint: Action<
 						decimals,
 						icon,
 						destination,
+						map,
+						signWithBAP,
 					},
 					txid: result.txid,
 					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
@@ -1309,6 +1344,15 @@ export const deployBsv21Auth: Action<
 					description: 'Decimal places (0-18, default 0)',
 				},
 				icon: { type: 'string', description: 'Icon URL or data URI' },
+				map: {
+					type: 'object',
+					description: 'Optional MAP metadata for the deploy output',
+				},
+				signWithBAP: {
+					type: 'boolean',
+					description: 'Add transaction-bound SIGMA authorship',
+					default: false,
+				},
 				destination: {
 					type: 'object',
 					description:
@@ -1320,15 +1364,26 @@ export const deployBsv21Auth: Action<
 	},
 	async execute(ctx, input) {
 		try {
-			const { symbol, decimals = 0, icon, destination } = input
+			const {
+				symbol,
+				decimals = 0,
+				icon,
+				destination,
+				map,
+				signWithBAP = false,
+			} = input
 
 			const resolved = await resolveDestination(ctx, destination, {
 				protocolID: P1SAT_PROTOCOL,
 				keyIDPrefix: `bsv21-auth-${symbol}`,
 			})
 
-			const deployScript = BSV21.deployAuth(symbol, decimals, icon).lock(
-				resolved.lockingScript,
+			const deployScript = appendMapSuffix(
+				new Script(
+					BSV21.deployAuth(symbol, decimals, icon).lock(resolved.lockingScript)
+						.chunks,
+				),
+				map,
 			)
 
 			const result = await executeBsv21Deploy({
@@ -1339,6 +1394,8 @@ export const deployBsv21Auth: Action<
 				basket: BSV21_BASKET,
 				description: `Deploy ${symbol} (mintable)`,
 				outputDescription: `Deploy ${symbol} auth`,
+				fundingProvider: input.fundingProvider,
+				signWithBAP,
 				token: {
 					amt: '0',
 					op: 'deploy+auth',
@@ -1365,7 +1422,7 @@ export const deployBsv21Auth: Action<
 				ctx.log({
 					timestamp: new Date().toISOString(),
 					action: 'deployBsv21Auth',
-					input: { symbol, decimals, icon, destination },
+					input: { symbol, decimals, icon, destination, map, signWithBAP },
 					txid: result.txid,
 					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 					outputs: [
@@ -1536,8 +1593,9 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 								token: mintMeta,
 								protocolID: mintResolved.customInstructions.protocolID,
 								keyID: mintResolved.customInstructions.keyID,
-								counterparty: mintResolved.customInstructions
-									.counterparty as string | undefined,
+								counterparty: mintResolved.customInstructions.counterparty as
+									| string
+									| undefined,
 							})
 						: buildBsv21CustomInstructions({ token: mintMeta }),
 				})
@@ -1569,8 +1627,9 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 								token: authMeta,
 								protocolID: authResolved.customInstructions.protocolID,
 								keyID: authResolved.customInstructions.keyID,
-								counterparty: authResolved.customInstructions
-									.counterparty as string | undefined,
+								counterparty: authResolved.customInstructions.counterparty as
+									| string
+									| undefined,
 							})
 						: buildBsv21CustomInstructions({ token: authMeta }),
 				})
@@ -1603,28 +1662,28 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 			const symbol = tokenDetails.token.sym || tokenId.slice(0, 8)
 			const authInputId = readAssetIdTag(authUtxo.tags)
 			const mintArgs = await prepareP1SatArgs(ctx, {
-					description: mint
-						? `Mint ${mintAmount} ${symbol}`
-						: endMinting
-							? `End ${symbol} mint authority`
-							: `Re-issue ${symbol} authority`,
-					labels: [
-						buildTokenLabel(tokenId),
-						...(authInputId
-							? [buildInputAssetLabel(BSV21_BASKET, authInputId)]
-							: []),
-					],
-					inputBEEF,
-					inputs: [
-						{
-							outpoint: authUtxo.outpoint,
-							inputDescription: 'Mint authority',
-							unlockingScriptLength: 108,
-						},
-					],
-					outputs,
-					options: { randomizeOutputs: false },
-				})
+				description: mint
+					? `Mint ${mintAmount} ${symbol}`
+					: endMinting
+						? `End ${symbol} mint authority`
+						: `Re-issue ${symbol} authority`,
+				labels: [
+					buildTokenLabel(tokenId),
+					...(authInputId
+						? [buildInputAssetLabel(BSV21_BASKET, authInputId)]
+						: []),
+				],
+				inputBEEF,
+				inputs: [
+					{
+						outpoint: authUtxo.outpoint,
+						inputDescription: 'Mint authority',
+						unlockingScriptLength: 108,
+					},
+				],
+				outputs,
+				options: { randomizeOutputs: false },
+			})
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				mintArgs,

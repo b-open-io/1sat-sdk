@@ -70,9 +70,12 @@ create those content outputs. Collection IDs accept dot or underscore
 separators and normalize to lowercase `<txid>_<vout>`; padded, negative and
 out-of-range indexes are rejected. The emitted parent field does not prove a
 collection-origin spend; the helper's SIGMA/MAP claim is a separate path.
-Generic BSV21 `map` / `signWithBAP`
-options and `mintBsv21CollectionItem` must still be checked in the installed
-version before recommending them.
+Current BSV21 deploy actions expose generic `map` and `signWithBAP` options.
+`mintBsv21CollectionItem` composes the collection MAP with a signed fixed-supply
+deployment. Verify these APIs exist in the installed package. Its membership
+claim concerns the deployment inscription, not automatic membership of all
+fungible units or subsequent transfer outputs.
+
 
 For a custom mint, use the inscription flow's SIGMA support and construct the
 MAP envelope exactly as the stack expects. Verify the final transaction rather
@@ -85,9 +88,9 @@ may use embedded content or an `ord-fs/json` directory whose `.` entry points to
 shared content; the collection overlay never reads that leaf for membership.
 
 A BSV21 deploy output can carry collection-item MAP and SIGMA at the script
-level. That does not make collections part of BSV21. Keep the BSV21 package
-generic and put collection-specific construction and lookup in the collection
-layer. Confirm SDK support before presenting this as a ready-made action.
+level. That does not make collections part of BSV21. The BSV21 package exposes
+generic composition points; collection-specific construction and lookup stay
+in the collection layer.
 When reviewing a design that puts collection fields in the BSV21 JSON payload,
 correct both halves explicitly: keep that payload generic, then compose the
 collection MAP and SIGMA envelopes at the output-script layer.

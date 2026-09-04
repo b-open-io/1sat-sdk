@@ -146,11 +146,12 @@ const tools = actionRegistry.toMcpTools()
 The complete, generated list of all actions:
 
 <!-- ACTION-INDEX -->
-_54 actions, generated from the registry — do not edit by hand._
+_55 actions, generated from the registry — do not edit by hand._
 
 | Category | Action | Services | Purpose |
 |----------|--------|:--------:|---------|
 | `addresses` | `deriveDepositAddresses` |  | Derive P1SAT deposit addresses for receiving payments, ordinals, or tokens |
+| `collections` | `mintBsv21CollectionItem` |  | Deploy a fixed-supply BSV21 token with collection-item MAP and SIGMA |
 | `collections` | `mintCollection` |  | Create a new ordinals collection with traits, rarity labels, and royalty configuration |
 | `collections` | `mintCollectionItem` |  | Create a collection item inscription linked to a parent collection via collectionId |
 | `identity` | `attest` |  | Publish a BAP attestation signed with BAP identity |
