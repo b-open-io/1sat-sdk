@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.107
+
+### Changed
+- Picks up `@1sat/actions@0.0.206`, `@1sat/wallet-node@0.0.73`, and `@1sat/wallet-server@0.0.48`.
+
 ## 0.0.102
 
 ### Changed

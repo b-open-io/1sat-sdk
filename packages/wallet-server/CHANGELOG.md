@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.48
+
+### Changed
+- Picks up `@1sat/wallet@0.0.106`.
+
 ## 0.0.41
 
 ### Fixed

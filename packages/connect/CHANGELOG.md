@@ -1,10 +1,13 @@
 # Changelog
 
-## Unreleased
+## [0.0.91] - 2026-09-04
 
 ### Fixed
 - Hosted CWI connections use a top-level wallet window when the browser cannot grant cross-site Storage Access, and visible wallet frames are exposed to assistive technology.
 - Failed hosted-wallet connection attempts now remove their iframe or popup bridge.
+
+### Changed
+- Depends on `@1sat/wallet@0.0.106`.
 
 ## [0.0.79] - 2026-07-20
 

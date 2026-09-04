@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.206
+
+### Fixed
+- Align the BSV-21 cosign documentation and conformance test with the standard `[0, "onesat"]` protocol identifier.
+
+### Changed
+- Picks up `@1sat/wallet@0.0.106`.
+
 ## 0.0.203
 
 ### Fixed
