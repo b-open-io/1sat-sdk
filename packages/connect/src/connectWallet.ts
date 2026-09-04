@@ -88,13 +88,18 @@ function buildConnector(
 		return async () => {
 			const webConfig: WebCWIConfig = { walletUrl: config.url }
 			const { wallet, destroy } = createWebCWI(webConfig)
-			await wallet.waitForAuthentication({})
-			const { publicKey } = await wallet.getPublicKey({ identityKey: true })
-			return {
-				wallet,
-				provider: config.type,
-				identityKey: publicKey,
-				disconnect: destroy,
+			try {
+				await wallet.waitForAuthentication({})
+				const { publicKey } = await wallet.getPublicKey({ identityKey: true })
+				return {
+					wallet,
+					provider: config.type,
+					identityKey: publicKey,
+					disconnect: destroy,
+				}
+			} catch (error) {
+				destroy()
+				throw error
 			}
 		}
 	}
