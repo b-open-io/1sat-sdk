@@ -21,15 +21,14 @@
 
 ### Added
 - Atomic two-party settlement primitives for ordinal, BSV21, and mixed swaps.
-- RFC 8785 commitments, deterministic BSV21 selection, provider-bound input
-  reservation contracts, final funded-transaction reconstruction, exact
-  per-owner signing requests, and local script verification before broadcast.
+- RFC 8785 offer commitments, deterministic BSV21 selection, final
+  funded-transaction reconstruction, permission-aware per-owner signing, and
+  local script verification before broadcast.
 - Conformance vectors for ordinal/BSV21 and multi-token BSV21 exchanges.
 
 ### Security
 - Reject malformed settlement status types and non-I-JSON commitment values.
-- Require replay stores to atomically accept an absent artifact or compare an
-  existing live digest.
+- Bind every authorization directly to the exact unsigned transaction hash.
 
 ## 0.0.203
 

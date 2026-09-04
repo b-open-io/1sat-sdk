@@ -16,32 +16,26 @@ import {
 	type WalletInterface,
 } from '@bsv/sdk'
 import {
-	InMemorySettlementReplayStore,
 	type LockedOfferCommitmentV1,
 	MAX_BSV21_AMOUNT,
+	MAX_SETTLEMENT_ASSET_INPUTS,
 	type OverlayPolicyV1,
 	SETTLEMENT_PROTOCOL,
-	SETTLEMENT_SIGHASH_SCOPE,
 	SETTLEMENT_VERSION,
 	type SettlementAssetInputV1,
 	type SettlementContributionV1,
 	type SettlementDestinationV1,
 	type SettlementPlanV1,
-	type SettlementReservationAdapter,
 	assertExactKeys,
 	authorizeSettlementInputs,
 	canonicalizeSettlementJson,
-	createSettlementSigningRequest,
 	digestSettlementObject,
 	finalizeSettlementAction,
 	hashSettlementBytes,
 	lockedOfferDigest,
 	prepareSettlementAction,
 	reconstructSettlementTemplate,
-	recordSettlementArtifact,
-	reserveSettlementInputs,
 	selectBsv21Tips,
-	settlementContributionDigest,
 	validateLockedOffer,
 	validateSettlementPlan,
 } from '../src/settlement'
@@ -111,13 +105,8 @@ function assetInput(
 	}
 }
 
-function destination(
-	values: Omit<
-		SettlementDestinationV1,
-		'destinationProof' | 'destinationVerified'
-	>,
-): SettlementDestinationV1 {
-	return { ...values, destinationProof: 'proof', destinationVerified: true }
+function destination(values: SettlementDestinationV1): SettlementDestinationV1 {
+	return values
 }
 
 function overlayPolicy(tokenId: string, feePerOutput: string): OverlayPolicyV1 {
@@ -155,17 +144,11 @@ function planFor(
 ): SettlementPlanV1 {
 	const digest = lockedOfferDigest(offer, NOW)
 	const contributions = PARTIES.map((owner) => {
-		const contribution = {
+		return {
 			owner,
 			offerDigest: digest,
-			reservationId: `lease-${owner.slice(0, 8)}`,
-			reservationExpiresAt: EXPIRES,
 			inputs: inputs.filter((input) => input.owner === owner),
 			destinations: destinations.filter((output) => output.owner === owner),
-		}
-		return {
-			...contribution,
-			contributionHash: settlementContributionDigest(contribution),
 		}
 	}) as [SettlementContributionV1, SettlementContributionV1]
 	return {
@@ -176,13 +159,6 @@ function planFor(
 		contributions,
 		overlayPolicies: policies,
 		sourceBEEFs: sources,
-	}
-}
-
-function rehashPlanContributions(plan: SettlementPlanV1): void {
-	for (const contribution of plan.contributions) {
-		const { contributionHash: _oldHash, ...body } = contribution
-		contribution.contributionHash = settlementContributionDigest(body)
 	}
 }
 
@@ -384,10 +360,18 @@ describe('settlement canonical commitments', () => {
 			amount: '0100',
 		}
 		expect(() => validateLockedOffer(bad, NOW)).toThrow('noncanonical amount')
+		const oversized = structuredClone(fixture.plan.lockedOffer)
+		oversized.offers[0].items = Array.from(
+			{ length: MAX_SETTLEMENT_ASSET_INPUTS + 1 },
+			() => ({ kind: 'ordinal' as const, outpoint: `${'a'.repeat(64)}_0` }),
+		)
+		expect(() => validateLockedOffer(oversized, NOW)).toThrow(
+			'too many asset items',
+		)
 	})
 })
 
-describe('deterministic BSV21 selection and reservation', () => {
+describe('deterministic BSV21 selection', () => {
 	test('selects amount descending then outpoint ascending and returns exact change', () => {
 		const candidates = [40n, 75n, 75n].map((amount, index) => ({
 			outpoint: `${String.fromCharCode(98 + index).repeat(64)}_${index}`,
@@ -449,35 +433,6 @@ describe('deterministic BSV21 selection and reservation', () => {
 				maxEvidenceAgeMs: MAX_AGE,
 			}),
 		).toThrow('expected nonnegative safe integer')
-	})
-
-	test('binds leases to wallet/provider/attempt and rejects adapter substitution', async () => {
-		let changed = false
-		const adapter: SettlementReservationAdapter = {
-			reserve: async (request) => ({
-				reservationId: 'lease',
-				request: changed ? { ...request, attempt: 2 } : request,
-				expiresAt: EXPIRES,
-			}),
-			validate: async () => true,
-			release: async () => {},
-		}
-		const request = {
-			settlementId: 'settlement',
-			attempt: 1,
-			offerDigest: 'a'.repeat(64),
-			walletIdentity: PARTY_A,
-			providerInstanceId: 'provider',
-			expiresAt: EXPIRES,
-			outpoints: [`${'a'.repeat(64)}_0`],
-		}
-		expect(
-			(await reserveSettlementInputs(adapter, request, NOW)).reservationId,
-		).toBe('lease')
-		changed = true
-		await expect(
-			reserveSettlementInputs(adapter, request, NOW),
-		).rejects.toThrow('changed request binding')
 	})
 })
 
@@ -565,6 +520,7 @@ describe('atomic settlement templates', () => {
 			now: NOW,
 			maxEvidenceAgeMs: MAX_AGE,
 		})
+		expect(template.templateHash).toBe(template.manifest.unsignedTxHash)
 		expect(
 			template.manifest.inputs.filter((input) => input.purpose === 'bsv21'),
 		).toHaveLength(2)
@@ -645,7 +601,6 @@ describe('atomic settlement templates', () => {
 					amount: '1',
 				}),
 			)
-		rehashPlanContributions(badPlan)
 		expect(() =>
 			validateSettlementPlan(badPlan, { now: NOW, maxEvidenceAgeMs: MAX_AGE }),
 		).toThrow('unagreed asset input')
@@ -657,7 +612,6 @@ describe('atomic settlement templates', () => {
 		change.lockingScript = BSV21.transfer(TOKEN_1, 14n)
 			.lock(new P2PKH().lock(KEY_B.toAddress()))
 			.toHex()
-		rehashPlanContributions(imbalanced)
 		expect(() =>
 			validateSettlementPlan(imbalanced, {
 				now: NOW,
@@ -674,7 +628,6 @@ describe('atomic settlement templates', () => {
 			unspent: 'false',
 			statusCheckedAt: 'not-a-number',
 		})
-		rehashPlanContributions(fixture.plan)
 		expect(() =>
 			validateSettlementPlan(fixture.plan, {
 				now: NOW,
@@ -687,7 +640,6 @@ describe('atomic settlement templates', () => {
 			unspent: true,
 			statusCheckedAt: 'not-a-number',
 		})
-		rehashPlanContributions(fixture.plan)
 		expect(() =>
 			validateSettlementPlan(fixture.plan, {
 				now: NOW,
@@ -721,48 +673,6 @@ describe('atomic settlement templates', () => {
 		).toThrow('ordinal sat')
 	})
 
-	test('builds BRC-100-compatible exact per-owner preimages with only SIGHASH_ALL|FORKID', () => {
-		const fixture = mixedFixture()
-		const beef = signableBeef(
-			[fixture.ordinal, fixture.token75, fixture.token40],
-			fixture.outputs,
-			{ change: 90 },
-		)
-		const template = reconstructSettlementTemplate(fixture.plan, beef, {
-			now: NOW,
-			maxEvidenceAgeMs: MAX_AGE,
-		})
-		const request = createSettlementSigningRequest(
-			fixture.plan,
-			template,
-			PARTY_B,
-			{
-				now: NOW,
-				maxEvidenceAgeMs: MAX_AGE,
-				authorizationExpiresAt: NOW + 30_000,
-			},
-		)
-		expect(request.inputs).toHaveLength(2)
-		expect(
-			request.inputs.every(
-				(input) => input.sighashScope === SETTLEMENT_SIGHASH_SCOPE,
-			),
-		).toBe(true)
-		expect(request.inputs.map((input) => input.inputIndex)).toEqual([1, 2])
-		expect(request.inputs.every((input) => input.preimage.length > 100)).toBe(
-			true,
-		)
-		const substituted = structuredClone(template)
-		substituted.manifest.outputs[0].satoshis = '2'
-		expect(() =>
-			createSettlementSigningRequest(fixture.plan, substituted, PARTY_B, {
-				now: NOW,
-				maxEvidenceAgeMs: MAX_AGE,
-				authorizationExpiresAt: NOW + 30_000,
-			}),
-		).toThrow('template substitution')
-	})
-
 	test('signs and locally verifies each owner input before the builder finalizes', async () => {
 		const fixture = mixedFixture()
 		const beef = signableBeef(
@@ -789,37 +699,36 @@ describe('atomic settlement templates', () => {
 					publicKey: Utils.toHex(key.toPublicKey().encode(true) as number[]),
 				}),
 			}) as WalletInterface
-		const authorize = async (owner: string, key: PrivateKey) => {
-			const request = createSettlementSigningRequest(
+		const authorize = async (
+			owner: string,
+			key: PrivateKey,
+			templateToAuthorize = template,
+		) => {
+			return authorizeSettlementInputs(
+				walletFor(key),
 				fixture.plan,
-				template,
+				templateToAuthorize,
 				owner,
+				template.manifest.inputs
+					.filter((input) => input.owner === owner)
+					.map((input) => ({
+						inputIndex: input.index,
+						protocolID: [2, '1sat settlement'],
+						keyID: 'fixture',
+					})),
 				{
 					now: NOW,
 					maxEvidenceAgeMs: MAX_AGE,
 					authorizationExpiresAt: NOW + 30_000,
 				},
 			)
-			return authorizeSettlementInputs(
-				walletFor(key),
-				fixture.plan,
-				template,
-				request,
-				request.inputs.map((input) => ({
-					inputIndex: input.inputIndex,
-					protocolID: [2, '1sat settlement'],
-					keyID: 'fixture',
-					template: 'p2pkh',
-				})),
-				{ now: NOW, maxEvidenceAgeMs: MAX_AGE },
-			)
 		}
 		const authorizations = await Promise.all([
 			authorize(PARTY_A, KEY_A),
 			authorize(PARTY_B, KEY_B),
 		])
-		expect(authorizations[0].authorizedInputs).toHaveLength(1)
-		expect(authorizations[1].authorizedInputs).toHaveLength(2)
+		expect(Object.keys(authorizations[0].spends)).toHaveLength(1)
+		expect(Object.keys(authorizations[1].spends)).toHaveLength(2)
 		let finalizedSpends = 0
 		const builder = {
 			signAction: async (args: { spends?: Record<number, unknown> }) => {
@@ -845,39 +754,17 @@ describe('atomic settlement templates', () => {
 		expect(result.txid).toBe('f'.repeat(64))
 		expect(finalizedSpends).toBe(3)
 
-		const requestWithUnknownField = createSettlementSigningRequest(
-			fixture.plan,
-			template,
-			PARTY_A,
-			{
-				now: NOW,
-				maxEvidenceAgeMs: MAX_AGE,
-				authorizationExpiresAt: NOW + 30_000,
-			},
-		)
-		;(
-			requestWithUnknownField as unknown as Record<string, unknown>
-		).unexpected = true
+		const substitutedTemplate = structuredClone(template)
+		substitutedTemplate.manifest.outputs[0].satoshis = '2'
 		await expect(
-			authorizeSettlementInputs(
-				walletFor(KEY_A),
-				fixture.plan,
-				template,
-				requestWithUnknownField,
-				requestWithUnknownField.inputs.map((input) => ({
-					inputIndex: input.inputIndex,
-					protocolID: [2, '1sat settlement'],
-					keyID: 'fixture',
-					template: 'p2pkh',
-				})),
-				{ now: NOW, maxEvidenceAgeMs: MAX_AGE },
-			),
-		).rejects.toThrow('unknown field')
+			authorize(PARTY_A, KEY_A, substitutedTemplate),
+		).rejects.toThrow('template substitution')
 
 		const duplicatedAuthorization = structuredClone(authorizations)
-		duplicatedAuthorization[0].authorizedInputs.push(
-			duplicatedAuthorization[0].authorizedInputs[0],
-		)
+		duplicatedAuthorization[0].spends[999] = {
+			unlockingScript: Object.values(duplicatedAuthorization[0].spends)[0]
+				.unlockingScript,
+		}
 		await expect(
 			finalizeSettlementAction(
 				builder,
@@ -1087,90 +974,5 @@ describe('ordinal-only and BSV21-only modes', () => {
 			`${TOKEN_2}:9`,
 			`${TOKEN_2}:3`,
 		])
-	})
-})
-
-describe('replay guard', () => {
-	test('is idempotent for exact bytes and rejects changed bytes under the same binding', async () => {
-		const store = new InMemorySettlementReplayStore()
-		expect(
-			await recordSettlementArtifact(
-				store,
-				'attempt:1',
-				{ hash: 'a' },
-				EXPIRES,
-				NOW,
-			),
-		).toBe(true)
-		expect(
-			await recordSettlementArtifact(
-				store,
-				'attempt:1',
-				{ hash: 'a' },
-				EXPIRES,
-				NOW,
-			),
-		).toBe(false)
-		await expect(
-			recordSettlementArtifact(store, 'attempt:1', { hash: 'b' }, EXPIRES, NOW),
-		).rejects.toThrow('different artifact')
-	})
-
-	test('atomically rejects concurrent conflicting artifacts', async () => {
-		const store = new InMemorySettlementReplayStore()
-		const results = await Promise.allSettled([
-			recordSettlementArtifact(store, 'attempt:1', { hash: 'a' }, EXPIRES, NOW),
-			recordSettlementArtifact(store, 'attempt:1', { hash: 'b' }, EXPIRES, NOW),
-		])
-		expect(
-			results.filter((result) => result.status === 'fulfilled'),
-		).toHaveLength(1)
-		expect(
-			results.filter((result) => result.status === 'rejected'),
-		).toHaveLength(1)
-	})
-
-	test('keeps identical concurrent artifacts idempotent and replaces expired records', async () => {
-		const store = new InMemorySettlementReplayStore()
-		expect(
-			await Promise.all([
-				recordSettlementArtifact(
-					store,
-					'attempt:1',
-					{ hash: 'a' },
-					EXPIRES,
-					NOW,
-				),
-				recordSettlementArtifact(
-					store,
-					'attempt:1',
-					{ hash: 'a' },
-					EXPIRES,
-					NOW,
-				),
-			]),
-		).toEqual([true, false])
-		expect(
-			await recordSettlementArtifact(
-				store,
-				'attempt:1',
-				{ hash: 'b' },
-				EXPIRES + 1,
-				EXPIRES,
-			),
-		).toBe(true)
-	})
-
-	test('rejects an invalid replay clock before consulting the store', async () => {
-		const store = new InMemorySettlementReplayStore()
-		await expect(
-			recordSettlementArtifact(
-				store,
-				'attempt:1',
-				{ hash: 'a' },
-				EXPIRES,
-				Number.NaN,
-			),
-		).rejects.toThrow('expected nonnegative safe integer')
 	})
 })

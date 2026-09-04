@@ -1,24 +1,24 @@
 # Atomic settlement primitives
 
-The settlement exports from `@1sat/actions` implement the transaction-construction boundary for
-wire version 1 of `1sat-p2p-settlement`. It supports ordinal-only, BSV21-only,
-and mixed two-party swaps in one Bitcoin transaction.
+The settlement exports from `@1sat/actions` implement the transaction boundary
+for draft BRC-178. They support ordinal-only, BSV21-only, and mixed two-party
+swaps in one Bitcoin transaction.
 
 ## Flow
 
 1. Canonicalize and validate the mutually locked offer with
    `lockedOfferDigest`.
-2. Select active BSV21 transfer tips with `selectBsv21Tips`, then acquire a
-   provider-bound lease through `reserveSettlementInputs`.
-3. Supply both verified contributions, source AtomicBEEFs, receiver-controlled
+2. Select active BSV21 transfer tips with `selectBsv21Tips`.
+3. Supply both contributions, source AtomicBEEFs, receiver-controlled
    destinations, and fresh per-token overlay policies in a `SettlementPlanV1`.
 4. The fixed builder calls `prepareSettlementAction`. Its wallet funds a
    `createAction({ signAndProcess: false, randomizeOutputs: false })`; the
    returned reference remains in `BuilderLocalSettlementActionV1` and must
    never be relayed or persisted by the coordinator.
-5. Each owner calls `createSettlementSigningRequest` and
-   `authorizeSettlementInputs` in its own wallet process. The request contains
-   exact BIP-143 preimages and permits only `SIGHASH_ALL | SIGHASH_FORKID`.
+5. Each owner reviews the reconstructed template and calls
+   `authorizeSettlementInputs` in its own wallet process. The existing ordinal
+   signing helper chooses P2PKH or PushDrop from the source script and uses only
+   `SIGHASH_ALL | SIGHASH_FORKID`.
 6. The builder combines both locally verified authorizations with
    `finalizeSettlementAction`, which calls `signAction` for the fixed action.
 
@@ -34,17 +34,13 @@ per token ID, change is exact, and overlay fees are committed per token.
 
 - Inventory uses the ordinary `1sat` and `bsv21` baskets. Settlement does not
   depend on a permission-module dispatch basket.
-- The SDK exposes a durable reservation adapter contract but does not pretend a
-  local lease is a global UTXO lock.
-- Replay-store adapters must implement `putIfAbsentOrSame` as one atomic
-  operation. Durable, cross-process namespace and persistence remain caller
-  responsibilities.
-- Signed coordinator envelopes, nonces, state transitions, broadcast leases,
-  evidence recovery, and idempotent wallet internalization are separate layers.
-- A destination is accepted only after the caller marks its ownership proof as
-  verified. Provider integrations must verify the wallet signature or regenerate
-  the destination before constructing the plan.
-- Any attempt rebuild requires a new attempt number, destinations, reservations,
-  wallet action, and signatures. Do not patch a template in place.
+- Presence, offer transport, signed coordinator envelopes, nonces, reservation
+  policy, state transitions, recovery, and wallet internalization are application
+  responsibilities rather than SDK wire primitives.
+- Receiver-controlled destinations are committed by the final transaction
+  signature. Applications still need to obtain those destinations from the
+  intended wallet; the SDK does not accept a caller-supplied "verified" boolean.
+- Any attempt rebuild requires a new attempt number, wallet action, final
+  template review, and signatures. Do not patch a template in place.
 
 The conformance vectors live in `packages/actions/test/settlement.test.ts`.

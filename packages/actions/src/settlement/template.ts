@@ -12,7 +12,7 @@ import {
 	Utils,
 	type WalletInterface,
 } from '@bsv/sdk'
-import { digestSettlementObject, hashSettlementBytes } from './canonical.js'
+import { hashSettlementBytes } from './canonical.js'
 import type {
 	BuilderLocalSettlementActionV1,
 	ManifestOutputPurpose,
@@ -26,7 +26,12 @@ import type {
 	TemplateManifestV1,
 	TemplateOverlayPolicyV1,
 } from './types.js'
-import { SETTLEMENT_PROTOCOL, SETTLEMENT_VERSION } from './types.js'
+import {
+	MAX_SETTLEMENT_BEEF_BYTES,
+	MAX_SETTLEMENT_OUTPUTS,
+	SETTLEMENT_PROTOCOL,
+	SETTLEMENT_VERSION,
+} from './types.js'
 import {
 	assertHex64,
 	assertSettlementOutpoint,
@@ -555,6 +560,9 @@ export function reconstructSettlementTemplate(
 	options: { now?: number; maxEvidenceAgeMs: number },
 ): SettlementTemplateV1 {
 	const now = options.now ?? Date.now()
+	if (signableBeef.length > MAX_SETTLEMENT_BEEF_BYTES) {
+		throw new Error('settlement-template: signable BEEF exceeds size limit')
+	}
 	validateSettlementPlan(plan, {
 		now,
 		maxEvidenceAgeMs: options.maxEvidenceAgeMs,
@@ -571,15 +579,20 @@ export function reconstructSettlementTemplate(
 		throw new Error(
 			'settlement-template: cannot reconstruct signable transaction',
 		)
+	if (
+		tx.inputs.length > MAX_SETTLEMENT_OUTPUTS ||
+		tx.outputs.length > MAX_SETTLEMENT_OUTPUTS
+	) {
+		throw new Error('settlement-template: transaction exceeds entry limit')
+	}
 	const expected = expectedOutputs(plan, now, options.maxEvidenceAgeMs)
 	const manifest = reconstructManifest(plan, tx, expected)
 	return {
 		manifest,
-		templateHash: digestSettlementObject(manifest),
+		// BRC-178 binds authorization directly to the unsigned transaction.
+		// The manifest is derived review data, not a second wire commitment.
+		templateHash: manifest.unsignedTxHash,
 		signableBeefHash: hashSettlementBytes(signableBeef),
-		contributionHashes: plan.contributions.map(
-			(contribution) => contribution.contributionHash,
-		) as [string, string],
 		signableBeef: Array.from(signableBeef),
 	}
 }

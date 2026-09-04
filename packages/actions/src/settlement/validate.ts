@@ -9,6 +9,10 @@ import type {
 } from './types.js'
 import {
 	MAX_BSV21_AMOUNT,
+	MAX_SETTLEMENT_ASSET_INPUTS,
+	MAX_SETTLEMENT_BEEF_BYTES,
+	MAX_SETTLEMENT_OUTPUTS,
+	MAX_SETTLEMENT_SCRIPT_BYTES,
 	SETTLEMENT_PROTOCOL,
 	SETTLEMENT_VERSION,
 } from './types.js'
@@ -163,6 +167,9 @@ export function validateLockedOffer(
 		if (!Array.isArray(ownerOffer.items) || ownerOffer.items.length === 0) {
 			throw new Error(`${context}: at least one item required`)
 		}
+		if (ownerOffer.items.length > MAX_SETTLEMENT_ASSET_INPUTS) {
+			throw new Error(`${context}: too many asset items`)
+		}
 		const ownerTokenIds = new Set<string>()
 		let ownerBsv = false
 		for (const [itemIndex, item] of ownerOffer.items.entries()) {
@@ -197,12 +204,6 @@ export function lockedOfferDigest(
 	now = Date.now(),
 ): string {
 	return digestSettlementObject(validateLockedOffer(offer, now))
-}
-
-export function settlementContributionDigest(
-	contribution: Omit<SettlementContributionV1, 'contributionHash'>,
-): string {
-	return digestSettlementObject(contribution)
 }
 
 export function selectBsv21Tips(
@@ -304,15 +305,7 @@ function validateContribution(
 ): void {
 	assertExactKeys(
 		contribution as unknown as Record<string, unknown>,
-		[
-			'owner',
-			'offerDigest',
-			'reservationId',
-			'reservationExpiresAt',
-			'inputs',
-			'destinations',
-			'contributionHash',
-		],
+		['owner', 'offerDigest', 'inputs', 'destinations'],
 		[],
 		'contribution',
 	)
@@ -321,24 +314,6 @@ function validateContribution(
 	}
 	if (contribution.offerDigest !== plan.offerDigest) {
 		throw new Error('settlementPlan: contribution offer digest mismatch')
-	}
-	if (!contribution.reservationId)
-		throw new Error('settlementPlan: empty reservation ID')
-	assertHex64(contribution.contributionHash, 'contribution.contributionHash')
-	const { contributionHash: _claimedHash, ...committedContribution } =
-		contribution
-	if (
-		settlementContributionDigest(committedContribution) !==
-		contribution.contributionHash
-	) {
-		throw new Error('settlementPlan: contribution hash mismatch')
-	}
-	assertSafeTime(
-		contribution.reservationExpiresAt,
-		'contribution.reservationExpiresAt',
-	)
-	if (contribution.reservationExpiresAt <= now) {
-		throw new Error('settlementPlan: reservation expired')
 	}
 	const outpoints = new Set<string>()
 	for (const input of contribution.inputs) {
@@ -404,15 +379,7 @@ function validateContribution(
 	for (const destination of contribution.destinations) {
 		assertExactKeys(
 			destination as unknown as Record<string, unknown>,
-			[
-				'legIndex',
-				'owner',
-				'purpose',
-				'lockingScript',
-				'satoshis',
-				'destinationProof',
-				'destinationVerified',
-			],
+			['legIndex', 'owner', 'purpose', 'lockingScript', 'satoshis'],
 			['tokenId', 'tokenAmount', 'sourceOrdinal'],
 			'contribution.destination',
 		)
@@ -422,17 +389,14 @@ function validateContribution(
 		) {
 			throw new Error('settlementPlan: invalid destination leg index')
 		}
-		if (!destination.destinationProof) {
-			throw new Error('settlementPlan: missing destination proof')
-		}
-		if (!destination.destinationVerified) {
-			throw new Error('settlementPlan: unverified destination')
-		}
 		if (!plan.lockedOffer.parties.includes(destination.owner)) {
 			throw new Error('settlementPlan: destination owner substitution')
 		}
 		if (!LOWER_HEX.test(destination.lockingScript)) {
 			throw new Error('settlementPlan: malformed destination script')
+		}
+		if (destination.lockingScript.length / 2 > MAX_SETTLEMENT_SCRIPT_BYTES) {
+			throw new Error('settlementPlan: destination script exceeds size limit')
 		}
 		parseSettlementAmount(destination.satoshis, 'destination.satoshis', {
 			max: BigInt(Number.MAX_SAFE_INTEGER),
@@ -504,12 +468,33 @@ export function validateSettlementPlan(
 	if (plan.contributions.length !== 2) {
 		throw new Error('settlementPlan: exactly two contributions required')
 	}
+	const inputCount = plan.contributions.reduce(
+		(total, contribution) => total + contribution.inputs.length,
+		0,
+	)
+	const destinationCount = plan.contributions.reduce(
+		(total, contribution) => total + contribution.destinations.length,
+		0,
+	)
+	if (inputCount > MAX_SETTLEMENT_ASSET_INPUTS) {
+		throw new Error('settlementPlan: too many asset inputs')
+	}
+	if (destinationCount > MAX_SETTLEMENT_OUTPUTS) {
+		throw new Error('settlementPlan: too many destinations')
+	}
+	if (plan.overlayPolicies.length > MAX_SETTLEMENT_ASSET_INPUTS) {
+		throw new Error('settlementPlan: too many overlay policies')
+	}
+	if (plan.sourceBEEFs.length > MAX_SETTLEMENT_ASSET_INPUTS) {
+		throw new Error('settlementPlan: too many source BEEFs')
+	}
 	if (plan.contributions[0].owner >= plan.contributions[1].owner) {
 		throw new Error('settlementPlan: contributions must be sorted by owner')
 	}
 	for (const contribution of plan.contributions) {
 		validateContribution(contribution, plan, now, options.maxEvidenceAgeMs)
 	}
+	let totalSourceBeefBytes = 0
 	for (const [index, source] of plan.sourceBEEFs.entries()) {
 		assertExactKeys(
 			source as unknown as Record<string, unknown>,
@@ -520,6 +505,13 @@ export function validateSettlementPlan(
 		assertHex64(source.hash, `sourceBEEFs[${index}].hash`)
 		if (!Array.isArray(source.beef) || source.beef.length === 0) {
 			throw new Error('settlementPlan: empty source BEEF')
+		}
+		if (source.beef.length > MAX_SETTLEMENT_BEEF_BYTES) {
+			throw new Error('settlementPlan: source BEEF exceeds size limit')
+		}
+		totalSourceBeefBytes += source.beef.length
+		if (totalSourceBeefBytes > MAX_SETTLEMENT_BEEF_BYTES) {
+			throw new Error('settlementPlan: source BEEFs exceed size limit')
 		}
 	}
 	for (const [index, policy] of plan.overlayPolicies.entries()) {

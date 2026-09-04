@@ -4,10 +4,15 @@ import type {
 	WalletProtocol,
 } from '@bsv/sdk'
 
-export const SETTLEMENT_PROTOCOL = '1sat-p2p-settlement' as const
+/** Provisional profile name from draft BRC-178. Recheck the number before merge. */
+export const SETTLEMENT_PROTOCOL = 'brc-178' as const
 export const SETTLEMENT_VERSION = 1 as const
 export const SETTLEMENT_SIGHASH_SCOPE = 0x41 as const
 export const MAX_BSV21_AMOUNT = 18_446_744_073_709_551_615n
+export const MAX_SETTLEMENT_ASSET_INPUTS = 256
+export const MAX_SETTLEMENT_OUTPUTS = 512
+export const MAX_SETTLEMENT_BEEF_BYTES = 16 * 1024 * 1024
+export const MAX_SETTLEMENT_SCRIPT_BYTES = 100_000
 
 export type SettlementChain = 'main' | 'test'
 export type SettlementIdentity = string
@@ -80,8 +85,6 @@ export interface SettlementDestinationV1 {
 	tokenId?: string
 	tokenAmount?: string
 	sourceOrdinal?: string
-	destinationProof: string
-	destinationVerified: boolean
 }
 
 export interface OverlayPolicyV1 {
@@ -95,11 +98,8 @@ export interface OverlayPolicyV1 {
 export interface SettlementContributionV1 {
 	owner: SettlementIdentity
 	offerDigest: string
-	reservationId: string
-	reservationExpiresAt: number
 	inputs: SettlementAssetInputV1[]
 	destinations: SettlementDestinationV1[]
-	contributionHash: string
 }
 
 export interface SettlementPlanV1 {
@@ -172,7 +172,6 @@ export interface SettlementTemplateV1 {
 	manifest: TemplateManifestV1
 	templateHash: string
 	signableBeefHash: string
-	contributionHashes: [string, string]
 	signableBeef: number[]
 }
 
@@ -182,86 +181,16 @@ export interface BuilderLocalSettlementActionV1 {
 	template: SettlementTemplateV1
 }
 
-export interface SettlementReservationRequestV1 {
-	settlementId: string
-	attempt: number
-	offerDigest: string
-	walletIdentity: string
-	providerInstanceId: string
-	expiresAt: number
-	outpoints: string[]
-}
-
-export interface SettlementReservationLeaseV1 {
-	reservationId: string
-	request: SettlementReservationRequestV1
-	expiresAt: number
-}
-
-export interface SettlementReservationAdapter {
-	reserve(
-		request: SettlementReservationRequestV1,
-	): Promise<SettlementReservationLeaseV1>
-	validate(lease: SettlementReservationLeaseV1): Promise<boolean>
-	release(lease: SettlementReservationLeaseV1): Promise<void>
-}
-
 export interface SettlementSigningMetadataV1 {
 	inputIndex: number
 	protocolID: WalletProtocol
 	keyID: string
 	counterparty?: WalletCounterparty
-	template: 'p2pkh' | 'pushdrop'
-}
-
-export interface SettlementSigningInputV1 {
-	inputIndex: number
-	outpoint: string
-	preimage: number[]
-	sighash: number[]
-	sighashScope: typeof SETTLEMENT_SIGHASH_SCOPE
-}
-
-export interface SettlementSigningRequestV1 {
-	protocol: typeof SETTLEMENT_PROTOCOL
-	version: typeof SETTLEMENT_VERSION
-	chain: SettlementChain
-	sessionId: string
-	settlementId: string
-	attempt: number
-	offerDigest: string
-	templateHash: string
-	contributionHash: string
-	owner: SettlementIdentity
-	authorizationExpiresAt: number
-	inputs: SettlementSigningInputV1[]
 }
 
 export interface SettlementAuthorizationV1 {
-	offerDigest: string
 	templateHash: string
-	contributionHash: string
 	owner: SettlementIdentity
-	authorizedInputs: Array<{
-		inputIndex: number
-		unlockingScriptHash: string
-	}>
 	authorizationExpiresAt: number
 	spends: Record<number, { unlockingScript: string }>
-}
-
-export interface ReplayRecordV1 {
-	key: string
-	digest: string
-	expiresAt: number
-}
-
-export type SettlementReplayStoreResult = 'stored' | 'unchanged' | 'conflict'
-
-export interface SettlementReplayStore {
-	/** Atomically insert, replace an expired record, or compare a live digest. */
-	putIfAbsentOrSame(
-		record: ReplayRecordV1,
-		now: number,
-	): Promise<SettlementReplayStoreResult>
 }

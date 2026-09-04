@@ -1,6 +1,5 @@
 export * from './types.js'
 export * from './canonical.js'
 export * from './validate.js'
-export * from './reservation.js'
 export * from './template.js'
 export * from './signing.js'
