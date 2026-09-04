@@ -18,6 +18,7 @@ import type {
 	SettlementSigningMetadataV1,
 	SettlementTemplateV1,
 } from './types.js'
+import { validateSettlementPlan } from './validate.js'
 
 /** Settlement supports the single-signature PushDrop and P2PKH unlock forms. */
 function assertSettlementSignature(unlockingScript: string): void {
@@ -154,6 +155,10 @@ export async function authorizeSettlementInputs(
 		if (!metadataForInput) {
 			throw new Error('settlement-signing: missing local signing metadata')
 		}
+		validateSettlementPlan(plan, {
+			now: options.now ?? Date.now(),
+			maxEvidenceAgeMs: options.maxEvidenceAgeMs,
+		})
 		const unlockingScript = await signOrdinalInput(
 			context,
 			tx,
@@ -167,6 +172,10 @@ export async function authorizeSettlementInputs(
 		if (typeof unlockingScript !== 'string') {
 			throw new Error(`settlement-signing: ${unlockingScript.error}`)
 		}
+		validateSettlementPlan(plan, {
+			now: options.now ?? Date.now(),
+			maxEvidenceAgeMs: options.maxEvidenceAgeMs,
+		})
 		assertSettlementSignature(unlockingScript)
 		assertValidInputUnlock(tx, input.index, unlockingScript)
 		spends[input.index] = { unlockingScript }

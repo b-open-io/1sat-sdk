@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Added
+- Revision-bound trade sessions with reversible readiness, edit resets, attempt
+  binding, and conservative signature/broadcast recovery states.
+- Confirmed-trade wrappers enforce frozen offers and fee ceilings, require a
+  wallet-local evidence verifier, and keep local action references off the wire.
 - Atomic two-party settlement primitives for 1Sat Ordinal NFTs, BSV21, and
   mixed swaps.
 - Deterministic BSV21 selection, final funded-transaction reconstruction,

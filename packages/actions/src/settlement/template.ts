@@ -10,6 +10,7 @@ import {
 	Utils,
 	type WalletInterface,
 } from '@bsv/sdk'
+import { createTrackedAction } from '../utils/createTrackedAction.js'
 import { hashSettlementBytes } from './canonical.js'
 import type {
 	BuilderLocalSettlementActionV1,
@@ -592,7 +593,7 @@ export async function prepareSettlementAction(
 		satoshis: Number(output.satoshis),
 		outputDescription: `Atomic settlement ${output.purpose}`,
 	}))
-	const createResult = await wallet.createAction({
+	const createResult = await createTrackedAction(wallet, {
 		description: 'Atomic two-party settlement',
 		inputs: createInputs,
 		inputBEEF: sourceBeef.toBinary(),
@@ -610,7 +611,7 @@ export async function prepareSettlementAction(
 			plan,
 			Array.from(signable.tx),
 			{
-				now,
+				now: options.now ?? Date.now(),
 				maxEvidenceAgeMs: options.maxEvidenceAgeMs,
 			},
 		)

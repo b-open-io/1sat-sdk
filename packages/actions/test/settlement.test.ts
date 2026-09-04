@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, spyOn, test } from 'bun:test'
 import { BSV21, Inscription } from '@1sat/templates'
 import {
 	Beef,
@@ -24,12 +24,18 @@ import {
 	type SettlementDestinationV1,
 	type SettlementOfferV1,
 	type SettlementPlanV1,
+	advanceSettlementAttempt,
+	authorizeConfirmedSettlement,
 	authorizeSettlementInputs,
+	createSettlementSession,
+	finalizeConfirmedSettlement,
 	finalizeSettlementAction,
 	hashSettlementBytes,
+	prepareConfirmedSettlement,
 	prepareSettlementAction,
 	reconstructSettlementTemplate,
 	selectBsv21Tips,
+	updateSettlementSession,
 	validateSettlementPlan,
 } from '../src/settlement'
 import { assertValidInputUnlock } from '../src/utils/verifyInputUnlock.js'
@@ -1371,4 +1377,322 @@ describe('settlement review regressions', () => {
 		expect(result.error).toBeUndefined()
 		expect(finalized).toBe(true)
 	})
+})
+
+describe('confirmed settlement workflow', () => {
+	function setup() {
+		const fixture = mixedFixture()
+		let state = createSettlementSession({
+			id: 'confirmed-flow',
+			parties: PARTIES,
+			chain: fixture.plan.chain,
+			builder: fixture.plan.builder,
+			maxMiningFeeSatoshis: '10',
+			maxOverlayFeeSatoshis: '6',
+		})
+		for (const offer of fixture.plan.offers)
+			state = updateSettlementSession(
+				state,
+				{
+					sessionId: state.id,
+					actor: offer.owner,
+					revision: state.revision,
+					sequence: 1,
+					kind: 'edit',
+					items: offer.items,
+				},
+				offer.owner,
+			).state
+		for (const owner of PARTIES)
+			state = updateSettlementSession(
+				state,
+				{
+					sessionId: state.id,
+					actor: owner,
+					revision: state.revision,
+					sequence: 2,
+					kind: 'ready',
+					ready: true,
+				},
+				owner,
+			).state
+		const beef = signableBeef(
+			[fixture.ordinal, fixture.token75, fixture.token40],
+			fixture.outputs,
+			{ change: 90 },
+		)
+		const calls = { create: 0, abort: 0, sign: 0, verify: 0 }
+		const wallet = {
+			createAction: async () => {
+				calls.create++
+				return {
+					signableTransaction: { reference: 'confirmed-local', tx: beef },
+				}
+			},
+			abortAction: async () => {
+				calls.abort++
+				return { aborted: true }
+			},
+			signAction: async () => {
+				calls.sign++
+				return { txid: 'f'.repeat(64) }
+			},
+		} as WalletInterface
+		const options = {
+			now: NOW,
+			maxEvidenceAgeMs: MAX_AGE,
+			verifyEvidence: async () => {
+				calls.verify++
+			},
+		}
+		return { fixture, state, calls, wallet, options }
+	}
+	test('prepares, verifies, authorizes both owners, and finalizes frozen terms', async () => {
+		const c = setup()
+		const prepared = await prepareConfirmedSettlement(
+			c.wallet,
+			c.state,
+			c.fixture.plan,
+			c.options,
+		)
+		expect(Object.keys(prepared.candidate)).not.toContain('reference')
+		const metadata = (owner: string) =>
+			prepared.candidate.template.manifest.inputs
+				.filter((i) => i.owner === owner)
+				.map((i) => ({
+					inputIndex: i.index,
+					protocolID: [2, '1sat settlement'] as [2, string],
+					keyID: 'fixture',
+				}))
+		await expect(
+			authorizeConfirmedSettlement(
+				signingWallet(KEY_A),
+				c.state,
+				c.fixture.plan,
+				prepared.candidate,
+				PARTY_A,
+				metadata(PARTY_A),
+				c.options,
+			),
+		).rejects.toThrow('signing-started')
+		c.state = advanceSettlementAttempt(c.state, {
+			sessionId: c.state.id,
+			attempt: c.state.attempt,
+			kind: 'signing-started',
+		})
+		const a = await authorizeConfirmedSettlement(
+			signingWallet(KEY_A),
+			c.state,
+			c.fixture.plan,
+			prepared.candidate,
+			PARTY_A,
+			metadata(PARTY_A),
+			c.options,
+		)
+		const b = await authorizeConfirmedSettlement(
+			signingWallet(KEY_B),
+			c.state,
+			c.fixture.plan,
+			prepared.candidate,
+			PARTY_B,
+			metadata(PARTY_B),
+			c.options,
+		)
+		const result = await finalizeConfirmedSettlement(
+			c.wallet,
+			c.state,
+			c.fixture.plan,
+			prepared,
+			[a, b],
+			c.options,
+		)
+		expect(result.error).toBeUndefined()
+		expect(c.calls).toEqual({ create: 1, abort: 0, sign: 1, verify: 5 })
+	})
+	test('rejects unconfirmed or changed terms and verifier failure before allocation', async () => {
+		const c = setup()
+		await expect(
+			prepareConfirmedSettlement(
+				c.wallet,
+				{ ...c.state, phase: 'negotiating' },
+				c.fixture.plan,
+				c.options,
+			),
+		).rejects.toThrow('confirmed')
+		const changed = structuredClone(c.fixture.plan)
+		changed.offers[0].items = []
+		await expect(
+			prepareConfirmedSettlement(c.wallet, c.state, changed, c.options),
+		).rejects.toThrow('confirmed terms')
+		await expect(
+			prepareConfirmedSettlement(c.wallet, c.state, c.fixture.plan, {
+				...c.options,
+				verifyEvidence: async () => {
+					throw new Error('lineage unproven')
+				},
+			}),
+		).rejects.toThrow('lineage unproven')
+		await expect(
+			prepareConfirmedSettlement(c.wallet, c.state, c.fixture.plan, {
+				...c.options,
+				verifyEvidence: undefined as never,
+			}),
+		).rejects.toThrow('verifier required')
+		await expect(
+			prepareConfirmedSettlement(
+				c.wallet,
+				{ ...c.state, signingStarted: true },
+				c.fixture.plan,
+				c.options,
+			),
+		).rejects.toThrow('cannot rebuild')
+		expect(c.calls.create).toBe(0)
+	})
+	for (const limit of [
+		'maxMiningFeeSatoshis',
+		'maxOverlayFeeSatoshis',
+	] as const)
+		test(`aborts funded candidate over ${limit}`, async () => {
+			const c = setup()
+			await expect(
+				prepareConfirmedSettlement(
+					c.wallet,
+					{ ...c.state, [limit]: '0' },
+					c.fixture.plan,
+					c.options,
+				),
+			).rejects.toThrow('fee exceeds')
+			expect(c.calls.create).toBe(1)
+			expect(c.calls.abort).toBe(1)
+			expect(c.calls.sign).toBe(0)
+		})
+	test('rejects another attempt and re-verifies evidence before releasing a signature', async () => {
+		const c = setup()
+		const prepared = await prepareConfirmedSettlement(
+			c.wallet,
+			c.state,
+			c.fixture.plan,
+			c.options,
+		)
+		c.state = advanceSettlementAttempt(c.state, {
+			sessionId: c.state.id,
+			attempt: c.state.attempt,
+			kind: 'signing-started',
+		})
+		await expect(
+			authorizeConfirmedSettlement(
+				signingWallet(KEY_A),
+				c.state,
+				c.fixture.plan,
+				{ ...prepared.candidate, attempt: 99 },
+				PARTY_A,
+				[],
+				c.options,
+			),
+		).rejects.toThrow('another attempt')
+		await expect(
+			authorizeConfirmedSettlement(
+				signingWallet(KEY_A),
+				c.state,
+				c.fixture.plan,
+				prepared.candidate,
+				PARTY_A,
+				[],
+				{
+					...c.options,
+					verifyEvidence: async () => {
+						throw new Error('spent input')
+					},
+				},
+			),
+		).rejects.toThrow('spent input')
+		expect(c.calls.sign).toBe(0)
+	})
+	test('rejects evidence that expires during verification', async () => {
+		const c = setup()
+		const clock = spyOn(Date, 'now').mockReturnValue(NOW)
+		try {
+			await expect(
+				prepareConfirmedSettlement(c.wallet, c.state, c.fixture.plan, {
+					maxEvidenceAgeMs: MAX_AGE,
+					verifyEvidence: async () => {
+						clock.mockReturnValue(NOW + MAX_AGE + 1)
+					},
+				}),
+			).rejects.toThrow('stale')
+			expect(c.calls.create).toBe(0)
+		} finally {
+			clock.mockRestore()
+		}
+	})
+	test('aborts if local and shared candidates differ at finalization', async () => {
+		const c = setup()
+		const prepared = await prepareConfirmedSettlement(
+			c.wallet,
+			c.state,
+			c.fixture.plan,
+			c.options,
+		)
+		c.state = advanceSettlementAttempt(c.state, {
+			sessionId: c.state.id,
+			attempt: c.state.attempt,
+			kind: 'signing-started',
+		})
+		const changed = structuredClone(prepared)
+		changed.localAction.template = structuredClone(changed.localAction.template)
+		changed.localAction.template.manifest.version++
+		await expect(
+			finalizeConfirmedSettlement(
+				c.wallet,
+				c.state,
+				c.fixture.plan,
+				changed,
+				[],
+				c.options,
+			),
+		).rejects.toThrow('local candidate substitution')
+		expect(c.calls.abort).toBe(1)
+		expect(c.calls.sign).toBe(0)
+	})
+})
+
+test('does not release an authorization when evidence expires during wallet signing', async () => {
+	const fixture = mixedFixture()
+	const beef = signableBeef(
+		[fixture.ordinal, fixture.token75, fixture.token40],
+		fixture.outputs,
+		{ change: 90 },
+	)
+	const template = reconstructSettlementTemplate(fixture.plan, beef, {
+		now: NOW,
+		maxEvidenceAgeMs: MAX_AGE,
+	})
+	const clock = spyOn(Date, 'now').mockReturnValue(NOW)
+	const wallet = signingWallet(KEY_A)
+	const sign = wallet.createSignature.bind(wallet)
+	wallet.createSignature = async (args) => {
+		const result = await sign(args)
+		clock.mockReturnValue(NOW + MAX_AGE + 1)
+		return result
+	}
+	try {
+		await expect(
+			authorizeSettlementInputs(
+				wallet,
+				fixture.plan,
+				template,
+				PARTY_A,
+				[
+					{
+						inputIndex: 0,
+						protocolID: [2, '1sat settlement'],
+						keyID: 'fixture',
+					},
+				],
+				{ maxEvidenceAgeMs: MAX_AGE },
+			),
+		).rejects.toThrow('stale')
+	} finally {
+		clock.mockRestore()
+	}
 })
