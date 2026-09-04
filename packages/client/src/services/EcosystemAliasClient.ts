@@ -248,7 +248,7 @@ function validateResponse(value: unknown): EcosystemAliasLookupOutput[] {
 	)
 	if (
 		value.type !== 'output-list' ||
-		value.result !== '' ||
+		(value.result !== undefined && value.result !== '') ||
 		(value.outputs !== null && !Array.isArray(value.outputs))
 	) {
 		throw new TypeError(

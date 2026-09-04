@@ -219,12 +219,23 @@ describe('EcosystemAliasClient output-list validation', () => {
 		])
 	})
 
+	test('accepts standard output lists without a serializer-specific result', async () => {
+		for (const outputs of [
+			[],
+			[{ beef: atomicTransaction(1).beef, outputIndex: 0 }],
+		]) {
+			const result = await mockClient({ type: 'output-list', outputs }).lookup({
+				alias: 'sigma',
+			})
+			expect(result.outputs).toHaveLength(outputs.length)
+		}
+	})
+
 	test('fails closed on malformed response envelopes', async () => {
 		const malformed = [
 			null,
 			{},
 			{ type: 'freeform', outputs: [], result: '' },
-			{ type: 'output-list', outputs: [] },
 			{ type: 'output-list', outputs: [], result: 'non-empty' },
 			{ type: 'output-list', outputs: {}, result: '' },
 			{ type: 'output-list', outputs: [], result: '', extra: true },
