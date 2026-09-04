@@ -56,15 +56,23 @@ module and registering the collection's item topic.
 ## SDK compatibility gate
 
 Before recommending a mint helper, inspect the installed `@1sat/actions`
-version or relevant source. At the time this guidance was written, the shipped
-`mintCollection` and `mintCollectionItem` actions build the one-sat inscription
-and MAP data but do not add SIGMA. Their outputs therefore do not meet the
-shipped collection overlay's admission rules.
+version or relevant source. Current `mintCollection` and `mintCollectionItem`
+build the one-sat inscription and MAP data and add SIGMA through the P1Sat
+placeholder/seal flow, so their final outputs meet the shipped collection
+overlay's admission shape.
 
-Open or proposed SDK helpers are not released APIs. In particular, do not
-recommend `mintCollectionItem({ ref })`, collection SIGMA support, generic
-BSV21 `map` / `signWithBAP` options, or `mintBsv21CollectionItem` unless those
-symbols and inputs exist in the version being used.
+`mintCollectionItem({ ref })` is supported when the action input exposes
+`ref`; it emits an `ord-fs/json` inscription with `.` pointing at the supplied
+absolute reference, optionally with a version selector. This standalone helper
+rejects `_N`: it creates no sibling content output and `_0` refers to itself.
+Lower-level multi-output ORDFS builders may use relative references when they
+create those content outputs. Collection IDs accept dot or underscore
+separators and normalize to lowercase `<txid>_<vout>`; padded, negative and
+out-of-range indexes are rejected. The emitted parent field does not prove a
+collection-origin spend; the helper's SIGMA/MAP claim is a separate path.
+Generic BSV21 `map` / `signWithBAP`
+options and `mintBsv21CollectionItem` must still be checked in the installed
+version before recommending them.
 
 For a custom mint, use the inscription flow's SIGMA support and construct the
 MAP envelope exactly as the stack expects. Verify the final transaction rather

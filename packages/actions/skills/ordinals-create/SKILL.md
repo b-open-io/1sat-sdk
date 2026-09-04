@@ -127,11 +127,10 @@ Minting creates:
 
 A collection is an ordinal inscription carrying MAP metadata with `subType="collection"`; a collection item is an inscription with `subType="collectionItem"` whose `subTypeData.collectionId` points at the parent collection's origin outpoint.
 
-> **Indexer compatibility:** the shipped `1sat-stack` collection overlay also
-> requires valid SIGMA on both roots and items. The current actions below do not
-> add SIGMA, so they create the legacy MAP shape but are not admitted by that
-> overlay. Load `../../client/skills/collections/SKILL.md` and verify the
-> installed SDK before using these helpers for an indexed collection.
+Both actions create one-satoshi inscriptions with collection MAP and a valid,
+transaction-bound SIGMA signature, matching the shipped `1sat-stack`
+collection overlay's admission shape. Load
+`../../client/skills/collections/SKILL.md` for the full indexing contract.
 
 ### Create a Collection (`mintCollection`)
 
@@ -171,13 +170,33 @@ const result = await mintCollectionItem.execute(ctx, {
   collectionId: 'collectionTxid_0', // parent collection origin outpoint
   mintNumber: 1,                     // optional
   rank: 1,                           // optional
+  rarityLabel: 'rare',               // optional free-form label
   traits: [],                        // optional CollectionItemTrait[]
   attachments: [],                   // optional CollectionItemAttachment[]
   app: '1sat-wallet',                // optional
 })
 ```
 
-`MintCollectionItemInput` requires `base64Content`, `contentType`, `name`, `collectionId`. An invalid `collectionId` format returns an error. The item embeds the parent outpoint as the inscription `parent` and tags `subType:collectionItem`, `collectionId:{collectionId}`. Returns `MintCollectionItemOutput`: `{ txid?, error? }`.
+`MintCollectionItemInput` requires `name`, `collectionId`, and exactly one
+content source:
+
+- `base64Content` plus `contentType` embeds new content.
+- `ref` creates an `ord-fs/json` body such as `{ ".": "<txid>_<vout>" }`,
+  pointing to existing content. Absolute references may include a version
+  selector such as `:-1`. This standalone helper rejects relative `_N`
+  references because it creates no sibling content outputs; `_0` would refer
+  to the item itself. Lower-level multi-output ORDFS builders can use relative
+  references when they create the corresponding content outputs.
+
+An invalid `collectionId` or ORDFS reference returns an error. The item embeds
+the collection outpoint as the inscription `parent`, carries the collection
+MAP fields, and is signed with SIGMA. The collection origin is not spent, so
+the parent field alone does not establish parent-path authorization.
+Collection IDs accept dot or underscore separators and hexadecimal txids,
+then normalize to lowercase `<txid>_<vout>` in metadata and tags. Indexes must
+be unsigned decimal uint32 values without leading zeros.
+Returns `MintCollectionItemOutput`:
+`{ txid?, error? }`.
 
 ## Requirements
 
@@ -197,9 +216,9 @@ Inscription cost depends on file size:
 
 ## Identity & Provenance
 
-For a transaction-bound authorship signature, use the inscription action's
-`signWithBAP: true` path, which produces SIGMA. AIP is a different protocol and
-does not satisfy the collection overlay's SIGMA admission requirement.
+Collection actions add SIGMA automatically. For an ordinary inscription, use
+the inscription action's `signWithBAP: true` path. AIP is a different protocol
+and does not satisfy the collection overlay's SIGMA admission requirement.
 
 ### NFTs as Subscription Tokens
 
