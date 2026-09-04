@@ -2,10 +2,12 @@ import { lockBsv, getLockData, unlockBsv, type LockData } from '@1sat/actions'
 import { useState } from 'react'
 import { card, heading, input, button, buttonDisabled, successText, errorText, label, mono } from './styles'
 import { useLog } from './LogContext'
+import { useActionFlags } from './useActionFlags'
 import { useOneSatContext } from './useActions'
 
 export function LockBsv() {
   const ctx = useOneSatContext()
+  const flags = useActionFlags()
   const { log } = useLog()
   const [lockData, setLockData] = useState<LockData | null>(null)
   const [amount, setAmount] = useState('')
@@ -41,6 +43,7 @@ export function LockBsv() {
     try {
       const res = await lockBsv.execute(ctx, {
         requests: [{ satoshis: Number(amount), until: Number(blockHeight) }],
+        ...flags,
       })
       if (res.error) throw new Error(res.error)
       setResult(res.txid ?? 'no txid')
@@ -61,7 +64,7 @@ export function LockBsv() {
     setError(null)
     log('info', 'unlockBsv...')
     try {
-      const res = await unlockBsv.execute(ctx, {})
+      const res = await unlockBsv.execute(ctx, { ...flags })
       if (res.error) throw new Error(res.error)
       setResult(res.txid ?? 'no txid')
       log('success', `unlockBsv txid: ${res.txid}`)

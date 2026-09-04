@@ -45,13 +45,10 @@ export interface ResolveDestinationOptions {
 	/** Prefix for the generated keyID — used for counterparty/self. */
 	keyIDPrefix: string
 	/**
-	 * Action id to derive the keyID from, so the derivation is recomputable
-	 * from the action record. Callers should mint one with `randomActionId()`
-	 * before building outputs and stamp it on the args via
-	 * `buildActionIdLabel`, so `createTrackedAction` reuses the same value.
-	 * Falls back to a wall-clock value, which is not recoverable.
+	 * Optional keyID suffix. When omitted, a random hex suffix is minted
+	 * (`${keyIDPrefix}-${hex}`). Not tied to the action/tracking id.
 	 */
-	actionId?: string
+	keyIDSuffix?: string
 }
 
 /**
@@ -111,7 +108,12 @@ export async function resolveDestination(
 	// counterparty path — also covers the default (undefined → 'self').
 	const counterparty = destination?.counterparty ?? 'self'
 	const isSelf = counterparty === 'self'
-	const keyID = `${opts.keyIDPrefix}-${opts.actionId ?? Date.now()}`
+	const suffix =
+		opts.keyIDSuffix ??
+		Array.from(crypto.getRandomValues(new Uint8Array(8)))
+			.map((b) => b.toString(16).padStart(2, '0'))
+			.join('')
+	const keyID = `${opts.keyIDPrefix}-${suffix}`
 
 	const { publicKey } = await ctx.wallet.getPublicKey({
 		protocolID: opts.protocolID,

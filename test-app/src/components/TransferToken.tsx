@@ -2,10 +2,12 @@ import { sendBsv21 } from '@1sat/actions'
 import { useState } from 'react'
 import { card, heading, input, button, buttonDisabled, successText, errorText, label } from './styles'
 import { useLog } from './LogContext'
+import { useActionFlags } from './useActionFlags'
 import { useOneSatContext } from './useActions'
 
 export function TransferToken() {
   const ctx = useOneSatContext()
+  const flags = useActionFlags()
   const { log } = useLog()
   const [tokenId, setTokenId] = useState('')
   const [amount, setAmount] = useState('')
@@ -27,6 +29,7 @@ export function TransferToken() {
       const res = await sendBsv21.execute(ctx, {
         tokenId,
         recipients: [{ amount, destination: { address: destAddress } }],
+        ...flags,
       })
 
       if (res.error) throw new Error(res.error)

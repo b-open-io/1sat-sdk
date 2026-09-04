@@ -22,7 +22,7 @@ List, buy, send, and cancel ordinals with `@1sat/actions` (OrdLock).
 
 ## BEEF rules
 
-- **Wallet-owned** spend: pass **`id`** only — action loads row + BEEF from ordinals basket.
+- **Wallet-owned** spend: pass **`id`** only — action loads row + BEEF from the `1sat` basket.
 - **External** (buy): **`outpoint`** + **`inputBEEF`** if set; else services fetch; else error.
 
 ## List
@@ -53,7 +53,7 @@ await sendOrdinals.execute(ctx, {
 })
 ```
 
-Self-sends carry tags and stay in the ordinals basket (no `resolveOrdinalTags` for owned filing).
+Self-sends carry tags and stay in the `1sat` basket (no `resolveOrdinalTags` for owned filing).
 
 ## Sell
 
@@ -64,7 +64,7 @@ import { sellOrdinal } from '@1sat/actions'
 await sellOrdinal.execute(ctx, { id, price: 100_000 })
 ```
 
-Adds `ordlock` + `price:{n}` tags; keeps ordinals basket.
+Adds `ordlock` + `price:{n}` tags; keeps the `1sat` basket.
 
 ## Buy
 

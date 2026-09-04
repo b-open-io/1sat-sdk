@@ -22,13 +22,16 @@ import type {
 	RarityLabels,
 	Royalty,
 } from '@1sat/types'
-import { P1SAT_INTENTS, P1SAT_PROTOCOL } from '@1sat/types'
+import { P1SAT_PROTOCOL } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
 import { P2PKH, PublicKey, Script, Utils } from '@bsv/sdk'
+import { prepareP1SatArgs } from '../apply'
 import { MAX_INSCRIPTION_BYTES, ORDINALS_BASKET } from '../constants'
-import type { Action, ActionOptions } from '../types'
+import { appendSigmaPlaceholder } from '../signing/sigma'
+import type { Action, ActionOptions, OneSatContext } from '../types'
 import { appendMapSuffix } from '../utils/appendMapSuffix'
-import { executeSigmaAction } from '../utils/executeSigmaAction'
+import { executeTrackedAction } from '../utils/createTrackedAction'
+import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance'
 
 // ============================================================================
 // Types
@@ -194,6 +197,74 @@ function buildInscriptionScript(
 	return appendMapSuffix(new Script(inscription.lock().chunks), map)
 }
 
+/** Type tag: single full MIME, params stripped (BRC-147). */
+function typeTag(contentType: string): string {
+	const base = contentType.split(';')[0]?.trim() || contentType
+	return `type:${base}`
+}
+
+/**
+ * Mint path with real Sigma seal (placeholder → apply seals anchor + sig).
+ */
+async function mintWithSigma(
+	ctx: OneSatContext,
+	opts: {
+		description: string
+		outputDescription: string
+		lockingScript: Script
+		tags: string[]
+		customInstructions: string
+		fundingProvider?: ActionOptions['fundingProvider']
+		useModule?: boolean
+	},
+): Promise<{ txid?: string; tx?: number[]; error?: string }> {
+	const placeholderScript = await appendSigmaPlaceholder(
+		ctx,
+		opts.lockingScript,
+	)
+	const args = await prepareP1SatArgs(
+		ctx,
+		{
+			description: opts.description,
+			outputs: [
+				{
+					lockingScript: placeholderScript.toHex(),
+					satoshis: 1,
+					outputDescription: opts.outputDescription,
+					basket: ORDINALS_BASKET,
+					tags: opts.tags,
+					customInstructions: opts.customInstructions,
+				},
+			],
+			options: {
+				acceptDelayedBroadcast: false,
+				randomizeOutputs: false,
+			},
+		},
+		{
+			usePermissionModule: opts.useModule,
+			permissionScheme: '1sat',
+		},
+	)
+
+	// spends empty: pipeline embellish adds Sigma anchor input and unlocks it
+	const result = await executeTrackedAction(
+		ctx.wallet,
+		args,
+		opts.fundingProvider,
+		undefined,
+		undefined,
+		{
+			spends: [],
+			usePermissionModule: opts.useModule,
+			permissionScheme: '1sat',
+		},
+	)
+
+	if (!result.txid) return { error: 'no-txid-returned' }
+	return { txid: result.txid, tx: result.tx }
+}
+
 // ============================================================================
 // Actions
 // ============================================================================
@@ -288,41 +359,29 @@ export const mintCollection: Action<MintCollectionInput, MintCollectionOutput> =
 				)
 
 				const tags = [
-					`type:${input.contentType}`,
+					typeTag(input.contentType),
 					'origin',
-					`name:${input.name.slice(0, 64)}`,
 					'subType:collection',
 				]
+				const displayName = input.name.slice(0, 64)
 
-				const result = await executeSigmaAction(
-					ctx,
-					{
-						description: `Create collection: ${input.name}`,
-						outputs: [
-							{
-								lockingScript: lockingScript.toHex(),
-								satoshis: 1,
-								outputDescription: 'Collection inscription',
-								basket: ORDINALS_BASKET,
-								tags,
-								customInstructions: JSON.stringify({
-									protocolID: P1SAT_PROTOCOL,
-									keyID,
-									name: input.name.slice(0, 64),
-								}),
-							},
-						],
-						options: {
-							acceptDelayedBroadcast: false,
-							randomizeOutputs: false,
-						},
-					},
-					P1SAT_INTENTS.ORDINAL_MINT_COLLECTION,
-					input.fundingProvider,
-				)
+				const result = await mintWithSigma(ctx, {
+					description: `Create collection: ${input.name}`,
+					outputDescription: 'Collection inscription',
+					lockingScript,
+					tags,
+					customInstructions: buildOrdinalCustomInstructions({
+						protocolID: P1SAT_PROTOCOL,
+						keyID,
+						tags,
+						name: displayName,
+					}),
+					fundingProvider: input.fundingProvider,
+					useModule: input.useModule,
+				})
 
 				if (!result.txid) {
-					return { error: 'no-txid-returned' }
+					return { error: result.error ?? 'no-txid-returned' }
 				}
 
 				const collectionId = `${result.txid}_0`
@@ -496,42 +555,30 @@ export const mintCollectionItem: Action<
 			)
 
 			const tags = [
-				`type:${contentType}`,
+				typeTag(contentType),
 				'origin',
-				`name:${input.name.slice(0, 64)}`,
 				'subType:collectionItem',
-				`collectionId:${collectionId}`,
+				`collection:${collectionId}`,
 			]
+			const displayName = input.name.slice(0, 64)
 
-			const result = await executeSigmaAction(
-				ctx,
-				{
-					description: `Create collection item: ${input.name}`,
-					outputs: [
-						{
-							lockingScript: lockingScript.toHex(),
-							satoshis: 1,
-							outputDescription: 'Collection item inscription',
-							basket: ORDINALS_BASKET,
-							tags,
-							customInstructions: JSON.stringify({
-								protocolID: P1SAT_PROTOCOL,
-								keyID,
-								name: input.name.slice(0, 64),
-							}),
-						},
-					],
-					options: {
-						acceptDelayedBroadcast: false,
-						randomizeOutputs: false,
-					},
-				},
-				P1SAT_INTENTS.ORDINAL_MINT_ITEM,
-				input.fundingProvider,
-			)
+			const result = await mintWithSigma(ctx, {
+				description: `Create collection item: ${input.name}`,
+				outputDescription: 'Collection item inscription',
+				lockingScript,
+				tags,
+				customInstructions: buildOrdinalCustomInstructions({
+					protocolID: P1SAT_PROTOCOL,
+					keyID,
+					tags,
+					name: displayName,
+				}),
+				fundingProvider: input.fundingProvider,
+				useModule: input.useModule,
+			})
 
 			if (!result.txid) {
-				return { error: 'no-txid-returned' }
+				return { error: result.error ?? 'no-txid-returned' }
 			}
 
 			if (ctx.debug && ctx.log) {

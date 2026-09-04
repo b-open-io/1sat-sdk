@@ -96,7 +96,7 @@ interface InscribeResponse {
 }
 ```
 
-Decoded content must be within `MAX_INSCRIPTION_BYTES` or the action returns an error. The inscription is recorded in the `ordinals` basket with tags `type:{contentType}`, `origin`, and `name:{map.name}` when provided.
+Decoded content must be within `MAX_INSCRIPTION_BYTES` or the action returns an error. The inscription is recorded in the `1sat` basket with tags `type:{contentType}`, `origin`, and `name:{map.name}` when provided.
 
 ## Sigma-Signed Inscriptions
 

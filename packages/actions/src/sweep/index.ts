@@ -22,9 +22,14 @@ import { BSV21_BASKET, P1SAT_PROTOCOL } from '../constants'
 import { resolveOrdinalTags } from '../ordinals'
 import type { Action, ActionLogEntry, OneSatContext } from '../types'
 import {
+	bsv21FilterTags,
+	buildBsv21CustomInstructions,
+} from '../utils/bsv21Remittance'
+import {
 	createTrackedAction,
 	executeTrackedAction,
 } from '../utils/createTrackedAction'
+import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance'
 import type {
 	SweepBsv21Request,
 	SweepBsv21Response,
@@ -436,7 +441,11 @@ export const sweepOrdinals: Action<
 				}
 
 				const mapName = meta?.map?.name
-				const { tags, basket } = await resolveOrdinalTags(ctx, input.outpoint, {
+				const {
+					tags,
+					basket,
+					name: resolvedName,
+				} = await resolveOrdinalTags(ctx, input.outpoint, {
 					contentType,
 					origin: meta?.origin,
 					name: typeof mapName === 'string' ? mapName : undefined,
@@ -457,17 +466,20 @@ export const sweepOrdinals: Action<
 				).toAddress()
 
 				const ordName =
-					typeof mapName === 'string' ? mapName.slice(0, 64) : undefined
+					resolvedName ??
+					(typeof mapName === 'string' ? mapName.slice(0, 64) : undefined)
 				outputs.push({
 					lockingScript: new P2PKH().lock(derivedAddress).toHex(),
 					satoshis: 1,
 					outputDescription: `Ordinal ${meta?.origin ?? input.outpoint}`,
 					basket,
 					tags,
-					customInstructions: JSON.stringify({
+					customInstructions: buildOrdinalCustomInstructions({
 						protocolID: P1SAT_PROTOCOL,
 						keyID: input.outpoint,
-						...(ordName && { name: ordName }),
+						counterparty: 'self',
+						tags,
+						name: ordName,
 					}),
 				})
 			}
@@ -745,21 +757,19 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 				satoshis: 1,
 				outputDescription: `Sweep ${totalAmount} tokens`,
 				basket: BSV21_BASKET,
-				tags: [
-					`bsv21:${tokenId}`,
-					`amt:${totalAmount}`,
-					`dec:${tokenDetails.token.dec ?? 0}`,
-					...(tokenDetails.token.sym ? [`sym:${tokenDetails.token.sym}`] : []),
-					...(tokenDetails.token.icon
-						? [`icon:${tokenDetails.token.icon}`]
-						: []),
-				],
-				customInstructions: JSON.stringify({
+				tags: bsv21FilterTags({ tokenId }),
+				customInstructions: buildBsv21CustomInstructions({
+					token: {
+						id: tokenId,
+						amt: String(totalAmount),
+						op: 'transfer',
+						sym: tokenDetails.token.sym,
+						dec: tokenDetails.token.dec ?? 0,
+						icon: tokenDetails.token.icon,
+					},
 					protocolID: P1SAT_PROTOCOL,
 					keyID,
-					...(tokenDetails.token.sym && {
-						sym: tokenDetails.token.sym,
-					}),
+					counterparty: 'self',
 				}),
 			})
 

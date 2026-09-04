@@ -1,4 +1,5 @@
 import { ORDINALS_BASKET, P1SAT_PROTOCOL, SIGMA_BASKET } from '@1sat/types'
+import { parseOutpoint } from '@1sat/utils'
 import {
 	type CreateActionArgs,
 	P2PKH,
@@ -6,12 +7,14 @@ import {
 	Script,
 	type WalletInterface,
 } from '@bsv/sdk'
-import { sealSigma } from '../signing/sigma'
-import type { OneSatContext } from '../types'
 import {
-	ensureActionId,
-	executeTrackedAction,
-} from '../utils/createTrackedAction'
+	type ArgsWithPendingSpends,
+	PENDING_RESOLVED_SPENDS_KEY,
+	type ResolvedSpend,
+} from '../pipeline/spendTargets'
+import { findUnsealedSigmaVin, sealSigma } from '../signing/sigma'
+import type { OneSatContext } from '../types'
+import { stampManagedOutputIds } from '../utils/createTrackedAction'
 
 /**
  * Anchor keyID for a given action. Derived from the action id so the action's
@@ -23,15 +26,29 @@ export function sigmaAnchorKeyId(actionId: string): string {
 }
 
 /**
- * Multi-step sigma inscribe apply on **base** wallet only:
- * 1. Anchor createAction (noSend, bypassP1Sat)
- * 2. Sigma-sign inscription script
- * 3. Push anchor input + seal sigma script in place
+ * Seal unsigned SIGMA tapes on **base** wallet only.
+ *
+ * - Inputs already present (reinscribe): the spent tip is the vin. Seal
+ *   each leftover placeholder against `args.inputs[vin]`. No anchor tx.
+ * - No inputs (inscribe): create the 2-sat noSend anchor, then seal vin 0.
+ *
+ * Idempotent: a script with no zeroed tape is left alone.
  */
 export async function applyInscribeSigma(
 	wallet: WalletInterface,
 	args: CreateActionArgs,
 ): Promise<void> {
+	const ctx: OneSatContext = {
+		wallet,
+		chain: 'main',
+		isBaseWallet: true,
+	}
+
+	if (args.inputs?.length) {
+		await sealTapesAgainstInputs(ctx, args)
+		return
+	}
+
 	const outputs = args.outputs
 	if (!outputs?.length) {
 		throw new Error('ordinal.inscribe-sigma apply: missing outputs')
@@ -42,17 +59,9 @@ export async function applyInscribeSigma(
 		throw new Error('ordinal.inscribe-sigma apply: missing inscription output')
 	}
 
-	// Already sealed (has anchor input) — idempotent.
-	if (args.inputs?.length) return
-
 	const placeholderScript = Script.fromHex(out.lockingScript)
-	const ctx: OneSatContext = {
-		wallet,
-		chain: 'main',
-		isBaseWallet: true,
-	}
 
-	const anchorKeyID = sigmaAnchorKeyId(ensureActionId(args))
+	const anchorKeyID = sigmaAnchorKeyId(stampManagedOutputIds(args))
 	const { publicKey: anchorPubKey } = await wallet.getPublicKey({
 		protocolID: P1SAT_PROTOCOL,
 		keyID: anchorKeyID,
@@ -62,33 +71,27 @@ export async function applyInscribeSigma(
 	const anchorAddress = PublicKey.fromString(anchorPubKey).toAddress()
 	const anchorLockingScript = new P2PKH().lock(anchorAddress)
 
-	const anchorResult = await executeTrackedAction(
-		wallet,
-		{
-			description: 'Sigma anchor output',
-			outputs: [
-				{
-					lockingScript: anchorLockingScript.toHex(),
-					satoshis: 2,
-					outputDescription: 'Sigma anchor',
-					basket: SIGMA_BASKET,
-					customInstructions: JSON.stringify({
-						protocolID: P1SAT_PROTOCOL,
-						keyID: anchorKeyID,
-					}),
-				},
-			],
-			options: {
-				noSend: true,
-				randomizeOutputs: false,
-				acceptDelayedBroadcast: true,
+	const anchorCi = JSON.stringify({
+		protocolID: P1SAT_PROTOCOL,
+		keyID: anchorKeyID,
+	})
+	const anchorResult = await wallet.createAction({
+		description: 'Sigma anchor output',
+		outputs: [
+			{
+				lockingScript: anchorLockingScript.toHex(),
+				satoshis: 2,
+				outputDescription: 'Sigma anchor',
+				basket: SIGMA_BASKET,
+				customInstructions: anchorCi,
 			},
+		],
+		options: {
+			noSend: true,
+			randomizeOutputs: false,
+			acceptDelayedBroadcast: true,
 		},
-		undefined,
-		undefined,
-		undefined,
-		{ bypassP1Sat: true },
-	)
+	})
 
 	if (!anchorResult.txid || !anchorResult.tx) {
 		throw new Error('ordinal.inscribe-sigma apply: anchor failed')
@@ -101,11 +104,6 @@ export async function applyInscribeSigma(
 		0,
 		0,
 	)
-	if (sigmaScript.toHex().length !== out.lockingScript.length) {
-		throw new Error(
-			'ordinal.inscribe-sigma apply: sealed script size differs from placeholder',
-		)
-	}
 	out.lockingScript = sigmaScript.toHex()
 
 	// Mutate inputs array in place (or initialize then push).
@@ -118,7 +116,7 @@ export async function applyInscribeSigma(
 		unlockingScriptLength: 108,
 	})
 
-	args.inputBEEF = anchorResult.tx
+	args.inputBEEF = Array.from(anchorResult.tx)
 
 	args.options = {
 		...args.options,
@@ -128,5 +126,43 @@ export async function applyInscribeSigma(
 		acceptDelayedBroadcast: true,
 		trustSelf: 'known',
 		sendWith: [anchorResult.txid],
+	}
+
+	// Output record for finalize — we just created it; no DB round-trip.
+	const anchorRecord: ResolvedSpend = {
+		outpoint: `${anchorResult.txid}.0`,
+		customInstructions: anchorCi,
+	}
+	const stash = args as CreateActionArgs & ArgsWithPendingSpends
+	const prev = stash[PENDING_RESOLVED_SPENDS_KEY] ?? []
+	stash[PENDING_RESOLVED_SPENDS_KEY] = [...prev, anchorRecord]
+}
+
+async function sealTapesAgainstInputs(
+	ctx: OneSatContext,
+	args: CreateActionArgs,
+): Promise<void> {
+	const inputs = args.inputs
+	if (!inputs?.length) return
+	const maxVin = inputs.length - 1
+
+	for (const out of args.outputs ?? []) {
+		if (!out.lockingScript) continue
+		let script: Script
+		try {
+			script = Script.fromHex(out.lockingScript)
+		} catch {
+			continue
+		}
+		const vin = findUnsealedSigmaVin(script, maxVin)
+		if (vin == null) continue
+		const outpoint = inputs[vin]?.outpoint
+		if (!outpoint) {
+			throw new Error('sigma seal: placeholder vin has no matching input')
+		}
+		const { txid, vout } = parseOutpoint(outpoint)
+		out.lockingScript = (
+			await sealSigma(ctx, script, { txid, vout }, 0, vin)
+		).toHex()
 	}
 }

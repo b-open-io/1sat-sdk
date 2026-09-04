@@ -3,7 +3,8 @@
  */
 
 export const REGISTRY_TYPES = [
-	// shadcn/ui standard types
+	// Current shadcn/ui registry item types.
+	'registry:base',
 	'registry:lib',
 	'registry:block',
 	'registry:component',
@@ -14,9 +15,12 @@ export const REGISTRY_TYPES = [
 	'registry:font',
 	'registry:theme',
 	'registry:style',
+	'registry:item',
+	// Legacy shadcn/ui types retained for existing publishers.
 	'registry:example',
 	'registry:internal',
-	// Agent extension types
+	// 1Sat outer package metadata types, not shadcn/ui item types.
+	'registry:asset',
 	'registry:skill',
 	'registry:agent',
 	'registry:organization',

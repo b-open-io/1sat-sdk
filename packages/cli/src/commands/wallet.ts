@@ -5,6 +5,8 @@
 
 import {
 	deriveDepositAddresses,
+	migrateLegacyP1SatBaskets,
+	moveBasketOutputs,
 	sendAllBsv,
 	sendBsv,
 	syncAddresses,
@@ -66,6 +68,10 @@ export async function handleWalletCommand(
 			return walletListOutputs(rest, opts)
 		case 'relinquish-output':
 			return walletRelinquishOutput(rest, opts)
+		case 'move-basket':
+			return walletMoveBasket(rest, opts)
+		case 'migrate-baskets':
+			return walletMigrateBaskets(rest, opts)
 		case 'list-actions':
 			return walletListActions(rest, opts)
 		case 'create-action':
@@ -479,6 +485,58 @@ async function walletRelinquishOutput(
 			output(result, opts)
 		} else {
 			output({ relinquished: true, basket, output: outpoint }, opts)
+		}
+	} finally {
+		await destroy()
+	}
+}
+
+async function walletMoveBasket(
+	args: string[],
+	opts: GlobalFlags,
+): Promise<void> {
+	const from = extractFlag(args, '--from')
+	const to = extractFlag(args, '--to')
+	if (!from) fatal('Missing required --from <basket>')
+	if (!to) fatal('Missing required --to <basket>')
+
+	const privateKey = await loadKey()
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+	try {
+		const result = await moveBasketOutputs(ctx.wallet, from, to)
+		output(result, opts)
+	} finally {
+		await destroy()
+	}
+}
+
+async function walletMigrateBaskets(
+	args: string[],
+	opts: GlobalFlags,
+): Promise<void> {
+	void args
+	const privateKey = await loadKey()
+	const { ctx, destroy } = await loadContext(privateKey, {
+		chain: opts.chain,
+	})
+	try {
+		const result = await migrateLegacyP1SatBaskets(ctx.wallet)
+		if (opts.json) {
+			output(result, opts)
+		} else {
+			console.log(`Moved ${result.totalMoved} output(s) across legacy baskets\n`)
+			for (const r of result.results) {
+				if (r.moved === 0 && r.errors.length === 0) continue
+				console.log(
+					`  ${r.from} → ${r.to}: moved ${r.moved}` +
+						(r.skipped ? `, skipped ${r.skipped}` : ''),
+				)
+				for (const e of r.errors) {
+					console.log(`    ! ${e.outpoint}: ${e.error}`)
+				}
+			}
 		}
 	} finally {
 		await destroy()

@@ -13,7 +13,7 @@ import {
 	Wallet,
 	WalletStorageManager,
 } from '@bsv/wallet-toolbox-client'
-import { StorageIdb } from '@bsv/wallet-toolbox-client/out/src/index.client.js'
+import { StorageIdb } from '@bsv/wallet-toolbox-client'
 import type { MonitorEvent } from './types'
 
 const DEFAULT_DATABASE_NAME = 'wallet'

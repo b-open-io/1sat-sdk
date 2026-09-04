@@ -92,6 +92,12 @@ function createMockContext(): { ctx: OneSatContext; state: MockState } {
 				}
 			}
 			beef.mergeTransaction(tx)
+			// The parent pipeline creates its anchor in one phase, then requests
+			// the collection transaction with signAndProcess explicitly false.
+			if (args.options?.signAndProcess !== false) {
+				const txid = tx.id('hex')
+				return { txid, tx: beef.toBinaryAtomic(txid) }
+			}
 			const reference = `ref-${nextReference++}`
 			state.pending.set(reference, tx)
 
@@ -218,7 +224,11 @@ describe('collection references and SIGMA authorship', () => {
 			expect(
 				JSON.parse(MAP.decode(script)?.data.subTypeData as string).collectionId,
 			).toBe(canonical)
-			expect(output?.tags).toContain(`collectionId:${canonical}`)
+			expect(output?.tags).toContain(`collection:${canonical}`)
+			expect(JSON.parse(output?.customInstructions as string)).toMatchObject({
+				collection: canonical,
+				name: 'Item',
+			})
 			const inscription = Inscription.decode(script)
 			expect(Array.from(inscription?.parent ?? [])).toEqual([
 				...Array(32).fill(0xab),

@@ -12,7 +12,7 @@
  */
 
 import { Cosign } from '@1sat/templates'
-import { buildTokenLabel } from '@1sat/types'
+
 import { type SignActionSpend, Utils } from '@bsv/sdk'
 import {
 	COSIGN_DEFAULT_SIGHASH,
@@ -152,8 +152,8 @@ export async function finalizeCosignBsv21Transfer(
 						customInstructions: JSON.stringify(d.customInstructions ?? {}),
 					},
 				})),
+				// No p-labels on internalize (plain basket encrypt only).
 				description: `Cosign-multisig outputs (${multisigDests.length})`,
-				labels: [buildTokenLabel(session.tokenId)],
 			})
 		} catch (err) {
 			console.warn(

@@ -1,27 +1,48 @@
-import { P1SAT_BASKET_PREFIX, parseIntentLabel } from '@1sat/types'
+import {
+	type ResolvedSpend,
+	embellishCreateActionArgs,
+	finishCreateAction,
+	spendsFromLabels,
+} from '@1sat/actions'
+import type { PermissionSchemeId } from '@1sat/types'
 import type { IPermissionStore } from '@1sat/wallet'
 import type {
 	CreateActionArgs,
 	CreateActionResult,
 	CreateSignatureArgs,
 	GetPublicKeyArgs,
-	InternalizeActionArgs,
-	ListOutputsArgs,
 	WalletInterface,
 } from '@bsv/sdk'
 import { Transaction } from '@bsv/sdk'
-import { applyCreateAction } from './apply'
+import { type TokenMetaMap, buildTransactionPrompt } from './buildPromptIntent'
 import type { CommitmentCache } from './commitmentCache'
 import { enrichIntent } from './enrichIntent'
 import { computeHashOutputs } from './hashOutputs'
 import { MIN_BIP143_PREIMAGE_BYTES, parsePreimage } from './sighashParser'
 import type { PromptHandler, VerificationServices } from './types'
 
+export {
+	ensureBasketAccess,
+	ensureViewScopeAccess,
+	handleInternalizeActionRequest,
+	handleListOutputsRequest,
+} from './basketAccess'
+
+/** Pending resolved spends between onRequest embellish and onResponse finish. */
+const pendingByOriginator = new Map<
+	string,
+	{ resolvedSpends: ResolvedSpend[]; inputBEEF?: number[] }
+>()
+
 interface HandlerDeps {
 	/** Base wallet — apply crypto never uses a gated wrapper. */
 	wallet: WalletInterface
 	promptHandler: PromptHandler
 	cache: CommitmentCache
+	/** BRC-99 scheme id this module instance owns. */
+	schemeId: PermissionSchemeId
+	/** Storage baskets this module may grant access to. */
+	ownedBaskets: ReadonlySet<string>
 	adminOriginator?: string
 	permissionStore?: IPermissionStore
 	services?: VerificationServices
@@ -29,17 +50,17 @@ interface HandlerDeps {
 
 /**
  * createAction onRequest:
- *   1. dApp: enrich (wallet re-lookup) → prompt → reject throws.
+ *   1. dApp: enrich → prompt → reject throws.
  *   2. Admin: no prompt.
- *   3. Always apply on base wallet (admin silent; dApp after approve).
- *      Mutates args in place (PushDrop seal, etc.).
+ *   3. embellishCreateActionArgs = same apply as local pipeline
+ *      (seals, tags, BSV-21 CI stamp) + materialize spends (plaintext CI).
+ *   4. Stash spends for onResponse → finishCreateAction on base wallet.
  */
 export async function handleCreateActionRequest(
 	deps: HandlerDeps,
 	args: CreateActionArgs,
 	originator: string,
 ): Promise<CreateActionArgs> {
-	const p1satIntent = parseIntentLabel(args.labels)
 	const admin = isAdmin(deps, originator)
 
 	if (!admin) {
@@ -47,37 +68,23 @@ export async function handleCreateActionRequest(
 			services: deps.services,
 		})
 
+		const contentUrls = buildContentUrlMap(enriched)
+		const tokenMeta = await resolveTokenMeta(
+			deps.services,
+			enriched,
+			contentUrls,
+		)
+		const prompt = buildTransactionPrompt(
+			enriched,
+			contentUrls,
+			originator,
+			tokenMeta,
+		)
+
 		const approved = await deps.promptHandler({
 			kind: 'transaction',
 			originator,
-			intent: {
-				kind: enriched.kind,
-				p1satIntent: enriched.p1satIntent,
-				inputs: enriched.inputs,
-				outputs: enriched.outputs.map((o) => ({
-					index: o.index,
-					satoshis: o.satoshis,
-					basket: o.basket,
-					tags: o.tags,
-					recipient: o.recipient,
-					listingPriceSats: o.listingPriceSats,
-					listingSeller: o.listingSeller,
-					lockUntilHeight: o.lockUntilHeight,
-					opnsProfileName: o.opnsProfileName,
-					opnsAvatarOrigin: o.opnsAvatarOrigin,
-				})),
-				contentUrls: buildContentUrlMap(enriched),
-				chain: enriched.chain,
-				// Initial state only. Live verification runs in the prompt UI, which
-				// shares a process with whatever renders it — every value here has
-				// to survive a host handing the request across a process boundary,
-				// so nothing on this payload may be a promise or a function.
-				...(enriched.trust && { trust: enriched.trust }),
-				...(enriched.indexerFeeSats != null && {
-					indexerFeeSats: enriched.indexerFeeSats,
-					indexerFeeNote: enriched.indexerFeeNote,
-				}),
-			},
+			payload: prompt as unknown as Record<string, unknown>,
 			summary: enriched.summary,
 		})
 		if (!approved) {
@@ -85,9 +92,92 @@ export async function handleCreateActionRequest(
 		}
 	}
 
-	// Admin and dApp both apply — seal ops must not bare-return on admin.
-	await applyCreateAction(deps.wallet, args, p1satIntent)
-	return args
+	// Same apply as local pipeline (seals, tags, BSV-21 CI stamp) + spend load.
+	const spends = spendsFromLabels(args.labels)
+	const { args: next, resolvedSpends } = await embellishCreateActionArgs(
+		deps.wallet,
+		args,
+		spends,
+	)
+	pendingByOriginator.set(originator, {
+		resolvedSpends,
+		inputBEEF: Array.isArray(next.inputBEEF)
+			? (next.inputBEEF as number[])
+			: undefined,
+	})
+	return next
+}
+
+/**
+ * Overlay lookup for BSV21 display facts (decimals, symbol, icon).
+ * Never throws — missing overlay leaves tag/script fallbacks.
+ */
+async function resolveTokenMeta(
+	services: VerificationServices | undefined,
+	enriched: Awaited<ReturnType<typeof enrichIntent>>,
+	contentUrls: Record<string, string>,
+): Promise<TokenMetaMap> {
+	const out: TokenMetaMap = {}
+	const getDetails = services?.bsv21?.getTokenDetails
+	if (typeof getDetails !== 'function') return out
+
+	const ids = new Set<string>()
+	for (const leg of enriched.legs) {
+		const id =
+			leg.tokenId ??
+			leg.tags
+				?.find((t) => t.startsWith('bsv21:') && t !== 'bsv21:deploy')
+				?.slice(6)
+		if (id) ids.add(id)
+	}
+	for (const inp of enriched.inputs) {
+		const id = inp.tags
+			.find((t) => t.startsWith('bsv21:') && t !== 'bsv21:deploy')
+			?.slice(6)
+		if (id) ids.add(id)
+	}
+	for (const o of enriched.outputs) {
+		if (o.tokenId) ids.add(o.tokenId)
+	}
+
+	await Promise.all(
+		[...ids].map(async (tokenId) => {
+			try {
+				const res = await getDetails(tokenId)
+				if (!res?.token) return
+				const decRaw = res.token.dec
+				const dec =
+					typeof decRaw === 'number'
+						? decRaw
+						: typeof decRaw === 'string'
+							? Number.parseInt(decRaw, 10)
+							: undefined
+				const icon = res.token.icon
+				let iconUrl: string | undefined
+				if (icon) {
+					iconUrl =
+						contentUrls[icon] ??
+						contentUrls[icon.replace('_', '.')] ??
+						(icon.includes('.') || icon.includes('_')
+							? enriched.contentUrlForOrigin(icon.replace('_', '.'))
+							: undefined)
+					if (iconUrl) {
+						contentUrls[icon] = iconUrl
+						contentUrls[icon.replace('_', '.')] = iconUrl
+					}
+				}
+				out[tokenId] = {
+					...(Number.isFinite(dec) ? { dec: dec as number } : {}),
+					...(res.token.sym ? { sym: res.token.sym } : {}),
+					...(icon ? { icon } : {}),
+					...(iconUrl ? { iconUrl } : {}),
+				}
+			} catch {
+				// leave empty — tag/script fallbacks apply
+			}
+		}),
+	)
+	return out
 }
 
 /**
@@ -104,10 +194,10 @@ function buildContentUrlMap(
 		: never,
 ): Record<string, string> {
 	const out: Record<string, string> = {}
-	const addOrigin = (tags: string[]): void => {
-		const tag = tags.find((t) => t.startsWith('origin:'))
+	const addPointer = (tags: string[], prefix: 'origin:' | 'content:'): void => {
+		const tag = tags.find((t) => t.startsWith(prefix))
 		if (!tag) return
-		const value = tag.slice('origin:'.length)
+		const value = tag.slice(prefix.length)
 		if (!value || out[value]) return
 		out[value] = enriched.contentUrlForOrigin(value)
 	}
@@ -131,12 +221,25 @@ function buildContentUrlMap(
 			out[icon] = enriched.contentUrlForOrigin(icon.replace('_', '.'))
 		}
 	}
+	const addOutpoint = (outpoint: string | undefined): void => {
+		if (!outpoint) return
+		const value = outpoint.includes('.')
+			? `${outpoint.slice(0, 64)}_${outpoint.slice(65)}`
+			: outpoint
+		if (!value || out[value]) return
+		out[value] = enriched.contentUrlForOrigin(value)
+		if (!out[outpoint]) out[outpoint] = out[value]
+	}
 	for (const asset of enriched.inputs) {
-		addOrigin(asset.tags)
+		addPointer(asset.tags, 'origin:')
+		addPointer(asset.tags, 'content:')
+		// Genesis inscriptions tag bare `origin`; the spent outpoint is the media.
+		if (asset.tags.includes('origin')) addOutpoint(asset.outpoint)
 		addIcon(asset.tags)
 	}
 	for (const output of enriched.outputs) {
-		addOrigin(output.tags)
+		addPointer(output.tags, 'origin:')
+		addPointer(output.tags, 'content:')
 		addIcon(output.tags)
 		// Avatar on an OpNS bind comes from the script, not a tag.
 		const avatar = output.opnsAvatarOrigin
@@ -161,27 +264,43 @@ export async function handleCreateActionResponse(
 	res: CreateActionResult,
 	originator: string,
 ): Promise<CreateActionResult> {
-	if (isAdmin(deps, originator)) return res
-	const signable = res.signableTransaction
-	if (!signable?.tx || !signable.reference) return res
+	const pending = pendingByOriginator.get(originator)
+	pendingByOriginator.delete(originator)
 
-	const tx = Transaction.fromAtomicBEEF(signable.tx)
-	const hashOutputs = computeHashOutputs(tx)
-	const authorizedOutpoints = new Set<string>()
-	for (const inp of tx.inputs) {
-		const txid = inp.sourceTXID ?? inp.sourceTransaction?.id('hex')
-		if (!txid) continue
-		authorizedOutpoints.add(`${txid}.${inp.sourceOutputIndex}`)
+	const signable = res.signableTransaction
+	if (signable?.tx && signable.reference && !isAdmin(deps, originator)) {
+		const tx = Transaction.fromAtomicBEEF(signable.tx)
+		const hashOutputs = computeHashOutputs(tx)
+		const authorizedOutpoints = new Set<string>()
+		for (const inp of tx.inputs) {
+			const txid = inp.sourceTXID ?? inp.sourceTransaction?.id('hex')
+			if (!txid) continue
+			authorizedOutpoints.add(`${txid}.${inp.sourceOutputIndex}`)
+		}
+		deps.cache.put(originator, {
+			hashOutputs,
+			authorizedOutpoints,
+			approvedAt: Date.now(),
+			reference: signable.reference,
+		})
 	}
 
-	deps.cache.put(originator, {
-		hashOutputs,
-		authorizedOutpoints,
-		approvedAt: Date.now(),
-		reference: signable.reference,
-	})
-
-	return res
+	// Finish pipeline on base wallet (unlock managed spends + signAction)
+	if (!signable) return res
+	const finished = await finishCreateAction(
+		deps.wallet,
+		res,
+		pending?.resolvedSpends ?? [],
+		pending?.inputBEEF,
+	)
+	if (finished.error) {
+		throw new Error(`1Sat permission module: finish failed: ${finished.error}`)
+	}
+	return {
+		txid: finished.txid,
+		tx: finished.tx,
+		noSendChange: finished.noSendChange,
+	} as CreateActionResult
 }
 
 /**
@@ -225,7 +344,7 @@ export async function handleCreateSignatureRequest(
 	const approved = await deps.promptHandler({
 		kind: 'signature',
 		originator,
-		intent: {
+		payload: {
 			protocolID: args.protocolID,
 			keyID: args.keyID,
 			counterparty: args.counterparty,
@@ -241,7 +360,7 @@ export async function handleCreateSignatureRequest(
 
 /**
  * getPublicKey onRequest:
- *   Pass through unconditionally. P1SAT_PROTOCOL is security level 0 —
+ *   Pass through unconditionally. Module P-protocol is security level 0 —
  *   public-key revelation is the open default per BRC-100. Public keys
  *   are not signing authority; the signing oracle is gated at
  *   createAction (rich intent prompt + hashOutputs commitment) and
@@ -262,124 +381,4 @@ export async function handleGetPublicKeyRequest(
 
 function isAdmin(deps: HandlerDeps, originator: string): boolean {
 	return !!deps.adminOriginator && originator === deps.adminOriginator
-}
-
-// ---------------------------------------------------------------------------
-// Basket-access gating
-// ---------------------------------------------------------------------------
-
-/**
- * Decide whether the originator has access to every P-prefixed `1Sat` basket
- * touched by this request. Used by both `listOutputs` and `internalizeAction`
- * — they're the two methods WPM delegates to the 1Sat module for P-baskets.
- *
- * Admin originator bypasses (same convention as
- * `WalletPermissionsManager.isAdminOriginator` → `ensureBasketAccess`
- * short-circuit).
- *
- * Baskets that already have a stored grant pass silently. Any remaining
- * baskets are surfaced as a single `'basketAccess'` prompt with the full
- * un-granted list; on approval the module persists each grant.
- *
- * Without a `permissionStore` configured we prompt every time — caching only
- * happens when the caller wired in the store.
- */
-export async function ensureBasketAccess(
-	deps: HandlerDeps,
-	originator: string,
-	baskets: Iterable<string>,
-): Promise<void> {
-	if (deps.adminOriginator && originator === deps.adminOriginator) return
-
-	const unique = new Set<string>()
-	for (const b of baskets) {
-		if (typeof b === 'string' && b.startsWith(P1SAT_BASKET_PREFIX))
-			unique.add(b)
-	}
-	if (unique.size === 0) return
-
-	const toPrompt: string[] = []
-	if (deps.permissionStore) {
-		for (const basket of unique) {
-			const grant = await deps.permissionStore.findGrant({
-				type: 'basket',
-				originator,
-				basket,
-			})
-			if (!grant || isGrantExpired(grant.expiry)) {
-				toPrompt.push(basket)
-			}
-		}
-	} else {
-		toPrompt.push(...unique)
-	}
-
-	if (toPrompt.length === 0) return
-
-	const approved = await deps.promptHandler({
-		kind: 'basketAccess',
-		originator,
-		intent: {
-			baskets: toPrompt.map((basket) => ({ basket })),
-		},
-		summary:
-			toPrompt.length === 1
-				? `Grant access to ${toPrompt[0]}`
-				: `Grant access to ${toPrompt.length} baskets`,
-	})
-	if (!approved) {
-		throw new Error(
-			`1Sat permission module: user denied basket access (${toPrompt.join(', ')}).`,
-		)
-	}
-
-	if (deps.permissionStore) {
-		const now = Date.now()
-		for (const basket of toPrompt) {
-			await deps.permissionStore.putGrant({
-				key: { type: 'basket', originator, basket },
-				expiry: 0,
-				grantedAt: now,
-			})
-		}
-	}
-}
-
-function isGrantExpired(expiry: number): boolean {
-	if (!expiry) return false
-	return expiry < Math.floor(Date.now() / 1000)
-}
-
-/**
- * listOutputs onRequest: gate basket access then pass args through unchanged.
- */
-export async function handleListOutputsRequest(
-	deps: HandlerDeps,
-	args: ListOutputsArgs,
-	originator: string,
-): Promise<ListOutputsArgs> {
-	await ensureBasketAccess(deps, originator, args.basket ? [args.basket] : [])
-	return args
-}
-
-/**
- * internalizeAction onRequest: gate basket access for every output's
- * insertionRemittance basket then pass args through unchanged.
- */
-export async function handleInternalizeActionRequest(
-	deps: HandlerDeps,
-	args: InternalizeActionArgs,
-	originator: string,
-): Promise<InternalizeActionArgs> {
-	const baskets: string[] = []
-	for (const out of args.outputs ?? []) {
-		if (
-			out.protocol === 'basket insertion' &&
-			out.insertionRemittance?.basket
-		) {
-			baskets.push(out.insertionRemittance.basket)
-		}
-	}
-	await ensureBasketAccess(deps, originator, baskets)
-	return args
 }

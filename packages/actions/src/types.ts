@@ -26,10 +26,7 @@ export interface OneSatContext {
 	/** Structured log callback — receives derivation details for each action execution */
 	log?: (entry: ActionLogEntry) => void
 	/**
-	 * When true, createAction does not go through the 1Sat permission module
-	 * (CLI / real base wallet). The action runs apply before createAction.
-	 * When false (dApp or admin-WPM gated wallet), the module owns apply.
-	 * Defaults to true.
+	 * @deprecated Unused for routing. Prefer per-call `useModule` on actions.
 	 */
 	isBaseWallet: boolean
 }
@@ -42,6 +39,20 @@ export interface ActionOptions {
 	/** Optional external funding provider. When set, the provider funds and
 	 *  broadcasts the transaction instead of the wallet. */
 	fundingProvider?: FundingProvider
+	/**
+	 * Opt-in permission module. Default **false** (local pipeline).
+	 * When true, stamp scheme dispatch / input labels for WPM routing.
+	 */
+	usePermissionModule?: boolean
+	/** @deprecated use usePermissionModule */
+	useOneSatModule?: boolean
+	/** @deprecated use usePermissionModule */
+	useModule?: boolean
+	/**
+	 * BRC-99 scheme id when usePermissionModule is true.
+	 * Default `1sat` (collectables). Use `opns` / `bsv21` / `lock` per action domain.
+	 */
+	permissionScheme?: import('@1sat/types').PermissionSchemeId
 }
 
 /**
@@ -139,7 +150,7 @@ export function createContext(
 		dataDir?: string
 		debug?: boolean
 		log?: (entry: ActionLogEntry) => void
-		/** Defaults true (CLI/base). Set false for dApp/admin-WPM gated wallets. */
+		/** @deprecated Unused for routing */
 		isBaseWallet?: boolean
 	},
 ): OneSatContext {

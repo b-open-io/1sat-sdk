@@ -14,10 +14,15 @@
  * desired (e.g. yours-wallet popup mount). Not a polling loop.
  */
 
-import { BSV21_BASKET, buildTokenLabel } from '@1sat/types'
+import { BSV21_BASKET } from '@1sat/types'
 import { MessageBoxClient } from '@bsv/message-box-client'
 import { Utils } from '@bsv/sdk'
 import type { Action } from '../types'
+import {
+	bsv21FilterTags,
+	overwriteBsv21CiFields,
+} from '../utils/bsv21Remittance'
+import { looksLikeJson } from '../utils/walletMetadataCi'
 
 // ============================================================================
 // Types
@@ -123,24 +128,37 @@ export const syncCosignDeliveries: Action<
 					throw new Error('beef field could not be decoded as bytes')
 				}
 				const tokenIdShort = tokenId.slice(0, 8)
-				const tags = [`bsv21:${tokenId}`, `amt:${amount}`, `tokenId:${tokenId}`]
-				// Pull token metadata from the BSV21 overlay so the wallet's
-				// balance/listing UIs can render symbol, icon, and decimals.
-				// Bsv21Client caches per-tokenId, so subsequent messages for
-				// the same token are free.
-				if (ctx.services) {
-					try {
-						const details = await ctx.services.bsv21.getTokenDetails(tokenId)
-						if (details.token.sym) tags.push(`sym:${details.token.sym}`)
-						if (details.token.icon) tags.push(`icon:${details.token.icon}`)
-						if (details.token.dec) tags.push(`dec:${details.token.dec}`)
-					} catch (err) {
-						console.warn(
-							`[syncCosignDeliveries] token-details lookup failed for ${tokenIdShort}:`,
-							err instanceof Error ? err.message : String(err),
-						)
+				// Filter tags only. Load-bearing meta → CI (keep cosign derivation).
+				const tags = bsv21FilterTags({ tokenId })
+				let ciOut = customInstructions
+				if (looksLikeJson(customInstructions)) {
+					let sym: string | undefined
+					let dec: string | number | undefined
+					let icon: string | undefined
+					if (ctx.services) {
+						try {
+							const details =
+								await ctx.services.bsv21.getTokenDetails(tokenId)
+							sym = details.token.sym
+							dec = details.token.dec
+							icon = details.token.icon
+						} catch (err) {
+							console.warn(
+								`[syncCosignDeliveries] token-details lookup failed for ${tokenIdShort}:`,
+								err instanceof Error ? err.message : String(err),
+							)
+						}
 					}
+					ciOut = overwriteBsv21CiFields(customInstructions, {
+						id: tokenId,
+						amt: amount,
+						op: 'transfer',
+						...(sym && { sym }),
+						...(dec !== undefined && { dec }),
+						...(icon && { icon }),
+					})
 				}
+				// No p-labels on internalize (WPM double-encrypt footgun).
 				await ctx.wallet.internalizeAction({
 					tx: beefBytes,
 					outputs: [
@@ -150,12 +168,11 @@ export const syncCosignDeliveries: Action<
 							insertionRemittance: {
 								basket: BSV21_BASKET,
 								tags,
-								customInstructions,
+								customInstructions: ciOut,
 							},
 						},
 					],
 					description: `Cosign token delivery (${tokenIdShort}…)`.slice(0, 50),
-					labels: [buildTokenLabel(tokenId)],
 				})
 				acknowledgedIds.push(msg.messageId)
 				processed++

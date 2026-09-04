@@ -6,12 +6,21 @@ export { MAP_PREFIX }
 
 /**
  * MAP protocol commands
+ *
+ * Per the Magic Attribute Protocol specification. `SET` and `REMOVE` operate on
+ * single-value keys; `ADD` and `DELETE` operate on list-valued keys. `SELECT`
+ * designates a transaction as the context for a following command, and `CLEAR`
+ * erases every value a transaction wrote.
+ *
+ * @see https://github.com/opldotdev/MAP
  */
 export enum MAPCommand {
 	SET = 'SET',
-	DEL = 'DEL',
+	REMOVE = 'REMOVE',
 	ADD = 'ADD',
+	DELETE = 'DELETE',
 	SELECT = 'SELECT',
+	CLEAR = 'CLEAR',
 }
 
 /**
@@ -20,11 +29,14 @@ export enum MAPCommand {
 export interface MAPData {
 	cmd: MAPCommand | string
 	data: Record<string, string>
+	/** Values appended by an ADD command, in script order */
 	adds?: string[]
+	/** Values struck by a DELETE command, in script order */
+	deletes?: string[]
 }
 
 /**
- * MAP (Metadata and Payload) Protocol Template
+ * MAP (Magic Attribute Protocol) Template
  *
  * The MAP protocol provides a way to store key-value metadata on the blockchain.
  * It supports different commands for setting, deleting, adding, and selecting data.
@@ -48,23 +60,68 @@ export default class MAP {
 	 * @returns LockingScript - The MAP protocol locking script
 	 */
 	static add(key: string, values: string[]): LockingScript {
-		const data: Record<string, string> = {}
-		data[key] = values.join(' ') // Join values with space
-		return MAP.lock(MAPCommand.ADD, data)
+		// ADD names the list key, then writes one push per value. Joining the
+		// values into a single push would make an n-member list indistinguishable
+		// from a one-member list holding a space-separated string, and would not
+		// round-trip through the ADD branch of decode().
+		return MAP.lockPushes([MAPCommand.ADD, key, ...values])
 	}
 
 	/**
-	 * Creates a MAP protocol locking script with DEL command
+	 * Creates a MAP protocol locking script with a REMOVE command
 	 *
-	 * @param keys - Array of keys to delete
+	 * REMOVE clears single-value keys. To drop individual members of a
+	 * list-valued key, use {@link MAP.delete} instead.
+	 *
+	 * @param keys - Array of keys to remove
 	 * @returns LockingScript - The MAP protocol locking script
 	 */
-	static del(keys: string[]): LockingScript {
-		const data: Record<string, string> = {}
-		for (const key of keys) {
-			data[key] = ''
+	static remove(keys: string[]): LockingScript {
+		// REMOVE names keys only - it takes no values. Routing it through lock()
+		// would pad every key with an empty push.
+		return MAP.lockPushes([MAPCommand.REMOVE, ...keys])
+	}
+
+	/**
+	 * Creates a MAP protocol locking script with a DELETE command
+	 *
+	 * DELETE removes one or more values from a single list-valued key. The key
+	 * is named first so that the values are only struck from that list.
+	 *
+	 * @param key - The list-valued key to delete from
+	 * @param values - Values to remove from that list
+	 * @returns LockingScript - The MAP protocol locking script
+	 */
+	static delete(key: string, values: string[]): LockingScript {
+		return MAP.lockPushes([MAPCommand.DELETE, key, ...values])
+	}
+
+	/**
+	 * Builds a BitCom-framed MAP output from an ordered list of pushes
+	 *
+	 * The list commands (ADD, DELETE) and REMOVE are positional rather than
+	 * key/value, so they cannot go through {@link MAP.lock}. They still need the
+	 * same `OP_RETURN <MAP_PREFIX> ...` framing, otherwise {@link MAP.decode}
+	 * finds no OP_RETURN and returns null.
+	 *
+	 * @param pushes - The command followed by its operands, in script order
+	 * @returns LockingScript - The MAP protocol locking script
+	 */
+	private static lockPushes(pushes: string[]): LockingScript {
+		const script = new Script()
+		for (const push of pushes) {
+			script.writeBin(Utils.toArray(MAP.cleanString(push)))
 		}
-		return MAP.lock(MAPCommand.DEL, data)
+
+		const protocols: Protocol[] = [
+			{
+				protocol: MAP_PREFIX,
+				script: script.toBinary(),
+				pos: 0,
+			},
+		]
+
+		return new BitCom(protocols).lock()
 	}
 
 	/**
@@ -197,13 +254,32 @@ export default class MAP {
 					mapData.adds = values
 				}
 			}
-		} else if (cmd === MAPCommand.DEL) {
-			// For DEL command, read all keys to delete
+		} else if (cmd === MAPCommand.REMOVE) {
+			// REMOVE clears single-value keys - read every key named
 			for (let i = 1; i < chunks.length; i++) {
 				const keyChunk = chunks[i]
 				if (keyChunk?.data != null) {
 					const key = MAP.cleanString(Utils.toUTF8(keyChunk.data))
 					mapData.data[key] = ''
+				}
+			}
+		} else if (cmd === MAPCommand.DELETE) {
+			// DELETE removes values from one list-valued key: key first, then values
+			if (chunks.length >= 2) {
+				const keyChunk = chunks[1]
+				if (keyChunk?.data != null) {
+					const key = MAP.cleanString(Utils.toUTF8(keyChunk.data))
+
+					const values: string[] = []
+					for (let i = 2; i < chunks.length; i++) {
+						const valueChunk = chunks[i]
+						if (valueChunk?.data != null) {
+							values.push(MAP.cleanString(Utils.toUTF8(valueChunk.data)))
+						}
+					}
+
+					mapData.data[key] = values.join(' ')
+					mapData.deletes = values
 				}
 			}
 		}

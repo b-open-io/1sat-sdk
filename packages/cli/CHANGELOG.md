@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.102
+
+### Changed
+- Picks up `@1sat/actions@0.0.202`, including corrected BSV21 authority selection and mint fee accounting.
+
+## 0.0.101
+
+### Changed
+- Picks up `@1sat/actions@0.0.199`.
+
 ## 0.0.95
 
 ### Fixed

@@ -19,6 +19,7 @@ import {
 	mono,
 } from './styles'
 import { useLog } from './LogContext'
+import { useActionFlags } from './useActionFlags'
 import { useOneSatContext } from './useActions'
 
 /**
@@ -26,6 +27,7 @@ import { useOneSatContext } from './useActions'
  */
 export function OpnsPanel() {
 	const ctx = useOneSatContext()
+	const flags = useActionFlags()
 	const { log } = useLog()
 	const [list, setList] = useState<ListOpnsResult | null>(null)
 	const [id, setId] = useState('')
@@ -68,6 +70,7 @@ export function OpnsPanel() {
 				id,
 				...(profileName && { profileName }),
 				...(avatar && { avatar }),
+				...flags,
 			})
 			if (res.error) throw new Error(res.error)
 			setResult(res.txid ?? 'no txid')
@@ -88,7 +91,7 @@ export function OpnsPanel() {
 		setError(null)
 		log('info', `deregisterOpns: id=${id}`)
 		try {
-			const res = await deregisterOpns.execute(ctx, { id })
+			const res = await deregisterOpns.execute(ctx, { id, ...flags })
 			if (res.error) throw new Error(res.error)
 			setResult(res.txid ?? 'no txid')
 			log('success', `deregisterOpns txid: ${res.txid}`)
@@ -108,7 +111,10 @@ export function OpnsPanel() {
 		setError(null)
 		log('info', `buyOpns: ${buyOutpoint}`)
 		try {
-			const res = await buyOpns.execute(ctx, { outpoint: buyOutpoint })
+			const res = await buyOpns.execute(ctx, {
+				outpoint: buyOutpoint,
+				...flags,
+			})
 			if (res.error) throw new Error(res.error)
 			setResult(res.txid ?? 'no txid')
 			log('success', `buyOpns txid: ${res.txid}`)

@@ -4,6 +4,7 @@ import { WalletInfo } from './components/WalletInfo'
 import { SendBsv } from './components/SendBsv'
 import { SendOrdinals } from './components/SendOrdinals'
 import { TransferToken } from './components/TransferToken'
+import { BurnPromptTest } from './components/BurnPromptTest'
 import { Inscribe } from './components/Inscribe'
 import { Listings } from './components/Listings'
 import { SignMessage } from './components/SignMessage'
@@ -17,6 +18,7 @@ import { TokensList } from './components/TokensList'
 import { UtxosList } from './components/UtxosList'
 import { OpnsPanel } from './components/OpnsPanel'
 import { DepositSync } from './components/DepositSync'
+import { MigrateBaskets } from './components/MigrateBaskets'
 import { EventLog } from './components/EventLog'
 import { LogProvider } from './components/LogContext'
 import { LocalCwiHost } from './localCwi/LocalCwiHost'
@@ -31,12 +33,14 @@ function WalletContent() {
 			<div style={gridStyle}>
 				<div style={colStyle}>
 					<DepositSync />
+					<MigrateBaskets />
 					<OpnsPanel />
 					<SendBsv />
 					<SendMnee />
 					<Inscribe />
 					<SendOrdinals />
 					<TransferToken />
+					<BurnPromptTest />
 					<Listings />
 					<SignMessage />
 					<BapProfile />

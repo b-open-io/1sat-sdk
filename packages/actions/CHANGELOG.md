@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.0.203
+
+### Fixed
+- `mintBsv21` can now permanently consume a matching mint authority without forcing a final token mint.
+- Authority termination rejects a simultaneous authority destination, refuses inactive tokens, and emits neither BSV21 outputs nor an overlay-fee output.
+
+## 0.0.202
+
+### Fixed
+- BSV21 authority deployment and minting now select the newly created authority by its transaction outpoint instead of assuming a fixed output position.
+- Mint funding now counts every transaction output, including both overlay remittance outputs, so fee estimates no longer underfund one authority-mint path.
+
+## 0.0.201
+
+### Added
+- `registry:base` and `registry:item`, matching the current shadcn/ui registry item vocabulary.
+- `registry:asset`, a 1Sat MAP type for generic on-chain asset packages. It is package metadata, not a shadcn/ui registry item type.
+
+## 0.0.199
+
+### Changed
+- Apply is the only `id:` stamp; `prepareP1SatArgs` is a no-op.
+- View scopes: collection/app/creator force `tagQueryMode: all`; `id` leaves the caller mode.
+- Sigma inscribe stamps `creator:<signing address>` from the SIGMA tape.
+
 ## 0.0.192
 
 ### Removed

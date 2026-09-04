@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { deployOrdfsDir, inscribeOrdfsDir } from '../src/ordfs'
+import { deployOrdfsDir } from '../src/ordfs'
 import type { OneSatContext } from '../src/types'
 
 // These guards run before any wallet interaction, so a minimal context suffices.
@@ -20,11 +20,5 @@ describe('deployOrdfsDir input validation', () => {
 			writeMode: 'inscriptoin' as never,
 		})
 		expect(res.error).toMatch(/invalid-write-mode/)
-	})
-})
-
-describe('inscribeOrdfsDir back-compat alias', () => {
-	it('is the same action as deployOrdfsDir', () => {
-		expect(inscribeOrdfsDir).toBe(deployOrdfsDir)
 	})
 })

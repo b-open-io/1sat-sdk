@@ -1,3 +1,4 @@
+import type { PermissionSchemeId } from '@1sat/types'
 import type { IPermissionStore } from '@1sat/wallet'
 import type { WalletInterface } from '@bsv/sdk'
 
@@ -37,17 +38,13 @@ export interface PromptRequest {
 	kind: PromptKind
 	originator: string
 	/**
-	 * Context payload for the host UI.
+	 * Host UI data.
 	 *
-	 * Transaction kind (typical fields the UI consumes):
-	 * - `p1satIntent` — e.g. `opns.register`, `ordinal.transfer`
-	 * - `inputs` / `outputs` / `contentUrls` — assets, recipients, ORDFS/icon URLs
-	 * - `trust?` — `{ state: 'verified'|'unverified'|'mismatch', note? }` purchases
-	 * - `indexerFeeSats?` / `indexerFeeNote?` — overlay fee (not miner/DSAP)
-	 *
-	 * For `kind: 'basketAccess'`: `{ baskets: BasketAccessRequest[] }`.
+	 * Transaction: {@link import('./promptModel').TransactionPrompt}
+	 * (panels already built — UI only renders).
+	 * basketAccess: `{ baskets: BasketAccessRequest[] }`.
 	 */
-	intent: Record<string, unknown>
+	payload: Record<string, unknown>
 	/** Short human-readable summary line. Filled in by the module. */
 	summary: string
 }
@@ -57,8 +54,17 @@ export interface PromptRequest {
  * `kind: 'basketAccess'` prompt intent.
  */
 export interface BasketAccessRequest {
+	/** Grant key (e.g. `p 1sat collection <id>` or plain `1sat`). */
 	basket: string
 	description?: string
+	/** View axis when this is a scoped grant (`collection` / `app` / `creator` / `all`). */
+	scope?: string
+	/** Axis filter value (e.g. collection outpoint). Always show when set. */
+	value?: string
+	/** Optional display name (e.g. OrdFS MAP name for a collection). */
+	name?: string
+	/** Optional preview image URL (OrdFS content). */
+	imageUrl?: string
 }
 
 /**
@@ -91,13 +97,26 @@ export interface VerificationServices {
 	}
 	bsv21?: {
 		getTokenDetails?(tokenId: string): Promise<{
-			token?: { sym?: string; dec?: string | number }
+			token?: {
+				sym?: string
+				dec?: string | number
+				icon?: string
+			}
 			status?: { is_active?: boolean }
 		} | null>
+		/**
+		 * Validate outpoints against the token overlay topic.
+		 * Returns only those found (optionally unspent).
+		 */
+		validateOutputs?(
+			tokenId: string,
+			outpoints: string[],
+			opts?: { unspent?: boolean },
+		): Promise<Array<{ outpoint: string }>>
 	}
 }
 
-/** Args accepted by `createOneSatPermissionModule`. */
+/** Args accepted by `createOneSatPermissionModule` / scheme modules. */
 export interface CreateOneSatPermissionModuleArgs {
 	/**
 	 * The underlying wallet (NOT the WalletPermissionsManager wrapper).
@@ -107,6 +126,16 @@ export interface CreateOneSatPermissionModuleArgs {
 	wallet: WalletInterface
 	/** UI callback for prompting the user. */
 	promptHandler: PromptHandler
+	/**
+	 * BRC-99 scheme id this module instance handles (e.g. `1sat`, `opns`, `bsv21`).
+	 * Default `1sat`.
+	 */
+	schemeId?: PermissionSchemeId
+	/**
+	 * Storage baskets this module may gate on list/internalize.
+	 * Default: `[schemeId]` (scheme id === basket name).
+	 */
+	baskets?: readonly string[]
 	/**
 	 * Optional persistent grant store consulted before prompting for
 	 * basket-access on P-baskets. Same `IPermissionStore` instance the

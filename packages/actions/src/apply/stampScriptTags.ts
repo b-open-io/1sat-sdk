@@ -1,4 +1,4 @@
-import { Lock, OrdLock } from '@1sat/templates'
+import { Lock, OrdLock, Sigma } from '@1sat/templates'
 import { type CreateActionArgs, Script } from '@bsv/sdk'
 
 /**
@@ -42,6 +42,16 @@ export function stampScriptDerivedTags(args: CreateActionArgs): void {
 			out.tags = [
 				...(out.tags ?? []).filter((t) => !t.startsWith('until:')),
 				`until:${lock.until}`,
+			]
+		}
+
+		const address = Sigma.parseFromScript(script).find(
+			(s) => s.address && !/^[\0]+$/.test(s.address),
+		)?.address
+		if (address) {
+			out.tags = [
+				...(out.tags ?? []).filter((t) => !t.startsWith('creator:')),
+				`creator:${address}`,
 			]
 		}
 	}

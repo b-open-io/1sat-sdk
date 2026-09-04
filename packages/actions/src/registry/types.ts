@@ -19,7 +19,7 @@ export interface PackageFile {
 export interface PackageMapMetadata {
 	/** Registry identifier -- consumer-provided application namespace */
 	app: string
-	/** Registry type with registry: prefix */
+	/** Outer package type advertised in MAP metadata (not necessarily a shadcn/ui item type) */
 	type: RegistryType
 	/** Package name (lowercase, hyphenated, 1-64 chars) */
 	name: string
