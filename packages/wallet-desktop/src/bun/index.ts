@@ -14,13 +14,7 @@ import Electrobun, {
 } from 'electrobun/bun'
 import { createLogger } from 'evlog'
 import type { WalletDesktopRPC } from '../shared/types'
-import {
-	addAccount,
-	getShowPickerOnStartup,
-	listAccounts,
-	setLastActiveAccountId,
-	setShowPickerOnStartup as setPickerPref,
-} from './account-registry'
+import { getShowPickerOnStartup, listAccounts } from './account-registry'
 import { setChatMessageCallback, shutdownChatManager } from './chat-manager'
 import { closeConfigStore } from './config-store'
 import {
@@ -41,13 +35,14 @@ import {
 	startBackgroundUpdateCheck,
 	stopBackgroundUpdateCheck,
 } from './updater'
-import { initVaultChannel, legacyVaultLabel } from './vault-manager'
+import { initVaultChannel } from './vault-manager'
 import {
-	migrateLegacyWallet,
+	recoverOrphanedAccounts,
 	setBalanceUpdatedCallback,
 	setInitialStatus,
 	setStatusChangedCallback,
 	setSyncEventCallback,
+	sweepStaleAccountStorageArtifacts,
 } from './wallet-manager'
 import { setMainWindow } from './window-manager'
 
@@ -69,64 +64,25 @@ try {
 
 // Each channel gets its own Secure Enclave key namespace
 initVaultChannel(buildChannel)
+await sweepStaleAccountStorageArtifacts()
 
 // ============================================================================
-// Migration: single-account → multi-account
+// Recover vault accounts whose registry entry is missing.
 // ============================================================================
 
-if (listAccounts().length === 0) {
-	const log = createLogger({ context: 'migration' })
-
-	// Phase 1: Try legacy single-account migration (v0.0.8 and earlier)
-	try {
-		const migrationResult =
-			(await migrateLegacyWallet(legacyVaultLabel())) ??
-			(await migrateLegacyWallet('1sat-wallet-root-key'))
-		if (migrationResult) {
-			addAccount({
-				id: migrationResult.accountId,
-				identityKey: migrationResult.identityKey,
-				displayName: 'Account 1',
-				color: 'amber',
-				createdAt: new Date().toISOString(),
-				lastUsedAt: new Date().toISOString(),
-			})
-			setLastActiveAccountId(migrationResult.accountId)
-			setPickerPref(true)
-			log.set({
-				event: 'legacy_migrated',
-				accountId: migrationResult.accountId,
-			})
-			log.emit()
-		}
-	} catch (err) {
-		log.set({
-			event: 'migration_failed',
-			error: err instanceof Error ? err.message : String(err),
-		})
-		log.emit()
+const recoveryLog = createLogger({ context: 'accounts' })
+try {
+	const recovered = await recoverOrphanedAccounts()
+	if (recovered > 0) {
+		recoveryLog.set({ event: 'orphans_recovered', count: recovered })
+		recoveryLog.emit()
 	}
-
-	// Phase 2: Recover orphaned accounts — vault entries that exist but
-	// have no registry entry (e.g. config.db moved to new path)
-	if (listAccounts().length === 0) {
-		try {
-			const { recoverOrphanedAccounts } = await import('./wallet-manager')
-			const recovered = await recoverOrphanedAccounts()
-			if (recovered > 0) {
-				const rlog = createLogger({ context: 'migration' })
-				rlog.set({ event: 'orphans_recovered', count: recovered })
-				rlog.emit()
-			}
-		} catch (err) {
-			const rlog = createLogger({ context: 'migration' })
-			rlog.set({
-				event: 'orphan_recovery_failed',
-				error: err instanceof Error ? err.message : String(err),
-			})
-			rlog.emit()
-		}
-	}
+} catch (err) {
+	recoveryLog.set({
+		event: 'orphan_recovery_failed',
+		error: err instanceof Error ? err.message : String(err),
+	})
+	recoveryLog.emit()
 }
 
 // ============================================================================
