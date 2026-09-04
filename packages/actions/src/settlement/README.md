@@ -1,8 +1,8 @@
 # Atomic settlement primitives
 
 The settlement exports from `@1sat/actions` implement the transaction boundary
-for draft BRC-178. They support ordinal-only, BSV21-only, and mixed two-party
-swaps in one Bitcoin transaction.
+for draft BRC-178. They support 1Sat Ordinal NFT-only, BSV21-only, and mixed
+two-party swaps in one Bitcoin transaction.
 
 ## Flow
 
