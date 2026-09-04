@@ -4,7 +4,6 @@ import type {
 	WalletProtocol,
 } from '@bsv/sdk'
 
-export const SETTLEMENT_SIGHASH_SCOPE = 0x41 as const
 export const MAX_BSV21_AMOUNT = 18_446_744_073_709_551_615n
 export const MAX_SETTLEMENT_ASSET_INPUTS = 256
 export const MAX_SETTLEMENT_OUTPUTS = 512

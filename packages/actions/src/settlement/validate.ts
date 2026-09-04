@@ -81,7 +81,9 @@ function assertOfferItem(item: SettlementAssetV1, context: string): void {
 	}
 	if (item.kind === 'bsv') {
 		assertExactKeys(record, ['kind', 'satoshis'], [], context)
-		parseSettlementAmount(item.satoshis, `${context}.satoshis`)
+		parseSettlementAmount(item.satoshis, `${context}.satoshis`, {
+			max: MAX_BSV21_AMOUNT,
+		})
 		return
 	}
 	throw new Error(`${context}: unsupported offer item`)

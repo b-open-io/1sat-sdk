@@ -394,6 +394,19 @@ describe('settlement terms', () => {
 		).toThrow('too many asset items')
 	})
 
+	test('rejects a BSV offer above the unsigned 64-bit maximum', () => {
+		const bad = structuredClone(mixedFixture().plan)
+		bad.offers.find((entry) => entry.owner === PARTY_A)!.items = [
+			{ kind: 'bsv', satoshis: (MAX_BSV21_AMOUNT + 1n).toString() },
+		]
+		expect(() =>
+			validateSettlementPlan(bad, {
+				now: NOW,
+				maxEvidenceAgeMs: MAX_AGE,
+			}),
+		).toThrow('uint64')
+	})
+
 	test('requires exactly one satoshi for ordinal source and receipt', () => {
 		const sourceBad = structuredClone(mixedFixture().plan)
 		const sourceInput = sourceBad.contributions
