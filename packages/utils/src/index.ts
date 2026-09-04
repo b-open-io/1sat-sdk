@@ -49,11 +49,17 @@ export function parseOutpoint(outpoint: string): {
 }
 
 /**
- * Format txid and vout into an outpoint string (period-delimited)
+ * Format txid and vout into an outpoint string (period-delimited, BRC-100 wire)
  */
 export function formatOutpoint(txid: string, vout: number): string {
 	return `${txid}.${vout}`
 }
+
+/**
+ * Ordinals / indexer form `txid_vout`. Re-export — canonical impl in @1sat/types.
+ * @see formatOrdinalOutpoint
+ */
+export { formatOrdinalOutpoint } from '@1sat/types'
 
 /**
  * Validate that a string is a valid outpoint format.

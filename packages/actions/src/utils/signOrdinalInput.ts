@@ -1,6 +1,7 @@
 import { OPNS_PUSHDROP_TEMPLATE } from '@1sat/types'
 import {
 	Hash,
+	PushDrop,
 	Signature,
 	type Transaction,
 	TransactionSignature,
@@ -24,6 +25,7 @@ export interface OrdinalCustomInstructions {
 	protocolID: WalletProtocol
 	keyID: string
 	counterparty?: WalletCounterparty
+	/** @deprecated ignored — script shape decides unlock */
 	template?: string
 	name?: string
 }
@@ -41,12 +43,10 @@ export function parseOrdinalCustomInstructions(
 export function unlockingScriptLengthForInstructions(
 	customInstructions: string | undefined,
 ): number {
-	if (!customInstructions) return P2PKH_UNLOCK_LENGTH
-	const ci = parseOrdinalCustomInstructions(customInstructions)
-	if ('error' in ci) return P2PKH_UNLOCK_LENGTH
-	return ci.template === OPNS_PUSHDROP_TEMPLATE
-		? PUSHDROP_UNLOCK_LENGTH
-		: P2PKH_UNLOCK_LENGTH
+	// Default P2PKH; callers with known PushDrop should pass length explicitly.
+	// CI template is no longer authoritative.
+	void customInstructions
+	return P2PKH_UNLOCK_LENGTH
 }
 
 /**
@@ -118,8 +118,8 @@ async function signPushDropInput(
 }
 
 /**
- * Unlock an ordinal input using customInstructions.
- * PushDrop when template === 'pushdrop'; otherwise P2PKH.
+ * Unlock an ordinal input. Script shape decides PushDrop vs P2PKH;
+ * CI supplies key material only.
  */
 export async function signOrdinalInput(
 	ctx: OneSatContext,
@@ -133,15 +133,25 @@ export async function signOrdinalInput(
 		return { error: 'missing-protocol-or-key-id' }
 	}
 
-	if (ci.template === OPNS_PUSHDROP_TEMPLATE) {
-		return signPushDropInput(
-			ctx,
-			tx,
-			inputIndex,
-			ci.protocolID,
-			ci.keyID,
-			ci.counterparty ?? 'anyone',
-		)
+	const txInput = tx.inputs[inputIndex]
+	const sourceLockingScript =
+		txInput?.sourceTransaction?.outputs[txInput.sourceOutputIndex]
+			?.lockingScript
+
+	if (sourceLockingScript) {
+		try {
+			PushDrop.decode(sourceLockingScript)
+			return signPushDropInput(
+				ctx,
+				tx,
+				inputIndex,
+				ci.protocolID,
+				ci.keyID,
+				ci.counterparty ?? 'anyone',
+			)
+		} catch {
+			// not pushdrop
+		}
 	}
 
 	return signP2PKHInput(

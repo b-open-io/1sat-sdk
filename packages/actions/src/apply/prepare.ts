@@ -1,35 +1,25 @@
-import {
-	buildIntentLabel,
-	parseIntentLabel,
-} from '@1sat/types'
 import type { CreateActionArgs } from '@bsv/sdk'
 import type { OneSatContext } from '../types'
-import { ensureActionId } from '../utils/createTrackedAction'
-import { applyP1SatIntent } from './applyIntent'
+
+export interface PrepareP1SatOptions {
+	/** @deprecated Dispatch lives on executeTrackedAction. Ignored. */
+	usePermissionModule?: boolean
+	/** @deprecated use usePermissionModule */
+	useOneSatModule?: boolean
+	/** @deprecated use usePermissionModule */
+	useModule?: boolean
+	/** @deprecated Ignored. */
+	permissionScheme?: string
+}
 
 /**
- * Attach intent + action-id labels and run apply when `ctx.isBaseWallet`.
- * Mutates `args` in place (labels + any apply rewrite).
- *
- * The action id is stamped here, ahead of apply, so both the base-wallet path
- * (apply below) and the gated path (apply inside the module) see the same
- * value and derive identical intermediate keyIDs.
+ * @deprecated No-op. Ids/seals run in apply; module labels on executeTrackedAction.
  */
 export async function prepareP1SatArgs(
 	ctx: OneSatContext,
 	args: CreateActionArgs,
-	intent: string,
+	_opts: PrepareP1SatOptions = {},
 ): Promise<CreateActionArgs> {
-	const labels = args.labels ?? []
-	if (!parseIntentLabel(labels)) {
-		args.labels = [buildIntentLabel(intent), ...labels]
-	}
-	ensureActionId(args)
-	if (ctx.isBaseWallet) {
-		// The shared entrypoint, not the registry directly — it dispatches by
-		// intent *and* stamps script-derived tags afterwards. Calling the registry
-		// here would skip the stamping on every base-wallet action.
-		await applyP1SatIntent(ctx.wallet, args, intent)
-	}
+	void ctx
 	return args
 }

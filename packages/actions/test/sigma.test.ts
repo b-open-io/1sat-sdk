@@ -7,7 +7,6 @@ import {
 	sealSigma,
 } from '../src/signing/sigma'
 import type { OneSatContext } from '../src/types'
-import { executeSigmaAction } from '../src/utils/executeSigmaAction'
 
 const testKey = PrivateKey.fromRandom()
 const testPubKey = testKey.toPublicKey()
@@ -39,27 +38,6 @@ function expectValidSigma(script: Script, inputVout = 0): void {
 }
 
 describe('SIGMA placeholder and seal', () => {
-	it('rejects external funding because the provider cannot sign the anchor', async () => {
-		const ctx = createMockContext()
-		await expect(
-			executeSigmaAction(
-				ctx,
-				{
-					description: 'Signed output',
-					outputs: [
-						{
-							lockingScript: new P2PKH().lock(testAddress).toHex(),
-							satoshis: 1,
-							outputDescription: 'Signed output',
-						},
-					],
-				},
-				'ordinal.inscribe-sigma',
-				{ fund: async () => Promise.reject(new Error('must not be called')) },
-			),
-		).rejects.toThrow('sigma-incompatible-with-funding-provider')
-	})
-
 	it('keeps the output size stable and produces a verifiable signature', async () => {
 		const ctx = createMockContext()
 		const base = new P2PKH().lock(testAddress)

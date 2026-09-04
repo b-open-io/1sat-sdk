@@ -4,10 +4,10 @@
  * Actions for creating inscriptions, including multi-tx OrdFS streams.
  */
 
-import { Inscription } from '@1sat/templates'
+import { buildInscriptionScript } from '@1sat/templates'
 import type { Destination } from '@1sat/types'
-import { P1SAT_INTENTS, P1SAT_PROTOCOL, buildActionIdLabel } from '@1sat/types'
-import { Beef, Hash, type LockingScript, Script, Utils } from '@bsv/sdk'
+import { P1SAT_PROTOCOL } from '@1sat/types'
+import { Beef, Hash, type Script, Utils } from '@bsv/sdk'
 import { prepareP1SatArgs } from '../apply'
 import {
 	DEFAULT_STREAM_CHUNK_SIZE,
@@ -16,18 +16,14 @@ import {
 	ORDFS_STREAM_PARAM,
 	ORDINALS_BASKET,
 } from '../constants'
+import { appendSigmaPlaceholder } from '../signing/sigma'
 import type { Action, ActionOptions, OneSatContext } from '../types'
-import { appendMapSuffix } from '../utils/appendMapSuffix'
-import {
-	executeTrackedAction,
-	randomActionId,
-} from '../utils/createTrackedAction'
-import { executeSigmaAction } from '../utils/executeSigmaAction'
+import { executeTrackedAction } from '../utils/createTrackedAction'
+import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance'
 import {
 	type ResolvedDestination,
 	resolveDestination,
 } from '../utils/resolveDestination'
-import { signP2PKHInput } from '../utils/signP2PKH'
 import { splitStreamChunks, wantsStreamInscription } from './stream'
 
 // ============================================================================
@@ -84,36 +80,22 @@ export interface InscribeResponse {
 // Internal helpers
 // ============================================================================
 
-function buildInscriptionScript(
-	lockingScript: LockingScript,
-	content: Uint8Array,
-	contentType: string,
-	map?: Record<string, string>,
-): Script {
-	const suffix = new Script()
-	for (const chunk of lockingScript.chunks) suffix.chunks.push(chunk)
-
-	const inscription = Inscription.create(content, contentType, {
-		scriptSuffix: suffix,
-	})
-	return appendMapSuffix(new Script(inscription.lock().chunks), map)
-}
-
 async function inscribeWithSigma(
 	ctx: OneSatContext,
 	lockingScript: Script,
 	tags: string[],
 	input: InscribeRequest,
-	actionId: string,
 	outputCustomInstructions?: string,
 	outputKeyIDForLog?: string,
 ): Promise<InscribeResponse> {
-	const args = {
+	// Full script with the SIGMA signature zeroed, so the output is already
+	// its on-chain size; apply creates the anchor and swaps the signature in.
+	const placeholderScript = await appendSigmaPlaceholder(ctx, lockingScript)
+	const args = await prepareP1SatArgs(ctx, {
 		description: 'Create inscription',
-		labels: [buildActionIdLabel(actionId)],
 		outputs: [
 			{
-				lockingScript: lockingScript.toHex(),
+				lockingScript: placeholderScript.toHex(),
 				satoshis: 1,
 				outputDescription: 'Inscription',
 				basket: ORDINALS_BASKET,
@@ -125,13 +107,20 @@ async function inscribeWithSigma(
 			randomizeOutputs: false,
 			acceptDelayedBroadcast: true,
 		},
-	}
+	})
 
-	const result = await executeSigmaAction(
-		ctx,
+	const result = await executeTrackedAction(
+		ctx.wallet,
 		args,
-		P1SAT_INTENTS.ORDINAL_INSCRIBE_SIGMA,
 		input.fundingProvider,
+		undefined,
+		undefined,
+		{
+			spends: [],
+			usePermissionModule:
+				input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+			permissionScheme: '1sat',
+		},
 	)
 
 	if (ctx.debug && ctx.log) {
@@ -142,6 +131,7 @@ async function inscribeWithSigma(
 				contentType: input.contentType,
 				map: input.map,
 				signWithBAP: true,
+				anchorOutpoint: args.inputs?.[0]?.outpoint,
 			},
 			txid: result.txid,
 			rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
@@ -214,9 +204,8 @@ async function inscribeStream(
 			input.map,
 		)
 		const originTags = streamTags(0, [
-			`type:${input.contentType}`,
+			`type:${input.contentType.split(';')[0]?.trim() || input.contentType}`,
 			'origin',
-			...(input.map?.name ? [`name:${input.map.name}`] : []),
 		])
 		try {
 			const result = await executeTrackedAction(ctx.wallet, {
@@ -264,9 +253,8 @@ async function inscribeStream(
 	)
 
 	const multiOriginTags = streamTags(0, [
-		`type:${input.contentType}`,
+		`type:${input.contentType.split(';')[0]?.trim() || input.contentType}`,
 		'origin',
-		...(input.map?.name ? [`name:${input.map.name}`] : []),
 	])
 
 	let originResult: Awaited<ReturnType<typeof executeTrackedAction>>
@@ -297,6 +285,7 @@ async function inscribeStream(
 		return fail('origin-no-txid')
 	}
 	txids.push(originResult.txid)
+	let priorSpendId = `${originResult.actionId}_0`
 	allNoSendChange.push(...(originResult.noSendChange ?? []))
 	if (originResult.tx) {
 		const beef = new Beef()
@@ -350,17 +339,10 @@ async function inscribeStream(
 				},
 				undefined,
 				accumulatedBEEF,
-				async (tx) => {
-					const unlocking = await signP2PKHInput(
-						ctx,
-						tx,
-						0,
-						P1SAT_PROTOCOL,
-						destKeyID,
-						destCounterparty,
-					)
-					if (typeof unlocking !== 'string') throw new Error(unlocking.error)
-					return { 0: { unlockingScript: unlocking } }
+				undefined,
+				{
+					// Wallet-held prior chunk: basket+id (not BEEF outpoint)
+					spends: [{ basket: ORDINALS_BASKET, id: priorSpendId }],
 				},
 			)
 		} catch (e) {
@@ -371,6 +353,7 @@ async function inscribeStream(
 			return fail(`chunk-${i}-no-txid`)
 		}
 		txids.push(result.txid)
+		priorSpendId = `${result.actionId}_0`
 		allNoSendChange.push(...(result.noSendChange ?? []))
 		if (result.tx && accumulatedBEEF) {
 			const beef = Beef.fromBinary(accumulatedBEEF)
@@ -502,24 +485,24 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 				return { error: 'streaming-with-funding-provider-not-supported' }
 			}
 
-			// Minted before output building so the destination derivation is
-			// recomputable from the action record. Stamped on args below.
-			const actionId = randomActionId()
-
 			const resolved = await resolveDestination(ctx, input.destination, {
 				protocolID: P1SAT_PROTOCOL,
 				keyIDPrefix: 'inscribe',
-				actionId,
 			})
 
+			const typeBase =
+				input.contentType.split(';')[0]?.trim() || input.contentType
+			const tags = [`type:${typeBase}`, 'origin', shaTag]
+
 			const customInstructions = resolved.customInstructions
-				? JSON.stringify({
+				? buildOrdinalCustomInstructions({
 						protocolID: resolved.customInstructions.protocolID,
 						keyID: resolved.customInstructions.keyID,
-						...(resolved.customInstructions.counterparty !== undefined && {
-							counterparty: resolved.customInstructions.counterparty,
-						}),
-						...(input.map?.name && { name: input.map.name.slice(0, 64) }),
+						counterparty: resolved.customInstructions.counterparty as
+							| string
+							| undefined,
+						tags,
+						name: input.map?.name,
 					})
 				: undefined
 
@@ -543,50 +526,49 @@ export const inscribe: Action<InscribeRequest, InscribeResponse> = {
 				input.map,
 			)
 
-			const tags = [`type:${input.contentType}`, 'origin', shaTag]
-			if (input.map?.name) {
-				tags.push(`name:${input.map.name}`)
-			}
-
 			if (input.signWithBAP) {
 				const sigmaResult = await inscribeWithSigma(
 					ctx,
 					lockingScript,
 					tags,
 					input,
-					actionId,
 					customInstructions,
 					resolved.customInstructions?.keyID,
 				)
 				return { ...sigmaResult, contentHash }
 			}
 
-			const args = await prepareP1SatArgs(
-				ctx,
-				{
-					description: 'Create inscription',
-					labels: [buildActionIdLabel(actionId)],
-					outputs: [
-						{
-							lockingScript: lockingScript.toHex(),
-							satoshis: 1,
-							outputDescription: 'Inscription',
-							basket: ORDINALS_BASKET,
-							tags,
-							customInstructions,
-						},
-					],
-					options: {
-						acceptDelayedBroadcast: false,
-						randomizeOutputs: false,
+			const args = await prepareP1SatArgs(ctx, {
+				description: 'Create inscription',
+				outputs: [
+					{
+						lockingScript: lockingScript.toHex(),
+						satoshis: 1,
+						outputDescription: 'Inscription',
+						basket: ORDINALS_BASKET,
+						tags,
+						customInstructions,
 					},
+				],
+				options: {
+					acceptDelayedBroadcast: false,
+					randomizeOutputs: false,
 				},
-				P1SAT_INTENTS.ORDINAL_INSCRIBE,
-			)
+			})
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				args,
 				input.fundingProvider,
+				undefined,
+				undefined,
+				{
+					spends: [],
+					usePermissionModule:
+						input.usePermissionModule ??
+						input.useOneSatModule ??
+						input.useModule,
+					permissionScheme: '1sat',
+				},
 			)
 
 			if (!result.txid) {

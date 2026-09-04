@@ -1,4 +1,4 @@
-export { applyP1SatIntent } from './applyIntent'
+export { applyP1SatCreateAction, applyP1SatIntent } from './applyIntent'
 export type { ApplyFn } from './registry'
 export { P1SAT_APPLY_REGISTRY } from './registry'
 

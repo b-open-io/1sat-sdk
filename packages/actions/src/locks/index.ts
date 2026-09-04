@@ -6,7 +6,6 @@
 
 import { Lock } from '@1sat/templates'
 import {
-	P1SAT_INTENTS,
 	P1SAT_PROTOCOL,
 	buildInputAssetLabel,
 	readAssetIdTag,
@@ -262,19 +261,22 @@ export const lockBsv: Action<LockBsvInput, LockOperationResponse> = {
 				})
 			}
 
-			const args = await prepareP1SatArgs(
-				ctx,
-				{
+			const args = await prepareP1SatArgs(ctx, {
 					description: `Lock BSV in ${requests.length} output(s)`,
 					outputs,
 					options: { acceptDelayedBroadcast: false },
-				},
-				P1SAT_INTENTS.LOCK_LOCK,
-			)
+				})
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				args,
 				input.fundingProvider,
+				undefined,
+				undefined,
+				{
+					spends: [],
+					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					permissionScheme: 'lock',
+				},
 			)
 
 			if (!result.txid) {
@@ -323,7 +325,7 @@ export const lockBsv: Action<LockBsvInput, LockOperationResponse> = {
 }
 
 /** Input for unlockBsv action */
-export interface UnlockBsvInput {
+export interface UnlockBsvInput extends ActionOptions {
 	/**
 	 * When set, only unlock these tracking ids (bare or id: prefix).
 	 * When omitted, unlock all matured locks in the basket.
@@ -431,9 +433,7 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 				.map((l) => readAssetIdTag(l.output.tags))
 				.filter((id): id is string => Boolean(id))
 				.map((id) => buildInputAssetLabel(LOCK_BASKET, id))
-			const args = await prepareP1SatArgs(
-				ctx,
-				{
+			const args = await prepareP1SatArgs(ctx, {
 					description: `Unlock ${maturedLocks.length} lock(s)`,
 					inputBEEF,
 					...(inputLabels.length > 0 && { labels: inputLabels }),
@@ -445,28 +445,32 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 					})),
 					outputs: [],
 					lockTime: maxUntil,
-				},
-				P1SAT_INTENTS.LOCK_UNLOCK,
-			)
+				})
+			const spends = maturedLocks
+				.map((l) => {
+					const id = readAssetIdTag(l.output.tags)
+					if (!id || !l.output.customInstructions) return null
+					return {
+						basket: LOCK_BASKET,
+						id,
+						outpoint: l.output.outpoint.replace('_', '.'),
+						customInstructions: l.output.customInstructions,
+					}
+				})
+				.filter((x): x is NonNullable<typeof x> => !!x)
+			if (spends.length === 0) {
+				return { error: 'locks-missing-id-or-ci' }
+			}
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				args,
 				undefined,
 				inputBEEF as number[],
-				async (tx) => {
-					const spends: Record<number, { unlockingScript: string }> = {}
-					for (let i = 0; i < maturedLocks.length; i++) {
-						const lock = maturedLocks[i]
-						const unlocker = Lock.unlockWithWallet(
-							ctx.wallet,
-							lock.protocolID,
-							lock.keyID,
-							'self',
-						)
-						const unlockingScript = await unlocker.sign(tx, i)
-						spends[i] = { unlockingScript: unlockingScript.toHex() }
-					}
-					return spends
+				undefined,
+				{
+					spends,
+					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					permissionScheme: 'lock',
 				},
 			)
 

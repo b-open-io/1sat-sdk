@@ -97,6 +97,12 @@ function createMockContext(): { ctx: OneSatContext; state: MockState } {
 				}
 			}
 			beef.mergeTransaction(tx)
+			// The parent pipeline creates its anchor in one phase, then requests
+			// the collection transaction with signAndProcess explicitly false.
+			if (args.options?.signAndProcess !== false) {
+				const txid = tx.id('hex')
+				return { txid, tx: beef.toBinaryAtomic(txid) }
+			}
 			const reference = `ref-${nextReference++}`
 			state.pending.set(reference, tx)
 
@@ -224,7 +230,11 @@ describe('collection references and SIGMA authorship', () => {
 			expect(
 				JSON.parse(MAP.decode(script)?.data.subTypeData as string).collectionId,
 			).toBe(canonical)
-			expect(output?.tags).toContain(`collectionId:${canonical}`)
+			expect(output?.tags).toContain(`collection:${canonical}`)
+			expect(JSON.parse(output?.customInstructions as string)).toMatchObject({
+				collection: canonical,
+				name: 'Item',
+			})
 			const inscription = Inscription.decode(script)
 			expect(Array.from(inscription?.parent ?? [])).toEqual([
 				...Array(32).fill(0xab),
@@ -341,6 +351,19 @@ describe('BSV21 collection items', () => {
 		)
 		expect(action).toBeDefined()
 		expect(action?.outputs?.[0].satoshis).toBe(1)
+		expect(
+			action?.outputs?.[0].tags?.filter((tag) => !/^(id|creator):/.test(tag)),
+		).toEqual(['bsv21:deploy'])
+		expect(
+			JSON.parse(action?.outputs?.[0].customInstructions as string),
+		).toMatchObject({
+			amt: '1000',
+			op: 'deploy+mint',
+			sym: 'MEM',
+			dec: '0',
+			protocolID: expect.any(Array),
+			keyID: expect.any(String),
+		})
 		const script = Script.fromHex(action?.outputs?.[0].lockingScript as string)
 
 		expect(BSV21.decode(script)?.tokenData).toEqual({
@@ -402,6 +425,19 @@ describe('generic BSV21 deploy composition', () => {
 		})
 
 		expect(result.tokenId).toBe(`${txid}_0`)
+		expect(
+			fundedArgs?.outputs?.[0].tags?.filter((tag) => !tag.startsWith('id:')),
+		).toEqual(['bsv21:deploy'])
+		const ci = JSON.parse(fundedArgs?.outputs?.[0].customInstructions as string)
+		expect(ci).toMatchObject({
+			amt: '25',
+			op: 'deploy+mint',
+			sym: 'GEN',
+			dec: '0',
+			protocolID: expect.any(Array),
+			keyID: expect.any(String),
+		})
+		expect(ci.id).toBeUndefined()
 		const script = Script.fromHex(
 			fundedArgs?.outputs?.[0].lockingScript as string,
 		)
@@ -436,6 +472,19 @@ describe('generic BSV21 deploy composition', () => {
 		})
 
 		expect(result.authOutpoint).toBe(`${txid}_0`)
+		expect(
+			fundedArgs?.outputs?.[0].tags?.filter((tag) => !tag.startsWith('id:')),
+		).toEqual(['bsv21:deploy', 'bsv21:auth'])
+		const ci = JSON.parse(fundedArgs?.outputs?.[0].customInstructions as string)
+		expect(ci).toMatchObject({
+			amt: '0',
+			op: 'deploy+auth',
+			sym: 'AUTH',
+			dec: '0',
+			protocolID: expect.any(Array),
+			keyID: expect.any(String),
+		})
+		expect(ci.id).toBeUndefined()
 		const script = Script.fromHex(
 			fundedArgs?.outputs?.[0].lockingScript as string,
 		)
@@ -455,20 +504,24 @@ describe('generic BSV21 deploy composition', () => {
 		let fundingCalls = 0
 		const errorSpy = spyOn(console, 'error').mockImplementation(() => {})
 		try {
-			const result = await deployBsv21Mint.execute(ctx, {
-				symbol: 'SIG',
-				amount: 1n,
-				signWithBAP: true,
-				fundingProvider: {
-					fund: async () => {
-						fundingCalls++
-						throw new Error('must not be called')
+			for (const action of [deployBsv21Mint, deployBsv21Auth]) {
+				const result = await action.execute(ctx, {
+					symbol: 'SIG',
+					amount: 1n,
+					signWithBAP: true,
+					fundingProvider: {
+						fund: async () => {
+							fundingCalls++
+							throw new Error('must not be called')
+						},
 					},
-				},
-			})
+				})
 
-			expect(result.error).toContain('sigma-incompatible-with-funding-provider')
-			expect(fundingCalls).toBe(0)
+				expect(result.error).toContain(
+					'sigma-incompatible-with-funding-provider',
+				)
+				expect(fundingCalls).toBe(0)
+			}
 		} finally {
 			errorSpy.mockRestore()
 		}

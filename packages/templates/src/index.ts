@@ -4,6 +4,7 @@ export type { Signer } from './signer.js'
 
 // Script Templates
 export { default as Inscription } from './inscription/inscription.js'
+export { buildInscriptionScript } from './inscription/compose.js'
 export { default as BSV20 } from './bsv20/bsv20.js'
 export { default as BSV21 } from './bsv21/bsv21.js'
 export { default as Shrug, SHRUG_TAG_HEX } from './shrug/shrug.js'

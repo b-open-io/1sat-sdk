@@ -1,8 +1,9 @@
 import { HttpError, type OneSatServices } from '@1sat/client'
 import { BSV21 } from '@1sat/templates'
 import {
-	BSV21_AUTH_BASKET,
+	BSV21_AUTH_TAG,
 	BSV21_BASKET,
+	BSV21_DEPLOY_TAG,
 	BSV21_FEE_XPUB,
 } from '@1sat/types'
 import {
@@ -34,7 +35,7 @@ export interface Bsv21 {
  *
  * Data structure: Bsv21 with id, op, amt, dec, status, etc.
  *
- * Basket: BSV21_BASKET ('p 1sat bsv21')
+ * Basket: BSV21_BASKET ('bsv21')
  * Events: id, id:status, bsv21:amt
  */
 export class Bsv21Indexer extends Indexer {
@@ -105,26 +106,21 @@ export class Bsv21Indexer extends Indexer {
 		const isAuthOp = bsv21.op === 'auth' || bsv21.op === 'deploy+auth'
 		if (!isAuthOp && (bsv21.amt <= 0n || bsv21.amt > 2n ** 64n - 1n)) return
 
+		// Filter tags only (listOutputs). Load-bearing amt/sym/dec/icon live in CI
+		// when the wallet files the row (createAction / internalize).
 		const tags: string[] = []
 		if (txo.owner && this.owners.has(txo.owner)) {
 			tags.push(`bsv21:${bsv21.id}`)
-			if (!isAuthOp) tags.push(`amt:${bsv21.amt.toString()}`)
-			// Add metadata tags for efficient querying
-			if (bsv21.sym) tags.push(`sym:${bsv21.sym}`)
-			if (bsv21.icon) tags.push(`icon:${bsv21.icon}`)
-			tags.push(`dec:${bsv21.dec}`)
+			if (isAuthOp) tags.push(BSV21_AUTH_TAG)
+			if (bsv21.op === 'deploy+mint' || bsv21.op === 'deploy+auth') {
+				tags.push(BSV21_DEPLOY_TAG)
+			}
 		}
 
-		// Route auth-bearing outputs to the auth basket so mintBsv21 can
-		// listOutputs({ basket: BSV21_AUTH_BASKET }) and find them. Owner-sync
-		// records the on-chain derivation triple in customInstructions, which
-		// is what mintBsv21 uses for spend-time signing — so an auth UTXO
-		// delivered to a wallet's standard receive address remains spendable
-		// after this reclassification.
-		const basket = isAuthOp
-			? BSV21_AUTH_BASKET
-			: tokenId ===
-					'ae59f3b898ec61acbdb6cc7a245fabeded0c094bf046f35206a3aec60ef88127_0'
+		// Auth and balance UTXOs share BSV21_BASKET; auth is tagged bsv21:auth.
+		const basket =
+			tokenId ===
+			'ae59f3b898ec61acbdb6cc7a245fabeded0c094bf046f35206a3aec60ef88127_0'
 				? 'mnee'
 				: BSV21_BASKET
 

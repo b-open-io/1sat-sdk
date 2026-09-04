@@ -25,6 +25,7 @@ export * from './constants'
 
 // P1Sat apply (base-wallet seal / validate; module re-exports dispatch)
 export {
+	applyP1SatCreateAction,
 	applyP1SatIntent,
 	applyOpnsRegister,
 	applyInscribeSigma,
@@ -47,7 +48,36 @@ export {
 	createTrackedAction,
 	executeTrackedAction,
 	randomActionId,
+	stampManagedOutputIds,
+	ensureP1SatDispatchLabel,
+	ensureActionId,
+	type TrackedActionOptions,
 } from './utils/createTrackedAction'
+export { hasOneSatModule } from './utils/hasOneSatModule'
+export type { PrepareP1SatOptions } from './apply/prepare'
+export {
+	type Spend,
+	type ResolvedSpend,
+	type SpendTarget,
+	type BasketSpendTarget,
+	type OutpointSpendTarget,
+	type PipelineOptions,
+	spendsFromLabels,
+	labelsFromSpends,
+	spendToLabel,
+	spendTargetsFromLabels,
+	labelsFromSpendTargets,
+	spendTargetToLabel,
+	buildSpendsForTargets,
+	buildSpendsForResolved,
+	materializeSpends,
+	resolveSpendTargets,
+	unlockByScript,
+	buildPurchaseUnlockingScript,
+	runCreateActionPipeline,
+	finishCreateAction,
+	embellishCreateActionArgs,
+} from './pipeline'
 
 // Export funding provider types
 export type {
@@ -63,11 +93,40 @@ export {
 	type LoadBasketOutputResult,
 } from './utils/loadBasketOutput'
 export {
+	bsv21FieldsFromOutput,
+	bsv21FilterTags,
+	buildBsv21CustomInstructions,
+	parseBsv21CustomInstructions,
+	overwriteBsv21CiFields,
+	type Bsv21RemittanceFields,
+} from './utils/bsv21Remittance'
+export { stampBsv21OutputCustomInstructions } from './utils/stampBsv21OutputCi'
+export { stampOrdinalOutputCustomInstructions } from './utils/stampOrdinalOutputCi'
+export {
+	overwriteOrdinalCiFields,
+	remittanceFromOrdinalTags,
+	buildOrdinalCustomInstructions,
+	type OrdinalRemittanceFields,
+} from './utils/ordinalRemittance'
+export {
+	ensurePlaintextCi,
+	encryptWalletMetadataCi,
+	looksLikeJson,
+	METADATA_ENCRYPTION_PROTOCOL,
+} from './utils/walletMetadataCi'
+export {
 	internalizeBeef,
 	type InternalizeBeefOptions,
 	type InternalizeBeefResult,
 	type OutputDerivation,
 } from './utils/internalizeBeef'
+export {
+	moveBasketOutputs,
+	migrateLegacyP1SatBaskets,
+	type MoveBasketOptions,
+	type MoveBasketResult,
+	type MigrateLegacyBasketsResult,
+} from './utils/moveBasket'
 
 // Export module actions and types
 export * from './addresses'

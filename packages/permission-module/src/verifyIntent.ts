@@ -1,3 +1,4 @@
+import { formatOrdinalOutpoint } from '@1sat/types'
 import type { EnrichedAsset, EnrichedOutput, TrustState } from './enrichIntent'
 import type { VerificationServices } from './types'
 
@@ -10,8 +11,6 @@ export interface VerificationResult {
 	note?: string
 	/** Content type confirmed by ORDFS, when it answered. */
 	contentType?: string
-	/** Content length in bytes confirmed by ORDFS, when it answered. */
-	contentLength?: number
 	/**
 	 * True origin as resolved by ORDFS.
 	 *
@@ -68,14 +67,18 @@ async function verifyOrdinal(
 	const ordfs = services.ordfs
 	if (typeof ordfs?.bulkMetadata !== 'function') return { state: 'unverified' }
 
-	// `:-2` resolves the outpoint to its origin before returning metadata.
-	// Querying the raw outpoint is wrong for anything already moved or listed —
-	// an OrdLock output carries no inscription, so ORDFS answers with an empty
-	// record rather than the asset.
+	// `:-2` is only an ORDFS request suffix (resolve tip → origin metadata).
+	// It is not part of asset identity and must not be required to match
+	// response map keys beyond looking up the bulk result.
 	const key = `${origin}:-2`
-	// Called on the client, not detached — these are class methods that use `this`.
 	const res = await withTimeout(ordfs.bulkMetadata([key]))
-	const meta = res?.[key] ?? res?.[origin]
+	// Prefer exact key, then bare origin, then any record that carried content.
+	const meta =
+		res?.[key] ??
+		res?.[origin] ??
+		Object.values(res ?? {}).find(
+			(m): m is NonNullable<typeof m> => !!m?.contentType,
+		)
 
 	// An empty record means "nothing inscribed here", not a description of the
 	// asset — treat it as no answer rather than as evidence.
@@ -83,7 +86,6 @@ async function verifyOrdinal(
 
 	const resolved = {
 		contentType: meta.contentType,
-		contentLength: meta.contentLength,
 		// ORDFS resolves the true genesis; the tagged value is usually the
 		// seller's listing outpoint. Not treated as a mismatch — the claimed
 		// value is an outpoint by construction, not a competing assertion.
@@ -128,11 +130,15 @@ async function verifyOpns(
 	return { state: 'verified' }
 }
 
-/** Verify a BSV21 token is active on the overlay. */
+/**
+ * Verify a BSV21 token is active and that spent inputs are valid unspent
+ * outs on the token overlay topic.
+ */
 async function verifyBsv21(
 	services: VerificationServices,
 	tokenId: string,
 	claimedSym?: string,
+	inputOutpoints: string[] = [],
 ): Promise<VerificationResult> {
 	const bsv21 = services.bsv21
 	if (typeof bsv21?.getTokenDetails !== 'function') return { state: 'unverified' }
@@ -144,26 +150,78 @@ async function verifyBsv21(
 		return { state: 'mismatch', note: 'Token is not active on the overlay' }
 	}
 	const sym = res.token?.sym
-	if (claimedSym && sym && claimedSym !== sym) {
-		return { state: 'mismatch', note: `Token symbol is ${sym}, not ${claimedSym}` }
+	// Tags are lowercased by BRC-100; CI/overlay preserve case — compare ignore-case.
+	if (
+		claimedSym &&
+		sym &&
+		claimedSym.toLowerCase() !== sym.toLowerCase()
+	) {
+		return {
+			state: 'mismatch',
+			note: `Token symbol is ${sym}, not ${claimedSym}`,
+		}
 	}
-	return { state: 'verified' }
+
+	// Validate spent token UTXOs against the overlay (same check sendBsv21 uses).
+	if (inputOutpoints.length > 0 && typeof bsv21.validateOutputs === 'function') {
+		const validated = await withTimeout(
+			bsv21.validateOutputs(tokenId, inputOutpoints, { unspent: true }),
+		)
+		if (!validated) return { state: 'unverified' }
+		const ok = new Set(
+			validated.map((v) => formatOrdinalOutpoint(v.outpoint)),
+		)
+		const missing = inputOutpoints.filter(
+			(op) => !ok.has(formatOrdinalOutpoint(op)),
+		)
+		if (missing.length > 0) {
+			return {
+				state: 'mismatch',
+				note:
+					missing.length === 1
+						? 'A spent token output is not valid on the overlay'
+						: `${missing.length} spent token outputs are not valid on the overlay`,
+			}
+		}
+	}
+
+	return {
+		state: 'verified',
+		// Case-preserving symbol from overlay for the card subtitle.
+		...(sym ? { name: sym } : {}),
+	}
 }
 
 /**
- * Verify the assets on a purchase intent.
+ * Verify assets on a purchase or BSV21 transfer.
  *
  * Returns `unverified` for anything we cannot positively confirm, including
  * when no services are wired at all. Never throws.
  */
 export async function verifyIntent(
 	services: VerificationServices | undefined,
-	p1satIntent: string | undefined,
+	/** Prompt kind from script/heuristic classify, or legacy intent id. */
+	kindOrIntent: string | undefined,
 	inputs: EnrichedAsset[],
 	outputs: EnrichedOutput[],
 	contentUrlForOrigin?: (origin: string) => string,
 ): Promise<VerificationResult> {
-	if (!services || !p1satIntent) return { state: 'unverified' }
+	if (!services || !kindOrIntent) return { state: 'unverified' }
+
+	const isPurchase =
+		kindOrIntent === 'purchase' || kindOrIntent.endsWith('.purchase')
+	const isTokenTransfer =
+		kindOrIntent === 'token-transfer' ||
+		kindOrIntent.startsWith('bsv21.')
+	if (!isPurchase && !isTokenTransfer) return { state: 'unverified' }
+
+	const debug: Record<string, unknown> = {
+		kindOrIntent,
+		hasOrdfs: !!services.ordfs,
+		hasBulk: typeof services.ordfs?.bulkMetadata === 'function',
+		inputTagSets: inputs.map((i) => i.tags),
+		outputTagSets: outputs.map((o) => o.tags),
+	}
 
 	try {
 		const allTags = [...inputs.map((i) => i.tags), ...outputs.map((o) => o.tags)]
@@ -181,32 +239,78 @@ export async function verifyIntent(
 			return undefined
 		}
 
-		switch (p1satIntent) {
-			case 'ordinal.purchase': {
-				const origin = find('origin')
-				if (!origin) return { state: 'unverified' }
-				const res = await verifyOrdinal(services, origin, findAll('type'))
-				// Preview URL follows the *resolved* origin, not the tagged one —
-				// a listing outpoint has no content to serve.
-				return res.origin && contentUrlForOrigin
-					? { ...res, contentUrl: contentUrlForOrigin(res.origin) }
-					: res
+		// BSV21: token active + spent inputs valid on overlay.
+		const tokenId = find('bsv21')
+		if (
+			tokenId ||
+			kindOrIntent === 'bsv21.purchase' ||
+			kindOrIntent === 'token-transfer' ||
+			kindOrIntent.startsWith('bsv21.')
+		) {
+			if (!tokenId) return { state: 'unverified' }
+			const tokenInputs = inputs.filter(
+				(i) =>
+					i.basket?.includes('bsv21') ||
+					i.tags.some((t) => t.startsWith('bsv21:')),
+			)
+			const outpoints = tokenInputs
+				.map((i) => i.outpoint)
+				.filter(Boolean)
+			// Prefer case-preserving CI sym over lowercased tags.
+			let claimedSym = find('sym')
+			for (const inp of inputs) {
+				if (!inp.customInstructions) continue
+				try {
+					const s = JSON.parse(inp.customInstructions).sym
+					if (typeof s === 'string' && s.trim()) {
+						claimedSym = s.trim()
+						break
+					}
+				} catch {
+					// ignore
+				}
 			}
-			case 'opns.purchase': {
-				const name = find('name')
-				const origin = find('origin')
-				if (!name || !origin) return { state: 'unverified' }
-				return await verifyOpns(services, name, origin)
-			}
-			case 'bsv21.purchase': {
-				const tokenId = find('bsv21')
-				if (!tokenId) return { state: 'unverified' }
-				return await verifyBsv21(services, tokenId, find('sym'))
-			}
-			default:
-				return { state: 'unverified' }
+			return await verifyBsv21(services, tokenId, claimedSym, outpoints)
 		}
-	} catch {
+
+		const name = find('name')
+		const origin = find('origin')
+		debug.name = name
+		debug.origin = origin
+		if (
+			(name && origin && outputs.some((o) => o.basket?.includes('opns'))) ||
+			kindOrIntent === 'opns.purchase'
+		) {
+			if (!name || !origin) return { state: 'unverified' }
+			return await verifyOpns(services, name, origin)
+		}
+
+		if (!origin) {
+			debug.reason = 'no-origin-tag'
+			;(
+				globalThis as unknown as { __lastVerify?: unknown }
+			).__lastVerify = debug
+			return { state: 'unverified' }
+		}
+		const res = await verifyOrdinal(services, origin, findAll('type'))
+		debug.verifyOrdinal = res
+		// contentUrl is optional polish — never let a URL helper wipe a verified result
+		// (e.g. unbound getContentUrl losing `this` and throwing).
+		if (res.origin && contentUrlForOrigin) {
+			try {
+				res.contentUrl = contentUrlForOrigin(res.origin)
+			} catch (e) {
+				debug.contentUrlError = String(e)
+			}
+		}
+		;(
+			globalThis as unknown as { __lastVerify?: unknown }
+		).__lastVerify = debug
+		return res
+	} catch (e) {
+		debug.error = String(e)
+		;(globalThis as unknown as { __lastVerify?: unknown }).__lastVerify =
+			debug
 		return { state: 'unverified' }
 	}
 }

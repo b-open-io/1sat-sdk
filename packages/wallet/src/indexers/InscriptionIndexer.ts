@@ -2,6 +2,7 @@ import { Inscription as InscriptionTemplate } from '@1sat/templates'
 import {
 	type IndexSummary,
 	Indexer,
+	MAP_PREFIX,
 	type ParseContext,
 	type ParseResult,
 	type Txo,
@@ -67,18 +68,17 @@ export class InscriptionIndexer extends Indexer {
 			}
 		}
 
-		// Handle MAP field if present (special case)
-		// Note: This writes to txo.data.map directly as a side effect
-		if (decoded.fields?.has('MAP')) {
-			const mapData = decoded.fields.get('MAP')
-			if (mapData) {
-				const map = MapIndexer.parseMap(
-					Script.fromBinary(Array.from(mapData)),
-					0,
-				)
-				if (map) {
-					txo.data.map = { data: map, tags: [] }
-				}
+		// In-envelope MAP: field key is MAP protocol id (or legacy "MAP")
+		// Note: writes to txo.data.map directly as a side effect
+		const mapField =
+			decoded.fields?.get(MAP_PREFIX) ?? decoded.fields?.get('MAP')
+		if (mapField) {
+			const map = MapIndexer.parseMap(
+				Script.fromBinary(Array.from(mapField)),
+				0,
+			)
+			if (map) {
+				txo.data.map = { data: map, tags: [] }
 			}
 		}
 
@@ -121,7 +121,7 @@ export class InscriptionIndexer extends Indexer {
 		// Convert fields to base64 strings
 		if (decoded.fields && insc.fields) {
 			for (const [key, value] of decoded.fields) {
-				if (key !== 'MAP') {
+				if (key !== 'MAP' && key !== MAP_PREFIX) {
 					insc.fields[key] = Utils.toBase64(Array.from(value))
 				}
 			}
