@@ -33,10 +33,12 @@ import {
 import { prepareP1SatArgs } from '../apply/index.js'
 import {
 	buildOrdLockScript,
+	buildOrdinalTransferDelivery,
 	buyOrdinal,
 	defaultPayAddress,
 	deriveCancelAddressInternal,
 } from '../ordinals/index.js'
+import type { OrdinalTransferDelivery } from '../ordinals/index.js'
 import type { Action, ActionOptions, OneSatContext } from '../types.js'
 import {
 	executeTrackedAction,
@@ -76,6 +78,7 @@ export { opnsRegisterKeyId } from '@1sat/types'
 export interface OpnsOperationResponse {
 	txid?: string
 	tx?: number[]
+	deliveries?: OrdinalTransferDelivery[]
 	error?: string
 }
 
@@ -706,6 +709,18 @@ export const sendOpns: Action<SendOpnsRequest, OpnsOperationResponse> = {
 			} else {
 				recipientAddress = input.address as string
 			}
+			const senderIdentityKey =
+				input.counterparty && !isSelf
+					? (await ctx.wallet.getPublicKey({ identityKey: true })).publicKey
+					: undefined
+			const delivery = senderIdentityKey
+				? buildOrdinalTransferDelivery(
+						output,
+						input.counterparty,
+						senderIdentityKey,
+						0,
+					)
+				: undefined
 
 			const inputId = readAssetIdTag(output.tags)
 			const name = nameFromOutput(output)
@@ -755,7 +770,7 @@ export const sendOpns: Action<SendOpnsRequest, OpnsOperationResponse> = {
 			}
 			await prepareP1SatArgs(ctx, args)
 
-			return await executeTrackedAction(
+			const result = await executeTrackedAction(
 				ctx.wallet,
 				args,
 				input.fundingProvider,
@@ -770,6 +785,10 @@ export const sendOpns: Action<SendOpnsRequest, OpnsOperationResponse> = {
 					permissionScheme: 'opns',
 				},
 			)
+			return {
+				...result,
+				...(delivery ? { deliveries: [delivery] } : {}),
+			}
 		} catch (error) {
 			console.error('[sendOpns]', error)
 			return {

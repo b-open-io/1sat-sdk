@@ -244,7 +244,55 @@ export interface BuyOrdinalRequest extends ActionOptions {
 export interface OrdinalOperationResponse {
 	txid?: string
 	tx?: number[]
+	deliveries?: OrdinalTransferDelivery[]
 	error?: string
+}
+
+/** Transport-neutral instructions for internalizing a counterparty transfer. */
+export interface OrdinalTransferDelivery {
+	outputIndex: number
+	keyID: string
+	protocolID: [0 | 1 | 2, string]
+	senderIdentityKey: string
+	counterparty: string
+	recipientIdentityKey: string
+}
+
+export function buildOrdinalTransferDelivery(
+	source: WalletOutput,
+	recipientIdentityKey: string | undefined,
+	senderIdentityKey: string,
+	outputIndex: number,
+): OrdinalTransferDelivery | undefined {
+	if (!recipientIdentityKey || recipientIdentityKey === 'self') return undefined
+	return {
+		outputIndex,
+		keyID: source.outpoint,
+		protocolID: P1SAT_PROTOCOL,
+		senderIdentityKey,
+		counterparty: senderIdentityKey,
+		recipientIdentityKey,
+	}
+}
+
+export function buildOrdinalTransferDeliveries(
+	transfers: readonly TransferItem[],
+	sources: readonly WalletOutput[],
+	senderIdentityKey: string,
+): OrdinalTransferDelivery[] {
+	return transfers.flatMap((transfer, outputIndex) => {
+		if (!transfer.counterparty || transfer.counterparty === 'self') return []
+		const source = sources[outputIndex]
+		if (!source)
+			throw new Error(`Missing ordinal source at index ${outputIndex}`)
+		const delivery = buildOrdinalTransferDelivery(
+			source,
+			transfer.counterparty,
+			senderIdentityKey,
+			outputIndex,
+		)
+		return delivery ? [delivery] : []
+	})
 }
 
 // ============================================================================
@@ -874,6 +922,19 @@ export const sendOrdinals: Action<
 			if ('error' in params) {
 				return params
 			}
+			const hasCounterpartyDelivery = input.transfers.some(
+				(transfer) => transfer.counterparty && transfer.counterparty !== 'self',
+			)
+			const senderIdentityKey = hasCounterpartyDelivery
+				? (await ctx.wallet.getPublicKey({ identityKey: true })).publicKey
+				: undefined
+			const deliveries = senderIdentityKey
+				? buildOrdinalTransferDeliveries(
+						input.transfers,
+						params.sources,
+						senderIdentityKey,
+					)
+				: []
 
 			console.log(
 				'[sendOrdinals] params:',
@@ -960,7 +1021,10 @@ export const sendOrdinals: Action<
 				})
 			}
 
-			return result
+			return {
+				...result,
+				...(deliveries.length > 0 && { deliveries }),
+			}
 		} catch (error) {
 			console.error('[sendOrdinals]', error)
 			if (ctx.debug && ctx.log) {
