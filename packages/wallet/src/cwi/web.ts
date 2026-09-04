@@ -1,6 +1,7 @@
 /**
- * CWI Web Transport - For remote web wallets via iframe/postMessage
- * Creates a hidden iframe to the wallet host and communicates via postMessage.
+ * CWI Web Transport - For remote web wallets via postMessage.
+ * Uses an iframe when cross-site Storage Access is available and a top-level
+ * wallet window otherwise.
  */
 
 import type { WalletInterface } from '@bsv/sdk'
@@ -66,7 +67,7 @@ const createId = (): string =>
 		: `${Date.now()}-${Math.random().toString(36).slice(2, 14)}`
 
 /**
- * Create a WalletInterface backed by a remote web wallet via iframe/postMessage.
+ * Create a WalletInterface backed by a remote web wallet via postMessage.
  *
  * Returns { wallet, destroy }. Call destroy() to remove the iframe and clean up listeners.
  */
@@ -86,6 +87,7 @@ export function createWebCWI(config?: WebCWIConfig): WebCWIResult {
 
 	const pending = new Map<string, PendingRequest>()
 	let iframe: HTMLIFrameElement | null = null
+	let popup: Window | null = null
 	let destroyed = false
 	let handshakeResolve: (() => void) | null = null
 	let handshakeReject: ((err: Error) => void) | null = null
@@ -95,13 +97,14 @@ export function createWebCWI(config?: WebCWIConfig): WebCWIResult {
 		if (destroyed) return
 		if (event.origin !== walletOrigin) return
 
-		const iframeWindow = iframe?.contentWindow
-		if (!iframeWindow || event.source !== iframeWindow) return
+		const bridgeWindow = popup ?? iframe?.contentWindow
+		if (!bridgeWindow || event.source !== bridgeWindow) return
 
 		const data = event.data
 
 		if (isState(data)) {
 			if (data.cwiState.fallbackRecommended) {
+				updateIframeVisibility(false)
 				handshakeReject?.(
 					new Error('Web wallet indicated fallback recommended'),
 				)
@@ -141,11 +144,13 @@ export function createWebCWI(config?: WebCWIConfig): WebCWIResult {
 		if (!iframe) return
 		iframe.style.zIndex = '2147483647'
 		if (show) {
+			iframe.removeAttribute('aria-hidden')
 			iframe.style.width = '100%'
 			iframe.style.height = '100%'
 			iframe.style.opacity = '1'
 			iframe.style.pointerEvents = 'auto'
 		} else {
+			iframe.setAttribute('aria-hidden', 'true')
 			iframe.style.width = '0'
 			iframe.style.height = '0'
 			iframe.style.opacity = '0'
@@ -158,6 +163,8 @@ export function createWebCWI(config?: WebCWIConfig): WebCWIResult {
 
 		const el = document.createElement('iframe')
 		el.src = iframeUrl
+		el.title = '1Sat Wallet connection'
+		el.setAttribute('allow', 'storage-access')
 		el.setAttribute('aria-hidden', 'true')
 		el.style.position = 'fixed'
 		el.style.top = '0'
@@ -173,6 +180,34 @@ export function createWebCWI(config?: WebCWIConfig): WebCWIResult {
 		parent.appendChild(el)
 		iframe = el
 		return el
+	}
+
+	const ensurePopup = (): Window => {
+		if (popup && !popup.closed) return popup
+
+		const width = 420
+		const height = 720
+		const left = Math.max(0, (window.screen.width - width) / 2)
+		const top = Math.max(0, (window.screen.height - height) / 2)
+		const opened = window.open(
+			iframeUrl,
+			'onesat-cwi',
+			`width=${width},height=${height},left=${left},top=${top},popup=1,scrollbars=1`,
+		)
+		if (!opened) throw new Error('Unable to open 1Sat Wallet connection window')
+		popup = opened
+		return opened
+	}
+
+	const ensureBridge = (): Window => {
+		const storageAccess = (
+			document as Document & { requestStorageAccess?: unknown }
+		).requestStorageAccess
+		if (typeof storageAccess !== 'function') return ensurePopup()
+
+		const el = ensureIframe()
+		if (!el.contentWindow) throw new Error('CWI iframe is not reachable')
+		return el.contentWindow
 	}
 
 	const waitForHandshake = (): Promise<void> => {
@@ -193,7 +228,7 @@ export function createWebCWI(config?: WebCWIConfig): WebCWIResult {
 	}
 
 	window.addEventListener('message', handleMessage)
-	ensureIframe()
+	ensureBridge()
 
 	const transport: CWITransport = async <TResult>(
 		action: CWIEventName,
@@ -203,8 +238,8 @@ export function createWebCWI(config?: WebCWIConfig): WebCWIResult {
 
 		await waitForHandshake()
 
-		const target = iframe?.contentWindow
-		if (!target) throw new Error('CWI iframe is not reachable')
+		const target = popup ?? iframe?.contentWindow
+		if (!target) throw new Error('CWI wallet bridge is not reachable')
 
 		const id = createId()
 		const request: CWIRequestMessage = {
@@ -257,6 +292,8 @@ export function createWebCWI(config?: WebCWIConfig): WebCWIResult {
 			iframe.parentNode.removeChild(iframe)
 		}
 		iframe = null
+		if (popup && !popup.closed) popup.close()
+		popup = null
 	}
 
 	return { wallet: createCWI(transport), destroy }

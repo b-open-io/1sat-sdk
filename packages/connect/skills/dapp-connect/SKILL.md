@@ -16,7 +16,7 @@ This skill is about *connecting to* a wallet a user already has. To *create and 
   └── @1sat/connect (connection core: connectWallet)
         ├── BRC-100 auto-detect — WalletClient('auto'): extensions, desktop (localhost), XDM, React Native
         ├── Sigma OAuth — browser redirect flow + CWI iframe
-        └── Custom providers — CWI iframe bridge (url) or a custom connect() fn
+        └── Custom providers — hosted CWI bridge (url) or a custom connect() fn
 ```
 
 `connectWallet` races auto-detect and every configured provider with `Promise.any`; first to authenticate wins, and its `provider` type is saved to `localStorage` for warm reconnects.
@@ -234,12 +234,12 @@ Each entry in `providers` is a `WalletProviderConfig`:
   type: string,                     // unique id, also the saved-reconnect key
   name: string,                     // display name
   icon?: string,                    // icon URL / data URI
-  url?: string,                     // CWI iframe-bridge host (postMessage)
+  url?: string,                     // Hosted CWI bridge (iframe, with popup fallback)
   connect?: () => Promise<ConnectWalletResult>,  // custom connector; overrides url
 }
 ```
 
-Resolution order per provider: custom `connect` → `url` (CWI iframe bridge via `createWebCWI`) → error.
+Resolution order per provider: custom `connect` → `url` (hosted CWI bridge via `createWebCWI`) → error. The hosted bridge uses an iframe when cross-site Storage Access is available and a top-level wallet window otherwise.
 
 ### Helpers
 

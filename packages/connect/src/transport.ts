@@ -295,7 +295,9 @@ export class EmbedTransport implements CWITransport {
 			const state = normalizeState(eventData.cwiState)
 			this.lastState = state
 			this.resolveStateWaiters(state)
-			this.updateIframeVisibility(state.hasPermission === true)
+			this.updateIframeVisibility(
+				state.hasPermission === true && !state.fallbackRecommended,
+			)
 
 			if (state.fallbackRecommended) {
 				emitTransportEvent(this.events, {
@@ -342,6 +344,8 @@ export class EmbedTransport implements CWITransport {
 
 		const iframe = document.createElement('iframe')
 		iframe.src = this.iframeUrl
+		iframe.title = '1Sat Wallet connection'
+		iframe.setAttribute('allow', 'storage-access')
 		iframe.setAttribute('aria-hidden', 'true')
 		iframe.style.position = 'fixed'
 		iframe.style.top = '0'
@@ -370,6 +374,7 @@ export class EmbedTransport implements CWITransport {
 
 		iframe.style.zIndex = '2147483647'
 		if (showPermission) {
+			iframe.removeAttribute('aria-hidden')
 			iframe.style.width = '100%'
 			iframe.style.height = '100%'
 			iframe.style.opacity = '1'
@@ -377,6 +382,7 @@ export class EmbedTransport implements CWITransport {
 			return
 		}
 
+		iframe.setAttribute('aria-hidden', 'true')
 		iframe.style.width = '0'
 		iframe.style.height = '0'
 		iframe.style.opacity = '0'
