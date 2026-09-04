@@ -63,7 +63,14 @@ overlay's admission shape.
 
 `mintCollectionItem({ ref })` is supported when the action input exposes
 `ref`; it emits an `ord-fs/json` inscription with `.` pointing at the supplied
-absolute or same-transaction reference. Generic BSV21 `map` / `signWithBAP`
+absolute reference, optionally with a version selector. This standalone helper
+rejects `_N`: it creates no sibling content output and `_0` refers to itself.
+Lower-level multi-output ORDFS builders may use relative references when they
+create those content outputs. Collection IDs accept dot or underscore
+separators and normalize to lowercase `<txid>_<vout>`; padded, negative and
+out-of-range indexes are rejected. The emitted parent field does not prove a
+collection-origin spend; the helper's SIGMA/MAP claim is a separate path.
+Generic BSV21 `map` / `signWithBAP`
 options and `mintBsv21CollectionItem` must still be checked in the installed
 version before recommending them.
 

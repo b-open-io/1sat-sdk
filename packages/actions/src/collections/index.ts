@@ -96,6 +96,15 @@ export interface MintCollectionItemOutput {
 // Internal helpers
 // ============================================================================
 
+/** Normalize an absolute collection origin without accepting partial indexes. */
+function normalizeCollectionId(collectionId: string): string {
+	const match = /^([0-9a-fA-F]{64})[._](0|[1-9][0-9]*)$/.exec(collectionId)
+	if (!match || match[0] !== collectionId || Number(match[2]) > 0xffffffff) {
+		throw new Error(`Invalid collectionId format: ${collectionId}`)
+	}
+	return `${match[1].toLowerCase()}_${match[2]}`
+}
+
 /**
  * Build the 36-byte parent outpoint from a collectionId string.
  * Format: 32 bytes txid (reversed to internal byte order) + 4 bytes vout (LE).
@@ -440,7 +449,7 @@ export const mintCollectionItem: Action<
 			}
 			if (
 				hasRef &&
-				!/^(_\d+|[0-9a-fA-F]{64}_\d+(:-?\d+)?)$/.test(input.ref as string)
+				!/^[0-9a-fA-F]{64}_\d+(:-?\d+)?$/.test(input.ref as string)
 			) {
 				return { error: `invalid-ref: ${input.ref}` }
 			}
@@ -460,8 +469,10 @@ export const mintCollectionItem: Action<
 
 			// Validate collectionId format
 			let parentBytes: Uint8Array
+			let collectionId: string
 			try {
-				parentBytes = collectionIdToParentBytes(input.collectionId)
+				collectionId = normalizeCollectionId(input.collectionId)
+				parentBytes = collectionIdToParentBytes(collectionId)
 			} catch {
 				return { error: `Invalid collectionId format: ${input.collectionId}` }
 			}
@@ -475,7 +486,7 @@ export const mintCollectionItem: Action<
 			})
 			const address = PublicKey.fromString(publicKey).toAddress()
 
-			const map = buildCollectionItemMap(input)
+			const map = buildCollectionItemMap({ ...input, collectionId })
 			const lockingScript = buildInscriptionScript(
 				address,
 				content,
@@ -489,7 +500,7 @@ export const mintCollectionItem: Action<
 				'origin',
 				`name:${input.name.slice(0, 64)}`,
 				'subType:collectionItem',
-				`collectionId:${input.collectionId}`,
+				`collectionId:${collectionId}`,
 			]
 
 			const result = await executeSigmaAction(
@@ -530,7 +541,7 @@ export const mintCollectionItem: Action<
 					input: {
 						contentType,
 						name: input.name,
-						collectionId: input.collectionId,
+						collectionId,
 						mintNumber: input.mintNumber,
 					},
 					txid: result.txid,

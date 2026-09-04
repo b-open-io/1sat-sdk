@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, spyOn } from 'bun:test'
 import { Inscription, MAP, Sigma } from '@1sat/templates'
 import {
 	Beef,
@@ -145,6 +145,94 @@ function expectValidSigma(script: Script, outpoint: string): string {
 }
 
 describe('collection references and SIGMA authorship', () => {
+	it('rejects relative content references before wallet activity', async () => {
+		const { ctx } = createMockContext()
+		const keySpy = spyOn(ctx.wallet, 'getPublicKey')
+		const actionSpy = spyOn(ctx.wallet, 'createAction')
+		try {
+			for (const ref of ['_0', '_1']) {
+				const result = await mintCollectionItem.execute(ctx, {
+					name: 'Item',
+					collectionId: `${'b'.repeat(64)}_0`,
+					ref,
+				})
+				expect(result.error).toBe(`invalid-ref: ${ref}`)
+			}
+			expect(keySpy).not.toHaveBeenCalled()
+			expect(actionSpy).not.toHaveBeenCalled()
+		} finally {
+			keySpy.mockRestore()
+			actionSpy.mockRestore()
+		}
+	})
+
+	it('rejects malformed collection IDs before wallet activity', async () => {
+		const { ctx } = createMockContext()
+		const keySpy = spyOn(ctx.wallet, 'getPublicKey')
+		const actionSpy = spyOn(ctx.wallet, 'createAction')
+		try {
+			for (const collectionId of [
+				'_0',
+				`${'g'.repeat(64)}_0`,
+				`${'b'.repeat(63)}_0`,
+				...['1junk', '-1', '4294967296', '01', '1.0', '1\n', ''].map(
+					(index) => `${'b'.repeat(64)}_${index}`,
+				),
+			]) {
+				const result = await mintCollectionItem.execute(ctx, {
+					name: 'Item',
+					collectionId,
+					base64Content: 'eA==',
+					contentType: 'text/plain',
+				})
+				expect(result.error).toBe(
+					`Invalid collectionId format: ${collectionId}`,
+				)
+			}
+			expect(keySpy).not.toHaveBeenCalled()
+			expect(actionSpy).not.toHaveBeenCalled()
+		} finally {
+			keySpy.mockRestore()
+			actionSpy.mockRestore()
+		}
+	})
+
+	it('normalizes equivalent collection IDs in MAP, tags, and parent bytes', async () => {
+		const { ctx, state } = createMockContext()
+		const canonical = `${'ab'.repeat(32)}_4294967295`
+		for (const collectionId of [canonical, `${'AB'.repeat(32)}.4294967295`]) {
+			const result = await mintCollectionItem.execute(ctx, {
+				name: 'Item',
+				collectionId,
+				ref: `${'c'.repeat(64)}_3`,
+			})
+			expect(result.error).toBeUndefined()
+		}
+		const actions = state.actions.filter((action) =>
+			action.description.startsWith('Create collection item'),
+		)
+		expect(actions).toHaveLength(2)
+		for (const action of actions) {
+			const output = action.outputs?.[0]
+			const script = Script.fromHex(output?.lockingScript as string)
+			expect(
+				JSON.parse(MAP.decode(script)?.data.subTypeData as string).collectionId,
+			).toBe(canonical)
+			expect(output?.tags).toContain(`collectionId:${canonical}`)
+			const inscription = Inscription.decode(script)
+			expect(Array.from(inscription?.parent ?? [])).toEqual([
+				...Array(32).fill(0xab),
+				255,
+				255,
+				255,
+				255,
+			])
+			expect(
+				JSON.parse(Utils.toUTF8(Array.from(inscription?.file.content ?? []))),
+			).toEqual({ '.': `${'c'.repeat(64)}_3` })
+		}
+	})
+
 	it('creates overlay-compatible roots, embedded items, and referenced items', async () => {
 		const { ctx, state } = createMockContext()
 		const collection = await mintCollection.execute(ctx, {
