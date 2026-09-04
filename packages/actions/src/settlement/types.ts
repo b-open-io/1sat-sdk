@@ -256,7 +256,12 @@ export interface ReplayRecordV1 {
 	expiresAt: number
 }
 
+export type SettlementReplayStoreResult = 'stored' | 'unchanged' | 'conflict'
+
 export interface SettlementReplayStore {
-	load(key: string): Promise<ReplayRecordV1 | null>
-	save(record: ReplayRecordV1): Promise<void>
+	/** Atomically insert, replace an expired record, or compare a live digest. */
+	putIfAbsentOrSame(
+		record: ReplayRecordV1,
+		now: number,
+	): Promise<SettlementReplayStoreResult>
 }

@@ -23,7 +23,7 @@ function quoteString(value: string): string {
 	return JSON.stringify(value)
 }
 
-function canonicalizeValue(value: unknown): string {
+function canonicalizeValue(value: unknown, ancestors: Set<object>): string {
 	if (value === null) return 'null'
 	if (typeof value === 'string') {
 		return quoteString(value)
@@ -35,29 +35,93 @@ function canonicalizeValue(value: unknown): string {
 		if (!Number.isFinite(value)) {
 			throw new Error('settlement-canonical-json: numbers must be finite')
 		}
+		if (Number.isInteger(value) && !Number.isSafeInteger(value)) {
+			throw new Error('settlement-canonical-json: integers must be safe')
+		}
 		return JSON.stringify(value)
 	}
 	if (Array.isArray(value)) {
-		return `[${value.map((item) => canonicalizeValue(item)).join(',')}]`
+		if (ancestors.has(value)) {
+			throw new Error('settlement-canonical-json: cyclic value')
+		}
+		const propertyNames = Object.getOwnPropertyNames(value)
+		const expectedNames = [
+			...Array.from({ length: value.length }, (_, index) => String(index)),
+			'length',
+		]
+		if (
+			Object.getOwnPropertySymbols(value).length > 0 ||
+			propertyNames.length !== expectedNames.length ||
+			expectedNames.some((name) => !propertyNames.includes(name))
+		) {
+			throw new Error(
+				'settlement-canonical-json: arrays must contain JSON values',
+			)
+		}
+		ancestors.add(value)
+		try {
+			return `[${value
+				.map((item, index) => {
+					const descriptor = Object.getOwnPropertyDescriptor(
+						value,
+						String(index),
+					)
+					if (!descriptor || !('value' in descriptor)) {
+						throw new Error(
+							'settlement-canonical-json: arrays must contain JSON values',
+						)
+					}
+					return canonicalizeValue(item, ancestors)
+				})
+				.join(',')}]`
+		} finally {
+			ancestors.delete(value)
+		}
 	}
 	if (typeof value === 'object') {
+		const prototype = Object.getPrototypeOf(value)
+		if (prototype !== Object.prototype && prototype !== null) {
+			throw new Error('settlement-canonical-json: objects must be plain JSON')
+		}
+		if (ancestors.has(value)) {
+			throw new Error('settlement-canonical-json: cyclic value')
+		}
 		const object = value as Record<string, unknown>
-		const entries = Object.keys(object)
-			.filter((key) => object[key] !== undefined)
-			.sort()
-			.map((key) => {
+		const keys = Object.keys(object)
+		if (
+			Object.getOwnPropertySymbols(object).length > 0 ||
+			Object.getOwnPropertyNames(object).length !== keys.length
+		) {
+			throw new Error(
+				'settlement-canonical-json: objects must contain JSON values',
+			)
+		}
+		ancestors.add(value)
+		try {
+			const entries = keys.sort().map((key) => {
 				assertValidUnicode(key)
-				const child = object[key]
-				return `${quoteString(key)}:${canonicalizeValue(child)}`
+				const descriptor = Object.getOwnPropertyDescriptor(object, key)
+				if (!descriptor || !('value' in descriptor)) {
+					throw new Error(
+						'settlement-canonical-json: objects must contain JSON values',
+					)
+				}
+				return `${quoteString(key)}:${canonicalizeValue(
+					descriptor.value,
+					ancestors,
+				)}`
 			})
-		return `{${entries.join(',')}}`
+			return `{${entries.join(',')}}`
+		} finally {
+			ancestors.delete(value)
+		}
 	}
 	throw new Error(`settlement-canonical-json: unsupported ${typeof value}`)
 }
 
 /** RFC 8785 JSON Canonicalization Scheme for settlement wire objects. */
 export function canonicalizeSettlementJson(value: unknown): string {
-	return canonicalizeValue(value)
+	return canonicalizeValue(value, new Set())
 }
 
 /** SHA-256(UTF8(JCS(value))), lowercase hexadecimal. */
@@ -84,6 +148,13 @@ export function assertExactKeys(
 		}
 	}
 	for (const key of required) {
-		if (!(key in value)) throw new Error(`${context}: missing field ${key}`)
+		if (!Object.hasOwn(value, key)) {
+			throw new Error(`${context}: missing field ${key}`)
+		}
+	}
+	for (const key of optional) {
+		if (!Object.hasOwn(value, key) && key in value) {
+			throw new Error(`${context}: inherited field ${key}`)
+		}
 	}
 }

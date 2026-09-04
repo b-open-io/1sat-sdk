@@ -86,6 +86,7 @@ export function validateLockedOffer(
 	offer: LockedOfferCommitmentV1,
 	now = Date.now(),
 ): LockedOfferCommitmentV1 {
+	assertSafeTime(now, 'now')
 	assertExactKeys(
 		offer as unknown as Record<string, unknown>,
 		[
@@ -215,6 +216,7 @@ export function selectBsv21Tips(
 		max: MAX_BSV21_AMOUNT,
 	})
 	const now = options.now ?? Date.now()
+	assertSafeTime(now, 'now')
 	if (
 		!Number.isSafeInteger(options.maxEvidenceAgeMs) ||
 		options.maxEvidenceAgeMs < 0
@@ -237,7 +239,7 @@ export function selectBsv21Tips(
 		if (candidate.operation !== 'transfer') {
 			throw new Error(`selectBsv21Tips: forbidden ${candidate.operation} input`)
 		}
-		if (!candidate.active || !candidate.unspent) {
+		if (candidate.active !== true || candidate.unspent !== true) {
 			throw new Error('selectBsv21Tips: inactive or spent input')
 		}
 		assertSafeTime(
@@ -363,9 +365,10 @@ function validateContribution(
 		if (outpoints.has(input.outpoint))
 			throw new Error('settlementPlan: duplicate input')
 		outpoints.add(input.outpoint)
-		if (!input.active || !input.unspent) {
+		if (input.active !== true || input.unspent !== true) {
 			throw new Error('settlementPlan: spent or inactive input')
 		}
+		assertSafeTime(input.statusCheckedAt, 'input.statusCheckedAt')
 		if (
 			input.statusCheckedAt > now ||
 			now - input.statusCheckedAt > maxEvidenceAgeMs
@@ -475,6 +478,7 @@ export function validateSettlementPlan(
 	options: { now?: number; maxEvidenceAgeMs: number },
 ): SettlementPlanV1 {
 	const now = options.now ?? Date.now()
+	assertSafeTime(now, 'now')
 	assertExactKeys(
 		plan as unknown as Record<string, unknown>,
 		[

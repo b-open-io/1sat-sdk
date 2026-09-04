@@ -36,6 +36,9 @@ per token ID, change is exact, and overlay fees are committed per token.
   depend on a permission-module dispatch basket.
 - The SDK exposes a durable reservation adapter contract but does not pretend a
   local lease is a global UTXO lock.
+- Replay-store adapters must implement `putIfAbsentOrSame` as one atomic
+  operation. Durable, cross-process namespace and persistence remain caller
+  responsibilities.
 - Signed coordinator envelopes, nonces, state transitions, broadcast leases,
   evidence recovery, and idempotent wallet internalization are separate layers.
 - A destination is accepted only after the caller marks its ownership proof as

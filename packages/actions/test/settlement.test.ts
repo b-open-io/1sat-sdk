@@ -28,6 +28,7 @@ import {
 	type SettlementDestinationV1,
 	type SettlementPlanV1,
 	type SettlementReservationAdapter,
+	assertExactKeys,
 	authorizeSettlementInputs,
 	canonicalizeSettlementJson,
 	createSettlementSigningRequest,
@@ -99,15 +100,14 @@ function assetInput(
 		outpoint: `${tx.id('hex')}_0`,
 		owner,
 		purpose,
-		tokenId: token?.id,
-		tokenAmount: token?.amount,
+		...(token ? { tokenId: token.id, tokenAmount: token.amount } : {}),
 		sourceSatoshis: String(output.satoshis),
 		sourceScriptHash: Utils.toHex(Hash.sha256(output.lockingScript.toBinary())),
 		sourceBeefHash: sourceHash,
 		active: true,
 		unspent: true,
 		statusCheckedAt: NOW - 100,
-		operation: purpose === 'bsv21' ? 'transfer' : undefined,
+		...(purpose === 'bsv21' ? { operation: 'transfer' as const } : {}),
 	}
 }
 
@@ -321,7 +321,33 @@ describe('settlement canonical commitments', () => {
 		expect(() => canonicalizeSettlementJson({ value: Number.NaN })).toThrow(
 			'finite',
 		)
-		expect(canonicalizeSettlementJson({ value: undefined })).toBe('{}')
+		expect(() => canonicalizeSettlementJson({ value: undefined })).toThrow(
+			'unsupported undefined',
+		)
+		expect(() => canonicalizeSettlementJson(new Date(0))).toThrow('plain JSON')
+		expect(() =>
+			canonicalizeSettlementJson({ value: Number.MAX_SAFE_INTEGER + 1 }),
+		).toThrow('integers must be safe')
+		expect(() => canonicalizeSettlementJson(new Array(1))).toThrow(
+			'JSON values',
+		)
+		const cyclic: { self?: unknown } = {}
+		cyclic.self = cyclic
+		expect(() => canonicalizeSettlementJson(cyclic)).toThrow('cyclic')
+		const inherited = Object.create({ required: true }) as Record<
+			string,
+			unknown
+		>
+		expect(() => assertExactKeys(inherited, ['required'])).toThrow(
+			'missing field',
+		)
+		const inheritedOptional = Object.create({ optional: true }) as Record<
+			string,
+			unknown
+		>
+		expect(() => assertExactKeys(inheritedOptional, [], ['optional'])).toThrow(
+			'inherited field',
+		)
 		expect(() => canonicalizeSettlementJson({ value: '\ud800' })).toThrow(
 			'invalid Unicode',
 		)
@@ -406,6 +432,9 @@ describe('deterministic BSV21 selection and reservation', () => {
 			'stale',
 		)
 		expect(() => run({ ...base, active: false })).toThrow('inactive')
+		expect(() =>
+			run({ ...base, active: 'false' as unknown as boolean }),
+		).toThrow('inactive')
 		expect(() => run({ ...base, operation: 'auth' as 'transfer' })).toThrow(
 			'forbidden',
 		)
@@ -414,6 +443,12 @@ describe('deterministic BSV21 selection and reservation', () => {
 			run({ ...base, amount: (MAX_BSV21_AMOUNT + 1n).toString() }),
 		).toThrow('uint64')
 		expect(() => run({ ...base, amount: '9' })).toThrow('insufficient')
+		expect(() =>
+			selectBsv21Tips(TOKEN_1, '10', [base], {
+				now: Number.NaN,
+				maxEvidenceAgeMs: MAX_AGE,
+			}),
+		).toThrow('expected nonnegative safe integer')
 	})
 
 	test('binds leases to wallet/provider/attempt and rejects adapter substitution', async () => {
@@ -629,6 +664,46 @@ describe('atomic settlement templates', () => {
 				maxEvidenceAgeMs: MAX_AGE,
 			}),
 		).toThrow('incorrect BSV21 change')
+	})
+
+	test('rejects malformed contribution status types before transaction construction', () => {
+		const fixture = mixedFixture()
+		const input = fixture.plan.contributions[0].inputs[0]
+		Object.assign(input, {
+			active: 'false',
+			unspent: 'false',
+			statusCheckedAt: 'not-a-number',
+		})
+		rehashPlanContributions(fixture.plan)
+		expect(() =>
+			validateSettlementPlan(fixture.plan, {
+				now: NOW,
+				maxEvidenceAgeMs: MAX_AGE,
+			}),
+		).toThrow('spent or inactive')
+
+		Object.assign(input, {
+			active: true,
+			unspent: true,
+			statusCheckedAt: 'not-a-number',
+		})
+		rehashPlanContributions(fixture.plan)
+		expect(() =>
+			validateSettlementPlan(fixture.plan, {
+				now: NOW,
+				maxEvidenceAgeMs: MAX_AGE,
+			}),
+		).toThrow('expected nonnegative safe integer')
+	})
+
+	test('rejects an invalid validation clock', () => {
+		const fixture = mixedFixture()
+		expect(() =>
+			validateSettlementPlan(fixture.plan, {
+				now: Number.NaN,
+				maxEvidenceAgeMs: MAX_AGE,
+			}),
+		).toThrow('expected nonnegative safe integer')
 	})
 
 	test('locates reordered inputs by outpoint and rejects reorder that loses the ordinal sat', () => {
@@ -1039,5 +1114,63 @@ describe('replay guard', () => {
 		await expect(
 			recordSettlementArtifact(store, 'attempt:1', { hash: 'b' }, EXPIRES, NOW),
 		).rejects.toThrow('different artifact')
+	})
+
+	test('atomically rejects concurrent conflicting artifacts', async () => {
+		const store = new InMemorySettlementReplayStore()
+		const results = await Promise.allSettled([
+			recordSettlementArtifact(store, 'attempt:1', { hash: 'a' }, EXPIRES, NOW),
+			recordSettlementArtifact(store, 'attempt:1', { hash: 'b' }, EXPIRES, NOW),
+		])
+		expect(
+			results.filter((result) => result.status === 'fulfilled'),
+		).toHaveLength(1)
+		expect(
+			results.filter((result) => result.status === 'rejected'),
+		).toHaveLength(1)
+	})
+
+	test('keeps identical concurrent artifacts idempotent and replaces expired records', async () => {
+		const store = new InMemorySettlementReplayStore()
+		expect(
+			await Promise.all([
+				recordSettlementArtifact(
+					store,
+					'attempt:1',
+					{ hash: 'a' },
+					EXPIRES,
+					NOW,
+				),
+				recordSettlementArtifact(
+					store,
+					'attempt:1',
+					{ hash: 'a' },
+					EXPIRES,
+					NOW,
+				),
+			]),
+		).toEqual([true, false])
+		expect(
+			await recordSettlementArtifact(
+				store,
+				'attempt:1',
+				{ hash: 'b' },
+				EXPIRES + 1,
+				EXPIRES,
+			),
+		).toBe(true)
+	})
+
+	test('rejects an invalid replay clock before consulting the store', async () => {
+		const store = new InMemorySettlementReplayStore()
+		await expect(
+			recordSettlementArtifact(
+				store,
+				'attempt:1',
+				{ hash: 'a' },
+				EXPIRES,
+				Number.NaN,
+			),
+		).rejects.toThrow('expected nonnegative safe integer')
 	})
 })

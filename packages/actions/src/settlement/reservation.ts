@@ -2,17 +2,25 @@ import { digestSettlementObject } from './canonical.js'
 import type {
 	ReplayRecordV1,
 	SettlementReplayStore,
+	SettlementReplayStoreResult,
 	SettlementReservationAdapter,
 	SettlementReservationLeaseV1,
 	SettlementReservationRequestV1,
 } from './types.js'
 import { assertSettlementOutpoint } from './validate.js'
 
+function assertReplayTime(value: number, context: string): void {
+	if (!Number.isSafeInteger(value) || value < 0) {
+		throw new Error(`${context}: expected nonnegative safe integer`)
+	}
+}
+
 export async function reserveSettlementInputs(
 	adapter: SettlementReservationAdapter,
 	request: SettlementReservationRequestV1,
 	now = Date.now(),
 ): Promise<SettlementReservationLeaseV1> {
+	assertReplayTime(now, 'settlement-reservation.now')
 	if (!request.settlementId || !request.offerDigest) {
 		throw new Error('settlement-reservation: missing settlement commitment')
 	}
@@ -61,6 +69,7 @@ export async function assertSettlementReservationCurrent(
 	lease: SettlementReservationLeaseV1,
 	now = Date.now(),
 ): Promise<void> {
+	assertReplayTime(now, 'settlement-reservation.now')
 	if (lease.expiresAt <= now || !(await adapter.validate(lease))) {
 		throw new Error('settlement-reservation: stale lease')
 	}
@@ -69,12 +78,16 @@ export async function assertSettlementReservationCurrent(
 export class InMemorySettlementReplayStore implements SettlementReplayStore {
 	private readonly records = new Map<string, ReplayRecordV1>()
 
-	async load(key: string): Promise<ReplayRecordV1 | null> {
-		return this.records.get(key) ?? null
-	}
-
-	async save(record: ReplayRecordV1): Promise<void> {
+	async putIfAbsentOrSame(
+		record: ReplayRecordV1,
+		now: number,
+	): Promise<SettlementReplayStoreResult> {
+		const existing = this.records.get(record.key)
+		if (existing && existing.expiresAt > now) {
+			return existing.digest === record.digest ? 'unchanged' : 'conflict'
+		}
 		this.records.set(record.key, record)
+		return 'stored'
 	}
 }
 
@@ -89,19 +102,16 @@ export async function recordSettlementArtifact(
 	expiresAt: number,
 	now = Date.now(),
 ): Promise<boolean> {
+	assertReplayTime(now, 'settlement-replay.now')
 	if (!key || !Number.isSafeInteger(expiresAt) || expiresAt <= now) {
 		throw new Error('settlement-replay: invalid key or expiry')
 	}
 	const digest = digestSettlementObject(artifact)
-	const existing = await store.load(key)
-	if (existing && existing.expiresAt > now) {
-		if (existing.digest !== digest) {
-			throw new Error(
-				'settlement-replay: binding reused with different artifact',
-			)
-		}
-		return false
+	const result = await store.putIfAbsentOrSame({ key, digest, expiresAt }, now)
+	if (result === 'conflict') {
+		throw new Error('settlement-replay: binding reused with different artifact')
 	}
-	await store.save({ key, digest, expiresAt })
-	return true
+	if (result === 'stored') return true
+	if (result === 'unchanged') return false
+	throw new Error('settlement-replay: invalid store result')
 }
