@@ -458,6 +458,7 @@ function reconstructManifest(
 				return {
 					index,
 					outpoint,
+					sequence: tx.inputs[index].sequence ?? 0xffffffff,
 					owner: 'builder-funding',
 					purpose: 'bsv-funding',
 					sourceSatoshis: (sourceOutput.satoshis ?? 0).toString(),
@@ -468,6 +469,7 @@ function reconstructManifest(
 			return omitUndefined({
 				index,
 				outpoint,
+				sequence: tx.inputs[index].sequence ?? 0xffffffff,
 				owner: asset.owner,
 				purpose: asset.purpose,
 				tokenId: asset.tokenId,
@@ -513,6 +515,8 @@ function reconstructManifest(
 			}
 		})
 	return {
+		version: tx.version,
+		lockTime: tx.lockTime,
 		chain: plan.chain,
 		builder: plan.builder,
 		inputs: manifestInputs,

@@ -104,6 +104,7 @@ export type ManifestOutputPurpose =
 	| 'builder-change'
 
 export interface TemplateManifestInputV1 {
+	sequence: number
 	index: number
 	outpoint: string
 	owner: SettlementIdentity | 'builder-funding'
@@ -135,6 +136,8 @@ export interface TemplateOverlayPolicyV1 {
 }
 
 export interface TemplateManifestV1 {
+	version: number
+	lockTime: number
 	chain: SettlementChain
 	builder: SettlementIdentity
 	inputs: TemplateManifestInputV1[]

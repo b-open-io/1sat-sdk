@@ -1,4 +1,10 @@
-import { Beef, Transaction, type WalletInterface } from '@bsv/sdk'
+import {
+	Beef,
+	Script,
+	Transaction,
+	TransactionSignature,
+	type WalletInterface,
+} from '@bsv/sdk'
 import { createContext } from '../types.js'
 import { completeSignedAction } from '../utils/completeSignedAction.js'
 import { signOrdinalInput } from '../utils/signOrdinalInput.js'
@@ -12,6 +18,39 @@ import type {
 	SettlementSigningMetadataV1,
 	SettlementTemplateV1,
 } from './types.js'
+
+/** Settlement supports the single-signature PushDrop and P2PKH unlock forms. */
+function assertSettlementSignature(unlockingScript: string): void {
+	if (
+		!/^(?:[0-9a-f]{2})+$/.test(unlockingScript) ||
+		unlockingScript.length > 216
+	) {
+		throw new Error('settlement-signing: unsupported unlocking script')
+	}
+	const chunks = Script.fromHex(unlockingScript).chunks
+	const signature = chunks[0]?.data
+	const publicKey = chunks[1]?.data
+	if (
+		(chunks.length !== 1 && chunks.length !== 2) ||
+		chunks.some((chunk) => !chunk.data || chunk.op !== chunk.data.length) ||
+		!signature ||
+		signature.length < 9 ||
+		signature.length > 73 ||
+		(chunks.length === 2 &&
+			(!publicKey ||
+				!(
+					publicKey.length === 33 &&
+					(publicKey[0] === 2 || publicKey[0] === 3)
+				)))
+	) {
+		throw new Error('settlement-signing: unsupported unlocking script')
+	}
+	if (TransactionSignature.fromChecksigFormat(signature).scope !== 0x41) {
+		throw new Error(
+			'settlement-signing: signature must use SIGHASH_ALL | SIGHASH_FORKID (0x41)',
+		)
+	}
+}
 
 function mergedSourceBeef(plan: SettlementPlanV1): Beef {
 	const beef = new Beef()
@@ -128,6 +167,7 @@ export async function authorizeSettlementInputs(
 		if (typeof unlockingScript !== 'string') {
 			throw new Error(`settlement-signing: ${unlockingScript.error}`)
 		}
+		assertSettlementSignature(unlockingScript)
 		assertValidInputUnlock(tx, input.index, unlockingScript)
 		spends[input.index] = { unlockingScript }
 	}
@@ -192,6 +232,7 @@ function collectAuthorizedSpends(
 			if (typeof spend.unlockingScript !== 'string' || spends[index]) {
 				throw new Error('settlement-signing: unlocking artifact substitution')
 			}
+			assertSettlementSignature(spend.unlockingScript)
 			spends[index] = spend
 		}
 	}

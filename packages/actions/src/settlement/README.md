@@ -26,6 +26,10 @@ authorize separately. Its BRC-100 wallet authorizes and signs the funding inputs
 when `signAction` completes the retained action.
 
 Every authorization rebuilds the manifest from the final funded AtomicBEEF.
+The manifest binds transaction version, lock time, and every input sequence as
+well as ordered inputs and outputs. Finalization rejects signature flags other
+than `0x41` and accepts only the single-signature PushDrop and compressed-key P2PKH unlocking
+forms supported by the local signer. Script execution is verified separately.
 Inputs are located by outpoint, outputs by exact script and satoshis, and every
 ordinal's first satoshi is traced through the final input/output ordering.
 Construction places ordinal inputs first and their matching receipt spans first;
@@ -35,6 +39,11 @@ per token ID, change is exact, and overlay fees are committed per token.
 
 ## Boundaries
 
+- Each wallet must independently establish provenance, token lineage, and
+  current unspent status before supplying a plan. The SDK checks script and
+  amount consistency and the freshness of supplied status fields; it does not
+  authenticate an overlay response or validate asset lineage. Never populate
+  those fields directly from an untrusted counterparty message.
 - Inventory uses the ordinary `1sat` and `bsv21` baskets. Settlement does not
   depend on a permission-module dispatch basket.
 - Presence, offer transport, signed coordinator envelopes, nonces, reservation

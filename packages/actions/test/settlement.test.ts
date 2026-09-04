@@ -32,6 +32,7 @@ import {
 	selectBsv21Tips,
 	validateSettlementPlan,
 } from '../src/settlement'
+import { assertValidInputUnlock } from '../src/utils/verifyInputUnlock.js'
 
 const NOW = 1_800_000_000_000
 const MAX_AGE = 5_000
@@ -188,12 +189,14 @@ function signingWallet(key: PrivateKey): WalletInterface {
 	} as WalletInterface
 }
 
-function mixedFixture() {
-	const ordinalScript = Inscription.fromText('vector-a', 'text/plain', {
-		scriptSuffix: new P2PKH().lock(KEY_A.toAddress()),
-	})
-		.lock()
-		.toHex()
+function mixedFixture(sourceScript?: string) {
+	const ordinalScript =
+		sourceScript ??
+		Inscription.fromText('vector-a', 'text/plain', {
+			scriptSuffix: new P2PKH().lock(KEY_A.toAddress()),
+		})
+			.lock()
+			.toHex()
 	const ordinal = sourceTransaction(ordinalScript)
 	const token75 = sourceTransaction(
 		BSV21.transfer(TOKEN_1, 75n)
@@ -1156,5 +1159,216 @@ describe('ordinal-only and BSV21-only modes', () => {
 			`${TOKEN_2}:9`,
 			`${TOKEN_2}:3`,
 		])
+	})
+})
+
+describe('settlement review regressions', () => {
+	const options = { now: NOW, maxEvidenceAgeMs: MAX_AGE }
+	function candidate(sourceScript?: string) {
+		const fixture = mixedFixture(sourceScript)
+		const beef = signableBeef(
+			[fixture.ordinal, fixture.token75, fixture.token40],
+			fixture.outputs,
+			{ change: 90 },
+		)
+		const template = reconstructSettlementTemplate(fixture.plan, beef, options)
+		return {
+			fixture,
+			beef,
+			template,
+			localAction: {
+				reference: 'review',
+				createResult: {
+					signableTransaction: { reference: 'review', tx: beef },
+				},
+				template,
+			},
+		}
+	}
+	async function authorize(
+		c: ReturnType<typeof candidate>,
+		owner: string,
+		key: PrivateKey,
+	) {
+		return authorizeSettlementInputs(
+			signingWallet(key),
+			c.fixture.plan,
+			c.template,
+			owner,
+			c.template.manifest.inputs
+				.filter((i) => i.owner === owner)
+				.map((i) => ({
+					inputIndex: i.index,
+					protocolID: [2, '1sat settlement'],
+					keyID: 'fixture',
+				})),
+			options,
+		)
+	}
+	for (const field of [
+		'version',
+		'lockTime',
+		'assetSequence',
+		'fundingSequence',
+	] as const) {
+		test(`rejects a changed ${field} before asking the wallet to sign`, async () => {
+			const c = candidate()
+			const tx = Transaction.fromBEEF(c.beef)
+			if (field === 'version') tx.version = 42
+			else if (field === 'lockTime') tx.lockTime = 1800000000
+			else
+				tx.inputs[
+					field === 'assetSequence' ? 0 : tx.inputs.length - 1
+				].sequence = 0
+			const changed = { ...c.template, signableBeef: tx.toAtomicBEEF() }
+			let signed = false
+			const wallet = {
+				createSignature: async () => {
+					signed = true
+					throw new Error('unexpected signing')
+				},
+			} as WalletInterface
+			await expect(
+				authorizeSettlementInputs(
+					wallet,
+					c.fixture.plan,
+					changed,
+					PARTY_A,
+					[
+						{
+							inputIndex: 0,
+							protocolID: [2, '1sat settlement'],
+							keyID: 'fixture',
+						},
+					],
+					options,
+				),
+			).rejects.toThrow('template substitution')
+			expect(signed).toBe(false)
+		})
+	}
+	test('rejects valid limited-commitment signatures before finalizing and aborts', async () => {
+		const c = candidate()
+		const tx = Transaction.fromBEEF(c.beef)
+		const a = await authorize(c, PARTY_A, KEY_A)
+		const b = await authorize(c, PARTY_B, KEY_B)
+		let finalized = false
+		let aborted = 0
+		const wallet = {
+			signAction: async () => {
+				finalized = true
+				return {}
+			},
+			abortAction: async () => {
+				aborted++
+				return { aborted: true }
+			},
+		} as WalletInterface
+		for (const [scope, anyoneCanPay] of [
+			['all', true],
+			['none', false],
+			['none', true],
+			['single', false],
+			['single', true],
+		] as const) {
+			const unlockingScript = (
+				await new P2PKH().unlock(KEY_A, scope, anyoneCanPay).sign(tx, 0)
+			).toHex()
+			assertValidInputUnlock(tx, 0, unlockingScript)
+			await expect(
+				finalizeSettlementAction(
+					wallet,
+					c.fixture.plan,
+					c.localAction,
+					[{ ...a, spends: { 0: { unlockingScript } } }, b],
+					options,
+				),
+			).rejects.toThrow('0x41')
+		}
+		expect(finalized).toBe(false)
+		expect(aborted).toBe(5)
+	})
+	test('rejects every other sighash byte and executable unlocking-script suffixes', async () => {
+		const c = candidate()
+		const a = await authorize(c, PARTY_A, KEY_A)
+		const b = await authorize(c, PARTY_B, KEY_B)
+		const wallet = {
+			signAction: async () => {
+				throw new Error('unexpected finalization')
+			},
+			abortAction: async () => ({ aborted: true }),
+		} as WalletInterface
+		for (let scope = 0; scope < 256; scope++) {
+			if (scope === 0x41) continue
+			const script = UnlockingScript.fromHex(a.spends[0].unlockingScript)
+			const signature = script.chunks[0].data!
+			signature[signature.length - 1] = scope
+			await expect(
+				finalizeSettlementAction(
+					wallet,
+					c.fixture.plan,
+					c.localAction,
+					[
+						{
+							...a,
+							spends: {
+								0: {
+									unlockingScript: new UnlockingScript(script.chunks).toHex(),
+								},
+							},
+						},
+						b,
+					],
+					options,
+				),
+			).rejects.toThrow('0x41')
+		}
+		// OP_NOP preserves script validity but lies outside the supported unlock forms.
+		await expect(
+			finalizeSettlementAction(
+				wallet,
+				c.fixture.plan,
+				c.localAction,
+				[
+					{
+						...a,
+						spends: {
+							0: { unlockingScript: `${a.spends[0].unlockingScript}61` },
+						},
+					},
+					b,
+				],
+				options,
+			),
+		).rejects.toThrow('unsupported unlocking script')
+	})
+	test('authorizes and finalizes a single-signature PushDrop input', async () => {
+		const source = new LockingScript()
+			.writeBin(KEY_A.toPublicKey().encode(true) as number[])
+			.writeOpCode(0xac)
+			.toHex()
+		const c = candidate(source)
+		const a = await authorize(c, PARTY_A, KEY_A)
+		const b = await authorize(c, PARTY_B, KEY_B)
+		expect(
+			UnlockingScript.fromHex(a.spends[0].unlockingScript).chunks,
+		).toHaveLength(1)
+		let finalized = false
+		const wallet = {
+			signAction: async () => {
+				finalized = true
+				return { txid: 'f'.repeat(64) }
+			},
+			abortAction: async () => ({ aborted: true }),
+		} as WalletInterface
+		const result = await finalizeSettlementAction(
+			wallet,
+			c.fixture.plan,
+			c.localAction,
+			[a, b],
+			options,
+		)
+		expect(result.error).toBeUndefined()
+		expect(finalized).toBe(true)
 	})
 })

@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Atomic two-party settlement primitives for 1Sat Ordinal NFTs, BSV21, and
+  mixed swaps.
+- Deterministic BSV21 selection, final funded-transaction reconstruction,
+  permission-aware per-owner signing, and local script verification before
+  broadcast.
+- Conformance vectors for Ordinal NFT/BSV21, NFT-for-NFT, and multi-token
+  BSV21 exchanges.
+
+### Security
+- Reject malformed settlement status types at wallet trust boundaries.
+- Verify every returned unlocking script against the exact candidate
+  transaction.
+- Reject settlement signature bytes other than `0x41` before finalization and
+  enforce the single-signature unlocking forms supported by the local signer.
+- Bind transaction version, lock time, and all input sequences into the reviewed
+  manifest so changed candidates cannot pass the original review record.
+- Add regression coverage for every prohibited sighash byte, valid weak
+  signatures, transaction-field substitution, and PushDrop signing.
+
 ## 0.0.207
 
 ### Added
@@ -16,22 +38,6 @@
 
 ### Changed
 - Picks up `@1sat/wallet@0.0.106`.
-
-## Unreleased
-
-### Added
-- Atomic two-party settlement primitives for 1Sat Ordinal NFTs, BSV21, and
-  mixed swaps.
-- Deterministic BSV21 selection, final funded-transaction reconstruction,
-  permission-aware per-owner signing, and local script verification before
-  broadcast.
-- Conformance vectors for Ordinal NFT/BSV21, NFT-for-NFT, and multi-token
-  BSV21 exchanges.
-
-### Security
-- Reject malformed settlement status types at wallet trust boundaries.
-- Verify every returned unlocking script against the exact candidate
-  transaction.
 
 ## 0.0.203
 
