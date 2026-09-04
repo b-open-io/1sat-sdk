@@ -20,7 +20,6 @@ import {
 	type CreateActionResult,
 	LockingScript,
 	PrivateKey,
-	PublicKey,
 	Script,
 	type SignActionArgs,
 	type SignActionResult,
@@ -30,8 +29,8 @@ import {
 	type WalletInterface,
 } from '@bsv/sdk'
 import {
-	finalizeCosignBsv21Transfer,
 	InMemoryCosignSessionStore,
+	finalizeCosignBsv21Transfer,
 	prepareCosignBsv21Transfer,
 } from '../src/cosign'
 
@@ -132,7 +131,6 @@ function makeMockWallet(identityKey: PrivateKey): WalletInterface {
 
 			// Add a fake wallet-change output so SIGHASH_ALL covers more than
 			// just the user-defined outputs.
-			const changePub = identityKey.toPublicKey()
 			tx.addOutput({
 				lockingScript: new LockingScript(), // simplified — not a real P2PKH
 				satoshis: 100,
@@ -156,7 +154,8 @@ function makeMockWallet(identityKey: PrivateKey): WalletInterface {
 			const beefObj = new Beef()
 			// Merge any source txs we have.
 			for (const inp of tx.inputs) {
-				if (inp.sourceTransaction) beefObj.mergeTransaction(inp.sourceTransaction)
+				if (inp.sourceTransaction)
+					beefObj.mergeTransaction(inp.sourceTransaction)
 			}
 			beefObj.mergeTransaction(tx)
 			const txid = tx.id('hex')
@@ -308,9 +307,7 @@ describe('prepareCosignBsv21Transfer', () => {
 				tokenId: TOKEN_ID,
 				tokenInputs: [{ outpoint: `${plainTx.id('hex')}.0` }],
 				inputBEEF: Array.from(inputBEEF),
-				destinations: [
-					{ recipientIdentityKey: 'rr'.repeat(33), amount: '1' },
-				],
+				destinations: [{ recipientIdentityKey: 'rr'.repeat(33), amount: '1' }],
 				senderIdentityKey: 'aa',
 				sessionStore,
 			}),
@@ -346,9 +343,7 @@ describe('prepareCosignBsv21Transfer', () => {
 				tokenId: TOKEN_ID,
 				tokenInputs: [{ outpoint: `${sourceTx.id('hex')}.0` }],
 				inputBEEF: Array.from(inputBEEF),
-				destinations: [
-					{ recipientIdentityKey: 'rr'.repeat(33), amount: '50' },
-				],
+				destinations: [{ recipientIdentityKey: 'rr'.repeat(33), amount: '50' }],
 				senderIdentityKey: 'aa',
 				sessionStore,
 			}),
@@ -513,7 +508,7 @@ describe('finalizeCosignBsv21Transfer', () => {
 		expect(finalized.recipients[0].vout).toBe(0)
 
 		const ci = JSON.parse(finalized.recipients[0].customInstructions)
-		expect(ci.protocolID).toEqual([0, 'p 1sat'])
+		expect(ci.protocolID).toEqual([0, 'onesat'])
 		expect(ci.keyID).toBe(prepared.sessionId)
 		expect(ci.counterparty).toBe(cosignerPubHex)
 		expect(ci.tokenId).toBe(TOKEN_ID)
