@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.88
+
+### Changed
+- Picks up `@1sat/connect@0.0.91`, including the hosted-wallet connection fallback.
+
 ## 0.0.76
 
 ### Added

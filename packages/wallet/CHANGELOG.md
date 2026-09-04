@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.106
+
+### Fixed
+- Hosted-wallet connections can fall back to a top-level window when cross-site Storage Access is unavailable, without leaking failed bridge frames.
+- Visible wallet frames are exposed to assistive technology and inactive frames are hidden.
+
 ## 0.0.98
 
 ### Changed

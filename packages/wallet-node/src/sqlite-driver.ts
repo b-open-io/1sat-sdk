@@ -14,6 +14,7 @@ export type SqliteParam =
 	| boolean
 	| null
 	| undefined
+	| Buffer
 	| Uint8Array
 
 export interface SqliteStatement {
