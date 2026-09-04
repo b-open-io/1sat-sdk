@@ -18,7 +18,11 @@ export {
 } from './types.js'
 
 // Export action registry
-export { ActionRegistry, actionRegistry, type McpTool } from './action-registry.js'
+export {
+	ActionRegistry,
+	actionRegistry,
+	type McpTool,
+} from './action-registry.js'
 
 // Export constants
 export * from './constants.js'
@@ -154,6 +158,9 @@ export * from './mnee/index.js'
 
 // Export cosign module (cosigner-validated BSV21 transfer actions)
 export * from './cosign/index.js'
+
+// Export atomic two-party ordinal + BSV21 settlement primitives.
+export * from './settlement/index.js'
 
 // Export sweep module (uses external signing, not action-based)
 export * from './sweep/index.js'

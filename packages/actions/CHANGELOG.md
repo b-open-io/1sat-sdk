@@ -13,8 +13,18 @@
 ### Fixed
 - Align the BSV-21 cosign documentation and conformance test with the standard `[0, "onesat"]` protocol identifier.
 
+
 ### Changed
 - Picks up `@1sat/wallet@0.0.106`.
+
+## Unreleased
+
+### Added
+- Atomic two-party settlement primitives for ordinal, BSV21, and mixed swaps.
+- RFC 8785 commitments, deterministic BSV21 selection, provider-bound input
+  reservation contracts, final funded-transaction reconstruction, exact
+  per-owner signing requests, and local script verification before broadcast.
+- Conformance vectors for ordinal/BSV21 and multi-token BSV21 exchanges.
 
 ## 0.0.203
 
