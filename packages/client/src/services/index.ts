@@ -4,6 +4,17 @@ export { BaseClient } from './BaseClient.js'
 export { ChaintracksClient } from './ChaintracksClient.js'
 export { BeefClient } from './BeefClient.js'
 export { ArcadeClient } from './ArcadeClient.js'
+export {
+	EcosystemAliasClient,
+	ECOSYSTEM_ALIAS_LOOKUP_SERVICE,
+	deriveEcosystemAliasCursor,
+	type EcosystemAliasByAliasQuery,
+	type EcosystemAliasByDomainQuery,
+	type EcosystemAliasFindAllQuery,
+	type EcosystemAliasLookupOutput,
+	type EcosystemAliasLookupResult,
+	type EcosystemAliasQuery,
+} from './EcosystemAliasClient.js'
 export { TxoClient } from './TxoClient.js'
 export { OwnerClient, type TxoStreamEvent } from './OwnerClient.js'
 export { OrdfsClient } from './OrdfsClient.js'
