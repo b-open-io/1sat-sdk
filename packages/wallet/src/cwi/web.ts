@@ -185,13 +185,15 @@ export function createWebCWI(config?: WebCWIConfig): WebCWIResult {
 	const ensurePopup = (): Window => {
 		if (popup && !popup.closed) return popup
 
+		const popupUrl = new URL(iframeUrl)
+		popupUrl.searchParams.set('origin', window.location.origin)
 		const width = 420
 		const height = 720
 		const left = Math.max(0, (window.screen.width - width) / 2)
 		const top = Math.max(0, (window.screen.height - height) / 2)
 		const opened = window.open(
-			iframeUrl,
-			'onesat-cwi',
+			popupUrl,
+			'_blank',
 			`width=${width},height=${height},left=${left},top=${top},popup=1,scrollbars=1`,
 		)
 		if (!opened) throw new Error('Unable to open 1Sat Wallet connection window')

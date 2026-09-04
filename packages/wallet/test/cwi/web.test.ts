@@ -24,7 +24,8 @@ afterEach(() => setBrowserGlobals(originalWindow, originalDocument))
 
 describe('web CWI browser transport', () => {
 	it('uses a top-level wallet window when Storage Access is unavailable', () => {
-		let openedUrl = ''
+		let openedUrl: URL | undefined
+		let openedTarget = ''
 		let closed = false
 		const popup = {
 			closed: false,
@@ -37,8 +38,10 @@ describe('web CWI browser transport', () => {
 			{
 				addEventListener: () => {},
 				removeEventListener: () => {},
-				open: (url: string) => {
+				location: { origin: 'https://app.example' },
+				open: (url: URL, target: string) => {
 					openedUrl = url
+					openedTarget = target
 					return popup
 				},
 				screen: { width: 1200, height: 900 },
@@ -47,7 +50,10 @@ describe('web CWI browser transport', () => {
 		)
 
 		const connection = createWebCWI({ walletUrl: 'https://wallet.example' })
-		expect(openedUrl).toBe('https://wallet.example/wallet/cwi')
+		expect(openedUrl?.origin).toBe('https://wallet.example')
+		expect(openedUrl?.pathname).toBe('/wallet/cwi')
+		expect(openedUrl?.searchParams.get('origin')).toBe('https://app.example')
+		expect(openedTarget).toBe('_blank')
 		connection.destroy()
 		expect(closed).toBe(true)
 	})
