@@ -686,7 +686,10 @@ export const mintBsv21CollectionItem: Action<
 		},
 	},
 	async execute(ctx, input) {
-		if (!/^[0-9a-fA-F]{64}_\d+$/.test(input.collectionId)) {
+		let collectionId: string
+		try {
+			collectionId = normalizeCollectionId(input.collectionId)
+		} catch {
 			return {
 				error: `collectionId-must-be-absolute-outpoint: ${input.collectionId}`,
 			}
@@ -695,7 +698,7 @@ export const mintBsv21CollectionItem: Action<
 		const name = input.name ?? input.symbol
 		const map = buildCollectionItemMap({
 			name,
-			collectionId: input.collectionId,
+			collectionId,
 			mintNumber: input.mintNumber,
 			rank: input.rank,
 			rarityLabel: input.rarityLabel,

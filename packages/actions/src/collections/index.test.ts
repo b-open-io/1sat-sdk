@@ -324,10 +324,11 @@ describe('BSV21 collection items', () => {
 	it('keeps collection metadata outside the BSV21 JSON and adds valid SIGMA', async () => {
 		const { ctx, state } = createMockContext()
 		const collectionId = `${'b'.repeat(64)}_1`
+		const suppliedId = `${'B'.repeat(64)}.1`
 		const result = await mintBsv21CollectionItem.execute(ctx, {
 			symbol: 'MEM',
 			amount: 1000n,
-			collectionId,
+			collectionId: suppliedId,
 			name: 'Token Member',
 			rarityLabel: 'rare',
 			traits: [{ name: 'Color', value: 'Blue' }],
@@ -359,12 +360,24 @@ describe('BSV21 collection items', () => {
 
 	it('requires an absolute collection outpoint', async () => {
 		const { ctx } = createMockContext()
-		const result = await mintBsv21CollectionItem.execute(ctx, {
-			symbol: 'MEM',
-			amount: 1n,
-			collectionId: '_0',
-		})
-		expect(result.error).toBe('collectionId-must-be-absolute-outpoint: _0')
+		const spy = spyOn(ctx.wallet, 'getPublicKey')
+		for (const collectionId of [
+			'_0',
+			`${'a'.repeat(64)}_01`,
+			`${'a'.repeat(64)}_4294967296`,
+			`${'a'.repeat(64)}_1\n`,
+		]) {
+			const result = await mintBsv21CollectionItem.execute(ctx, {
+				symbol: 'MEM',
+				amount: 1n,
+				collectionId,
+			})
+			expect(result.error).toBe(
+				`collectionId-must-be-absolute-outpoint: ${collectionId}`,
+			)
+		}
+		expect(spy).not.toHaveBeenCalled()
+		spy.mockRestore()
 	})
 })
 
