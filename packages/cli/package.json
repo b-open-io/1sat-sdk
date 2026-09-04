@@ -1,22 +1,23 @@
 {
   "name": "@1sat/cli",
-  "version": "0.0.102",
+  "version": "0.0.106",
   "description": "CLI for 1Sat Ordinals SDK",
   "type": "module",
-  "main": "./src/cli.ts",
+  "main": "./dist/cli.js",
   "bin": {
-    "1sat": "./src/cli.ts"
+    "1sat": "./dist/cli.js"
   },
   "files": [
-    "src",
-    "scripts"
+    "dist",
+    "src"
   ],
   "scripts": {
-    "preinstall": "node scripts/check-bun.cjs",
-    "build": "bun build ./src/cli.ts --compile --outfile=bin/1sat --external pg --external pg-native --external pg-query-stream --external tedious --external oracledb --external mysql --external mariadb --external 'mariadb/*'",
+    "build": "bun build ./src/cli.ts --target=node --packages=external --outfile=dist/cli.js --banner='#!/usr/bin/env node'",
+    "build:bin": "bun build ./src/cli.ts --compile --outfile=bin/1sat --external pg --external pg-native --external pg-query-stream --external tedious --external oracledb --external mysql --external mariadb --external 'mariadb/*'",
     "dev": "bun run src/cli.ts",
     "lint": "biome check src",
-    "test": "bun test"
+    "test": "bun test",
+    "test:node": "node scripts/node-smoke.mjs"
   },
   "keywords": [
     "1sat",
@@ -46,5 +47,9 @@
   "devDependencies": {
     "@types/bun": "^1.3.9",
     "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22.13",
+    "bun": ">=1.2"
   }
 }

@@ -1,5 +1,5 @@
 import { Hash, Random, Utils } from '@bsv/sdk'
-import type { Action, OneSatContext } from '../types'
+import type { Action, OneSatContext } from '../types.js'
 
 const { toArray, toBase64, toHex } = Utils
 

@@ -4,7 +4,7 @@
  */
 
 import type { Knex } from 'knex'
-import type { PendingPayment, PendingStore } from './types'
+import type { PendingPayment, PendingStore } from './types.js'
 
 export const DEFAULT_TTL_MS = 15 * 60 * 1000
 

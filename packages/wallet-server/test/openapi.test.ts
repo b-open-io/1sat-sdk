@@ -15,24 +15,21 @@ describe('buildOpenApiSpec', () => {
 		expect(spec.paths['/.well-known/auth']).toBeDefined()
 		expect(spec.paths['/messagebox/sendMessage']).toBeDefined()
 		expect(spec.paths['/account/status']).toBeUndefined()
-		expect(spec.paths['/hosting/price']).toBeUndefined()
+		expect(spec.paths['/account/register']).toBeUndefined()
 		// Legacy root messagebox aliases stay undocumented.
 		expect(spec.paths['/sendMessage']).toBeUndefined()
 	})
 
-	test('hosting surface follows the live config toggle', () => {
-		let enabled = false
-		const options = {
+	test('registration surface adds the account routes', () => {
+		const spec = buildOpenApiSpec({
 			serverIdentityKey: IDENTITY,
-			surfaces: { hosting: () => enabled },
-		}
-		let spec = buildOpenApiSpec(options) as { paths: Record<string, unknown> }
-		expect(spec.paths['/hosting/price']).toBeUndefined()
-
-		enabled = true
-		spec = buildOpenApiSpec(options) as { paths: Record<string, unknown> }
-		expect(spec.paths['/hosting/price']).toBeDefined()
-		expect(spec.paths['/hosting/subscribe']).toBeDefined()
+			surfaces: { registration: true },
+		}) as { paths: Record<string, unknown>; tags: Array<{ name: string }> }
+		expect(spec.paths['/account/status']).toBeDefined()
+		expect(spec.paths['/account/register']).toBeDefined()
+		expect(spec.paths['/account/profile']).toBeDefined()
+		expect(spec.paths['/account/payment']).toBeDefined()
+		expect(spec.tags.map((t) => t.name)).toContain('account')
 	})
 
 	test('carries the server identity key', () => {

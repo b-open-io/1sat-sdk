@@ -343,4 +343,4 @@ export {
 	generateMnemonic,
 	isValidMnemonic,
 	deriveIdentityKey,
-} from './keys'
+} from './keys.js'

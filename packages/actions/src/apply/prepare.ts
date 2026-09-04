@@ -1,5 +1,5 @@
 import type { CreateActionArgs } from '@bsv/sdk'
-import type { OneSatContext } from '../types'
+import type { OneSatContext } from '../types.js'
 
 export interface PrepareP1SatOptions {
 	/** @deprecated Dispatch lives on executeTrackedAction. Ignored. */

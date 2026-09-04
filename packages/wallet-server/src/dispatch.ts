@@ -6,7 +6,7 @@ import type {
 	ResolvedIdentity,
 	WalletLoggerInterface,
 	WalletStorageProvider,
-} from './types'
+} from './types.js'
 
 export interface DispatchContext {
 	storage: WalletStorageProvider

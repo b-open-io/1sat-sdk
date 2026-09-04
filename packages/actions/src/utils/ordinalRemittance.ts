@@ -4,9 +4,7 @@ import { displayNameForCi, formatOrdinalOutpoint } from '@1sat/types'
  * BRC-147 load-bearing remittance fields mirrored from filter tags
  * (origin / content / app / collection). Outpoint values normalized to `_`.
  */
-export function remittanceFromOrdinalTags(
-	tags: string[] | undefined,
-): {
+export function remittanceFromOrdinalTags(tags: string[] | undefined): {
 	origin?: string
 	content?: string
 	app?: string

@@ -12,10 +12,10 @@ import {
 	type BSocialPost,
 	type BSocialVideo,
 } from '@1sat/templates'
-import { BSOCIAL_BASKET } from '../constants'
-import { applyBapAip } from '../signing/aip'
-import type { Action, ActionOptions } from '../types'
-import { executeTrackedAction } from '../utils/createTrackedAction'
+import { BSOCIAL_BASKET } from '../constants.js'
+import { applyBapAip } from '../signing/aip.js'
+import type { Action, ActionOptions } from '../types.js'
+import { executeTrackedAction } from '../utils/createTrackedAction.js'
 
 // ============================================================================
 // Types

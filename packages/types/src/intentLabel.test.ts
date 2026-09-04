@@ -9,7 +9,7 @@ import {
 	hasSchemeDispatchLabel,
 	parseInputAssetLabels,
 	parseOneInputLabel,
-} from './constants'
+} from './constants.js'
 
 describe('scheme dispatch labels', () => {
 	test('buildActionDispatchLabel', () => {
@@ -21,9 +21,7 @@ describe('scheme dispatch labels', () => {
 	test('hasSchemeDispatchLabel / hasAssetDispatchLabel', () => {
 		expect(hasSchemeDispatchLabel([P1SAT_LABEL], '1sat')).toBe(true)
 		expect(hasSchemeDispatchLabel(['p opns input id abc'], 'opns')).toBe(true)
-		expect(hasSchemeDispatchLabel(['p opns input id abc'], '1sat')).toBe(
-			false,
-		)
+		expect(hasSchemeDispatchLabel(['p opns input id abc'], '1sat')).toBe(false)
 		expect(hasAssetDispatchLabel(['p bsv21 action'])).toBe(true)
 		expect(hasAssetDispatchLabel(['p 1sat'])).toBe(false)
 		expect(hasAssetDispatchLabel(undefined)).toBe(false)

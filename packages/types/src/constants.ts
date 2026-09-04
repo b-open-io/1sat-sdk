@@ -38,11 +38,6 @@ export const BSV21_AUTH_TAG = 'bsv21:auth'
 /** Tag on a single-CA deploy output; tokenId is the outpoint (`txid_vout`). */
 export const BSV21_DEPLOY_TAG = 'bsv21:deploy'
 export const OPNS_BASKET = 'opns'
-/**
- * Host-wallet basket for subscription receipt dust (1 sat to host).
- * Customer identity is **not** in the locking script — only wallet-local tags.
- */
-export const HOSTING_BASKET = 'hosting'
 export const LOCK_BASKET = 'lock'
 export const SIGMA_BASKET = 'sigma'
 export const BSOCIAL_BASKET = 'bsocial'
@@ -53,7 +48,6 @@ export const ONESAT_ASSET_BASKETS: readonly string[] = [
 	ONESAT_BASKET,
 	BSV21_BASKET,
 	OPNS_BASKET,
-	HOSTING_BASKET,
 	LOCK_BASKET,
 	SIGMA_BASKET,
 	BSOCIAL_BASKET,
@@ -68,7 +62,6 @@ export const LEGACY_P1SAT_BASKET_MIGRATIONS: ReadonlyArray<{
 	{ from: 'p 1sat ordinals', to: ONESAT_BASKET },
 	{ from: 'p 1sat bsv21', to: BSV21_BASKET },
 	{ from: 'p 1sat opns', to: OPNS_BASKET },
-	{ from: 'p 1sat hosting', to: HOSTING_BASKET },
 	{ from: 'p 1sat lock', to: LOCK_BASKET },
 	{ from: 'p 1sat sigma', to: SIGMA_BASKET },
 	{ from: 'p 1sat bsocial', to: BSOCIAL_BASKET },
@@ -179,44 +172,6 @@ export function opnsRegisterKeyId(outpoint: string): string {
 }
 
 // ============================================================================
-// Host subscription receipts (wallet-local tags only — not on-chain identity)
-// ============================================================================
-
-/** Tag: `payer:{identityKeyHex}` on host receipt outputs (storage only). */
-export const HOSTING_PAYER_TAG_PREFIX = 'payer:'
-
-/** Tag: `exp:{unixSeconds}` on host receipt outputs (storage only). */
-export const HOSTING_EXP_TAG_PREFIX = 'exp:'
-
-export function hostingPayerTag(identityKeyHex: string): string {
-	return `${HOSTING_PAYER_TAG_PREFIX}${identityKeyHex}`
-}
-
-export function hostingExpTag(expiresAtUnix: number): string {
-	return `${HOSTING_EXP_TAG_PREFIX}${Math.floor(expiresAtUnix)}`
-}
-
-export function readHostingPayer(tags: string[] | undefined): string | undefined {
-	if (!tags) return undefined
-	for (const t of tags) {
-		if (t.startsWith(HOSTING_PAYER_TAG_PREFIX)) {
-			return t.slice(HOSTING_PAYER_TAG_PREFIX.length)
-		}
-	}
-	return undefined
-}
-
-export function readHostingExp(tags: string[] | undefined): number | undefined {
-	if (!tags) return undefined
-	for (const t of tags) {
-		if (!t.startsWith(HOSTING_EXP_TAG_PREFIX)) continue
-		const n = Number(t.slice(HOSTING_EXP_TAG_PREFIX.length))
-		if (Number.isFinite(n)) return n
-	}
-	return undefined
-}
-
-// ============================================================================
 // Permission schemes (BRC-99) — one scheme id per asset class
 // ============================================================================
 
@@ -254,7 +209,9 @@ export function basketForScheme(scheme: PermissionSchemeId): string {
 }
 
 /** Scheme that owns a storage basket, if any. */
-export function schemeForBasket(basket: string): PermissionSchemeId | undefined {
+export function schemeForBasket(
+	basket: string,
+): PermissionSchemeId | undefined {
 	const b = basket.trim()
 	return isPermissionSchemeId(b) ? b : undefined
 }
@@ -389,7 +346,9 @@ export type ParsedInputLabel =
  * - Held: `p <scheme> input id <key>`
  * - External: `p <scheme> input <outpoint>` (outpoint-shaped single token)
  */
-export function parseOneInputLabel(label: string): ParsedInputLabel | undefined {
+export function parseOneInputLabel(
+	label: string,
+): ParsedInputLabel | undefined {
 	if (!label.startsWith('p ')) return undefined
 	const rest = label.slice(2)
 	const sp = rest.indexOf(' ')

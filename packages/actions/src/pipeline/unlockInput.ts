@@ -14,10 +14,10 @@ import {
 	type WalletInterface,
 	type WalletProtocol,
 } from '@bsv/sdk'
-import { loadBasketOutput } from '../utils/loadBasketOutput'
-import { ensurePlaintextCi } from '../utils/walletMetadataCi'
-import type { ResolvedSpend, Spend } from './spendTargets'
-import { mergeResolvedSpends } from './spendTargets'
+import { loadBasketOutput } from '../utils/loadBasketOutput.js'
+import { ensurePlaintextCi } from '../utils/walletMetadataCi.js'
+import type { ResolvedSpend, Spend } from './spendTargets.js'
+import { mergeResolvedSpends } from './spendTargets.js'
 
 export type UnlockResult =
 	| { unlockingScript: string }
@@ -105,7 +105,8 @@ export async function buildSpendsForResolved(
 
 	for (const r of resolved) {
 		const norm = r.outpoint.replace('_', '.')
-		let inputIndex = inputByOutpoint.get(norm) ?? inputByOutpoint.get(r.outpoint)
+		let inputIndex =
+			inputByOutpoint.get(norm) ?? inputByOutpoint.get(r.outpoint)
 		if (inputIndex === undefined) {
 			for (const [k, v] of inputByOutpoint) {
 				if (k.replace('_', '.') === norm) {
@@ -195,7 +196,8 @@ export async function unlockByScript(
 			return { unlockingScript: script.toHex() }
 		} catch (e) {
 			return {
-				error: e instanceof Error ? e.message : 'ordlock-purchase-unlock-failed',
+				error:
+					e instanceof Error ? e.message : 'ordlock-purchase-unlock-failed',
 			}
 		}
 	}

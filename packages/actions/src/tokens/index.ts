@@ -6,50 +6,44 @@
 
 import { BSV21, OrdLock, P2MS } from '@1sat/templates'
 import {
-	type Destination,
 	BSV21_DEPLOY_TAG,
+	type Destination,
 	buildInputAssetLabel,
 	buildTokenLabel,
-	formatOrdinalOutpoint,
 	readAssetIdTag,
 } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
 import {
-	Beef,
 	BigNumber,
 	type CreateActionArgs,
 	LockingScript,
 	OP,
 	P2PKH,
 	PublicKey,
-	Transaction,
+	type Transaction,
 	TransactionSignature,
 	UnlockingScript,
 	Utils,
 	type WalletOutput,
 } from '@bsv/sdk'
-import { prepareP1SatArgs } from '../apply'
-import {
-	BSV21_AUTH_TAG,
-	BSV21_BASKET,
-	P1SAT_PROTOCOL,
-} from '../constants'
+import { prepareP1SatArgs } from '../apply/index.js'
+import { BSV21_AUTH_TAG, BSV21_BASKET, P1SAT_PROTOCOL } from '../constants.js'
 import type {
 	Action,
 	ActionLogEntry,
 	ActionOptions,
 	OneSatContext,
-} from '../types'
-import { executeTrackedAction } from '../utils/createTrackedAction'
-import { getDisplayValue } from '../utils/displayValue'
+} from '../types.js'
 import {
 	bsv21FieldsFromOutput,
 	bsv21FilterTags,
 	buildBsv21CustomInstructions,
 	normalizeBsv21TokenId,
-} from '../utils/bsv21Remittance'
-import { resolveDestination } from '../utils/resolveDestination'
-import { signP2PKHInput } from '../utils/signP2PKH'
+} from '../utils/bsv21Remittance.js'
+import { executeTrackedAction } from '../utils/createTrackedAction.js'
+import { getDisplayValue } from '../utils/displayValue.js'
+import { resolveDestination } from '../utils/resolveDestination.js'
+import { signP2PKHInput } from '../utils/signP2PKH.js'
 
 /** tokenId: CI `id` → tag `bsv21:<id>` → deploy outpoint. */
 function tokenIdFromOutput(o: WalletOutput): string | undefined {
@@ -215,8 +209,9 @@ export interface MintBsv21Input extends ActionOptions {
 	 */
 	auth?: { destination: Destination }
 	/**
-	 * Permanently end minting — no continuing auth output is emitted. Required
-	 * to be explicit since this is destructive (the token can never mint again).
+	 * Permanently end minting — no continuing auth output is emitted. May be
+	 * used alone to terminate authority without a final mint, or with `mint` to
+	 * mint a final supply. Cannot be combined with `auth`.
 	 */
 	endMinting?: boolean
 }
@@ -489,7 +484,9 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 
 			type TokenDetails = Awaited<
 				ReturnType<
-					NonNullable<NonNullable<typeof ctx.services>['bsv21']>['getTokenDetails']
+					NonNullable<
+						NonNullable<typeof ctx.services>['bsv21']
+					>['getTokenDetails']
 				>
 			>
 			let tokenDetails: TokenDetails | undefined
@@ -712,23 +709,21 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				.filter((id): id is string => Boolean(id))
 				.map((id) => buildInputAssetLabel(BSV21_BASKET, id))
 			const sendArgs = await prepareP1SatArgs(ctx, {
-					description: `Send ${symbol} to ${resolved.length} recipient${resolved.length > 1 ? 's' : ''}`,
-					labels: [buildTokenLabel(tokenId), ...inputLabels],
-					inputBEEF,
-					inputs: selected.map((o) => ({
-						outpoint: o.outpoint,
-						inputDescription: 'Token input',
-						unlockingScriptLength: 108,
-					})),
-					outputs,
-					options: { randomizeOutputs: false },
-				})
+				description: `Send ${symbol} to ${resolved.length} recipient${resolved.length > 1 ? 's' : ''}`,
+				labels: [buildTokenLabel(tokenId), ...inputLabels],
+				inputBEEF,
+				inputs: selected.map((o) => ({
+					outpoint: o.outpoint,
+					inputDescription: 'Token input',
+					unlockingScriptLength: 108,
+				})),
+				outputs,
+				options: { randomizeOutputs: false },
+			})
 			const spends = selected
 				.map((o) => {
 					const id = readAssetIdTag(o.tags)
-					return id
-						? ({ basket: BSV21_BASKET, id })
-						: null
+					return id ? { basket: BSV21_BASKET, id } : null
 				})
 				.filter((t): t is { basket: string; id: string } => !!t)
 			const result = await executeTrackedAction(
@@ -739,7 +734,10 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				undefined,
 				{
 					spends,
-					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					usePermissionModule:
+						input.usePermissionModule ??
+						input.useOneSatModule ??
+						input.useModule,
 					permissionScheme: 'bsv21',
 				},
 			)
@@ -966,19 +964,19 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 			const beefBinary = beef.toBinary()
 
 			const buyArgs = await prepareP1SatArgs(ctx, {
-					description: `Purchase ${tokenAmount} tokens for ${payoutSatoshis} sats`,
-					labels: [buildTokenLabel(tokenId)],
-					inputBEEF: beefBinary,
-					inputs: [
-						{
-							outpoint,
-							inputDescription: 'Listed token',
-							unlockingScriptLength: 1402,
-						},
-					],
-					outputs,
-					options: { randomizeOutputs: false },
-				})
+				description: `Purchase ${tokenAmount} tokens for ${payoutSatoshis} sats`,
+				labels: [buildTokenLabel(tokenId)],
+				inputBEEF: beefBinary,
+				inputs: [
+					{
+						outpoint,
+						inputDescription: 'Listed token',
+						unlockingScriptLength: 1402,
+					},
+				],
+				outputs,
+				options: { randomizeOutputs: false },
+			})
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				buyArgs,
@@ -987,7 +985,10 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 				undefined,
 				{
 					spends: [{ outpoint, scheme: 'bsv21' }],
-					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					usePermissionModule:
+						input.usePermissionModule ??
+						input.useOneSatModule ??
+						input.useModule,
 					permissionScheme: 'bsv21',
 				},
 			)
@@ -999,15 +1000,9 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 						result.tx,
 						tokenId,
 					)
-					console.log(
-						'[buyBsv21] Overlay submission result:',
-						overlayResult,
-					)
+					console.log('[buyBsv21] Overlay submission result:', overlayResult)
 				} catch (overlayError) {
-					console.warn(
-						'[buyBsv21] Overlay submission failed:',
-						overlayError,
-					)
+					console.warn('[buyBsv21] Overlay submission failed:', overlayError)
 				}
 			}
 
@@ -1078,7 +1073,7 @@ async function executeBsv21Deploy(args: {
 	}
 	description: string
 	outputDescription: string
-	fundingProvider?: import('../funding').FundingProvider
+	fundingProvider?: import('../funding/index.js').FundingProvider
 }): Promise<{
 	txid?: string
 	tx?: number[]
@@ -1089,9 +1084,9 @@ async function executeBsv21Deploy(args: {
 
 	// Deploy filing: `bsv21:deploy` (+ optional auth). No `bsv21:<tokenId>`
 	// (id = outpoint after mine). Never amt/sym/dec/icon tags.
-	const tags = args.buildTags().filter(
-		(t) => t === BSV21_DEPLOY_TAG || t === BSV21_AUTH_TAG,
-	)
+	const tags = args
+		.buildTags()
+		.filter((t) => t === BSV21_DEPLOY_TAG || t === BSV21_AUTH_TAG)
 	if (!tags.includes(BSV21_DEPLOY_TAG)) tags.push(BSV21_DEPLOY_TAG)
 
 	const customInstructions = args.destinationCustomInstructions
@@ -1412,7 +1407,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 	meta: {
 		name: 'mintBsv21',
 		description:
-			'Spend an auth UTXO to mint new supply and/or re-issue authority',
+			'Spend an auth UTXO to mint supply, re-issue authority, or permanently end minting',
 		category: 'tokens',
 		requiresServices: true,
 		inputSchema: {
@@ -1430,7 +1425,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 				endMinting: {
 					type: 'boolean',
 					description:
-						'Required when auth is omitted — explicit confirmation that minting ends.',
+						'Permanently end minting, alone or after a final mint; cannot be combined with auth.',
 				},
 			},
 			required: ['tokenId'],
@@ -1440,10 +1435,10 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 		try {
 			const { tokenId, mint, auth, endMinting } = input
 
-			if (!mint && !auth && endMinting) {
-				return { error: 'cannot-end-minting-without-mint' }
+			if (auth && endMinting) {
+				return { error: 'auth-and-end-minting-are-mutually-exclusive' }
 			}
-			if (!mint && !auth) {
+			if (!mint && !auth && !endMinting) {
 				return { error: 'must-provide-mint-or-auth' }
 			}
 
@@ -1463,6 +1458,9 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 
 			// Look up the token's metadata for tag enrichment.
 			const tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId)
+			if (!tokenDetails.status.is_active) {
+				return { error: 'token-not-active' }
+			}
 
 			// Find a spendable auth UTXO for this token (same basket as balance).
 			const authList = await ctx.wallet.listOutputs({
@@ -1532,8 +1530,9 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 								token: mintMeta,
 								protocolID: mintResolved.customInstructions.protocolID,
 								keyID: mintResolved.customInstructions.keyID,
-								counterparty: mintResolved.customInstructions
-									.counterparty as string | undefined,
+								counterparty: mintResolved.customInstructions.counterparty as
+									| string
+									| undefined,
 							})
 						: buildBsv21CustomInstructions({ token: mintMeta }),
 				})
@@ -1565,8 +1564,9 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 								token: authMeta,
 								protocolID: authResolved.customInstructions.protocolID,
 								keyID: authResolved.customInstructions.keyID,
-								counterparty: authResolved.customInstructions
-									.counterparty as string | undefined,
+								counterparty: authResolved.customInstructions.counterparty as
+									| string
+									| undefined,
 							})
 						: buildBsv21CustomInstructions({ token: authMeta }),
 				})
@@ -1577,10 +1577,7 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 			// Counting the caller's optional `auth` input undercounts the default
 			// continuing-self authority emitted whenever endMinting is false.
 			const tokenOutputCount = outputs.length
-			if (
-				tokenDetails.status.is_active &&
-				tokenDetails.status.fee_per_output > 0
-			) {
+			if (tokenOutputCount > 0 && tokenDetails.status.fee_per_output > 0) {
 				outputs.push({
 					lockingScript: new P2PKH()
 						.lock(tokenDetails.status.fee_address)
@@ -1602,26 +1599,28 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 			const symbol = tokenDetails.token.sym || tokenId.slice(0, 8)
 			const authInputId = readAssetIdTag(authUtxo.tags)
 			const mintArgs = await prepareP1SatArgs(ctx, {
-					description: mint
-						? `Mint ${mintAmount} ${symbol}`
+				description: mint
+					? `Mint ${mintAmount} ${symbol}`
+					: endMinting
+						? `End ${symbol} mint authority`
 						: `Re-issue ${symbol} authority`,
-					labels: [
-						buildTokenLabel(tokenId),
-						...(authInputId
-							? [buildInputAssetLabel(BSV21_BASKET, authInputId)]
-							: []),
-					],
-					inputBEEF,
-					inputs: [
-						{
-							outpoint: authUtxo.outpoint,
-							inputDescription: 'Mint authority',
-							unlockingScriptLength: 108,
-						},
-					],
-					outputs,
-					options: { randomizeOutputs: false },
-				})
+				labels: [
+					buildTokenLabel(tokenId),
+					...(authInputId
+						? [buildInputAssetLabel(BSV21_BASKET, authInputId)]
+						: []),
+				],
+				inputBEEF,
+				inputs: [
+					{
+						outpoint: authUtxo.outpoint,
+						inputDescription: 'Mint authority',
+						unlockingScriptLength: 108,
+					},
+				],
+				outputs,
+				options: { randomizeOutputs: false },
+			})
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				mintArgs,

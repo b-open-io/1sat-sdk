@@ -31,7 +31,7 @@ import {
 	Utils,
 	type WalletOutput,
 } from '@bsv/sdk'
-import { prepareP1SatArgs } from '../apply'
+import { prepareP1SatArgs } from '../apply/index.js'
 import {
 	MAX_INSCRIPTION_BYTES,
 	OPNS_BASKET,
@@ -39,31 +39,34 @@ import {
 	ORD_LOCK_PREFIX,
 	ORD_LOCK_SUFFIX,
 	P1SAT_PROTOCOL,
-} from '../constants'
+} from '../constants.js'
+import { appendSigmaPlaceholder } from '../signing/sigma.js'
 import type {
 	Action,
 	ActionLogEntry,
 	ActionOptions,
 	OneSatContext,
-} from '../types'
-import { appendSigmaPlaceholder } from '../signing/sigma'
-import { executeTrackedAction } from '../utils/createTrackedAction'
-import type { OutputDerivation } from '../utils/internalizeBeef'
-import { loadBasketOutputBeef } from '../utils/loadBasketOutput'
-import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance'
-import { ordinalSeedTags } from '../utils/ordinalSeedTags'
-import { unlockingScriptLengthForInstructions } from '../utils/signOrdinalInput'
+} from '../types.js'
+import { executeTrackedAction } from '../utils/createTrackedAction.js'
+import { loadBasketOutputBeef } from '../utils/loadBasketOutput.js'
+import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance.js'
+import { ordinalSeedTags } from '../utils/ordinalSeedTags.js'
+import { unlockingScriptLengthForInstructions } from '../utils/signOrdinalInput.js'
 
 // ============================================================================
 // Helpers
 // ============================================================================
 
 /**
- * Resolve ordinal tags (type, origin, name) and basket for a self-spend output.
+ * Resolve ordinal tags (type, origin, collection, content, app, name) and
+ * basket for a self-spend output.
  * Fetches missing data from ORDFS when services are available.
  *
  * Source can be either existing tags (from a WalletOutput) or explicit fields
  * (from metadata or function args). Both are normalized into the same resolution.
+ * Pass `map`/`parent` through when the caller already holds ORDFS metadata
+ * (e.g. sweep's bulkMetadata) so `collection:`/`content:`/`app:` survive
+ * without a per-outpoint refetch.
  */
 export async function resolveOrdinalTags(
 	ctx: OneSatContext,
@@ -73,12 +76,16 @@ export async function resolveOrdinalTags(
 		contentType?: string
 		origin?: string
 		name?: string
+		map?: Record<string, unknown>
+		parent?: string
 	},
 ): Promise<{ tags: string[]; basket: string; name?: string }> {
 	// Single full MIME only (BRC-147). Prefer most specific type: from tags.
 	let contentType = source?.contentType?.split(';')[0]?.trim()
 	let origin = source?.origin
 	let name = source?.name
+	let map = source?.map
+	let parent = source?.parent
 
 	if (source?.tags) {
 		for (const tag of source.tags) {
@@ -110,6 +117,13 @@ export async function resolveOrdinalTags(
 			// ORDFS is authoritative for origin.
 			origin = metadata.origin ?? origin
 
+			if (map === undefined && metadata.map) {
+				map = metadata.map as Record<string, unknown>
+			}
+			if (parent === undefined && metadata.parent) {
+				parent = metadata.parent
+			}
+
 			if (name === undefined && resolvedContentType !== 'application/op-ns') {
 				name = nameFromMap(metadata.map)
 			}
@@ -136,6 +150,8 @@ export async function resolveOrdinalTags(
 	const tags = ordinalTagsFromMetadata({
 		origin: origin || undefined,
 		contentType: resolvedContentType,
+		map,
+		parent,
 	})
 
 	const basket =
@@ -215,6 +231,10 @@ export interface BuyOrdinalRequest extends ActionOptions {
 	origin?: string
 	/** Optional name from MAP metadata - looked up from ordfs API if not provided */
 	name?: string
+	/** Optional MAP metadata - looked up from ordfs API if not provided */
+	map?: Record<string, unknown>
+	/** Optional OrdFS parent outpoint - looked up from ordfs API if not provided */
+	parent?: string
 	/** Basket for the purchased output (default: ordinals) */
 	basket?: string
 	/** Tags for the purchased output; default resolveOrdinalTags for ordinals ingress */
@@ -229,29 +249,49 @@ export interface OrdinalOperationResponse {
 }
 
 /** Transport-neutral instructions for internalizing a counterparty transfer. */
-export interface OrdinalTransferDelivery extends OutputDerivation {
-	recipientIdentityKey: PubKeyHex
+export interface OrdinalTransferDelivery {
+	outputIndex: number
+	keyID: string
+	protocolID: [0 | 1 | 2, string]
+	senderIdentityKey: string
+	counterparty: string
+	recipientIdentityKey: string
+}
+
+export function buildOrdinalTransferDelivery(
+	source: WalletOutput,
+	recipientIdentityKey: string | undefined,
+	senderIdentityKey: string,
+	outputIndex: number,
+): OrdinalTransferDelivery | undefined {
+	if (!recipientIdentityKey || recipientIdentityKey === 'self') return undefined
+	return {
+		outputIndex,
+		keyID: source.outpoint,
+		protocolID: P1SAT_PROTOCOL,
+		senderIdentityKey,
+		counterparty: senderIdentityKey,
+		recipientIdentityKey,
+	}
 }
 
 export function buildOrdinalTransferDeliveries(
 	transfers: readonly TransferItem[],
 	sources: readonly WalletOutput[],
-	senderIdentityKey: PubKeyHex,
+	senderIdentityKey: string,
 ): OrdinalTransferDelivery[] {
 	return transfers.flatMap((transfer, outputIndex) => {
 		if (!transfer.counterparty || transfer.counterparty === 'self') return []
 		const source = sources[outputIndex]
-		if (!source) throw new Error(`Missing ordinal source at index ${outputIndex}`)
-		return [
-			{
-				outputIndex,
-				keyID: source.outpoint,
-				protocolID: P1SAT_PROTOCOL,
-				senderIdentityKey,
-				counterparty: senderIdentityKey,
-				recipientIdentityKey: transfer.counterparty,
-			},
-		]
+		if (!source)
+			throw new Error(`Missing ordinal source at index ${outputIndex}`)
+		const delivery = buildOrdinalTransferDelivery(
+			source,
+			transfer.counterparty,
+			senderIdentityKey,
+			outputIndex,
+		)
+		return delivery ? [delivery] : []
 	})
 }
 
@@ -421,8 +461,7 @@ export async function buildTransferOrdinals(
 	const beefParts: number[][] = []
 
 	for (const item of transfers) {
-		const { id, counterparty, address, map, inscription, signWithBAP } =
-			item
+		const { id, counterparty, address, map, inscription, signWithBAP } = item
 		if (!id) return { error: 'missing-id' }
 		if (!counterparty && !address) {
 			return { error: 'must-provide-counterparty-or-address' }
@@ -517,11 +556,7 @@ export async function buildTransferOrdinals(
 			if (signWithBAP) {
 				const vin = (inputs?.length ?? 1) - 1
 				lockingScript = (
-					await appendSigmaPlaceholder(
-						ctx,
-						Script.fromHex(lockingScript),
-						vin,
-					)
+					await appendSigmaPlaceholder(ctx, Script.fromHex(lockingScript), vin)
 				).toHex()
 			}
 		} else if (map && Object.keys(map).length > 0) {
@@ -546,6 +581,7 @@ export async function buildTransferOrdinals(
 				customInstructions: buildOrdinalCustomInstructions({
 					protocolID: P1SAT_PROTOCOL,
 					keyID: outpoint,
+					counterparty: 'self',
 					tags,
 					name: sourceName,
 				}),
@@ -655,6 +691,7 @@ export async function buildListOrdinal(
 				customInstructions: buildOrdinalCustomInstructions({
 					protocolID: P1SAT_PROTOCOL,
 					keyID: outpoint,
+					counterparty: 'self',
 					tags,
 					name: sourceName,
 				}),
@@ -886,8 +923,7 @@ export const sendOrdinals: Action<
 				return params
 			}
 			const hasCounterpartyDelivery = input.transfers.some(
-				(transfer) =>
-					transfer.counterparty && transfer.counterparty !== 'self',
+				(transfer) => transfer.counterparty && transfer.counterparty !== 'self',
 			)
 			const senderIdentityKey = hasCounterpartyDelivery
 				? (await ctx.wallet.getPublicKey({ identityKey: true })).publicKey
@@ -1204,6 +1240,7 @@ export const cancelOrdinalListing: Action<
 						customInstructions: buildOrdinalCustomInstructions({
 							protocolID: P1SAT_PROTOCOL,
 							keyID: newKeyID,
+							counterparty: 'self',
 							tags,
 							name: sourceName,
 						}),
@@ -1317,6 +1354,8 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 				contentType: input.contentType,
 				origin: input.origin,
 				name: input.name,
+				map: input.map,
+				parent: input.parent,
 			})
 			const tags = input.tags?.length
 				? [...new Set([...input.tags, ...resolved.tags])]
@@ -1372,6 +1411,7 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 				customInstructions: buildOrdinalCustomInstructions({
 					protocolID: P1SAT_PROTOCOL,
 					keyID: outpoint,
+					counterparty: 'self',
 					tags,
 					name: resolved.name,
 				}),

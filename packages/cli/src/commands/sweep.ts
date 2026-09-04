@@ -13,12 +13,12 @@ import {
 } from '@1sat/actions'
 import { PrivateKey } from '@bsv/sdk'
 import { confirm, isCancel } from '@clack/prompts'
-import type { GlobalFlags } from '../args'
-import { extractFlag } from '../args'
-import { loadContext } from '../context'
-import { printCommandHelp } from '../help'
-import { loadKey } from '../keys'
-import { fatal, formatLabel, formatValue, output } from '../output'
+import type { GlobalFlags } from '../args.js'
+import { extractFlag } from '../args.js'
+import { loadContext } from '../context.js'
+import { printCommandHelp } from '../help.js'
+import { loadKey } from '../keys.js'
+import { fatal, formatLabel, formatValue, output } from '../output.js'
 
 export async function handleSweepCommand(
 	args: string[],
@@ -135,9 +135,10 @@ async function sweepImport(args: string[], opts: GlobalFlags): Promise<void> {
 	if (!wif) fatal('Missing --wif <private-key>')
 
 	let address: string
+	let sweepKey: PrivateKey
 	try {
-		const pk = PrivateKey.fromWif(wif)
-		address = pk.toPublicKey().toAddress()
+		sweepKey = PrivateKey.fromWif(wif)
+		address = sweepKey.toPublicKey().toAddress()
 	} catch {
 		fatal('Invalid WIF private key')
 	}
@@ -200,7 +201,8 @@ async function sweepImport(args: string[], opts: GlobalFlags): Promise<void> {
 		// Sweep BSV funding UTXOs
 		if (hasFunding) {
 			const inputs = await prepareSweepInputs(ctx, scan.funding)
-			const result = await sweepBsv.execute(ctx, { inputs, wif })
+			const keys = inputs.map(() => sweepKey)
+			const result = await sweepBsv.execute(ctx, { inputs, keys })
 			if (result.error) {
 				fatal(`BSV sweep failed: ${result.error}`)
 			}
@@ -210,7 +212,8 @@ async function sweepImport(args: string[], opts: GlobalFlags): Promise<void> {
 		// Sweep ordinals
 		if (hasOrdinals) {
 			const inputs = await prepareSweepInputs(ctx, scan.ordinals)
-			const result = await sweepOrdinals.execute(ctx, { inputs, wif })
+			const keys = inputs.map(() => sweepKey)
+			const result = await sweepOrdinals.execute(ctx, { inputs, keys })
 			if (result.error) {
 				fatal(`Ordinals sweep failed: ${result.error}`)
 			}
@@ -222,13 +225,15 @@ async function sweepImport(args: string[], opts: GlobalFlags): Promise<void> {
 			for (const token of scan.bsv21Tokens) {
 				if (!token.isActive || token.outputs.length === 0) continue
 
-				const inputs = token.outputs.map((out) => ({
-					outpoint: out.outpoint,
+				const base = await prepareSweepInputs(ctx, token.outputs)
+				const inputs = base.map((b) => ({
+					...b,
 					tokenId: token.tokenId,
-					amount: token.amounts.get(out.outpoint) ?? '0',
+					amount: token.amounts.get(b.outpoint) ?? '0',
 				}))
+				const keys = inputs.map(() => sweepKey)
 
-				const result = await sweepBsv21.execute(ctx, { inputs, wif })
+				const result = await sweepBsv21.execute(ctx, { inputs, keys })
 				if (result.error) {
 					fatal(
 						`Token sweep failed (${token.symbol ?? token.tokenId.slice(0, 12)}): ${result.error}`,

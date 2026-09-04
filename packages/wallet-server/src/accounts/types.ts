@@ -41,33 +41,50 @@ export interface NextPaymentDerivation {
 }
 
 /**
+ * Registration facet of `GET /account/status`. `account` is present (and
+ * possibly null) only when the host runs an account registry.
+ */
+export interface RegistrationStatus {
+	registrationEnabled: boolean
+	account?: {
+		username: string
+		displayName?: string
+		avatarOrigin?: string
+		createdAt: string
+	} | null
+}
+
+/**
  * Response shape of `GET /account/status`. When accounts metering is
  * disabled the capacity / pricing fields are omitted; callers should branch
- * on `accountsEnabled` to know which fields are present.
+ * on `accountsEnabled` to know which fields are present. The registration
+ * facet is always present.
  */
-export type AccountStatusResponse =
-	| {
-			identityKey: IdentityKey
-			serverIdentityKey: IdentityKey
-			accountsEnabled: false
-			currentBlock?: number
-			usedBytes?: number
-	  }
-	| {
-			identityKey: IdentityKey
-			serverIdentityKey: IdentityKey
-			accountsEnabled: true
-			currentBlock: number
-			usedBytes: number
-			baselineBytes: number
-			paidBytes: number
-			capacityBytes: number
-			deficitBytes: number
-			paidThroughBlock: number | null
-			pricing: {
-				purchaseUnitBytes: number
-				satsPerUnit: number
-				durationBlocks: number
-			}
-			nextPayment: NextPaymentDerivation
-	  }
+export type AccountStatusResponse = RegistrationStatus &
+	(
+		| {
+				identityKey: IdentityKey
+				serverIdentityKey: IdentityKey
+				accountsEnabled: false
+				currentBlock?: number
+				usedBytes?: number
+		  }
+		| {
+				identityKey: IdentityKey
+				serverIdentityKey: IdentityKey
+				accountsEnabled: true
+				currentBlock: number
+				usedBytes: number
+				baselineBytes: number
+				paidBytes: number
+				capacityBytes: number
+				deficitBytes: number
+				paidThroughBlock: number | null
+				pricing: {
+					purchaseUnitBytes: number
+					satsPerUnit: number
+					durationBlocks: number
+				}
+				nextPayment: NextPaymentDerivation
+		  }
+	)

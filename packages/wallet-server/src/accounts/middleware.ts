@@ -21,9 +21,9 @@ import {
 import { createLogger } from 'evlog'
 import { useLogger } from 'evlog/express'
 import type { NextFunction, Request, Response } from 'express'
-import { isBillableMethod } from '../dispatch'
-import type { WalletStorageProvider } from '../types'
-import { quoteRefundedCharge } from './pricing'
+import { isBillableMethod } from '../dispatch.js'
+import type { WalletStorageProvider } from '../types.js'
+import { quoteRefundedCharge } from './pricing.js'
 import {
 	PAYMENT_LABEL,
 	blockLabel,
@@ -31,12 +31,12 @@ import {
 	countPaymentsForPayer,
 	latestActivePaymentForPayer,
 	payerLabel,
-} from './queries'
+} from './queries.js'
 import type {
 	AccountsConfigProvider,
 	IdentityKey,
 	NextPaymentDerivation,
-} from './types'
+} from './types.js'
 
 /** BRC-29 protocol ID for wallet payments (matches @1sat/types constant). */
 const BRC29_PROTOCOL_ID: [2, string] = [2, '3241645161d8']

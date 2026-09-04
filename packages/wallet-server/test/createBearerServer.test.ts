@@ -26,12 +26,13 @@ function makeStorage(): WalletStorageProvider {
 describe('createBearerServer', () => {
 	let handle: BearerServerHandle
 
-	beforeAll(() => {
+	beforeAll(async () => {
 		handle = createBearerServer({
 			storage: makeStorage(),
 			token: TOKEN,
 			port: 0,
 		})
+		await handle.ready
 	})
 
 	afterAll(async () => {

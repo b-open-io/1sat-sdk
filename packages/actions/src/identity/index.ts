@@ -23,11 +23,11 @@ import {
 	BAP_BITCOM_ADDRESS,
 	BAP_KEY_ID,
 	BAP_PROTOCOL_ID,
-} from '../constants'
-import { applyBapAip, resolveCurrentKeyId } from '../signing/aip'
-import type { Action, ActionOptions, OneSatContext } from '../types'
-import { executeTrackedAction } from '../utils/createTrackedAction'
-import { pickNewestAlias } from './pickNewestAlias'
+} from '../constants.js'
+import { applyBapAip, resolveCurrentKeyId } from '../signing/aip.js'
+import type { Action, ActionOptions, OneSatContext } from '../types.js'
+import { executeTrackedAction } from '../utils/createTrackedAction.js'
+import { pickNewestAlias } from './pickNewestAlias.js'
 
 const { toArray, toBase58, toHex } = Utils
 

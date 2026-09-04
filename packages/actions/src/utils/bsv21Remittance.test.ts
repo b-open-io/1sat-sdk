@@ -5,11 +5,11 @@ import {
 	buildBsv21CustomInstructions,
 	overwriteBsv21CiFields,
 	parseBsv21CustomInstructions,
-} from './bsv21Remittance'
+} from './bsv21Remittance.js'
 import {
 	buildOrdinalCustomInstructions,
 	overwriteOrdinalCiFields,
-} from './ordinalRemittance'
+} from './ordinalRemittance.js'
 
 describe('bsv21FilterTags', () => {
 	test('token id only', () => {

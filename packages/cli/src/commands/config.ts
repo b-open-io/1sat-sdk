@@ -8,7 +8,7 @@
  *   path   - Print config directory path
  */
 
-import type { GlobalFlags } from '../args'
+import type { GlobalFlags } from '../args.js'
 import {
 	getConfigDir,
 	getConfigFile,
@@ -16,15 +16,15 @@ import {
 	parseConfigValue,
 	setConfigPath,
 	unsetConfigPath,
-} from '../config'
-import { printCommandHelp } from '../help'
+} from '../config.js'
+import { printCommandHelp } from '../help.js'
 import {
 	fatal,
 	formatLabel,
 	formatSuccess,
 	formatValue,
 	output,
-} from '../output'
+} from '../output.js'
 
 export async function handleConfigCommand(
 	args: string[],

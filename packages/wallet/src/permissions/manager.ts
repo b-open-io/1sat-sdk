@@ -16,13 +16,13 @@ import {
 	normalizeOriginator,
 	permissionKeyFromRequest,
 	permissionKeyToString,
-} from './key'
+} from './key.js'
 import type {
 	IPermissionStore,
 	ListGrantsFilter,
 	PermissionKey,
 	StoredGrant,
-} from './types'
+} from './types.js'
 
 const IDB_TXID_PREFIX = 'idb:'
 

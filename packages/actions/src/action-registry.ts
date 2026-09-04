@@ -2,7 +2,7 @@
  * Action registry for runtime discovery and MCP integration.
  */
 
-import type { Action, ActionCategory } from './types'
+import type { Action, ActionCategory } from './types.js'
 
 // biome-ignore lint/suspicious/noExplicitAny: Registry needs to store actions with any input/output types
 type AnyAction = Action<any, any>

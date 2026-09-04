@@ -16,8 +16,8 @@
 
 import { Cosign } from '@1sat/templates'
 import { type LockingScript, PublicKey } from '@bsv/sdk'
-import type { OneSatContext } from '../types'
-import { COSIGN_PROTOCOL_ID } from './types'
+import type { OneSatContext } from '../types.js'
+import { COSIGN_PROTOCOL_ID } from './types.js'
 
 export interface BuildCosignDestinationInput {
 	/** Recipient's identity public key (hex). */

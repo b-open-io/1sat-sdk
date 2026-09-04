@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { REGISTRY_TYPE_SET } from './constants'
+import { REGISTRY_TYPE_SET } from './constants.js'
 
 describe('registry type vocabulary', () => {
 	test('includes current shadcn/ui types and the 1Sat asset extension', () => {

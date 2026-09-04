@@ -1,8 +1,8 @@
 import { BSM, BigNumber, PublicKey, Signature, Utils } from '@bsv/sdk'
-import { BAP_PROTOCOL_ID } from '../constants'
-import { computeBapId } from '../identity'
-import type { OneSatContext } from '../types'
-import { resolveCurrentKeyId } from './aip'
+import { BAP_PROTOCOL_ID } from '../constants.js'
+import { computeBapId } from '../identity/index.js'
+import type { OneSatContext } from '../types.js'
+import { resolveCurrentKeyId } from './aip.js'
 
 export interface BapSignature {
 	bapId: string

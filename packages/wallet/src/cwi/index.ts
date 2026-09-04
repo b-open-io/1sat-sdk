@@ -11,16 +11,16 @@ export {
 	type CWIResponseMessage,
 	CWI_EVENT_NAMES,
 	isCWIEventName,
-} from './types'
+} from './types.js'
 
-export { createCWI, type CWITransport } from './factory'
+export { createCWI, type CWITransport } from './factory.js'
 
 // Senders
-export { createEventCWI, CWI as EventCWI } from './event'
-export { createChromeCWI, ChromeCWI } from './chrome'
-export { createWebCWI, type WebCWIConfig, type WebCWIResult } from './web'
+export { createEventCWI, CWI as EventCWI } from './event.js'
+export { createChromeCWI, ChromeCWI } from './chrome.js'
+export { createWebCWI, type WebCWIConfig, type WebCWIResult } from './web.js'
 export {
 	createSigmaCWI,
 	type SigmaCWIConfig,
 	type SigmaCWIResult,
-} from './sigma'
+} from './sigma.js'

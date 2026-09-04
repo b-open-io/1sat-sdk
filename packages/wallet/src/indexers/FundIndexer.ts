@@ -5,7 +5,7 @@ import {
 	type ParseResult,
 	type Txo,
 } from '@1sat/types'
-import { parseAddress } from './parseAddress'
+import { parseAddress } from './parseAddress.js'
 
 /**
  * FundIndexer identifies P2PKH outputs to owned addresses.

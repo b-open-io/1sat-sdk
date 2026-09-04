@@ -1,4 +1,4 @@
-import type { Action, OneSatContext } from '../types'
+import type { Action, OneSatContext } from '../types.js'
 
 export interface FriendPubKeyRequest {
 	friendIdentityKey: string

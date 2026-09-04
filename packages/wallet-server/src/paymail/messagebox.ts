@@ -8,7 +8,7 @@ import {
 	PrivateKey,
 	type WalletInterface,
 } from '@bsv/sdk'
-import type { PendingPayment } from './types'
+import type { PendingPayment } from './types.js'
 
 export interface PaymailMessageBody {
 	beef: string

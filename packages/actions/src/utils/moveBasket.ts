@@ -86,7 +86,10 @@ export async function moveBasketOutputs(
 		try {
 			if (!beef.findTxid(txid)) {
 				skipped++
-				errors.push({ outpoint, error: `beef-missing-txid:${txid.slice(0, 12)}` })
+				errors.push({
+					outpoint,
+					error: `beef-missing-txid:${txid.slice(0, 12)}`,
+				})
 				continue
 			}
 			atomic = Array.from(beef.toBinaryAtomic(txid))

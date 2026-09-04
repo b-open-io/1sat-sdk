@@ -2,11 +2,10 @@
  * Registry Module
  *
  * Shared infrastructure for building on-chain registry packages.
- * Used by clawnet (skills, agents), theme-token (fonts, themes),
- * and any publisher creating ord-fs/json registry items.
+ * Used by any publisher creating ord-fs/json registry items.
  */
 
-export { buildPackageOutputs, detectContentType } from './package-tx'
+export { buildPackageOutputs, detectContentType } from './package-tx.js'
 
 export type {
 	PackageBroadcastResult,
@@ -14,11 +13,11 @@ export type {
 	PackageMapMetadata,
 	PackageTxOutput,
 	PackageTxResult,
-} from './types'
+} from './types.js'
 
 export {
 	MANIFEST_CONTENT_TYPE,
 	REGISTRY_TYPE_SET,
 	REGISTRY_TYPES,
 	type RegistryType,
-} from './constants'
+} from './constants.js'

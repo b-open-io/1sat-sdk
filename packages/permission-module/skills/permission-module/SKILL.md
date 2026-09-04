@@ -27,7 +27,7 @@ new WalletPermissionsManager(baseWallet, adminOriginator, {
 })
 ```
 
-`createAssetPermissionModules` builds one module per scheme: `1sat`, `opns`, `bsv21`, `lock`. Not BAP / BSocial / hosting / sigma.
+`createAssetPermissionModules` builds one module per scheme: `1sat`, `opns`, `bsv21`, `lock`. Not BAP / BSocial / sigma.
 
 ## Mapping
 

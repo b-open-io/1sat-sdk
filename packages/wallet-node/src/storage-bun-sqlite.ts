@@ -1,14 +1,23 @@
 /**
- * StorageBunSqlite — drop-in replacement for StorageKnex that uses bun:sqlite
- * directly, eliminating the knex + better-sqlite3 dependency chain.
+ * StorageBunSqlite — drop-in replacement for StorageKnex on the runtime's
+ * built-in SQLite (`bun:sqlite` under Bun, `node:sqlite` under Node), with
+ * no knex / better-sqlite3 dependency chain. The name is historical.
  *
  * Extends StorageProvider (same as StorageKnex) so it can be used anywhere
  * a WalletStorageProvider is expected.
  */
 
-import { Database } from 'bun:sqlite'
+import { type SqliteDb, openSqlite } from './sqlite-driver.js'
+
+/** Driver handle; see ./sqlite-driver.ts. */
+type Database = SqliteDb
 import { Beef, Transaction as BsvTransaction } from '@bsv/sdk'
 import type { ListActionsResult, ListOutputsResult, Validation } from '@bsv/sdk'
+import {
+	applyBrc153ReferenceLabel,
+	makeBrc114ActionTimeLabel,
+	parseBrc114ActionTimeLabels,
+} from '@bsv/wallet-toolbox'
 import { WERR_UNAUTHORIZED } from '@bsv/wallet-toolbox/out/src/sdk/WERR_errors.js'
 import { WERR_INVALID_PARAMETER } from '@bsv/wallet-toolbox/out/src/sdk/WERR_errors.js'
 import { WERR_INTERNAL } from '@bsv/wallet-toolbox/out/src/sdk/WERR_errors.js'
@@ -49,6 +58,7 @@ import { getListOutputsSpecOp } from '@bsv/wallet-toolbox/out/src/storage/method
 import { outputColumnsWithoutLockingScript } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/TableOutput.js'
 import { transactionColumnsWithoutRawTx } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/TableTransaction.js'
 import type {
+	TableActionBatch,
 	TableCertificate,
 	TableCertificateField,
 	TableCertificateX,
@@ -67,11 +77,6 @@ import type {
 	TableTxLabelMap,
 	TableUser,
 } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/index.js'
-import {
-	applyBrc153ReferenceLabel,
-	makeBrc114ActionTimeLabel,
-	parseBrc114ActionTimeLabels,
-} from '@bsv/wallet-toolbox'
 import {
 	verifyId,
 	verifyOneOrNone,
@@ -179,7 +184,7 @@ export class StorageBunSqlite extends StorageProvider {
 
 	constructor(options: StorageBunSqliteOptions) {
 		super(options)
-		this.db = new Database(options.filename)
+		this.db = openSqlite(options.filename)
 		// Enable WAL mode for better concurrent read performance
 		this.db.run('PRAGMA journal_mode = WAL')
 	}
@@ -733,9 +738,7 @@ export class StorageBunSqlite extends StorageProvider {
 
 		migrations['2026-04-20-002 add outputs userId index'] = {
 			up: (db: Database) => {
-				db.run(
-					'CREATE INDEX IF NOT EXISTS outputs_userId ON outputs(userId)',
-				)
+				db.run('CREATE INDEX IF NOT EXISTS outputs_userId ON outputs(userId)')
 			},
 			down: (db: Database) => {
 				db.run('DROP INDEX IF EXISTS outputs_userId')
@@ -1032,7 +1035,9 @@ export class StorageBunSqlite extends StorageProvider {
 		// null is preserved and bound as SQL NULL — matches Knex binding
 		// behavior, so schema NOT NULL violations surface instead of being
 		// silently rewritten to DEFAULT.
-		const filteredKeys = Object.keys(scoped).filter((k) => scoped[k] !== undefined)
+		const filteredKeys = Object.keys(scoped).filter(
+			(k) => scoped[k] !== undefined,
+		)
 		if (filteredKeys.length === 0)
 			throw new WERR_INTERNAL(`Cannot insert empty entity into ${table}`)
 
@@ -1096,7 +1101,9 @@ export class StorageBunSqlite extends StorageProvider {
 		const params = [...setParams, ...w.params]
 
 		this.db.run(sql, params as (string | number | null | Buffer)[])
-		const row = this.db.query('SELECT changes() as cnt').get() as { cnt: number } | null
+		const row = this.db.query('SELECT changes() as cnt').get() as {
+			cnt: number
+		} | null
 		return row?.cnt ?? 0
 	}
 
@@ -2177,7 +2184,9 @@ export class StorageBunSqlite extends StorageProvider {
 		}
 		const tagClause = buildOutputTagFilterSql(tagIds, isQueryModeAll)
 		if (tagClause) {
-			extraWhere = extraWhere ? `${extraWhere} AND ${tagClause.sql}` : tagClause.sql
+			extraWhere = extraWhere
+				? `${extraWhere} AND ${tagClause.sql}`
+				: tagClause.sql
 			extraParams.push(...tagClause.params)
 		}
 
@@ -2329,7 +2338,9 @@ export class StorageBunSqlite extends StorageProvider {
 		}
 		const labelClause = buildTxLabelFilterSql(labelIds, isQueryModeAll)
 		if (labelClause) {
-			extraWhere = extraWhere ? `${extraWhere} AND ${labelClause.sql}` : labelClause.sql
+			extraWhere = extraWhere
+				? `${extraWhere} AND ${labelClause.sql}`
+				: labelClause.sql
 			extraParams.push(...labelClause.params)
 		}
 
@@ -2465,7 +2476,9 @@ export class StorageBunSqlite extends StorageProvider {
 		}
 		const tagClause = buildOutputTagFilterSql(tagIds, isQueryModeAll)
 		if (tagClause) {
-			extraWhere = extraWhere ? `${extraWhere} AND ${tagClause.sql}` : tagClause.sql
+			extraWhere = extraWhere
+				? `${extraWhere} AND ${tagClause.sql}`
+				: tagClause.sql
 			extraParams.push(...tagClause.params)
 		}
 		return this.countQuery(
@@ -2543,7 +2556,9 @@ export class StorageBunSqlite extends StorageProvider {
 		}
 		const labelClause = buildTxLabelFilterSql(labelIds, isQueryModeAll)
 		if (labelClause) {
-			extraWhere = extraWhere ? `${extraWhere} AND ${labelClause.sql}` : labelClause.sql
+			extraWhere = extraWhere
+				? `${extraWhere} AND ${labelClause.sql}`
+				: labelClause.sql
 			extraParams.push(...labelClause.params)
 		}
 		return this.countQuery(
@@ -3661,5 +3676,20 @@ export class StorageBunSqlite extends StorageProvider {
 
 	async adminStats(_adminIdentityKey: string): Promise<AdminStatsResult> {
 		throw new WERR_NOT_IMPLEMENTED('adminStats, only MySQL is supported')
+	}
+
+	// -----------------------------------------------------------------------
+	// Action batching — not implemented by this backend (see storage-pg.ts).
+	// The base StorageProvider throws NOT_IMPLEMENTED, which makes the
+	// monitor's CleanupActionBatches task fail every cycle. Since these
+	// providers never create action batches, the correct answer is an empty
+	// set — turning the task into a harmless no-op instead of an error.
+	// -----------------------------------------------------------------------
+
+	async findExpiredActionBatches(
+		_now: Date,
+		_trx?: TrxToken,
+	): Promise<TableActionBatch[]> {
+		return []
 	}
 }

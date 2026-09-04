@@ -1,4 +1,4 @@
-export { InMemoryPermissionStore } from './in-memory-store'
+export { InMemoryPermissionStore } from './in-memory-store.js'
 export {
 	filterGroupedByMissing,
 	isExpired,
@@ -6,15 +6,15 @@ export {
 	permissionKeyFromRequest,
 	permissionKeysFromGroup,
 	permissionKeyToString,
-} from './key'
+} from './key.js'
 export {
 	LocalWalletPermissionsManager,
 	type LocalWalletPermissionsManagerOptions,
-} from './manager'
+} from './manager.js'
 export type {
 	IPermissionStore,
 	ListGrantsFilter,
 	PermissionKey,
 	PermissionType,
 	StoredGrant,
-} from './types'
+} from './types.js'

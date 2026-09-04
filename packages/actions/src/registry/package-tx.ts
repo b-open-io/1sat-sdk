@@ -7,13 +7,14 @@ import {
 	PrivateKeySigner,
 } from '@1sat/templates'
 import { P2PKH, type PrivateKey, Script, Utils } from '@bsv/sdk'
-import { MANIFEST_CONTENT_TYPE } from './constants'
+import { buildOrdfsDirManifest } from '../ordfs/manifest.js'
+import { MANIFEST_CONTENT_TYPE } from './constants.js'
 import type {
 	PackageFile,
 	PackageMapMetadata,
 	PackageTxOutput,
 	PackageTxResult,
-} from './types'
+} from './types.js'
 
 /**
  * Known fields on PackageMapMetadata that are handled explicitly
@@ -83,62 +84,35 @@ export async function buildPackageOutputs(
 	//    Root-level files get `_N` references. Files in subdirectories
 	//    get their own ord-fs/json manifest inscriptions so ORDFS can
 	//    traverse nested directories and unchanged branches can be
-	//    re-referenced in version updates.
+	//    re-referenced in version updates. The `_N` relative-vout layout
+	//    is computed by the shared, key-agnostic tree builder; here we
+	//    only attach the P2PKH prefix and emit the manifest inscriptions.
 	// -------------------------------------------------------------------
+	const tree = buildOrdfsDirManifest(files)
 
-	// Group files by their top-level directory
-	const rootFiles: Array<{ name: string; vout: number }> = []
-	const subdirs = new Map<string, Array<{ name: string; vout: number }>>()
-
-	for (let i = 0; i < files.length; i++) {
-		const parts = files[i].path.split('/')
-		if (parts.length === 1) {
-			// Root-level file
-			rootFiles.push({ name: parts[0], vout: i })
-		} else {
-			// Nested file -- group by first directory segment
-			const dir = parts[0]
-			const rest = parts.slice(1).join('/')
-			if (!subdirs.has(dir)) subdirs.set(dir, [])
-			subdirs.get(dir)!.push({ name: rest, vout: i })
-		}
-	}
-
-	// Create subdirectory manifest inscriptions (one per subdirectory)
-	const subdirVouts = new Map<string, number>()
-	for (const [dirName, entries] of subdirs) {
-		const subdirManifest: Record<string, string> = {}
-		for (const entry of entries) {
-			subdirManifest[entry.name] = `_${entry.vout}`
-		}
+	// Create subdirectory manifest inscriptions (one per subdirectory).
+	// The tree builder assigned these vouts immediately after the file
+	// inscriptions, so they line up with `outputs.length` here.
+	for (const subdir of tree.subdirs) {
 		const subdirBytes = new Uint8Array(
-			Utils.toArray(JSON.stringify(subdirManifest), 'utf8'),
+			Utils.toArray(JSON.stringify(subdir.manifest), 'utf8'),
 		)
 		const subdirInscription = Inscription.create(
 			subdirBytes,
 			MANIFEST_CONTENT_TYPE,
 			{ scriptPrefix: p2pkhPrefix },
 		)
-		const subdirVout = outputs.length
 		outputs.push({
 			lockingScriptHex: Utils.toHex(subdirInscription.lock().toBinary()),
 			satoshis: 1,
-			description: `dir: ${dirName}/`,
+			description: `dir: ${subdir.path}/`,
 			isManifest: false,
 		})
-		subdirVouts.set(dirName, subdirVout)
 	}
 
-	// Build root manifest -- references root files and subdirectory manifests
-	const manifest: Record<string, string> = {}
-	for (const entry of rootFiles) {
-		manifest[entry.name] = `_${entry.vout}`
-	}
-	for (const [dirName, vout] of subdirVouts) {
-		manifest[dirName] = `_${vout}`
-	}
+	// Serialize the root manifest -- references root files and subdirectories.
 	const manifestBytes = new Uint8Array(
-		Utils.toArray(JSON.stringify(manifest), 'utf8'),
+		Utils.toArray(JSON.stringify(tree.root), 'utf8'),
 	)
 
 	// -------------------------------------------------------------------

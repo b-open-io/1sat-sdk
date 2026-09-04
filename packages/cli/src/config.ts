@@ -29,8 +29,7 @@ export type ServerStorageConfig =
  * Shared repricer engine (`server.repricer`). When enabled, a monitor task
  * fetches the BSV/USD rate on the interval and rewrites each service's sats
  * price toward its own `targetUsd` (`server.accounts.targetUsd` →
- * `satsPerUnit`, `server.hosting.targetUsd` → `priceSats`). Services with no
- * `targetUsd` set are left alone.
+ * `satsPerUnit`). Services with no `targetUsd` set are left alone.
  */
 export interface RepricerConfig {
 	/** Master toggle. Defaults to false. */
@@ -112,30 +111,13 @@ export interface ServerPaymailConfig {
 	 */
 	messageboxUrl?: string
 	/**
-	 * When true, open host wallet storage and require active HOSTING_BASKET
-	 * receipt for the bound identity. Default false until subscribe path ships.
+	 * Domain served from the host accounts table (e.g. "1sat.app").
+	 * Aliases on this domain resolve username→identity key via registered
+	 * accounts; every other domain (e.g. "1sat.name") keeps resolving through
+	 * on-chain OpNS binds. Unset = OpNS for all domains. Either way an alias
+	 * only resolves when its identity holds an account on this host.
 	 */
-	requireEntitlement?: boolean
-	/**
-	 * Wallet storage URL for entitlement listOutputs (and optional later
-	 * subscribe). Defaults to local wallet serve URL like messagebox.
-	 */
-	walletStorageUrl?: string
-}
-
-export interface ServerHostingConfig {
-	/** Master toggle. Defaults to false. */
-	enabled?: boolean
-	/** Sats per subscription period. */
-	priceSats?: number
-	/**
-	 * USD price per subscription period. Returned as `priceUsd` on the
-	 * pricing API for display, and maintained as the repricing target for
-	 * `priceSats` when `server.repricer` is enabled.
-	 */
-	targetUsd?: number
-	/** Period length in seconds (e.g. 2592000 ≈ 30 days). */
-	periodSeconds?: number
+	userDomain?: string
 }
 
 export interface ServerSessionStoreConfig {
@@ -167,11 +149,9 @@ export interface ServerConfig {
 	accounts?: ServerAccountsConfig
 	/** Messagebox subcommand settings. */
 	messagebox?: ServerMessageboxConfig
-	/** Paymail subcommand settings. */
+	/** Paymail settings for the unified host. */
 	paymail?: ServerPaymailConfig
-	/** Hosted paymail subscription (wallet serve /hosting/*). */
-	hosting?: ServerHostingConfig
-	/** Shared BSV/USD repricer engine for accounts + hosting prices. */
+	/** Shared BSV/USD repricer engine for the accounts storage price. */
 	repricer?: RepricerConfig
 	/**
 	 * Redis-shared BRC-104 sessions. Required when multiple serve instances

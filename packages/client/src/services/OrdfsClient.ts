@@ -5,7 +5,7 @@ import type {
 	OrdfsMetadata,
 	OrdfsResponseHeaders,
 } from '@1sat/types'
-import { BaseClient } from './BaseClient'
+import { BaseClient } from './BaseClient.js'
 
 /**
  * Client for ordfs routes.

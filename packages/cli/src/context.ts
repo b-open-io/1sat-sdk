@@ -10,8 +10,8 @@
 import { type OneSatContext, createContext } from '@1sat/actions'
 import { type NodeWalletResult, createNodeWallet } from '@1sat/wallet-node'
 import type { PrivateKey } from '@bsv/sdk'
-import { ensureDataDir, loadConfig } from './config'
-import { spawnDetachedMonitorOnce } from './monitor-once'
+import { ensureDataDir, loadConfig } from './config.js'
+import { spawnDetachedMonitorOnce } from './monitor-once.js'
 
 /** Extended context that includes cleanup */
 export interface CliContext {

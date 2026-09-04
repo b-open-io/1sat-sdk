@@ -14,7 +14,7 @@ export {
 	labelsFromSpendTargets,
 	spendTargetToLabel,
 	spendTargetsFromLabels,
-} from './spendTargets'
+} from './spendTargets.js'
 export {
 	buildPurchaseUnlockingScript,
 	buildSpendsForResolved,
@@ -22,10 +22,10 @@ export {
 	materializeSpends,
 	resolveSpendTargets,
 	unlockByScript,
-} from './unlockInput'
+} from './unlockInput.js'
 export {
 	type PipelineOptions,
 	embellishCreateActionArgs,
 	finishCreateAction,
 	runCreateActionPipeline,
-} from './runPipeline'
+} from './runPipeline.js'

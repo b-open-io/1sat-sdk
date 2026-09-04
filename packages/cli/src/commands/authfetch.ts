@@ -10,11 +10,11 @@
 import { readFileSync } from 'node:fs'
 import { AuthFetch } from '@bsv/sdk'
 import { confirm, isCancel } from '@clack/prompts'
-import type { GlobalFlags } from '../args'
-import { loadContext } from '../context'
-import { printCommandHelp } from '../help'
-import { loadKey } from '../keys'
-import { fatal, output } from '../output'
+import type { GlobalFlags } from '../args.js'
+import { loadContext } from '../context.js'
+import { printCommandHelp } from '../help.js'
+import { loadKey } from '../keys.js'
+import { fatal, output } from '../output.js'
 
 const METHODS = new Set([
 	'GET',

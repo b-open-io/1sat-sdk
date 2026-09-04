@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.203
+
+### Fixed
+- `mintBsv21` can now permanently consume a matching mint authority without forcing a final token mint.
+- Authority termination rejects a simultaneous authority destination, refuses inactive tokens, and emits neither BSV21 outputs nor an overlay-fee output.
+
 ## 0.0.202
 
 ### Fixed

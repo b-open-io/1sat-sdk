@@ -8,23 +8,23 @@ import { buildInscriptionScript } from '@1sat/templates'
 import type { Destination } from '@1sat/types'
 import { P1SAT_PROTOCOL } from '@1sat/types'
 import { Beef, Hash, type Script, Utils } from '@bsv/sdk'
-import { prepareP1SatArgs } from '../apply'
+import { prepareP1SatArgs } from '../apply/index.js'
 import {
 	DEFAULT_STREAM_CHUNK_SIZE,
 	MAX_INSCRIPTION_BYTES,
 	ORDFS_STREAM_CONTENT_TYPE,
 	ORDFS_STREAM_PARAM,
 	ORDINALS_BASKET,
-} from '../constants'
-import { appendSigmaPlaceholder } from '../signing/sigma'
-import type { Action, ActionOptions, OneSatContext } from '../types'
-import { executeTrackedAction } from '../utils/createTrackedAction'
-import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance'
+} from '../constants.js'
+import { appendSigmaPlaceholder } from '../signing/sigma.js'
+import type { Action, ActionOptions, OneSatContext } from '../types.js'
+import { executeTrackedAction } from '../utils/createTrackedAction.js'
+import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance.js'
 import {
 	type ResolvedDestination,
 	resolveDestination,
-} from '../utils/resolveDestination'
-import { splitStreamChunks, wantsStreamInscription } from './stream'
+} from '../utils/resolveDestination.js'
+import { splitStreamChunks, wantsStreamInscription } from './stream.js'
 
 // ============================================================================
 // Types

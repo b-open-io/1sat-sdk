@@ -145,14 +145,10 @@ export async function handleMcpProxyCommand(): Promise<void> {
 	let mcpSessionId: string | null = null
 	let requestCount = 0
 	const decoder = new TextDecoder()
-	const reader = Bun.stdin.stream().getReader()
 	let buffer = ''
 
-	while (true) {
-		const { done, value } = await reader.read()
-		if (done) break
-
-		buffer += decoder.decode(value, { stream: true })
+	for await (const value of process.stdin) {
+		buffer += decoder.decode(value as Uint8Array, { stream: true })
 
 		let newlineIdx: number
 		while ((newlineIdx = buffer.indexOf('\n')) !== -1) {

@@ -1,5 +1,5 @@
 import type { BEEF, WalletInterface, WalletOutput } from '@bsv/sdk'
-import { ensurePlaintextCi } from './walletMetadataCi'
+import { ensurePlaintextCi } from './walletMetadataCi.js'
 
 /** Accept bare id value or full `id:…` tag. */
 export function toIdTag(id: string): string {

@@ -12,7 +12,7 @@ import {
 	Utils,
 	type WalletInterface,
 } from '@bsv/sdk'
-import P2MS from './multisig'
+import P2MS from './multisig.js'
 
 function compressedPubKeyHex(priv: PrivateKeyType): string {
 	return Utils.toHex(priv.toPublicKey().encode(true) as number[])

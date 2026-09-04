@@ -11,12 +11,12 @@
 import { StorageClient } from '@1sat/wallet-node'
 import { WalletServerClient, topUpStorage } from '@1sat/wallet-server'
 import { confirm, isCancel, text } from '@clack/prompts'
-import type { GlobalFlags } from '../args'
-import { loadConfig, saveConfig } from '../config'
-import { loadContext } from '../context'
-import { printCommandHelp } from '../help'
-import { loadKey } from '../keys'
-import { fatal, formatSuccess, formatWarning, output } from '../output'
+import type { GlobalFlags } from '../args.js'
+import { loadConfig, saveConfig } from '../config.js'
+import { loadContext } from '../context.js'
+import { printCommandHelp } from '../help.js'
+import { loadKey } from '../keys.js'
+import { fatal, formatSuccess, formatWarning, output } from '../output.js'
 
 export async function handleRemoteCommand(
 	args: string[],

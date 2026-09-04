@@ -4,7 +4,13 @@
 
 Command-line interface for 1Sat Ordinals on BSV.
 
-Requires the [Bun](https://bun.sh) runtime. Install Bun first:
+Runs on Node ≥ 22.13 or [Bun](https://bun.sh) ≥ 1.2. With Node:
+
+```bash
+npm i -g @1sat/cli      # or: npx @1sat/cli <command>
+```
+
+With Bun (the published bin has a `node` shebang; pass `--bun` to force Bun when both are installed):
 
 ```
 curl -fsSL https://bun.sh/install | bash
@@ -19,7 +25,7 @@ bun add -g @1sat/cli
 Or run without installing:
 
 ```
-bunx @1sat/cli
+bunx --bun @1sat/cli
 ```
 
 ---

@@ -13,7 +13,7 @@
 
 import type { WalletInterface } from '@bsv/sdk'
 import { AuthFetch } from '@bsv/sdk/auth'
-import type { AccountStatusResponse } from './accounts/types'
+import type { AccountStatusResponse } from './accounts/types.js'
 
 export interface TopUpResult {
 	/** Sats paid — reported by the server's `x-bsv-payment-satoshis-paid` header. */

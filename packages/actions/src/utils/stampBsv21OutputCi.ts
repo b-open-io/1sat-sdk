@@ -8,24 +8,20 @@
  *   peel → merge → re-encrypt (WPM encrypts before module onRequest)
  */
 
-import { BSV21_BASKET, parseInputAssetLabels } from '@1sat/types'
 import { BSV21 } from '@1sat/templates'
+import { BSV21_BASKET, parseInputAssetLabels } from '@1sat/types'
+import { type CreateActionArgs, Script, type WalletInterface } from '@bsv/sdk'
 import {
-	type CreateActionArgs,
-	Script,
-	type WalletInterface,
-} from '@bsv/sdk'
-import {
+	type Bsv21RemittanceFields,
 	bsv21FieldsFromOutput,
 	overwriteBsv21CiFields,
-	type Bsv21RemittanceFields,
-} from './bsv21Remittance'
-import { loadBasketOutput } from './loadBasketOutput'
+} from './bsv21Remittance.js'
+import { loadBasketOutput } from './loadBasketOutput.js'
 import {
 	encryptWalletMetadataCi,
 	ensurePlaintextCi,
 	looksLikeJson,
-} from './walletMetadataCi'
+} from './walletMetadataCi.js'
 
 async function carryFieldsFromInputs(
 	wallet: WalletInterface,

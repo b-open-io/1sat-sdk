@@ -1,7 +1,11 @@
 import type { ClientOptions } from '@1sat/types'
 import type { ChainTracker } from '@bsv/sdk'
-import type { BaseBlockHeader, BlockHeader, Chain } from '@bsv/wallet-toolbox-client'
-import { BaseClient } from './BaseClient'
+import type {
+	BaseBlockHeader,
+	BlockHeader,
+	Chain,
+} from '@bsv/wallet-toolbox-client'
+import { BaseClient } from './BaseClient.js'
 
 /**
  * Convert bytes to hex string (big-endian / natural order)

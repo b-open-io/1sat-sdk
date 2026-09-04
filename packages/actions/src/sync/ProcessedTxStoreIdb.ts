@@ -1,4 +1,4 @@
-import type { ProcessedTxStore } from './ProcessedTxStore'
+import type { ProcessedTxStore } from './ProcessedTxStore.js'
 
 const TXIDS_STORE = 'processed_txids'
 const STATE_STORE = 'sync_state'

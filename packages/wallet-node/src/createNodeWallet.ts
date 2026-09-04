@@ -14,8 +14,8 @@ import {
 	WalletStorageManager,
 	type sdk,
 } from '@bsv/wallet-toolbox'
-import { createFsTaskStateStore } from './fsTaskStateStore'
-import { StorageBunSqlite } from './storage-bun-sqlite'
+import { createFsTaskStateStore } from './fsTaskStateStore.js'
+import { StorageBunSqlite } from './storage-bun-sqlite.js'
 
 const DEFAULT_STORAGE_NAME = 'wallet'
 const DEFAULT_SQLITE_FILENAME = './wallet.db'
@@ -157,8 +157,7 @@ export async function createNodeWallet(
 		remoteStorage: core.remoteClients[0],
 		setActiveStorage: core.setActiveStorage,
 		addRemote: core.addRemote,
-		getActiveStorage:
-			core.getActiveStorage as () => sdk.WalletStorageProvider,
+		getActiveStorage: core.getActiveStorage as () => sdk.WalletStorageProvider,
 	}
 }
 
@@ -175,7 +174,7 @@ async function buildLocalStorage(
 	if (config.provider === 'pg') {
 		// Dynamic import — pg is an optional peer dep so bun-sqlite-only
 		// consumers don't pay for it.
-		const { StoragePg } = await import('./storage-pg')
+		const { StoragePg } = await import('./storage-pg.js')
 		return new StoragePg({
 			...baseOptions,
 			dbUrl: config.dbUrl,

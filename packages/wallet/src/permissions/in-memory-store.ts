@@ -1,10 +1,10 @@
-import { permissionKeyToString } from './key'
+import { permissionKeyToString } from './key.js'
 import type {
 	IPermissionStore,
 	ListGrantsFilter,
 	PermissionKey,
 	StoredGrant,
-} from './types'
+} from './types.js'
 
 /**
  * Reference `IPermissionStore` that keeps grants in a JS `Map`.

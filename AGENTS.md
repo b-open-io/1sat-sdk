@@ -85,6 +85,8 @@ with `bun run scripts/gen-action-index.ts`).
 - Do not use star imports (`import * as ...`).
 - Keep runtime-specific entrypoints separate (`browser` vs `node`) where applicable.
 - Prefer explicit named exports from package entrypoints.
+- Relative imports inside a package carry the `.js` extension (`from './errors.js'`, `from './sync/index.js'`). tsc emits them verbatim and Node's ESM loader requires them; Bun and TypeScript's `bundler` resolution map `.js` back to `.ts`.
+- Packages in the `@1sat/cli` dependency closure (types, utils, client, templates, wallet, wallet-node, wallet-server, actions) must run under Node as well as Bun: no `Bun.*` globals or `bun:*` imports outside test files. Runtime built-ins go through `process.getBuiltinModule` (see `wallet-node/src/sqlite-driver.ts`). `bun run --filter @1sat/cli test:node` is the Node smoke test.
 
 ## Action Conventions (packages/actions)
 - **All actions** must use `createTrackedAction` instead of raw `wallet.createAction`. This adds ID tags to basketed outputs for targeted lookups.

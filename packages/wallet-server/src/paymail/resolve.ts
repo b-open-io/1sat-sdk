@@ -12,7 +12,7 @@ import {
 	Transaction,
 	Utils,
 } from '@bsv/sdk'
-import type { ResolvedBind } from './types'
+import type { ResolvedBind } from './types.js'
 
 function parseOutpoint(outpoint: string): { txid: string; vout: number } {
 	const normalized = outpoint.replace('_', '.')

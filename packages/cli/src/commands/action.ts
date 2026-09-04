@@ -6,10 +6,10 @@
  */
 
 import { actionRegistry } from '@1sat/actions'
-import type { GlobalFlags } from '../args'
-import { loadContext } from '../context'
-import { loadKey } from '../keys'
-import { fatal, output } from '../output'
+import type { GlobalFlags } from '../args.js'
+import { loadContext } from '../context.js'
+import { loadKey } from '../keys.js'
+import { fatal, output } from '../output.js'
 
 export async function handleActionCommand(
 	args: string[],

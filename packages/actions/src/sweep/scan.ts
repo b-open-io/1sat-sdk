@@ -8,7 +8,7 @@
 import type { OneSatServices } from '@1sat/client'
 import type { IndexedOutput } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
-import type { ScanProgress, ScanResult, TokenBalance } from './types'
+import type { ScanProgress, ScanResult, TokenBalance } from './types.js'
 
 /** RUN protocol OP_RETURN prefix: OP_FALSE OP_RETURN OP_PUSH3 "run" */
 const RUN_PREFIX = Uint8Array.from([0x00, 0x6a, 0x03, 0x72, 0x75, 0x6e])

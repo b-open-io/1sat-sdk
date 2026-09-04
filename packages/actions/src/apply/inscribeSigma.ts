@@ -11,10 +11,10 @@ import {
 	type ArgsWithPendingSpends,
 	PENDING_RESOLVED_SPENDS_KEY,
 	type ResolvedSpend,
-} from '../pipeline/spendTargets'
-import { findUnsealedSigmaVin, sealSigma } from '../signing/sigma'
-import type { OneSatContext } from '../types'
-import { stampManagedOutputIds } from '../utils/createTrackedAction'
+} from '../pipeline/spendTargets.js'
+import { findUnsealedSigmaVin, sealSigma } from '../signing/sigma.js'
+import type { OneSatContext } from '../types.js'
+import { stampManagedOutputIds } from '../utils/createTrackedAction.js'
 
 /**
  * Anchor keyID for a given action. Derived from the action id so the action's
@@ -53,8 +53,7 @@ export async function applyInscribeSigma(
 	if (!outputs?.length) {
 		throw new Error('ordinal.inscribe-sigma apply: missing outputs')
 	}
-	const out =
-		outputs.find((o) => o.basket === ORDINALS_BASKET) ?? outputs[0]
+	const out = outputs.find((o) => o.basket === ORDINALS_BASKET) ?? outputs[0]
 	if (!out?.lockingScript) {
 		throw new Error('ordinal.inscribe-sigma apply: missing inscription output')
 	}

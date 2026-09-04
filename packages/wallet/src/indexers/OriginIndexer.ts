@@ -9,9 +9,9 @@ import {
 	type Txo,
 	ordinalTagsFromMetadata,
 } from '@1sat/types'
-import type { Inscription } from './InscriptionIndexer'
-import type { Sigma } from './SigmaIndexer'
-import { parseAddress } from './parseAddress'
+import type { Inscription } from './InscriptionIndexer.js'
+import type { Sigma } from './SigmaIndexer.js'
+import { parseAddress } from './parseAddress.js'
 
 export interface Origin {
 	outpoint?: string

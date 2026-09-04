@@ -10,7 +10,6 @@ import { OpNS, OrdLock, outpointToBytes } from '@1sat/templates'
 import {
 	OPNS_BASKET,
 	OPNS_PUBLISHED_TAG,
-	OPNS_PUSHDROP_TEMPLATE,
 	OPNS_REGISTER_COUNTERPARTY,
 	OPNS_REGISTER_SIG_PLACEHOLDER_LEN,
 	P1SAT_PROTOCOL,
@@ -31,25 +30,24 @@ import {
 	type WalletOutput,
 	type WalletProtocol,
 } from '@bsv/sdk'
-import { prepareP1SatArgs } from '../apply'
+import { prepareP1SatArgs } from '../apply/index.js'
 import {
 	buildOrdLockScript,
+	buildOrdinalTransferDelivery,
 	buyOrdinal,
 	defaultPayAddress,
 	deriveCancelAddressInternal,
-} from '../ordinals'
-import type { Action, ActionOptions, OneSatContext } from '../types'
+} from '../ordinals/index.js'
+import type { OrdinalTransferDelivery } from '../ordinals/index.js'
+import type { Action, ActionOptions, OneSatContext } from '../types.js'
 import {
 	executeTrackedAction,
 	randomActionId,
-} from '../utils/createTrackedAction'
-import { loadBasketOutputBeef } from '../utils/loadBasketOutput'
-import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance'
-import { ordinalSeedTags } from '../utils/ordinalSeedTags'
-import {
-	signOrdinalInput,
-	unlockingScriptLengthForInstructions,
-} from '../utils/signOrdinalInput'
+} from '../utils/createTrackedAction.js'
+import { loadBasketOutputBeef } from '../utils/loadBasketOutput.js'
+import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance.js'
+import { ordinalSeedTags } from '../utils/ordinalSeedTags.js'
+import { unlockingScriptLengthForInstructions } from '../utils/signOrdinalInput.js'
 
 const OPNS_CONTENT_TYPE = 'application/op-ns'
 
@@ -80,6 +78,7 @@ export { opnsRegisterKeyId } from '@1sat/types'
 export interface OpnsOperationResponse {
 	txid?: string
 	tx?: number[]
+	deliveries?: OrdinalTransferDelivery[]
 	error?: string
 }
 
@@ -315,9 +314,7 @@ export const internalizeOpns: Action<
 								protocolID: input.protocolID,
 								keyID: input.keyID,
 								counterparty,
-								tags: [
-									`origin:${formatOrdinalOutpoint(outpoint)}`,
-								],
+								tags: [`origin:${formatOrdinalOutpoint(outpoint)}`],
 								name,
 							}),
 						},
@@ -445,10 +442,11 @@ export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 					beef,
 					undefined,
 					{
-						spends: inputId
-							? [{ basket: OPNS_BASKET, id: inputId }]
-							: [],
-						usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+						spends: inputId ? [{ basket: OPNS_BASKET, id: inputId }] : [],
+						usePermissionModule:
+							input.usePermissionModule ??
+							input.useOneSatModule ??
+							input.useModule,
 						permissionScheme: 'opns',
 					},
 				)
@@ -526,6 +524,7 @@ export const deregisterOpns: Action<
 						customInstructions: buildOrdinalCustomInstructions({
 							protocolID: P1SAT_PROTOCOL,
 							keyID: outpoint,
+							counterparty: 'self',
 							tags,
 							name,
 						}),
@@ -536,19 +535,20 @@ export const deregisterOpns: Action<
 			await prepareP1SatArgs(ctx, args)
 
 			return await executeTrackedAction(
-					ctx.wallet,
-					args,
-					input.fundingProvider,
-					beef,
-					undefined,
-					{
-						spends: inputId
-							? [{ basket: OPNS_BASKET, id: inputId }]
-							: [],
-						usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
-						permissionScheme: 'opns',
-					},
-				)
+				ctx.wallet,
+				args,
+				input.fundingProvider,
+				beef,
+				undefined,
+				{
+					spends: inputId ? [{ basket: OPNS_BASKET, id: inputId }] : [],
+					usePermissionModule:
+						input.usePermissionModule ??
+						input.useOneSatModule ??
+						input.useModule,
+					permissionScheme: 'opns',
+				},
+			)
 		} catch (error) {
 			console.error('[deregisterOpns]', error)
 			return {
@@ -634,6 +634,7 @@ export const sellOpns: Action<SellOpnsRequest, OpnsOperationResponse> = {
 						customInstructions: buildOrdinalCustomInstructions({
 							protocolID: P1SAT_PROTOCOL,
 							keyID: outpoint,
+							counterparty: 'self',
 							tags,
 							name,
 						}),
@@ -644,19 +645,20 @@ export const sellOpns: Action<SellOpnsRequest, OpnsOperationResponse> = {
 			await prepareP1SatArgs(ctx, args)
 
 			return await executeTrackedAction(
-					ctx.wallet,
-					args,
-					input.fundingProvider,
-					beef,
-					undefined,
-					{
-						spends: inputId
-							? [{ basket: OPNS_BASKET, id: inputId }]
-							: [],
-						usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
-						permissionScheme: 'opns',
-					},
-				)
+				ctx.wallet,
+				args,
+				input.fundingProvider,
+				beef,
+				undefined,
+				{
+					spends: inputId ? [{ basket: OPNS_BASKET, id: inputId }] : [],
+					usePermissionModule:
+						input.usePermissionModule ??
+						input.useOneSatModule ??
+						input.useModule,
+					permissionScheme: 'opns',
+				},
+			)
 		} catch (error) {
 			console.error('[sellOpns]', error)
 			return {
@@ -707,6 +709,18 @@ export const sendOpns: Action<SendOpnsRequest, OpnsOperationResponse> = {
 			} else {
 				recipientAddress = input.address as string
 			}
+			const senderIdentityKey =
+				input.counterparty && !isSelf
+					? (await ctx.wallet.getPublicKey({ identityKey: true })).publicKey
+					: undefined
+			const delivery = senderIdentityKey
+				? buildOrdinalTransferDelivery(
+						output,
+						input.counterparty,
+						senderIdentityKey,
+						0,
+					)
+				: undefined
 
 			const inputId = readAssetIdTag(output.tags)
 			const name = nameFromOutput(output)
@@ -737,13 +751,14 @@ export const sendOpns: Action<SendOpnsRequest, OpnsOperationResponse> = {
 								outputDescription: 'OpNS self-transfer',
 								basket: OPNS_BASKET,
 								tags,
-							customInstructions: buildOrdinalCustomInstructions({
-								protocolID: P1SAT_PROTOCOL,
-								keyID: outpoint,
-								tags,
-								name,
-							}),
-						}
+								customInstructions: buildOrdinalCustomInstructions({
+									protocolID: P1SAT_PROTOCOL,
+									keyID: outpoint,
+									counterparty: 'self',
+									tags,
+									name,
+								}),
+							}
 						: {
 								lockingScript: new P2PKH().lock(recipientAddress).toHex(),
 								satoshis: 1,
@@ -755,20 +770,25 @@ export const sendOpns: Action<SendOpnsRequest, OpnsOperationResponse> = {
 			}
 			await prepareP1SatArgs(ctx, args)
 
-			return await executeTrackedAction(
-					ctx.wallet,
-					args,
-					input.fundingProvider,
-					beef,
-					undefined,
-					{
-						spends: inputId
-							? [{ basket: OPNS_BASKET, id: inputId }]
-							: [],
-						usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
-						permissionScheme: 'opns',
-					},
-				)
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				args,
+				input.fundingProvider,
+				beef,
+				undefined,
+				{
+					spends: inputId ? [{ basket: OPNS_BASKET, id: inputId }] : [],
+					usePermissionModule:
+						input.usePermissionModule ??
+						input.useOneSatModule ??
+						input.useModule,
+					permissionScheme: 'opns',
+				},
+			)
+			return {
+				...result,
+				...(delivery ? { deliveries: [delivery] } : {}),
+			}
 		} catch (error) {
 			console.error('[sendOpns]', error)
 			return {
@@ -849,6 +869,7 @@ export const cancelOpnsListing: Action<
 						customInstructions: buildOrdinalCustomInstructions({
 							protocolID: P1SAT_PROTOCOL,
 							keyID: newKeyID,
+							counterparty: 'self',
 							tags,
 							name,
 						}),
@@ -865,11 +886,12 @@ export const cancelOpnsListing: Action<
 				inputBEEF,
 				undefined,
 				{
-					spends: inputId
-						? [{ basket: OPNS_BASKET, id: inputId }]
-						: [],
-					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
-						permissionScheme: 'opns',
+					spends: inputId ? [{ basket: OPNS_BASKET, id: inputId }] : [],
+					usePermissionModule:
+						input.usePermissionModule ??
+						input.useOneSatModule ??
+						input.useModule,
+					permissionScheme: 'opns',
 				},
 			)
 		} catch (error) {

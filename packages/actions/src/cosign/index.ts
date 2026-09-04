@@ -27,11 +27,11 @@ export {
 	InMemoryCosignSessionStore,
 	type PrepareCosignBsv21TransferInput,
 	type PrepareCosignBsv21TransferResult,
-} from './types'
-export { prepareCosignBsv21Transfer } from './prepare'
-export { finalizeCosignBsv21Transfer } from './finalize'
+} from './types.js'
+export { prepareCosignBsv21Transfer } from './prepare.js'
+export { finalizeCosignBsv21Transfer } from './finalize.js'
 export {
 	buildCosignDestination,
 	type BuildCosignDestinationInput,
 	type BuildCosignDestinationResult,
-} from './buildDestination'
+} from './buildDestination.js'

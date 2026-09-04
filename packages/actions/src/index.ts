@@ -15,13 +15,13 @@ export {
 	type JsonSchemaProperty,
 	type OneSatContext,
 	createContext,
-} from './types'
+} from './types.js'
 
 // Export action registry
-export { ActionRegistry, actionRegistry, type McpTool } from './action-registry'
+export { ActionRegistry, actionRegistry, type McpTool } from './action-registry.js'
 
 // Export constants
-export * from './constants'
+export * from './constants.js'
 
 // P1Sat apply (base-wallet seal / validate; module re-exports dispatch)
 export {
@@ -35,15 +35,15 @@ export {
 	stampScriptDerivedTags,
 	P1SAT_APPLY_REGISTRY,
 	type ApplyFn,
-} from './apply'
+} from './apply/index.js'
 
 // Export shared utilities
-export { signP2PKHInput } from './utils/signP2PKH'
+export { signP2PKHInput } from './utils/signP2PKH.js'
 export {
 	completeSignedAction,
 	type CompleteSignedActionResult,
 	type SigningCallback,
-} from './utils/completeSignedAction'
+} from './utils/completeSignedAction.js'
 export {
 	createTrackedAction,
 	executeTrackedAction,
@@ -52,9 +52,9 @@ export {
 	ensureP1SatDispatchLabel,
 	ensureActionId,
 	type TrackedActionOptions,
-} from './utils/createTrackedAction'
-export { hasOneSatModule } from './utils/hasOneSatModule'
-export type { PrepareP1SatOptions } from './apply/prepare'
+} from './utils/createTrackedAction.js'
+export { hasOneSatModule } from './utils/hasOneSatModule.js'
+export type { PrepareP1SatOptions } from './apply/prepare.js'
 export {
 	type Spend,
 	type ResolvedSpend,
@@ -77,21 +77,21 @@ export {
 	runCreateActionPipeline,
 	finishCreateAction,
 	embellishCreateActionArgs,
-} from './pipeline'
+} from './pipeline/index.js'
 
 // Export funding provider types
 export type {
 	FundingProvider,
 	FundingResult,
-} from './funding'
-export { getDisplayValue } from './utils/displayValue'
-export { ordinalSeedTags } from './utils/ordinalSeedTags'
+} from './funding/index.js'
+export { getDisplayValue } from './utils/displayValue.js'
+export { ordinalSeedTags } from './utils/ordinalSeedTags.js'
 export {
 	loadBasketOutput,
 	loadBasketOutputBeef,
 	toIdTag,
 	type LoadBasketOutputResult,
-} from './utils/loadBasketOutput'
+} from './utils/loadBasketOutput.js'
 export {
 	bsv21FieldsFromOutput,
 	bsv21FilterTags,
@@ -99,76 +99,90 @@ export {
 	parseBsv21CustomInstructions,
 	overwriteBsv21CiFields,
 	type Bsv21RemittanceFields,
-} from './utils/bsv21Remittance'
-export { stampBsv21OutputCustomInstructions } from './utils/stampBsv21OutputCi'
-export { stampOrdinalOutputCustomInstructions } from './utils/stampOrdinalOutputCi'
+} from './utils/bsv21Remittance.js'
+export { stampBsv21OutputCustomInstructions } from './utils/stampBsv21OutputCi.js'
+export { stampOrdinalOutputCustomInstructions } from './utils/stampOrdinalOutputCi.js'
 export {
 	overwriteOrdinalCiFields,
 	remittanceFromOrdinalTags,
 	buildOrdinalCustomInstructions,
 	type OrdinalRemittanceFields,
-} from './utils/ordinalRemittance'
+} from './utils/ordinalRemittance.js'
 export {
 	ensurePlaintextCi,
 	encryptWalletMetadataCi,
 	looksLikeJson,
 	METADATA_ENCRYPTION_PROTOCOL,
-} from './utils/walletMetadataCi'
+} from './utils/walletMetadataCi.js'
 export {
 	internalizeBeef,
 	type InternalizeBeefOptions,
 	type InternalizeBeefResult,
 	type OutputDerivation,
-} from './utils/internalizeBeef'
+} from './utils/internalizeBeef.js'
+export {
+	parseOutpointBeef,
+	OUTPOINT_BEEF_PREFIX,
+	type ParsedOutpointBeef,
+} from './utils/outpointBeef.js'
+export {
+	internalizeOutpointBeef,
+	type TipDerivation,
+	type InternalizeOutpointBeefResult,
+} from './utils/internalizeOutpointBeef.js'
 export {
 	moveBasketOutputs,
 	migrateLegacyP1SatBaskets,
 	type MoveBasketOptions,
 	type MoveBasketResult,
 	type MigrateLegacyBasketsResult,
-} from './utils/moveBasket'
+} from './utils/moveBasket.js'
 
 // Export module actions and types
-export * from './addresses'
-export * from './collections'
-export * from './payments'
-export * from './ordinals'
-export * from './tokens'
-export * from './inscriptions'
-export * from './locks'
-export * from './signing'
-export * from './social'
-export * from './identity'
-export * from './opns'
-export * from './mnee'
+export * from './addresses/index.js'
+export * from './collections/index.js'
+export * from './payments/index.js'
+export * from './ordinals/index.js'
+export * from './tokens/index.js'
+export * from './inscriptions/index.js'
+export * from './locks/index.js'
+export * from './signing/index.js'
+export * from './social/index.js'
+export * from './identity/index.js'
+export * from './opns/index.js'
+export * from './mnee/index.js'
 
 // Export cosign module (cosigner-validated BSV21 transfer actions)
-export * from './cosign'
+export * from './cosign/index.js'
 
 // Export sweep module (uses external signing, not action-based)
-export * from './sweep'
+export * from './sweep/index.js'
 
 // Export sync module
-export * from './sync'
+export * from './sync/index.js'
 
 // Export registry module (on-chain package builder)
-export * from './registry'
+export * from './registry/index.js'
 
-import { actionRegistry } from './action-registry'
-import { addressesActions } from './addresses'
-import { collectionsActions } from './collections'
-import { identityActions } from './identity'
-import { inscriptionsActions } from './inscriptions'
-import { locksActions } from './locks'
-import { mneeActions } from './mnee'
-import { opnsActions } from './opns'
-import { ordinalsActions } from './ordinals'
-import { paymentsActions } from './payments'
-import { signingActions } from './signing'
-import { socialActions } from './social'
-import { sweepActions } from './sweep'
-import { syncActions } from './sync'
-import { tokensActions } from './tokens'
+// Export ordfs module (ord-fs/json directory writing)
+export * from './ordfs/index.js'
+
+import { actionRegistry } from './action-registry.js'
+import { addressesActions } from './addresses/index.js'
+import { collectionsActions } from './collections/index.js'
+import { identityActions } from './identity/index.js'
+import { inscriptionsActions } from './inscriptions/index.js'
+import { locksActions } from './locks/index.js'
+import { mneeActions } from './mnee/index.js'
+import { opnsActions } from './opns/index.js'
+import { ordfsActions } from './ordfs/index.js'
+import { ordinalsActions } from './ordinals/index.js'
+import { paymentsActions } from './payments/index.js'
+import { signingActions } from './signing/index.js'
+import { socialActions } from './social/index.js'
+import { sweepActions } from './sweep/index.js'
+import { syncActions } from './sync/index.js'
+import { tokensActions } from './tokens/index.js'
 
 actionRegistry.registerAll([
 	...addressesActions,
@@ -185,6 +199,7 @@ actionRegistry.registerAll([
 	...opnsActions,
 	...syncActions,
 	...mneeActions,
+	...ordfsActions,
 ])
 
 // Re-export SDK types that consumers commonly need

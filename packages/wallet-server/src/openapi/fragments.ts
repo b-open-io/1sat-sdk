@@ -18,7 +18,7 @@ export const TAG_DOCS: TagDoc[] = [
 		name: 'auth',
 		'x-displayName': 'Authentication',
 		description:
-			'BRC-103/104 mutual authentication. Complete one handshake here and the resulting peer session authenticates you on every authed endpoint below — storage, account, hosting, and messagebox.',
+			'BRC-103/104 mutual authentication. Complete one handshake here and the resulting peer session authenticates you on every authed endpoint below — storage, account, and messagebox.',
 	},
 	{
 		name: 'storage',
@@ -28,27 +28,21 @@ export const TAG_DOCS: TagDoc[] = [
 	},
 	{
 		name: 'account',
-		'x-displayName': 'Storage account (billing)',
+		'x-displayName': 'Account',
 		description:
-			'Metered billing for the wallet storage surface above: every identity gets a free byte baseline, and additional capacity is purchased in fixed-size chunks for a block-window term. Unrelated to paymail/messagebox hosting, which has its own flat-rate subscription below.',
-	},
-	{
-		name: 'hosting',
-		'x-displayName': 'Paymail + messagebox hosting',
-		description:
-			'Flat-rate subscription that covers both paymail hosting and messagebox delivery for an identity. While the subscription is active, this server answers paymail lookups for your alias and stores inbound messages for you. Billed separately from the storage account above.',
+			"The authenticated identity's account on this host. Registration claims a username and profile (the identity's paymail handle on the host's user domain; also what entitles the identity to paymail resolution and messagebox delivery here). Storage metering, when enabled, is billed on the same account: every identity gets a free byte baseline, and additional capacity is purchased in fixed-size chunks for a block-window term.",
 	},
 	{
 		name: 'paymail',
 		'x-displayName': 'Paymail (bsvalias)',
 		description:
-			'Public bsvalias surface for receiving payments at alias@domain. Endpoints beyond capability discovery are resolved from the capability document. When hosting is enabled, aliases resolve only for identities with an active hosting subscription.',
+			'Public bsvalias surface for receiving payments at alias@domain. Endpoints beyond capability discovery are resolved from the capability document. When the host runs an account registry, aliases resolve only for identities holding a registered account.',
 	},
 	{
 		name: 'messagebox',
 		'x-displayName': 'Messagebox',
 		description:
-			'Store-and-forward message delivery between identity keys, with live WebSocket delivery to connected recipients. When hosting is enabled, recipients must hold an active hosting subscription.',
+			'Store-and-forward message delivery between identity keys, with live WebSocket delivery to connected recipients. When the host runs an account registry, recipients must hold a registered account.',
 	},
 ]
 
@@ -137,6 +131,17 @@ export function accountPaths(): PathsFragment {
 		properties: {
 			identityKey: { type: 'string' },
 			serverIdentityKey: { type: 'string' },
+			registrationEnabled: { type: 'boolean' },
+			account: {
+				type: 'object',
+				nullable: true,
+				properties: {
+					username: { type: 'string' },
+					displayName: { type: 'string' },
+					avatarOrigin: { type: 'string' },
+					createdAt: { type: 'string', format: 'date-time' },
+				},
+			},
 			accountsEnabled: { type: 'boolean' },
 			currentBlock: { type: 'integer' },
 			usedBytes: { type: 'integer' },
@@ -166,9 +171,9 @@ export function accountPaths(): PathsFragment {
 		'/account/status': {
 			get: {
 				tags: ['account'],
-				summary: 'Storage account status and pricing',
+				summary: 'Account status',
 				description:
-					'Capacity, usage, and pricing for the authenticated identity. Capacity/pricing fields are present only when `accountsEnabled` is true.',
+					'Registration and storage status for the authenticated identity. `account` is the registered username and profile (null when unregistered) and is present only when `registrationEnabled` is true. Capacity/pricing fields are present only when `accountsEnabled` is true.',
 				security: brc104,
 				responses: {
 					'200': {
@@ -198,90 +203,102 @@ export function accountPaths(): PathsFragment {
 	}
 }
 
-export function hostingPaths(): PathsFragment {
-	const statusSchema = {
+export function registrationPaths(): PathsFragment {
+	const accountSchema = {
 		type: 'object',
+		required: ['identityKey', 'username', 'createdAt'],
 		properties: {
-			enabled: { type: 'boolean' },
 			identityKey: { type: 'string' },
-			active: { type: 'boolean' },
-			expiresAt: {
-				type: 'integer',
-				description: 'Unix seconds when the subscription expires.',
+			username: { type: 'string' },
+			displayName: { type: 'string' },
+			avatarOrigin: {
+				type: 'string',
+				description: 'Origin outpoint (`txid_vout`) of an image ordinal.',
 			},
-			priceSats: { type: 'integer' },
-			priceUsd: { type: 'number' },
-			periodSeconds: { type: 'integer' },
+			createdAt: { type: 'string', format: 'date-time' },
+		},
+	}
+	const profileFields = {
+		displayName: {
+			type: 'string',
+			nullable: true,
+			maxLength: 64,
+			description:
+				'Presentation name for paymail public-profile. `null` clears it.',
+		},
+		avatarOrigin: {
+			type: 'string',
+			nullable: true,
+			description:
+				'Origin outpoint (`txid_vout`) of an image ordinal, served through ORDFS as the paymail avatar. `null` clears it.',
 		},
 	}
 	return {
-		'/hosting/price': {
-			get: {
-				tags: ['hosting'],
-				summary: 'Hosting subscription price',
-				description:
-					'Public. Current price of a paymail + messagebox hosting subscription. `priceUsd` is the configured USD target price and is present only when the operator sets one.',
-				responses: {
-					'200': {
-						description: 'Current price.',
-						content: {
-							'application/json': {
-								schema: {
-									type: 'object',
-									required: ['priceSats', 'periodSeconds'],
-									properties: {
-										priceSats: { type: 'integer' },
-										priceUsd: { type: 'number' },
-										periodSeconds: { type: 'integer' },
-									},
-								},
-							},
-						},
-					},
-					'404': { description: 'Hosting disabled on this server.' },
-				},
-			},
-		},
-		'/hosting/status': {
-			get: {
-				tags: ['hosting'],
-				summary: 'Hosting subscription status',
-				security: brc104,
-				responses: {
-					'200': {
-						description: 'Subscription status for the authenticated identity.',
-						content: { 'application/json': { schema: statusSchema } },
-					},
-					'401': { description: 'Unauthenticated.' },
-				},
-			},
-		},
-		'/hosting/subscribe': {
+		'/account/register': {
 			post: {
-				tags: ['hosting'],
-				summary: 'Buy or renew a hosting subscription',
+				tags: ['account'],
+				summary: 'Register a username',
 				description:
-					'BRC-41 payment endpoint (402 flow, price from `/hosting/price`). On success the server mints a receipt extending the subscription by one period from the later of now or the current expiry.',
+					"Claims a username for the authenticated identity. Free and permanent: one username per identity, one identity per username, no renames. The username becomes the identity's paymail handle on the host's user domain, and holding an account is what lets OpNS names bound to this identity resolve as paymail here and lets messagebox accept messages for it. Re-posting the same username is idempotent.",
 				security: brc104,
-				responses: {
-					'200': {
-						description: 'Subscription active.',
-						content: {
-							'application/json': {
-								schema: {
-									type: 'object',
-									properties: {
-										status: { type: 'string', example: 'ok' },
-										identityKey: { type: 'string' },
-										expiresAt: { type: 'integer' },
-										txid: { type: 'string' },
+				requestBody: {
+					required: true,
+					content: {
+						'application/json': {
+							schema: {
+								type: 'object',
+								required: ['username'],
+								properties: {
+									username: {
+										type: 'string',
+										pattern: '^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$',
+										description:
+											'Lowercase letters, digits, hyphens; 3-63 chars, no leading/trailing hyphen. Case-folded before storage.',
 									},
+									...profileFields,
 								},
 							},
 						},
 					},
-					'402': paymentRequiredResponse,
-					'404': { description: 'Hosting disabled on this server.' },
+				},
+				responses: {
+					'200': {
+						description:
+							'Account registered (or already held under this username).',
+						content: { 'application/json': { schema: accountSchema } },
+					},
+					'400': { description: 'Invalid username or profile field.' },
+					'401': { description: 'Unauthenticated.' },
+					'409': {
+						description:
+							'Username held by another identity, or this identity already holds a different username.',
+					},
+				},
+			},
+		},
+		'/account/profile': {
+			put: {
+				tags: ['account'],
+				summary: 'Update profile',
+				description:
+					'Edits the presentation fields on the registered account. Fields absent from the body are left unchanged; `null` clears a field.',
+				security: brc104,
+				requestBody: {
+					required: true,
+					content: {
+						'application/json': {
+							schema: { type: 'object', properties: profileFields },
+						},
+					},
+				},
+				responses: {
+					'200': {
+						description: 'Updated account.',
+						content: { 'application/json': { schema: accountSchema } },
+					},
+					'400': { description: 'Invalid profile field.' },
+					'401': { description: 'Unauthenticated.' },
+					'404': { description: 'Identity has no registered account.' },
 				},
 			},
 		},
@@ -295,7 +312,7 @@ export function messageboxPaths(): PathsFragment {
 				tags: ['messagebox'],
 				summary: 'Send a message to a recipient inbox',
 				description:
-					'Stores a message for the recipient and delivers it live over WebSocket when connected. When hosting is enabled, every recipient must hold an active hosting subscription (403 `ERR_HOSTING_REQUIRED` otherwise).',
+					'Stores a message for the recipient and delivers it live over WebSocket when connected. When the host runs an account registry, every recipient must hold a registered account (403 `ERR_ACCOUNT_REQUIRED` otherwise).',
 				security: brc104,
 				requestBody: {
 					required: true,
@@ -332,7 +349,7 @@ export function messageboxPaths(): PathsFragment {
 					'200': { description: 'Message stored.' },
 					'403': {
 						description:
-							'Recipient has no active hosting subscription (`ERR_HOSTING_REQUIRED`).',
+							'Recipient has no account on this host (`ERR_ACCOUNT_REQUIRED`).',
 						content: { 'application/json': { schema: errorSchema } },
 					},
 				},

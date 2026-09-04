@@ -1,5 +1,5 @@
 import type { CreateActionArgs, WalletInterface } from '@bsv/sdk'
-import { applyP1SatCreateAction } from './applyIntent'
+import { applyP1SatCreateAction } from './applyIntent.js'
 
 export type ApplyFn = (
 	wallet: WalletInterface,

@@ -7,7 +7,7 @@
  */
 
 import type { PrivateKey, Script, Transaction } from '@bsv/sdk'
-import type { Destination } from './destination'
+import type { Destination } from './destination.js'
 
 // ============================================================================
 // Signer Types
@@ -574,9 +574,9 @@ export interface CreateOrdTokenListingsConfig {
 // Additional exports
 // ============================================================================
 
-export * from './constants'
-export * from './ordinalTags'
-export * from './destination'
-export * from './services'
-export * from './indexer'
-export * from './address-sync'
+export * from './constants.js'
+export * from './ordinalTags.js'
+export * from './destination.js'
+export * from './services.js'
+export * from './indexer.js'
+export * from './address-sync.js'

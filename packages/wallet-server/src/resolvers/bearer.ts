@@ -1,4 +1,4 @@
-import type { IdentityResolver } from '../types'
+import type { IdentityResolver } from '../types.js'
 
 export interface BearerResolverConfig {
 	/** Shared secret the caller must present. */

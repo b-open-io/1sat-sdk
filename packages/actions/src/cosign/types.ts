@@ -14,13 +14,13 @@
  *      drop into messagebox payloads.
  */
 
-import type { WalletProtocol } from '@bsv/sdk'
 import { P1SAT_PROTOCOL } from '@1sat/types'
+import type { WalletProtocol } from '@bsv/sdk'
 
 /**
- * Protocol used to derive cosign-locked destination keys. Unified under
- * 'p 1sat' so the permission module gates signing requests for cosign
- * UTXOs the same way as ordinals/BSV21/etc.
+ * Protocol used to derive cosign-locked destination keys. Uses the standard
+ * `onesat` protocol shared by 1Sat asset baskets. Permission-aware wallets
+ * can still render the BSV21 effects from the action labels and scripts.
  *
  * Both cosigner (as constructor) and recipient (when later spending) derive
  * with this protocol, with the cosigner's identityKey as counterparty.

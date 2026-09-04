@@ -16,10 +16,10 @@ import {
 	Utils,
 	type WalletOutput,
 } from '@bsv/sdk'
-import { prepareP1SatArgs } from '../apply'
-import { LOCK_BASKET } from '../constants'
-import type { Action, ActionLogEntry, ActionOptions } from '../types'
-import { executeTrackedAction } from '../utils/createTrackedAction'
+import { prepareP1SatArgs } from '../apply/index.js'
+import { LOCK_BASKET } from '../constants.js'
+import type { Action, ActionLogEntry, ActionOptions } from '../types.js'
+import { executeTrackedAction } from '../utils/createTrackedAction.js'
 
 // ============================================================================
 // Constants
@@ -262,10 +262,10 @@ export const lockBsv: Action<LockBsvInput, LockOperationResponse> = {
 			}
 
 			const args = await prepareP1SatArgs(ctx, {
-					description: `Lock BSV in ${requests.length} output(s)`,
-					outputs,
-					options: { acceptDelayedBroadcast: false },
-				})
+				description: `Lock BSV in ${requests.length} output(s)`,
+				outputs,
+				options: { acceptDelayedBroadcast: false },
+			})
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				args,
@@ -274,7 +274,10 @@ export const lockBsv: Action<LockBsvInput, LockOperationResponse> = {
 				undefined,
 				{
 					spends: [],
-					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					usePermissionModule:
+						input.usePermissionModule ??
+						input.useOneSatModule ??
+						input.useModule,
 					permissionScheme: 'lock',
 				},
 			)
@@ -434,18 +437,18 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 				.filter((id): id is string => Boolean(id))
 				.map((id) => buildInputAssetLabel(LOCK_BASKET, id))
 			const args = await prepareP1SatArgs(ctx, {
-					description: `Unlock ${maturedLocks.length} lock(s)`,
-					inputBEEF,
-					...(inputLabels.length > 0 && { labels: inputLabels }),
-					inputs: maturedLocks.map((l) => ({
-						outpoint: l.output.outpoint,
-						inputDescription: 'Locked BSV',
-						unlockingScriptLength: 1205,
-						sequenceNumber: 0,
-					})),
-					outputs: [],
-					lockTime: maxUntil,
-				})
+				description: `Unlock ${maturedLocks.length} lock(s)`,
+				inputBEEF,
+				...(inputLabels.length > 0 && { labels: inputLabels }),
+				inputs: maturedLocks.map((l) => ({
+					outpoint: l.output.outpoint,
+					inputDescription: 'Locked BSV',
+					unlockingScriptLength: 1205,
+					sequenceNumber: 0,
+				})),
+				outputs: [],
+				lockTime: maxUntil,
+			})
 			const spends = maturedLocks
 				.map((l) => {
 					const id = readAssetIdTag(l.output.tags)
@@ -469,7 +472,10 @@ export const unlockBsv: Action<UnlockBsvInput, LockOperationResponse> = {
 				undefined,
 				{
 					spends,
-					usePermissionModule: input.usePermissionModule ?? input.useOneSatModule ?? input.useModule,
+					usePermissionModule:
+						input.usePermissionModule ??
+						input.useOneSatModule ??
+						input.useModule,
 					permissionScheme: 'lock',
 				},
 			)

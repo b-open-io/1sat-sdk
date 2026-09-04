@@ -18,18 +18,18 @@ import {
 	Transaction,
 	Utils,
 } from '@bsv/sdk'
-import { BSV21_BASKET, P1SAT_PROTOCOL } from '../constants'
-import { resolveOrdinalTags } from '../ordinals'
-import type { Action, ActionLogEntry, OneSatContext } from '../types'
+import { BSV21_BASKET, P1SAT_PROTOCOL } from '../constants.js'
+import { resolveOrdinalTags } from '../ordinals/index.js'
+import type { Action, ActionLogEntry, OneSatContext } from '../types.js'
 import {
 	bsv21FilterTags,
 	buildBsv21CustomInstructions,
-} from '../utils/bsv21Remittance'
+} from '../utils/bsv21Remittance.js'
 import {
 	createTrackedAction,
 	executeTrackedAction,
-} from '../utils/createTrackedAction'
-import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance'
+} from '../utils/createTrackedAction.js'
+import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance.js'
 import type {
 	SweepBsv21Request,
 	SweepBsv21Response,
@@ -38,9 +38,9 @@ import type {
 	SweepInput,
 	SweepOrdinalsRequest,
 	SweepOrdinalsResponse,
-} from './types'
+} from './types.js'
 
-export * from './types'
+export * from './types.js'
 
 /**
  * Prepare sweep inputs from IndexedOutput objects by fetching locking scripts.
@@ -441,6 +441,13 @@ export const sweepOrdinals: Action<
 				}
 
 				const mapName = meta?.map?.name
+				// OPNS names live in the origin's inscription content, not MAP.
+				// A map.name hint must not suppress resolveOrdinalTags' content
+				// lookup, so only forward it for non-OPNS ordinals.
+				const isOpns =
+					contentType?.split(';')[0]?.trim() === 'application/op-ns'
+				const nameHint =
+					!isOpns && typeof mapName === 'string' ? mapName : undefined
 				const {
 					tags,
 					basket,
@@ -448,7 +455,9 @@ export const sweepOrdinals: Action<
 				} = await resolveOrdinalTags(ctx, input.outpoint, {
 					contentType,
 					origin: meta?.origin,
-					name: typeof mapName === 'string' ? mapName : undefined,
+					name: nameHint,
+					map: meta?.map as Record<string, unknown> | undefined,
+					parent: meta?.parent,
 				})
 
 				const pubKeyResult = await ctx.wallet.getPublicKey({
@@ -467,7 +476,9 @@ export const sweepOrdinals: Action<
 
 				const ordName =
 					resolvedName ??
-					(typeof mapName === 'string' ? mapName.slice(0, 64) : undefined)
+					(!isOpns && typeof mapName === 'string'
+						? mapName.slice(0, 64)
+						: undefined)
 				outputs.push({
 					lockingScript: new P2PKH().lock(derivedAddress).toHex(),
 					satoshis: 1,
@@ -896,13 +907,13 @@ export {
 	sweepDeposit,
 	type SweepDepositInput,
 	type SweepDepositResult,
-} from './sweepDeposit'
+} from './sweepDeposit.js'
 
 // Export actions array for registry
 export const sweepActions = [sweepBsv, sweepOrdinals, sweepBsv21]
 
 // Export scan module
-export { scanAddress, scanAddresses } from './scan'
+export { scanAddress, scanAddresses } from './scan.js'
 
 // Export types
 export type {
@@ -910,7 +921,7 @@ export type {
 	ScanProgress,
 	ScanResult,
 	TokenBalance,
-} from './types'
+} from './types.js'
 
 /**
  * Prepare a BSV sweep transaction for client-side signing.
@@ -920,7 +931,7 @@ export async function prepareSweepBsv(
 	ctx: OneSatContext,
 	inputs: SweepInput[],
 	amount?: number,
-): Promise<import('./types').PrepareResult> {
+): Promise<import('./types.js').PrepareResult> {
 	if (!ctx.services) throw new Error('Services required')
 	if (!inputs.length) throw new Error('No inputs provided')
 
@@ -981,7 +992,7 @@ export async function prepareSweepBsv(
 		}),
 	)
 
-	const inputsToSign: import('./types').PrepareResult['inputsToSign'] = []
+	const inputsToSign: import('./types.js').PrepareResult['inputsToSign'] = []
 	for (let idx = 0; idx < tx.inputs.length; idx++) {
 		const txInput = tx.inputs[idx]
 		const op = formatOutpoint(txInput.sourceTXID!, txInput.sourceOutputIndex)

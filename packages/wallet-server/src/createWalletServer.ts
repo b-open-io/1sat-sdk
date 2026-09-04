@@ -1,4 +1,3 @@
-import type { Server } from 'node:http'
 import type { WalletInterface } from '@bsv/sdk'
 import {
 	BINARY_ENCODING,
@@ -18,23 +17,22 @@ import {
 	accountsCapacityGate,
 	latestActivePaymentForPayer,
 	mountPaymentRoute,
+	mountRegistrationRoutes,
 	nextPaymentDerivation,
-} from './accounts'
-import type { AccountsConfigProvider } from './accounts/types'
-import { createWalletRpcHandler } from './createWalletRpcHandler'
-import { dispatch } from './dispatch'
-import { mountTerminalErrorHandler } from './errorHandler'
-import {
-	type HostingConfigProvider,
-	mountHostingRoutes,
-} from './hosting/routes'
-import { bearerResolver } from './resolvers/bearer'
-import { buildAuthMiddleware } from './sessions/redisSessionManager'
+} from './accounts/index.js'
+import { registrationStatus } from './accounts/registrationRoutes.js'
+import type { AccountStore } from './accounts/store.js'
+import type { AccountsConfigProvider } from './accounts/types.js'
+import { createWalletRpcHandler } from './createWalletRpcHandler.js'
+import { dispatch } from './dispatch.js'
+import { mountTerminalErrorHandler } from './errorHandler.js'
+import { bearerResolver } from './resolvers/bearer.js'
+import { buildAuthMiddleware } from './sessions/redisSessionManager.js'
 import type {
 	MakeWalletLogger,
 	PreDispatchHook,
 	WalletStorageProvider,
-} from './types'
+} from './types.js'
 
 export interface WalletServerAccounts {
 	getConfig: AccountsConfigProvider
@@ -63,8 +61,11 @@ export interface WalletServerConfig {
 	makeLogger?: MakeWalletLogger
 	bodyLimit?: string
 	accounts?: WalletServerAccounts
-	/** Hosted paymail subscription (price/status/subscribe). */
-	hosting?: { getConfig: HostingConfigProvider }
+	/**
+	 * Host account registry (username + profile). Enables the register and
+	 * profile routes and reports the account on /account/status.
+	 */
+	accountStore?: AccountStore
 	/**
 	 * Redis-shared BRC-104 sessions for multi-instance deployments behind a
 	 * load balancer. Unset = in-memory sessions (single instance).
@@ -113,21 +114,6 @@ export function createWalletServer(
 
 	if (publicPath) {
 		const authMiddleware = buildAuthMiddleware(wallet, config.sessionStore)
-		// Public hosting price before blanket auth on publicPath.
-		if (config.hosting) {
-			const root = publicPath === '/' ? '' : publicPath.replace(/\/$/, '')
-			app.get(`${root}/hosting/price`, (_req, res) => {
-				const cfg = config.hosting!.getConfig()
-				if (!cfg.enabled) {
-					return res.status(404).json({ error: 'hosting disabled' })
-				}
-				return res.json({
-					priceSats: cfg.priceSats,
-					...(cfg.priceUsd !== undefined && { priceUsd: cfg.priceUsd }),
-					periodSeconds: cfg.periodSeconds,
-				})
-			})
-		}
 		mountPublicRoute(app, publicPath, config, accountsDeps, authMiddleware)
 		mountStatusRoute(app, publicPath, config, serverIdentityKey, wallet)
 		if (accountsDeps) {
@@ -142,14 +128,11 @@ export function createWalletServer(
 				},
 				serverIdentityKey: accountsDeps.serverIdentityKey,
 				currentBlock: accountsDeps.currentBlock,
+				accountStore: config.accountStore,
 			})
 		}
-		if (config.hosting) {
-			mountHostingRoutes(app, publicPath, {
-				wallet,
-				getConfig: config.hosting.getConfig,
-				authMiddleware,
-			})
+		if (config.accountStore) {
+			mountRegistrationRoutes(app, publicPath, { store: config.accountStore })
 		}
 	}
 	if (internalPath) {
@@ -157,7 +140,9 @@ export function createWalletServer(
 	}
 	mountTerminalErrorHandler(app)
 
-	let server: Server | undefined
+	// Inferred from express so the type matches whichever @types/node express
+	// resolves, rather than a second copy imported via node:http.
+	let server: ReturnType<Express['listen']> | undefined
 
 	return {
 		app,
@@ -356,12 +341,18 @@ export function mountStatusRoute(
 			}
 			log.set({ identityKey })
 
+			const registration = await registrationStatus(
+				config.accountStore,
+				identityKey,
+			)
+
 			const accounts = config.accounts
 			if (!accounts) {
 				return res.status(200).json({
 					identityKey,
 					serverIdentityKey,
 					accountsEnabled: false,
+					...registration,
 				})
 			}
 
@@ -385,6 +376,7 @@ export function mountStatusRoute(
 					accountsEnabled: false,
 					currentBlock,
 					usedBytes,
+					...registration,
 				})
 			}
 
@@ -416,6 +408,7 @@ export function mountStatusRoute(
 					durationBlocks: accountsConfig.durationBlocks,
 				},
 				nextPayment,
+				...registration,
 			})
 		},
 	)

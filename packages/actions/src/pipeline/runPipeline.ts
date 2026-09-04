@@ -3,19 +3,19 @@ import type {
 	CreateActionResult,
 	WalletInterface,
 } from '@bsv/sdk'
-import { applyP1SatCreateAction } from '../apply/applyIntent'
+import { applyP1SatCreateAction } from '../apply/applyIntent.js'
 import {
 	type CompleteSignedActionResult,
 	completeSignedAction,
-} from '../utils/completeSignedAction'
+} from '../utils/completeSignedAction.js'
 import {
 	type ArgsWithPendingSpends,
 	PENDING_RESOLVED_SPENDS_KEY,
 	type ResolvedSpend,
 	type Spend,
 	mergeResolvedSpends,
-} from './spendTargets'
-import { buildSpendsForResolved, materializeSpends } from './unlockInput'
+} from './spendTargets.js'
+import { buildSpendsForResolved, materializeSpends } from './unlockInput.js'
 
 export interface PipelineOptions {
 	/** Optional BEEF for external inputs (merged at sign). */

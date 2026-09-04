@@ -31,21 +31,34 @@ export interface ResolvedBind {
 	avatarOrigin?: string
 }
 
+/**
+ * Backend that maps an alias to an identity for one domain. Returns null
+ * when the alias does not resolve (404 at the route).
+ */
+export interface PaymailResolver {
+	resolve(alias: string, domain: string): Promise<ResolvedBind | null>
+}
+
 export interface PaymailDeps {
 	/** Public base URL for capability document (e.g. https://1sat.app) */
 	baseUrl: string
 	/** Stack root URL (OpNS, beef, tx broadcast) */
 	stackUrl: string
+	/**
+	 * Domain resolved from the host accounts table instead of OpNS
+	 * (e.g. 1sat.app). Unset = every domain resolves via OpNS.
+	 */
+	userDomain?: string
+	/**
+	 * Host account registry. Resolves `userDomain` aliases, and when set
+	 * gates every domain: an alias only resolves when its identity holds a
+	 * registered account on this host.
+	 */
+	accountStore?: import('../accounts/store.js').AccountStore
 	/** In-flight payment refs store */
 	pendingStore: PendingStore
 	/** Pending TTL ms (default 15m) */
 	pendingTtlMs?: number
-	/**
-	 * Host wallet for subscription receipt checks + messagebox AuthFetch.
-	 * Gate is on when requireEntitlement is true.
-	 */
-	hostWallet?: import('@bsv/sdk').WalletInterface
-	requireEntitlement?: boolean
 	/**
 	 * Messagebox URL for payment_inbox delivery after receive.
 	 * When unified with messagebox on the same app, point at this server's

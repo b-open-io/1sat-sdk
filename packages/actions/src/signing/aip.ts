@@ -1,7 +1,7 @@
 import { AIP, WalletSigner } from '@1sat/templates'
 import { OP, Script, Utils } from '@bsv/sdk'
-import { BAP_BASKET, BAP_KEY_ID, BAP_PROTOCOL_ID } from '../constants'
-import type { OneSatContext } from '../types'
+import { BAP_BASKET, BAP_KEY_ID, BAP_PROTOCOL_ID } from '../constants.js'
+import type { OneSatContext } from '../types.js'
 
 const { toArray } = Utils
 

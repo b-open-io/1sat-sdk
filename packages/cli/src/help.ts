@@ -714,7 +714,7 @@ export const COMMANDS: CommandSpec[] = [
 		group: 'Server',
 		name: 'serve',
 		description:
-			'Run unified host server (storage + hosting + paymail + messagebox) and/or monitor (config under server.* in config.json)',
+			'Run unified host server (storage + accounts + paymail + messagebox) and/or monitor (config under server.* in config.json)',
 		subcommands: [
 			{
 				name: '(no subcommand)',
@@ -778,7 +778,7 @@ export const COMMANDS: CommandSpec[] = [
 			},
 		],
 		notes:
-			"Examples:\n  1sat authfetch GET https://wallet.1sat.app/hosting/status\n  1sat authfetch GET https://wallet.1sat.app/hosting/price\n  1sat authfetch POST https://wallet.1sat.app/hosting/subscribe --body '{}' --yes",
+			'Examples:\n  1sat authfetch GET https://wallet.1sat.app/account/status\n  1sat authfetch POST https://wallet.1sat.app/account/register --body \'{"username":"alice"}\' --yes\n  1sat authfetch PUT https://wallet.1sat.app/account/profile --body \'{"displayName":"Alice"}\' --yes',
 	},
 	{
 		group: 'Advanced',
