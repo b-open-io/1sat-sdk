@@ -61,14 +61,21 @@ build the one-sat inscription and MAP data and add SIGMA through the P1Sat
 placeholder/seal flow, so their final outputs meet the shipped collection
 overlay's admission shape.
 
-`mintCollectionItem({ ref })` emits an `ord-fs/json` inscription with `.`
-pointing at the supplied absolute or same-transaction reference.
-
+`mintCollectionItem({ ref })` is supported when the action input exposes
+`ref`; it emits an `ord-fs/json` inscription with `.` pointing at the supplied
+absolute reference, optionally with a version selector. This standalone helper
+rejects `_N`: it creates no sibling content output and `_0` refers to itself.
+Lower-level multi-output ORDFS builders may use relative references when they
+create those content outputs. Collection IDs accept dot or underscore
+separators and normalize to lowercase `<txid>_<vout>`; padded, negative and
+out-of-range indexes are rejected. The emitted parent field does not prove a
+collection-origin spend; the helper's SIGMA/MAP claim is a separate path.
 Current BSV21 deploy actions expose generic `map` and `signWithBAP` options.
-`mintBsv21CollectionItem` lives in the collection layer and composes the
-collection-item MAP record with a SIGMA-signed fixed-supply deploy. As with all
-versioned APIs, confirm these symbols exist in the installed package before
-giving copy-paste instructions.
+`mintBsv21CollectionItem` composes the collection MAP with a signed fixed-supply
+deployment. Verify these APIs exist in the installed package. Its membership
+claim concerns the deployment inscription, not automatic membership of all
+fungible units or subsequent transfer outputs.
+
 
 For a custom mint, use the inscription flow's SIGMA support and construct the
 MAP envelope exactly as the stack expects. Verify the final transaction rather

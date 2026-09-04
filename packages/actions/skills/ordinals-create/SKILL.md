@@ -182,13 +182,21 @@ const result = await mintCollectionItem.execute(ctx, {
 content source:
 
 - `base64Content` plus `contentType` embeds new content.
-- `ref` creates an `ord-fs/json` body such as `{ ".": "<txid>_<vout>" }` or
-  `{ ".": "_0" }`, allowing an existing or same-transaction output to be the
-  item's default content.
+- `ref` creates an `ord-fs/json` body such as `{ ".": "<txid>_<vout>" }`,
+  pointing to existing content. Absolute references may include a version
+  selector such as `:-1`. This standalone helper rejects relative `_N`
+  references because it creates no sibling content outputs; `_0` would refer
+  to the item itself. Lower-level multi-output ORDFS builders can use relative
+  references when they create the corresponding content outputs.
 
 An invalid `collectionId` or ORDFS reference returns an error. The item embeds
 the collection outpoint as the inscription `parent`, carries the collection
-MAP fields, and is signed with SIGMA. Returns `MintCollectionItemOutput`:
+MAP fields, and is signed with SIGMA. The collection origin is not spent, so
+the parent field alone does not establish parent-path authorization.
+Collection IDs accept dot or underscore separators and hexadecimal txids,
+then normalize to lowercase `<txid>_<vout>` in metadata and tags. Indexes must
+be unsigned decimal uint32 values without leading zeros.
+Returns `MintCollectionItemOutput`:
 `{ txid?, error? }`.
 
 ### Create a BSV21 Collection Item (`mintBsv21CollectionItem`)
