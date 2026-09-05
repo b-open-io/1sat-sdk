@@ -1,7 +1,7 @@
 'use client'
 
 import { completeSigmaOAuth, connectSigmaWallet } from '@1sat/connect'
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { clearSigmaGuard, useWallet } from './wallet-context'
 
 export interface SigmaCallbackProps {
@@ -31,10 +31,14 @@ export function SigmaCallback({
 	renderError,
 }: SigmaCallbackProps) {
 	const { applyResult } = useWallet()
+	const started = useRef(false)
 	const [error, setError] = useState<string | null>(null)
 	const [status, setStatus] = useState<string>('Completing authentication...')
 
 	useEffect(() => {
+		// OAuth state and authorization codes are single-use, including effect replays.
+		if (started.current) return
+		started.current = true
 		const searchParams = new URLSearchParams(window.location.search)
 
 		async function completeSignIn() {
