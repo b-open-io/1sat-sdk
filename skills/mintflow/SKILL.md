@@ -76,7 +76,7 @@ JPEG data URI in the proposal to keep inscription bytes small.
   `{ app:"1sat.market", type:"ord", subType:"collection", name, subTypeData:{description,quantity,rarityLabels,traits}, royalties }`.
   Collection id becomes `<txid>_0`; "Mint Items Next" mints per-tier passes.
 - **Hosted:** $10 Stripe checkout, custodial mint via Droplit (server needs
-  `SIGMA_MEMBER_PRIVATE_KEY`). No wallet required from the buyer.
+  `SIGMA_ACCOUNT_PRIVATE_KEY`). No wallet required from the buyer.
 
 ## Item content: ord-fs/json references, not embedded bytes
 

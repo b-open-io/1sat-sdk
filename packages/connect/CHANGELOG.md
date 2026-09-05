@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- Depends on `@sigma-auth/better-auth-plugin@^0.0.101` and `better-auth@^1.7.0`.
+- Server-side Sigma token exchange reads `SIGMA_ACCOUNT_PRIVATE_KEY` only. Rename `SIGMA_MEMBER_PRIVATE_KEY` to that name (same WIF). No fallback, dual-read, or alias.
+
 ## [0.0.91] - 2026-09-04
 
 ### Fixed
