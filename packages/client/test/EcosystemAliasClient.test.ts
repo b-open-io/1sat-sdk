@@ -4,23 +4,10 @@ import {
 	ECOSYSTEM_ALIAS_LOOKUP_SERVICE,
 	EcosystemAliasClient,
 	OneSatServices,
-	deriveEcosystemAliasCursor,
 } from '../src/index.js'
-import {
-	EcosystemAliasClient as ServiceExport,
-	deriveEcosystemAliasCursor as serviceCursorExport,
-} from '../src/services/index.js'
+import { EcosystemAliasClient as ServiceExport } from '../src/services/index.js'
 
 const BASE_URL = 'https://stack.example'
-const VECTOR_TXID =
-	'0000000000000000000000000000000000000000000000000000000000000001'
-const ALIAS_CURSOR_VECTOR =
-	'ea1.eyJtIjoiYWxpYXMiLCJxIjoiNTdlNjAwYjUzMzM1OGRlYmQyNmVhYWVjZTIzZWRiNWFkYzVlMmFjNDhmYWVkYmRhMmM4YTg5ZWI5NmZmNDhjZSIsInQiOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAxIiwidiI6MH0'
-const DOMAIN_CURSOR_VECTOR =
-	'ea1.eyJtIjoiZG9tYWluIiwicSI6ImIyY2UwMzZkYTBmNTYwNDM0OGRlODYxYjc3Mjc5OGNjYjYwMDAzNjVmN2Q4Y2RiNTk0OWE4ZTk4OTU5ZDUzMzkiLCJ0IjoiMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMSIsInYiOjJ9'
-const FIND_ALL_CURSOR_VECTOR =
-	'ea1.eyJtIjoiZmluZEFsbCIsInEiOiJmZjY4YWRjZjgwMjVmZGZiZDJhYTA2NzhlOGQyZmNlODk1ODkyMDMwMmY5YmEzOGUwNjNiMWQzNzY3MzFiNzA5IiwidCI6ImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJ2IjoxfQ'
-
 function atomicTransaction(satoshis: number): {
 	txid: string
 	beef: number[]
@@ -96,21 +83,20 @@ describe('EcosystemAliasClient queries', () => {
 		})
 	})
 
-	test('posts findAll and forwards its cursor unchanged', async () => {
+	test('posts findAll with skip and limit', async () => {
 		const requests: Array<{ url: string; init?: RequestInit }> = []
-		const opaqueCursor = 'provider-defined.cursor/value=='
 		await mockClient(
 			{ type: 'output-list', outputs: [], result: '' },
 			requests,
 		).lookup({
 			findAll: true,
 			limit: 500,
-			cursor: opaqueCursor,
+			skip: 500,
 		})
 
 		expect(requestBody(requests)).toEqual({
 			service: 'ls_ecosystemalias',
-			query: { findAll: true, limit: 500, cursor: opaqueCursor },
+			query: { findAll: true, limit: 500, skip: 500 },
 		})
 	})
 
@@ -133,6 +119,16 @@ describe('EcosystemAliasClient queries', () => {
 			{ alias: 'handcash', limit: 0 },
 			{ alias: 'handcash', limit: 501 },
 			{ alias: 'handcash', limit: 1.5 },
+			...[
+				-1,
+				1.5,
+				4294967296,
+				Number.NaN,
+				Number.POSITIVE_INFINITY,
+				null,
+				'1',
+			].map((skip) => ({ findAll: true, skip })),
+			{ findAll: true, cursor: 'ea1.obsolete' },
 		]
 		for (const query of invalid) {
 			await expect(client.lookup(query as never)).rejects.toBeInstanceOf(
@@ -196,9 +192,6 @@ describe('EcosystemAliasClient output-list validation', () => {
 			outputIndex: 0,
 			txid: second.txid,
 		})
-		expect(result.nextCursor).toBe(
-			deriveEcosystemAliasCursor({ alias: 'handcash' }, second.txid, 0),
-		)
 	})
 
 	test('preserves conflicting results and provider order', async () => {
@@ -288,26 +281,27 @@ describe('EcosystemAliasClient output-list validation', () => {
 	})
 })
 
-describe('ecosystem alias cursor and public exports', () => {
-	test('matches the frozen Go cursor vectors for every query mode', () => {
-		expect(
-			deriveEcosystemAliasCursor({ alias: 'HandCash' }, VECTOR_TXID, 0),
-		).toBe(ALIAS_CURSOR_VECTOR)
-		expect(
-			deriveEcosystemAliasCursor({ domain: 'HandCash.IO' }, VECTOR_TXID, 2),
-		).toBe(DOMAIN_CURSOR_VECTOR)
-		expect(
-			deriveEcosystemAliasCursor({ findAll: true }, 'a'.repeat(64), 1),
-		).toBe(FIND_ALL_CURSOR_VECTOR)
-	})
-
+describe('ecosystem alias public exports', () => {
 	test('exports the client from both service and package entrypoints', () => {
 		expect(ServiceExport).toBe(EcosystemAliasClient)
-		expect(serviceCursorExport).toBe(deriveEcosystemAliasCursor)
 		expect(ECOSYSTEM_ALIAS_LOOKUP_SERVICE).toBe('ls_ecosystemalias')
 
 		const services = new OneSatServices('main', BASE_URL)
 		expect(services.ecosystemAlias).toBeInstanceOf(EcosystemAliasClient)
 		services.close()
 	})
+})
+
+test('accepts zero and max uint32 skip without wrapping', async () => {
+	for (const skip of [0, 0xffffffff]) {
+		const requests: Array<{ url: string; init?: RequestInit }> = []
+		await mockClient({ type: 'output-list', outputs: [] }, requests).lookup({
+			findAll: true,
+			skip,
+		})
+		expect(requestBody(requests)).toEqual({
+			service: ECOSYSTEM_ALIAS_LOOKUP_SERVICE,
+			query: { findAll: true, skip },
+		})
+	}
 })

@@ -7,7 +7,6 @@ export { ArcadeClient } from './ArcadeClient.js'
 export {
 	EcosystemAliasClient,
 	ECOSYSTEM_ALIAS_LOOKUP_SERVICE,
-	deriveEcosystemAliasCursor,
 	type EcosystemAliasByAliasQuery,
 	type EcosystemAliasByDomainQuery,
 	type EcosystemAliasFindAllQuery,

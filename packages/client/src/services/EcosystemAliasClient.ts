@@ -1,20 +1,18 @@
 import type { ClientOptions } from '@1sat/types'
-import { Beef, Hash, Transaction, Utils } from '@bsv/sdk'
+import { Beef, Transaction, Utils } from '@bsv/sdk'
 import { BaseClient } from './BaseClient.js'
 
 export const ECOSYSTEM_ALIAS_LOOKUP_SERVICE = 'ls_ecosystemalias' as const
 
 const LOOKUP_PATH = '/1sat/ecosystemalias/overlay/lookup'
 const MAX_LIMIT = 500
-const CURSOR_PREFIX = 'ea1.'
-const TXID_PATTERN = /^[0-9a-f]{64}$/
 const ASCII_WRAP_WHITESPACE = /^[ \t\n\r\f\v]|[ \t\n\r\f\v]$/
 
 interface EcosystemAliasQueryOptions {
 	/** Maximum number of outputs to return. The server default is 100. */
 	limit?: number
-	/** Opaque cursor returned by a previous lookup. */
-	cursor?: string
+	/** Number of live outputs to skip (uint32). The server default is zero. */
+	skip?: number
 }
 
 /** Lookup every live claim for one normalized ecosystem alias. */
@@ -31,7 +29,7 @@ export type EcosystemAliasByDomainQuery = EcosystemAliasQueryOptions & {
 	findAll?: never
 }
 
-/** Enumerate live claims in deterministic outpoint order. */
+/** Enumerate live claims in provider HeightScore and output-index order. */
 export type EcosystemAliasFindAllQuery = EcosystemAliasQueryOptions & {
 	findAll: true
 	alias?: never
@@ -59,8 +57,6 @@ export interface EcosystemAliasLookupResult {
 	type: 'output-list'
 	/** All provider results in provider order, including conflicting claims. */
 	outputs: EcosystemAliasLookupOutput[]
-	/** Cursor derived from the last output, omitted for an empty page. */
-	nextCursor?: string
 }
 
 type NormalizedQuery =
@@ -146,7 +142,7 @@ function normalizeQuery(query: EcosystemAliasQuery): NormalizedQuery {
 	}
 	assertAllowedKeys(
 		query,
-		['alias', 'domain', 'findAll', 'limit', 'cursor'],
+		['alias', 'domain', 'findAll', 'limit', 'skip'],
 		'ecosystem alias query',
 	)
 
@@ -171,13 +167,16 @@ function normalizeQuery(query: EcosystemAliasQuery): NormalizedQuery {
 		}
 		options.limit = query.limit
 	}
-	if (query.cursor !== undefined) {
-		if (typeof query.cursor !== 'string' || query.cursor.length === 0) {
-			throw new TypeError('cursor must be a non-empty string')
+	if (query.skip !== undefined) {
+		if (
+			typeof query.skip !== 'number' ||
+			!Number.isInteger(query.skip) ||
+			query.skip < 0 ||
+			query.skip > 0xffffffff
+		) {
+			throw new TypeError('skip must be an integer from 0 to 4294967295')
 		}
-		// Cursors are opaque at this layer. Binding and structural validation belong
-		// to the lookup service, so forward the caller's bytes without normalization.
-		options.cursor = query.cursor
+		options.skip = query.skip
 	}
 
 	switch (modes[0]) {
@@ -193,15 +192,6 @@ function normalizeQuery(query: EcosystemAliasQuery): NormalizedQuery {
 		default:
 			throw new TypeError('invalid ecosystem alias query mode')
 	}
-}
-
-function queryBinding(query: NormalizedQuery): {
-	mode: 'alias' | 'domain' | 'findAll'
-	value: string
-} {
-	if ('alias' in query) return { mode: 'alias', value: query.alias }
-	if ('domain' in query) return { mode: 'domain', value: query.domain }
-	return { mode: 'findAll', value: '' }
 }
 
 function decodeBytes(value: unknown, label: string): Uint8Array {
@@ -313,45 +303,6 @@ function validateResponse(value: unknown): EcosystemAliasLookupOutput[] {
 	})
 }
 
-/**
- * Derive the frozen `ea1.` cursor for a normalized query and last outpoint.
- * The cursor fingerprint is SHA-256(mode + NUL + normalized binding), and its
- * canonical JSON payload is serialized in m/q/t/v key order.
- */
-export function deriveEcosystemAliasCursor(
-	query: EcosystemAliasQuery,
-	txid: string,
-	outputIndex: number,
-): string {
-	const normalizedQuery = normalizeQuery(query)
-	if (!TXID_PATTERN.test(txid)) {
-		throw new TypeError('txid must be 64 lowercase hexadecimal characters')
-	}
-	if (
-		!Number.isInteger(outputIndex) ||
-		outputIndex < 0 ||
-		outputIndex > 0xffffffff
-	) {
-		throw new TypeError('outputIndex must be a uint32 integer')
-	}
-
-	const { mode, value } = queryBinding(normalizedQuery)
-	const fingerprint = Utils.toHex(
-		Hash.sha256(Utils.toArray(`${mode}\0${value}`, 'utf8')),
-	)
-	const payload = JSON.stringify({
-		m: mode,
-		q: fingerprint,
-		t: txid,
-		v: outputIndex,
-	})
-	const base64url = Utils.toBase64(Utils.toArray(payload, 'utf8'))
-		.replaceAll('+', '-')
-		.replaceAll('/', '_')
-		.replace(/=+$/, '')
-	return `${CURSOR_PREFIX}${base64url}`
-}
-
 /** Client for the generic BRC-169 ecosystem-alias lookup service. */
 export class EcosystemAliasClient extends BaseClient {
 	constructor(baseUrl: string, options: ClientOptions = {}) {
@@ -371,19 +322,6 @@ export class EcosystemAliasClient extends BaseClient {
 			}),
 		})
 		const outputs = validateResponse(response)
-		const last = outputs.at(-1)
-		return {
-			type: 'output-list',
-			outputs,
-			...(last === undefined
-				? {}
-				: {
-						nextCursor: deriveEcosystemAliasCursor(
-							normalizedQuery,
-							last.txid,
-							last.outputIndex,
-						),
-					}),
-		}
+		return { type: 'output-list', outputs }
 	}
 }
