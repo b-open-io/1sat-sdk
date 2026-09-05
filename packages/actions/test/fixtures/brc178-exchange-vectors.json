@@ -1,0 +1,1484 @@
+{
+	"format": "brc178-conformance-fixtures-v1",
+	"notice": "Synthetic transaction sources and public keys: never use for funds or as production lineage evidence. Operation fields are test notation, not a wire protocol. Lifecycle events are local verified outcomes, not untrusted peer commands.",
+	"stateTraces": [
+		{
+			"id": "repeated-readiness",
+			"steps": [
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 2,
+						"revision": 1,
+						"kind": "ready",
+						"ready": false
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 3,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 4,
+						"revision": 1,
+						"kind": "ready",
+						"ready": false
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 5,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 6,
+						"revision": 1,
+						"kind": "ready",
+						"ready": false
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 7,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 8,
+						"revision": 1,
+						"kind": "ready",
+						"ready": false
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 9,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 10,
+						"revision": 1,
+						"kind": "ready",
+						"ready": false
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 11,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 12,
+						"revision": 1,
+						"kind": "ready",
+						"ready": false
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": true
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 13,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "attempting",
+						"attempts": 1
+					}
+				}
+			]
+		},
+		{
+			"id": "edits-and-stale-revision",
+			"steps": [
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "edit"
+					},
+					"expected": {
+						"revision": 2,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 2,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 2,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 2,
+						"revision": 2,
+						"kind": "edit"
+					},
+					"expected": {
+						"revision": 3,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 3,
+						"revision": 3,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 3,
+						"ready": {
+							"alice": false,
+							"bob": true
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 3,
+						"revision": 3,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 3,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "attempting",
+						"attempts": 1
+					}
+				}
+			]
+		},
+		{
+			"id": "withdrawal-wins-and-delayed-confirm",
+			"steps": [
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 3,
+						"revision": 1,
+						"kind": "ready",
+						"ready": false
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 2,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": true
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				}
+			]
+		},
+		{
+			"id": "freeze-wins-and-duplicate-confirm",
+			"steps": [
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "attempting",
+						"attempts": 1
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 2,
+						"revision": 1,
+						"kind": "ready",
+						"ready": false
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "attempting",
+						"attempts": 1
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "attempting",
+						"attempts": 1
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 2,
+						"revision": 1,
+						"kind": "edit"
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "attempting",
+						"attempts": 1
+					}
+				}
+			]
+		},
+		{
+			"id": "failure-before-signature",
+			"steps": [
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "attempting",
+						"attempts": 1
+					}
+				},
+				{
+					"operation": {
+						"kind": "failure"
+					},
+					"expected": {
+						"revision": 2,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 1
+					}
+				}
+			]
+		},
+		{
+			"id": "failure-after-signature",
+			"steps": [
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "attempting",
+						"attempts": 1
+					}
+				},
+				{
+					"operation": {
+						"kind": "signature-released"
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "attempting",
+						"attempts": 1
+					}
+				},
+				{
+					"operation": {
+						"kind": "failure"
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "reconciling",
+						"attempts": 1
+					}
+				},
+				{
+					"operation": {
+						"kind": "timeout"
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "reconciling",
+						"attempts": 1
+					}
+				},
+				{
+					"operation": {
+						"kind": "candidate-invalidated"
+					},
+					"expected": {
+						"revision": 2,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 1
+					}
+				}
+			]
+		},
+		{
+			"id": "repeated-readiness-roles-reversed",
+			"steps": [
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": true
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 2,
+						"revision": 1,
+						"kind": "ready",
+						"ready": false
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 3,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": true
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 4,
+						"revision": 1,
+						"kind": "ready",
+						"ready": false
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 5,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": true
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 6,
+						"revision": 1,
+						"kind": "ready",
+						"ready": false
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 7,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": true
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 8,
+						"revision": 1,
+						"kind": "ready",
+						"ready": false
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 9,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": true
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 10,
+						"revision": 1,
+						"kind": "ready",
+						"ready": false
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 11,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": true
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 12,
+						"revision": 1,
+						"kind": "ready",
+						"ready": false
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 13,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "attempting",
+						"attempts": 1
+					}
+				}
+			]
+		},
+		{
+			"id": "edits-and-stale-revision-roles-reversed",
+			"steps": [
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": true
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "edit"
+					},
+					"expected": {
+						"revision": 2,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 2,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 2,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 2,
+						"revision": 2,
+						"kind": "edit"
+					},
+					"expected": {
+						"revision": 3,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 3,
+						"revision": 3,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 3,
+						"ready": {
+							"alice": true,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 3,
+						"revision": 3,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 3,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "attempting",
+						"attempts": 1
+					}
+				}
+			]
+		},
+		{
+			"id": "withdrawal-wins-and-delayed-confirm-roles-reversed",
+			"steps": [
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": true
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 3,
+						"revision": 1,
+						"kind": "ready",
+						"ready": false
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 2,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				}
+			]
+		},
+		{
+			"id": "freeze-wins-and-duplicate-confirm-roles-reversed",
+			"steps": [
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": true
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "attempting",
+						"attempts": 1
+					}
+				},
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 2,
+						"revision": 1,
+						"kind": "ready",
+						"ready": false
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "attempting",
+						"attempts": 1
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "attempting",
+						"attempts": 1
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 2,
+						"revision": 1,
+						"kind": "edit"
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "attempting",
+						"attempts": 1
+					}
+				}
+			]
+		},
+		{
+			"id": "failure-before-signature-roles-reversed",
+			"steps": [
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": true
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "attempting",
+						"attempts": 1
+					}
+				},
+				{
+					"operation": {
+						"kind": "failure"
+					},
+					"expected": {
+						"revision": 2,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 1
+					}
+				}
+			]
+		},
+		{
+			"id": "failure-after-signature-roles-reversed",
+			"steps": [
+				{
+					"operation": {
+						"actor": "bob",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": false,
+							"bob": true
+						},
+						"phase": "negotiating",
+						"attempts": 0
+					}
+				},
+				{
+					"operation": {
+						"actor": "alice",
+						"sequence": 1,
+						"revision": 1,
+						"kind": "ready",
+						"ready": true
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "attempting",
+						"attempts": 1
+					}
+				},
+				{
+					"operation": {
+						"kind": "signature-released"
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "attempting",
+						"attempts": 1
+					}
+				},
+				{
+					"operation": {
+						"kind": "failure"
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "reconciling",
+						"attempts": 1
+					}
+				},
+				{
+					"operation": {
+						"kind": "timeout"
+					},
+					"expected": {
+						"revision": 1,
+						"ready": {
+							"alice": true,
+							"bob": true
+						},
+						"phase": "reconciling",
+						"attempts": 1
+					}
+				},
+				{
+					"operation": {
+						"kind": "candidate-invalidated"
+					},
+					"expected": {
+						"revision": 2,
+						"ready": {
+							"alice": false,
+							"bob": false
+						},
+						"phase": "negotiating",
+						"attempts": 1
+					}
+				}
+			]
+		}
+	],
+	"transactions": [
+		{
+			"id": "ordinal-for-bsv",
+			"synthetic": true,
+			"rawTransaction": "01000000021c2a73aeb7ee1e516fe0d6a59c7d7743cebfb95e4d36b3bb52321dcc191fd28f000000006a473044022060fa22a36827fabd50a07c1d58b74d8f19ade4d014afb6b9a886e9db7e9b34fd0220635665c1456485c9470552613b132937818b0820f9b14b2adac5e964ce7901f241210279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ffffffff271d9d8486217ff6e08f2a151723ade32864c13a6a18ab93ad24c97eb684267d000000006b4830450221009228764e0fa67cd39826b3e9cc1d4f08c2e669814536d4ed7d7806929e39c74d022074da4af9e6e71e6102db2e1c3d8b4bd8abd66240195aa1c9ee43c16263dfd59b412102c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5ffffffff0301000000000000001976a91406afd46bcdfd22ef94ac122aa11f241244a37ecc88ac64000000000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac7a030000000000001976a91406afd46bcdfd22ef94ac122aa11f241244a37ecc88ac00000000",
+			"txid": "0cec038f8bbc87e19636de696ee3d0e121e9b9524a6ff8c6b08ca099f3653813",
+			"sources": [
+				{
+					"rawTransaction": "010000000100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0101000000000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000",
+					"txid": "8fd21f19cc1d3252bbb3364d5eb9bfce43777d9ca5d6e06f511eeeb7ae732a1c"
+				},
+				{
+					"rawTransaction": "010000000100000000000000000000000000000000000000000000000000000000000000000100000000ffffffff01e8030000000000001976a91406afd46bcdfd22ef94ac122aa11f241244a37ecc88ac00000000",
+					"txid": "7d2684b67ec924ad93ab186a3ac16428e3ad2317152a8fe0f67f2186849d1d27"
+				}
+			],
+			"expected": {
+				"version": 1,
+				"lockTime": 0,
+				"feeSatoshis": 10,
+				"sighashByte": 65,
+				"ordinalRoutes": [
+					{
+						"input": 0,
+						"output": 0
+					}
+				],
+				"tokenConservation": []
+			},
+			"negativeCases": [
+				"changed-lock-time",
+				"changed-output-amount",
+				"prohibited-sighash",
+				"reordered-ordinal-inputs"
+			]
+		},
+		{
+			"id": "ordinal-for-bsv21",
+			"synthetic": true,
+			"rawTransaction": "010000000346cde479b3e9cf7d8c87298a0fd1b27915dc487df30dc397a129f97cf9d9c825000000006a4730440220568b4973d456a4f6d12e89c182eb3894866367c3f2cc4eadfe754e0d2c30955002202f3079ad8b1bdad3f03e79cbde4495c0411396332add51a2caf05019bcb58e0f41210279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ffffffff07054d915b97f54dbf7eef2ba3ef26f38b320777a3c3b733d65e198f4100bbdc000000006b48304502210092ff7c8fc306eeb81b50f14d89b47fdb4e5b5a26b326a8b8484403b968b1644602201f80de89f6461efcc933613a416a68a3deec08e5bf99a17a47ba5252f0c8f06c412102c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5ffffffff1289f4dad086f4efc00abab7b923d021ccbb099c2e1b9c42d9610f4abfe5d1c1000000006a473044022054e9d3e2a46e6858788f41040e0f91eea05b604d10b52ef1be9134ece5e0cbfd02204b248a89e525b7406a9433e5d216ab6cf687639dd6646c87acd739f201f5f964412102c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5ffffffff0401000000000000001976a91406afd46bcdfd22ef94ac122aa11f241244a37ecc88ac0100000000000000aa0063036f726451126170706c69636174696f6e2f6273762d3230004c737b2270223a226273762d3230222c226f70223a227472616e73666572222c226964223a22313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131315f30222c22616d74223a223230227d6876a914751e76e8199196d454941c45d1b3a323f1433bd688ac0100000000000000a90063036f726451126170706c69636174696f6e2f6273762d3230004c727b2270223a226273762d3230222c226f70223a227472616e73666572222c226964223a22313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131315f30222c22616d74223a2235227d6876a91406afd46bcdfd22ef94ac122aa11f241244a37ecc88acdd030000000000001976a91406afd46bcdfd22ef94ac122aa11f241244a37ecc88ac00000000",
+			"txid": "94797671ffb055aafe32ef33a2e337a0edc4c1a16ea98aac81667fcd96000725",
+			"sources": [
+				{
+					"rawTransaction": "010000000100000000000000000000000000000000000000000000000000000000000000000200000000ffffffff0101000000000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000",
+					"txid": "25c8d9f97cf929a197c30df37d48dc1579b2d10f8a29878c7dcfe9b379e4cd46"
+				},
+				{
+					"rawTransaction": "010000000100000000000000000000000000000000000000000000000000000000000000000300000000ffffffff010100000000000000aa0063036f726451126170706c69636174696f6e2f6273762d3230004c737b2270223a226273762d3230222c226f70223a227472616e73666572222c226964223a22313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131315f30222c22616d74223a223235227d6876a91406afd46bcdfd22ef94ac122aa11f241244a37ecc88ac00000000",
+					"txid": "dcbb00418f195ed633b7c3a37707328bf326efa32bef7ebf4df5975b914d0507"
+				},
+				{
+					"rawTransaction": "010000000100000000000000000000000000000000000000000000000000000000000000000400000000ffffffff01e8030000000000001976a91406afd46bcdfd22ef94ac122aa11f241244a37ecc88ac00000000",
+					"txid": "c1d1e5bf4a0f61d9429c1b2e9c09bbcc21d023b9b7ba0ac0eff486d0daf48912"
+				}
+			],
+			"expected": {
+				"version": 1,
+				"lockTime": 0,
+				"feeSatoshis": 10,
+				"sighashByte": 65,
+				"ordinalRoutes": [
+					{
+						"input": 0,
+						"output": 0
+					}
+				],
+				"tokenConservation": [
+					{
+						"tokenId": "1111111111111111111111111111111111111111111111111111111111111111_0",
+						"inputs": [
+							{
+								"index": 1,
+								"amount": "25"
+							}
+						],
+						"outputs": [
+							{
+								"index": 1,
+								"amount": "20"
+							},
+							{
+								"index": 2,
+								"amount": "5"
+							}
+						]
+					}
+				]
+			},
+			"negativeCases": [
+				"changed-lock-time",
+				"changed-output-amount",
+				"prohibited-sighash",
+				"reordered-ordinal-inputs"
+			]
+		}
+	]
+}
