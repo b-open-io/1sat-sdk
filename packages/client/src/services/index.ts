@@ -9,7 +9,7 @@ export {
 	ECOSYSTEM_ALIAS_LOOKUP_SERVICE,
 	type EcosystemAliasByAliasQuery,
 	type EcosystemAliasByDomainQuery,
-	type EcosystemAliasFindAllQuery,
+	type EcosystemAliasAllQuery,
 	type EcosystemAliasLookupOutput,
 	type EcosystemAliasLookupResult,
 	type EcosystemAliasQuery,

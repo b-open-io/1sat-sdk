@@ -515,22 +515,20 @@ Dependency order for new code: `types` → `utils` → `client` → `templates` 
 ## Ecosystem alias lookup
 
 `EcosystemAliasClient` queries `ls_ecosystemalias` at the configured stack host.
-Use exactly one of `alias`, `domain`, or `findAll: true`, with optional `skip`
+Use `alias`, `domain`, or an empty query (`{}` / skip+limit only). Optional `skip`
 (default 0, maximum 4294967295) and `limit` (default 100, maximum 500).
 
 ```ts
 const page = await services.ecosystemAlias.lookup({
-  findAll: true,
   skip: 100,
   limit: 100,
 })
 ```
 
-Results preserve the provider's HeightScore/output-index order and include
-conflicting claims. To continue, increase `skip` by the number of returned
-outputs; an empty page ends enumeration. These are live offset pages, so changes
-between requests can move results. The client does not accept `cursor` or return
-`nextCursor`; the unreleased `ea1.` cursor helper has been removed.
+Empty query lists every live claim (event `*`). Results preserve HeightScore /
+output-index order and include conflicting claims. Overlay peers still GASP.
+To continue, increase `skip` by the number of returned outputs; an empty page
+ends enumeration. The client does not accept `cursor` or `findAll`.
 
 ## Related
 

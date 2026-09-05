@@ -19,28 +19,25 @@ interface EcosystemAliasQueryOptions {
 export type EcosystemAliasByAliasQuery = EcosystemAliasQueryOptions & {
 	alias: string
 	domain?: never
-	findAll?: never
 }
 
 /** Lookup every live claim for one normalized domain. */
 export type EcosystemAliasByDomainQuery = EcosystemAliasQueryOptions & {
 	domain: string
 	alias?: never
-	findAll?: never
 }
 
-/** Enumerate live claims in provider HeightScore and output-index order. */
-export type EcosystemAliasFindAllQuery = EcosystemAliasQueryOptions & {
-	findAll: true
+/** List every live claim. Empty object or skip/limit only. */
+export type EcosystemAliasAllQuery = EcosystemAliasQueryOptions & {
 	alias?: never
 	domain?: never
 }
 
-/** Exactly one lookup mode is allowed. */
+/** Alias, domain, or empty dump. */
 export type EcosystemAliasQuery =
 	| EcosystemAliasByAliasQuery
 	| EcosystemAliasByDomainQuery
-	| EcosystemAliasFindAllQuery
+	| EcosystemAliasAllQuery
 
 /** One validated BRC-24 output-list entry. */
 export interface EcosystemAliasLookupOutput {
@@ -62,7 +59,7 @@ export interface EcosystemAliasLookupResult {
 type NormalizedQuery =
 	| (EcosystemAliasQueryOptions & { alias: string })
 	| (EcosystemAliasQueryOptions & { domain: string })
-	| (EcosystemAliasQueryOptions & { findAll: true })
+	| EcosystemAliasQueryOptions
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -142,17 +139,14 @@ function normalizeQuery(query: EcosystemAliasQuery): NormalizedQuery {
 	}
 	assertAllowedKeys(
 		query,
-		['alias', 'domain', 'findAll', 'limit', 'skip'],
+		['alias', 'domain', 'limit', 'skip'],
 		'ecosystem alias query',
 	)
 
-	const modes = ['alias', 'domain', 'findAll'].filter(
-		(key) => query[key] !== undefined,
-	)
-	if (modes.length !== 1) {
-		throw new TypeError(
-			'ecosystem alias query must have exactly one of alias, domain, or findAll:true',
-		)
+	const hasAlias = query.alias !== undefined
+	const hasDomain = query.domain !== undefined
+	if (hasAlias && hasDomain) {
+		throw new TypeError('ecosystem alias query must not combine alias and domain')
 	}
 
 	const options: EcosystemAliasQueryOptions = {}
@@ -179,19 +173,13 @@ function normalizeQuery(query: EcosystemAliasQuery): NormalizedQuery {
 		options.skip = query.skip
 	}
 
-	switch (modes[0]) {
-		case 'alias':
-			return { alias: normalizeAlias(query.alias), ...options }
-		case 'domain':
-			return { domain: normalizeDomain(query.domain), ...options }
-		case 'findAll':
-			if (query.findAll !== true) {
-				throw new TypeError('findAll must be true when present')
-			}
-			return { findAll: true, ...options }
-		default:
-			throw new TypeError('invalid ecosystem alias query mode')
+	if (hasAlias) {
+		return { alias: normalizeAlias(query.alias), ...options }
 	}
+	if (hasDomain) {
+		return { domain: normalizeDomain(query.domain), ...options }
+	}
+	return options
 }
 
 function decodeBytes(value: unknown, label: string): Uint8Array {

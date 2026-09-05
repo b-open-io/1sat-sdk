@@ -83,20 +83,19 @@ describe('EcosystemAliasClient queries', () => {
 		})
 	})
 
-	test('posts findAll with skip and limit', async () => {
+	test('posts empty query with skip and limit', async () => {
 		const requests: Array<{ url: string; init?: RequestInit }> = []
 		await mockClient(
 			{ type: 'output-list', outputs: [], result: '' },
 			requests,
 		).lookup({
-			findAll: true,
 			limit: 500,
 			skip: 500,
 		})
 
 		expect(requestBody(requests)).toEqual({
 			service: 'ls_ecosystemalias',
-			query: { findAll: true, limit: 500, skip: 500 },
+			query: { limit: 500, skip: 500 },
 		})
 	})
 
@@ -114,7 +113,7 @@ describe('EcosystemAliasClient queries', () => {
 			{ alias: 'hand--cash' },
 			{ alias: 'händcash' },
 			{ domain: 'example' },
-			{ findAll: false },
+			{ findAll: true },
 			{ alias: 'handcash', domain: 'handcash.io' },
 			{ alias: 'handcash', limit: 0 },
 			{ alias: 'handcash', limit: 501 },
@@ -127,8 +126,8 @@ describe('EcosystemAliasClient queries', () => {
 				Number.POSITIVE_INFINITY,
 				null,
 				'1',
-			].map((skip) => ({ findAll: true, skip })),
-			{ findAll: true, cursor: 'ea1.obsolete' },
+			].map((skip) => ({ skip })),
+			{ cursor: 'ea1.obsolete' },
 		]
 		for (const query of invalid) {
 			await expect(client.lookup(query as never)).rejects.toBeInstanceOf(
@@ -145,7 +144,7 @@ describe('EcosystemAliasClient output-list validation', () => {
 			type: 'output-list',
 			outputs: null,
 			result: '',
-		}).lookup({ findAll: true })
+		}).lookup({})
 
 		expect(result).toEqual({ type: 'output-list', outputs: [] })
 	})
@@ -296,12 +295,11 @@ test('accepts zero and max uint32 skip without wrapping', async () => {
 	for (const skip of [0, 0xffffffff]) {
 		const requests: Array<{ url: string; init?: RequestInit }> = []
 		await mockClient({ type: 'output-list', outputs: [] }, requests).lookup({
-			findAll: true,
 			skip,
 		})
 		expect(requestBody(requests)).toEqual({
 			service: ECOSYSTEM_ALIAS_LOOKUP_SERVICE,
-			query: { findAll: true, skip },
+			query: { skip },
 		})
 	}
 })
