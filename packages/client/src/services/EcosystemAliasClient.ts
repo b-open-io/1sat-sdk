@@ -146,7 +146,9 @@ function normalizeQuery(query: EcosystemAliasQuery): NormalizedQuery {
 	const hasAlias = query.alias !== undefined
 	const hasDomain = query.domain !== undefined
 	if (hasAlias && hasDomain) {
-		throw new TypeError('ecosystem alias query must not combine alias and domain')
+		throw new TypeError(
+			'ecosystem alias query must not combine alias and domain',
+		)
 	}
 
 	const options: EcosystemAliasQueryOptions = {}
