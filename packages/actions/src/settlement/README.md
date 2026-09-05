@@ -1,6 +1,6 @@
 # Collaborative settlement
 
-SDK integration for [BRC-178](https://github.com/opldotdev/BRCs/blob/afab430a898859bd544ce5beb13baec136a1dc4c/tokens/0178.md):
+SDK integration for [BRC-178](https://github.com/opldotdev/BRCs/blob/8a7c4e4755acdb70f7ad05952cc8a3297b2c5d3d/tokens/0178.md):
 two-party ordinal, BSV21, BSV-for-asset, and mixed swaps. The BRC defines the
 protocol and conformance requirements; this guide explains the SDK entry points
 and the application code needed to use them. Import these exports from `@1sat/actions`.
@@ -27,7 +27,7 @@ unique job/outbox or equivalent to recover crashes without duplicate allocation.
 The reducer supplies no storage or transport. Do not run competing authoritative
 copies, and render readiness from acknowledged state.
 
-See [negotiation and readiness](https://github.com/opldotdev/BRCs/blob/afab430a898859bd544ce5beb13baec136a1dc4c/tokens/0178.md#negotiation-and-readiness)
+See [negotiation and readiness](https://github.com/opldotdev/BRCs/blob/8a7c4e4755acdb70f7ad05952cc8a3297b2c5d3d/tokens/0178.md#negotiation-and-readiness)
 for operation ordering and the boundary after which withdrawal cannot stop an attempt.
 
 ## Wallet workflow
@@ -54,9 +54,9 @@ allocation attempts to abort the retained wallet action.
 Provide `SettlementSessionReviewOptions.verifyEvidence(plan, candidate?)`, an
 async wallet-local function that throws on failure. There is no default validator
 or automatic network access. Implement the BRC's
-[evidence and trust model](https://github.com/opldotdev/BRCs/blob/afab430a898859bd544ce5beb13baec136a1dc4c/tokens/0178.md#evidence-and-trust-model)
+[evidence and trust model](https://github.com/opldotdev/BRCs/blob/8a7c4e4755acdb70f7ad05952cc8a3297b2c5d3d/tokens/0178.md#evidence-and-trust-model)
 and preserve its required
-[proof packaging](https://github.com/opldotdev/BRCs/blob/afab430a898859bd544ce5beb13baec136a1dc4c/tokens/0178.md#proof-packaging).
+[proof packaging](https://github.com/opldotdev/BRCs/blob/8a7c4e4755acdb70f7ad05952cc8a3297b2c5d3d/tokens/0178.md#proof-packaging).
 This includes asset lineage/provenance, current spent status, receiver destinations,
 and fee policy; counterparty status assertions are not verification.
 
@@ -85,7 +85,7 @@ attempt, never unverified peer commands:
 
 The application owns broadcast reconciliation and wallet internalization. Persist
 candidate bytes and recovery information securely. Follow the BRC's
-[broadcast and receipt handling](https://github.com/opldotdev/BRCs/blob/afab430a898859bd544ce5beb13baec136a1dc4c/tokens/0178.md#broadcast-and-receipt-handling)
+[broadcast and receipt handling](https://github.com/opldotdev/BRCs/blob/8a7c4e4755acdb70f7ad05952cc8a3297b2c5d3d/tokens/0178.md#broadcast-and-receipt-handling)
 for uncertain submission; do not rebuild solely because an RPC timed out.
 
 ## Lower-level use and limits
@@ -95,6 +95,8 @@ Applications with existing session/evidence orchestration can use
 `reconstructSettlementTemplate`, `authorizeSettlementInputs`, and
 `finalizeSettlementAction` directly. These primitives do not enforce the session
 protocol. The confirmed wrappers add that binding and mandatory evidence hooks.
+BSV21 input selection currently accepts transfer outputs only; eligible existing
+deploy/mint value outputs allowed by the BRC are not yet supported.
 The asset signer supports single-signature PushDrop and compressed-key P2PKH
 unlocks with sighash `0x41` within the allocated input size.
 
