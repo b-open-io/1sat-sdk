@@ -1,7 +1,7 @@
 import {
 	createContext,
 	getBsv21Balances,
-	getOrdinals,
+	listOrdinals,
 	resolveBapId,
 	sendBsv,
 } from '@1sat/actions'
@@ -129,7 +129,7 @@ export function registerWalletTools(server: McpServer): void {
 					services: w.services,
 					chain: 'main',
 				})
-				const result = await getOrdinals.execute(ctx, {
+				const result = await listOrdinals.execute(ctx, {
 					limit: limit ?? 100,
 					offset: offset ?? 0,
 				})

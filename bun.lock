@@ -50,7 +50,7 @@
     },
     "packages/cli": {
       "name": "@1sat/cli",
-      "version": "0.0.108",
+      "version": "0.0.109",
       "bin": {
         "1sat": "./dist/cli.js",
       },

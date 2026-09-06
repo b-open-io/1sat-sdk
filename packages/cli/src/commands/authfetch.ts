@@ -3,18 +3,18 @@
  *
  *   1sat authfetch <method> <url> [--body <json|@file>] [--header 'K: V']...
  *
- * Always authenticates. On 402 Payment Required, prompts unless --yes, then
- * AuthFetch pays and retries.
+ * Authenticates first; only GET/HEAD may retry public routes without auth.
+ * Payment requires --yes or interactive confirmation.
  */
 
 import { readFileSync } from 'node:fs'
-import { AuthFetch } from '@bsv/sdk'
 import { confirm, isCancel } from '@clack/prompts'
 import type { GlobalFlags } from '../args.js'
 import { loadContext } from '../context.js'
 import { printCommandHelp } from '../help.js'
 import { loadKey } from '../keys.js'
 import { fatal, output } from '../output.js'
+import { createApprovalAuth, requestWithApproval } from './authfetch-request.js'
 
 const METHODS = new Set([
 	'GET',
@@ -107,44 +107,34 @@ export async function handleAuthfetchCommand(
 	})
 
 	try {
-		const auth = new AuthFetch(walletResult.wallet)
+		const { auth, authorizePayment } = createApprovalAuth(walletResult.wallet)
 		const init = {
 			method,
 			headers,
 			...(body !== undefined ? { body } : {}),
 		}
 
-		let res: Response
-		try {
-			// Authenticate but do not auto-pay on first try (so we can confirm).
-			res = await auth.fetch(url, {
-				...init,
-				paymentRetryAttempts: 0,
-			})
-		} catch (err) {
-			// Public routes may return 200 without BSV auth headers; AuthFetch rejects those.
-			const msg = err instanceof Error ? err.message : String(err)
-			if (/without valid BSV authentication/i.test(msg)) {
-				res = await fetch(url, init)
-			} else {
-				throw err
-			}
-		}
-
-		if (res.status === 402) {
-			const satsHeader = res.headers.get('x-bsv-payment-satoshis-required')
-			const sats = satsHeader ? Number(satsHeader) : undefined
-			const payMsg =
-				sats != null && Number.isFinite(sats)
-					? `Pay ${sats} sats for ${method} ${url}?`
-					: `Server requires payment (402) for ${method} ${url}. Continue?`
-
-			if (!opts.yes) {
-				const ok = await confirm({ message: payMsg })
-				if (isCancel(ok) || !ok) fatal('Payment cancelled.')
-			}
-
-			res = await auth.fetch(url, init)
+		const res = await requestWithApproval(
+			url,
+			init,
+			{
+				yes: opts.yes,
+				interactive: Boolean(process.stdin.isTTY && process.stdout.isTTY),
+			},
+			{
+				auth,
+				authorizePayment,
+				plainFetch: fetch,
+				confirmPayment: async (message) => {
+					const ok = await confirm({ message })
+					return !isCancel(ok) && ok === true
+				},
+			},
+		)
+		if ('error' in res) {
+			output(res, opts)
+			process.exitCode = 1
+			return
 		}
 
 		const text = await res.text()

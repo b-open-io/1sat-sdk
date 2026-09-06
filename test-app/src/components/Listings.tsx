@@ -71,9 +71,8 @@ function CreateListing() {
 			const res = await sellOrdinal.execute(ctx, {
 				id,
 				price: Number(price),
-				...(payAddress && { payAddress,
+				...(payAddress && { payAddress }),
 				...flags,
-			}),
 			})
 
 			if (res.error) throw new Error(res.error)
@@ -127,6 +126,7 @@ function CreateListing() {
 
 function PurchaseListing() {
 	const ctx = useOneSatContext()
+	const flags = useActionFlags()
 	const { log } = useLog()
 	const [listingOutpoint, setListingOutpoint] = useState('')
 	const [loading, setLoading] = useState(false)
@@ -184,6 +184,7 @@ function PurchaseListing() {
 
 function CancelListing() {
 	const ctx = useOneSatContext()
+	const flags = useActionFlags()
 	const { log } = useLog()
 	const [id, setId] = useState('')
 	const [loading, setLoading] = useState(false)

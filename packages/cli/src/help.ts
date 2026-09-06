@@ -763,7 +763,7 @@ export const COMMANDS: CommandSpec[] = [
 		group: 'Advanced',
 		name: 'authfetch',
 		description:
-			'HTTP request with BRC-104 AuthFetch using CLI wallet keys. On 402, confirms payment unless --yes.',
+			'HTTP request with BRC-104 AuthFetch using CLI wallet keys. Only GET/HEAD retry public routes without auth. On 402, requires --yes or interactive confirmation; noninteractive calls return approval_required and exit nonzero.',
 		positional: '<method> <url>',
 		args: [
 			{
