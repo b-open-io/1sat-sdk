@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.109
+
+### Fixed
+- Authenticated HTTP requests preserve response status and do not replay writes after an unsigned response or ambiguous transport failure.
+- Read-only requests can opt into plain HTTP fallback; mutation failures report that their outcome may be unknown.
+
 ## 0.0.108
 
 ### Changed
