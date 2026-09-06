@@ -6,19 +6,23 @@
  * `electroview.rpc.request.<name>(params)`.
  */
 import {
+	buyBsv21,
+	buyOrdinal,
+	cancelOrdinalListing,
 	createContext,
 	createSocialPost,
+	deregisterOpns,
 	getBsv21Balances,
 	getLockData,
-	getOpnsNames,
-	getOrdinals,
 	getProfile,
 	inscribe,
+	listOpns,
+	listOrdinals,
 	lockBsv,
-	opnsDeregister,
-	opnsRegister,
 	publishIdentity,
+	registerOpns,
 	resolveBapId,
+	sellOrdinal,
 	sendBsv,
 	sendBsv21,
 	sweepBsv,
@@ -26,7 +30,11 @@ import {
 	updateProfile,
 } from '@1sat/actions'
 import { OPNS_BASKET } from '@1sat/actions'
-import { BRC29_PROTOCOL_ID, ORDINALS_BASKET } from '@1sat/types'
+import {
+	BRC29_PROTOCOL_ID,
+	ORDINALS_BASKET,
+	readAssetIdTag,
+} from '@1sat/types'
 import { generateMnemonic, isValidMnemonic } from '@1sat/utils'
 import { PrivateKey, PublicKey, Utils as SdkUtils, Transaction } from '@bsv/sdk'
 import { Utils } from 'electrobun/bun'
@@ -434,7 +442,7 @@ export function createRpcHandlers(scopedAccountId?: string) {
 				services: w.services,
 				chain: 'main',
 			})
-			const result = await getOrdinals.execute(ctx, {
+			const result = await listOrdinals.execute(ctx, {
 				limit: limit ?? 100,
 				offset: offset ?? 0,
 			})
@@ -517,7 +525,7 @@ export function createRpcHandlers(scopedAccountId?: string) {
 				services: w.services,
 				chain: 'main',
 			})
-			const result = await getOpnsNames.execute(ctx, {})
+			const result = await listOpns.execute(ctx, {})
 			const names: OpnsNameInfo[] = result.outputs.map((o) => {
 				const nameTag = (o.tags ?? []).find((t) => t.startsWith('name:'))
 				return {
@@ -834,18 +842,15 @@ export function createRpcHandlers(scopedAccountId?: string) {
 			const listResult = await w.wallet.listOutputs({
 				basket: OPNS_BASKET,
 				includeTags: true,
-				includeCustomInstructions: true,
-				include: 'entire transactions',
 				limit: 1000,
 			})
 			const ordinal = listResult.outputs.find((o) => o.outpoint === outpoint)
 			if (!ordinal) {
 				return { error: 'OpNS name not found' }
 			}
-			const result = await opnsRegister.execute(ctx, {
-				ordinal,
-				inputBEEF: listResult.BEEF as number[] | undefined,
-			})
+			const id = readAssetIdTag(ordinal.tags)
+			if (!id) return { error: 'OpNS name has no wallet tracking id' }
+			const result = await registerOpns.execute(ctx, { id })
 			return { txid: result.txid, error: result.error }
 		},
 
@@ -858,18 +863,15 @@ export function createRpcHandlers(scopedAccountId?: string) {
 			const listResult = await w.wallet.listOutputs({
 				basket: OPNS_BASKET,
 				includeTags: true,
-				includeCustomInstructions: true,
-				include: 'entire transactions',
 				limit: 1000,
 			})
 			const ordinal = listResult.outputs.find((o) => o.outpoint === outpoint)
 			if (!ordinal) {
 				return { error: 'OpNS name not found' }
 			}
-			const result = await opnsDeregister.execute(ctx, {
-				ordinal,
-				inputBEEF: listResult.BEEF as number[] | undefined,
-			})
+			const id = readAssetIdTag(ordinal.tags)
+			if (!id) return { error: 'OpNS name has no wallet tracking id' }
+			const result = await deregisterOpns.execute(ctx, { id })
 			return { txid: result.txid, error: result.error }
 		},
 
@@ -908,20 +910,16 @@ export function createRpcHandlers(scopedAccountId?: string) {
 				services: w.services,
 				chain: 'main',
 			})
-			const { listOrdinal } = await import('@1sat/actions')
 			const listResult = await w.wallet.listOutputs({
 				basket: ORDINALS_BASKET,
-				includeCustomInstructions: true,
-				include: 'entire transactions',
+				includeTags: true,
 				limit: 1000,
 			})
 			const ordinal = listResult.outputs.find((o) => o.outpoint === outpoint)
 			if (!ordinal) return { error: 'Ordinal not found in wallet' }
-			const result = await listOrdinal.execute(ctx, {
-				ordinal,
-				price,
-				inputBEEF: listResult.BEEF as number[] | undefined,
-			})
+			const id = readAssetIdTag(ordinal.tags)
+			if (!id) return { error: 'Ordinal has no wallet tracking id' }
+			const result = await sellOrdinal.execute(ctx, { id, price })
 			return { txid: result.txid, error: result.error }
 		},
 
@@ -931,19 +929,16 @@ export function createRpcHandlers(scopedAccountId?: string) {
 				services: w.services,
 				chain: 'main',
 			})
-			const { cancelListing } = await import('@1sat/actions')
 			const listResult = await w.wallet.listOutputs({
 				basket: ORDINALS_BASKET,
-				includeCustomInstructions: true,
-				include: 'entire transactions',
+				includeTags: true,
 				limit: 1000,
 			})
 			const listing = listResult.outputs.find((o) => o.outpoint === outpoint)
 			if (!listing) return { error: 'Listing not found in wallet' }
-			const result = await cancelListing.execute(ctx, {
-				listing,
-				inputBEEF: listResult.BEEF as number[] | undefined,
-			})
+			const id = readAssetIdTag(listing.tags)
+			if (!id) return { error: 'Ordinal has no wallet tracking id' }
+			const result = await cancelOrdinalListing.execute(ctx, { id })
 			return { txid: result.txid, error: result.error }
 		},
 
@@ -953,8 +948,7 @@ export function createRpcHandlers(scopedAccountId?: string) {
 				services: w.services,
 				chain: 'main',
 			})
-			const { purchaseOrdinal } = await import('@1sat/actions')
-			const result = await purchaseOrdinal.execute(ctx, { outpoint })
+			const result = await buyOrdinal.execute(ctx, { outpoint })
 			return { txid: result.txid, error: result.error }
 		},
 
@@ -968,8 +962,7 @@ export function createRpcHandlers(scopedAccountId?: string) {
 				services: w.services,
 				chain: 'main',
 			})
-			const { purchaseBsv21 } = await import('@1sat/actions')
-			const result = await purchaseBsv21.execute(ctx, {
+			const result = await buyBsv21.execute(ctx, {
 				tokenId,
 				outpoint,
 				amount,

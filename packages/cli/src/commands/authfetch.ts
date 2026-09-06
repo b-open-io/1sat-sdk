@@ -8,14 +8,13 @@
  */
 
 import { readFileSync } from 'node:fs'
-import { AuthFetch } from '@bsv/sdk'
 import { confirm, isCancel } from '@clack/prompts'
 import type { GlobalFlags } from '../args.js'
 import { loadContext } from '../context.js'
 import { printCommandHelp } from '../help.js'
 import { loadKey } from '../keys.js'
 import { fatal, output } from '../output.js'
-import { requestWithApproval } from './authfetch-request.js'
+import { createApprovalAuth, requestWithApproval } from './authfetch-request.js'
 
 const METHODS = new Set([
 	'GET',
@@ -108,7 +107,7 @@ export async function handleAuthfetchCommand(
 	})
 
 	try {
-		const auth = new AuthFetch(walletResult.wallet)
+		const { auth, authorizePayment } = createApprovalAuth(walletResult.wallet)
 		const init = {
 			method,
 			headers,
@@ -124,6 +123,7 @@ export async function handleAuthfetchCommand(
 			},
 			{
 				auth,
+				authorizePayment,
 				plainFetch: fetch,
 				confirmPayment: async (message) => {
 					const ok = await confirm({ message })
