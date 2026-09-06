@@ -10,6 +10,7 @@ class PaymentRequired extends Error {
 export function createApprovalAuth(wallet: WalletInterface) {
 	let approved: false | number | true = false
 	let submitted = false
+	let currentRequest: { retryCounter?: number } | undefined
 	const guarded = new Proxy(wallet, {
 		get(target, property) {
 			if (property === 'createAction')
@@ -31,7 +32,12 @@ export function createApprovalAuth(wallet: WalletInterface) {
 							'Payment already submitted; reconcile wallet activity before retrying',
 						)
 					submitted = true
-					return target.createAction(...args)
+					const result = await target.createAction(...args)
+					// A verified 402 reached the approved wallet boundary. Permit its
+					// one paid send, but not stale-session replay of that send.
+					if (currentRequest?.retryCounter === 0)
+						currentRequest.retryCounter = 1
+					return result
 				}
 			if (property === 'signAction')
 				return async () => {
@@ -43,6 +49,9 @@ export function createApprovalAuth(wallet: WalletInterface) {
 	})
 	return {
 		auth: new AuthFetch(guarded),
+		prepareRequest: (config: { retryCounter?: number }) => {
+			currentRequest = config
+		},
 		authorizePayment: (satoshis?: number) => {
 			approved = satoshis ?? true
 		},
@@ -67,14 +76,23 @@ export async function requestWithApproval(
 		plainFetch: typeof fetch
 		confirmPayment: (message: string) => Promise<boolean>
 		authorizePayment?: (satoshis?: number) => void
+		prepareRequest?: (config: { retryCounter?: number }) => void
 	},
 ): Promise<Response | PaymentApprovalRequired> {
-	let res: Response
-	try {
-		res = await dependencies.auth.fetch(url, {
+	const send = () => {
+		const config = {
 			...init,
 			paymentRetryAttempts: 1,
-		})
+			...(init.method === 'GET' || init.method === 'HEAD'
+				? {}
+				: { retryCounter: 1 }),
+		}
+		dependencies.prepareRequest?.(config)
+		return dependencies.auth.fetch(url, config)
+	}
+	let res: Response
+	try {
+		res = await send()
 	} catch (error) {
 		if (error instanceof PaymentRequired) {
 			res = new Response(null, {
@@ -130,5 +148,5 @@ export async function requestWithApproval(
 		}
 	}
 	dependencies.authorizePayment?.(satoshis)
-	return dependencies.auth.fetch(url, { ...init, paymentRetryAttempts: 1 })
+	return send()
 }

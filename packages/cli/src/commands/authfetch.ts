@@ -107,7 +107,9 @@ export async function handleAuthfetchCommand(
 	})
 
 	try {
-		const { auth, authorizePayment } = createApprovalAuth(walletResult.wallet)
+		const { auth, authorizePayment, prepareRequest } = createApprovalAuth(
+			walletResult.wallet,
+		)
 		const init = {
 			method,
 			headers,
@@ -124,6 +126,7 @@ export async function handleAuthfetchCommand(
 			{
 				auth,
 				authorizePayment,
+				prepareRequest,
 				plainFetch: fetch,
 				confirmPayment: async (message) => {
 					const ok = await confirm({ message })
