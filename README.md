@@ -512,6 +512,24 @@ bun run --filter '@1sat/actions' build
 
 Dependency order for new code: `types` → `utils` → `client` → `templates` → `actions/wallet` → `sdk` → `examples`
 
+## Ecosystem alias lookup
+
+`EcosystemAliasClient` queries `ls_ecosystemalias` at the configured stack host.
+Use `alias`, `domain`, or an empty query (`{}` / skip+limit only). Optional `skip`
+(default 0, maximum 4294967295) and `limit` (default 100, maximum 500).
+
+```ts
+const page = await services.ecosystemAlias.lookup({
+  skip: 100,
+  limit: 100,
+})
+```
+
+Empty query lists every live claim (event `*`). Results preserve HeightScore /
+output-index order and include conflicting claims. Overlay peers still GASP.
+To continue, increase `skip` by the number of returned outputs; an empty page
+ends enumeration. The client does not accept `cursor` or `findAll`.
+
 ## Related
 
 - [1sat.market](https://1sat.market) — Ordinals marketplace and wallet
