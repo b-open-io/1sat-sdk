@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'bun:test'
-import type { WalletInterface } from '@bsv/sdk'
+import { Utils, type WalletInterface } from '@bsv/sdk'
 import {
 	createApprovalAuth,
 	requestWithApproval,
@@ -137,10 +137,12 @@ describe('authenticated request replay and payment approval', () => {
 			expect(state.authenticated).toHaveBeenNthCalledWith(1, url, {
 				...init,
 				paymentRetryAttempts: 1,
+				retryCounter: 1,
 			})
 			expect(state.authenticated).toHaveBeenNthCalledWith(2, url, {
 				...init,
 				paymentRetryAttempts: 1,
+				retryCounter: 1,
 			})
 			expect(state.plainFetch).not.toHaveBeenCalled()
 			expect(state.confirmPayment).toHaveBeenCalledTimes(yes ? 0 : 1)
@@ -236,3 +238,192 @@ describe('installed SDK payment enforcement', () => {
 		expect(f.createAction).toHaveBeenCalledTimes(1)
 	})
 })
+
+describe('installed SDK stale-session mutation recovery', () => {
+	for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+		test(`${method} cannot replay inside the real SDK`, async () => {
+			const guard = createApprovalAuth({} as WalletInterface)
+			const send = mock(async () => {
+				throw new Error('Session not found for nonce: stale')
+			})
+			const peer = {
+				pendingCertificateRequests: [],
+				identityKey: 'cached-identity',
+				peer: {
+					listenForGeneralMessages: () => 1,
+					stopListeningForGeneralMessages: () => {},
+					toPeer: send,
+				},
+			}
+			// Retain the simulated server across SDK session-cache deletion, so
+			// a recursive retry would perform and count another actual SDK send.
+			guard.auth.peers = new Proxy(
+				{},
+				{
+					get: () => peer,
+					deleteProperty: () => true,
+				},
+			) as typeof guard.auth.peers
+			await expect(
+				requestWithApproval(
+					url,
+					{ method, body: 'mutation' },
+					{ interactive: false },
+					{
+						...guard,
+						plainFetch: fetch,
+						confirmPayment: async () => false,
+					},
+				),
+			).rejects.toThrow('maximum number of retries')
+			expect(send).toHaveBeenCalledTimes(1)
+		})
+	}
+
+	test('only a successful approved payment restores one exhausted send', async () => {
+		const createAction = mock(async () => ({ tx: [1, 2, 3] }))
+		const key =
+			'0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'
+		const guard = createApprovalAuth({
+			getPublicKey: async () => ({ publicKey: key }),
+			createHmac: async () => ({ hmac: Array(32).fill(7) }),
+			createAction,
+		} as unknown as WalletInterface)
+		const config = { method: 'POST', paymentRetryAttempts: 1, retryCounter: 0 }
+		guard.prepareRequest(config)
+		const processor = Reflect.get(guard.auth, 'handlePaymentAndRetry') as (
+			url: string,
+			config: object,
+			response: Response,
+		) => Promise<Response>
+		const response = new Response(null, {
+			status: 402,
+			headers: {
+				'x-bsv-payment-version': '1.0',
+				'x-bsv-payment-satoshis-required': '25',
+				'x-bsv-auth-identity-key': key,
+				'x-bsv-payment-derivation-prefix': 'test-prefix',
+			},
+		})
+		await expect(
+			processor.call(guard.auth, url, config, response),
+		).rejects.toThrow('approval')
+		expect(config.retryCounter).toBe(0)
+		expect(createAction).not.toHaveBeenCalled()
+		guard.authorizePayment(25)
+		// The paid request takes the SDK's real fetch path; it fails at a stale
+		// session once, and must not silently send that paid mutation twice.
+		const send = mock(async () => {
+			throw new Error('Session not found for nonce: stale')
+		})
+		guard.auth.peers = new Proxy(
+			{},
+			{
+				get: () => ({
+					pendingCertificateRequests: [],
+					peer: {
+						listenForGeneralMessages: () => 1,
+						stopListeningForGeneralMessages: () => {},
+						toPeer: send,
+					},
+				}),
+				deleteProperty: () => true,
+			},
+		) as typeof guard.auth.peers
+		await expect(
+			processor.call(guard.auth, url, config, response),
+		).rejects.toThrow()
+		expect(createAction).toHaveBeenCalledTimes(1)
+		expect(send).toHaveBeenCalledTimes(1)
+	})
+})
+
+test('real SDK sends approved payment after the challenge, preserving the config budget', async () => {
+	const key =
+		'0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'
+	const createAction = mock(async () => ({ tx: [1, 2, 3] }))
+	const guard = createApprovalAuth({
+		getPublicKey: async () => ({ publicKey: key }),
+		createHmac: async () => ({ hmac: Array(32).fill(7) }),
+		createAction,
+	} as unknown as WalletInterface)
+	let listener: (key: string, payload: number[]) => void = () => {}
+	let sends = 0
+	const toPeer = mock(async (payload: number[]) => {
+		sends++
+		const paid = sends === 3
+		const writer = new Utils.Writer().write(payload.slice(0, 32))
+		writer.writeVarIntNum(paid ? 200 : 402)
+		const headers = paid
+			? {}
+			: {
+					'x-bsv-payment-version': '1.0',
+					'x-bsv-payment-satoshis-required': '25',
+					'x-bsv-payment-derivation-prefix': 'test-prefix',
+				}
+		writer.writeVarIntNum(Object.keys(headers).length)
+		for (const [name, value] of Object.entries(headers)) {
+			writer.writeVarIntNum(name.length).write(Utils.toArray(name))
+			writer.writeVarIntNum(value.length).write(Utils.toArray(value))
+		}
+		writer.writeVarIntNum(0)
+		listener(key, writer.toArray())
+	})
+	guard.auth.peers[new URL(url).origin] = {
+		pendingCertificateRequests: [],
+		identityKey: key,
+		peer: {
+			listenForGeneralMessages: (callback: typeof listener) => {
+				listener = callback
+				return 1
+			},
+			stopListeningForGeneralMessages: () => {},
+			toPeer,
+		} as never,
+	}
+	const result = await requestWithApproval(
+		url,
+		{ method: 'POST', body: 'mutation' },
+		{ yes: true, interactive: false },
+		{ ...guard, plainFetch: fetch, confirmPayment: async () => false },
+	)
+	expect(result.status).toBe(200)
+	expect(createAction).toHaveBeenCalledTimes(1)
+	expect(toPeer).toHaveBeenCalledTimes(3)
+})
+
+for (const method of ['GET', 'HEAD']) {
+	test(`${method} retains SDK stale-session recovery`, async () => {
+		const guard = createApprovalAuth({} as WalletInterface)
+		const send = mock(async () => {
+			throw new Error('Session not found for nonce: stale')
+		})
+		guard.auth.peers = new Proxy(
+			{},
+			{
+				get: () => ({
+					pendingCertificateRequests: [],
+					peer: {
+						listenForGeneralMessages: () => 1,
+						stopListeningForGeneralMessages: () => {},
+						toPeer: send,
+					},
+				}),
+				deleteProperty: () => true,
+			},
+		) as typeof guard.auth.peers
+		await expect(
+			requestWithApproval(
+				url,
+				{ method },
+				{ interactive: false },
+				{
+					...guard,
+					plainFetch: fetch,
+					confirmPayment: async () => false,
+				},
+			),
+		).rejects.toThrow('maximum number of retries')
+		expect(send).toHaveBeenCalledTimes(4)
+	})
+}

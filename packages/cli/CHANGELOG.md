@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.110
+
+### Fixed
+- Prevent SDK stale-session recovery from replaying signed writes. An explicitly approved payment permits one paid request; ambiguous writes require reconciliation.
+
 ## 0.0.109
 
 ### Fixed
