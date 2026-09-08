@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, renameSync, unlinkSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, unlinkSync } from 'node:fs'
 /**
  * Wallet lifecycle manager — multi-instance.
  *
@@ -9,13 +9,34 @@ import { existsSync, mkdirSync, renameSync, unlinkSync } from 'node:fs'
  */
 import type { Vault } from '@1sat/vault'
 import type { NodeWalletResult } from '@1sat/wallet-node'
-import { createNodeWallet } from '@1sat/wallet-node'
+import { StorageBunSqlite, createNodeWallet } from '@1sat/wallet-node'
 import { HD, Hash, Mnemonic, PrivateKey } from '@bsv/sdk'
 import { BAP } from 'bsv-bap'
 import { Utils } from 'electrobun/bun'
-import type { BalanceInfo, SyncEvent, WalletStatus } from '../shared/types'
+import type {
+	AccountInfo,
+	BalanceInfo,
+	SyncEvent,
+	WalletStatus,
+} from '../shared/types'
+import {
+	addAccount,
+	getAccount,
+	getFreshAccount,
+	removeAccount,
+} from './account-registry'
+import {
+	type AccountStorageLease,
+	acquireAccountStorageLease,
+	loadStorageIdentityKey,
+	loadWalletUserIdentityKey,
+	prepareStorageIdentityKey,
+	sweepStaleStorageIdentityFiles,
+	withStorageLifecycleLock,
+} from './storage-identity'
 import {
 	createDesktopVault,
+	getBuildChannel,
 	hasStoredKey,
 	protectRootKey,
 	removeStoredKey,
@@ -34,8 +55,11 @@ export interface WalletCallbacks {
 
 interface WalletInstance {
 	accountId: string
+	identityKey: string
+	rootIdentityKey: string
 	wallet: NodeWalletResult
 	callbacks: WalletCallbacks
+	storageLease: AccountStorageLease
 }
 
 // ============================================================================
@@ -46,6 +70,7 @@ let vault: Vault | undefined
 
 /** Map of running wallet instances, keyed by accountId */
 const wallets = new Map<string, WalletInstance>()
+const accountOperations = new Map<string, Promise<void>>()
 
 /**
  * Global status for the picker window (before any account is opened).
@@ -66,7 +91,11 @@ function getVault(): Vault {
 }
 
 function accountDir(accountId: string): string {
-	return `${Utils.paths.userData}/accounts/${accountId}`
+	return `${accountsRoot()}/${accountId}`
+}
+
+function accountsRoot(): string {
+	return `${Utils.paths.userData}/accounts`
 }
 
 function dbPath(accountId: string): string {
@@ -74,7 +103,34 @@ function dbPath(accountId: string): string {
 }
 
 function ensureAccountDir(accountId: string): void {
-	mkdirSync(accountDir(accountId), { recursive: true })
+	const path = accountDir(accountId)
+	mkdirSync(path, { recursive: true, mode: 0o700 })
+	chmodSync(path, 0o700)
+}
+
+async function withAccountSingleFlight<T>(
+	accountId: string,
+	operation: () => Promise<T>,
+): Promise<T> {
+	const previous = accountOperations.get(accountId) ?? Promise.resolve()
+	let release = () => {}
+	const gate = new Promise<void>((resolve) => {
+		release = resolve
+	})
+	const tail = previous.then(
+		() => gate,
+		() => gate,
+	)
+	accountOperations.set(accountId, tail)
+	await previous.catch(() => {})
+	try {
+		return await operation()
+	} finally {
+		release()
+		if (accountOperations.get(accountId) === tail) {
+			accountOperations.delete(accountId)
+		}
+	}
 }
 
 function deriveRootKey(mnemonic: string): PrivateKey {
@@ -90,7 +146,7 @@ export function deriveBapId(rootKeyWif: string): {
 	bapId: string
 	ids: string
 } {
-	const bap = new BAP(rootKeyWif)
+	const bap = new BAP({ rootPk: rootKeyWif })
 	const ids = bap.listIds()
 	if (ids.length === 0) {
 		const firstId = bap.newId()
@@ -110,6 +166,22 @@ export function computeAccountId(identityKey: string): string {
 		.slice(0, 4)
 		.map((b) => b.toString(16).padStart(2, '0'))
 		.join('')
+}
+
+function verifyAccountIdentity(accountId: string, identityKey: string): void {
+	if (
+		!/^[0-9a-f]{8}$/.test(accountId) ||
+		computeAccountId(identityKey) !== accountId
+	) {
+		throw new Error('Account ID does not match its wallet identity')
+	}
+}
+
+export function sweepStaleAccountStorageArtifacts(): Promise<number> {
+	const root = accountsRoot()
+	return withStorageLifecycleLock(root, () =>
+		sweepStaleStorageIdentityFiles(root),
+	)
 }
 
 /** Push balance for a specific account's wallet. */
@@ -217,6 +289,156 @@ export function getOpenAccountIds(): string[] {
 	return Array.from(wallets.keys())
 }
 
+interface InstallAccountKeyResult {
+	instance?: WalletInstance
+	newlyOpened: boolean
+}
+
+async function installAccountKeyUnlocked(args: {
+	accountId: string
+	identityKey: string
+	rootKey: PrivateKey
+	callbacks?: WalletCallbacks
+	openWallet: boolean
+	storageLease?: AccountStorageLease
+}): Promise<InstallAccountKeyResult> {
+	const {
+		accountId,
+		identityKey,
+		rootKey,
+		callbacks = {},
+		openWallet,
+		storageLease,
+	} = args
+	verifyAccountIdentity(accountId, identityKey)
+	const rootIdentityKey = rootKey.toPublicKey().toString()
+	const existing = wallets.get(accountId)
+	if (existing) {
+		if (
+			existing.identityKey !== identityKey ||
+			existing.rootIdentityKey !== rootIdentityKey
+		) {
+			throw new Error('Open wallet does not match the requested account key')
+		}
+		throw new Error('Wallet account is already open')
+	}
+
+	ensureAccountDir(accountId)
+	const databasePath = dbPath(accountId)
+	const storageIdentityKey = await prepareStorageIdentityKey(
+		databasePath,
+		async (stagedDatabasePath, stagedStorageIdentityKey) => {
+			const stagedWallet = await createNodeWallet({
+				privateKey: rootKey.toWif(),
+				chain: 'main',
+				storageIdentityKey: stagedStorageIdentityKey,
+				storage: { provider: 'bun-sqlite', filename: stagedDatabasePath },
+				skipInitialMonitor: true,
+			})
+			try {
+				const stagedStorage = stagedWallet.getActiveStorage()
+				if (!(stagedStorage instanceof StorageBunSqlite)) {
+					throw new Error('Staged wallet did not use SQLite storage')
+				}
+				stagedStorage.db.run('PRAGMA wal_checkpoint(TRUNCATE)')
+				const row = stagedStorage.db
+					.query<{ journal_mode: string }, []>('PRAGMA journal_mode = DELETE')
+					.get()
+				if (row?.journal_mode.toLowerCase() !== 'delete') {
+					throw new Error('Could not checkpoint staged wallet database')
+				}
+			} finally {
+				await stagedWallet.destroy()
+			}
+		},
+	)
+
+	if (loadWalletUserIdentityKey(databasePath) !== rootIdentityKey) {
+		throw new Error('Wallet database belongs to a different root key')
+	}
+
+	await protectRootKey(
+		getVault(),
+		accountId,
+		rootKey.toHex(),
+		identityKey,
+		rootIdentityKey,
+	)
+
+	if (!openWallet) return { newlyOpened: false }
+	if (!storageLease) throw new Error('Wallet storage lease is required')
+
+	const walletResult = await createNodeWallet({
+		privateKey: rootKey.toWif(),
+		chain: 'main',
+		storageIdentityKey,
+		storage: { provider: 'bun-sqlite', filename: databasePath },
+	})
+	chmodSync(databasePath, 0o600)
+
+	const instance: WalletInstance = {
+		accountId,
+		identityKey,
+		rootIdentityKey,
+		wallet: walletResult,
+		callbacks,
+		storageLease,
+	}
+	wallets.set(accountId, instance)
+	wireMonitorEvents(instance)
+	return { instance, newlyOpened: true }
+}
+
+export async function installImportedAccount(args: {
+	rootKey: PrivateKey
+	identityKey?: string
+	displayName: string
+	color: string
+	createdAt?: string
+}): Promise<{ account: AccountInfo; alreadyImported: boolean }> {
+	const identityKey = args.identityKey ?? args.rootKey.toPublicKey().toString()
+	const accountId = computeAccountId(identityKey)
+	return withAccountSingleFlight(accountId, async () => {
+		const firstExisting = await getFreshAccount(accountId)
+		if (firstExisting) {
+			if (firstExisting.identityKey !== identityKey) {
+				throw new Error('Registered account does not match the requested key')
+			}
+			return { account: firstExisting, alreadyImported: true }
+		}
+
+		const storageLease = acquireAccountStorageLease(accountsRoot(), accountId)
+		try {
+			const existing = await getFreshAccount(accountId)
+			if (existing) {
+				if (existing.identityKey !== identityKey) {
+					throw new Error('Registered account does not match the requested key')
+				}
+				return { account: existing, alreadyImported: true }
+			}
+
+			await installAccountKeyUnlocked({
+				accountId,
+				identityKey,
+				rootKey: args.rootKey,
+				openWallet: false,
+			})
+			const account: AccountInfo = {
+				id: accountId,
+				identityKey,
+				displayName: args.displayName,
+				color: args.color,
+				createdAt: args.createdAt ?? new Date().toISOString(),
+				lastUsedAt: new Date().toISOString(),
+			}
+			await addAccount(account)
+			return { account, alreadyImported: false }
+		} finally {
+			storageLease.release()
+		}
+	})
+}
+
 /**
  * Create a new wallet from a mnemonic.
  * Returns the identity public key and BAP ID for registry purposes.
@@ -226,42 +448,83 @@ export async function create(
 	mnemonic: string,
 	_passphrase: string,
 	callbacks: WalletCallbacks = {},
-): Promise<{ identityKey: string; bapId: string }> {
-	const v = getVault()
+	accountOptions: {
+		displayName?: string
+		color?: string
+		createdAt?: string
+	} = {},
+): Promise<{
+	account: AccountInfo
+	alreadyCreated: boolean
+	identityKey: string
+	bapId: string
+}> {
 	const rootKey = deriveRootKey(mnemonic)
-	const rootKeyHex = rootKey.toHex()
 	const identityKey = rootKey.toPublicKey().toString()
 	const { bapId } = deriveBapId(rootKey.toWif())
+	const result = await withAccountSingleFlight(accountId, async () => {
+		const firstExisting = await getFreshAccount(accountId)
+		if (firstExisting) {
+			if (firstExisting.identityKey !== identityKey) {
+				throw new Error('Registered account does not match the requested key')
+			}
+			return { account: firstExisting, alreadyCreated: true }
+		}
 
-	await protectRootKey(v, accountId, rootKeyHex)
-	ensureAccountDir(accountId)
-
-	const walletResult = await createNodeWallet({
-		privateKey: rootKey.toWif(),
-		chain: 'main',
-		storageIdentityKey: `1sat-wallet:${identityKey}`,
-		storage: { provider: 'bun-sqlite', filename: dbPath(accountId) },
+		const storageLease = acquireAccountStorageLease(accountsRoot(), accountId)
+		let leaseTransferred = false
+		try {
+			const existingAccount = await getFreshAccount(accountId)
+			if (existingAccount) {
+				if (existingAccount.identityKey !== identityKey) {
+					throw new Error('Registered account does not match the requested key')
+				}
+				return { account: existingAccount, alreadyCreated: true }
+			}
+			const { instance, newlyOpened } = await installAccountKeyUnlocked({
+				accountId,
+				identityKey,
+				rootKey,
+				callbacks,
+				openWallet: true,
+				storageLease,
+			})
+			leaseTransferred = Boolean(instance)
+			const now = new Date().toISOString()
+			const account: AccountInfo = {
+				id: accountId,
+				identityKey,
+				bapId,
+				displayName: accountOptions.displayName ?? bapId.slice(0, 12),
+				color: accountOptions.color ?? 'blue',
+				createdAt: accountOptions.createdAt ?? now,
+				lastUsedAt: now,
+			}
+			try {
+				await addAccount(account, true)
+			} catch (error) {
+				if (instance) {
+					await lockAccountUnlocked(accountId)
+					leaseTransferred = false
+				}
+				throw error
+			}
+			callbacks.onStatusChanged?.('unlocked')
+			if (newlyOpened) {
+				callbacks.onSyncEvent?.({
+					timestamp: Date.now(),
+					source: 'wallet',
+					level: 'success',
+					message: 'Wallet created',
+				})
+			}
+			if (instance) await pushBalance(instance)
+			return { account, alreadyCreated: false }
+		} finally {
+			if (!leaseTransferred) storageLease.release()
+		}
 	})
-
-	const instance: WalletInstance = {
-		accountId,
-		wallet: walletResult,
-		callbacks,
-	}
-	wallets.set(accountId, instance)
-
-	callbacks.onStatusChanged?.('unlocked')
-	wireMonitorEvents(instance)
-
-	callbacks.onSyncEvent?.({
-		timestamp: Date.now(),
-		source: 'wallet',
-		level: 'success',
-		message: 'Wallet created',
-	})
-
-	await pushBalance(instance)
-	return { identityKey, bapId }
+	return { ...result, identityKey, bapId }
 }
 
 /**
@@ -273,70 +536,104 @@ export async function unlock(
 	_passphrase: string,
 	callbacks: WalletCallbacks = {},
 ): Promise<void> {
-	// If already open, just update callbacks
-	if (wallets.has(accountId)) {
-		const existing = wallets.get(accountId)!
-		existing.callbacks = callbacks
-		callbacks.onStatusChanged?.('unlocked')
-		await pushBalance(existing)
-		return
-	}
+	await withAccountSingleFlight(accountId, async () => {
+		const existing = wallets.get(accountId)
+		if (existing) {
+			existing.callbacks = callbacks
+			callbacks.onStatusChanged?.('unlocked')
+			await pushBalance(existing)
+			return
+		}
 
-	const v = getVault()
-	const rootKeyHex = await retrieveRootKey(v, accountId)
-	const rootKey = PrivateKey.fromHex(rootKeyHex)
-	const identityKey = rootKey.toPublicKey().toString()
+		const account = getAccount(accountId)
+		if (!account) throw new Error('Account not found')
+		verifyAccountIdentity(accountId, account.identityKey)
+		const storageLease = acquireAccountStorageLease(accountsRoot(), accountId)
+		let leaseTransferred = false
+		try {
+			const { rootKeyHex, rootIdentityKey: storedRootIdentityKey } =
+				await retrieveRootKey(getVault(), accountId, account.identityKey)
+			const rootKey = PrivateKey.fromHex(rootKeyHex)
+			const rootIdentityKey = rootKey.toPublicKey().toString()
+			if (
+				storedRootIdentityKey
+					? storedRootIdentityKey !== rootIdentityKey
+					: account.identityKey !== rootIdentityKey
+			) {
+				throw new Error('Vault root key does not match the wallet identity')
+			}
 
-	ensureAccountDir(accountId)
+			ensureAccountDir(accountId)
+			const databasePath = dbPath(accountId)
+			const storageIdentityKey = loadStorageIdentityKey(databasePath)
+			if (loadWalletUserIdentityKey(databasePath) !== rootIdentityKey) {
+				throw new Error('Wallet database belongs to a different root key')
+			}
 
-	const walletResult = await createNodeWallet({
-		privateKey: rootKey.toWif(),
-		chain: 'main',
-		storageIdentityKey: `1sat-wallet:${identityKey}`,
-		storage: { provider: 'bun-sqlite', filename: dbPath(accountId) },
+			const walletResult = await createNodeWallet({
+				privateKey: rootKey.toWif(),
+				chain: 'main',
+				storageIdentityKey,
+				storage: { provider: 'bun-sqlite', filename: databasePath },
+			})
+			chmodSync(databasePath, 0o600)
+
+			const instance: WalletInstance = {
+				accountId,
+				identityKey: account.identityKey,
+				rootIdentityKey,
+				wallet: walletResult,
+				callbacks,
+				storageLease,
+			}
+			wallets.set(accountId, instance)
+			leaseTransferred = true
+			callbacks.onStatusChanged?.('unlocked')
+			wireMonitorEvents(instance)
+			callbacks.onSyncEvent?.({
+				timestamp: Date.now(),
+				source: 'wallet',
+				level: 'success',
+				message: 'Wallet unlocked via Touch ID',
+			})
+			callbacks.onSyncEvent?.({
+				timestamp: Date.now(),
+				source: 'wallet',
+				level: 'log',
+				message: 'Monitor started',
+			})
+			await pushBalance(instance)
+		} finally {
+			if (!leaseTransferred) storageLease.release()
+		}
 	})
-
-	const instance: WalletInstance = {
-		accountId,
-		wallet: walletResult,
-		callbacks,
-	}
-	wallets.set(accountId, instance)
-
-	callbacks.onStatusChanged?.('unlocked')
-	wireMonitorEvents(instance)
-
-	callbacks.onSyncEvent?.({
-		timestamp: Date.now(),
-		source: 'wallet',
-		level: 'success',
-		message: 'Wallet unlocked via Touch ID',
-	})
-
-	callbacks.onSyncEvent?.({
-		timestamp: Date.now(),
-		source: 'wallet',
-		level: 'log',
-		message: 'Monitor started',
-	})
-
-	await pushBalance(instance)
 }
 
 /**
  * Lock a specific account's wallet — destroys the in-memory instance.
  */
 export async function lockAccount(accountId: string): Promise<void> {
+	await withAccountSingleFlight(accountId, () => lockAccountUnlocked(accountId))
+}
+
+async function lockAccountUnlocked(
+	accountId: string,
+	retainStorageLease = false,
+): Promise<AccountStorageLease | undefined> {
 	const instance = wallets.get(accountId)
 	if (instance) {
-		instance.callbacks.onSyncEvent?.({
-			timestamp: Date.now(),
-			source: 'wallet',
-			level: 'log',
-			message: 'Wallet locked',
-		})
+		try {
+			instance.callbacks.onSyncEvent?.({
+				timestamp: Date.now(),
+				source: 'wallet',
+				level: 'log',
+				message: 'Wallet locked',
+			})
+		} catch {}
 		await instance.wallet.destroy()
 		wallets.delete(accountId)
+		if (retainStorageLease) return instance.storageLease
+		instance.storageLease.release()
 	}
 }
 
@@ -344,9 +641,11 @@ export async function lockAccount(accountId: string): Promise<void> {
  * Lock all wallets (used during shutdown).
  */
 export async function lockAll(): Promise<void> {
-	for (const [accountId, instance] of wallets) {
-		await instance.wallet.destroy()
-		wallets.delete(accountId)
+	const accountIds = new Set([...wallets.keys(), ...accountOperations.keys()])
+	for (const accountId of accountIds) {
+		await withAccountSingleFlight(accountId, () =>
+			lockAccountUnlocked(accountId),
+		)
 	}
 	setGlobalStatus('account-selection')
 }
@@ -355,36 +654,39 @@ export async function lockAll(): Promise<void> {
  * Delete a specific account's wallet — removes the vault entry and the SQLite DB.
  */
 export async function deleteWallet(accountId: string): Promise<void> {
-	// Close wallet if running
-	if (wallets.has(accountId)) {
-		await lockAccount(accountId)
-	}
+	await withAccountSingleFlight(accountId, async () => {
+		const retainedLease = await lockAccountUnlocked(accountId, true)
+		const storageLease =
+			retainedLease ?? acquireAccountStorageLease(accountsRoot(), accountId)
+		try {
+			await getFreshAccount(accountId)
 
-	const v = getVault()
-	try {
-		await removeStoredKey(v, accountId)
-	} catch {
-		// Key may not exist
-	}
+			const v = getVault()
+			if (hasStoredKey(v, accountId)) await removeStoredKey(v, accountId)
 
-	const dir = accountDir(accountId)
-	const path = dbPath(accountId)
+			const dir = accountDir(accountId)
+			const path = dbPath(accountId)
 
-	for (const suffix of ['', '-wal', '-shm']) {
-		const filePath = `${path}${suffix}`
-		if (existsSync(filePath)) {
-			unlinkSync(filePath)
+			for (const suffix of ['', '-wal', '-shm']) {
+				const filePath = `${path}${suffix}`
+				if (existsSync(filePath)) {
+					unlinkSync(filePath)
+				}
+			}
+
+			try {
+				if (existsSync(dir)) {
+					const { rmdirSync } = await import('node:fs')
+					rmdirSync(dir)
+				}
+			} catch {
+				// Directory may not be empty
+			}
+			await removeAccount(accountId)
+		} finally {
+			storageLease.release()
 		}
-	}
-
-	try {
-		if (existsSync(dir)) {
-			const { rmdirSync } = await import('node:fs')
-			rmdirSync(dir)
-		}
-	} catch {
-		// Directory may not be empty
-	}
+	})
 }
 
 // ============================================================================
@@ -449,52 +751,14 @@ export function getLegacyCallbacks(): WalletCallbacks {
 	}
 }
 
-// ============================================================================
-// Migration: single-account → multi-account
-// ============================================================================
-
-export async function migrateLegacyWallet(
-	legacyLabel: string,
-): Promise<{ accountId: string; identityKey: string } | null> {
-	const v = getVault()
-	const secrets = v.listSecrets()
-	const hasLegacy = secrets.some((s) => s.label === legacyLabel)
-	if (!hasLegacy) return null
-
-	const { plaintext: rootKeyHex } = await v.unlockSecret(legacyLabel)
-	const rootKey = PrivateKey.fromHex(rootKeyHex)
-	const identityKey = rootKey.toPublicKey().toString()
-	const accountId = computeAccountId(identityKey)
-
-	await protectRootKey(v, accountId, rootKeyHex)
-
-	const oldDbPath = `${Utils.paths.userData}/wallet.db`
-	const newDir = accountDir(accountId)
-	mkdirSync(newDir, { recursive: true })
-
-	for (const suffix of ['', '-wal', '-shm']) {
-		const src = `${oldDbPath}${suffix}`
-		if (existsSync(src)) {
-			renameSync(src, `${newDir}/wallet.db${suffix}`)
-		}
-	}
-
-	await v.removeSecret(legacyLabel)
-
-	return { accountId, identityKey }
-}
-
 /**
  * Recover orphaned accounts — vault entries that match the pattern
  * but have no registry entry.
  */
 export async function recoverOrphanedAccounts(): Promise<number> {
-	const { addAccount, getAccount } = await import('./account-registry')
-	const { getBuildChannel } = await import('./vault-manager')
-
 	const v = getVault()
 	const channel = getBuildChannel()
-	const prefix = 'g1sat-wallet-'
+	const prefix = '1sat-wallet-'
 	const suffix = `-${channel}`
 	const secrets = v.listSecrets()
 	let recovered = 0
@@ -505,25 +769,47 @@ export async function recoverOrphanedAccounts(): Promise<number> {
 		if (secret.label === `1sat-wallet-root-key-${channel}`) continue
 
 		const accountId = secret.label.slice(prefix.length, -suffix.length)
-		if (!accountId || getAccount(accountId)) continue
+		if (!/^[0-9a-f]{8}$/.test(accountId)) continue
 
 		try {
-			const { plaintext: rootKeyHex } = await v.unlockSecret(secret.label)
-			const rootKey = PrivateKey.fromHex(rootKeyHex)
-			const identityKey = rootKey.toPublicKey().toString()
+			if (await getFreshAccount(accountId)) continue
+			const storageLease = acquireAccountStorageLease(accountsRoot(), accountId)
+			try {
+				if (await getFreshAccount(accountId)) continue
+				const databasePath = dbPath(accountId)
+				loadStorageIdentityKey(databasePath)
+				const { plaintext: rootKeyHex } = await v.unlockSecret(secret.label)
+				const rootKey = PrivateKey.fromHex(rootKeyHex)
+				const rootIdentityKey = rootKey.toPublicKey().toString()
+				if (loadWalletUserIdentityKey(databasePath) !== rootIdentityKey) {
+					throw new Error('Wallet database belongs to a different root key')
+				}
 
-			addAccount({
-				id: accountId,
-				identityKey,
-				displayName: 'Account 1',
-				color: 'amber',
-				createdAt: new Date().toISOString(),
-				lastUsedAt: new Date().toISOString(),
-			})
+				const identityKey = secret.metadata?.identityKey ?? rootIdentityKey
+				if (
+					secret.metadata &&
+					(secret.metadata.accountId !== accountId ||
+						secret.metadata.rootIdentityKey !== rootIdentityKey)
+				) {
+					throw new Error('Vault metadata does not match the recovered account')
+				}
+				verifyAccountIdentity(accountId, identityKey)
 
-			const { setLastActiveAccountId } = await import('./account-registry')
-			setLastActiveAccountId(accountId)
-			recovered++
+				await addAccount(
+					{
+						id: accountId,
+						identityKey,
+						displayName: 'Account 1',
+						color: 'amber',
+						createdAt: new Date().toISOString(),
+						lastUsedAt: new Date().toISOString(),
+					},
+					true,
+				)
+				recovered++
+			} finally {
+				storageLease.release()
+			}
 		} catch {
 			// Touch ID cancelled or key unreadable
 		}

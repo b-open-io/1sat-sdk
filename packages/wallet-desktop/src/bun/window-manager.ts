@@ -7,7 +7,7 @@
 import { BrowserView, BrowserWindow } from 'electrobun/bun'
 import { createLogger } from 'evlog'
 import type { WalletDesktopRPC } from '../shared/types'
-import { setLastActiveAccountId, touchAccount } from './account-registry'
+import { activateAccount } from './account-registry'
 import { createRpcHandlers } from './rpc-handlers'
 import {
 	type WalletCallbacks,
@@ -78,8 +78,7 @@ export async function openAccountWindow(accountId: string): Promise<boolean> {
 		const callbacks = getLegacyCallbacks()
 
 		await unlock(accountId, '', callbacks)
-		touchAccount(accountId)
-		setLastActiveAccountId(accountId)
+		await activateAccount(accountId)
 
 		// Push unlocked status immediately (DOM is already ready)
 		try {
@@ -177,8 +176,7 @@ export async function openAccountWindow(accountId: string): Promise<boolean> {
 
 	try {
 		await unlock(accountId, '', callbacks)
-		touchAccount(accountId)
-		setLastActiveAccountId(accountId)
+		await activateAccount(accountId)
 
 		win.webview.on('dom-ready', () => {
 			try {

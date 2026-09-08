@@ -29,6 +29,12 @@ The app runs as three cooperating processes:
 
 Private keys never leave the Bun process. The WebView communicates exclusively through typed RPC -- it cannot access keys, the vault, or the wallet instance directly.
 
+Each account database also owns a random local storage-provider identity. It is
+generated independently of the wallet identity, persisted only in that
+database's Wallet Toolbox `settings` row, and reused on unlock. The account
+directory is owner-only, and this provider identity is not exposed through the
+WebView/config RPC or used as the shared wallet identity.
+
 ## Features
 
 - Three-panel desktop layout (sidebar nav, content area, wallet panel) with keyboard shortcuts
