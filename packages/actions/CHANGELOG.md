@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Revision-bound trade sessions with reversible readiness, edit resets, attempt
+  binding, and conservative signature/broadcast recovery states.
+- Confirmed-trade wrappers enforce frozen offers and fee ceilings, require a
+  wallet-local evidence verifier, and keep local action references off the wire.
+- Atomic two-party settlement primitives for 1Sat Ordinal NFTs, BSV21, and
+  mixed swaps.
+- Deterministic BSV21 selection, final funded-transaction reconstruction,
+  permission-aware per-owner signing, and local script verification before
+  broadcast.
+- Conformance vectors for Ordinal NFT/BSV21, NFT-for-NFT, and multi-token
+  BSV21 exchanges.
+
+### Security
+- Reject malformed settlement status types at wallet trust boundaries.
+- Verify every returned unlocking script against the exact candidate
+  transaction.
+- Reject settlement signature bytes other than `0x41` before finalization and
+  enforce the single-signature unlocking forms supported by the local signer.
+- Bind transaction version, lock time, and all input sequences into the reviewed
+  manifest so changed candidates cannot pass the original review record.
+- Add regression coverage for every prohibited sighash byte, valid weak
+  signatures, transaction-field substitution, and PushDrop signing.
+
 ## 0.0.207
 
 ### Added
@@ -12,6 +38,7 @@
 
 ### Fixed
 - Align the BSV-21 cosign documentation and conformance test with the standard `[0, "onesat"]` protocol identifier.
+
 
 ### Changed
 - Picks up `@1sat/wallet@0.0.106`.

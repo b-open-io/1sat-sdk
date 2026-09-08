@@ -7,7 +7,7 @@
 // Export action types and helpers
 export { createContext, } from './types.js';
 // Export action registry
-export { ActionRegistry, actionRegistry } from './action-registry.js';
+export { ActionRegistry, actionRegistry, } from './action-registry.js';
 // Export constants
 export * from './constants.js';
 // P1Sat apply (base-wallet seal / validate; module re-exports dispatch)
@@ -45,6 +45,8 @@ export * from './opns/index.js';
 export * from './mnee/index.js';
 // Export cosign module (cosigner-validated BSV21 transfer actions)
 export * from './cosign/index.js';
+// Export atomic two-party ordinal + BSV21 settlement primitives.
+export * from './settlement/index.js';
 // Export sweep module (uses external signing, not action-based)
 export * from './sweep/index.js';
 // Export sync module

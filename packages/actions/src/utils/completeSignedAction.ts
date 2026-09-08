@@ -1,13 +1,12 @@
 import {
 	Beef,
 	type CreateActionResult,
-	Script,
 	type SignActionOptions,
 	type SignActionResult,
-	Spend,
 	Transaction,
 	type WalletInterface,
 } from '@bsv/sdk'
+import { assertValidInputUnlock } from './verifyInputUnlock.js'
 
 export interface CompleteSignedActionResult {
 	txid?: string
@@ -111,35 +110,13 @@ export async function completeSignedAction(
 		// Funding inputs are unsigned at this point — the wallet signs them during signAction.
 		for (const [idx, spend] of Object.entries(spends)) {
 			const i = Number(idx)
-			tx.inputs[i].unlockingScript = Script.fromHex(spend.unlockingScript)
-
-			const input = tx.inputs[i]
-			const sourceOutput =
-				input.sourceTransaction?.outputs[input.sourceOutputIndex]
-			if (!sourceOutput) {
+			try {
+				assertValidInputUnlock(tx, i, spend.unlockingScript)
+			} catch (error) {
 				await wallet.abortAction({ reference })
-				return { error: `missing-source-transaction-for-input-${i}` }
-			}
-
-			const unlockingScript = tx.inputs[i].unlockingScript!
-			const spendCheck = new Spend({
-				sourceTXID:
-					input.sourceTXID ?? input.sourceTransaction?.id('hex') ?? '',
-				sourceOutputIndex: input.sourceOutputIndex,
-				lockingScript: sourceOutput.lockingScript,
-				sourceSatoshis: sourceOutput.satoshis ?? 0,
-				transactionVersion: tx.version,
-				otherInputs: tx.inputs.filter((_, j) => j !== i),
-				unlockingScript,
-				inputSequence: input.sequence ?? 0xffffffff,
-				inputIndex: i,
-				outputs: tx.outputs,
-				lockTime: tx.lockTime,
-			})
-
-			if (!spendCheck.validate()) {
-				await wallet.abortAction({ reference })
-				return { error: `script-verification-failed-for-input-${i}` }
+				return {
+					error: error instanceof Error ? error.message : `invalid-input-${i}`,
+				}
 			}
 		}
 	} catch (error) {
