@@ -11,6 +11,7 @@ import {
 	type CreateActionOutput,
 	P2PKH,
 	PrivateKey,
+	SatoshisPerKilobyte,
 	Script,
 	Transaction,
 	Utils,
@@ -45,10 +46,7 @@ async function dispatchPlainPayment(
 	return { txid: result.txid, tx: toArray(result.tx) }
 }
 
-function isInsufficientFunds(error: unknown): boolean {
-	const msg = error instanceof Error ? error.message : String(error)
-	return /insufficient/i.test(msg)
-}
+const DEFAULT_SATS_PER_KB = 100
 
 async function listDefaultBasketSpendable(
 	wallet: WalletInterface,
@@ -73,6 +71,7 @@ async function listDefaultBasketSpendable(
 async function sweepFeeForUtxos(
 	destination: string,
 	utxos: Array<{ satoshis: number; outpoint: string }>,
+	satsPerKb: number,
 ): Promise<number> {
 	const p2pkh = new P2PKH()
 	const unlockingScriptTemplate = p2pkh.unlock(PrivateKey.fromRandom())
@@ -93,7 +92,7 @@ async function sweepFeeForUtxos(
 		})
 	}
 	tx.addOutput({ lockingScript: destScript, change: true })
-	await tx.fee()
+	await tx.fee(new SatoshisPerKilobyte(satsPerKb))
 	return tx.getFee()
 }
 
@@ -331,6 +330,8 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 export interface SendAllBsvInput extends ActionOptions {
 	/** Destination address to send all funds to */
 	destination: string
+	/** Satoshis per kilobyte. Default 100, matching toolbox/Yours storage.feeModel. */
+	satsPerKb?: number
 }
 
 /**
@@ -347,6 +348,10 @@ export const sendAllBsv: Action<SendAllBsvInput, SendBsvResponse> = {
 				destination: {
 					type: 'string',
 					description: 'Destination P2PKH address to send all funds to',
+				},
+				satsPerKb: {
+					type: 'integer',
+					description: 'Satoshis per kilobyte (default 100)',
 				},
 			},
 			required: ['destination'],
@@ -368,40 +373,37 @@ export const sendAllBsv: Action<SendAllBsvInput, SendBsvResponse> = {
 				return { error: 'insufficient-funds' }
 			}
 
-			const lockingScript = new P2PKH().lock(destination).toHex()
-			let fee = await sweepFeeForUtxos(destination, utxos)
-			let result: { txid?: string; tx?: number[] } | undefined
-			for (let attempt = 0; attempt < 20; attempt++) {
-				const satoshis = total - fee
-				if (satoshis <= 0) {
-					return { error: 'insufficient-funds' }
-				}
-				try {
-					result = await dispatchPlainPayment(
-						ctx.wallet,
-						{
-							description: 'Send all BSV',
-							outputs: [
-								{
-									lockingScript,
-									satoshis,
-									outputDescription: 'Sweep all funds',
-									tags: [],
-								},
-							],
-							options: { acceptDelayedBroadcast: false },
-						},
-						input.fundingProvider,
-					)
-					break
-				} catch (error) {
-					if (!isInsufficientFunds(error)) throw error
-					fee += 1
-				}
+			const satsPerKb = input.satsPerKb ?? DEFAULT_SATS_PER_KB
+			if (!Number.isFinite(satsPerKb) || satsPerKb < 1) {
+				return { error: 'invalid-fee-rate' }
 			}
 
-			if (!result?.txid) {
-				return { error: result ? 'no-txid-returned' : 'insufficient-funds' }
+			const lockingScript = new P2PKH().lock(destination).toHex()
+			const fee = await sweepFeeForUtxos(destination, utxos, satsPerKb)
+			const satoshis = total - fee
+			if (satoshis <= 0) {
+				return { error: 'insufficient-funds' }
+			}
+
+			const result = await dispatchPlainPayment(
+				ctx.wallet,
+				{
+					description: 'Send all BSV',
+					outputs: [
+						{
+							lockingScript,
+							satoshis,
+							outputDescription: 'Sweep all funds',
+							tags: [],
+						},
+					],
+					options: { acceptDelayedBroadcast: false },
+				},
+				input.fundingProvider,
+			)
+
+			if (!result.txid) {
+				return { error: 'no-txid-returned' }
 			}
 
 			if (ctx.debug && ctx.log) {
