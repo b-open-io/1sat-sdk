@@ -12,6 +12,7 @@ import {
 	Script,
 	Transaction,
 	Utils,
+	type WalletInterface,
 } from '@bsv/sdk'
 import type { FundingProvider } from '../funding/index.js'
 import { getP2pPaymentDestination, sendBeefP2P } from '../paymail.js'
@@ -42,11 +43,62 @@ async function dispatchPlainPayment(
 	return { txid: result.txid, tx: toArray(result.tx) }
 }
 
-/**
- * Magic constant that tells the wallet to send all available funds minus fees.
- * When an output has this satoshis value, it's adjusted to the maximum fundable amount.
- */
-const maxPossibleSatoshis = 2099999999999999
+const P2PKH_UNLOCKING_SCRIPT_LENGTH = 107
+const P2PKH_LOCKING_SCRIPT_LENGTH = 25
+
+function varUintSize(n: number): number {
+	if (n < 0xfd) return 1
+	if (n <= 0xffff) return 3
+	if (n <= 0xffffffff) return 5
+	return 9
+}
+
+function estimateSweepFee(inputCount: number): number {
+	const inputSize =
+		32 +
+		4 +
+		varUintSize(P2PKH_UNLOCKING_SCRIPT_LENGTH) +
+		P2PKH_UNLOCKING_SCRIPT_LENGTH +
+		4
+	const outputSize =
+		varUintSize(P2PKH_LOCKING_SCRIPT_LENGTH) + P2PKH_LOCKING_SCRIPT_LENGTH + 8
+	const size =
+		4 +
+		varUintSize(inputCount) +
+		inputCount * inputSize +
+		varUintSize(1) +
+		outputSize +
+		4
+	return Math.max(1, Math.ceil(size / 1000))
+}
+
+function isInsufficientFunds(error: unknown): boolean {
+	const msg = error instanceof Error ? error.message : String(error)
+	return /insufficient/i.test(msg)
+}
+
+async function sumDefaultBasketSpendable(
+	wallet: WalletInterface,
+): Promise<{ satoshis: number; count: number }> {
+	let offset = 0
+	let satoshis = 0
+	let count = 0
+	for (;;) {
+		const page = await wallet.listOutputs({
+			basket: 'default',
+			limit: 1000,
+			offset,
+		})
+		for (const output of page.outputs) {
+			if (output.spendable === false) continue
+			satoshis += output.satoshis
+			count++
+		}
+		offset += page.outputs.length
+		if (page.outputs.length === 0 || offset >= page.totalOutputs) break
+	}
+	return { satoshis, count }
+}
 
 // ============================================================================
 // Types
@@ -313,25 +365,45 @@ export const sendAllBsv: Action<SendAllBsvInput, SendBsvResponse> = {
 				}
 			}
 
-			const result = await dispatchPlainPayment(
-				ctx.wallet,
-				{
-					description: 'Send all BSV',
-					outputs: [
-						{
-							lockingScript: new P2PKH().lock(destination).toHex(),
-							satoshis: maxPossibleSatoshis,
-							outputDescription: 'Sweep all funds',
-							tags: [],
-						},
-					],
-					options: { acceptDelayedBroadcast: false },
-				},
-				input.fundingProvider,
-			)
+			const spendable = await sumDefaultBasketSpendable(ctx.wallet)
+			if (spendable.count === 0 || spendable.satoshis <= 0) {
+				return { error: 'insufficient-funds' }
+			}
 
-			if (!result.txid) {
-				return { error: 'no-txid-returned' }
+			const lockingScript = new P2PKH().lock(destination).toHex()
+			let fee = estimateSweepFee(spendable.count)
+			let result: { txid?: string; tx?: number[] } | undefined
+			for (let attempt = 0; attempt < 20; attempt++) {
+				const satoshis = spendable.satoshis - fee
+				if (satoshis <= 0) {
+					return { error: 'insufficient-funds' }
+				}
+				try {
+					result = await dispatchPlainPayment(
+						ctx.wallet,
+						{
+							description: 'Send all BSV',
+							outputs: [
+								{
+									lockingScript,
+									satoshis,
+									outputDescription: 'Sweep all funds',
+									tags: [],
+								},
+							],
+							options: { acceptDelayedBroadcast: false },
+						},
+						input.fundingProvider,
+					)
+					break
+				} catch (error) {
+					if (!isInsufficientFunds(error)) throw error
+					fee += 1
+				}
+			}
+
+			if (!result?.txid) {
+				return { error: result ? 'no-txid-returned' : 'insufficient-funds' }
 			}
 
 			if (ctx.debug && ctx.log) {

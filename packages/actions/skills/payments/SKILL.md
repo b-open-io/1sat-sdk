@@ -110,7 +110,7 @@ await sendBsv.execute(ctx, {
 
 ## sendAllBsv
 
-Sweep the wallet's entire spendable balance to a single destination address. **Single-phase** like `sendBsv`. Uses the wallet's max-fundable sentinel so the output is adjusted to all available funds minus fees.
+Sweep the wallet's entire spendable balance to a single destination address. **Single-phase** like `sendBsv`. Lists the `default` basket (same admin-only gate as getBalance), sums spendable satoshis, subtracts a fee estimate, and `createAction`s with that exact amount. A non-admin WPM originator fails with the default-basket admin-only error.
 
 ### Input
 
