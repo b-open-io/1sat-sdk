@@ -47,6 +47,44 @@ describe('sendAllBsv', () => {
 		expect(outputs[0].satoshis).not.toBe(2099999999999999)
 	})
 
+	test('satsPerKb changes the createAction amount', async () => {
+		const wallet = () => {
+			const createArgs: unknown[] = []
+			return {
+				createArgs,
+				wallet: mockWallet({
+					listOutputs: async () => ({
+						totalOutputs: 1,
+						outputs: [
+							{ satoshis: 100_000, spendable: true, outpoint: `${TXA}.0` },
+						],
+					}),
+					createAction: async (args) => {
+						createArgs.push(args)
+						return { txid: 'deadbeef', tx: [1] }
+					},
+				}),
+			}
+		}
+		const low = wallet()
+		const high = wallet()
+		await sendAllBsv.execute(createContext(low.wallet), {
+			destination: DEST,
+			satsPerKb: 1,
+		})
+		await sendAllBsv.execute(createContext(high.wallet), {
+			destination: DEST,
+			satsPerKb: 100,
+		})
+		const lowOut = (
+			low.createArgs[0] as { outputs: Array<{ satoshis: number }> }
+		).outputs[0].satoshis
+		const highOut = (
+			high.createArgs[0] as { outputs: Array<{ satoshis: number }> }
+		).outputs[0].satoshis
+		expect(lowOut).toBeGreaterThan(highOut)
+	})
+
 	test('surfaces default-basket admin-only errors', async () => {
 		const wallet = mockWallet({
 			listOutputs: async () => {
