@@ -305,6 +305,16 @@ export type {
 	SyncCosignDeliveriesResult,
 } from './syncCosignDeliveries.js'
 
+export {
+	ADDRESS_SYNC_TASK_NAME,
+	DEFAULT_ADDRESS_SYNC_INTERVAL_MS,
+	buildAddressSyncTask,
+} from './addressSyncTask.js'
+export type {
+	AddressSyncMonitorTask,
+	AddressSyncTaskOptions,
+} from './addressSyncTask.js'
+
 /** All sync actions for registry */
 export const syncActions = [syncAddresses, syncMessages, syncCosignDeliveries]
 
