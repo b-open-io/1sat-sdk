@@ -62,7 +62,6 @@ async function listDefaultBasketSpendable(
 			offset,
 		})
 		for (const output of page.outputs) {
-			if (output.spendable === false || !output.outpoint) continue
 			utxos.push({ satoshis: output.satoshis, outpoint: output.outpoint })
 		}
 		offset += page.outputs.length
