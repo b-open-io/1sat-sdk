@@ -221,6 +221,19 @@ const sync = await syncAddresses.execute(ctx, {
 // sync.addresses  — addresses that were synced
 ```
 
+```typescript
+import { buildAddressSyncTask, syncAddresses, createContext } from '@1sat/actions'
+
+const { wallet, monitor } = await createWebWallet({ ..., skipInitialMonitor: true })
+const ctx = createContext(wallet, { services })
+monitor.addTask(
+  buildAddressSyncTask(monitor, 60_000, {
+    run: () => syncAddresses.execute(ctx, { count: 5 }),
+  }),
+)
+monitor.runOnce().catch(console.error)
+```
+
 To derive addresses without syncing, use the `deriveDepositAddresses` action (same `prefix` / `startIndex` / `count` inputs), which returns `{ derivations: AddressDerivation[] }`.
 
 `ProcessedTxStoreIdb` (browser) and `ProcessedTxStoreSqlite` (Node/Bun) are selected automatically by `syncAddresses` based on the runtime — no fetcher/processor split is required.

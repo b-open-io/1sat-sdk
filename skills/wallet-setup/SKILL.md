@@ -201,7 +201,7 @@ The one schedule the factory does expose is `backupSyncIntervalMs` (core config,
 
 Syncing external payments to BRC-29 deposit addresses is not done by `@1sat/wallet` — it is the `syncAddresses` **action** in `@1sat/actions`, run against the wallet you created here. `@1sat/wallet` only exports the passive `AddressManager` helper (a lookup map of pre-derived addresses) and `BRC29_PROTOCOL_ID` / `AddressDerivation` from `./address-sync`. There is no `AddressSyncManager`, `AddressSyncQueueIdb`, `AddressSyncFetcher`, or `AddressSyncProcessor`.
 
-`syncAddresses` derives deposit addresses under the `P1SAT` protocol, pulls new outputs from the 1sat-stack indexer (triggering lazy indexing), classifies them through the indexer pipeline, and internalizes them into the wallet.
+`syncAddresses` derives deposit addresses under the `P1SAT` protocol, pulls new outputs from the 1sat-stack indexer (triggering lazy indexing), classifies them through the indexer pipeline, and internalizes them into the wallet. For a Monitor-driven schedule, `buildAddressSyncTask` in `@1sat/actions` is a duck-typed task; `addTask` it then `runOnce` (use `skipInitialMonitor` so boot `runOnce` does not race the extra task).
 
 ```typescript
 import { syncAddresses, createContext } from '@1sat/actions'
@@ -219,6 +219,19 @@ const sync = await syncAddresses.execute(ctx, {
 // sync.failed     — txs that failed to internalize
 // sync.lastScore  — reorg-safe score; pass as fromScore on the next call
 // sync.addresses  — addresses that were synced
+```
+
+```typescript
+import { buildAddressSyncTask, syncAddresses, createContext } from '@1sat/actions'
+
+const { wallet, monitor } = await createWebWallet({ ..., skipInitialMonitor: true })
+const ctx = createContext(wallet, { services })
+monitor.addTask(
+  buildAddressSyncTask(monitor, 60_000, {
+    run: () => syncAddresses.execute(ctx, { count: 5 }),
+  }),
+)
+monitor.runOnce().catch(console.error)
 ```
 
 To derive addresses without syncing, use the `deriveDepositAddresses` action (same `prefix` / `startIndex` / `count` inputs), which returns `{ derivations: AddressDerivation[] }`.
