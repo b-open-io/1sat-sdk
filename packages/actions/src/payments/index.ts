@@ -5,13 +5,16 @@
  */
 
 import { Inscription } from '@1sat/templates'
+import { parseOutpoint } from '@1sat/utils'
 import {
 	type CreateActionArgs,
 	type CreateActionOutput,
 	P2PKH,
+	PrivateKey,
 	Script,
 	Transaction,
 	Utils,
+	type WalletInterface,
 } from '@bsv/sdk'
 import type { FundingProvider } from '../funding/index.js'
 import { getP2pPaymentDestination, sendBeefP2P } from '../paymail.js'
@@ -42,11 +45,57 @@ async function dispatchPlainPayment(
 	return { txid: result.txid, tx: toArray(result.tx) }
 }
 
-/**
- * Magic constant that tells the wallet to send all available funds minus fees.
- * When an output has this satoshis value, it's adjusted to the maximum fundable amount.
- */
-const maxPossibleSatoshis = 2099999999999999
+function isInsufficientFunds(error: unknown): boolean {
+	const msg = error instanceof Error ? error.message : String(error)
+	return /insufficient/i.test(msg)
+}
+
+async function listDefaultBasketSpendable(
+	wallet: WalletInterface,
+): Promise<Array<{ satoshis: number; outpoint: string }>> {
+	const utxos: Array<{ satoshis: number; outpoint: string }> = []
+	let offset = 0
+	for (;;) {
+		const page = await wallet.listOutputs({
+			basket: 'default',
+			limit: 1000,
+			offset,
+		})
+		for (const output of page.outputs) {
+			utxos.push({ satoshis: output.satoshis, outpoint: output.outpoint })
+		}
+		offset += page.outputs.length
+		if (page.outputs.length === 0 || offset >= page.totalOutputs) break
+	}
+	return utxos
+}
+
+async function sweepFeeForUtxos(
+	destination: string,
+	utxos: Array<{ satoshis: number; outpoint: string }>,
+): Promise<number> {
+	const p2pkh = new P2PKH()
+	const unlockingScriptTemplate = p2pkh.unlock(PrivateKey.fromRandom())
+	const destScript = p2pkh.lock(destination)
+	const tx = new Transaction()
+	for (const utxo of utxos) {
+		const { txid, vout } = parseOutpoint(utxo.outpoint)
+		const source = new Transaction()
+		for (let i = 0; i < vout; i++) {
+			source.addOutput({ lockingScript: destScript, satoshis: 0 })
+		}
+		source.addOutput({ lockingScript: destScript, satoshis: utxo.satoshis })
+		tx.addInput({
+			sourceTXID: txid,
+			sourceOutputIndex: vout,
+			sourceTransaction: source,
+			unlockingScriptTemplate,
+		})
+	}
+	tx.addOutput({ lockingScript: destScript, change: true })
+	await tx.fee()
+	return tx.getFee()
+}
 
 // ============================================================================
 // Types
@@ -313,25 +362,46 @@ export const sendAllBsv: Action<SendAllBsvInput, SendBsvResponse> = {
 				}
 			}
 
-			const result = await dispatchPlainPayment(
-				ctx.wallet,
-				{
-					description: 'Send all BSV',
-					outputs: [
-						{
-							lockingScript: new P2PKH().lock(destination).toHex(),
-							satoshis: maxPossibleSatoshis,
-							outputDescription: 'Sweep all funds',
-							tags: [],
-						},
-					],
-					options: { acceptDelayedBroadcast: false },
-				},
-				input.fundingProvider,
-			)
+			const utxos = await listDefaultBasketSpendable(ctx.wallet)
+			const total = utxos.reduce((sum, u) => sum + u.satoshis, 0)
+			if (utxos.length === 0 || total <= 0) {
+				return { error: 'insufficient-funds' }
+			}
 
-			if (!result.txid) {
-				return { error: 'no-txid-returned' }
+			const lockingScript = new P2PKH().lock(destination).toHex()
+			let fee = await sweepFeeForUtxos(destination, utxos)
+			let result: { txid?: string; tx?: number[] } | undefined
+			for (let attempt = 0; attempt < 20; attempt++) {
+				const satoshis = total - fee
+				if (satoshis <= 0) {
+					return { error: 'insufficient-funds' }
+				}
+				try {
+					result = await dispatchPlainPayment(
+						ctx.wallet,
+						{
+							description: 'Send all BSV',
+							outputs: [
+								{
+									lockingScript,
+									satoshis,
+									outputDescription: 'Sweep all funds',
+									tags: [],
+								},
+							],
+							options: { acceptDelayedBroadcast: false },
+						},
+						input.fundingProvider,
+					)
+					break
+				} catch (error) {
+					if (!isInsufficientFunds(error)) throw error
+					fee += 1
+				}
+			}
+
+			if (!result?.txid) {
+				return { error: result ? 'no-txid-returned' : 'insufficient-funds' }
 			}
 
 			if (ctx.debug && ctx.log) {
