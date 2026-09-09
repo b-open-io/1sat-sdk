@@ -37,6 +37,21 @@ Derives BRC-29 deposit addresses (default prefix `"1sat"`), streams new outputs 
 
 Use this on wallet mount or on a schedule to pick up payments sent to the wallet's deposit addresses from any device.
 
+To run it from the wallet Monitor (serialized with BackupSync), add a duck-typed task then `runOnce`. Skip the factory boot `runOnce` (`skipInitialMonitor`) so the task is registered first:
+
+```typescript
+import { buildAddressSyncTask, syncAddresses, createContext } from '@1sat/actions'
+
+const { wallet, monitor } = await createWebWallet({ ..., skipInitialMonitor: true })
+const ctx = createContext(wallet, { services })
+monitor.addTask(
+  buildAddressSyncTask(monitor, 60_000, {
+    run: () => syncAddresses.execute(ctx, { count: 5 }),
+  }),
+)
+monitor.runOnce().catch(console.error)
+```
+
 ```typescript
 import { createContext, syncAddresses } from '@1sat/actions'
 
