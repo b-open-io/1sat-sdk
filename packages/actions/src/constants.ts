@@ -38,8 +38,11 @@ export {
 	ORD_LOCK_PREFIX,
 	ORD_LOCK_SUFFIX,
 	ONESAT_PROTOCOL,
+	LEGACY_ONESAT_PROTOCOL,
 	P1SAT_MODULE_PROTOCOL,
 	P1SAT_PROTOCOL,
 	WOC_MAINNET_URL,
 	WOC_TESTNET_URL,
 } from '@1sat/types'
+
+export type { KeyDerivation } from '@1sat/types'

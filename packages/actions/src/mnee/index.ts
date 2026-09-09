@@ -3,8 +3,9 @@
  *
  * Actions for querying and transferring MNEE stablecoin.
  * Uses the MNEE API for balance/UTXO queries and transaction submission.
- * Addresses are derived from the wallet's default P1SAT deposit prefix
- * (`DEFAULT_DEPOSIT_PREFIX = "1sat"`, indices 0-4).
+ * Source keys are supplied as {@link KeyDerivation} records so the correct
+ * BRC-42 protocol is used for both address lookup and signing (legacy
+ * `[0, 'p 1sat']` and current `[0, 'onesat']` addresses can coexist).
  */
 
 import type {
@@ -15,7 +16,7 @@ import type {
 	MneeUtxo,
 } from '@1sat/client'
 import { Cosign, Inscription as InscriptionTemplate } from '@1sat/templates'
-import { type AddressDerivation, P1SAT_PROTOCOL } from '@1sat/types'
+import type { KeyDerivation } from '@1sat/types'
 import {
 	Hash,
 	LockingScript,
@@ -26,6 +27,8 @@ import {
 	TransactionSignature,
 	UnlockingScript,
 	Utils,
+	type WalletCounterparty,
+	type WalletProtocol,
 } from '@bsv/sdk'
 import type { Action, OneSatContext } from '../types.js'
 
@@ -33,16 +36,42 @@ import type { Action, OneSatContext } from '../types.js'
 // Helpers
 // ============================================================================
 
-/** Build a map of address → BRC-29 keyID for signing */
-function buildAddressKeyMap(
-	derivations: AddressDerivation[],
-): Map<string, string> {
-	const map = new Map<string, string>()
+/** A KeyDerivation resolved to the self-derived address it produces. */
+interface ResolvedDerivation {
+	address: string
+	protocolID: WalletProtocol
+	keyID: string
+	counterparty: WalletCounterparty
+}
+
+/**
+ * Resolve each caller-supplied {@link KeyDerivation} into the self-derived
+ * address it produces, alongside the exact signing triple. The SAME
+ * derivation feeds UTXO lookup (address) and signing, so the two can never
+ * drift across protocols (e.g. legacy `[0, 'p 1sat']` vs current
+ * `[0, 'onesat']`). MNEE keys are always self-derived (`forSelf: true`).
+ */
+async function resolveDerivations(
+	ctx: OneSatContext,
+	derivations: KeyDerivation[],
+): Promise<ResolvedDerivation[]> {
+	const out: ResolvedDerivation[] = []
 	for (const d of derivations) {
-		const keyID = `${d.derivationPrefix} ${d.derivationSuffix}`
-		map.set(d.address, keyID)
+		const counterparty = (d.counterparty ?? 'self') as WalletCounterparty
+		const { publicKey } = await ctx.wallet.getPublicKey({
+			protocolID: d.protocolID,
+			keyID: d.keyID,
+			counterparty,
+			forSelf: true,
+		})
+		out.push({
+			address: PublicKey.fromString(publicKey).toAddress(),
+			protocolID: d.protocolID,
+			keyID: d.keyID,
+			counterparty,
+		})
 	}
-	return map
+	return out
 }
 
 // ============================================================================
@@ -143,13 +172,14 @@ function parseInscriptionAmount(script: Script): number {
 	return 0
 }
 
-/** Sign a cosign input using BRC-29 key derivation */
+/** Sign a cosign input with the caller-resolved self key (any protocol). */
 async function signCosignInput(
 	ctx: OneSatContext,
 	tx: Transaction,
 	inputIndex: number,
-	keyID: string,
+	derivation: ResolvedDerivation,
 ): Promise<string> {
+	const { protocolID, keyID, counterparty } = derivation
 	const input = tx.inputs[inputIndex]
 	const sourceLockingScript =
 		input.sourceTransaction?.outputs[input.sourceOutputIndex]?.lockingScript
@@ -191,15 +221,16 @@ async function signCosignInput(
 	const sighash = Hash.sha256(Hash.sha256(preimage))
 
 	const { signature } = await ctx.wallet.createSignature({
-		protocolID: P1SAT_PROTOCOL,
+		protocolID,
 		keyID,
-		counterparty: 'self',
+		counterparty,
 		hashToDirectlySign: Array.from(sighash),
 	})
 
 	const { publicKey } = await ctx.wallet.getPublicKey({
-		protocolID: P1SAT_PROTOCOL,
+		protocolID,
 		keyID,
+		counterparty,
 		forSelf: true,
 	})
 
@@ -222,10 +253,14 @@ function getMneeClient(ctx: OneSatContext): MneeClient {
 // Types
 // ============================================================================
 
-export interface GetMneeBalanceInput {
-	/** Addresses to query for MNEE balance */
-	addresses: string[]
-}
+/**
+ * Balance query input. Either explicit addresses, or the caller's self-key
+ * derivations (resolved to addresses the same way `sendMnee` does, so balance
+ * and send always read the same set). Exactly one of the two is required.
+ */
+export type GetMneeBalanceInput =
+	| { addresses: string[]; derivations?: never }
+	| { derivations: KeyDerivation[]; addresses?: never }
 
 export interface MneeAddressBalance {
 	address: string
@@ -267,8 +302,13 @@ export interface GetMneeHistoryInput {
 export interface SendMneeInput {
 	/** Recipients */
 	recipients: Array<{ address: string; amount: number }>
-	/** Source address derivations (address + keyID for signing) */
-	derivations: AddressDerivation[]
+	/**
+	 * Source self-key derivations. Addresses are derived from these (so the
+	 * correct protocol is used for UTXO lookup) and the same triple signs each
+	 * matching input. Include every protocol the user's funds may live under
+	 * (e.g. {@link LEGACY_ONESAT_PROTOCOL} + {@link ONESAT_PROTOCOL}).
+	 */
+	derivations: KeyDerivation[]
 	/** Change address. If omitted, change goes back to the first input's address. */
 	changeAddress?: string
 }
@@ -408,13 +448,16 @@ function parseSyncToTxHistory(
 // ============================================================================
 
 /**
- * Get MNEE balance across all yours wallet addresses.
+ * Get MNEE balance. Query either explicit `addresses`, or the caller's self-key
+ * `derivations` (resolved to addresses the same way `sendMnee` does, so balance
+ * and send read the same set across legacy + current protocols).
  */
 export const getMneeBalance: Action<GetMneeBalanceInput, GetMneeBalanceResult> =
 	{
 		meta: {
 			name: 'getMneeBalance',
-			description: 'Get MNEE stablecoin balance across yours wallet addresses',
+			description:
+				'Get MNEE stablecoin balance by addresses or by self-key derivations',
 			category: 'payments',
 			requiresServices: true,
 			inputSchema: {
@@ -422,15 +465,30 @@ export const getMneeBalance: Action<GetMneeBalanceInput, GetMneeBalanceResult> =
 				properties: {
 					addresses: {
 						type: 'array',
+						description: 'Specific addresses to query',
+					},
+					derivations: {
+						type: 'array',
 						description:
-							'Specific addresses to query (omit to use yours wallet addresses)',
+							'Self-key derivations ({ protocolID, keyID }); resolved to addresses',
 					},
 				},
 			},
 		},
 		async execute(ctx, input) {
 			const mnee = getMneeClient(ctx)
-			const rawBalances = await mnee.getBalances(input.addresses)
+			let addresses: string[]
+			if (input.derivations) {
+				addresses = (await resolveDerivations(ctx, input.derivations)).map(
+					(d) => d.address,
+				)
+			} else if (input.addresses) {
+				addresses = input.addresses
+			} else {
+				throw new Error('getMneeBalance requires addresses or derivations')
+			}
+
+			const rawBalances = await mnee.getBalances(addresses)
 
 			const balances = rawBalances.map((b) => ({
 				address: b.address,
@@ -584,12 +642,6 @@ export interface SendMneeRecipient {
 	amount: number
 }
 
-export interface SendMneeInput {
-	recipients: SendMneeRecipient[]
-	/** Change address. If omitted, change goes back to the first input's address. */
-	changeAddress?: string
-}
-
 export interface SendMneeResult {
 	txid?: string
 	ticketId?: string
@@ -597,8 +649,9 @@ export interface SendMneeResult {
 }
 
 /**
- * Send MNEE stablecoin. Builds the transaction, signs with BRC-29 keys,
- * and submits to MNEE API for cosigner signature + broadcast.
+ * Send MNEE stablecoin. Builds the transaction, signs each cosign input with
+ * the caller-provided self-key derivation (using its own protocol), and submits
+ * to the MNEE API for cosigner signature + broadcast.
  */
 export const sendMnee: Action<SendMneeInput, SendMneeResult> = {
 	meta: {
@@ -612,6 +665,11 @@ export const sendMnee: Action<SendMneeInput, SendMneeResult> = {
 				recipients: {
 					type: 'array',
 					description: 'Recipients with address and amount in MNEE',
+				},
+				derivations: {
+					type: 'array',
+					description:
+						'Self-key derivations ({ protocolID, keyID }); source addresses are derived from these',
 				},
 				changeAddress: {
 					type: 'string',
@@ -629,9 +687,12 @@ export const sendMnee: Action<SendMneeInput, SendMneeResult> = {
 			if (!recipients.length) return { error: 'no-recipients' }
 			if (!derivations.length) return { error: 'no-derivations' }
 
-			// 1. Build address→keyID map from caller-provided derivations
-			const addresses = derivations.map((d) => d.address)
-			const addressKeyMap = buildAddressKeyMap(derivations)
+			// 1. Resolve derivations → self-derived addresses + signing triples
+			const resolved = await resolveDerivations(ctx, derivations)
+			const addresses = resolved.map((d) => d.address)
+			const addressKeyMap = new Map(
+				resolved.map((d) => [d.address, d] as const),
+			)
 
 			// 2. Get MNEE config
 			const config = await mnee.getConfig()
@@ -717,18 +778,20 @@ export const sendMnee: Action<SendMneeInput, SendMneeResult> = {
 				tx.addOutput(createInscriptionOutput(changeAddr, change, config))
 			}
 
-			// 10. Sign each input with the matching BRC-29 key
+			// 10. Sign each input with the matching self key (correct protocol)
 			for (let i = 0; i < tx.inputs.length; i++) {
 				const utxo = selectedUtxos[i]
 				const ownerAddress = utxo.owners?.[0]
-				const keyID = addressKeyMap.get(ownerAddress)
-				if (!keyID) {
+				const derivation = ownerAddress
+					? addressKeyMap.get(ownerAddress)
+					: undefined
+				if (!derivation) {
 					return {
-						error: `No key found for address ${ownerAddress} — not a yours wallet address`,
+						error: `No key found for address ${ownerAddress} — not a wallet address`,
 					}
 				}
 
-				const unlockingHex = await signCosignInput(ctx, tx, i, keyID)
+				const unlockingHex = await signCosignInput(ctx, tx, i, derivation)
 				tx.inputs[i].unlockingScript = UnlockingScript.fromHex(unlockingHex)
 			}
 

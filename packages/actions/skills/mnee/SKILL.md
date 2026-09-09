@@ -7,7 +7,9 @@ description: "This skill should be used when working with MNEE — the USD-pegge
 
 Query and transfer MNEE, the USD-pegged stablecoin on BSV, using `@1sat/actions`.
 
-MNEE outputs are cosign-locked BSV-20 inscriptions: a user-owned P2PKH check plus an MNEE approver (cosigner) signature. Sends are built and signed locally with BRC-29 keys, then submitted to the MNEE API which co-signs and broadcasts. Amounts in inputs/outputs are in **MNEE decimal** (e.g. `1.5` = $1.50); atomic units are `decimal * 100_000`.
+MNEE outputs are cosign-locked BSV-20 inscriptions: a user-owned P2PKH check plus an MNEE approver (cosigner) signature. Sends are built and signed locally with the caller-supplied BRC-42 self-key (`KeyDerivation`: `protocolID` + `keyID`, `counterparty` omitted → `'self'`), then submitted to the MNEE API which co-signs and broadcasts. Amounts in inputs/outputs are in **MNEE decimal** (e.g. `1.5` = $1.50); atomic units are `decimal * 100_000`.
+
+Funds deposited before the protocol rename live under `LEGACY_ONESAT_PROTOCOL` (`[0, 'p 1sat']`); new deposits use `ONESAT_PROTOCOL` (`[0, 'onesat']`). The same `keyID` under two protocols is two addresses. Pass **both** protocol sets into `sendMnee` / `getMneeBalance({ derivations })` or old funds are invisible and unspendable.
 
 All MNEE actions require `services` (they call `services.mnee`):
 
@@ -43,17 +45,21 @@ const config = await getMneeConfig.execute(ctx, {})
 
 ## getMneeBalance
 
-Returns per-address balances plus totals. Pass the addresses to query.
+Returns per-address balances plus totals. Pass **either** `addresses` **or** `derivations` (not both). `derivations` are resolved to addresses the same way `sendMnee` does, so balance and send read the same set.
 
 ```typescript
-import { createContext, getMneeBalance } from '@1sat/actions'
+import { createContext, getMneeBalance, LEGACY_ONESAT_PROTOCOL, ONESAT_PROTOCOL } from '@1sat/actions'
 
 const ctx = createContext(wallet, { services })
 
-// Input: GetMneeBalanceInput
+// Input: GetMneeBalanceInput = { addresses: string[] } | { derivations: KeyDerivation[] }
 const res = await getMneeBalance.execute(ctx, {
-  addresses: ['1A1zP1...', '1BvBMS...'],
+  derivations: [
+    { protocolID: ONESAT_PROTOCOL, keyID: '1sat 0' },
+    { protocolID: LEGACY_ONESAT_PROTOCOL, keyID: '1sat 0' },
+  ],
 })
+// or: getMneeBalance.execute(ctx, { addresses: ['1A1zP1...'] })
 
 // Result: GetMneeBalanceResult
 // {
@@ -156,12 +162,12 @@ const status = await getMneeTxStatus.execute(ctx, {
 
 ## sendMnee
 
-Builds the transfer transaction, selects MNEE UTXOs, signs each cosign input with the matching BRC-29 key, submits to the MNEE API for cosignature + broadcast, then polls until the txid is known.
+Builds the transfer transaction, selects MNEE UTXOs, signs each cosign input with the matching self key, submits to the MNEE API for cosignature + broadcast, then polls until the txid is known.
 
-You must supply `derivations` — the source `AddressDerivation` records (address + derivation prefix/suffix) the action uses to map each input's owner address to its signing keyID. Amounts are in MNEE decimal.
+You must supply `derivations: KeyDerivation[]` (`protocolID` + `keyID`; `counterparty` optional, defaults `'self'`). Addresses are derived from those triples — do not pass `AddressDerivation`. Amounts are in MNEE decimal.
 
 ```typescript
-import { createContext, sendMnee } from '@1sat/actions'
+import { createContext, sendMnee, LEGACY_ONESAT_PROTOCOL, ONESAT_PROTOCOL } from '@1sat/actions'
 
 const ctx = createContext(wallet, { services })
 
@@ -171,11 +177,8 @@ const result = await sendMnee.execute(ctx, {
     { address: '1Recipient...', amount: 1.5 }, // $1.50 in MNEE decimal
   ],
   derivations: [
-    {
-      address: '1Source...',
-      derivationPrefix: '...',
-      derivationSuffix: '...',
-    },
+    { protocolID: ONESAT_PROTOCOL, keyID: '1sat 0' },
+    { protocolID: LEGACY_ONESAT_PROTOCOL, keyID: '1sat 0' },
   ],
   changeAddress: '1Change...', // optional; defaults to first input's address
 })
@@ -190,7 +193,7 @@ const result = await sendMnee.execute(ctx, {
 
 `sendMnee` never throws; failures come back as `result.error`. Possible error strings include `no-recipients`, `no-derivations`, `failed-to-get-mnee-config`, `invalid-amount`, `fee-ranges-inadequate`, an `Insufficient MNEE. Have: … Need: …` message, `failed-to-fetch-source-tx: <txid>`, `no-ticket-id-returned`, and `timeout-waiting-for-txid` (in which case `ticketId` is returned so you can poll with `getMneeTxStatus`).
 
-Unlike the two-phase custom-script actions, `sendMnee` signs inline (BRC-29 cosign inputs submitted to the MNEE cosigner) and does not use `completeSignedAction`. For the general two-phase signing pattern see [../action-patterns](../action-patterns).
+Unlike the two-phase custom-script actions, `sendMnee` signs inline (cosign inputs submitted to the MNEE cosigner) and does not use `completeSignedAction`. For the general two-phase signing pattern see [../action-patterns](../action-patterns).
 
 ## Requirements
 
