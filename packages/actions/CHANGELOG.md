@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.208
+
+### Fixed
+- `sendAllBsv` lists the default basket and `createAction`s an exact amount from `Transaction.fee()` / `getFee()`, instead of the `maxPossibleSatoshis` sentinel that `WalletPermissionsManager` rejects.
+
 ## 0.0.207
 
 ### Added

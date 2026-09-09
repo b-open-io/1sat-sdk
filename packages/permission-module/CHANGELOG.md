@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.60
+
+### Changed
+- Picks up `@1sat/actions@0.0.208`.
+
 ## 0.0.59
 
 ### Changed
