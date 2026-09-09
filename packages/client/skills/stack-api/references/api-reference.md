@@ -135,60 +135,42 @@ Merkle proof bytes only.
 
 ---
 
-## Arcade (Broadcasting) Endpoints
+## Broadcast endpoints (Arcade wrap)
+
+Arcade-shaped routes under `/1sat/arcade`. Legacy `POST /1sat/tx` and `GET /1sat/tx/{txid}` remain. Batch `POST /txs` and SSE are not wrapped.
 
 ### POST /arcade/tx
 
-Broadcast a single BEEF transaction to the BSV network.
+Broadcast a single raw tx or BEEF. Stack captures BEEF, forwards to Arcade, waits for status.
 
 **Headers:** `Content-Type: application/octet-stream`
 
-**Body:** BEEF binary data
-
-**Response:**
-```json
-{
-  "txid": "abc123...",
-  "status": "ACCEPTED"
-}
-```
-
-**Statuses:** `ACCEPTED`, `SEEN_IN_ORPHAN_MEMPOOL`, `DOUBLE_SPEND_ATTEMPTED`, `REJECTED`
-
----
-
-### POST /arcade/txs
-
-Broadcast multiple BEEF transactions in one request.
-
-**Body:** Array of BEEF binary objects (JSON with base64 fields)
+**Body:** Raw transaction or BEEF bytes
 
 ---
 
 ### GET /arcade/tx/{txid}
 
-Check broadcast status of a transaction.
+Arcade broadcast status passthrough.
 
 ---
 
 ### GET /arcade/policy
 
-Returns fee rates and transaction limits.
+Passthrough of arcade `GET /policy` (mining fee and size limits).
 
 **Response:**
 ```json
 {
-  "feePerKb": 500,
-  "maxScriptSizePolicy": 1000000,
-  "maxTxSizePolicy": 10000000
+  "policy": {
+    "miningFee": { "satoshis": 100, "bytes": 1000 },
+    "maxtxsizepolicy": 10485760,
+    "maxscriptsizepolicy": 500000,
+    "standardFormatSupported": true
+  },
+  "timestamp": "2026-09-09T19:59:13Z"
 }
 ```
-
----
-
-### GET /arcade/events/{callbackToken}
-
-SSE stream of broadcast status updates for transactions associated with a callback token.
 
 ---
 

@@ -50,14 +50,15 @@ GET  /beef/{txid}/tx              Raw transaction bytes only
 GET  /beef/{txid}/proof           Merkle proof bytes only
 ```
 
-### Broadcasting (Arcade)
+### Broadcasting (Arcade wrap)
+
+Arcade-shaped routes under `/1sat/arcade`. Legacy `POST /tx` and `GET /tx/{txid}` remain. SSE and batch `/txs` are not wrapped.
 
 ```
-POST /arcade/tx                   Broadcast single BEEF transaction
-POST /arcade/txs                  Broadcast multiple BEEF transactions
-GET  /arcade/tx/{txid}            Check broadcast status
-GET  /arcade/policy               Fee rates and transaction limits
-GET  /arcade/events/{token}       SSE stream of broadcast status updates
+POST /arcade/tx                   Broadcast single tx/BEEF (wait for status)
+POST /arcade/txs                  Batch of concatenated raw txs (octet-stream)
+GET  /arcade/tx/{txid}            Broadcast status
+GET  /arcade/policy               Mining policy (fee + size limits)
 ```
 
 ### BSV21 Fungible Tokens

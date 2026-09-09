@@ -11,6 +11,7 @@ import {
 import { type TableOutput, sdk as toolboxSdk } from '@bsv/wallet-toolbox-client'
 
 const { WalletError } = toolboxSdk
+import type { ArcadePolicyResponse } from './ArcadeClient.js'
 import {
 	AdminClient,
 	ArcadeClient,
@@ -108,7 +109,7 @@ export class OneSatServices implements WalletServices {
 		this.bap = new BapClient(this.baseUrl, opts)
 		this.chaintracks = new ChaintracksClient(this.baseUrl, opts)
 		this.beef = new BeefClient(this.baseUrl, opts)
-		this.arcade = new ArcadeClient(this.baseUrl, opts)
+		this.arcade = new ArcadeClient(`${this.baseUrl}/1sat/arcade`, opts)
 		this.txo = new TxoClient(this.baseUrl, opts)
 		this.owner = new OwnerClient(this.baseUrl, opts)
 		this.ordfs = new OrdfsClient(this.baseUrl, opts)
@@ -234,27 +235,11 @@ export class OneSatServices implements WalletServices {
 		extraInfo?: string
 		competingTxs?: string[]
 	}> {
-		const bytes =
-			payload instanceof Uint8Array ? payload : new Uint8Array(payload)
-		const controller = new AbortController()
-		const timeoutId = setTimeout(() => controller.abort(), 35000)
-		try {
-			const resp = await fetch(`${this.baseUrl}/1sat/tx`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/octet-stream' },
-				body: bytes as unknown as BodyInit,
-				signal: controller.signal,
-			})
-			const text = await resp.text()
-			if (!resp.ok && resp.status !== 202 && resp.status !== 400) {
-				throw new Error(`/1sat/tx returned ${resp.status}: ${text}`)
-			}
-			return text
-				? JSON.parse(text)
-				: { txid: '', txStatus: 'UNKNOWN', timestamp: '' }
-		} finally {
-			clearTimeout(timeoutId)
-		}
+		return this.arcade.submitTransaction(payload)
+	}
+
+	async getPolicy(): Promise<ArcadePolicyResponse> {
+		return this.arcade.getPolicy()
 	}
 
 	/**

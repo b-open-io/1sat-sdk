@@ -19,7 +19,11 @@ export class BaseClient {
 	/**
 	 * Make a JSON request and parse the response
 	 */
-	protected async request<T>(path: string, init?: RequestInit): Promise<T> {
+	protected async request<T>(
+		path: string,
+		init?: RequestInit,
+		opts?: { allow?: number[] },
+	): Promise<T> {
 		const controller = new AbortController()
 		const timeoutId = setTimeout(() => controller.abort(), this.timeout)
 
@@ -29,7 +33,8 @@ export class BaseClient {
 				signal: controller.signal,
 			})
 
-			if (!response.ok) {
+			const allowed = opts?.allow?.includes(response.status) === true
+			if (!response.ok && !allowed) {
 				throw await this.parseError(response)
 			}
 

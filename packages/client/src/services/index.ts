@@ -3,7 +3,12 @@ export { BapClient } from './BapClient.js'
 export { BaseClient } from './BaseClient.js'
 export { ChaintracksClient } from './ChaintracksClient.js'
 export { BeefClient } from './BeefClient.js'
-export { ArcadeClient } from './ArcadeClient.js'
+export {
+	ArcadeClient,
+	type ArcadeMiningFee,
+	type ArcadePolicy,
+	type ArcadePolicyResponse,
+} from './ArcadeClient.js'
 export { TxoClient } from './TxoClient.js'
 export { OwnerClient, type TxoStreamEvent } from './OwnerClient.js'
 export { OrdfsClient } from './OrdfsClient.js'
