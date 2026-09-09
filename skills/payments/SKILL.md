@@ -110,7 +110,7 @@ await sendBsv.execute(ctx, {
 
 ## sendAllBsv
 
-Sweep the wallet's entire spendable balance to a single destination address. **Single-phase** like `sendBsv`. Lists the `default` basket (same admin-only gate as getBalance), sums spendable satoshis, subtracts a fee estimate, and `createAction`s with that exact amount. A non-admin WPM originator fails with the default-basket admin-only error.
+Sweep the wallet's entire spendable balance to a single destination address. **Single-phase** like `sendBsv`. Lists the `default` basket (same admin-only gate as getBalance), builds a P2PKH sweep transaction, uses `tx.fee()` / `tx.getFee()` for the amount, and `createAction`s that exact value. A non-admin WPM originator fails with the default-basket admin-only error.
 
 ### Input
 

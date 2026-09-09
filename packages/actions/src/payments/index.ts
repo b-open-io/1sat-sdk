@@ -5,10 +5,12 @@
  */
 
 import { Inscription } from '@1sat/templates'
+import { parseOutpoint } from '@1sat/utils'
 import {
 	type CreateActionArgs,
 	type CreateActionOutput,
 	P2PKH,
+	PrivateKey,
 	Script,
 	Transaction,
 	Utils,
@@ -43,46 +45,16 @@ async function dispatchPlainPayment(
 	return { txid: result.txid, tx: toArray(result.tx) }
 }
 
-const P2PKH_UNLOCKING_SCRIPT_LENGTH = 107
-const P2PKH_LOCKING_SCRIPT_LENGTH = 25
-
-function varUintSize(n: number): number {
-	if (n < 0xfd) return 1
-	if (n <= 0xffff) return 3
-	if (n <= 0xffffffff) return 5
-	return 9
-}
-
-function estimateSweepFee(inputCount: number): number {
-	const inputSize =
-		32 +
-		4 +
-		varUintSize(P2PKH_UNLOCKING_SCRIPT_LENGTH) +
-		P2PKH_UNLOCKING_SCRIPT_LENGTH +
-		4
-	const outputSize =
-		varUintSize(P2PKH_LOCKING_SCRIPT_LENGTH) + P2PKH_LOCKING_SCRIPT_LENGTH + 8
-	const size =
-		4 +
-		varUintSize(inputCount) +
-		inputCount * inputSize +
-		varUintSize(1) +
-		outputSize +
-		4
-	return Math.max(1, Math.ceil(size / 1000))
-}
-
 function isInsufficientFunds(error: unknown): boolean {
 	const msg = error instanceof Error ? error.message : String(error)
 	return /insufficient/i.test(msg)
 }
 
-async function sumDefaultBasketSpendable(
+async function listDefaultBasketSpendable(
 	wallet: WalletInterface,
-): Promise<{ satoshis: number; count: number }> {
+): Promise<Array<{ satoshis: number; outpoint: string }>> {
+	const utxos: Array<{ satoshis: number; outpoint: string }> = []
 	let offset = 0
-	let satoshis = 0
-	let count = 0
 	for (;;) {
 		const page = await wallet.listOutputs({
 			basket: 'default',
@@ -90,14 +62,40 @@ async function sumDefaultBasketSpendable(
 			offset,
 		})
 		for (const output of page.outputs) {
-			if (output.spendable === false) continue
-			satoshis += output.satoshis
-			count++
+			if (output.spendable === false || !output.outpoint) continue
+			utxos.push({ satoshis: output.satoshis, outpoint: output.outpoint })
 		}
 		offset += page.outputs.length
 		if (page.outputs.length === 0 || offset >= page.totalOutputs) break
 	}
-	return { satoshis, count }
+	return utxos
+}
+
+async function sweepFeeForUtxos(
+	destination: string,
+	utxos: Array<{ satoshis: number; outpoint: string }>,
+): Promise<number> {
+	const p2pkh = new P2PKH()
+	const unlockingScriptTemplate = p2pkh.unlock(PrivateKey.fromRandom())
+	const destScript = p2pkh.lock(destination)
+	const tx = new Transaction()
+	for (const utxo of utxos) {
+		const { txid, vout } = parseOutpoint(utxo.outpoint)
+		const source = new Transaction()
+		for (let i = 0; i < vout; i++) {
+			source.addOutput({ lockingScript: destScript, satoshis: 0 })
+		}
+		source.addOutput({ lockingScript: destScript, satoshis: utxo.satoshis })
+		tx.addInput({
+			sourceTXID: txid,
+			sourceOutputIndex: vout,
+			sourceTransaction: source,
+			unlockingScriptTemplate,
+		})
+	}
+	tx.addOutput({ lockingScript: destScript, change: true })
+	await tx.fee()
+	return tx.getFee()
 }
 
 // ============================================================================
@@ -365,16 +363,17 @@ export const sendAllBsv: Action<SendAllBsvInput, SendBsvResponse> = {
 				}
 			}
 
-			const spendable = await sumDefaultBasketSpendable(ctx.wallet)
-			if (spendable.count === 0 || spendable.satoshis <= 0) {
+			const utxos = await listDefaultBasketSpendable(ctx.wallet)
+			const total = utxos.reduce((sum, u) => sum + u.satoshis, 0)
+			if (utxos.length === 0 || total <= 0) {
 				return { error: 'insufficient-funds' }
 			}
 
 			const lockingScript = new P2PKH().lock(destination).toHex()
-			let fee = estimateSweepFee(spendable.count)
+			let fee = await sweepFeeForUtxos(destination, utxos)
 			let result: { txid?: string; tx?: number[] } | undefined
 			for (let attempt = 0; attempt < 20; attempt++) {
-				const satoshis = spendable.satoshis - fee
+				const satoshis = total - fee
 				if (satoshis <= 0) {
 					return { error: 'insufficient-funds' }
 				}

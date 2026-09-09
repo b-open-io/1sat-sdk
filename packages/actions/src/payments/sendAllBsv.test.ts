@@ -4,6 +4,8 @@ import { createContext } from '../types.js'
 import { sendAllBsv } from './index.js'
 
 const DEST = '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'
+const TXA = 'aa'.repeat(32)
+const TXB = 'bb'.repeat(32)
 
 function mockWallet(overrides: Partial<WalletInterface>): WalletInterface {
 	return overrides as WalletInterface
@@ -19,8 +21,8 @@ describe('sendAllBsv', () => {
 				return {
 					totalOutputs: 2,
 					outputs: [
-						{ satoshis: 1000, spendable: true, outpoint: 'aa.0' },
-						{ satoshis: 500, spendable: true, outpoint: 'bb.1' },
+						{ satoshis: 1000, spendable: true, outpoint: `${TXA}.0` },
+						{ satoshis: 500, spendable: true, outpoint: `${TXB}.1` },
 					],
 				}
 			},
