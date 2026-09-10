@@ -295,10 +295,9 @@ export interface GetMneeBalanceResult {
 	totalAtomic: number
 }
 
-export interface GetMneeUtxosInput {
-	/** Addresses to query for MNEE UTXOs */
-	addresses: string[]
-}
+export type GetMneeUtxosInput =
+	| { addresses: string[]; derivations?: never }
+	| { derivations: KeyDerivation[]; addresses?: never }
 
 export interface GetMneeUtxosResult {
 	utxos: MneeUtxo[]
@@ -514,12 +513,13 @@ export const getMneeBalance: Action<GetMneeBalanceInput, GetMneeBalanceResult> =
 	}
 
 /**
- * Get MNEE UTXOs across all yours wallet addresses.
+ * Get MNEE UTXOs. Query either explicit `addresses`, or the caller's self-key
+ * `derivations` (resolved the same way `getMneeBalance` / `sendMnee` do).
  */
 export const getMneeUtxos: Action<GetMneeUtxosInput, GetMneeUtxosResult> = {
 	meta: {
 		name: 'getMneeUtxos',
-		description: 'Get MNEE UTXOs across yours wallet addresses',
+		description: 'Get MNEE UTXOs by addresses or by self-key derivations',
 		category: 'payments',
 		requiresServices: true,
 		inputSchema: {
@@ -527,15 +527,20 @@ export const getMneeUtxos: Action<GetMneeUtxosInput, GetMneeUtxosResult> = {
 			properties: {
 				addresses: {
 					type: 'array',
+					description: 'Specific addresses to query',
+				},
+				derivations: {
+					type: 'array',
 					description:
-						'Specific addresses to query (omit to use yours wallet addresses)',
+						'Self-key derivations ({ protocolID, keyID }); resolved to addresses',
 				},
 			},
 		},
 	},
 	async execute(ctx, input) {
 		const mnee = getMneeClient(ctx)
-		const utxos = await mnee.getAllUtxos(input.addresses)
+		const addresses = await resolveQueryAddresses(ctx, input, 'getMneeUtxos')
+		const utxos = await mnee.getAllUtxos(addresses)
 		return { utxos }
 	},
 }

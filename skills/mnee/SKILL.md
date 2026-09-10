@@ -75,17 +75,21 @@ const res = await getMneeBalance.execute(ctx, {
 
 ## getMneeUtxos
 
-Returns the raw MNEE UTXOs across the given addresses.
+Returns the raw MNEE UTXOs. Pass **either** `addresses` **or** `derivations` (not both); `derivations` are resolved the same way as `getMneeBalance` / `sendMnee`.
 
 ```typescript
-import { createContext, getMneeUtxos } from '@1sat/actions'
+import { createContext, getMneeUtxos, LEGACY_ONESAT_PROTOCOL, ONESAT_PROTOCOL } from '@1sat/actions'
 
 const ctx = createContext(wallet, { services })
 
-// Input: GetMneeUtxosInput
+// Input: GetMneeUtxosInput = { addresses: string[] } | { derivations: KeyDerivation[] }
 const res = await getMneeUtxos.execute(ctx, {
-  addresses: ['1A1zP1...'],
+  derivations: [
+    { protocolID: ONESAT_PROTOCOL, keyID: '1sat 0' },
+    { protocolID: LEGACY_ONESAT_PROTOCOL, keyID: '1sat 0' },
+  ],
 })
+// or: getMneeUtxos.execute(ctx, { addresses: ['1A1zP1...'] })
 
 // Result: GetMneeUtxosResult { utxos: MneeUtxo[] }
 // MneeUtxo: {
