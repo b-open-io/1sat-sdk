@@ -61,6 +61,7 @@ export interface HostServerConfig {
 	 * same way.
 	 */
 	accountStore?: AccountStore
+	handleCertStore?: import('./accounts/certs.js').HandleCertStore
 	paymail?: PaymailDeps
 	messagebox?: HostServerMessageboxConfig
 	/**
@@ -69,6 +70,12 @@ export interface HostServerConfig {
 	 */
 	sessionStore?: { redisUrl: string; ttlSeconds?: number }
 	bodyLimit?: string
+	/** Last BSV/USD quote. Unset = GET /exchange-rate 404s. */
+	getExchangeRate?: () => {
+		bsvUsd: number
+		timestamp: number
+		source: string
+	} | null
 }
 
 export interface HostServerHandle {
@@ -97,6 +104,13 @@ export async function createHostServer(
 	if (config.paymail) {
 		await mountPaymailRoutes(app, config.paymail)
 	}
+	app.get('/exchange-rate', (_req, res) => {
+		const quote = config.getExchangeRate?.() ?? null
+		if (!quote) {
+			return res.status(404).json({ error: 'no exchange rate' })
+		}
+		res.json(quote)
+	})
 	mountOpenApiRoutes(app, {
 		serverIdentityKey: config.serverIdentityKey,
 		surfaces: {
@@ -157,7 +171,19 @@ export async function createHostServer(
 	}
 
 	if (config.accountStore) {
-		mountRegistrationRoutes(app, '/', { store: config.accountStore })
+		const paymail = config.paymail
+		mountRegistrationRoutes(app, '/', {
+			store: config.accountStore,
+			...(paymail?.hostPrivateKey &&
+				config.handleCertStore && {
+					certs: {
+						store: config.handleCertStore,
+						hostPrivateKey: paymail.hostPrivateKey,
+						userDomain: paymail.userDomain,
+						stackUrl: paymail.stackUrl,
+					},
+				}),
+		})
 	}
 
 	// --- messagebox (own router; host owns the auth) --------------------------

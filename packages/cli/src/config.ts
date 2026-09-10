@@ -118,6 +118,11 @@ export interface ServerPaymailConfig {
 	 * only resolves when its identity holds an account on this host.
 	 */
 	userDomain?: string
+	/**
+	 * Require signed P2P metadata on receive-beef / receive-transaction.
+	 * Advertised as Request Sender Validation on well-known. Default false.
+	 */
+	verifySignature?: boolean
 }
 
 export interface ServerSessionStoreConfig {
@@ -153,6 +158,12 @@ export interface ServerConfig {
 	paymail?: ServerPaymailConfig
 	/** Shared BSV/USD repricer engine for the accounts storage price. */
 	repricer?: RepricerConfig
+	/** Last successful BSV/USD quote from the repricer. Served at GET /exchange-rate. */
+	exchangeRate?: {
+		bsvUsd: number
+		timestamp: number
+		source: string
+	}
 	/**
 	 * Redis-shared BRC-104 sessions. Required when multiple serve instances
 	 * run behind one load balancer; unset keeps sessions in-memory.

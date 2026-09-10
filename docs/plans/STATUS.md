@@ -2,6 +2,7 @@
 
 | Plan | Status | Description |
 |------|--------|-------------|
+| [Paymail handle certs](./2026-09-10-paymail-handle-certs.md) | **Decisions locked** | `from` + host-issued BRC-169-shaped certs; certify OpNS; receive certified-only. Not implemented. |
 | [BRC-165 SDK wiring](./2026-08-18-brc-165-sdk-wiring.md) | **Mostly done** | Module scopes, value grants, probe `p 1sat probe`, dual-stamp. Optional: desktop host, publish. |
 | [BRC-163 BSV-21 remittance](./2026-08-18-brc-163-bsv21-remittance.md) | **Nearly done** | Apply stamp + load plaintext CI; deploy/filter tags; cosign/sweep fixed. Left: deploy smoke + spec review. |
 | [BRC alignment](./2026-08-05-brc-alignment.md) | **In progress** | Pipeline model; permission/label rows superseded where they conflict with BRC-165 plan above. |

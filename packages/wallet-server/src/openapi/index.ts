@@ -11,6 +11,7 @@ import {
 	TAG_DOCS,
 	accountPaths,
 	authPaths,
+	exchangeRatePaths,
 	messageboxPaths,
 	paymailPaths,
 	registrationPaths,
@@ -35,7 +36,7 @@ export interface OpenApiOptions {
 }
 
 export function buildOpenApiSpec(options: OpenApiOptions): object {
-	const paths: PathsFragment = { ...authPaths() }
+	const paths: PathsFragment = { ...authPaths(), ...exchangeRatePaths() }
 	const tags = new Set(['auth'])
 	if (options.surfaces.storage) {
 		Object.assign(paths, storagePaths())

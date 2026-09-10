@@ -5,20 +5,30 @@
  */
 
 import { Inscription } from '@1sat/templates'
+import { HANDLE_CERT_TYPE, MESSAGE_SIGNING_PROTOCOL } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
 import {
+	BSM,
+	BigNumber,
 	type CreateActionArgs,
 	type CreateActionOutput,
+	MasterCertificate,
 	P2PKH,
 	PrivateKey,
+	PublicKey,
 	SatoshisPerKilobyte,
 	Script,
+	Signature,
 	Transaction,
 	Utils,
 	type WalletInterface,
 } from '@bsv/sdk'
 import type { FundingProvider } from '../funding/index.js'
-import { getP2pPaymentDestination, sendBeefP2P } from '../paymail.js'
+import {
+	type P2pMetadata,
+	getP2pPaymentDestination,
+	sendBeefP2P,
+} from '../paymail.js'
 import type { Action, ActionOptions } from '../types.js'
 
 /**
@@ -138,9 +148,68 @@ function isPaymail(address: string): boolean {
 	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)
 }
 
-async function deliverP2P(refs: PaymailRef[], beefHex: string): Promise<void> {
+async function deliverP2P(
+	refs: PaymailRef[],
+	beefHex: string,
+	metadata?: P2pMetadata,
+): Promise<void> {
 	for (const ref of refs) {
-		await sendBeefP2P(ref.paymail, beefHex, ref.reference)
+		await sendBeefP2P(ref.paymail, beefHex, ref.reference, metadata)
+	}
+}
+
+async function assertOwnedPaymail(
+	wallet: WalletInterface,
+	from: string,
+): Promise<void> {
+	const [alias, domain] = from.toLowerCase().split('@')
+	if (!alias || !domain) throw new Error('invalid from paymail')
+	const { certificates } = await wallet.listCertificates({
+		types: [HANDLE_CERT_TYPE],
+		certifiers: [],
+		limit: 10000,
+	})
+	for (const cert of certificates) {
+		if (!cert.keyring) continue
+		const fields = await MasterCertificate.decryptFields(
+			wallet,
+			cert.keyring,
+			cert.fields,
+			cert.certifier,
+		)
+		if (fields.handle === alias && fields.domain === domain) return
+	}
+	throw new Error('from paymail is not certified in this wallet')
+}
+
+async function senderMetadata(
+	wallet: WalletInterface,
+	from: string,
+	txid: string,
+): Promise<P2pMetadata> {
+	const messageBytes = Utils.toArray(txid, 'utf8')
+	const msgHash = BSM.magicHash(messageBytes)
+	const result = await wallet.createSignature({
+		protocolID: MESSAGE_SIGNING_PROTOCOL,
+		keyID: 'identity',
+		counterparty: 'self',
+		hashToDirectlySign: Array.from(msgHash),
+	})
+	const pubKeyResult = await wallet.getPublicKey({
+		protocolID: MESSAGE_SIGNING_PROTOCOL,
+		keyID: 'identity',
+		forSelf: true,
+	})
+	const publicKey = PublicKey.fromString(pubKeyResult.publicKey)
+	const signature = Signature.fromDER(result.signature)
+	const recovery = signature.CalculateRecoveryFactor(
+		publicKey,
+		new BigNumber(msgHash),
+	)
+	return {
+		sender: from,
+		pubkey: pubKeyResult.publicKey,
+		signature: signature.toCompact(recovery, true, 'base64') as string,
 	}
 }
 
@@ -167,6 +236,8 @@ function buildInscriptionScript(
 /** Input for sendBsv action */
 export interface SendBsvInput extends ActionOptions {
 	requests: SendBsvRequest[]
+	/** Optional certified paymail this wallet sends as */
+	from?: string
 }
 
 /**
@@ -208,6 +279,10 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 						},
 						required: ['satoshis'],
 					},
+				},
+				from: {
+					type: 'string',
+					description: 'Certified paymail to send as',
 				},
 			},
 			required: ['requests'],
@@ -287,12 +362,16 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 			}
 
 			if (paymailRefs.length > 0 && result.tx) {
-				// createAction returns AtomicBEEF (BRC-95) but BRC-70 `receive-beef`
-				// expects plain BEEF (BRC-62). Strip the atomic wrapper.
 				const beefHex = Utils.toHex(
 					Transaction.fromAtomicBEEF(result.tx).toBEEF(),
 				)
-				await deliverP2P(paymailRefs, beefHex)
+				let metadata: P2pMetadata | undefined
+				if (input.from) {
+					await assertOwnedPaymail(ctx.wallet, input.from)
+					if (!result.txid) throw new Error('no-txid-returned')
+					metadata = await senderMetadata(ctx.wallet, input.from, result.txid)
+				}
+				await deliverP2P(paymailRefs, beefHex, metadata)
 			}
 
 			if (ctx.debug && ctx.log) {

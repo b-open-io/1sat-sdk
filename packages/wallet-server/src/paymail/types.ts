@@ -67,4 +67,8 @@ export interface PaymailDeps {
 	messageboxUrl?: string
 	/** Host private key for messagebox AuthFetch (required if messageboxUrl set) */
 	hostPrivateKey?: import('@bsv/sdk').PrivateKey
+	/** Issued handle certs. When set, paymail resolves certified names only. */
+	certStore?: import('../accounts/certs.js').HandleCertStore
+	/** Require signed P2P metadata. Also advertised on well-known. Default false. */
+	verifySignature?: boolean
 }
