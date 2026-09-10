@@ -6,9 +6,13 @@
  * with the indexer pipeline, and internalizes them into the wallet.
  */
 
-import { type AddressDerivation, P1SAT_PROTOCOL } from '@1sat/types'
+import {
+	type AddressDerivation,
+	LEGACY_ONESAT_PROTOCOL,
+	ONESAT_PROTOCOL,
+} from '@1sat/types'
 import type { SyncOutput, SyncProgress } from '@1sat/types'
-import { PublicKey } from '@bsv/sdk'
+import { PublicKey, type WalletProtocol } from '@bsv/sdk'
 import { DEFAULT_DEPOSIT_PREFIX } from '../addresses/index.js'
 import { sweepDeposit } from '../sweep/sweepDeposit.js'
 import type { Action, OneSatContext } from '../types.js'
@@ -23,6 +27,13 @@ import { syncCosignDeliveries } from './syncCosignDeliveries.js'
 import { syncMessages } from './syncMessages.js'
 
 const REORG_SAFE_DEPTH = 6
+
+type SyncedDerivation = AddressDerivation & { protocolID: WalletProtocol }
+
+const SYNC_PROTOCOLS: WalletProtocol[] = [
+	ONESAT_PROTOCOL,
+	LEGACY_ONESAT_PROTOCOL,
+]
 
 // ============================================================================
 // Types
@@ -136,26 +147,29 @@ export const syncAddresses: Action<SyncAddressesInput, SyncAddressesResult> = {
 			identityKey: true,
 		})
 
-		const derivations: AddressDerivation[] = []
+		const derivations: SyncedDerivation[] = []
 
-		for (let i = startIndex; i < startIndex + count; i++) {
-			const derivationSuffix = String(i)
-			const keyID = `${prefix} ${derivationSuffix}`
+		for (const protocolID of SYNC_PROTOCOLS) {
+			for (let i = startIndex; i < startIndex + count; i++) {
+				const derivationSuffix = String(i)
+				const keyID = `${prefix} ${derivationSuffix}`
 
-			const { publicKey } = await ctx.wallet.getPublicKey({
-				protocolID: P1SAT_PROTOCOL,
-				keyID,
-				forSelf: true,
-			})
+				const { publicKey } = await ctx.wallet.getPublicKey({
+					protocolID,
+					keyID,
+					forSelf: true,
+				})
 
-			derivations.push({
-				address: PublicKey.fromString(publicKey).toAddress(),
-				index: i,
-				derivationPrefix: prefix,
-				derivationSuffix,
-				senderIdentityKey: identityKey,
-				publicKey,
-			})
+				derivations.push({
+					address: PublicKey.fromString(publicKey).toAddress(),
+					index: i,
+					derivationPrefix: prefix,
+					derivationSuffix,
+					senderIdentityKey: identityKey,
+					publicKey,
+					protocolID,
+				})
+			}
 		}
 
 		const addresses = derivations.map((d) => d.address)
@@ -260,7 +274,7 @@ async function processTxid(
 	outputs: SyncOutput[],
 	ctx: OneSatContext,
 	services: import('@1sat/client').OneSatServices,
-	addressMap: Map<string, AddressDerivation>,
+	addressMap: Map<string, SyncedDerivation>,
 ): Promise<void> {
 	if (outputs.every((o) => !!o.spendTxid)) {
 		return
@@ -271,10 +285,6 @@ async function processTxid(
 		throw new Error(`Failed to load BEEF for ${txid}`)
 	}
 
-	// Build address → derivation map for the indexer-based owner matching.
-	// Addresses were derived under P1SAT_PROTOCOL with forSelf:true (see the
-	// deriveDepositAddresses loop above), so spending uses the same protocol
-	// + counterparty 'self'.
 	const addrDerivations = new Map<string, OutputDerivation>()
 	for (const [address, d] of addressMap) {
 		addrDerivations.set(address, {
@@ -282,7 +292,7 @@ async function processTxid(
 			derivationPrefix: d.derivationPrefix,
 			derivationSuffix: d.derivationSuffix,
 			senderIdentityKey: d.senderIdentityKey,
-			protocolID: P1SAT_PROTOCOL,
+			protocolID: d.protocolID,
 			counterparty: 'self',
 		})
 	}
