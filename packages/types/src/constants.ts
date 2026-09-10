@@ -56,12 +56,16 @@ export const ONESAT_ASSET_BASKETS: readonly string[] = [
 	BAP_BASKET,
 ]
 
-/** Legacy P-basket → preferred basket. Migrate only; no dual-read. */
+/**
+ * Legacy inventory basket → preferred basket. Migrate only; no dual-read.
+ * Includes leftover theme-token `ordinals` (hardcoded basket, not a P-name).
+ */
 export const LEGACY_P1SAT_BASKET_MIGRATIONS: ReadonlyArray<{
 	from: string
 	to: string
 }> = [
 	{ from: 'p 1sat ordinals', to: ONESAT_BASKET },
+	{ from: 'ordinals', to: ONESAT_BASKET },
 	{ from: 'p 1sat bsv21', to: BSV21_BASKET },
 	{ from: 'p 1sat opns', to: OPNS_BASKET },
 	{ from: 'p 1sat lock', to: LOCK_BASKET },
