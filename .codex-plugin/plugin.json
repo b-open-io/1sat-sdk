@@ -1,6 +1,6 @@
 {
   "name": "1sat",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "1Sat ecosystem skills for Codex with collection overlay and OpNS lifecycle guidance plus an optional Uno Satoj custom-agent adapter",
   "author": {
     "name": "b-open-io",
@@ -28,6 +28,8 @@
     "websiteURL": "https://github.com/b-open-io/1sat-sdk",
     "defaultPrompt": [
       "Help me build with the 1Sat SDK."
-    ]
+    ],
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png"
   }
 }
