@@ -1,8 +1,14 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import type { Server } from 'node:http'
+import { PrivateKey } from '@bsv/sdk'
 import express, { type Express } from 'express'
 import knexLib from 'knex'
 import type { Knex } from 'knex'
+import { KnexHandleCertStore } from '../src/accounts/certs'
+import {
+	DISABLED_REVOCATION_OUTPOINT,
+	issueHandleCert,
+} from '../src/accounts/issueCert'
 import { mountRegistrationRoutes } from '../src/accounts/registrationRoutes'
 import {
 	AlreadyRegisteredError,
@@ -337,5 +343,92 @@ describe('mountPaymailRoutes domain dispatch', () => {
 		expect(proxiedDoc.capabilities.pki).toBe(
 			'https://1sat.app/bsvalias/id/{alias}@{domain.tld}',
 		)
+	})
+})
+
+describe('handle certs', () => {
+	let db: Knex
+
+	beforeAll(async () => {
+		db = memoryKnex()
+	})
+
+	afterAll(async () => {
+		await db.destroy()
+	})
+
+	test('issue and store a 1sat.app handle cert', async () => {
+		const store = new KnexHandleCertStore(db)
+		await store.init()
+		const host = PrivateKey.fromRandom()
+		const subject = PrivateKey.fromRandom().toPublicKey().toString()
+		const issued = await issueHandleCert({
+			store,
+			hostPrivateKey: host,
+			subject,
+			handle: 'alice',
+			domain: '1sat.app',
+			revocationOutpoint: DISABLED_REVOCATION_OUTPOINT,
+		})
+		expect(issued.handle).toBe('alice')
+		expect(issued.domain).toBe('1sat.app')
+		expect(issued.subject).toBe(subject)
+		expect(issued.certifier).toBe(host.toPublicKey().toString())
+		expect(issued.signature.length).toBeGreaterThan(0)
+		const again = await issueHandleCert({
+			store,
+			hostPrivateKey: host,
+			subject,
+			handle: 'alice',
+			domain: '1sat.app',
+			revocationOutpoint: DISABLED_REVOCATION_OUTPOINT,
+		})
+		expect(again.serialNumber).toBe(issued.serialNumber)
+	})
+
+	test('register issues a cert when certs deps are set', async () => {
+		const accounts = new KnexAccountStore(db)
+		await accounts.init()
+		const certs = new KnexHandleCertStore(db)
+		await certs.init()
+		const host = PrivateKey.fromRandom()
+		const subject = PrivateKey.fromRandom().toPublicKey().toString()
+
+		const app = express()
+		app.use(express.json())
+		app.use('/account', (req, _res, next) => {
+			;(req as { auth?: { identityKey: string } }).auth = {
+				identityKey: subject,
+			}
+			next()
+		})
+		mountRegistrationRoutes(app, '/', {
+			store: accounts,
+			certs: {
+				store: certs,
+				hostPrivateKey: host,
+				userDomain: '1sat.app',
+				stackUrl: 'http://127.0.0.1:1',
+			},
+		})
+		const { server, base } = await listen(app)
+		try {
+			const res = await fetch(`${base}/account/register`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ username: 'carol' }),
+			})
+			expect(res.status).toBe(200)
+			const body = (await res.json()) as {
+				username: string
+				certificate?: { type: string; subject: string }
+			}
+			expect(body.username).toBe('carol')
+			expect(body.certificate?.subject).toBe(subject)
+			const stored = await certs.get('carol', '1sat.app')
+			expect(stored?.subject).toBe(subject)
+		} finally {
+			await new Promise<void>((resolve) => server.close(() => resolve()))
+		}
 	})
 })

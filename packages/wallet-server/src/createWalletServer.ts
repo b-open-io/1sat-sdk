@@ -66,6 +66,7 @@ export interface WalletServerConfig {
 	 * profile routes and reports the account on /account/status.
 	 */
 	accountStore?: AccountStore
+	handleCertStore?: import('./accounts/certs.js').HandleCertStore
 	/**
 	 * Redis-shared BRC-104 sessions for multi-instance deployments behind a
 	 * load balancer. Unset = in-memory sessions (single instance).
@@ -344,6 +345,7 @@ export function mountStatusRoute(
 			const registration = await registrationStatus(
 				config.accountStore,
 				identityKey,
+				config.handleCertStore,
 			)
 
 			const accounts = config.accounts

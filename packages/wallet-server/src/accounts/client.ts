@@ -21,7 +21,36 @@ export interface AccountProfileInput {
 	avatarOrigin?: string | null
 }
 
-export type AccountRegisterResult = AccountView & { identityKey: string }
+export type DirectCertificate = {
+	type: string
+	certifier: string
+	acquisitionProtocol: 'direct'
+	fields: Record<string, string>
+	serialNumber: string
+	revocationOutpoint: string
+	signature: string
+	keyringRevealer: 'certifier'
+	keyringForSubject: Record<string, string>
+	subject: string
+}
+
+export type AccountRegisterResult = AccountView & {
+	identityKey: string
+	certificate?: DirectCertificate
+}
+
+export interface AccountCertifyInput {
+	name: string
+	domain: string
+	outpoint: string
+}
+
+export interface AccountCertifyResult {
+	handle: string
+	domain: string
+	revocationOutpoint: string
+	certificate: DirectCertificate
+}
 
 export class AccountClient {
 	private auth: AuthFetch
@@ -48,6 +77,23 @@ export class AccountClient {
 		input: AccountProfileInput,
 	): Promise<AccountRegisterResult> {
 		return this.send('PUT', '/account/profile', input)
+	}
+
+	async certify(input: AccountCertifyInput): Promise<AccountCertifyResult> {
+		const res = await this.auth.fetch(`${this.baseUrl}/account/certify`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(input),
+		})
+		if (!res.ok) {
+			const text = await res.text()
+			let message = text
+			try {
+				message = (JSON.parse(text) as { error?: string }).error ?? text
+			} catch {}
+			throw new Error(message || `account/certify ${res.status}`)
+		}
+		return res.json() as Promise<AccountCertifyResult>
 	}
 
 	private async send(

@@ -4,6 +4,7 @@ export type {
 	AccountsConfigProvider,
 	IdentityKey,
 	NextPaymentDerivation,
+	RegisteredHandleView,
 	RegistrationStatus,
 } from './types.js'
 export {
@@ -31,9 +32,12 @@ export {
 } from './registrationRoutes.js'
 export {
 	AccountClient,
+	type AccountCertifyInput,
+	type AccountCertifyResult,
 	type AccountProfileInput,
 	type AccountRegisterInput,
 	type AccountRegisterResult,
+	type DirectCertificate,
 } from './client.js'
 
 export {
@@ -63,3 +67,10 @@ export {
 	payerLabel,
 } from './queries.js'
 export { mountPaymentRoute, type PaymentRouteDeps } from './paymentRoute.js'
+export {
+	KnexHandleCertStore,
+	toDirectAcquireArgs,
+	type HandleCertStore,
+	type IssuedHandleCert,
+} from './certs.js'
+export { issueHandleCert } from './issueCert.js'

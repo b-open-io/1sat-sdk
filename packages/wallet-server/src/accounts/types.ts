@@ -44,6 +44,12 @@ export interface NextPaymentDerivation {
  * Registration facet of `GET /account/status`. `account` is present (and
  * possibly null) only when the host runs an account registry.
  */
+export interface RegisteredHandleView {
+	handle: string
+	domain: string
+	revocationOutpoint: string
+}
+
 export interface RegistrationStatus {
 	registrationEnabled: boolean
 	account?: {
@@ -52,6 +58,7 @@ export interface RegistrationStatus {
 		avatarOrigin?: string
 		createdAt: string
 	} | null
+	handles?: RegisteredHandleView[]
 }
 
 /**

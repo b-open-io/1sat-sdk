@@ -26,6 +26,7 @@ import {
 } from '@1sat/wallet-node'
 import {
 	KnexAccountStore,
+	KnexHandleCertStore,
 	KnexPendingStore,
 	createHostServer,
 	createWalletServer,
@@ -298,7 +299,7 @@ async function runWithStorage(
 				},
 			})
 		}
-		if (r?.enabled && targets.length > 0) {
+		if (r?.enabled) {
 			walletResult.monitor.addTask(
 				buildPriceUpdateTask({
 					monitor: walletResult.monitor,
@@ -311,12 +312,16 @@ async function runWithStorage(
 						minSats: r.minSats ?? 1,
 					},
 					targets,
+					onQuote: async (quote) => {
+						setConfigPath('server.exchangeRate', quote)
+					},
 				}),
 			)
+			const targetNote =
+				targets.map((t) => `${t.name} $${t.targetUsd}`).join(', ') ||
+				'quote only'
 			console.log(
-				`[repricer] enabled — ${targets
-					.map((t) => `${t.name} $${t.targetUsd}`)
-					.join(', ')} every ${Math.round(
+				`[repricer] enabled — ${targetNote} every ${Math.round(
 					(r.intervalMs ?? 900_000) / 1000,
 				)}s via ${r.provider ?? 'whatsonchain'}`,
 			)
@@ -401,6 +406,8 @@ async function startWalletServer(
 	await pendingStore.init()
 	const accountStore = new KnexAccountStore(knex)
 	await accountStore.init()
+	const handleCertStore = new KnexHandleCertStore(knex)
+	await handleCertStore.init()
 
 	const handle = await createHostServer({
 		wallet: walletResult.wallet,
@@ -410,13 +417,17 @@ async function startWalletServer(
 		listen: { port: resolved.port, host: resolved.host },
 		accounts: accounts?.walletServerAccounts,
 		accountStore,
+		handleCertStore,
+		getExchangeRate: () => loadConfig().server?.exchangeRate ?? null,
 		paymail: {
 			baseUrl:
 				paymailCfg?.baseUrl ?? `http://${resolved.host}:${resolved.port}`,
 			stackUrl: paymailCfg?.stackUrl ?? resolved.stackUrl,
 			pendingStore,
 			accountStore,
+			certStore: handleCertStore,
 			...(paymailCfg?.userDomain && { userDomain: paymailCfg.userDomain }),
+			...(paymailCfg?.verifySignature && { verifySignature: true }),
 			messageboxUrl: `http://127.0.0.1:${resolved.port}/messagebox`,
 			hostPrivateKey: resolved.privateKey,
 		},

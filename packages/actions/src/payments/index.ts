@@ -5,20 +5,27 @@
  */
 
 import { Inscription } from '@1sat/templates'
-import { parseOutpoint } from '@1sat/utils'
+import { HANDLE_CERT_TYPE, MESSAGE_SIGNING_PROTOCOL } from '@1sat/types'
 import {
+	BSM,
+	BigNumber,
 	type CreateActionArgs,
 	type CreateActionOutput,
+	MasterCertificate,
 	P2PKH,
-	PrivateKey,
-	SatoshisPerKilobyte,
+	PublicKey,
 	Script,
+	Signature,
 	Transaction,
 	Utils,
 	type WalletInterface,
 } from '@bsv/sdk'
 import type { FundingProvider } from '../funding/index.js'
-import { getP2pPaymentDestination, sendBeefP2P } from '../paymail.js'
+import {
+	type P2pMetadata,
+	getP2pPaymentDestination,
+	sendBeefP2P,
+} from '../paymail.js'
 import type { Action, ActionOptions } from '../types.js'
 
 /**
@@ -46,55 +53,7 @@ async function dispatchPlainPayment(
 	return { txid: result.txid, tx: toArray(result.tx) }
 }
 
-const DEFAULT_SATS_PER_KB = 100
-
-async function listDefaultBasketSpendable(
-	wallet: WalletInterface,
-): Promise<Array<{ satoshis: number; outpoint: string }>> {
-	const utxos: Array<{ satoshis: number; outpoint: string }> = []
-	let offset = 0
-	for (;;) {
-		const page = await wallet.listOutputs({
-			basket: 'default',
-			limit: 1000,
-			offset,
-		})
-		for (const output of page.outputs) {
-			utxos.push({ satoshis: output.satoshis, outpoint: output.outpoint })
-		}
-		offset += page.outputs.length
-		if (page.outputs.length === 0 || offset >= page.totalOutputs) break
-	}
-	return utxos
-}
-
-async function sweepFeeForUtxos(
-	destination: string,
-	utxos: Array<{ satoshis: number; outpoint: string }>,
-	satsPerKb: number,
-): Promise<number> {
-	const p2pkh = new P2PKH()
-	const unlockingScriptTemplate = p2pkh.unlock(PrivateKey.fromRandom())
-	const destScript = p2pkh.lock(destination)
-	const tx = new Transaction()
-	for (const utxo of utxos) {
-		const { txid, vout } = parseOutpoint(utxo.outpoint)
-		const source = new Transaction()
-		for (let i = 0; i < vout; i++) {
-			source.addOutput({ lockingScript: destScript, satoshis: 0 })
-		}
-		source.addOutput({ lockingScript: destScript, satoshis: utxo.satoshis })
-		tx.addInput({
-			sourceTXID: txid,
-			sourceOutputIndex: vout,
-			sourceTransaction: source,
-			unlockingScriptTemplate,
-		})
-	}
-	tx.addOutput({ lockingScript: destScript, change: true })
-	await tx.fee(new SatoshisPerKilobyte(satsPerKb))
-	return tx.getFee()
-}
+const maxPossibleSatoshis = 2099999999999999
 
 // ============================================================================
 // Types
@@ -138,9 +97,68 @@ function isPaymail(address: string): boolean {
 	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)
 }
 
-async function deliverP2P(refs: PaymailRef[], beefHex: string): Promise<void> {
+async function deliverP2P(
+	refs: PaymailRef[],
+	beefHex: string,
+	metadata?: P2pMetadata,
+): Promise<void> {
 	for (const ref of refs) {
-		await sendBeefP2P(ref.paymail, beefHex, ref.reference)
+		await sendBeefP2P(ref.paymail, beefHex, ref.reference, metadata)
+	}
+}
+
+async function assertOwnedPaymail(
+	wallet: WalletInterface,
+	from: string,
+): Promise<void> {
+	const [alias, domain] = from.toLowerCase().split('@')
+	if (!alias || !domain) throw new Error('invalid from paymail')
+	const { certificates } = await wallet.listCertificates({
+		types: [HANDLE_CERT_TYPE],
+		certifiers: [],
+		limit: 10000,
+	})
+	for (const cert of certificates) {
+		if (!cert.keyring) continue
+		const fields = await MasterCertificate.decryptFields(
+			wallet,
+			cert.keyring,
+			cert.fields,
+			cert.certifier,
+		)
+		if (fields.handle === alias && fields.domain === domain) return
+	}
+	throw new Error('from paymail is not certified in this wallet')
+}
+
+async function senderMetadata(
+	wallet: WalletInterface,
+	from: string,
+	txid: string,
+): Promise<P2pMetadata> {
+	const messageBytes = Utils.toArray(txid, 'utf8')
+	const msgHash = BSM.magicHash(messageBytes)
+	const result = await wallet.createSignature({
+		protocolID: MESSAGE_SIGNING_PROTOCOL,
+		keyID: 'identity',
+		counterparty: 'self',
+		hashToDirectlySign: Array.from(msgHash),
+	})
+	const pubKeyResult = await wallet.getPublicKey({
+		protocolID: MESSAGE_SIGNING_PROTOCOL,
+		keyID: 'identity',
+		forSelf: true,
+	})
+	const publicKey = PublicKey.fromString(pubKeyResult.publicKey)
+	const signature = Signature.fromDER(result.signature)
+	const recovery = signature.CalculateRecoveryFactor(
+		publicKey,
+		new BigNumber(msgHash),
+	)
+	return {
+		sender: from,
+		pubkey: pubKeyResult.publicKey,
+		signature: signature.toCompact(recovery, true, 'base64') as string,
 	}
 }
 
@@ -167,6 +185,8 @@ function buildInscriptionScript(
 /** Input for sendBsv action */
 export interface SendBsvInput extends ActionOptions {
 	requests: SendBsvRequest[]
+	/** Optional certified paymail this wallet sends as */
+	from?: string
 }
 
 /**
@@ -208,6 +228,10 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 						},
 						required: ['satoshis'],
 					},
+				},
+				from: {
+					type: 'string',
+					description: 'Certified paymail to send as',
 				},
 			},
 			required: ['requests'],
@@ -287,12 +311,16 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 			}
 
 			if (paymailRefs.length > 0 && result.tx) {
-				// createAction returns AtomicBEEF (BRC-95) but BRC-70 `receive-beef`
-				// expects plain BEEF (BRC-62). Strip the atomic wrapper.
 				const beefHex = Utils.toHex(
 					Transaction.fromAtomicBEEF(result.tx).toBEEF(),
 				)
-				await deliverP2P(paymailRefs, beefHex)
+				let metadata: P2pMetadata | undefined
+				if (input.from) {
+					await assertOwnedPaymail(ctx.wallet, input.from)
+					if (!result.txid) throw new Error('no-txid-returned')
+					metadata = await senderMetadata(ctx.wallet, input.from, result.txid)
+				}
+				await deliverP2P(paymailRefs, beefHex, metadata)
 			}
 
 			if (ctx.debug && ctx.log) {
@@ -330,8 +358,6 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 export interface SendAllBsvInput extends ActionOptions {
 	/** Destination address to send all funds to */
 	destination: string
-	/** Satoshis per kilobyte. Default 100, matching toolbox/Yours storage.feeModel. */
-	satsPerKb?: number
 }
 
 /**
@@ -349,10 +375,6 @@ export const sendAllBsv: Action<SendAllBsvInput, SendBsvResponse> = {
 					type: 'string',
 					description: 'Destination P2PKH address to send all funds to',
 				},
-				satsPerKb: {
-					type: 'integer',
-					description: 'Satoshis per kilobyte (default 100)',
-				},
 			},
 			required: ['destination'],
 		},
@@ -367,32 +389,14 @@ export const sendAllBsv: Action<SendAllBsvInput, SendBsvResponse> = {
 				}
 			}
 
-			const utxos = await listDefaultBasketSpendable(ctx.wallet)
-			const total = utxos.reduce((sum, u) => sum + u.satoshis, 0)
-			if (utxos.length === 0 || total <= 0) {
-				return { error: 'insufficient-funds' }
-			}
-
-			const satsPerKb = input.satsPerKb ?? DEFAULT_SATS_PER_KB
-			if (!Number.isFinite(satsPerKb) || satsPerKb < 1) {
-				return { error: 'invalid-fee-rate' }
-			}
-
-			const lockingScript = new P2PKH().lock(destination).toHex()
-			const fee = await sweepFeeForUtxos(destination, utxos, satsPerKb)
-			const satoshis = total - fee
-			if (satoshis <= 0) {
-				return { error: 'insufficient-funds' }
-			}
-
 			const result = await dispatchPlainPayment(
 				ctx.wallet,
 				{
 					description: 'Send all BSV',
 					outputs: [
 						{
-							lockingScript,
-							satoshis,
+							lockingScript: new P2PKH().lock(destination).toHex(),
+							satoshis: maxPossibleSatoshis,
 							outputDescription: 'Sweep all funds',
 							tags: [],
 						},

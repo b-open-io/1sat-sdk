@@ -447,6 +447,12 @@ export const MESSAGE_SIGNING_PROTOCOL: [0 | 1 | 2, string] = [
 	'message signing',
 ]
 
+/** BRC-169 handle certificate type (base64 SHA-256 of the derivation string). */
+export const HANDLE_CERT_TYPE = 'XgCFdUfxEcI+3xtDjsIuSAjMl5EwzCUjsQc45ds1lC8='
+
+/** BRC-52 disabled revocation sentinel (`txid.vout`). */
+export const DISABLED_REVOCATION_OUTPOINT = `${'00'.repeat(32)}.0`
+
 export const BAP_PROTOCOL_ID: [0 | 1 | 2, string] = [1, 'sigma']
 export const BAP_KEY_ID = 'identity'
 export const BAP_BITCOM_ADDRESS = '1BAPSuaPnfGnSBM3GLV9yhxUdYe4vGbdMT'

@@ -23,6 +23,12 @@ export interface P2pSendResult {
 	note?: string
 }
 
+export interface P2pMetadata {
+	sender: string
+	pubkey: string
+	signature: string
+}
+
 async function resolveHost(
 	domain: string,
 ): Promise<{ host: string; port: number }> {
@@ -97,17 +103,21 @@ export async function sendBeefP2P(
 	paymail: string,
 	beefHex: string,
 	reference: string,
+	metadata?: P2pMetadata,
 ): Promise<P2pSendResult> {
 	const [alias, domain] = paymail.split('@')
 	const caps = await getCapabilities(domain)
 
-	// Prefer receive-beef, fall back to receive-transaction
 	const beefUrl = caps[P2P_RECEIVE_BEEF]
 	if (beefUrl) {
 		const resp = await fetch(resolveUrl(beefUrl, alias, domain), {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ beef: beefHex, reference }),
+			body: JSON.stringify({
+				beef: beefHex,
+				reference,
+				...(metadata && { metadata }),
+			}),
 		})
 		if (!resp.ok) throw new Error(`P2P beef send failed: ${resp.status}`)
 		return await resp.json()
@@ -119,7 +129,11 @@ export async function sendBeefP2P(
 	const resp = await fetch(resolveUrl(txUrl, alias, domain), {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ hex: beefHex, reference }),
+		body: JSON.stringify({
+			hex: beefHex,
+			reference,
+			...(metadata && { metadata }),
+		}),
 	})
 	if (!resp.ok) throw new Error(`P2P send failed: ${resp.status}`)
 	return await resp.json()
