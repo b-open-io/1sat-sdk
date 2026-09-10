@@ -19,10 +19,10 @@
     "@1sat/types": "workspace:*",
     "@1sat/wallet": "workspace:*",
     "@1sat/wallet-browser": "workspace:*",
-    "@bsv/sdk": "^2.1.9",
+    "@bsv/sdk": "^2.5.0",
+    "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.6.2-brc153.5",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5",
-    "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.6.2-brc153.5"
+    "react-dom": "^19.2.5"
   },
   "devDependencies": {
     "@types/react": "^19.2.14",

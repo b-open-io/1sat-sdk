@@ -68,7 +68,7 @@
 
     "@bsv/payment-express-middleware": ["@bsv/payment-express-middleware@2.0.2", "", { "dependencies": { "@bsv/sdk": "^2.0.13", "express": "^5.1.0" } }, "sha512-T51esKvH1VgEWPKeJU81tLXG9I5C+D+MwWIzu5mJPq9E14UZJUYnoASLW6m3VojXBlHgEi3821wCdl+++5HyHQ=="],
 
-    "@bsv/sdk": ["@bsv/sdk@2.1.0", "", {}, "sha512-ByPqadgw0Gi7uJgYMCIFbi2ybnjh72LD7aQaXAmhGIHzDo6/GB7Kta+frOYF5DrislrN+glG+rRkW5cCO7/lzA=="],
+    "@bsv/sdk": ["@bsv/sdk@2.5.0", "", {}, "sha512-Y1j9iEjpcY09Jvr3HcoXQO2dhn/qEAHsEi+S/yqvu/hwkx2OdH+UlFbEE4na97lNO0UzrIUYFZIL7FJxUSje2w=="],
 
     "@bsv/wallet-toolbox": ["@bopen-io/wallet-toolbox@2.1.21-parity-fix.2", "", { "dependencies": { "@bsv/auth-express-middleware": "^2.0.4", "@bsv/payment-express-middleware": "^2.0.1", "@bsv/sdk": "^2.0.13", "better-sqlite3": "^12.6.2", "express": "^4.21.2", "hash-wasm": "^4.12.0", "idb": "^8.0.2", "knex": "^3.1.0", "mysql2": "^3.12.0", "ws": "^8.18.3" } }, "sha512-U76LIV9YMdKSzs5ZVXdW5I1TrW6yNC3rVBtC1SpJQXM9o12W0j9RP05qGnD4YavHVrVgx8Vw9C59A36Zhd3j/A=="],
 

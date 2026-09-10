@@ -36,10 +36,10 @@
     "cbor2": "^2.3.0"
   },
   "peerDependencies": {
-    "@bsv/sdk": "^2.1.9"
+    "@bsv/sdk": "^2.5.0"
   },
   "devDependencies": {
-    "@bsv/sdk": "^2.1.9",
+    "@bsv/sdk": "^2.5.0",
     "typescript": "^5.9.3"
   }
 }
