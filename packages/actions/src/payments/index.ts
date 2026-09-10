@@ -6,7 +6,6 @@
 
 import { Inscription } from '@1sat/templates'
 import { HANDLE_CERT_TYPE, MESSAGE_SIGNING_PROTOCOL } from '@1sat/types'
-import { parseOutpoint } from '@1sat/utils'
 import {
 	BSM,
 	BigNumber,
@@ -14,9 +13,7 @@ import {
 	type CreateActionOutput,
 	MasterCertificate,
 	P2PKH,
-	PrivateKey,
 	PublicKey,
-	SatoshisPerKilobyte,
 	Script,
 	Signature,
 	Transaction,
@@ -56,55 +53,7 @@ async function dispatchPlainPayment(
 	return { txid: result.txid, tx: toArray(result.tx) }
 }
 
-const DEFAULT_SATS_PER_KB = 100
-
-async function listDefaultBasketSpendable(
-	wallet: WalletInterface,
-): Promise<Array<{ satoshis: number; outpoint: string }>> {
-	const utxos: Array<{ satoshis: number; outpoint: string }> = []
-	let offset = 0
-	for (;;) {
-		const page = await wallet.listOutputs({
-			basket: 'default',
-			limit: 1000,
-			offset,
-		})
-		for (const output of page.outputs) {
-			utxos.push({ satoshis: output.satoshis, outpoint: output.outpoint })
-		}
-		offset += page.outputs.length
-		if (page.outputs.length === 0 || offset >= page.totalOutputs) break
-	}
-	return utxos
-}
-
-async function sweepFeeForUtxos(
-	destination: string,
-	utxos: Array<{ satoshis: number; outpoint: string }>,
-	satsPerKb: number,
-): Promise<number> {
-	const p2pkh = new P2PKH()
-	const unlockingScriptTemplate = p2pkh.unlock(PrivateKey.fromRandom())
-	const destScript = p2pkh.lock(destination)
-	const tx = new Transaction()
-	for (const utxo of utxos) {
-		const { txid, vout } = parseOutpoint(utxo.outpoint)
-		const source = new Transaction()
-		for (let i = 0; i < vout; i++) {
-			source.addOutput({ lockingScript: destScript, satoshis: 0 })
-		}
-		source.addOutput({ lockingScript: destScript, satoshis: utxo.satoshis })
-		tx.addInput({
-			sourceTXID: txid,
-			sourceOutputIndex: vout,
-			sourceTransaction: source,
-			unlockingScriptTemplate,
-		})
-	}
-	tx.addOutput({ lockingScript: destScript, change: true })
-	await tx.fee(new SatoshisPerKilobyte(satsPerKb))
-	return tx.getFee()
-}
+const maxPossibleSatoshis = 2099999999999999
 
 // ============================================================================
 // Types
@@ -409,8 +358,6 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 export interface SendAllBsvInput extends ActionOptions {
 	/** Destination address to send all funds to */
 	destination: string
-	/** Satoshis per kilobyte. Default 100, matching toolbox/Yours storage.feeModel. */
-	satsPerKb?: number
 }
 
 /**
@@ -428,10 +375,6 @@ export const sendAllBsv: Action<SendAllBsvInput, SendBsvResponse> = {
 					type: 'string',
 					description: 'Destination P2PKH address to send all funds to',
 				},
-				satsPerKb: {
-					type: 'integer',
-					description: 'Satoshis per kilobyte (default 100)',
-				},
 			},
 			required: ['destination'],
 		},
@@ -446,32 +389,14 @@ export const sendAllBsv: Action<SendAllBsvInput, SendBsvResponse> = {
 				}
 			}
 
-			const utxos = await listDefaultBasketSpendable(ctx.wallet)
-			const total = utxos.reduce((sum, u) => sum + u.satoshis, 0)
-			if (utxos.length === 0 || total <= 0) {
-				return { error: 'insufficient-funds' }
-			}
-
-			const satsPerKb = input.satsPerKb ?? DEFAULT_SATS_PER_KB
-			if (!Number.isFinite(satsPerKb) || satsPerKb < 1) {
-				return { error: 'invalid-fee-rate' }
-			}
-
-			const lockingScript = new P2PKH().lock(destination).toHex()
-			const fee = await sweepFeeForUtxos(destination, utxos, satsPerKb)
-			const satoshis = total - fee
-			if (satoshis <= 0) {
-				return { error: 'insufficient-funds' }
-			}
-
 			const result = await dispatchPlainPayment(
 				ctx.wallet,
 				{
 					description: 'Send all BSV',
 					outputs: [
 						{
-							lockingScript,
-							satoshis,
+							lockingScript: new P2PKH().lock(destination).toHex(),
+							satoshis: maxPossibleSatoshis,
 							outputDescription: 'Sweep all funds',
 							tags: [],
 						},

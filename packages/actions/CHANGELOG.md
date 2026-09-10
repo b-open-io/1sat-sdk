@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.210
+
+### Fixed
+- `sendAllBsv` again uses the `maxPossibleSatoshis` sentinel so storage can size the sweep. Do not call it through `WalletPermissionsManager`; use the underlying Wallet.
+
 ## 0.0.208
 
 ### Fixed

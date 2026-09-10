@@ -110,14 +110,13 @@ await sendBsv.execute(ctx, {
 
 ## sendAllBsv
 
-Sweep the wallet's entire spendable balance to a single destination address. **Single-phase** like `sendBsv`. Lists the `default` basket (same admin-only gate as getBalance), prices the sweep with `SatoshisPerKilobyte` (`satsPerKb` default 100, matching toolbox `feeModel`), and `createAction`s that exact amount. Pass the wallet's rate when it is not 100. A non-admin WPM originator fails with the default-basket admin-only error.
+Sweep the wallet's entire spendable balance to a single destination address. **Single-phase** like `sendBsv`. `createAction`s one output with `satoshis: 2099999999999999`; storage shrinks that to leftover-after-fee. Call this on the underlying Wallet, not WalletPermissionsManager — WPM rejects the rewritten amount.
 
 ### Input
 
 ```typescript
 interface SendAllBsvInput {
   destination: string // P2PKH address (paymail not supported)
-  satsPerKb?: number // default 100
   fundingProvider?: FundingProvider
 }
 ```
