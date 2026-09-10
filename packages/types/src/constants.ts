@@ -2,6 +2,8 @@
  * Shared constants for 1Sat Ordinals SDK
  */
 
+import type { WalletCounterparty, WalletProtocol } from '@bsv/sdk'
+
 // ============================================================================
 // Protocol Identifiers
 // ============================================================================
@@ -148,6 +150,15 @@ export const P1SAT_MODULE_PROTOCOL: [0 | 1 | 2, string] = [0, 'p 1sat probe']
  * Module probe is {@link P1SAT_MODULE_PROTOCOL}. Same as ONESAT_PROTOCOL.
  */
 export const P1SAT_PROTOCOL: [0 | 1 | 2, string] = ONESAT_PROTOCOL
+
+/**
+ * Legacy key-derivation protocol `[0, 'p 1sat']`. Addresses derived under this
+ * protocol before the rename to {@link ONESAT_PROTOCOL} are unreachable by the
+ * current constant (protocol is a BRC-42 derivation input, so the same keyID
+ * yields a different address). Callers that hold funds on old addresses must
+ * derive/sign under this protocol in addition to {@link ONESAT_PROTOCOL}.
+ */
+export const LEGACY_ONESAT_PROTOCOL: [0 | 1 | 2, string] = [0, 'p 1sat']
 
 // ============================================================================
 // OpNS identity bind (PushDrop on name UTXO)
@@ -500,6 +511,31 @@ export const IMAGE_CONTENT_TYPES = [
 	'image/svg+xml',
 	'image/webp',
 ] as const
+
+// ============================================================================
+// BRC-42 Key Derivation
+// ============================================================================
+
+/**
+ * A single BRC-42 self-key identity: the triple that determines exactly which
+ * key a wallet derives and signs with. This is the spend-side counterpart to
+ * {@link AddressDerivation} (a BRC-29 remittance record) and is what actions
+ * like `sendMnee` need to (a) compute the address to look up and (b) sign with
+ * the matching key under the correct protocol.
+ *
+ * `protocolID` is a BRC-42 derivation input — the same `keyID` under two
+ * protocols yields different keys/addresses. Callers holding funds derived
+ * under a legacy protocol (e.g. {@link LEGACY_ONESAT_PROTOCOL}) must include
+ * those records alongside the current-protocol ones.
+ *
+ * `counterparty` is omitted for self-derived keys and defaults to `'self'`.
+ */
+export interface KeyDerivation {
+	protocolID: WalletProtocol
+	keyID: string
+	/** BRC-43 counterparty. Omit for self-derived keys (defaults to 'self'). */
+	counterparty?: WalletCounterparty
+}
 
 // ============================================================================
 // BRC-29 Address Derivation

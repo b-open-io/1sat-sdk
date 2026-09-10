@@ -4,8 +4,12 @@
  * Actions for deposit address derivation under P1SAT.
  */
 
-import { type AddressDerivation, P1SAT_PROTOCOL } from '@1sat/types'
-import { PublicKey } from '@bsv/sdk'
+import {
+	type AddressDerivation,
+	ONESAT_PROTOCOL,
+	P1SAT_PROTOCOL,
+} from '@1sat/types'
+import { PublicKey, type WalletProtocol } from '@bsv/sdk'
 import type { Action } from '../types.js'
 
 // ============================================================================
@@ -32,6 +36,13 @@ export interface DeriveDepositAddressesInput {
 	startIndex?: number
 	/** Number of addresses to derive (default: 1) */
 	count?: number
+	/**
+	 * BRC-42 derivation protocol. Defaults to {@link ONESAT_PROTOCOL}
+	 * (`[0, 'onesat']`). Pass {@link LEGACY_ONESAT_PROTOCOL} (`[0, 'p 1sat']`)
+	 * to recover the pre-rename address set, e.g. when scanning for funds
+	 * deposited before the protocol rename.
+	 */
+	protocolID?: WalletProtocol
 }
 
 export interface DeriveDepositAddressesResult {
@@ -76,7 +87,12 @@ export const deriveDepositAddresses: Action<
 		},
 	},
 	async execute(ctx, input) {
-		const { prefix = DEFAULT_DEPOSIT_PREFIX, startIndex = 0, count = 1 } = input
+		const {
+			prefix = DEFAULT_DEPOSIT_PREFIX,
+			startIndex = 0,
+			count = 1,
+			protocolID = ONESAT_PROTOCOL,
+		} = input
 
 		const { publicKey: senderIdentityKey } = await ctx.wallet.getPublicKey({
 			identityKey: true,
@@ -89,7 +105,7 @@ export const deriveDepositAddresses: Action<
 			const keyID = `${prefix} ${derivationSuffix}`
 
 			const { publicKey } = await ctx.wallet.getPublicKey({
-				protocolID: P1SAT_PROTOCOL,
+				protocolID,
 				keyID,
 				forSelf: true,
 			})
