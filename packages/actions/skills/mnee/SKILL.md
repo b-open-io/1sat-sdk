@@ -101,19 +101,23 @@ const res = await getMneeUtxos.execute(ctx, {
 
 ## getMneeHistory
 
-Returns parsed transaction history (send/receive direction, net amounts, fees, counterparties) for the given addresses. Supports cursor pagination via `fromScore` / `nextScore`.
+Returns parsed transaction history (send/receive direction, net amounts, fees, counterparties). Pass **either** `addresses` **or** `derivations` (not both); `derivations` are resolved the same way as `getMneeBalance` / `sendMnee`. Parsed against the full self set. Supports cursor pagination via `fromScore` / `nextScore`.
 
 ```typescript
-import { createContext, getMneeHistory } from '@1sat/actions'
+import { createContext, getMneeHistory, LEGACY_ONESAT_PROTOCOL, ONESAT_PROTOCOL } from '@1sat/actions'
 
 const ctx = createContext(wallet, { services })
 
-// Input: GetMneeHistoryInput
+// Input: GetMneeHistoryInput = ({ addresses: string[] } | { derivations: KeyDerivation[] }) & { fromScore?: number; limit?: number }
 const res = await getMneeHistory.execute(ctx, {
-  addresses: ['1A1zP1...'],
+  derivations: [
+    { protocolID: ONESAT_PROTOCOL, keyID: '1sat 0' },
+    { protocolID: LEGACY_ONESAT_PROTOCOL, keyID: '1sat 0' },
+  ],
   fromScore: undefined, // optional pagination cursor
   limit: 50,            // optional, default 50
 })
+// or: getMneeHistory.execute(ctx, { addresses: ['1A1zP1...'], limit: 50 })
 
 // Result: GetMneeHistoryResult
 // {
@@ -130,8 +134,6 @@ const res = await getMneeHistory.execute(ctx, {
 //   nextScore?: number  // pass as fromScore in the next call
 // }
 ```
-
-Note: history is parsed relative to the first address in `addresses` (used as the "self" perspective for send/receive classification).
 
 ## getMneeTxStatus
 

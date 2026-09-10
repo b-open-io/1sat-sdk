@@ -74,6 +74,22 @@ async function resolveDerivations(
 	return out
 }
 
+async function resolveQueryAddresses(
+	ctx: OneSatContext,
+	input: { derivations?: KeyDerivation[]; addresses?: string[] },
+	action: string,
+): Promise<string[]> {
+	if (input.derivations) {
+		return (await resolveDerivations(ctx, input.derivations)).map(
+			(d) => d.address,
+		)
+	}
+	if (input.addresses) {
+		return input.addresses
+	}
+	throw new Error(`${action} requires addresses or derivations`)
+}
+
 // ============================================================================
 // CosignTemplate (ported from mnee@3.1.0)
 // ============================================================================
@@ -290,9 +306,10 @@ export interface GetMneeUtxosResult {
 
 export type GetMneeConfigInput = {}
 
-export interface GetMneeHistoryInput {
-	/** Addresses to query history for */
-	addresses: string[]
+export type GetMneeHistoryInput = (
+	| { addresses: string[]; derivations?: never }
+	| { derivations: KeyDerivation[]; addresses?: never }
+) & {
 	/** Pagination cursor */
 	fromScore?: number
 	/** Max results (default 50) */
@@ -344,10 +361,11 @@ export interface GetMneeHistoryResult {
 
 function parseSyncToTxHistory(
 	sync: MneeSyncEntry,
-	address: string,
+	selfAddresses: string[],
 	config: MneeConfig,
 ): MneeTxHistory | null {
-	const txType: 'send' | 'receive' = sync.senders.includes(address)
+	const self = new Set(selfAddresses)
+	const txType: 'send' | 'receive' = sync.senders.some((s) => self.has(s))
 		? 'send'
 		: 'receive'
 	const txStatus: 'confirmed' | 'unconfirmed' =
@@ -394,7 +412,7 @@ function parseSyncToTxHistory(
 		const { address: outAddr, amount } = outputData[i]
 		if (!outAddr || amount <= 0) continue
 
-		if (feeAddressIndex === i && sender === address) {
+		if (feeAddressIndex === i && self.has(sender)) {
 			fee += amount
 			continue
 		}
@@ -405,22 +423,20 @@ function parseSyncToTxHistory(
 		)
 	}
 
-	const amountSentToAddress = counterpartyAmounts.get(address) ?? 0
-
-	if (txType === 'send') {
-		const senderAmt = counterpartyAmounts.get(sender) ?? 0
-		counterpartyAmounts.set(sender, senderAmt - amountSentToAddress)
-	}
+	const amountSentToSelf = selfAddresses.reduce(
+		(sum, addr) => sum + (counterpartyAmounts.get(addr) ?? 0),
+		0,
+	)
 
 	let counterparties: Array<{ address: string; amount: number }>
 	if (txType === 'receive') {
-		counterparties = [{ address: sender, amount: amountSentToAddress }]
+		counterparties = [{ address: sender, amount: amountSentToSelf }]
 	} else {
 		counterparties = Array.from(counterpartyAmounts.entries())
 			.map(([addr, amt]) => ({ address: addr, amount: amt }))
 			.filter(
 				(cp) =>
-					cp.address !== address &&
+					!self.has(cp.address) &&
 					cp.address !== config.feeAddress &&
 					cp.amount > 0,
 			)
@@ -477,16 +493,11 @@ export const getMneeBalance: Action<GetMneeBalanceInput, GetMneeBalanceResult> =
 		},
 		async execute(ctx, input) {
 			const mnee = getMneeClient(ctx)
-			let addresses: string[]
-			if (input.derivations) {
-				addresses = (await resolveDerivations(ctx, input.derivations)).map(
-					(d) => d.address,
-				)
-			} else if (input.addresses) {
-				addresses = input.addresses
-			} else {
-				throw new Error('getMneeBalance requires addresses or derivations')
-			}
+			const addresses = await resolveQueryAddresses(
+				ctx,
+				input,
+				'getMneeBalance',
+			)
 
 			const rawBalances = await mnee.getBalances(addresses)
 
@@ -551,7 +562,9 @@ export const getMneeConfig: Action<GetMneeConfigInput, MneeConfig> = {
 }
 
 /**
- * Get MNEE transaction history for an address.
+ * Get MNEE transaction history. Query either explicit `addresses`, or the
+ * caller's self-key `derivations` (resolved the same way `getMneeBalance` /
+ * `sendMnee` do). Parsed against the full self set, not just the first address.
  */
 export const getMneeHistory: Action<GetMneeHistoryInput, GetMneeHistoryResult> =
 	{
@@ -564,9 +577,14 @@ export const getMneeHistory: Action<GetMneeHistoryInput, GetMneeHistoryResult> =
 			inputSchema: {
 				type: 'object',
 				properties: {
-					address: {
-						type: 'string',
-						description: 'Address to query (omit for all yours addresses)',
+					addresses: {
+						type: 'array',
+						description: 'Specific addresses to query',
+					},
+					derivations: {
+						type: 'array',
+						description:
+							'Self-key derivations ({ protocolID, keyID }); resolved to addresses',
 					},
 					fromScore: {
 						type: 'number',
@@ -581,18 +599,22 @@ export const getMneeHistory: Action<GetMneeHistoryInput, GetMneeHistoryResult> =
 		},
 		async execute(ctx, input) {
 			const mnee = getMneeClient(ctx)
-			const queryAddress = input.addresses[0]
+			const addresses = await resolveQueryAddresses(
+				ctx,
+				input,
+				'getMneeHistory',
+			)
 
 			const config = await mnee.getConfig()
 			const syncEntries = await mnee.getTxHistory(
-				input.addresses,
+				addresses,
 				input.fromScore,
 				input.limit,
 			)
 
 			const history: MneeTxHistory[] = []
 			for (const entry of syncEntries) {
-				const parsed = parseSyncToTxHistory(entry, queryAddress, config)
+				const parsed = parseSyncToTxHistory(entry, addresses, config)
 				if (parsed) history.push(parsed)
 			}
 
