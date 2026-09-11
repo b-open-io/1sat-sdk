@@ -36,6 +36,8 @@ export interface ScanResult {
 	ordinals: SweepOrdinalUtxo[]
 	/** BSV-21 token groups */
 	tokens: SweepTokenGroup[]
+	/** OrdLock marketplace listings cancelled into BRC-100 on sweep */
+	listings?: SweepOrdinalUtxo[]
 	/** Total satoshis across all funding UTXOs */
 	totalSats: number
 }
@@ -147,7 +149,8 @@ export function useSweepWallet({
 			const hasAssets =
 				result.funding.length > 0 ||
 				result.ordinals.length > 0 ||
-				result.tokens.length > 0
+				result.tokens.length > 0 ||
+				(result.listings?.length ?? 0) > 0
 
 			if (hasAssets) {
 				setStep('preview')

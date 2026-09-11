@@ -526,6 +526,42 @@ export function Bsv20Section({ tokens }: { tokens: IndexedOutput[] }) {
 	)
 }
 
+export function ListingsSection({
+	listings,
+	walletConnected,
+	onCancel,
+}: {
+	listings: EnrichedOrdinal[]
+	walletConnected?: boolean
+	onCancel?: () => void
+}) {
+	if (listings.length === 0) return null
+	return (
+		<div className="border border-primary/20 bg-primary/5 p-4 rounded-lg space-y-3">
+			<div className="flex items-center gap-2">
+				<span className="h-2 w-2 rounded-full bg-primary" />
+				<span className="text-sm font-semibold text-primary">
+					OrdLock Listings
+				</span>
+			</div>
+			<p className="text-xs text-muted-foreground">
+				{listings.length} listed UTXO{listings.length !== 1 ? 's' : ''}. These
+				are cancelled into your BRC-100 wallet on BSV sweep.
+			</p>
+			{onCancel && (
+				<Button
+					size="sm"
+					disabled={!walletConnected}
+					onClick={onCancel}
+					className="w-full"
+				>
+					Cancel listings into wallet
+				</Button>
+			)}
+		</div>
+	)
+}
+
 export function LockedSection({ locked }: { locked: IndexedOutput[] }) {
 	if (locked.length === 0) return null
 	return (

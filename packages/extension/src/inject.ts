@@ -159,9 +159,13 @@ export function injectOneSatProvider(options: InjectOptions = {}): void {
 		sendOrdinals: createMethod<SendOrdinalsRequest, SendResult>('sendOrdinals'),
 
 		// Listings
-		createListing: createMethod<CreateListingRequest, ListingResult>(
-			'createListing',
-		),
+		createListing: async (
+			_request: CreateListingRequest,
+		): Promise<ListingResult> => {
+			throw new Error(
+				'OrdLock listing create is disabled. Buy and cancel of existing listings remain available.',
+			)
+		},
 		purchaseListing: createMethod<PurchaseListingRequest, SendResult>(
 			'purchaseListing',
 		),

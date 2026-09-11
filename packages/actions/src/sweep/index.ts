@@ -913,7 +913,7 @@ export {
 export const sweepActions = [sweepBsv, sweepOrdinals, sweepBsv21]
 
 // Export scan module
-export { scanAddress, scanAddresses } from './scan.js'
+export { isListedOutput, scanAddress, scanAddresses } from './scan.js'
 
 // Export types
 export type {

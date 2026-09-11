@@ -18,7 +18,11 @@ export {
 } from './types.js'
 
 // Export action registry
-export { ActionRegistry, actionRegistry, type McpTool } from './action-registry.js'
+export {
+	ActionRegistry,
+	actionRegistry,
+	type McpTool,
+} from './action-registry.js'
 
 // Export constants
 export * from './constants.js'
@@ -157,6 +161,11 @@ export * from './cosign/index.js'
 
 // Export sweep module (uses external signing, not action-based)
 export * from './sweep/index.js'
+export {
+	cancelOwnedListings,
+	type CancelOwnedListingsInput,
+	type CancelOwnedListingsResult,
+} from './listings/cancelOwnedListings.js'
 
 // Export sync module
 export * from './sync/index.js'
@@ -172,6 +181,7 @@ import { addressesActions } from './addresses/index.js'
 import { collectionsActions } from './collections/index.js'
 import { identityActions } from './identity/index.js'
 import { inscriptionsActions } from './inscriptions/index.js'
+import { cancelOwnedListings } from './listings/cancelOwnedListings.js'
 import { locksActions } from './locks/index.js'
 import { mneeActions } from './mnee/index.js'
 import { opnsActions } from './opns/index.js'
@@ -196,6 +206,7 @@ actionRegistry.registerAll([
 	...signingActions,
 	...socialActions,
 	...sweepActions,
+	cancelOwnedListings,
 	...opnsActions,
 	...syncActions,
 	...mneeActions,

@@ -112,6 +112,41 @@ export function computeAccountId(identityKey: string): string {
 		.join('')
 }
 
+/** OPL-4696: cancel wallet-owned OrdLock listings into the 1sat/opns baskets. */
+async function cancelListedOnLoad(instance: WalletInstance): Promise<void> {
+	try {
+		const { cancelOwnedListings, createContext } = await import('@1sat/actions')
+		const ctx = createContext(instance.wallet.wallet, {
+			services: instance.wallet.services,
+			chain: 'main',
+		})
+		const result = await cancelOwnedListings.execute(ctx, {})
+		if (result.cancelled > 0) {
+			instance.callbacks.onSyncEvent?.({
+				timestamp: Date.now(),
+				source: 'wallet',
+				level: 'success',
+				message: `Cancelled ${result.cancelled} OrdLock listing(s)`,
+			})
+		}
+		for (const err of result.errors) {
+			instance.callbacks.onSyncEvent?.({
+				timestamp: Date.now(),
+				source: 'wallet',
+				level: 'warn',
+				message: `OrdLock cancel-on-load: ${err}`,
+			})
+		}
+	} catch (err) {
+		instance.callbacks.onSyncEvent?.({
+			timestamp: Date.now(),
+			source: 'wallet',
+			level: 'error',
+			message: `OrdLock cancel-on-load failed: ${err instanceof Error ? err.message : String(err)}`,
+		})
+	}
+}
+
 /** Push balance for a specific account's wallet. */
 async function pushBalance(instance: WalletInstance): Promise<void> {
 	if (!instance.callbacks.onBalanceUpdated) return
@@ -261,6 +296,7 @@ export async function create(
 	})
 
 	await pushBalance(instance)
+	void cancelListedOnLoad(instance)
 	return { identityKey, bapId }
 }
 
@@ -279,6 +315,7 @@ export async function unlock(
 		existing.callbacks = callbacks
 		callbacks.onStatusChanged?.('unlocked')
 		await pushBalance(existing)
+		void cancelListedOnLoad(existing)
 		return
 	}
 
@@ -321,6 +358,7 @@ export async function unlock(
 	})
 
 	await pushBalance(instance)
+	void cancelListedOnLoad(instance)
 }
 
 /**

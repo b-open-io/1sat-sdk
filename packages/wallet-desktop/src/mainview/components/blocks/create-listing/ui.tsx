@@ -139,7 +139,9 @@ export function CreateListingUI({
 			<DialogTrigger asChild>
 				<button
 					type="button"
+					disabled
 					className={cn(createListingTriggerVariants({ variant }), className)}
+					title="OrdLock listing create is disabled. Buy and cancel of existing listings remain available."
 				>
 					<Tag className="size-4" />
 					{triggerLabel}

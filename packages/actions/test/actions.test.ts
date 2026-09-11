@@ -8,6 +8,7 @@ import {
 	listBsv21,
 	listOrdinals,
 	lockBsv,
+	sellOpns,
 	sellOrdinal,
 	sendAllBsv,
 	sendBsv,
@@ -15,7 +16,7 @@ import {
 	signBsm,
 	unlockBsv,
 } from '@1sat/actions'
-import { readAssetIdTag } from '@1sat/types'
+import { ORDLOCK_LISTING_CREATE_DISABLED, readAssetIdTag } from '@1sat/types'
 import { BSM, PublicKey, Utils } from '@bsv/sdk'
 import {
 	type TestContext,
@@ -125,9 +126,7 @@ describe('Phase 2 — Create assets', () => {
 		expect(result.txid!.length).toBe(64)
 
 		const listed = await listOrdinals.execute(primary.ctx, {})
-		const row = listed.outputs.find((o) =>
-			o.outpoint.startsWith(result.txid!),
-		)
+		const row = listed.outputs.find((o) => o.outpoint.startsWith(result.txid!))
 		const id = readAssetIdTag(row?.tags)
 		expect(id).toBeDefined()
 		inscribedId = id!
@@ -160,9 +159,8 @@ describe('Phase 2 — Create assets', () => {
 // Phase 3 — Ordinal marketplace (requires funded SELLER + BUYER)
 // ============================================================================
 
-// We'll inscribe a fresh ordinal on seller, list it, then buy with buyer
+// We'll inscribe a fresh ordinal on seller; listing create is disabled (OPL-4690)
 let sellerId: string
-let listingOutpoint: string
 
 describe('Phase 3 — Ordinal marketplace', () => {
 	test('inscribe on seller wallet for marketplace test', async () => {
@@ -186,61 +184,40 @@ describe('Phase 3 — Ordinal marketplace', () => {
 		sellerId = id!
 	})
 
-	test('sellOrdinal — lists an ordinal for sale', async () => {
+	test('sellOrdinal — refuses new listing create', async () => {
 		const result = await sellOrdinal.execute(seller.ctx, {
 			id: sellerId,
 			price: 1000,
 		})
 
-		expect(result.error).toBeUndefined()
-		expect(result.txid).toBeDefined()
-		listingOutpoint = `${result.txid}.0`
+		expect(result.error).toBe(ORDLOCK_LISTING_CREATE_DISABLED)
+		expect(result.txid).toBeUndefined()
 	})
 
-	test('cancelOrdinalListing — cancels an active listing', async () => {
-		// List a second ordinal so we can cancel it without affecting the purchase test
-		const content = JSON.stringify({ cancel: true, ts: Date.now() })
-		const base64Content = Utils.toBase64(
-			Array.from(new TextEncoder().encode(content)),
-		)
-		const insc = await inscribe.execute(seller.ctx, {
-			base64Content,
-			contentType: 'application/json',
+	test('sellOpns — refuses new listing create', async () => {
+		const result = await sellOpns.execute(seller.ctx, {
+			id: 'unused',
+			price: 1000,
 		})
-		expect(insc.txid).toBeDefined()
 
-		const listed = await listOrdinals.execute(seller.ctx, {})
-		const row = listed.outputs.find((o) => o.outpoint.startsWith(insc.txid!))
-		const id = readAssetIdTag(row?.tags)
-		expect(id).toBeDefined()
+		expect(result.error).toBe(ORDLOCK_LISTING_CREATE_DISABLED)
+		expect(result.txid).toBeUndefined()
+	})
 
-		const listing = await sellOrdinal.execute(seller.ctx, {
-			id: id!,
-			price: 2000,
-		})
-		expect(listing.txid).toBeDefined()
-
-		const after = await listOrdinals.execute(seller.ctx, {})
-		const listingRow = after.outputs.find((o) =>
-			o.outpoint.startsWith(listing.txid!),
-		)
-		const listingId = readAssetIdTag(listingRow?.tags)
-		expect(listingId).toBeDefined()
-
+	test('cancelOrdinalListing — still runs (not create-disabled)', async () => {
 		const result = await cancelOrdinalListing.execute(seller.ctx, {
-			id: listingId!,
+			id: 'missing-listing-id',
 		})
-		expect(result.error).toBeUndefined()
-		expect(result.txid).toBeDefined()
+		expect(result.error).toBeDefined()
+		expect(result.error).not.toBe(ORDLOCK_LISTING_CREATE_DISABLED)
 	})
 
-	test('buyOrdinal — buyer purchases a listed ordinal', async () => {
+	test('buyOrdinal — still runs (not create-disabled)', async () => {
 		const result = await buyOrdinal.execute(buyer.ctx, {
-			outpoint: listingOutpoint,
+			outpoint: `${'00'.repeat(32)}.0`,
 		})
-
-		expect(result.error).toBeUndefined()
-		expect(result.txid).toBeDefined()
+		expect(result.error).toBeDefined()
+		expect(result.error).not.toBe(ORDLOCK_LISTING_CREATE_DISABLED)
 	})
 
 	test('sendOrdinals — transfers an ordinal to another address', async () => {
