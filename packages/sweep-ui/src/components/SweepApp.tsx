@@ -261,8 +261,11 @@ export function SweepApp({
 				amount: sweepAmount ?? undefined,
 				onProgress: setSweepProgress,
 			})
-			if (result.errors.length > 0) throw new Error(result.errors[0])
 			for (const txid of result.listingTxids) addTx('Cancel listings', txid)
+			if (result.errors.length > 0) {
+				if (result.cancelledListings.length > 0) await refreshAssets()
+				throw new Error(result.errors[0])
+			}
 			return result.bsvTxid ?? result.listingTxids[0] ?? ''
 		})
 	}, [
@@ -274,6 +277,7 @@ export function SweepApp({
 		runOperation,
 		keyMap,
 		addTx,
+		refreshAssets,
 	])
 
 	const handleCancelListings = useCallback(async () => {
@@ -289,10 +293,25 @@ export function SweepApp({
 				listings: assets.listings,
 				onProgress: setSweepProgress,
 			})
-			if (result.errors.length > 0) throw new Error(result.errors[0])
-			return result.listingTxids[0] ?? ''
+			if (result.errors.length > 0) {
+				for (const txid of result.listingTxids) addTx('Cancel listings', txid)
+				if (result.cancelledListings.length > 0) await refreshAssets()
+				throw new Error(result.errors[0])
+			}
+			for (let i = 0; i < result.listingTxids.length - 1; i++) {
+				addTx('Cancel listings', result.listingTxids[i])
+			}
+			return result.listingTxids[result.listingTxids.length - 1] ?? ''
 		})
-	}, [resolveWallet, legacyKeys, assets, keyMap, runOperation])
+	}, [
+		resolveWallet,
+		legacyKeys,
+		assets,
+		keyMap,
+		runOperation,
+		addTx,
+		refreshAssets,
+	])
 
 	const handleSendBsv = useCallback(
 		async (destination: string) => {

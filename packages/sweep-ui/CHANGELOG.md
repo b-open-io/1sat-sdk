@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.94
+
+### Fixed
+- Stop sweeping after incomplete listing cancellation, retain completed transactions for retry, and match signing keys to prepared input order.
+
 ## 0.0.92
 
 ### Changed
