@@ -32,12 +32,15 @@ function getOwner(output: IndexedOutput): string | undefined {
 function buildKeys(
 	outputs: IndexedOutput[],
 	keyMap: Map<string, PrivateKey>,
+	inputs: Pick<IndexedOutput, 'outpoint'>[] = outputs,
 ): PrivateKey[] {
-	return outputs.map((output) => {
-		const owner = getOwner(output)
+	const owners = new Map(
+		outputs.map((output) => [output.outpoint, getOwner(output)]),
+	)
+	return inputs.map(({ outpoint }) => {
+		const owner = owners.get(outpoint)
 		const key = owner ? keyMap.get(owner) : undefined
-		if (!key)
-			throw new Error(`No key for output ${output.outpoint} (owner: ${owner})`)
+		if (!key) throw new Error(`No key for output ${outpoint} (owner: ${owner})`)
 		return key
 	})
 }
@@ -95,19 +98,19 @@ export async function executeSweep(params: {
 				const inputs = await prepareSweepInputs(ctx, batch)
 				const cancelResult = await sweepOrdinals.execute(ctx, {
 					inputs,
-					keys: buildKeys(batch, keys),
+					keys: buildKeys(batch, keys, inputs),
 				})
-				if (cancelResult.error) {
-					result.errors.push(`Listings batch ${b + 1}: ${cancelResult.error}`)
-					break
-				}
-				if (cancelResult.txid) result.listingTxids.push(cancelResult.txid)
+				if (cancelResult.error) throw new Error(cancelResult.error)
+				const txid = cancelResult.txid?.trim()
+				if (!txid) throw new Error('Cancellation returned no transaction ID')
+				result.listingTxids.push(txid)
 				result.cancelledListings.push(...batch.map((o) => o.outpoint))
 			} catch (e) {
 				result.errors.push(
 					`Listings batch ${b + 1}: ${e instanceof Error ? e.message : String(e)}`,
 				)
-				break
+				onProgress('Sweep stopped with errors')
+				return result
 			}
 		}
 	}
@@ -118,11 +121,13 @@ export async function executeSweep(params: {
 			const inputs = await prepareSweepInputs(ctx, funding)
 			const bsvResult = await sweepBsv.execute(ctx, {
 				inputs,
-				keys: buildKeys(funding, keys),
+				keys: buildKeys(funding, keys, inputs),
 				amount,
 			})
-			if (bsvResult.error) result.errors.push(`BSV: ${bsvResult.error}`)
-			else if (bsvResult.txid) result.bsvTxid = bsvResult.txid
+			if (bsvResult.error) throw new Error(bsvResult.error)
+			const txid = bsvResult.txid?.trim()
+			if (!txid) throw new Error('Sweep returned no transaction ID')
+			result.bsvTxid = txid
 		} catch (e) {
 			result.errors.push(`BSV: ${e instanceof Error ? e.message : String(e)}`)
 		}
@@ -143,15 +148,12 @@ export async function executeSweep(params: {
 				const inputs = await prepareSweepInputs(ctx, batch)
 				const ordResult = await sweepOrdinals.execute(ctx, {
 					inputs,
-					keys: buildKeys(batch, keys),
+					keys: buildKeys(batch, keys, inputs),
 				})
-				if (ordResult.error) {
-					result.errors.push(
-						`Ordinals batch ${b + 1}/${batches.length}: ${ordResult.error}`,
-					)
-					break
-				}
-				if (ordResult.txid) result.ordinalTxids.push(ordResult.txid)
+				if (ordResult.error) throw new Error(ordResult.error)
+				const txid = ordResult.txid?.trim()
+				if (!txid) throw new Error('Sweep returned no transaction ID')
+				result.ordinalTxids.push(txid)
 				result.sweptOutpoints.push(...batch.map((o) => o.outpoint))
 			} catch (e) {
 				result.errors.push(
