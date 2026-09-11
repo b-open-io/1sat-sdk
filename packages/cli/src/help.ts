@@ -393,9 +393,6 @@ export const COMMANDS: CommandSpec[] = [
 			{
 				name: 'sell',
 				description: 'List an ordinal for sale (OrdLock)',
-				unavailable: true,
-				notes:
-					'OrdLock listing create is disabled. Buy and cancel of existing listings remain available.',
 				args: [
 					{ flag: '--id', values: '<tracking-id>', required: true },
 					{ flag: '--price', values: '<sats>', required: true },
@@ -620,9 +617,6 @@ export const COMMANDS: CommandSpec[] = [
 			{
 				name: 'sell',
 				description: 'List an OpNS name for sale',
-				unavailable: true,
-				notes:
-					'OrdLock listing create is disabled. Buy and cancel of existing listings remain available.',
 				args: [
 					{ flag: '--id', values: '<tracking-id>', required: true },
 					{ flag: '--price', values: '<satoshis>', required: true },

@@ -1,7 +1,8 @@
-import { OrdLock } from '@1sat/templates'
+import { OrdLock, OrdLockV2 } from '@1sat/templates'
 import {
 	type IndexSummary,
 	Indexer,
+	ORDLOCK_V2_TAG,
 	type ParseContext,
 	type ParseResult,
 	type Txo,
@@ -27,18 +28,21 @@ export class OrdLockIndexer extends Indexer {
 
 	async parse(txo: Txo): Promise<ParseResult | undefined> {
 		const lockingScript = txo.output.lockingScript
+		const mainnet = this.network === 'mainnet'
 
-		const decoded = OrdLock.decode(lockingScript, this.network === 'mainnet')
+		// v2 (tag-output binding) first, then legacy v1. The version tag must
+		// match what `sellOrdinal` / `sellOpns` emit for the same script, so a
+		// listing that arrived by sync looks like one we created: v1 purge
+		// paths key on `ordlock` and must not see v2 rows.
+		const v2 = OrdLockV2.decode(lockingScript, mainnet)
+		const decoded = v2 ?? OrdLock.decode(lockingScript, mainnet)
 		if (!decoded) return
 
 		const listing = new Listing(decoded.payout, decoded.price)
 
 		return {
 			data: listing,
-			// Same pair every other producer emits — `sellOrdinal`, `sellOpns`
-			// and `stampScriptDerivedTags`. A listing that arrived by sync has to
-			// look like one that we created, or listing queries miss it.
-			tags: ['ordlock', `price:${listing.price}`],
+			tags: [v2 ? ORDLOCK_V2_TAG : 'ordlock', `price:${listing.price}`],
 			owner: decoded.seller,
 			protocol: 'basket insertion', // OrdLock script requires manual unlock
 		}
@@ -49,7 +53,11 @@ export class OrdLockIndexer extends Indexer {
 		for (const [vin, spend] of ctx.spends.entries()) {
 			if (spend.data[this.tag]) {
 				const unlockingScript = ctx.tx.inputs[vin].unlockingScript
-				if (unlockingScript && OrdLock.isPurchase(unlockingScript)) {
+				if (
+					unlockingScript &&
+					(OrdLockV2.isPurchase(unlockingScript) ||
+						OrdLock.isPurchase(unlockingScript))
+				) {
 					// Purchased via ordlock contract
 					return { amount: 1 }
 				}

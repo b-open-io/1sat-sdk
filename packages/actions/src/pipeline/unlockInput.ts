@@ -1,4 +1,4 @@
-import { Lock, OrdLock } from '@1sat/templates'
+import { Lock, OrdLock, OrdLockV2 } from '@1sat/templates'
 import {
 	BigNumber,
 	Hash,
@@ -158,7 +158,8 @@ export async function buildSpendsForTargets(
 
 /**
  * Unlock one input from locking-script shape.
- * - OrdLock + CI → cancel; OrdLock without → purchase unlock
+ * - OrdLock v2 + CI → cancel; without → purchase (payout+tag pair must be in outputs)
+ * - OrdLock v1 + CI → cancel; without → purchase unlock
  * - PushDrop / Lock / P2PKH → need CI
  */
 export async function unlockByScript(
@@ -169,6 +170,26 @@ export async function unlockByScript(
 	sourceSatoshis: number,
 	keyCi?: KeyCi,
 ): Promise<UnlockResult> {
+	if (OrdLockV2.isOrdLockV2(lockingScript)) {
+		const unlocker =
+			keyCi?.protocolID && keyCi.keyID
+				? OrdLockV2.cancelWithWallet(
+						wallet,
+						keyCi.protocolID,
+						keyCi.keyID,
+						keyCi.counterparty ?? 'self',
+					)
+				: OrdLockV2.purchaseListing(sourceSatoshis, lockingScript)
+		try {
+			const unlockingScript = await unlocker.sign(tx, inputIndex)
+			return { unlockingScript: unlockingScript.toHex() }
+		} catch (e) {
+			return {
+				error: e instanceof Error ? e.message : 'ordlock-v2-unlock-failed',
+			}
+		}
+	}
+
 	if (OrdLock.decode(lockingScript)) {
 		if (keyCi?.protocolID && keyCi.keyID) {
 			try {

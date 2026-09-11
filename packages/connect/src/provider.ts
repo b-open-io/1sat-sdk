@@ -199,10 +199,9 @@ export class OneSatBrowserProvider implements OneSatProvider {
 
 	// Listing methods
 
-	async createListing(_request: CreateListingRequest): Promise<ListingResult> {
-		throw new Error(
-			'OrdLock listing create is disabled. Buy and cancel of existing listings remain available.',
-		)
+	async createListing(request: CreateListingRequest): Promise<ListingResult> {
+		this.requireConnection()
+		return this.sendRequest<ListingResult>(RpcMethods.CREATE_LISTING, request)
 	}
 
 	async purchaseListing(request: PurchaseListingRequest): Promise<SendResult> {

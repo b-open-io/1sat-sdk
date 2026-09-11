@@ -16,7 +16,7 @@ import {
 	signBsm,
 	unlockBsv,
 } from '@1sat/actions'
-import { ORDLOCK_LISTING_CREATE_DISABLED, readAssetIdTag } from '@1sat/types'
+import { readAssetIdTag } from '@1sat/types'
 import { BSM, PublicKey, Utils } from '@bsv/sdk'
 import {
 	type TestContext,
@@ -159,8 +159,9 @@ describe('Phase 2 — Create assets', () => {
 // Phase 3 — Ordinal marketplace (requires funded SELLER + BUYER)
 // ============================================================================
 
-// We'll inscribe a fresh ordinal on seller; listing create is disabled (OPL-4690)
+// We'll inscribe a fresh ordinal on seller, list it (OrdLock v2), then buy it from buyer
 let sellerId: string
+let listingOutpoint: string
 
 describe('Phase 3 — Ordinal marketplace', () => {
 	test('inscribe on seller wallet for marketplace test', async () => {
@@ -184,40 +185,69 @@ describe('Phase 3 — Ordinal marketplace', () => {
 		sellerId = id!
 	})
 
-	test('sellOrdinal — refuses new listing create', async () => {
+	test('sellOrdinal — lists an ordinal for sale (OrdLock v2)', async () => {
 		const result = await sellOrdinal.execute(seller.ctx, {
 			id: sellerId,
 			price: 1000,
 		})
 
-		expect(result.error).toBe(ORDLOCK_LISTING_CREATE_DISABLED)
-		expect(result.txid).toBeUndefined()
+		expect(result.error).toBeUndefined()
+		expect(result.txid).toBeDefined()
+		listingOutpoint = `${result.txid}.0`
 	})
 
-	test('sellOpns — refuses new listing create', async () => {
+	test('cancelOrdinalListing — cancels an active listing', async () => {
+		// List a second ordinal so we can cancel it without affecting the purchase test
+		const content = JSON.stringify({ cancel: true, ts: Date.now() })
+		const base64Content = Utils.toBase64(
+			Array.from(new TextEncoder().encode(content)),
+		)
+		const insc = await inscribe.execute(seller.ctx, {
+			base64Content,
+			contentType: 'application/json',
+		})
+		expect(insc.txid).toBeDefined()
+
+		const listed = await listOrdinals.execute(seller.ctx, {})
+		const row = listed.outputs.find((o) => o.outpoint.startsWith(insc.txid!))
+		const id = readAssetIdTag(row?.tags)
+		expect(id).toBeDefined()
+
+		const listing = await sellOrdinal.execute(seller.ctx, {
+			id: id!,
+			price: 2000,
+		})
+		expect(listing.txid).toBeDefined()
+
+		const after = await listOrdinals.execute(seller.ctx, {})
+		const listingRow = after.outputs.find((o) =>
+			o.outpoint.startsWith(listing.txid!),
+		)
+		const listingId = readAssetIdTag(listingRow?.tags)
+		expect(listingId).toBeDefined()
+
+		const result = await cancelOrdinalListing.execute(seller.ctx, {
+			id: listingId!,
+		})
+		expect(result.error).toBeUndefined()
+		expect(result.txid).toBeDefined()
+	})
+
+	test('sellOpns — rejects a bad price without touching the wallet', async () => {
 		const result = await sellOpns.execute(seller.ctx, {
 			id: 'unused',
-			price: 1000,
+			price: 0,
 		})
-
-		expect(result.error).toBe(ORDLOCK_LISTING_CREATE_DISABLED)
-		expect(result.txid).toBeUndefined()
+		expect(result.error).toBe('invalid-price')
 	})
 
-	test('cancelOrdinalListing — still runs (not create-disabled)', async () => {
-		const result = await cancelOrdinalListing.execute(seller.ctx, {
-			id: 'missing-listing-id',
-		})
-		expect(result.error).toBeDefined()
-		expect(result.error).not.toBe(ORDLOCK_LISTING_CREATE_DISABLED)
-	})
-
-	test('buyOrdinal — still runs (not create-disabled)', async () => {
+	test('buyOrdinal — buyer purchases a listed ordinal', async () => {
 		const result = await buyOrdinal.execute(buyer.ctx, {
-			outpoint: `${'00'.repeat(32)}.0`,
+			outpoint: listingOutpoint,
 		})
-		expect(result.error).toBeDefined()
-		expect(result.error).not.toBe(ORDLOCK_LISTING_CREATE_DISABLED)
+
+		expect(result.error).toBeUndefined()
+		expect(result.txid).toBeDefined()
 	})
 
 	test('sendOrdinals — transfers an ordinal to another address', async () => {

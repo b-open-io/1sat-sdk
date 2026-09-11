@@ -1,4 +1,4 @@
-import { Lock, OrdLock, Sigma } from '@1sat/templates'
+import { Lock, OrdLock, OrdLockV2, Sigma } from '@1sat/templates'
 import { type CreateActionArgs, Script } from '@bsv/sdk'
 
 /**
@@ -28,7 +28,7 @@ export function stampScriptDerivedTags(args: CreateActionArgs): void {
 			continue
 		}
 
-		const ordLock = OrdLock.decode(script)
+		const ordLock = OrdLockV2.decode(script) ?? OrdLock.decode(script)
 		if (ordLock) {
 			out.tags = [
 				...(out.tags ?? []).filter((t) => !t.startsWith('price:')),

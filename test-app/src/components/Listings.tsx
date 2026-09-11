@@ -1,4 +1,4 @@
-import { buyOrdinal, cancelOrdinalListing } from '@1sat/actions'
+import { buyOrdinal, cancelOrdinalListing, sellOrdinal } from '@1sat/actions'
 import { useState } from 'react'
 import { useLog } from './LogContext'
 import {
@@ -18,7 +18,7 @@ import { useOneSatContext } from './useActions'
 type Tab = 'create' | 'purchase' | 'cancel'
 
 export function Listings() {
-	const [tab, setTab] = useState<Tab>('purchase')
+	const [tab, setTab] = useState<Tab>('create')
 
 	return (
 		<div style={card}>
@@ -48,11 +48,79 @@ export function Listings() {
 }
 
 function CreateListing() {
+	const ctx = useOneSatContext()
+	const flags = useActionFlags()
+	const { log } = useLog()
+	const [id, setId] = useState('')
+	const [price, setPrice] = useState('')
+	const [payAddress, setPayAddress] = useState('')
+	const [loading, setLoading] = useState(false)
+	const [result, setResult] = useState<string | null>(null)
+	const [error, setError] = useState<string | null>(null)
+
+	const disabled = !ctx || loading || !id || !price
+
+	async function handleList() {
+		if (!ctx || disabled) return
+		setLoading(true)
+		setResult(null)
+		setError(null)
+		log('info', `sellOrdinal: id=${id} for ${price} sat`)
+
+		try {
+			const res = await sellOrdinal.execute(ctx, {
+				id,
+				price: Number(price),
+				...(payAddress && { payAddress }),
+				...flags,
+			})
+
+			if (res.error) throw new Error(res.error)
+			setResult(res.txid ?? 'no txid')
+			log('success', `sellOrdinal txid: ${res.txid}`)
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : String(err)
+			setError(msg)
+			log('error', `sellOrdinal failed: ${msg}`)
+		} finally {
+			setLoading(false)
+		}
+	}
+
 	return (
-		<p style={errorText}>
-			OrdLock listing create is disabled. Buy and cancel of existing listings
-			remain available.
-		</p>
+		<>
+			<label style={label}>Asset id</label>
+			<input
+				style={input}
+				placeholder="actionId_0"
+				value={id}
+				onChange={(e) => setId(e.target.value)}
+			/>
+			<label style={label}>Price (satoshis)</label>
+			<input
+				style={input}
+				placeholder="10000"
+				type="number"
+				value={price}
+				onChange={(e) => setPrice(e.target.value)}
+			/>
+			<label style={label}>Payment address (optional)</label>
+			<input
+				style={input}
+				placeholder="default: P1SAT pay key"
+				value={payAddress}
+				onChange={(e) => setPayAddress(e.target.value)}
+			/>
+			<button
+				style={disabled ? buttonDisabled : button}
+				disabled={disabled}
+				onClick={handleList}
+			>
+				{loading ? 'Listing...' : 'Create Listing'}
+			</button>
+			{result && <div style={successText}>TXID: {result}</div>}
+			{error && <div style={errorText}>{error}</div>}
+		</>
 	)
 }
 
