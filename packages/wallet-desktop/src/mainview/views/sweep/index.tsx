@@ -228,7 +228,7 @@ function StepResults({
 	onSweep,
 }: {
 	scanResult: SweepScanResult
-	onSweep: () => void
+	onSweep: (includeFunding: boolean) => Promise<void>
 }) {
 	const [sweepBsv, setSweepBsv] = useState(true)
 	const [error, setError] = useState('')
@@ -238,12 +238,12 @@ function StepResults({
 		setError('')
 		setSweeping(true)
 		try {
-			await onSweep()
+			await onSweep(sweepBsv)
 		} catch (err) {
 			setError(err instanceof Error ? err.message : 'Sweep failed.')
 			setSweeping(false)
 		}
-	}, [onSweep])
+	}, [onSweep, sweepBsv])
 
 	const listings = scanResult.listings ?? []
 	const hasAnything =
@@ -279,6 +279,7 @@ function StepResults({
 								<input
 									type="checkbox"
 									checked={sweepBsv}
+									disabled={sweeping}
 									onChange={(e) => setSweepBsv(e.target.checked)}
 									className="accent-primary w-4 h-4"
 								/>
@@ -464,6 +465,7 @@ export function SweepView({ onNavigate }: SweepViewProps) {
 	const [pendingWif, setPendingWif] = useState('')
 	const [scanResult, setScanResult] = useState<SweepScanResult | null>(null)
 	const [sweepTxid, setSweepTxid] = useState('')
+	const [receipts, setReceipts] = useState<string[]>([])
 
 	const handleScanComplete = useCallback(
 		(wif: string, result: SweepScanResult) => {
@@ -474,25 +476,37 @@ export function SweepView({ onNavigate }: SweepViewProps) {
 		[],
 	)
 
-	const handleSweep = useCallback(async () => {
-		if (!pendingWif || !scanResult) {
-			throw new Error('Scan data missing. Please re-scan.')
-		}
-		const result = await rpc.request.sweepBsv({
-			wif: pendingWif,
-			assets: scanResult,
-		})
-		if (result.error) {
-			throw new Error(result.error)
-		}
-		setSweepTxid(result.txid ?? '')
-		setStep(4)
-	}, [pendingWif, scanResult])
+	const handleSweep = useCallback(
+		async (includeFunding: boolean) => {
+			if (!pendingWif || !scanResult) {
+				throw new Error('Scan data missing. Please re-scan.')
+			}
+			const result = await rpc.request.sweepBsv({
+				wif: pendingWif,
+				assets: scanResult,
+				includeFunding,
+			})
+			setReceipts((previous) => [
+				...new Set([
+					...previous,
+					...(result.txids ?? []).map((txid) => txid.trim()).filter(Boolean),
+					...(result.txid?.trim() ? [result.txid.trim()] : []),
+				]),
+			])
+			if (result.error || !result.txid?.trim()) {
+				throw new Error(result.error || 'Sweep did not complete. Retry.')
+			}
+			setSweepTxid(result.txid.trim())
+			setStep(4)
+		},
+		[pendingWif, scanResult],
+	)
 
 	const handleReset = useCallback(() => {
 		setPendingWif('')
 		setScanResult(null)
 		setSweepTxid('')
+		setReceipts([])
 		setStep(1)
 	}, [])
 
@@ -516,6 +530,16 @@ export function SweepView({ onNavigate }: SweepViewProps) {
 					<VerticalStepper currentStep={step} />
 
 					<div className="flex-1 p-6 overflow-y-auto">
+						{receipts.length > 0 && (
+							<div className="mb-4 text-xs break-all">
+								<p>Completed transactions</p>
+								{receipts.map((txid) => (
+									<p key={txid} className="font-mono mt-1">
+										{txid}
+									</p>
+								))}
+							</div>
+						)}
 						{step === 1 && <StepInput onScanComplete={handleScanComplete} />}
 						{step === 2 && <StepScanning />}
 						{step === 3 && scanResult && (

@@ -14,8 +14,10 @@ import {
 	XCircle,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { OrdinalInfo } from '../../../shared/types.js'
 import { ORDFS_BASE } from '../../lib/url-parser'
 import { rpc } from '../../rpc'
+import { type OrdLockListing, ownedListing, parseListing } from './listing.js'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -30,11 +32,6 @@ interface OrdinalMetadata {
 	fileSize: number | undefined
 	map: MapAttributes
 	name: string | undefined
-}
-
-interface OrdLockListing {
-	priceSats: number
-	origin: string
 }
 
 // ---------------------------------------------------------------------------
@@ -94,46 +91,12 @@ function txidFromOutpoint(outpoint: string): string {
 	return idx === -1 ? outpoint : outpoint.slice(0, idx)
 }
 
-/**
- * Parse the raw OrdLock listing response.
- * The API returns an array; we only care about the first active listing.
- */
-function parseListing(raw: unknown): OrdLockListing | null {
-	const arr = Array.isArray(raw) ? raw : null
-	if (!arr || arr.length === 0) return null
-
-	const first = arr[0] as Record<string, unknown>
-	if (typeof first !== 'object' || first === null) return null
-
-	// price may be in satoshis as `price`, `priceSats`, or nested `data.price`
-	let priceSats: number | undefined
-	if (typeof first.price === 'number') priceSats = first.price
-	else if (typeof first.priceSats === 'number') priceSats = first.priceSats
-	else if (
-		typeof first.data === 'object' &&
-		first.data !== null &&
-		typeof (first.data as Record<string, unknown>).price === 'number'
-	) {
-		priceSats = (first.data as Record<string, unknown>).price as number
-	}
-
-	if (priceSats === undefined || priceSats <= 0) return null
-
-	const origin =
-		typeof first.origin === 'string'
-			? first.origin
-			: typeof first.outpoint === 'string'
-				? first.outpoint
-				: ''
-
-	return { priceSats, origin }
-}
-
 /** Fetch listing data for an outpoint from the local OrdLock index. */
 function useListing(outpoint: string): {
 	listing: OrdLockListing | null
 	listingLoading: boolean
 	refresh: () => void
+	refreshKey: number
 } {
 	const [listing, setListing] = useState<OrdLockListing | null>(null)
 	const [listingLoading, setListingLoading] = useState(true)
@@ -143,6 +106,7 @@ function useListing(outpoint: string): {
 		setRefreshKey((k) => k + 1)
 	}, [])
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Refresh after a successful listing operation.
 	useEffect(() => {
 		if (!outpoint) {
 			setListingLoading(false)
@@ -153,7 +117,7 @@ function useListing(outpoint: string): {
 		setListingLoading(true)
 		setListing(null)
 
-		fetch(`${ORDFS_BASE}/1sat/ordlock/origin/${outpoint}`)
+		fetch(`${ORDFS_BASE}/1sat/market/origin/${outpoint}`)
 			.then((res) => {
 				// 404 means not listed — not an error
 				if (res.status === 404) return null
@@ -176,17 +140,23 @@ function useListing(outpoint: string): {
 		}
 	}, [outpoint, refreshKey])
 
-	return { listing, listingLoading, refresh }
+	return { listing, listingLoading, refresh, refreshKey }
 }
 
 /** Check whether the outpoint belongs to the current wallet's ordinals. */
-function useIsOwned(outpoint: string): {
-	isOwned: boolean
+function useIsOwned(
+	outpoint: string,
+	refreshKey: number,
+): {
+	owned: OrdinalInfo | null
 	ownershipLoading: boolean
+	ownershipError: string | null
 } {
-	const [isOwned, setIsOwned] = useState(false)
+	const [owned, setOwned] = useState<OrdinalInfo | null>(null)
 	const [ownershipLoading, setOwnershipLoading] = useState(true)
+	const [ownershipError, setOwnershipError] = useState<string | null>(null)
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Refresh after a successful listing operation.
 	useEffect(() => {
 		if (!outpoint) {
 			setOwnershipLoading(false)
@@ -195,16 +165,23 @@ function useIsOwned(outpoint: string): {
 
 		let cancelled = false
 		setOwnershipLoading(true)
+		setOwnershipError(null)
+		setOwned(null)
 
 		rpc.request
-			.getOrdinals({ limit: 200 })
+			.getOwnedOrdinal({ outpoint })
 			.then((result) => {
 				if (!cancelled) {
-					setIsOwned(result.ordinals.some((o) => o.outpoint === outpoint))
+					setOwned(result.ordinal)
 				}
 			})
-			.catch(() => {
-				if (!cancelled) setIsOwned(false)
+			.catch((error: unknown) => {
+				if (!cancelled)
+					setOwnershipError(
+						error instanceof Error
+							? error.message
+							: 'Unable to load wallet inventory. Retry.',
+					)
 			})
 			.finally(() => {
 				if (!cancelled) setOwnershipLoading(false)
@@ -213,9 +190,9 @@ function useIsOwned(outpoint: string): {
 		return () => {
 			cancelled = true
 		}
-	}, [outpoint])
+	}, [outpoint, refreshKey])
 
-	return { isOwned, ownershipLoading }
+	return { owned, ownershipLoading, ownershipError }
 }
 
 // ---------------------------------------------------------------------------
@@ -287,6 +264,7 @@ interface MetadataPanelProps {
 	listingLoading: boolean
 	isOwned: boolean
 	ownershipLoading: boolean
+	ownershipError: string | null
 	onNavigate?: (url: string) => void
 	onListingChanged?: () => void
 }
@@ -297,6 +275,7 @@ function MetadataPanel({
 	listingLoading,
 	isOwned,
 	ownershipLoading,
+	ownershipError,
 	onNavigate,
 	onListingChanged,
 }: MetadataPanelProps) {
@@ -377,9 +356,11 @@ function MetadataPanel({
 		clearActionState()
 		setActionLoading(true)
 		try {
-			const result = await rpc.request.purchaseOrdinal({ outpoint })
-			if (result.error) {
-				setActionError(result.error)
+			const result = await rpc.request.purchaseOrdinal({
+				outpoint: listing?.outpoint ?? outpoint,
+			})
+			if (result.error || !result.txid?.trim()) {
+				setActionError(result.error || 'Transaction did not complete. Retry.')
 			} else {
 				setActionSuccess(`Purchased! txid: ${result.txid}`)
 				onListingChanged?.()
@@ -389,15 +370,15 @@ function MetadataPanel({
 		} finally {
 			setActionLoading(false)
 		}
-	}, [outpoint, clearActionState, onListingChanged])
+	}, [outpoint, listing, clearActionState, onListingChanged])
 
 	const handleCancelListing = useCallback(async () => {
 		clearActionState()
 		setActionLoading(true)
 		try {
 			const result = await rpc.request.cancelListing({ outpoint })
-			if (result.error) {
-				setActionError(result.error)
+			if (result.error || !result.txid?.trim()) {
+				setActionError(result.error || 'Transaction did not complete. Retry.')
 			} else {
 				setActionSuccess(`Listing cancelled. txid: ${result.txid}`)
 				onListingChanged?.()
@@ -515,7 +496,7 @@ function MetadataPanel({
 								aria-hidden="true"
 							/>
 							<span className="text-sm font-semibold text-primary">
-								{listing.priceSats.toLocaleString()} sats
+								{listing.priceSats?.toLocaleString() ?? 'Unknown'} sats
 							</span>
 							<span className="text-[10px] text-muted-foreground">
 								listed for sale
@@ -553,7 +534,14 @@ function MetadataPanel({
 			{/* Action buttons */}
 			<div className="flex flex-col gap-2 border-t border-border pt-3">
 				{/* Buy / Cancel / List for Sale — based on listing + ownership */}
-				{listingLoading || ownershipLoading ? (
+				{ownershipError ? (
+					<>
+						<p className="text-xs text-destructive">{ownershipError}</p>
+						<Button variant="outline" onClick={onListingChanged}>
+							Retry Wallet Inventory
+						</Button>
+					</>
+				) : listingLoading || ownershipLoading ? (
 					<Skeleton className="h-7 w-full rounded-none" />
 				) : listing && isOwned ? (
 					<Button
@@ -575,7 +563,7 @@ function MetadataPanel({
 						variant="default"
 						size="sm"
 						className="w-full justify-start gap-2 text-xs"
-						disabled={actionLoading}
+						disabled={actionLoading || listing.priceSats === undefined}
 						onClick={handleBuy}
 					>
 						{actionLoading ? (
@@ -583,7 +571,7 @@ function MetadataPanel({
 						) : (
 							<ShoppingCart aria-hidden="true" />
 						)}
-						Buy for {listing.priceSats.toLocaleString()} sats
+						Buy for {listing.priceSats?.toLocaleString() ?? 'Unknown'} sats
 					</Button>
 				) : isOwned ? (
 					<p className="text-[11px] text-muted-foreground">
@@ -630,11 +618,17 @@ export function OrdinalDetailView({
 }: OrdinalDetailViewProps) {
 	const outpoint = params.outpoint ?? ''
 	const {
-		listing,
+		listing: marketListing,
 		listingLoading,
 		refresh: refreshListing,
+		refreshKey,
 	} = useListing(outpoint)
-	const { isOwned, ownershipLoading } = useIsOwned(outpoint)
+	const { owned, ownershipLoading, ownershipError } = useIsOwned(
+		outpoint,
+		refreshKey,
+	)
+	const isOwned = owned !== null
+	const listing = owned ? ownedListing(owned) : marketListing
 
 	const handleBack = useCallback(() => {
 		onNavigate?.('1sat://ordinals/gallery')
@@ -686,9 +680,10 @@ export function OrdinalDetailView({
 					<MetadataPanel
 						outpoint={outpoint}
 						listing={listing}
-						listingLoading={listingLoading}
+						listingLoading={isOwned ? false : listingLoading}
 						isOwned={isOwned}
 						ownershipLoading={ownershipLoading}
+						ownershipError={ownershipError}
 						onNavigate={onNavigate}
 						onListingChanged={refreshListing}
 					/>

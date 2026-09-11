@@ -162,6 +162,7 @@ export interface SweepScanResult {
 // Sweep result
 export interface SweepResultInfo {
 	txid?: string
+	txids?: string[]
 	error?: string
 }
 
@@ -373,6 +374,10 @@ type BunRequests = {
 		params: { limit?: number; offset?: number }
 		response: { ordinals: OrdinalInfo[] }
 	}
+	getOwnedOrdinal: {
+		params: { outpoint: string }
+		response: { ordinal: OrdinalInfo | null }
+	}
 	getTokenBalances: {
 		params: undefined
 		response: { balances: TokenBalance[] }
@@ -414,7 +419,7 @@ type BunRequests = {
 		response: SweepScanResult
 	}
 	sweepBsv: {
-		params: { wif: string; assets: SweepScanResult }
+		params: { wif: string; assets: SweepScanResult; includeFunding?: boolean }
 		response: SweepResultInfo
 	}
 	resolvePermission: {

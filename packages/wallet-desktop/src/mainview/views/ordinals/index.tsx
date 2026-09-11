@@ -169,7 +169,7 @@ export function OrdinalsView({ onNavigate }: OrdinalsViewProps = {}) {
 
 	useEffect(() => {
 		rpc.request
-			.getOrdinals({ limit: 50 })
+			.getOrdinals({})
 			.then((result) => {
 				setAllOrdinals(result.ordinals.map(toOrdinalCard))
 			})

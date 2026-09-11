@@ -333,6 +333,7 @@
         "@1sat/actions": "workspace:*",
         "@1sat/client": "workspace:*",
         "@1sat/react": "workspace:*",
+        "@1sat/templates": "workspace:*",
         "@1sat/types": "workspace:*",
         "@1sat/utils": "workspace:*",
         "@1sat/vault": "workspace:*",
