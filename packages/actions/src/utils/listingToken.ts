@@ -43,14 +43,14 @@ export function listedTransfer(
 	const type = output.tags
 		?.find((tag) => tag.startsWith('type:'))
 		?.slice('type:'.length)
-	if (type !== TOKEN_CONTENT_TYPE) return undefined
-
 	const fields = bsv21FieldsFromOutput({
 		satoshis: 1,
 		outpoint: '',
 		tags: output.tags,
 		customInstructions: output.customInstructions,
 	} as WalletOutput)
+	if (type !== TOKEN_CONTENT_TYPE && !fields.tokenId) return undefined
+
 	const amt = integerAmt(fields.amt)
 	if (fields.tokenId && amt) return { id: fields.tokenId, amt }
 

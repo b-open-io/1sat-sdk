@@ -31,4 +31,13 @@ describe('listedTransfer', () => {
 			listedTransfer({ tags: [`type:${TOKEN_CONTENT_TYPE}`] }),
 		).toThrow('token-listing-requires-transfer-identity')
 	})
+
+	test('does not treat a bsv21 overlay tag as an NFT', () => {
+		const id = `${'ab'.repeat(32)}_0`
+		expect(
+			listedTransfer({
+				tags: [`bsv21:${id}`, 'amt:1111'],
+			}),
+		).toEqual({ id, amt: '1111' })
+	})
 })
