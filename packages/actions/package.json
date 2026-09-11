@@ -30,18 +30,18 @@
   "license": "MIT",
   "dependencies": {
     "@1sat/client": "workspace:*",
+    "@1sat/templates": "workspace:*",
     "@1sat/types": "workspace:*",
     "@1sat/utils": "workspace:*",
     "@1sat/wallet": "workspace:*",
-    "@1sat/templates": "workspace:*",
-    "@bsv/message-box-client": "^2.2.1"
+    "@bsv/message-box-client": "^2.5.0"
   },
   "peerDependencies": {
-    "@bsv/sdk": "^2.1.9"
+    "@bsv/sdk": "^2.5.0"
   },
   "devDependencies": {
-    "@bsv/sdk": "^2.1.9",
-    "typescript": "^5.9.3",
-    "@1sat/wallet-remote": "workspace:*"
+    "@1sat/wallet-remote": "workspace:*",
+    "@bsv/sdk": "^2.5.0",
+    "typescript": "^5.9.3"
   }
 }

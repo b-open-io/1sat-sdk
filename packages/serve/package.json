@@ -32,10 +32,10 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@bsv/sdk": "^2.1.9"
+    "@bsv/sdk": "^2.5.0"
   },
   "devDependencies": {
-    "@bsv/sdk": "^2.1.9",
+    "@bsv/sdk": "^2.5.0",
     "@types/bun": "latest",
     "typescript": "^5.9.3"
   }
