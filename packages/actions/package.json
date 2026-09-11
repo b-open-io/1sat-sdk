@@ -37,11 +37,11 @@
     "@bsv/message-box-client": "^2.5.0"
   },
   "peerDependencies": {
-    "@bsv/sdk": "^2.5.0"
+    "@bsv/sdk": "^2.6.0"
   },
   "devDependencies": {
     "@1sat/wallet-remote": "workspace:*",
-    "@bsv/sdk": "^2.5.0",
+    "@bsv/sdk": "^2.6.0",
     "typescript": "^5.9.3"
   }
 }
