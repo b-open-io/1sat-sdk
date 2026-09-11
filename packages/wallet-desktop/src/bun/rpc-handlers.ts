@@ -16,6 +16,7 @@ import {
 	getLockData,
 	getProfile,
 	inscribe,
+	isListedOutput,
 	listOpns,
 	listOrdinals,
 	lockBsv,
@@ -25,6 +26,7 @@ import {
 	sendBsv,
 	sendBsv21,
 	sweepBsv,
+	sweepOrdinals,
 	unlockBsv,
 	updateProfile,
 } from '@1sat/actions'
@@ -631,16 +633,18 @@ export function createRpcHandlers(scopedAccountId?: string) {
 
 				// Collect unspent outputs via the SSE stream
 				const funding: SweepScanResult['funding'] = []
+				const listings: SweepScanResult['listings'] = []
 				let totalSats = 0
 				for await (const event of w.services.owner.getTxos(address, {
 					unspent: true,
+					events: true,
 					limit: 1000,
 				})) {
 					if (event.type === 'txo') {
 						const sats = event.data.satoshis ?? 0
-						if (sats > 1) {
-							// Fetch the raw tx to get the locking script
-							const [txid, voutStr] = event.data.outpoint.split('.')
+						const listed = isListedOutput(event.data)
+						if (sats > 1 || listed) {
+							const [txid, voutStr] = event.data.outpoint.split(/[._]/)
 							const vout = Number.parseInt(voutStr, 10)
 							const rawTx = await w.services.beef.getRawTx(txid)
 							let lockingScript = ''
@@ -648,12 +652,20 @@ export function createRpcHandlers(scopedAccountId?: string) {
 								const tx = Transaction.fromBinary(Array.from(rawTx))
 								lockingScript = tx.outputs[vout]?.lockingScript?.toHex() ?? ''
 							}
-							funding.push({
-								outpoint: event.data.outpoint,
-								satoshis: sats,
-								lockingScript,
-							})
-							totalSats += sats
+							if (listed) {
+								listings.push({
+									outpoint: event.data.outpoint,
+									satoshis: sats || 1,
+									lockingScript,
+								})
+							} else if (sats > 1) {
+								funding.push({
+									outpoint: event.data.outpoint,
+									satoshis: sats,
+									lockingScript,
+								})
+								totalSats += sats
+							}
 						}
 					}
 					if (event.type === 'done' || event.type === 'error') break
@@ -662,6 +674,7 @@ export function createRpcHandlers(scopedAccountId?: string) {
 					funding,
 					ordinals: [],
 					tokens: [],
+					listings,
 					totalSats,
 				} as SweepScanResult
 			} catch (err) {
@@ -680,11 +693,31 @@ export function createRpcHandlers(scopedAccountId?: string) {
 				services: w.services,
 				chain: 'main',
 			})
+			const pk = PrivateKey.fromWif(wif)
+			const listings = assets.listings ?? []
+			let listingTxid: string | undefined
+			if (listings.length > 0) {
+				const listingResult = await sweepOrdinals.execute(ctx, {
+					inputs: listings.map((l) => ({
+						outpoint: l.outpoint,
+						satoshis: l.satoshis,
+						lockingScript: l.lockingScript,
+					})),
+					keys: listings.map(() => pk),
+				})
+				if (listingResult.error) {
+					return { txid: listingResult.txid, error: listingResult.error }
+				}
+				listingTxid = listingResult.txid
+			}
 			const inputs = assets.funding.map((f) => ({
 				outpoint: f.outpoint,
 				satoshis: f.satoshis,
 				lockingScript: f.lockingScript,
 			}))
+			if (inputs.length === 0) {
+				return { txid: listingTxid, error: undefined }
+			}
 			const result = await sweepBsv.execute(ctx, { inputs, wif })
 			return { txid: result.txid, error: result.error }
 		},

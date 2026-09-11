@@ -18,6 +18,16 @@ function getEvent(events: string[], prefix: string): string | undefined {
 	return e ? e.slice(prefix.length) : undefined
 }
 
+/** True when an indexed output is an OrdLock marketplace listing. */
+export function isListedOutput(out: IndexedOutput): boolean {
+	const events = out.events ?? []
+	if (events.includes('ordlock') || events.some((e) => e.startsWith('list:'))) {
+		return true
+	}
+	const data = out.data
+	return Boolean(data && typeof data === 'object' && data.ordlock != null)
+}
+
 /**
  * Scan a single address: sync, search, categorize, and validate BSV-21 tokens.
  */
@@ -85,6 +95,7 @@ export async function scanAddresses(
 		bsv20Tokens: allResults.flatMap((r) => r.bsv20Tokens),
 		locked: allResults.flatMap((r) => r.locked),
 		run: allResults.flatMap((r) => r.run),
+		listings: allResults.flatMap((r) => r.listings),
 		totalFundingSats: allResults.reduce(
 			(sum, r) => sum + r.totalFundingSats,
 			0,
@@ -105,10 +116,16 @@ async function categorizeOutputs(
 	const bsv21Raw: IndexedOutput[] = []
 	const bsv20Tokens: IndexedOutput[] = []
 	const locked: IndexedOutput[] = []
+	const listings: IndexedOutput[] = []
 
 	for (const out of outputs) {
 		const events = out.events ?? []
 		const sats = out.satoshis ?? 0
+
+		if (isListedOutput(out)) {
+			listings.push(out)
+			continue
+		}
 
 		if (events.some((e) => e.startsWith('bsv21:'))) {
 			bsv21Raw.push(out)
@@ -165,6 +182,7 @@ async function categorizeOutputs(
 		bsv20Tokens,
 		locked,
 		run,
+		listings,
 		totalFundingSats: cleanFunding.reduce(
 			(sum, o) => sum + (o.satoshis ?? 0),
 			0,

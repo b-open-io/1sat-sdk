@@ -146,7 +146,7 @@ const tools = actionRegistry.toMcpTools()
 The complete, generated list of all actions:
 
 <!-- ACTION-INDEX -->
-_54 actions, generated from the registry — do not edit by hand._
+_56 actions, generated from the registry — do not edit by hand._
 
 | Category | Action | Services | Purpose |
 |----------|--------|:--------:|---------|
@@ -158,6 +158,7 @@ _54 actions, generated from the registry — do not edit by hand._
 | `identity` | `publishIdentity` |  | Publish initial BAP identity record from wallet |
 | `identity` | `rotateIdentity` |  | Rotate BAP signing key to the next derived key |
 | `identity` | `updateProfile` |  | Update BAP identity profile signed with BAP identity |
+| `inscriptions` | `deployOrdfsDir` |  | Publish an ord-fs/json directory with one ownable root by default, or all-inscription/all-B output layouts |
 | `inscriptions` | `inscribe` |  | Create a new inscription (single tx, or OrdFS multi-tx stream when stream/streamChunkSize is set) |
 | `locks` | `getLockData` |  | Get summary of time-locked BSV (total, unlockable, next unlock height) |
 | `locks` | `listLocks` |  | List time-locked BSV UTXOs (metadata by default) |
@@ -169,19 +170,20 @@ _54 actions, generated from the registry — do not edit by hand._
 | `opns` | `internalizeOpns` |  | Internalize a foreign-created OpNS mint (AtomicBEEF) into the OPNS basket |
 | `opns` | `listOpns` |  | List OpNS names from the wallet (metadata by default; optional BEEF) |
 | `opns` | `registerOpns` |  | Bind BRC-100 identity key to an OpNS name via signed PushDrop |
-| `opns` | `sellOpns` |  | List an OpNS name for sale |
+| `opns` | `sellOpns` |  | DISABLED: OrdLock listing create is off. Buy and cancel of existing listings remain available. |
 | `opns` | `sendOpns` |  | Transfer an OpNS name to a new owner |
 | `ordinals` | `burnOrdinals` |  | Burn one or more ordinals by sending to OP_RETURN |
 | `ordinals` | `buyOrdinal` | ✓ | Purchase an ordinal from the global orderbook |
 | `ordinals` | `cancelOrdinalListing` |  | Cancel an ordinal listing and return the ordinal to the wallet |
+| `ordinals` | `cancelOwnedListings` |  | Cancel all wallet-owned OrdLock listings back into the 1sat/opns baskets |
 | `ordinals` | `listOrdinals` |  | List ordinals/inscriptions (metadata by default; optional BEEF) |
-| `ordinals` | `sellOrdinal` |  | List an ordinal for sale on the global orderbook |
+| `ordinals` | `sellOrdinal` |  | DISABLED: OrdLock listing create is off. Buy and cancel of existing listings remain available. |
 | `ordinals` | `sendOrdinals` |  | Transfer one or more ordinals to new owners, optionally reinscribing new content onto the output (versioning: the origin chain tracks revision history) |
-| `payments` | `getMneeBalance` | ✓ | Get MNEE stablecoin balance across yours wallet addresses |
+| `payments` | `getMneeBalance` | ✓ | Get MNEE stablecoin balance by addresses or by self-key derivations |
 | `payments` | `getMneeConfig` | ✓ | Get MNEE service configuration including cosigner and fee structure |
 | `payments` | `getMneeHistory` | ✓ | Get MNEE transaction history with parsed amounts and counterparties |
 | `payments` | `getMneeTxStatus` | ✓ | Get the status of an MNEE transfer |
-| `payments` | `getMneeUtxos` | ✓ | Get MNEE UTXOs across yours wallet addresses |
+| `payments` | `getMneeUtxos` | ✓ | Get MNEE UTXOs by addresses or by self-key derivations |
 | `payments` | `sendAllBsv` |  | Send all BSV from wallet to a single destination address |
 | `payments` | `sendBsv` |  | Send BSV to one or more destinations (addresses, scripts, or OP_RETURN) |
 | `payments` | `sendMnee` | ✓ | Send MNEE stablecoin to one or more recipients |
@@ -202,7 +204,7 @@ _54 actions, generated from the registry — do not edit by hand._
 | `tokens` | `deployBsv21Mint` |  | Deploy a new BSV21 token with fixed supply (deploy+mint) |
 | `tokens` | `getBsv21Balances` |  | Get aggregated BSV21 token balances grouped by token ID |
 | `tokens` | `listBsv21` |  | List BSV21 token outputs from the wallet |
-| `tokens` | `mintBsv21` | ✓ | Spend an auth UTXO to mint new supply and/or re-issue authority |
+| `tokens` | `mintBsv21` | ✓ | Spend an auth UTXO to mint supply, re-issue authority, or permanently end minting |
 | `tokens` | `sendBsv21` |  | Send BSV21 tokens to one or more recipients |
 <!-- /ACTION-INDEX -->
 
