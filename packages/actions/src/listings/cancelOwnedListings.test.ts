@@ -11,6 +11,8 @@ import { OPNS_BASKET, ORDINALS_BASKET } from '@1sat/types'
 import type { ListOutputsResult, WalletInterface, WalletOutput } from '@bsv/sdk'
 import { cancelOpnsListing } from '../opns/index.js'
 import { cancelOrdinalListing } from '../ordinals/index.js'
+import { cancelTokenListing } from '../tokens/index.js'
+import { TOKEN_CONTENT_TYPE } from '@1sat/types'
 import { createContext } from '../types.js'
 import { cancelOwnedListings } from './cancelOwnedListings.js'
 
@@ -42,6 +44,7 @@ function context(rows: Record<string, WalletOutput[]> = {}, pageSize = 1000) {
 
 let ordinalCancel: Mock<typeof cancelOrdinalListing.execute>
 let opnsCancel: Mock<typeof cancelOpnsListing.execute>
+let tokenCancel: Mock<typeof cancelTokenListing.execute>
 beforeEach(() => {
 	ordinalCancel = spyOn(cancelOrdinalListing, 'execute').mockResolvedValue({
 		txid: 'ordinal-tx',
@@ -49,15 +52,20 @@ beforeEach(() => {
 	opnsCancel = spyOn(cancelOpnsListing, 'execute').mockResolvedValue({
 		txid: 'opns-tx',
 	})
+	tokenCancel = spyOn(cancelTokenListing, 'execute').mockResolvedValue({
+		txid: 'token-tx',
+	})
 })
 afterEach(() => {
 	ordinalCancel.mockRestore()
 	opnsCancel.mockRestore()
+	tokenCancel.mockRestore()
 })
 
 function expectNoSpends() {
 	expect(ordinalCancel).not.toHaveBeenCalled()
 	expect(opnsCancel).not.toHaveBeenCalled()
+	expect(tokenCancel).not.toHaveBeenCalled()
 }
 
 describe('cancelOwnedListings', () => {
@@ -68,6 +76,34 @@ describe('cancelOwnedListings', () => {
 			errors: [],
 		})
 		expectNoSpends()
+	})
+
+	it('does not cancel application/bsv-20 listings through cancelOrdinalListing', async () => {
+		const id = 'ab'.repeat(32)
+		const tokenListing: WalletOutput = {
+			outpoint: `${id}.0`,
+			satoshis: 1,
+			spendable: true,
+			tags: [
+				'ordlock',
+				`id:${id}`,
+				`type:${TOKEN_CONTENT_TYPE}`,
+				`bsv21:${id}_0`,
+				'amt:1111',
+			],
+			customInstructions: JSON.stringify({
+				id: `${id}_0`,
+				amt: '1111',
+				op: 'transfer',
+			}),
+		}
+		const result = await cancelOwnedListings.execute(
+			context({ [ORDINALS_BASKET]: [tokenListing] }),
+			{},
+		)
+		expect(ordinalCancel).not.toHaveBeenCalled()
+		expect(tokenCancel).toHaveBeenCalledTimes(1)
+		expect(result.txids).toEqual(['token-tx'])
 	})
 
 	it('discovers over 1000 listings in each basket before spending, including short pages', async () => {

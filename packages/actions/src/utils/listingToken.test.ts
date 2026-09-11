@@ -4,6 +4,7 @@ import { P2PKH, PrivateKey } from '@bsv/sdk'
 import { describe, expect, test } from 'bun:test'
 import {
 	isBsv21Transfer,
+	isTokenListing,
 	listedTransfer,
 	tokenTransferLock,
 } from './listingToken.js'
@@ -39,5 +40,9 @@ describe('listedTransfer', () => {
 				tags: [`bsv21:${id}`, 'amt:1111'],
 			}),
 		).toEqual({ id, amt: '1111' })
+		expect(
+			isTokenListing({ tags: [`type:${TOKEN_CONTENT_TYPE}`] }),
+		).toBe(true)
+		expect(isTokenListing({ tags: ['ordlock'] })).toBe(false)
 	})
 })

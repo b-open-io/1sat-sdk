@@ -7,6 +7,8 @@ import { OPNS_BASKET, ORDINALS_BASKET, readAssetIdTag } from '@1sat/types'
 import type { WalletInterface } from '@bsv/sdk'
 import { cancelOpnsListing } from '../opns/index.js'
 import { cancelOrdinalListing } from '../ordinals/index.js'
+import { cancelTokenListing } from '../tokens/index.js'
+import { isTokenListing } from '../utils/listingToken.js'
 import type { Action, ActionOptions, OneSatContext } from '../types.js'
 
 export interface CancelOwnedListingsInput extends ActionOptions {
@@ -23,6 +25,8 @@ export interface CancelOwnedListingsResult {
 interface Listing {
 	outpoint: string
 	id?: string
+	tags?: string[]
+	customInstructions?: string
 }
 
 async function discoverBasketListings(
@@ -41,6 +45,7 @@ async function discoverBasketListings(
 			tags: ['ordlock'],
 			tagQueryMode: 'any',
 			includeTags: true,
+			includeCustomInstructions: true,
 			limit:
 				total === undefined ? 1000 : Math.min(1000, total - listings.length),
 			offset: listings.length,
@@ -69,7 +74,12 @@ async function discoverBasketListings(
 			}
 			seenOutpoints.add(row.outpoint)
 			if (id) ids.add(id)
-			listings.push({ outpoint: row.outpoint, id })
+			listings.push({
+				outpoint: row.outpoint,
+				id,
+				tags: row.tags,
+				customInstructions: row.customInstructions,
+			})
 		}
 	} while (listings.length < total)
 
@@ -136,14 +146,19 @@ export const cancelOwnedListings: Action<
 				pending.push({ action, listings })
 			}
 			for (const { action, listings } of pending) {
-				for (const { id, outpoint } of listings) {
+				for (const listing of listings) {
+					const { id, outpoint } = listing
 					await assertActive()
 					if (!id) {
 						result.errors.push(`${outpoint}: missing-id`)
 						continue
 					}
+					const cancel =
+						action === cancelOrdinalListing && isTokenListing(listing)
+							? cancelTokenListing
+							: action
 					try {
-						const cancelled = await action.execute(capturedContext, {
+						const cancelled = await cancel.execute(capturedContext, {
 							...options,
 							id,
 						})

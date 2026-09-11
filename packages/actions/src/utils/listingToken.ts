@@ -68,6 +68,16 @@ export function listedTransfer(
 	throw new Error('token-listing-requires-transfer-identity')
 }
 
+export function isTokenListing(
+	output: Pick<WalletOutput, 'tags' | 'customInstructions'>,
+): boolean {
+	try {
+		return listedTransfer(output) !== undefined
+	} catch {
+		return true
+	}
+}
+
 export function tokenTransferLock(address: string, token: ListedTransfer) {
 	const dest = new P2PKH().lock(address)
 	const amt = BigInt(token.amt)
