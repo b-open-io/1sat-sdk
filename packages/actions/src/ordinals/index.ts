@@ -20,6 +20,7 @@ import {
 	type BEEF,
 	Beef,
 	type CreateActionArgs,
+	type CreateActionOutput,
 	LockingScript,
 	OP,
 	P2PKH,
@@ -48,6 +49,7 @@ import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance.js'
 import { ordinalSeedTags } from '../utils/ordinalSeedTags.js'
 import { ordLockCancelUnlockLength } from '../utils/ordlockCancelLength.js'
 import { unlockingScriptLengthForInstructions } from '../utils/signOrdinalInput.js'
+import { isTokenListing } from '../utils/listingToken.js'
 
 // ============================================================================
 // Helpers
@@ -1120,6 +1122,13 @@ export const cancelOrdinalListing: Action<
 			const newKeyID = outpoint
 			const cancelAddress = await deriveCancelAddressInternal(ctx, newKeyID)
 
+			if (isTokenListing(listing)) {
+				return {
+					error:
+						'Cannot cancel BSV-20 token listing through ordinal cancel — use cancelTokenListing instead',
+				}
+			}
+
 			const tags = ordinalSeedTags(listing)
 			const basket = ORDINALS_BASKET
 			const sourceName = nameFromOutput(listing, tags)
@@ -1308,15 +1317,14 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 			})
 			const ourOrdAddress = PublicKey.fromString(publicKey).toAddress()
 
-			const outputs: Array<{
-				lockingScript: string
-				satoshis: number
-				outputDescription: string
-				basket?: string
-				tags?: string[]
-				customInstructions?: string
-			}> = []
+			if (isTokenListing({ tags })) {
+				return {
+					error:
+						'Cannot buy BSV-20 token listing through ordinal purchase — use buyBsv21 instead',
+				}
+			}
 
+			const outputs: CreateActionOutput[] = []
 			outputs.push({
 				lockingScript: new P2PKH().lock(ourOrdAddress).toHex(),
 				satoshis: 1,

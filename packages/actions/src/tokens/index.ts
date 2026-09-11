@@ -16,6 +16,7 @@ import { parseOutpoint } from '@1sat/utils'
 import {
 	BigNumber,
 	type CreateActionArgs,
+	type CreateActionOutput,
 	LockingScript,
 	OP,
 	P2PKH,
@@ -27,7 +28,13 @@ import {
 	type WalletOutput,
 } from '@bsv/sdk'
 import { prepareP1SatArgs } from '../apply/index.js'
-import { BSV21_AUTH_TAG, BSV21_BASKET, P1SAT_PROTOCOL } from '../constants.js'
+import {
+	BSV21_AUTH_TAG,
+	BSV21_BASKET,
+	ORDINALS_BASKET,
+	P1SAT_PROTOCOL,
+} from '../constants.js'
+import { deriveCancelAddressInternal } from '../ordinals/index.js'
 import type {
 	Action,
 	ActionLogEntry,
@@ -42,6 +49,13 @@ import {
 } from '../utils/bsv21Remittance.js'
 import { executeTrackedAction } from '../utils/createTrackedAction.js'
 import { getDisplayValue } from '../utils/displayValue.js'
+import { loadBasketOutputBeef } from '../utils/loadBasketOutput.js'
+import {
+	isBsv21Transfer,
+	listedTransfer,
+	tokenReturnOutput,
+} from '../utils/listingToken.js'
+import { ordLockCancelUnlockLength } from '../utils/ordlockCancelLength.js'
 import { resolveDestination } from '../utils/resolveDestination.js'
 import { signP2PKHInput } from '../utils/signP2PKH.js'
 
@@ -1713,6 +1727,128 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 	},
 }
 
+export interface CancelTokenListingInput extends ActionOptions {
+	/** Tracking id of the listing in the ordinals basket */
+	id: string
+}
+
+/**
+ * Cancel a listed BSV-20/BSV-21 token. Returns a transfer inscription, never a bare P2PKH.
+ */
+export const cancelTokenListing: Action<
+	CancelTokenListingInput,
+	{ txid?: string; tx?: number[]; error?: string }
+> = {
+	meta: {
+		name: 'cancelTokenListing',
+		description:
+			'Cancel a token listing and return a transfer inscription to the wallet',
+		category: 'tokens',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				id: {
+					type: 'string',
+					description: 'Tracking id of the listing in the ordinals basket',
+				},
+			},
+			required: ['id'],
+		},
+	},
+	async execute(ctx, input) {
+		try {
+			if (!input.id) return { error: 'missing-id' }
+			const loaded = await loadBasketOutputBeef(
+				ctx.wallet,
+				ORDINALS_BASKET,
+				input.id,
+			)
+			if ('error' in loaded) return loaded
+			const { output: listing, beef: inputBEEF } = loaded
+			const token = listedTransfer(listing)
+			if (!token) return { error: 'not-a-token-listing' }
+			if (!listing.customInstructions) {
+				return { error: 'missing-custom-instructions' }
+			}
+
+			const outpoint = listing.outpoint
+			const newKeyID = outpoint
+			const cancelAddress = await deriveCancelAddressInternal(ctx, newKeyID)
+			const outputs: CreateActionOutput[] = [
+				tokenReturnOutput({
+					address: cancelAddress,
+					token,
+					keyID: newKeyID,
+					protocolID: P1SAT_PROTOCOL,
+					description: 'Cancelled token listing',
+				}),
+			]
+			if (isBsv21Transfer(token)) {
+				if (!ctx.services?.bsv21) return { error: 'services-required' }
+				const details = await ctx.services.bsv21.getTokenDetails(token.id)
+				if (!details.status.is_active) return { error: 'token-not-active' }
+				const feePerOutput = details.status.fee_per_output
+				const feeAddress = details.status.fee_address
+				if (
+					typeof feePerOutput === 'number' &&
+					feePerOutput > 0 &&
+					feeAddress
+				) {
+					outputs.push({
+						lockingScript: new P2PKH().lock(feeAddress).toHex(),
+						satoshis: feePerOutput,
+						outputDescription: 'Overlay processing fee',
+						tags: ['fee:overlay'],
+					})
+				}
+			}
+
+			const inputId = readAssetIdTag(listing.tags)
+			const args = await prepareP1SatArgs(ctx, {
+				description: 'Cancel token listing',
+				inputBEEF,
+				...(inputId && {
+					labels: [buildInputAssetLabel(ORDINALS_BASKET, inputId)],
+				}),
+				inputs: [
+					{
+						outpoint,
+						inputDescription: 'Listed token',
+						unlockingScriptLength: ordLockCancelUnlockLength(
+							inputBEEF,
+							outpoint,
+						),
+					},
+				],
+				outputs,
+				options: { randomizeOutputs: false },
+			})
+			return await executeTrackedAction(
+				ctx.wallet,
+				args,
+				input.fundingProvider,
+				inputBEEF,
+				undefined,
+				{
+					spends: inputId
+						? [{ basket: ORDINALS_BASKET, id: inputId }]
+						: [],
+					usePermissionModule:
+						input.usePermissionModule ??
+						input.useOneSatModule ??
+						input.useModule,
+					permissionScheme: '1sat',
+				},
+			)
+		} catch (error) {
+			console.error('[cancelTokenListing]', error)
+			return {
+				error: error instanceof Error ? error.message : 'unknown-error',
+			}
+		}
+	},
+}
+
 // ============================================================================
 // Module exports
 // ============================================================================
@@ -1723,6 +1859,7 @@ export const tokensActions = [
 	getBsv21Balances,
 	sendBsv21,
 	buyBsv21,
+	cancelTokenListing,
 	deployBsv21Mint,
 	deployBsv21Auth,
 	mintBsv21,
