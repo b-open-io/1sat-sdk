@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.215
+
+### Added
+- `cancelTokenListing` returns a BSV-20/BSV-21 transfer inscription. `cancelOrdinalListing` and `buyOrdinal` refuse fungible-token listings.
+
+### Changed
+- `@bsv/sdk` `^2.6.0`.
+
 ## 0.0.214
 
 ### Fixed

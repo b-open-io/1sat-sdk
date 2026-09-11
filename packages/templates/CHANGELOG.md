@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.35
+
+### Added
+- OrdLock v2 template (`OrdLockV2.lock` / `cancelListing` / `purchaseListing`).
+
+### Changed
+- `@bsv/sdk` `^2.6.0`. v1 `OrdLock.lock` stays disabled.
+
 ## 0.0.1
 
 Initial release. Migrated Bitcoin script templates from `@bopen-io/templates` into the 1sat-sdk monorepo.
