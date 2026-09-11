@@ -16,10 +16,13 @@ export const SWEEP_BATCH_SIZE = 25
 export interface SweepResult {
 	bsvTxid?: string
 	ordinalTxids: string[]
+	listingTxids: string[]
 	bsv21Txids: string[]
 	errors: string[]
 	/** Outpoints successfully swept (ordinals/OpNS). */
 	sweptOutpoints: string[]
+	/** Listing outpoints cancelled into the BRC-100 wallet. */
+	cancelledListings: string[]
 }
 
 function getOwner(output: IndexedOutput): string | undefined {
@@ -56,17 +59,57 @@ export async function executeSweep(params: {
 	keys: Map<string, PrivateKey>
 	funding: IndexedOutput[]
 	ordinals: IndexedOutput[]
+	/** OPL-4696: listed OrdLock UTXOs — cancelled into BRC-100 via sweepOrdinals. */
+	listings?: IndexedOutput[]
 	amount?: number
 	onProgress: (stage: string) => void
 }): Promise<SweepResult> {
-	const { wallet, keys, funding, ordinals, amount, onProgress } = params
+	const {
+		wallet,
+		keys,
+		funding,
+		ordinals,
+		listings = [],
+		amount,
+		onProgress,
+	} = params
 	const ctx = createContext(wallet, { services: getServices(), chain: 'main' })
 
 	const result: SweepResult = {
 		ordinalTxids: [],
+		listingTxids: [],
 		bsv21Txids: [],
 		errors: [],
 		sweptOutpoints: [],
+		cancelledListings: [],
+	}
+
+	if (listings.length > 0) {
+		const batches = chunk(listings, SWEEP_BATCH_SIZE)
+		for (let b = 0; b < batches.length; b++) {
+			const batch = batches[b]
+			onProgress(
+				`Cancelling ${batch.length} OrdLock listing${batch.length !== 1 ? 's' : ''} into wallet...`,
+			)
+			try {
+				const inputs = await prepareSweepInputs(ctx, batch)
+				const cancelResult = await sweepOrdinals.execute(ctx, {
+					inputs,
+					keys: buildKeys(batch, keys),
+				})
+				if (cancelResult.error) {
+					result.errors.push(`Listings batch ${b + 1}: ${cancelResult.error}`)
+					break
+				}
+				if (cancelResult.txid) result.listingTxids.push(cancelResult.txid)
+				result.cancelledListings.push(...batch.map((o) => o.outpoint))
+			} catch (e) {
+				result.errors.push(
+					`Listings batch ${b + 1}: ${e instanceof Error ? e.message : String(e)}`,
+				)
+				break
+			}
+		}
 	}
 
 	if (funding.length > 0) {

@@ -151,6 +151,11 @@ export interface SweepScanResult {
 			amount: string
 		}>
 	}>
+	listings: Array<{
+		outpoint: string
+		satoshis: number
+		lockingScript: string
+	}>
 	totalSats: number
 }
 

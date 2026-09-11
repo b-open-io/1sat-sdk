@@ -19,6 +19,7 @@ import {
 	Bsv20Section,
 	Bsv21Section,
 	FundingSection,
+	ListingsSection,
 	LockedSection,
 	OrdinalsSection,
 	RunSection,
@@ -192,6 +193,7 @@ export function SweepApp({
 				result.opnsNames.length +
 				result.bsv21Tokens.reduce((n, t) => n + t.outputs.length, 0) +
 				result.bsv20Tokens.length +
+				result.listings.length +
 				result.locked.length +
 				result.run.length
 			if (total === 0) toast.info('No assets found at legacy addresses')
@@ -255,11 +257,13 @@ export function SweepApp({
 				keys: keyMap,
 				funding: getSelectedFunding(),
 				ordinals: [],
+				listings: assets.listings,
 				amount: sweepAmount ?? undefined,
 				onProgress: setSweepProgress,
 			})
 			if (result.errors.length > 0) throw new Error(result.errors[0])
-			return result.bsvTxid ?? ''
+			for (const txid of result.listingTxids) addTx('Cancel listings', txid)
+			return result.bsvTxid ?? result.listingTxids[0] ?? ''
 		})
 	}, [
 		resolveWallet,
@@ -268,7 +272,27 @@ export function SweepApp({
 		sweepAmount,
 		getSelectedFunding,
 		runOperation,
+		keyMap,
+		addTx,
 	])
+
+	const handleCancelListings = useCallback(async () => {
+		const wallet = resolveWallet()
+		if (!wallet || !legacyKeys || !assets || assets.listings.length === 0)
+			return
+		await runOperation('Cancel listings', async () => {
+			const result = await executeSweep({
+				wallet,
+				keys: keyMap,
+				funding: [],
+				ordinals: [],
+				listings: assets.listings,
+				onProgress: setSweepProgress,
+			})
+			if (result.errors.length > 0) throw new Error(result.errors[0])
+			return result.listingTxids[0] ?? ''
+		})
+	}, [resolveWallet, legacyKeys, assets, keyMap, runOperation])
 
 	const handleSendBsv = useCallback(
 		async (destination: string) => {
@@ -542,6 +566,11 @@ export function SweepApp({
 							onSweep={handleSweepBsv}
 							onSend={sweepOnly ? undefined : handleSendBsv}
 							walletConnected={walletConnected}
+						/>
+						<ListingsSection
+							listings={assets.listings}
+							walletConnected={walletConnected}
+							onCancel={handleCancelListings}
 						/>
 
 						{tabs.length > 0 && (

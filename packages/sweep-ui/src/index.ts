@@ -9,6 +9,7 @@ export {
 	OrdinalsSection,
 	Bsv21Section,
 	Bsv20Section,
+	ListingsSection,
 	LockedSection,
 	RunSection,
 } from './components/asset-preview'

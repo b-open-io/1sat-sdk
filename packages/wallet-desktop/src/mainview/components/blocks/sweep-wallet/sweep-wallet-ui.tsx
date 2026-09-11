@@ -97,9 +97,10 @@ function ScanningState() {
 }
 
 function AssetPreview({ scanResult }: { scanResult: ScanResult }) {
-	const { funding, ordinals, tokens, totalSats } = scanResult
+	const { funding, ordinals, tokens, listings = [], totalSats } = scanResult
 	const fundingCount = funding.length
 	const ordinalCount = ordinals.length
+	const listingCount = listings.length
 	const tokenCount = tokens.length
 
 	return (
@@ -122,6 +123,21 @@ function AssetPreview({ scanResult }: { scanResult: ScanResult }) {
 							{fundingCount} UTXO{fundingCount !== 1 ? 's' : ''}
 						</Badge>
 					</div>
+				</div>
+			)}
+
+			{listingCount > 0 && (
+				<div className="flex items-center justify-between rounded-md border bg-muted/50 px-3 py-2">
+					<div className="flex items-center gap-2">
+						<KeyRound
+							className="size-4 text-muted-foreground"
+							aria-hidden="true"
+						/>
+						<span className="text-sm">OrdLock listings</span>
+					</div>
+					<Badge variant="secondary" className="text-xs">
+						{listingCount} cancelled on sweep
+					</Badge>
 				</div>
 			)}
 
@@ -158,11 +174,14 @@ function AssetPreview({ scanResult }: { scanResult: ScanResult }) {
 				</div>
 			))}
 
-			{fundingCount === 0 && ordinalCount === 0 && tokenCount === 0 && (
-				<p className="text-sm text-muted-foreground text-center py-4">
-					No assets found
-				</p>
-			)}
+			{fundingCount === 0 &&
+				ordinalCount === 0 &&
+				tokenCount === 0 &&
+				listingCount === 0 && (
+					<p className="text-sm text-muted-foreground text-center py-4">
+						No assets found
+					</p>
+				)}
 		</div>
 	)
 }

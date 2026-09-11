@@ -245,10 +245,13 @@ function StepResults({
 		}
 	}, [onSweep])
 
+	const listings = scanResult.listings ?? []
 	const hasAnything =
 		scanResult.totalSats > 0 ||
 		scanResult.ordinals.length > 0 ||
-		scanResult.tokens.length > 0
+		scanResult.tokens.length > 0 ||
+		listings.length > 0
+	const canSweep = listings.length > 0 || (sweepBsv && scanResult.totalSats > 0)
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -291,6 +294,23 @@ function StepResults({
 								{formatSats(scanResult.totalSats)}
 							</span>
 						</label>
+					)}
+
+					{listings.length > 0 && (
+						<div className="flex items-center justify-between rounded-md border border-border px-4 py-3">
+							<div className="flex items-center gap-3">
+								<div>
+									<p className="text-sm font-medium text-foreground">
+										OrdLock listings
+									</p>
+									<p className="text-xs text-muted-foreground">
+										{listings.length} listing
+										{listings.length !== 1 ? 's' : ''} cancelled into wallet on
+										sweep
+									</p>
+								</div>
+							</div>
+						</div>
 					)}
 
 					{/* Ordinals row (future — display only) */}
@@ -339,7 +359,7 @@ function StepResults({
 
 			<Button
 				onClick={handleSweep}
-				disabled={sweeping || !sweepBsv || scanResult.totalSats === 0}
+				disabled={sweeping || !canSweep}
 				className="w-full"
 			>
 				{sweeping ? (

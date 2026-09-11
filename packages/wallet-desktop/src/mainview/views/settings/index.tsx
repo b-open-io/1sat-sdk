@@ -1569,6 +1569,9 @@ export function SettingsView({
 				ordinals: result.ordinals.map((o) => ({
 					outpoint: o.outpoint,
 				})),
+				listings: (result.listings ?? []).map((l) => ({
+					outpoint: l.outpoint,
+				})),
 				tokens: result.tokens.map((t) => ({
 					tokenId: t.tokenId,
 					symbol: t.symbol,

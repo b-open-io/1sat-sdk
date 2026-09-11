@@ -8,6 +8,7 @@
 import { MAP as MAPTemplate, buildInscriptionScript } from '@1sat/templates'
 import { OrdLock } from '@1sat/templates'
 import {
+	ORDLOCK_LISTING_CREATE_DISABLED,
 	buildInputAssetLabel,
 	displayNameForCi,
 	nameFromMap,
@@ -36,8 +37,6 @@ import {
 	MAX_INSCRIPTION_BYTES,
 	OPNS_BASKET,
 	ORDINALS_BASKET,
-	ORD_LOCK_PREFIX,
-	ORD_LOCK_SUFFIX,
 	P1SAT_PROTOCOL,
 } from '../constants.js'
 import { appendSigmaPlaceholder } from '../signing/sigma.js'
@@ -324,25 +323,12 @@ export async function defaultPayAddress(ctx: OneSatContext): Promise<string> {
 }
 
 export function buildOrdLockScript(
-	ordAddress: string,
-	payAddress: string,
-	price: number,
+	_ordAddress: string,
+	_payAddress: string,
+	_price: number,
 ): Script {
-	const cancelPkh = Utils.fromBase58Check(ordAddress).data as number[]
-	const payPkh = Utils.fromBase58Check(payAddress).data as number[]
-	const payoutScript = new P2PKH().lock(payPkh).toBinary()
-
-	const writer = new Utils.Writer()
-	writer.writeUInt64LEBn(new BigNumber(price))
-	writer.writeVarIntNum(payoutScript.length)
-	writer.write(payoutScript)
-	const payoutOutput = writer.toArray()
-
-	return new Script()
-		.writeScript(Script.fromHex(ORD_LOCK_PREFIX))
-		.writeBin(cancelPkh)
-		.writeBin(payoutOutput)
-		.writeScript(Script.fromHex(ORD_LOCK_SUFFIX))
+	// OPL-4690: listing create OFF. buyOrdinal / cancelOrdinalListing stay on.
+	throw new Error(ORDLOCK_LISTING_CREATE_DISABLED)
 }
 
 function buildSerializedOutput(satoshis: number, script: number[]): number[] {
@@ -619,86 +605,12 @@ export async function buildTransferOrdinals(
  * Loads id once from the ordinals basket.
  */
 export async function buildListOrdinal(
-	ctx: OneSatContext,
+	_ctx: OneSatContext,
 	request: SellOrdinalRequest,
 ): Promise<(CreateActionArgs & { source: WalletOutput }) | { error: string }> {
-	const { id, price, map } = request
-
-	if (!id) return { error: 'missing-id' }
-	if (price <= 0) return { error: 'invalid-price' }
-
-	const loaded = await loadOrdinalSpend(ctx, id)
-	if ('error' in loaded) return loaded
-	const { output: ordinal, beef } = loaded
-
-	const payAddress = request.payAddress ?? (await defaultPayAddress(ctx))
-	const outpoint = ordinal.outpoint
-
-	const cancelAddress = await deriveCancelAddressInternal(ctx, outpoint)
-	const ordLockScript = buildOrdLockScript(cancelAddress, payAddress, price)
-
-	// Append MAP metadata when provided — OP_RETURN terminates before the
-	// MAP data, so the OrdLock spend paths are unaffected.
-	let lockingScript: string
-	if (map && Object.keys(map).length > 0) {
-		const mapScript = MAPTemplate.set(map)
-		const combined = new Script()
-		for (const chunk of ordLockScript.chunks) combined.chunks.push(chunk)
-		for (const chunk of mapScript.chunks) combined.chunks.push(chunk)
-		lockingScript = new LockingScript(combined.chunks).toHex()
-	} else {
-		lockingScript = ordLockScript.toHex()
-	}
-
-	// Read the price back out of the script we just built, so the tag can
-	// never drift from what the chain will actually enforce.
-	const encoded = OrdLock.decode(ordLockScript)
-	if (!encoded) {
-		throw new Error('sellOrdinal: built OrdLock script failed to decode')
-	}
-
-	const tags = [
-		...ordinalSeedTags(ordinal),
-		'ordlock',
-		`price:${encoded.price}`,
-	]
-	const basket = ORDINALS_BASKET
-	const sourceName = nameFromOutput(ordinal, tags)
-
-	const inputId = readAssetIdTag(ordinal.tags)
-	const labels = inputId ? [buildInputAssetLabel(basket, inputId)] : undefined
-
-	return {
-		description: `List ordinal for ${price} sats`,
-		inputBEEF: beef,
-		...(labels && { labels }),
-		inputs: [
-			{
-				outpoint,
-				inputDescription: 'Ordinal to list',
-				unlockingScriptLength: unlockingScriptLengthForInstructions(
-					ordinal.customInstructions,
-				),
-			},
-		],
-		outputs: [
-			{
-				lockingScript,
-				satoshis: 1,
-				outputDescription: `List ordinal for ${price} sats`,
-				basket,
-				tags,
-				customInstructions: buildOrdinalCustomInstructions({
-					protocolID: P1SAT_PROTOCOL,
-					keyID: outpoint,
-					counterparty: 'self',
-					tags,
-					name: sourceName,
-				}),
-			},
-		],
-		source: ordinal,
-	}
+	if (!request.id) return { error: 'missing-id' }
+	if (request.price <= 0) return { error: 'invalid-price' }
+	return { error: ORDLOCK_LISTING_CREATE_DISABLED }
 }
 
 /**
@@ -1053,7 +965,8 @@ export const sellOrdinal: Action<SellOrdinalRequest, OrdinalOperationResponse> =
 	{
 		meta: {
 			name: 'sellOrdinal',
-			description: 'List an ordinal for sale on the global orderbook',
+			description:
+				'DISABLED: OrdLock listing create is off. Buy and cancel of existing listings remain available.',
 			category: 'ordinals',
 			inputSchema: {
 				type: 'object',
@@ -1077,73 +990,8 @@ export const sellOrdinal: Action<SellOrdinalRequest, OrdinalOperationResponse> =
 				required: ['id', 'price'],
 			},
 		},
-		async execute(ctx, input) {
-			try {
-				const params = await buildListOrdinal(ctx, input)
-				if ('error' in params) {
-					return params
-				}
-
-				const { source, ...createArgs } = params
-				if (!source.customInstructions) {
-					return { error: 'missing-custom-instructions' }
-				}
-
-				const args = await prepareP1SatArgs(ctx, {
-					...createArgs,
-					options: { randomizeOutputs: false },
-				})
-				const sellId = readAssetIdTag(source.tags)
-				const result = await executeTrackedAction(
-					ctx.wallet,
-					args,
-					input.fundingProvider,
-					params.inputBEEF as number[],
-					undefined,
-					{
-						spends: sellId ? [{ basket: ORDINALS_BASKET, id: sellId }] : [],
-						usePermissionModule:
-							input.usePermissionModule ??
-							input.useOneSatModule ??
-							input.useModule,
-						permissionScheme: '1sat',
-					},
-				)
-
-				if (ctx.debug && ctx.log) {
-					ctx.log({
-						timestamp: new Date().toISOString(),
-						action: 'sellOrdinal',
-						input: { outpoint: source.outpoint, price: input.price },
-						txid: result.txid,
-						rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
-						outputs: [
-							{
-								index: 0,
-								protocolID: P1SAT_PROTOCOL,
-								keyID: source.outpoint,
-								basket: ORDINALS_BASKET,
-								satoshis: 1,
-							},
-						],
-					})
-				}
-
-				return result
-			} catch (error) {
-				console.error('[sellOrdinal]', error)
-				if (ctx.debug && ctx.log) {
-					ctx.log({
-						timestamp: new Date().toISOString(),
-						action: 'sellOrdinal',
-						input: { price: input.price },
-						error: error instanceof Error ? error.message : 'unknown-error',
-					})
-				}
-				return {
-					error: error instanceof Error ? error.message : 'unknown-error',
-				}
-			}
+		async execute(_ctx, _input) {
+			return { error: ORDLOCK_LISTING_CREATE_DISABLED }
 		},
 	}
 
