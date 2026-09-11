@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.214
+
+### Fixed
+- Improve legacy listing discovery and report incomplete address synchronization before continuing.
+
 ## 0.0.210
 
 ### Fixed
