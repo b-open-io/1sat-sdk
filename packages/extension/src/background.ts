@@ -7,6 +7,7 @@
  */
 
 import browser from 'webextension-polyfill'
+import { ORDLOCK_LISTING_CREATE_DISABLED } from './constants.js'
 import { MethodNotFoundError, toExtensionError } from './errors'
 import type { OneSatEvent } from './provider-types'
 import { ConnectedSites, WalletState } from './storage'
@@ -153,6 +154,10 @@ export function createBackgroundHandler(
 		const { id, method, params } = request
 
 		try {
+			if (method === RpcMethod.CREATE_LISTING) {
+				throw new Error(ORDLOCK_LISTING_CREATE_DISABLED)
+			}
+
 			// Handle internal __init__ method
 			if (method === RpcMethod.INIT) {
 				const initState = await handleInit(sender.origin)
