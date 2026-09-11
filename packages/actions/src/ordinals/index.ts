@@ -8,7 +8,8 @@
 import { MAP as MAPTemplate, buildInscriptionScript } from '@1sat/templates'
 import { OrdLock, OrdLockV2 } from '@1sat/templates'
 import {
-	ORDLOCK_V2_TAG,
+	ORDLOCK_LISTING_CREATE_DISABLED,
+	TOKEN_CONTENT_TYPE,
 	buildInputAssetLabel,
 	displayNameForCi,
 	nameFromMap,
@@ -30,6 +31,7 @@ import {
 } from '@bsv/sdk'
 import { prepareP1SatArgs } from '../apply/index.js'
 import {
+	BSV21_BASKET,
 	MAX_INSCRIPTION_BYTES,
 	OPNS_BASKET,
 	ORDINALS_BASKET,
@@ -42,7 +44,12 @@ import type {
 	ActionOptions,
 	OneSatContext,
 } from '../types.js'
+import {
+	bsv21FilterTags,
+	buildBsv21CustomInstructions,
+} from '../utils/bsv21Remittance.js'
 import { executeTrackedAction } from '../utils/createTrackedAction.js'
+import { listingToken, tokenTransferLock } from '../utils/listingToken.js'
 import { loadBasketOutputBeef } from '../utils/loadBasketOutput.js'
 import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance.js'
 import { ordinalSeedTags } from '../utils/ordinalSeedTags.js'
@@ -536,87 +543,12 @@ export async function buildTransferOrdinals(
  * Loads id once from the ordinals basket.
  */
 export async function buildListOrdinal(
-	ctx: OneSatContext,
+	_ctx: OneSatContext,
 	request: SellOrdinalRequest,
 ): Promise<(CreateActionArgs & { source: WalletOutput }) | { error: string }> {
-	const { id, price, map } = request
-
-	if (!id) return { error: 'missing-id' }
-	if (price <= 0) return { error: 'invalid-price' }
-
-	const loaded = await loadOrdinalSpend(ctx, id)
-	if ('error' in loaded) return loaded
-	const { output: ordinal, beef } = loaded
-
-	const payAddress = request.payAddress ?? (await defaultPayAddress(ctx))
-	const outpoint = ordinal.outpoint
-
-	const cancelAddress = await deriveCancelAddressInternal(ctx, outpoint)
-	const ordLockScript = buildOrdLockScript(cancelAddress, payAddress, price)
-
-	// Append MAP metadata when provided — OP_RETURN terminates before the
-	// MAP data, so the OrdLock spend paths are unaffected. Copy chunks rather
-	// than chaining write* on the parsed script (see @bsv/sdk lazy-parse note).
-	let lockingScript: string
-	if (map && Object.keys(map).length > 0) {
-		const mapScript = MAPTemplate.set(map)
-		const combined = new Script()
-		for (const chunk of ordLockScript.chunks) combined.chunks.push(chunk)
-		for (const chunk of mapScript.chunks) combined.chunks.push(chunk)
-		lockingScript = new LockingScript(combined.chunks).toHex()
-	} else {
-		lockingScript = ordLockScript.toHex()
-	}
-
-	// Read the price back out of the script we just built, so the tag can
-	// never drift from what the chain will actually enforce.
-	const encoded = OrdLockV2.decode(ordLockScript)
-	if (!encoded) {
-		throw new Error('sellOrdinal: built OrdLock v2 script failed to decode')
-	}
-
-	const tags = [
-		...ordinalSeedTags(ordinal),
-		ORDLOCK_V2_TAG,
-		`price:${encoded.price}`,
-	]
-	const basket = ORDINALS_BASKET
-	const sourceName = nameFromOutput(ordinal, tags)
-
-	const inputId = readAssetIdTag(ordinal.tags)
-	const labels = inputId ? [buildInputAssetLabel(basket, inputId)] : undefined
-
-	return {
-		description: `List ordinal for ${price} sats`,
-		inputBEEF: beef,
-		...(labels && { labels }),
-		inputs: [
-			{
-				outpoint,
-				inputDescription: 'Ordinal to list',
-				unlockingScriptLength: unlockingScriptLengthForInstructions(
-					ordinal.customInstructions,
-				),
-			},
-		],
-		outputs: [
-			{
-				lockingScript,
-				satoshis: 1,
-				outputDescription: `List ordinal for ${price} sats`,
-				basket,
-				tags,
-				customInstructions: buildOrdinalCustomInstructions({
-					protocolID: P1SAT_PROTOCOL,
-					keyID: outpoint,
-					counterparty: 'self',
-					tags,
-					name: sourceName,
-				}),
-			},
-		],
-		source: ordinal,
-	}
+	if (!request.id) return { error: 'missing-id' }
+	if (request.price <= 0) return { error: 'invalid-price' }
+	return { error: ORDLOCK_LISTING_CREATE_DISABLED }
 }
 
 /**
@@ -1121,42 +1053,89 @@ export const cancelOrdinalListing: Action<
 			const cancelAddress = await deriveCancelAddressInternal(ctx, newKeyID)
 
 			const tags = ordinalSeedTags(listing)
-			const basket = ORDINALS_BASKET
 			const sourceName = nameFromOutput(listing, tags)
-
+			const token = listingToken(listing)
+			if (token.kind === 'incomplete') {
+				return { error: 'token-listing-requires-transfer-identity' }
+			}
 			const inputId = readAssetIdTag(listing.tags)
+			const outputs =
+				token.kind === 'nft'
+					? [
+							{
+								lockingScript: new P2PKH().lock(cancelAddress).toHex(),
+								satoshis: 1,
+								outputDescription: 'Cancelled listing',
+								basket: ORDINALS_BASKET,
+								tags,
+								customInstructions: buildOrdinalCustomInstructions({
+									protocolID: P1SAT_PROTOCOL,
+									keyID: newKeyID,
+									counterparty: 'self',
+									tags,
+									name: sourceName,
+								}),
+							},
+						]
+					: [
+							{
+								lockingScript: tokenTransferLock(cancelAddress, token).toHex(),
+								satoshis: 1,
+								outputDescription: 'Cancelled token listing',
+								...(token.kind === 'bsv21' && {
+									basket: BSV21_BASKET,
+									tags: bsv21FilterTags({ tokenId: token.id }),
+									customInstructions: buildBsv21CustomInstructions({
+										token: {
+											id: token.id,
+											amt: token.amt,
+											op: 'transfer',
+										},
+										protocolID: P1SAT_PROTOCOL,
+										keyID: newKeyID,
+										counterparty: 'self',
+									}),
+								}),
+							},
+						]
+			if (token.kind === 'bsv21') {
+				if (!ctx.services?.bsv21) return { error: 'services-required' }
+				const details = await ctx.services.bsv21.getTokenDetails(token.id)
+				if (!details.status.is_active) return { error: 'token-not-active' }
+				if (
+					typeof details.status.fee_per_output === 'number' &&
+					details.status.fee_per_output > 0 &&
+					details.status.fee_address
+				) {
+					outputs.push({
+						lockingScript: new P2PKH().lock(details.status.fee_address).toHex(),
+						satoshis: details.status.fee_per_output,
+						outputDescription: 'Overlay processing fee',
+						tags: ['fee:overlay'],
+					})
+				}
+			}
 			const args = await prepareP1SatArgs(ctx, {
-				description: 'Cancel ordinal listing',
+				description:
+					token.kind === 'nft'
+						? 'Cancel ordinal listing'
+						: 'Cancel token listing',
 				inputBEEF,
 				...(inputId && {
-					labels: [buildInputAssetLabel(basket, inputId)],
+					labels: [buildInputAssetLabel(ORDINALS_BASKET, inputId)],
 				}),
 				inputs: [
 					{
 						outpoint,
-						inputDescription: 'Listed ordinal',
+						inputDescription:
+							token.kind === 'nft' ? 'Listed ordinal' : 'Listed token',
 						unlockingScriptLength: ordLockCancelUnlockLength(
 							inputBEEF,
 							outpoint,
 						),
 					},
 				],
-				outputs: [
-					{
-						lockingScript: new P2PKH().lock(cancelAddress).toHex(),
-						satoshis: 1,
-						outputDescription: 'Cancelled listing',
-						basket,
-						tags,
-						customInstructions: buildOrdinalCustomInstructions({
-							protocolID: P1SAT_PROTOCOL,
-							keyID: newKeyID,
-							counterparty: 'self',
-							tags,
-							name: sourceName,
-						}),
-					},
-				],
+				outputs,
 				options: { randomizeOutputs: false },
 			})
 			const result = await executeTrackedAction(
@@ -1166,7 +1145,7 @@ export const cancelOrdinalListing: Action<
 				inputBEEF,
 				undefined,
 				{
-					spends: inputId ? [{ basket, id: inputId }] : [],
+					spends: inputId ? [{ basket: ORDINALS_BASKET, id: inputId }] : [],
 					usePermissionModule:
 						input.usePermissionModule ??
 						input.useOneSatModule ??
@@ -1317,20 +1296,53 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 				customInstructions?: string
 			}> = []
 
-			outputs.push({
-				lockingScript: new P2PKH().lock(ourOrdAddress).toHex(),
-				satoshis: 1,
-				outputDescription: 'Purchased ordinal',
-				basket,
-				tags,
-				customInstructions: buildOrdinalCustomInstructions({
-					protocolID: P1SAT_PROTOCOL,
-					keyID: outpoint,
-					counterparty: 'self',
+			const purchasedType = tags
+				.find((tag) => tag.startsWith('type:'))
+				?.slice('type:'.length)
+			if (purchasedType === TOKEN_CONTENT_TYPE) {
+				const token = listingToken({
+					satoshis: 1,
+					outpoint,
 					tags,
-					name: resolved.name,
-				}),
-			})
+				} as WalletOutput)
+				if (token.kind === 'nft' || token.kind === 'incomplete') {
+					return { error: 'token-listing-requires-transfer-identity' }
+				}
+				outputs.push({
+					lockingScript: tokenTransferLock(ourOrdAddress, token).toHex(),
+					satoshis: 1,
+					outputDescription: 'Purchased token',
+					...(token.kind === 'bsv21' && {
+						basket: BSV21_BASKET,
+						tags: bsv21FilterTags({ tokenId: token.id }),
+						customInstructions: buildBsv21CustomInstructions({
+							token: {
+								id: token.id,
+								amt: token.amt,
+								op: 'transfer',
+							},
+							protocolID: P1SAT_PROTOCOL,
+							keyID: outpoint,
+							counterparty: 'self',
+						}),
+					}),
+				})
+			} else {
+				outputs.push({
+					lockingScript: new P2PKH().lock(ourOrdAddress).toHex(),
+					satoshis: 1,
+					outputDescription: 'Purchased ordinal',
+					basket,
+					tags,
+					customInstructions: buildOrdinalCustomInstructions({
+						protocolID: P1SAT_PROTOCOL,
+						keyID: outpoint,
+						counterparty: 'self',
+						tags,
+						name: resolved.name,
+					}),
+				})
+			}
 
 			const payoutReader = new Utils.Reader(ordLockData.payout)
 			const payoutSatoshis = payoutReader.readUInt64LEBn().toNumber()
