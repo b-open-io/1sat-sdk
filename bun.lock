@@ -21,7 +21,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@1sat/extension": "workspace:*",
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "webextension-polyfill": "^0.12.0",
       },
       "devDependencies": {
@@ -41,11 +41,11 @@
       },
       "devDependencies": {
         "@1sat/wallet-remote": "workspace:*",
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
       },
     },
     "packages/cli": {
@@ -61,7 +61,7 @@
         "@1sat/wallet-node": "workspace:*",
         "@1sat/wallet-server": "workspace:*",
         "@bopen-io/messagebox-server": "^1.3.2",
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.6.2-brc153.5",
         "@clack/prompts": "^0.8.0",
         "bitcoin-backup": "^0.0.11",
@@ -85,11 +85,11 @@
         "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.6.2-brc153.5",
       },
       "devDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
       },
     },
     "packages/connect": {
@@ -102,24 +102,24 @@
         "eventemitter3": "^5.0.1",
       },
       "devDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
       },
     },
     "packages/engine": {
       "name": "@1sat/engine",
       "version": "0.0.6",
       "devDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "@types/node": "^22.0.0",
         "protobufjs-cli": "^2.0.0",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
       },
     },
     "packages/extension": {
@@ -130,13 +130,13 @@
         "webextension-polyfill": "^0.12.0",
       },
       "devDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "@types/chrome": "^0.0.287",
         "@types/webextension-polyfill": "^0.12.4",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
       },
     },
     "packages/knex-bun-sqlite": {
@@ -161,11 +161,11 @@
         "@1sat/wallet": "workspace:*",
       },
       "devDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
       },
     },
     "packages/permission-module-ui": {
@@ -191,13 +191,13 @@
         "@1sat/connect": "workspace:*",
       },
       "devDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "@types/react": "^19.0.0",
         "react": "^19.0.0",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "react": "^18.0.0 || ^19.0.0",
       },
     },
@@ -205,12 +205,12 @@
       "name": "@1sat/serve",
       "version": "0.0.3",
       "devDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "@types/bun": "latest",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
       },
     },
     "packages/sweep-ui": {
@@ -230,13 +230,13 @@
         "tailwind-merge": "^3.5.0",
       },
       "devDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "@types/react": "^19.0.0",
         "react": "^19.0.0",
         "typescript": "~5.7.0",
       },
       "peerDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "react": "^18.0.0 || ^19.0.0",
       },
     },
@@ -248,22 +248,22 @@
         "cbor2": "^2.3.0",
       },
       "devDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
       },
     },
     "packages/types": {
       "name": "@1sat/types",
       "version": "0.0.44",
       "devDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
       },
     },
     "packages/utils": {
@@ -274,11 +274,11 @@
         "image-meta": "^0.2.2",
       },
       "devDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
       },
     },
     "packages/vault": {
@@ -300,12 +300,12 @@
         "fflate": "^0.8.2",
       },
       "devDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "@types/chrome": "^0.1.32",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.6.2-brc153.5",
       },
     },
@@ -316,13 +316,13 @@
         "@1sat/wallet": "workspace:*",
       },
       "devDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.6.2-brc153.5",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
         "@1sat/client": "workspace:*",
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.6.2-brc153.5",
       },
     },
@@ -391,7 +391,7 @@
         "zod": "^4.3.6",
       },
       "devDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.6.2-brc153.5",
         "@tailwindcss/vite": "^4.1.4",
         "@types/bun": "latest",
@@ -405,7 +405,7 @@
         "vite": "^6.0.3",
       },
       "peerDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
       },
     },
     "packages/wallet-mac": {
@@ -415,11 +415,11 @@
         "@1sat/vault": "workspace:*",
       },
       "devDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
       },
     },
     "packages/wallet-node": {
@@ -430,14 +430,14 @@
       },
       "devDependencies": {
         "@1sat/client": "workspace:*",
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.6.2-brc153.5",
         "@types/pg": "^8.11.0",
         "pg": "^8.11.0",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.6.2-brc153.5",
         "better-sqlite3": "*",
         "pg": "^8.11.0",
@@ -454,13 +454,13 @@
         "@1sat/wallet": "workspace:*",
       },
       "devDependencies": {
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.6.2-brc153.5",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
         "@1sat/client": "workspace:*",
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.6.2-brc153.5",
       },
     },
@@ -480,7 +480,7 @@
       },
       "devDependencies": {
         "@bsv/paymail": "^2.4.0",
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.6.2-brc153.5",
         "@types/bun": "^1.3.10",
         "@types/express": "^4.17.21",
@@ -489,7 +489,7 @@
       },
       "peerDependencies": {
         "@bsv/paymail": "^2.4.0",
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.6.2-brc153.5",
         "knex": "^3.1.0",
         "pg": "*",
@@ -512,7 +512,7 @@
         "@1sat/types": "workspace:*",
         "@1sat/wallet": "workspace:*",
         "@1sat/wallet-browser": "workspace:*",
-        "@bsv/sdk": "^2.5.0",
+        "@bsv/sdk": "^2.6.0",
         "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.6.2-brc153.5",
         "react": "^19.2.5",
         "react-dom": "^19.2.5",
@@ -695,7 +695,7 @@
 
     "@bsv/payment-express-middleware": ["@bsv/payment-express-middleware@2.1.6", "", { "peerDependencies": { "@bsv/sdk": "^2.1.6", "@types/express": ">=4.17.0 <6", "express": ">=4.18.0 <6" } }, "sha512-os0lp29GvwthalCX+Hr7xEpRckr+4jtFbFd3ckwvaReJdXPoJjGW0fM2AX70JcHx+hODoIYauyD6buRWitrliw=="],
 
-    "@bsv/sdk": ["@bsv/sdk@2.5.0", "", {}, "sha512-Y1j9iEjpcY09Jvr3HcoXQO2dhn/qEAHsEi+S/yqvu/hwkx2OdH+UlFbEE4na97lNO0UzrIUYFZIL7FJxUSje2w=="],
+    "@bsv/sdk": ["@bsv/sdk@2.6.0", "", {}, "sha512-sha4uZvrY1PPbbT2HrH03Bbb2ifsNDI768Rz9f2NnQzOE8O85HH1eyeQUmj2qy13yWF8zZh98XuWZTSx4uH0JA=="],
 
     "@bsv/wallet-toolbox": ["@bopen-io/wallet-toolbox@2.6.2-brc153.5", "", { "dependencies": { "@bsv/auth-express-middleware": "^2.2.0", "@bsv/payment-express-middleware": "^2.1.5", "@types/express": "^5.0.6", "better-sqlite3": "^13.0.2", "body-parser": "^2.3.0", "dotenv": "^17.4.2", "express": "^5.2.1", "express-rate-limit": "^8.6.1", "hash-wasm": "^4.12.0", "idb": "^8.0.3", "knex": "^3.3.0", "mysql2": "^3.23.2", "ws": "^8.21.1" }, "peerDependencies": { "@bsv/sdk": "^2.1.8" } }, "sha512-wqsXSFUqBOZMKcmVnjv42HpcGOFLEibVRsfCgvn1j2c6jBZGAtygSQ9hqMU74J0i7oRuWf8Ecr5reWqQVelhOQ=="],
 

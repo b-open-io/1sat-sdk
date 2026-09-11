@@ -33,7 +33,7 @@
     "@1sat/wallet-node": "workspace:*",
     "@1sat/wallet-server": "workspace:*",
     "@bopen-io/messagebox-server": "^1.3.2",
-    "@bsv/sdk": "^2.5.0",
+    "@bsv/sdk": "^2.6.0",
     "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.6.2-brc153.5",
     "@clack/prompts": "^0.8.0",
     "bitcoin-backup": "^0.0.11",

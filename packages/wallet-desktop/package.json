@@ -74,10 +74,10 @@
     "zod": "^4.3.6"
   },
   "peerDependencies": {
-    "@bsv/sdk": "^2.5.0"
+    "@bsv/sdk": "^2.6.0"
   },
   "devDependencies": {
-    "@bsv/sdk": "^2.5.0",
+    "@bsv/sdk": "^2.6.0",
     "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.6.2-brc153.5",
     "@tailwindcss/vite": "^4.1.4",
     "@types/bun": "latest",

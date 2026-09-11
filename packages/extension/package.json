@@ -38,10 +38,10 @@
     "webextension-polyfill": "^0.12.0"
   },
   "peerDependencies": {
-    "@bsv/sdk": "^2.5.0"
+    "@bsv/sdk": "^2.6.0"
   },
   "devDependencies": {
-    "@bsv/sdk": "^2.5.0",
+    "@bsv/sdk": "^2.6.0",
     "@types/chrome": "^0.0.287",
     "@types/webextension-polyfill": "^0.12.4",
     "typescript": "^5.9.3"
