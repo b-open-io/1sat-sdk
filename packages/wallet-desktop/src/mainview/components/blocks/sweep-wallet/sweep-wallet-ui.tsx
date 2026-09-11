@@ -234,9 +234,11 @@ function SuccessState({
 function ErrorState({
 	error,
 	onReset,
+	onRetry,
 }: {
 	error: string
 	onReset: () => void
+	onRetry: () => void
 }) {
 	return (
 		<div className="flex flex-col gap-4">
@@ -247,9 +249,12 @@ function ErrorState({
 					<p className="text-xs text-muted-foreground">{error}</p>
 				</div>
 			</div>
-			<Button variant="outline" className="w-full" onClick={onReset}>
+			<Button variant="outline" className="w-full" onClick={onRetry}>
 				<RotateCcw aria-hidden="true" data-icon="inline-start" />
 				Try Again
+			</Button>
+			<Button variant="ghost" onClick={onReset}>
+				Start Over
 			</Button>
 		</div>
 	)
@@ -303,6 +308,16 @@ export function SweepWalletUi({
 			</CardHeader>
 
 			<CardContent className="flex flex-col gap-4">
+				{(sweepResult?.txids?.length ?? 0) > 0 && (
+					<div className="flex flex-col gap-1 text-xs">
+						<p className="font-medium">Completed transactions</p>
+						{sweepResult?.txids?.map((txid) => (
+							<p key={txid} className="break-all font-mono">
+								{txid}
+							</p>
+						))}
+					</div>
+				)}
 				{/* WIF input -- visible in input & preview steps */}
 				{(step === 'input' || step === 'preview') && (
 					<div className="flex flex-col gap-2">
@@ -364,7 +379,7 @@ export function SweepWalletUi({
 
 				{/* Error */}
 				{step === 'error' && error && (
-					<ErrorState error={error} onReset={onReset} />
+					<ErrorState error={error} onReset={onReset} onRetry={onScan} />
 				)}
 			</CardContent>
 
