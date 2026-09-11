@@ -29,6 +29,7 @@ import {
 	createTrackedAction,
 	executeTrackedAction,
 } from '../utils/createTrackedAction.js'
+import { isTokenMime } from '../utils/listingKind.js'
 import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance.js'
 import type {
 	SweepBsv21Request,
@@ -434,7 +435,7 @@ export const sweepOrdinals: Action<
 				const meta = metadata.get(input.outpoint)
 				const contentType = meta?.contentType
 
-				if (contentType === 'application/bsv-20') {
+				if (isTokenMime(contentType)) {
 					return {
 						error: `Cannot sweep BSV-20 token ${input.outpoint} through ordinal sweep — use sweepBsv21 instead`,
 					}

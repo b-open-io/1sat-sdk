@@ -91,6 +91,12 @@ export type {
 export { getDisplayValue } from './utils/displayValue.js'
 export { ordinalSeedTags } from './utils/ordinalSeedTags.js'
 export {
+	classifyWalletListing,
+	isTokenMime,
+	tokenCancelScript,
+	type ListingKind,
+} from './utils/listingKind.js'
+export {
 	loadBasketOutput,
 	loadBasketOutputBeef,
 	toIdTag,

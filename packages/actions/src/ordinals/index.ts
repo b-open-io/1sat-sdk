@@ -34,6 +34,7 @@ import {
 } from '@bsv/sdk'
 import { prepareP1SatArgs } from '../apply/index.js'
 import {
+	BSV21_BASKET,
 	MAX_INSCRIPTION_BYTES,
 	OPNS_BASKET,
 	ORDINALS_BASKET,
@@ -46,7 +47,16 @@ import type {
 	ActionOptions,
 	OneSatContext,
 } from '../types.js'
+import {
+	bsv21FilterTags,
+	buildBsv21CustomInstructions,
+} from '../utils/bsv21Remittance.js'
 import { executeTrackedAction } from '../utils/createTrackedAction.js'
+import {
+	classifyWalletListing,
+	isTokenMime,
+	tokenCancelScript,
+} from '../utils/listingKind.js'
 import { loadBasketOutputBeef } from '../utils/loadBasketOutput.js'
 import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance.js'
 import { ordinalSeedTags } from '../utils/ordinalSeedTags.js'
@@ -486,7 +496,10 @@ export async function buildTransferOrdinals(
 		const sourceType = ordinal.tags
 			?.find((t) => t.startsWith('type:'))
 			?.slice(5)
-		if (sourceType === 'application/bsv-20') {
+		if (
+			isTokenMime(sourceType) ||
+			classifyWalletListing(ordinal).kind !== 'nft'
+		) {
 			return {
 				error: `Cannot transfer BSV-20 token ${outpoint} through ordinal transfer — use BSV-21 transfer instead`,
 			}
@@ -1040,11 +1053,9 @@ export const cancelOrdinalListing: Action<
 			// but DO NOT carry them into the new output's customInstructions —
 			// the cancelled output is a fresh derivation and must record its
 			// own derivation properties.
-			const {
-				protocolID: signProtocolID,
-				keyID: signKeyID,
-				counterparty: signCounterparty,
-			} = JSON.parse(listing.customInstructions)
+			const { keyID: signKeyID } = JSON.parse(listing.customInstructions) as {
+				keyID: string
+			}
 
 			// Fresh derivation for the new cancelled-output: tied to the
 			// listing's outpoint (this output's parent), under the current
@@ -1052,48 +1063,107 @@ export const cancelOrdinalListing: Action<
 			// derivation so the next spend reproduces the same key.
 			const newKeyID = outpoint
 			const cancelAddress = await deriveCancelAddressInternal(ctx, newKeyID)
+			const kind = classifyWalletListing(listing)
+			if (kind.kind === 'token-unknown') {
+				return { error: 'token-listing-requires-transfer-identity' }
+			}
 
 			const tags = ordinalSeedTags(listing)
-			const basket = ORDINALS_BASKET
 			const sourceName = nameFromOutput(listing, tags)
-
-			const cancelUnlock = OrdLock.cancelWithWallet(
-				ctx.wallet,
-				signProtocolID,
-				signKeyID,
-				signCounterparty,
-			)
-
 			const inputId = readAssetIdTag(listing.tags)
+			const outputs: Array<{
+				lockingScript: string
+				satoshis: number
+				outputDescription: string
+				basket?: string
+				tags?: string[]
+				customInstructions?: string
+			}> = []
+
+			if (kind.kind === 'nft') {
+				outputs.push({
+					lockingScript: new P2PKH().lock(cancelAddress).toHex(),
+					satoshis: 1,
+					outputDescription: 'Cancelled listing',
+					basket: ORDINALS_BASKET,
+					tags,
+					customInstructions: buildOrdinalCustomInstructions({
+						protocolID: P1SAT_PROTOCOL,
+						keyID: newKeyID,
+						counterparty: 'self',
+						tags,
+						name: sourceName,
+					}),
+				})
+			} else {
+				outputs.push({
+					lockingScript: tokenCancelScript(cancelAddress, kind).toHex(),
+					satoshis: 1,
+					outputDescription: 'Cancelled token listing',
+					...(kind.kind === 'bsv21' && {
+						basket: BSV21_BASKET,
+						tags: bsv21FilterTags({ tokenId: kind.id }),
+						customInstructions: buildBsv21CustomInstructions({
+							token: {
+								id: kind.id,
+								amt: kind.amt,
+								op: 'transfer',
+							},
+							protocolID: P1SAT_PROTOCOL,
+							keyID: newKeyID,
+							counterparty: 'self',
+						}),
+					}),
+				})
+				if (kind.kind === 'bsv21') {
+					if (!ctx.services?.bsv21) return { error: 'services-required' }
+					const details = await ctx.services.bsv21.getTokenDetails(kind.id)
+					if (!details.status.is_active) return { error: 'token-not-active' }
+					const validated = await ctx.services.bsv21.validateOutputs(
+						kind.id,
+						[outpoint],
+						{ unspent: true },
+					)
+					const found = validated.some(
+						(row) =>
+							row.outpoint.replace('.', '_') === outpoint.replace('.', '_'),
+					)
+					if (!found) return { error: 'listing-not-found-in-overlay' }
+					const feePerOutput = details.status.fee_per_output
+					const feeAddress = details.status.fee_address
+					if (
+						typeof feePerOutput === 'number' &&
+						feePerOutput > 0 &&
+						feeAddress
+					) {
+						outputs.push({
+							lockingScript: new P2PKH().lock(feeAddress).toHex(),
+							satoshis: feePerOutput,
+							outputDescription: 'Overlay processing fee',
+							tags: ['fee:overlay'],
+						})
+					}
+				}
+			}
+
 			const args = await prepareP1SatArgs(ctx, {
-				description: 'Cancel ordinal listing',
+				description:
+					kind.kind === 'nft'
+						? 'Cancel ordinal listing'
+						: 'Cancel token listing',
 				inputBEEF,
 				...(inputId && {
-					labels: [buildInputAssetLabel(basket, inputId)],
+					labels: [buildInputAssetLabel(ORDINALS_BASKET, inputId)],
 				}),
 				inputs: [
 					{
 						outpoint,
-						inputDescription: 'Listed ordinal',
+						inputDescription:
+							kind.kind === 'nft' ? 'Listed ordinal' : 'Listed token',
 						unlockingScriptLength: 108,
 					},
 				],
-				outputs: [
-					{
-						lockingScript: new P2PKH().lock(cancelAddress).toHex(),
-						satoshis: 1,
-						outputDescription: 'Cancelled listing',
-						basket,
-						tags,
-						customInstructions: buildOrdinalCustomInstructions({
-							protocolID: P1SAT_PROTOCOL,
-							keyID: newKeyID,
-							counterparty: 'self',
-							tags,
-							name: sourceName,
-						}),
-					},
-				],
+				outputs,
 				options: { randomizeOutputs: false },
 			})
 			const result = await executeTrackedAction(
@@ -1103,7 +1173,7 @@ export const cancelOrdinalListing: Action<
 				inputBEEF,
 				undefined,
 				{
-					spends: inputId ? [{ basket, id: inputId }] : [],
+					spends: inputId ? [{ basket: ORDINALS_BASKET, id: inputId }] : [],
 					usePermissionModule:
 						input.usePermissionModule ??
 						input.useOneSatModule ??
