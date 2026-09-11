@@ -1,33 +1,59 @@
-import { BSV20, BSV21 } from '@1sat/templates'
-import { TOKEN_CONTENT_TYPE } from '@1sat/types'
-import { P2PKH, type WalletOutput } from '@bsv/sdk'
-import { bsv21FieldsFromOutput } from './bsv21Remittance.js'
+import { BSV20, BSV21, type BSV20TokenData, type BSV21TokenData } from '@1sat/templates'
+import {
+	BSV21_BASKET,
+	MAX_TOKEN_SUPPLY,
+	TOKEN_CONTENT_TYPE,
+} from '@1sat/types'
+import {
+	type CreateActionOutput,
+	P2PKH,
+	type WalletOutput,
+} from '@bsv/sdk'
+import {
+	bsv21FieldsFromOutput,
+	bsv21FilterTags,
+	buildBsv21CustomInstructions,
+} from './bsv21Remittance.js'
 
-const MAX_AMT = 2n ** 64n - 1n
+/** Transfer fields already defined on the template token types. */
+export type Bsv21Transfer = Required<Pick<BSV21TokenData, 'id' | 'amt'>>
+export type Bsv20Transfer = Required<Pick<BSV20TokenData, 'tick' | 'amt'>>
+export type ListedTransfer = Bsv21Transfer | Bsv20Transfer
 
-export type ListingToken =
-	| { kind: 'nft' }
-	| { kind: 'bsv21'; id: string; amt: string }
-	| { kind: 'bsv20'; tick: string; amt: string }
-	| { kind: 'incomplete' }
+export function isBsv21Transfer(
+	token: ListedTransfer,
+): token is Bsv21Transfer {
+	return 'id' in token
+}
 
 function integerAmt(value: string | undefined): string | undefined {
 	if (!value || !/^\d+$/.test(value)) return undefined
 	const amt = BigInt(value)
-	if (amt <= 0n || amt > MAX_AMT) return undefined
+	if (amt <= 0n || amt > MAX_TOKEN_SUPPLY) return undefined
 	return amt.toString()
 }
 
-/** NFT vs FT. Token MIME is only application/bsv-20. */
-export function listingToken(output: WalletOutput): ListingToken {
+/**
+ * Token identity for a listed 1-sat. `undefined` means it is not
+ * `application/bsv-20`. Throws if the MIME is token but id/tick/amt is missing.
+ */
+export function listedTransfer(
+	output: Pick<WalletOutput, 'tags' | 'customInstructions'>,
+): ListedTransfer | undefined {
 	const type = output.tags
 		?.find((tag) => tag.startsWith('type:'))
 		?.slice('type:'.length)
-	if (type !== TOKEN_CONTENT_TYPE) return { kind: 'nft' }
-	const fields = bsv21FieldsFromOutput(output)
+	if (type !== TOKEN_CONTENT_TYPE) return undefined
+
+	const fields = bsv21FieldsFromOutput({
+		satoshis: 1,
+		outpoint: '',
+		tags: output.tags,
+		customInstructions: output.customInstructions,
+	} as WalletOutput)
 	const amt = integerAmt(fields.amt)
-	if (!amt) return { kind: 'incomplete' }
-	if (fields.tokenId) return { kind: 'bsv21', id: fields.tokenId, amt }
+	if (fields.tokenId && amt) return { id: fields.tokenId, amt }
+
 	let tick: string | undefined
 	try {
 		const ci = output.customInstructions
@@ -35,19 +61,41 @@ export function listingToken(output: WalletOutput): ListingToken {
 			: undefined
 		if (typeof ci?.tick === 'string' && ci.tick.length > 0) tick = ci.tick
 	} catch {
-		/* CI may be derivation-only */
+		/* listing CI may be derivation-only */
 	}
-	if (tick) return { kind: 'bsv20', tick, amt }
-	return { kind: 'incomplete' }
+	if (tick && amt) return { tick, amt }
+
+	throw new Error('token-listing-requires-transfer-identity')
 }
 
-export function tokenTransferLock(
-	address: string,
-	token: Extract<ListingToken, { kind: 'bsv21' } | { kind: 'bsv20' }>,
-) {
+export function tokenTransferLock(address: string, token: ListedTransfer) {
 	const dest = new P2PKH().lock(address)
 	const amt = BigInt(token.amt)
-	return token.kind === 'bsv21'
-		? BSV21.transfer(token.id, amt).lock(dest)
-		: BSV20.transfer(token.tick, amt).lock(dest)
+	if (isBsv21Transfer(token)) return BSV21.transfer(token.id, amt).lock(dest)
+	return BSV20.transfer(token.tick, amt).lock(dest)
+}
+
+export function tokenReturnOutput(opts: {
+	address: string
+	token: ListedTransfer
+	keyID: string
+	protocolID: unknown
+	description: string
+}): CreateActionOutput {
+	const { address, token, keyID, protocolID, description } = opts
+	const output: CreateActionOutput = {
+		lockingScript: tokenTransferLock(address, token).toHex(),
+		satoshis: 1,
+		outputDescription: description,
+	}
+	if (!isBsv21Transfer(token)) return output
+	output.basket = BSV21_BASKET
+	output.tags = bsv21FilterTags({ tokenId: token.id })
+	output.customInstructions = buildBsv21CustomInstructions({
+		token: { id: token.id, amt: token.amt, op: 'transfer' },
+		protocolID,
+		keyID,
+		counterparty: 'self',
+	})
+	return output
 }

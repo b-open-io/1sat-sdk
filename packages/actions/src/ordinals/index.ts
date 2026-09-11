@@ -9,7 +9,6 @@ import { MAP as MAPTemplate, buildInscriptionScript } from '@1sat/templates'
 import { OrdLock, OrdLockV2 } from '@1sat/templates'
 import {
 	ORDLOCK_V2_TAG,
-	TOKEN_CONTENT_TYPE,
 	buildInputAssetLabel,
 	displayNameForCi,
 	nameFromMap,
@@ -21,6 +20,7 @@ import {
 	type BEEF,
 	Beef,
 	type CreateActionArgs,
+	type CreateActionOutput,
 	LockingScript,
 	OP,
 	P2PKH,
@@ -31,7 +31,6 @@ import {
 } from '@bsv/sdk'
 import { prepareP1SatArgs } from '../apply/index.js'
 import {
-	BSV21_BASKET,
 	MAX_INSCRIPTION_BYTES,
 	OPNS_BASKET,
 	ORDINALS_BASKET,
@@ -51,10 +50,10 @@ import { ordinalSeedTags } from '../utils/ordinalSeedTags.js'
 import { ordLockCancelUnlockLength } from '../utils/ordlockCancelLength.js'
 import { unlockingScriptLengthForInstructions } from '../utils/signOrdinalInput.js'
 import {
-	bsv21FilterTags,
-	buildBsv21CustomInstructions,
-} from '../utils/bsv21Remittance.js'
-import { listingToken, tokenTransferLock } from '../utils/listingToken.js'
+	isBsv21Transfer,
+	listedTransfer,
+	tokenReturnOutput,
+} from '../utils/listingToken.js'
 
 // ============================================================================
 // Helpers
@@ -1130,78 +1129,61 @@ export const cancelOrdinalListing: Action<
 			const tags = ordinalSeedTags(listing)
 			const basket = ORDINALS_BASKET
 			const sourceName = nameFromOutput(listing, tags)
-			const token = listingToken(listing)
-			if (token.kind === 'incomplete') {
-				return { error: 'token-listing-requires-transfer-identity' }
+			const token = listedTransfer(listing)
+			const outputs: CreateActionOutput[] = []
+			if (token) {
+				outputs.push(
+					tokenReturnOutput({
+						address: cancelAddress,
+						token,
+						keyID: newKeyID,
+						protocolID: P1SAT_PROTOCOL,
+						description: 'Cancelled token listing',
+					}),
+				)
+				if (isBsv21Transfer(token)) {
+					if (!ctx.services?.bsv21) return { error: 'services-required' }
+					const details = await ctx.services.bsv21.getTokenDetails(
+						token.id,
+					)
+					if (!details.status.is_active) return { error: 'token-not-active' }
+					const feePerOutput = details.status.fee_per_output
+					const feeAddress = details.status.fee_address
+					if (
+						typeof feePerOutput === 'number' &&
+						feePerOutput > 0 &&
+						feeAddress
+					) {
+						outputs.push({
+							lockingScript: new P2PKH().lock(feeAddress).toHex(),
+							satoshis: feePerOutput,
+							outputDescription: 'Overlay processing fee',
+							tags: ['fee:overlay'],
+						})
+					}
+				}
+			} else {
+				outputs.push({
+					lockingScript: new P2PKH().lock(cancelAddress).toHex(),
+					satoshis: 1,
+					outputDescription: 'Cancelled listing',
+					basket,
+					tags,
+					customInstructions: buildOrdinalCustomInstructions({
+						protocolID: P1SAT_PROTOCOL,
+						keyID: newKeyID,
+						counterparty: 'self',
+						tags,
+						name: sourceName,
+					}),
+				})
 			}
 
 			const inputId = readAssetIdTag(listing.tags)
-			const outputs =
-				token.kind === 'nft'
-					? [
-							{
-								lockingScript: new P2PKH().lock(cancelAddress).toHex(),
-								satoshis: 1,
-								outputDescription: 'Cancelled listing',
-								basket,
-								tags,
-								customInstructions: buildOrdinalCustomInstructions({
-									protocolID: P1SAT_PROTOCOL,
-									keyID: newKeyID,
-									counterparty: 'self',
-									tags,
-									name: sourceName,
-								}),
-							},
-						]
-					: [
-							{
-								lockingScript: tokenTransferLock(
-									cancelAddress,
-									token,
-								).toHex(),
-								satoshis: 1,
-								outputDescription: 'Cancelled token listing',
-								...(token.kind === 'bsv21' && {
-									basket: BSV21_BASKET,
-									tags: bsv21FilterTags({ tokenId: token.id }),
-									customInstructions: buildBsv21CustomInstructions({
-										token: {
-											id: token.id,
-											amt: token.amt,
-											op: 'transfer',
-										},
-										protocolID: P1SAT_PROTOCOL,
-										keyID: newKeyID,
-										counterparty: 'self',
-									}),
-								}),
-							},
-						]
-			if (token.kind === 'bsv21') {
-				if (!ctx.services?.bsv21) return { error: 'services-required' }
-				const details = await ctx.services.bsv21.getTokenDetails(token.id)
-				if (!details.status.is_active) return { error: 'token-not-active' }
-				if (
-					typeof details.status.fee_per_output === 'number' &&
-					details.status.fee_per_output > 0 &&
-					details.status.fee_address
-				) {
-					outputs.push({
-						lockingScript: new P2PKH()
-							.lock(details.status.fee_address)
-							.toHex(),
-						satoshis: details.status.fee_per_output,
-						outputDescription: 'Overlay processing fee',
-						tags: ['fee:overlay'],
-					})
-				}
-			}
 			const args = await prepareP1SatArgs(ctx, {
-				description:
-					token.kind === 'nft'
-						? 'Cancel ordinal listing'
-						: 'Cancel token listing',
+				description: token
+					? 'Cancel token listing'
+					: 'Cancel ordinal listing',
 				inputBEEF,
 				...(inputId && {
 					labels: [buildInputAssetLabel(basket, inputId)],
@@ -1209,8 +1191,7 @@ export const cancelOrdinalListing: Action<
 				inputs: [
 					{
 						outpoint,
-						inputDescription:
-							token.kind === 'nft' ? 'Listed ordinal' : 'Listed token',
+						inputDescription: token ? 'Listed token' : 'Listed ordinal',
 						unlockingScriptLength: ordLockCancelUnlockLength(
 							inputBEEF,
 							outpoint,
@@ -1369,46 +1350,18 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 			})
 			const ourOrdAddress = PublicKey.fromString(publicKey).toAddress()
 
-			const outputs: Array<{
-				lockingScript: string
-				satoshis: number
-				outputDescription: string
-				basket?: string
-				tags?: string[]
-				customInstructions?: string
-			}> = []
-
-			const purchasedType = tags
-				.find((tag) => tag.startsWith('type:'))
-				?.slice('type:'.length)
-			if (purchasedType === TOKEN_CONTENT_TYPE) {
-				const token = listingToken({
-					satoshis: 1,
-					outpoint,
-					tags,
-				} as WalletOutput)
-				if (token.kind === 'nft' || token.kind === 'incomplete') {
-					return { error: 'token-listing-requires-transfer-identity' }
-				}
-				outputs.push({
-					lockingScript: tokenTransferLock(ourOrdAddress, token).toHex(),
-					satoshis: 1,
-					outputDescription: 'Purchased token',
-					...(token.kind === 'bsv21' && {
-						basket: BSV21_BASKET,
-						tags: bsv21FilterTags({ tokenId: token.id }),
-						customInstructions: buildBsv21CustomInstructions({
-							token: {
-								id: token.id,
-								amt: token.amt,
-								op: 'transfer',
-							},
-							protocolID: P1SAT_PROTOCOL,
-							keyID: outpoint,
-							counterparty: 'self',
-						}),
+			const outputs: CreateActionOutput[] = []
+			const token = listedTransfer({ tags })
+			if (token) {
+				outputs.push(
+					tokenReturnOutput({
+						address: ourOrdAddress,
+						token,
+						keyID: outpoint,
+						protocolID: P1SAT_PROTOCOL,
+						description: 'Purchased token',
 					}),
-				})
+				)
 			} else {
 				outputs.push({
 					lockingScript: new P2PKH().lock(ourOrdAddress).toHex(),

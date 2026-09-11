@@ -91,11 +91,6 @@ export type {
 export { getDisplayValue } from './utils/displayValue.js'
 export { ordinalSeedTags } from './utils/ordinalSeedTags.js'
 export {
-	listingToken,
-	tokenTransferLock,
-	type ListingToken,
-} from './utils/listingToken.js'
-export {
 	loadBasketOutput,
 	loadBasketOutputBeef,
 	toIdTag,
