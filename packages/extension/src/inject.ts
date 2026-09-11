@@ -5,7 +5,6 @@
  * provider that dApps use to communicate with the extension.
  */
 
-import { ORDLOCK_LISTING_CREATE_DISABLED } from './constants.js'
 import { fromExtensionError } from './errors'
 import type {
 	BalanceResult,
@@ -160,11 +159,9 @@ export function injectOneSatProvider(options: InjectOptions = {}): void {
 		sendOrdinals: createMethod<SendOrdinalsRequest, SendResult>('sendOrdinals'),
 
 		// Listings
-		createListing: async (
-			_request: CreateListingRequest,
-		): Promise<ListingResult> => {
-			throw new Error(ORDLOCK_LISTING_CREATE_DISABLED)
-		},
+		createListing: createMethod<CreateListingRequest, ListingResult>(
+			'createListing',
+		),
 		purchaseListing: createMethod<PurchaseListingRequest, SendResult>(
 			'purchaseListing',
 		),

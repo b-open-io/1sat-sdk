@@ -29,6 +29,9 @@ export const ORDLOCK_PREFIX = Utils.toArray(ORD_LOCK_PREFIX, 'hex')
  */
 export const ORDLOCK_SUFFIX = Utils.toArray(ORD_LOCK_SUFFIX, 'hex')
 
+/** Upper bound of a v1 cancel unlock: `<sig> <pubkey> OP_1` with a 73-byte DER signature. */
+export const ORDLOCK_CANCEL_UNLOCK_LENGTH = 108
+
 /**
  * OrdLock decoded data structure
  */

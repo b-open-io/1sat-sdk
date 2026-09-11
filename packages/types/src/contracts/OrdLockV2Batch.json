@@ -1,0 +1,73 @@
+{
+	"version": "runar-v1.0.0-rc.1",
+	"compilerVersion": "1.0.0-rc.1-go",
+	"contractName": "OrdLockV2Batch",
+	"parentClass": "SmartContract",
+	"abi": {
+		"constructor": {
+			"params": [
+				{
+					"name": "seller",
+					"type": "Addr"
+				},
+				{
+					"name": "payOutput",
+					"type": "ByteString"
+				}
+			]
+		},
+		"methods": [
+			{
+				"name": "purchase",
+				"params": [
+					{
+						"name": "prefixOutputs",
+						"type": "ByteString"
+					},
+					{
+						"name": "suffixOutputs",
+						"type": "ByteString"
+					},
+					{
+						"name": "txPreimage",
+						"type": "SigHashPreimage"
+					}
+				],
+				"isPublic": true
+			},
+			{
+				"name": "cancel",
+				"params": [
+					{
+						"name": "mode",
+						"type": "ByteString"
+					},
+					{
+						"name": "sig",
+						"type": "Sig"
+					},
+					{
+						"name": "pubKey",
+						"type": "PubKey"
+					}
+				],
+				"isPublic": true
+			}
+		]
+	},
+	"script": "76009c637576ab76aa517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e01007e8100011f80517e9321414136d08c5ed2bf3ba048afe6dcaebafeffffffffffffffffffffffffffffff007d97785296789f527952798d9495937776927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e827c7e23022079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798027c7e827c7e01307c7e01c17e2102b405d7f0322a89d0f9f3a98e6f938fdc1c969a8d1382a2bf66a71ae74a1e83b0ad690c000000000000000027006a247801447f7701247f757e537a007e7c7e7b7eaa7c820128947f7701207f758767519d7b0a6f6c323a63616e63656c8876a90088ac68",
+	"asm": "OP_DUP OP_0 OP_NUMEQUAL OP_IF OP_DROP OP_DUP OP_CODESEPARATOR \u003craw 428 bytes\u003e OP_VERIFY \u003c000000000000000027006a24\u003e OP_OVER \u003c44\u003e OP_SPLIT OP_NIP \u003c24\u003e OP_SPLIT OP_DROP OP_CAT OP_3 OP_ROLL OP_0 OP_CAT OP_SWAP OP_CAT OP_ROT OP_CAT OP_HASH256 OP_SWAP OP_SIZE \u003c28\u003e OP_SUB OP_SPLIT OP_NIP \u003c20\u003e OP_SPLIT OP_DROP OP_EQUAL OP_ELSE OP_1 OP_NUMEQUALVERIFY OP_ROT \u003c6f6c323a63616e63656c\u003e OP_EQUALVERIFY OP_DUP OP_HASH160 OP_0 OP_EQUALVERIFY OP_CHECKSIG OP_ENDIF",
+	"constructorSlots": [
+		{
+			"paramIndex": 1,
+			"byteOffset": 461
+		},
+		{
+			"paramIndex": 0,
+			"byteOffset": 498
+		}
+	],
+	"codeSeparatorIndex": 6,
+	"codeSeparatorIndices": [6],
+	"buildTimestamp": "2026-09-11T14:54:11Z"
+}

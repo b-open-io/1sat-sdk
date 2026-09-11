@@ -18,6 +18,7 @@ export {
 } from './shrug/metadata.js'
 export type { ShrugMetadata } from './shrug/metadata.js'
 export { default as OrdLock } from './ordlock/ordlock.js'
+export { default as OrdLockV2 } from './ordlock/ordlockV2.js'
 export {
 	default as OpNS,
 	OPNS_CONTRACT_BYTES,
@@ -79,7 +80,20 @@ export type {
 // OrdLock Types
 // ============================================================================
 export type { OrdLockData } from './ordlock/ordlock.js'
-export { ORDLOCK_PREFIX, ORDLOCK_SUFFIX } from './ordlock/ordlock.js'
+export {
+	ORDLOCK_CANCEL_UNLOCK_LENGTH,
+	ORDLOCK_PREFIX,
+	ORDLOCK_SUFFIX,
+} from './ordlock/ordlock.js'
+export type { OrdLockV2Data, OrdLockV2Unlocker } from './ordlock/ordlockV2.js'
+export {
+	ORDLOCK_V2_CANCEL_MARKER,
+	ORDLOCK_V2_CANCEL_UNLOCK_LENGTH,
+	ORDLOCK_V2_PREFIX,
+	ORDLOCK_V2_TEMPLATE,
+} from './ordlock/ordlockV2.js'
+export type { ConstructorSlot } from './runar/slots.js'
+export { encodePush, fillSlots, readPush, readSlots } from './runar/slots.js'
 
 // ============================================================================
 // Lock Types

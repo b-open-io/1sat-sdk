@@ -6,9 +6,9 @@
  */
 
 import { MAP as MAPTemplate, buildInscriptionScript } from '@1sat/templates'
-import { OrdLock } from '@1sat/templates'
+import { OrdLock, OrdLockV2 } from '@1sat/templates'
 import {
-	ORDLOCK_LISTING_CREATE_DISABLED,
+	ORDLOCK_V2_TAG,
 	buildInputAssetLabel,
 	displayNameForCi,
 	nameFromMap,
@@ -19,16 +19,12 @@ import { parseOutpoint } from '@1sat/utils'
 import {
 	type BEEF,
 	Beef,
-	BigNumber,
 	type CreateActionArgs,
 	LockingScript,
 	OP,
 	P2PKH,
 	PublicKey,
 	Script,
-	type Transaction,
-	TransactionSignature,
-	UnlockingScript,
 	Utils,
 	type WalletOutput,
 } from '@bsv/sdk'
@@ -50,6 +46,7 @@ import { executeTrackedAction } from '../utils/createTrackedAction.js'
 import { loadBasketOutputBeef } from '../utils/loadBasketOutput.js'
 import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance.js'
 import { ordinalSeedTags } from '../utils/ordinalSeedTags.js'
+import { ordLockCancelUnlockLength } from '../utils/ordlockCancelLength.js'
 import { unlockingScriptLengthForInstructions } from '../utils/signOrdinalInput.js'
 
 // ============================================================================
@@ -323,78 +320,12 @@ export async function defaultPayAddress(ctx: OneSatContext): Promise<string> {
 }
 
 export function buildOrdLockScript(
-	_ordAddress: string,
-	_payAddress: string,
-	_price: number,
+	ordAddress: string,
+	payAddress: string,
+	price: number,
 ): Script {
-	// OPL-4690: listing create OFF. buyOrdinal / cancelOrdinalListing stay on.
-	throw new Error(ORDLOCK_LISTING_CREATE_DISABLED)
-}
-
-function buildSerializedOutput(satoshis: number, script: number[]): number[] {
-	const writer = new Utils.Writer()
-	writer.writeUInt64LEBn(new BigNumber(satoshis))
-	writer.writeVarIntNum(script.length)
-	writer.write(script)
-	return writer.toArray()
-}
-
-async function buildPurchaseUnlockingScript(
-	tx: Transaction,
-	inputIndex: number,
-	sourceSatoshis: number,
-	lockingScript: LockingScript,
-): Promise<UnlockingScript> {
-	if (tx.outputs.length < 2) {
-		throw new Error('Malformed transaction: requires at least 2 outputs')
-	}
-
-	const script = new UnlockingScript().writeBin(
-		buildSerializedOutput(
-			tx.outputs[0].satoshis ?? 0,
-			tx.outputs[0].lockingScript.toBinary(),
-		),
-	)
-
-	if (tx.outputs.length > 2) {
-		const writer = new Utils.Writer()
-		for (const output of tx.outputs.slice(2)) {
-			writer.write(
-				buildSerializedOutput(
-					output.satoshis ?? 0,
-					output.lockingScript.toBinary(),
-				),
-			)
-		}
-		script.writeBin(writer.toArray())
-	} else {
-		script.writeOpCode(OP.OP_0)
-	}
-
-	const input = tx.inputs[inputIndex]
-	const sourceTXID = input.sourceTXID ?? input.sourceTransaction?.id('hex')
-	if (!sourceTXID) {
-		throw new Error('sourceTXID is required')
-	}
-
-	const preimage = TransactionSignature.format({
-		sourceTXID,
-		sourceOutputIndex: input.sourceOutputIndex,
-		sourceSatoshis,
-		transactionVersion: tx.version,
-		otherInputs: [],
-		inputIndex,
-		outputs: tx.outputs,
-		inputSequence: input.sequence ?? 0xffffffff,
-		subscript: lockingScript,
-		lockTime: tx.lockTime,
-		scope:
-			TransactionSignature.SIGHASH_ALL |
-			TransactionSignature.SIGHASH_ANYONECANPAY |
-			TransactionSignature.SIGHASH_FORKID,
-	})
-
-	return script.writeBin(preimage).writeOpCode(OP.OP_0)
+	// New listings are always OrdLock v2 (batch design, tag-output binding).
+	return OrdLockV2.lock(ordAddress, payAddress, price)
 }
 
 // ============================================================================
@@ -605,12 +536,87 @@ export async function buildTransferOrdinals(
  * Loads id once from the ordinals basket.
  */
 export async function buildListOrdinal(
-	_ctx: OneSatContext,
+	ctx: OneSatContext,
 	request: SellOrdinalRequest,
 ): Promise<(CreateActionArgs & { source: WalletOutput }) | { error: string }> {
-	if (!request.id) return { error: 'missing-id' }
-	if (request.price <= 0) return { error: 'invalid-price' }
-	return { error: ORDLOCK_LISTING_CREATE_DISABLED }
+	const { id, price, map } = request
+
+	if (!id) return { error: 'missing-id' }
+	if (price <= 0) return { error: 'invalid-price' }
+
+	const loaded = await loadOrdinalSpend(ctx, id)
+	if ('error' in loaded) return loaded
+	const { output: ordinal, beef } = loaded
+
+	const payAddress = request.payAddress ?? (await defaultPayAddress(ctx))
+	const outpoint = ordinal.outpoint
+
+	const cancelAddress = await deriveCancelAddressInternal(ctx, outpoint)
+	const ordLockScript = buildOrdLockScript(cancelAddress, payAddress, price)
+
+	// Append MAP metadata when provided — OP_RETURN terminates before the
+	// MAP data, so the OrdLock spend paths are unaffected. Copy chunks rather
+	// than chaining write* on the parsed script (see @bsv/sdk lazy-parse note).
+	let lockingScript: string
+	if (map && Object.keys(map).length > 0) {
+		const mapScript = MAPTemplate.set(map)
+		const combined = new Script()
+		for (const chunk of ordLockScript.chunks) combined.chunks.push(chunk)
+		for (const chunk of mapScript.chunks) combined.chunks.push(chunk)
+		lockingScript = new LockingScript(combined.chunks).toHex()
+	} else {
+		lockingScript = ordLockScript.toHex()
+	}
+
+	// Read the price back out of the script we just built, so the tag can
+	// never drift from what the chain will actually enforce.
+	const encoded = OrdLockV2.decode(ordLockScript)
+	if (!encoded) {
+		throw new Error('sellOrdinal: built OrdLock v2 script failed to decode')
+	}
+
+	const tags = [
+		...ordinalSeedTags(ordinal),
+		ORDLOCK_V2_TAG,
+		`price:${encoded.price}`,
+	]
+	const basket = ORDINALS_BASKET
+	const sourceName = nameFromOutput(ordinal, tags)
+
+	const inputId = readAssetIdTag(ordinal.tags)
+	const labels = inputId ? [buildInputAssetLabel(basket, inputId)] : undefined
+
+	return {
+		description: `List ordinal for ${price} sats`,
+		inputBEEF: beef,
+		...(labels && { labels }),
+		inputs: [
+			{
+				outpoint,
+				inputDescription: 'Ordinal to list',
+				unlockingScriptLength: unlockingScriptLengthForInstructions(
+					ordinal.customInstructions,
+				),
+			},
+		],
+		outputs: [
+			{
+				lockingScript,
+				satoshis: 1,
+				outputDescription: `List ordinal for ${price} sats`,
+				basket,
+				tags,
+				customInstructions: buildOrdinalCustomInstructions({
+					protocolID: P1SAT_PROTOCOL,
+					keyID: outpoint,
+					counterparty: 'self',
+					tags,
+					name: sourceName,
+				}),
+			},
+		],
+		source: ordinal,
+	}
 }
 
 /**
@@ -965,8 +971,7 @@ export const sellOrdinal: Action<SellOrdinalRequest, OrdinalOperationResponse> =
 	{
 		meta: {
 			name: 'sellOrdinal',
-			description:
-				'DISABLED: OrdLock listing create is off. Buy and cancel of existing listings remain available.',
+			description: 'List an ordinal for sale on the global orderbook',
 			category: 'ordinals',
 			inputSchema: {
 				type: 'object',
@@ -990,8 +995,73 @@ export const sellOrdinal: Action<SellOrdinalRequest, OrdinalOperationResponse> =
 				required: ['id', 'price'],
 			},
 		},
-		async execute(_ctx, _input) {
-			return { error: ORDLOCK_LISTING_CREATE_DISABLED }
+		async execute(ctx, input) {
+			try {
+				const params = await buildListOrdinal(ctx, input)
+				if ('error' in params) {
+					return params
+				}
+
+				const { source, ...createArgs } = params
+				if (!source.customInstructions) {
+					return { error: 'missing-custom-instructions' }
+				}
+
+				const args = await prepareP1SatArgs(ctx, {
+					...createArgs,
+					options: { randomizeOutputs: false },
+				})
+				const sellId = readAssetIdTag(source.tags)
+				const result = await executeTrackedAction(
+					ctx.wallet,
+					args,
+					input.fundingProvider,
+					params.inputBEEF as number[],
+					undefined,
+					{
+						spends: sellId ? [{ basket: ORDINALS_BASKET, id: sellId }] : [],
+						usePermissionModule:
+							input.usePermissionModule ??
+							input.useOneSatModule ??
+							input.useModule,
+						permissionScheme: '1sat',
+					},
+				)
+
+				if (ctx.debug && ctx.log) {
+					ctx.log({
+						timestamp: new Date().toISOString(),
+						action: 'sellOrdinal',
+						input: { outpoint: source.outpoint, price: input.price },
+						txid: result.txid,
+						rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
+						outputs: [
+							{
+								index: 0,
+								protocolID: P1SAT_PROTOCOL,
+								keyID: source.outpoint,
+								basket: ORDINALS_BASKET,
+								satoshis: 1,
+							},
+						],
+					})
+				}
+
+				return result
+			} catch (error) {
+				console.error('[sellOrdinal]', error)
+				if (ctx.debug && ctx.log) {
+					ctx.log({
+						timestamp: new Date().toISOString(),
+						action: 'sellOrdinal',
+						input: { price: input.price },
+						error: error instanceof Error ? error.message : 'unknown-error',
+					})
+				}
+				return {
+					error: error instanceof Error ? error.message : 'unknown-error',
+				}
+			}
 		},
 	}
 
@@ -1036,15 +1106,12 @@ export const cancelOrdinalListing: Action<
 				return { error: 'missing-custom-instructions' }
 			}
 			// listing.customInstructions describes the SIGNING-side derivation
-			// for the OrdLock cancel path. Use those values to sign the unlock,
-			// but DO NOT carry them into the new output's customInstructions —
+			// for the OrdLock cancel path; the pipeline reads it to sign the
+			// unlock (v1 or v2, chosen from the script). Do NOT carry it into
+			// the new output's customInstructions —
 			// the cancelled output is a fresh derivation and must record its
 			// own derivation properties.
-			const {
-				protocolID: signProtocolID,
-				keyID: signKeyID,
-				counterparty: signCounterparty,
-			} = JSON.parse(listing.customInstructions)
+			const { keyID: signKeyID } = JSON.parse(listing.customInstructions)
 
 			// Fresh derivation for the new cancelled-output: tied to the
 			// listing's outpoint (this output's parent), under the current
@@ -1057,13 +1124,6 @@ export const cancelOrdinalListing: Action<
 			const basket = ORDINALS_BASKET
 			const sourceName = nameFromOutput(listing, tags)
 
-			const cancelUnlock = OrdLock.cancelWithWallet(
-				ctx.wallet,
-				signProtocolID,
-				signKeyID,
-				signCounterparty,
-			)
-
 			const inputId = readAssetIdTag(listing.tags)
 			const args = await prepareP1SatArgs(ctx, {
 				description: 'Cancel ordinal listing',
@@ -1075,7 +1135,10 @@ export const cancelOrdinalListing: Action<
 					{
 						outpoint,
 						inputDescription: 'Listed ordinal',
-						unlockingScriptLength: 108,
+						unlockingScriptLength: ordLockCancelUnlockLength(
+							inputBEEF,
+							outpoint,
+						),
 					},
 				],
 				outputs: [
@@ -1228,7 +1291,11 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 				return { error: 'listing-output-not-found' }
 			}
 
-			const ordLockData = OrdLock.decode(listingOutput.lockingScript)
+			// v2 first (tag-output binding), else legacy v1. Both expose the
+			// serialized payout the covenant demands.
+			const v2Listing = OrdLockV2.decode(listingOutput.lockingScript)
+			const ordLockData =
+				v2Listing ?? OrdLock.decode(listingOutput.lockingScript)
 			if (!ordLockData) {
 				return { error: 'not-an-ordlock-listing' }
 			}
@@ -1278,6 +1345,18 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 				tags: [],
 			})
 
+			// v2: the payout must be IMMEDIATELY followed by this listing's tag
+			// output (0 sats, OP_FALSE OP_RETURN <outpoint>). Output order is
+			// preserved by randomizeOutputs:false below.
+			if (v2Listing) {
+				outputs.push({
+					lockingScript: OrdLockV2.tagScript(txid, vout).toHex(),
+					satoshis: 0,
+					outputDescription: 'Listing tag',
+					tags: [],
+				})
+			}
+
 			if (marketplaceAddress && marketplaceRate && marketplaceRate > 0) {
 				const marketFee = Math.ceil(payoutSatoshis * marketplaceRate)
 				if (marketFee > 0) {
@@ -1292,6 +1371,28 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 
 			const beefBinary = beef.toBinary()
 
+			// v1 reserves its historical constant. v2 is sized from the actual
+			// listing script plus our non-pair outputs; the template adds slack
+			// for the change outputs the wallet appends.
+			let unlockingScriptLength = 1368
+			if (v2Listing) {
+				const otherOutputsBytes = outputs
+					.filter((_, i) => i !== 1 && i !== 2)
+					.reduce(
+						(sum, o) =>
+							sum +
+							OrdLockV2.buildOutput(
+								o.satoshis,
+								Utils.toArray(o.lockingScript, 'hex'),
+							).length,
+						0,
+					)
+				unlockingScriptLength = OrdLockV2.estimatePurchaseUnlockLength(
+					listingOutput.lockingScript,
+					otherOutputsBytes,
+				)
+			}
+
 			const args = await prepareP1SatArgs(ctx, {
 				description: `Purchase ordinal for ${payoutSatoshis} sats`,
 				inputBEEF: beefBinary,
@@ -1299,7 +1400,7 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 					{
 						outpoint,
 						inputDescription: 'Listed ordinal',
-						unlockingScriptLength: 1368,
+						unlockingScriptLength,
 					},
 				],
 				outputs,

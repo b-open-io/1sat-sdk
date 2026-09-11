@@ -6,13 +6,13 @@
  * Ingress (internalizeOpns / buyOpns) stamps full tags including id:.
  */
 
-import { OpNS, OrdLock, outpointToBytes } from '@1sat/templates'
+import { OpNS, OrdLockV2, outpointToBytes } from '@1sat/templates'
 import {
 	OPNS_BASKET,
 	OPNS_PUBLISHED_TAG,
 	OPNS_REGISTER_COUNTERPARTY,
 	OPNS_REGISTER_SIG_PLACEHOLDER_LEN,
-	ORDLOCK_LISTING_CREATE_DISABLED,
+	ORDLOCK_V2_TAG,
 	P1SAT_PROTOCOL,
 	buildInputAssetLabel,
 	formatOrdinalOutpoint,
@@ -33,8 +33,10 @@ import {
 } from '@bsv/sdk'
 import { prepareP1SatArgs } from '../apply/index.js'
 import {
+	buildOrdLockScript,
 	buildOrdinalTransferDelivery,
 	buyOrdinal,
+	defaultPayAddress,
 	deriveCancelAddressInternal,
 } from '../ordinals/index.js'
 import type { OrdinalTransferDelivery } from '../ordinals/index.js'
@@ -46,6 +48,7 @@ import {
 import { loadBasketOutputBeef } from '../utils/loadBasketOutput.js'
 import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance.js'
 import { ordinalSeedTags } from '../utils/ordinalSeedTags.js'
+import { ordLockCancelUnlockLength } from '../utils/ordlockCancelLength.js'
 import { unlockingScriptLengthForInstructions } from '../utils/signOrdinalInput.js'
 
 const OPNS_CONTENT_TYPE = 'application/op-ns'
@@ -564,8 +567,7 @@ export const deregisterOpns: Action<
 export const sellOpns: Action<SellOpnsRequest, OpnsOperationResponse> = {
 	meta: {
 		name: 'sellOpns',
-		description:
-			'DISABLED: OrdLock listing create is off. Buy and cancel of existing listings remain available.',
+		description: 'List an OpNS name for sale',
 		category: 'opns',
 		inputSchema: {
 			type: 'object',
@@ -580,8 +582,94 @@ export const sellOpns: Action<SellOpnsRequest, OpnsOperationResponse> = {
 			required: ['id', 'price'],
 		},
 	},
-	async execute(_ctx, _input) {
-		return { error: ORDLOCK_LISTING_CREATE_DISABLED }
+	async execute(ctx, input) {
+		try {
+			if (input.price <= 0) return { error: 'invalid-price' }
+			const loaded = await loadOpnsSpend(ctx, input)
+			if ('error' in loaded) return loaded
+			const { output, beef } = loaded
+			if (!output.customInstructions) {
+				return { error: 'missing-custom-instructions' }
+			}
+
+			const outpoint = output.outpoint
+			const payAddress = input.payAddress ?? (await defaultPayAddress(ctx))
+			const cancelAddress = await deriveCancelAddressInternal(ctx, outpoint)
+			const ordLockScript = buildOrdLockScript(
+				cancelAddress,
+				payAddress,
+				input.price,
+			)
+			const lockingScript = ordLockScript.toHex()
+
+			// Read the price back out of the script we just built, so the tag
+			// can never drift from what the chain will actually enforce.
+			const encoded = OrdLockV2.decode(ordLockScript)
+			if (!encoded) {
+				throw new Error('sellOpns: built OrdLock v2 script failed to decode')
+			}
+			const tags = opnsFileTags(output, [
+				ORDLOCK_V2_TAG,
+				`price:${encoded.price}`,
+			])
+			const name = nameFromOutput(output)
+			const inputId = readAssetIdTag(output.tags)
+			const args: CreateActionArgs = {
+				description: `List OpNS for ${input.price} sats`.slice(0, 50),
+				inputBEEF: beef,
+				labels: [
+					...(inputId ? [buildInputAssetLabel(OPNS_BASKET, inputId)] : []),
+				],
+				inputs: [
+					{
+						outpoint,
+						inputDescription: 'OpNS name to list',
+						unlockingScriptLength: unlockingScriptLengthForInstructions(
+							output.customInstructions,
+						),
+					},
+				],
+				outputs: [
+					{
+						lockingScript,
+						satoshis: 1,
+						outputDescription: `List OpNS for ${input.price} sats`,
+						basket: OPNS_BASKET,
+						tags,
+						customInstructions: buildOrdinalCustomInstructions({
+							protocolID: P1SAT_PROTOCOL,
+							keyID: outpoint,
+							counterparty: 'self',
+							tags,
+							name,
+						}),
+					},
+				],
+				options: { randomizeOutputs: false },
+			}
+			await prepareP1SatArgs(ctx, args)
+
+			return await executeTrackedAction(
+				ctx.wallet,
+				args,
+				input.fundingProvider,
+				beef,
+				undefined,
+				{
+					spends: inputId ? [{ basket: OPNS_BASKET, id: inputId }] : [],
+					usePermissionModule:
+						input.usePermissionModule ??
+						input.useOneSatModule ??
+						input.useModule,
+					permissionScheme: 'opns',
+				},
+			)
+		} catch (error) {
+			console.error('[sellOpns]', error)
+			return {
+				error: error instanceof Error ? error.message : 'unknown-error',
+			}
+		}
 	},
 }
 
@@ -741,24 +829,11 @@ export const cancelOpnsListing: Action<
 				return { error: 'missing-custom-instructions' }
 			}
 
-			const {
-				protocolID: signProtocolID,
-				keyID: signKeyID,
-				counterparty: signCounterparty,
-			} = JSON.parse(listing.customInstructions)
-
 			const newKeyID = outpoint
 			const cancelAddress = await deriveCancelAddressInternal(ctx, newKeyID)
 			const tags = opnsFileTags(listing)
 			const name = nameFromOutput(listing)
 			const inputId = readAssetIdTag(listing.tags)
-
-			const cancelUnlock = OrdLock.cancelWithWallet(
-				ctx.wallet,
-				signProtocolID,
-				signKeyID,
-				signCounterparty,
-			)
 
 			const args: CreateActionArgs = {
 				description: (name
@@ -773,7 +848,10 @@ export const cancelOpnsListing: Action<
 					{
 						outpoint,
 						inputDescription: 'Listed OpNS name',
-						unlockingScriptLength: 108,
+						unlockingScriptLength: ordLockCancelUnlockLength(
+							inputBEEF,
+							outpoint,
+						),
 					},
 				],
 				outputs: [

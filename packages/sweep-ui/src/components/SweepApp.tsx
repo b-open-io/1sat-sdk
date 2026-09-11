@@ -221,7 +221,7 @@ export function SweepApp({
 			setSweepProgress(label + '...')
 			try {
 				const txid = await op()
-				addTx(label, txid)
+				if (txid) addTx(label, txid)
 				toast.success(label)
 				await refreshAssets()
 			} catch (e) {
@@ -266,7 +266,7 @@ export function SweepApp({
 				if (result.cancelledListings.length > 0) await refreshAssets()
 				throw new Error(result.errors[0])
 			}
-			return result.bsvTxid ?? result.listingTxids[0] ?? ''
+			return result.bsvTxid ?? ''
 		})
 	}, [
 		resolveWallet,

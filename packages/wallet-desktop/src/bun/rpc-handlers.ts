@@ -22,6 +22,7 @@ import {
 	publishIdentity,
 	registerOpns,
 	resolveBapId,
+	sellOrdinal,
 	sendBsv,
 	sendBsv21,
 	sweepBsv,
@@ -30,12 +31,7 @@ import {
 	updateProfile,
 } from '@1sat/actions'
 import { OPNS_BASKET } from '@1sat/actions'
-import {
-	BRC29_PROTOCOL_ID,
-	ORDINALS_BASKET,
-	ORDLOCK_LISTING_CREATE_DISABLED,
-	readAssetIdTag,
-} from '@1sat/types'
+import { BRC29_PROTOCOL_ID, ORDINALS_BASKET, readAssetIdTag } from '@1sat/types'
 import { generateMnemonic, isValidMnemonic } from '@1sat/utils'
 import { PrivateKey, PublicKey, Utils as SdkUtils } from '@bsv/sdk'
 import { Utils } from 'electrobun/bun'
@@ -962,8 +958,26 @@ export function createRpcHandlers(scopedAccountId?: string) {
 			return { txid: result.txid, error: result.error }
 		},
 
-		listOrdinal: async (_params: { outpoint: string; price: number }) => {
-			return { error: ORDLOCK_LISTING_CREATE_DISABLED }
+		listOrdinal: async ({
+			outpoint,
+			price,
+		}: { outpoint: string; price: number }) => {
+			const w = requireWallet()
+			const ctx = createContext(w.wallet, {
+				services: w.services,
+				chain: 'main',
+			})
+			const listResult = await w.wallet.listOutputs({
+				basket: ORDINALS_BASKET,
+				includeTags: true,
+				limit: 1000,
+			})
+			const ordinal = listResult.outputs.find((o) => o.outpoint === outpoint)
+			if (!ordinal) return { error: 'Ordinal not found in wallet' }
+			const id = readAssetIdTag(ordinal.tags)
+			if (!id) return { error: 'Ordinal has no wallet tracking id' }
+			const result = await sellOrdinal.execute(ctx, { id, price })
+			return { txid: result.txid, error: result.error }
 		},
 
 		cancelListing: async ({ outpoint }: { outpoint: string }) => {

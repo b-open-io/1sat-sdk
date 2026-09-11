@@ -1,9 +1,8 @@
 import { expect, test } from 'bun:test'
-import { ORDLOCK_LISTING_CREATE_DISABLED } from '../src/constants.js'
 
 // Keep the browser module mock isolated from other workspace tests.
 test.each([true, false])(
-	'background rejects deprecated creation before a configured handler (auto-approve: %s)',
+	'background dispatches listing methods to configured handlers (auto-approve: %s)',
 	async (autoApprove) => {
 		const background = new URL('../src/background.ts', import.meta.url).pathname
 		const script = `
@@ -50,9 +49,10 @@ test.each([true, false])(
 		expect(result.create).toMatchObject({
 			type: 'ONESAT_RESPONSE',
 			id: 'createListing',
-			error: { message: ORDLOCK_LISTING_CREATE_DISABLED },
+			result: {},
 		})
-		expect(result.calls).toEqual(['cancel', 'purchase'])
+		expect(result.create.error).toBeUndefined()
+		expect(result.calls).toEqual(['create', 'cancel', 'purchase'])
 		expect(result.cancel.result).toEqual({ txid: 'cancelled' })
 		expect(result.purchase.result).toEqual({ txid: 'purchased' })
 	},

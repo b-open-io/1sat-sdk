@@ -1,3 +1,6 @@
+import { ORD_LOCK_V2_ARTIFACT } from './ordlockV2Artifact.js'
+import type { RunarConstructorSlot } from './runar.js'
+
 /**
  * Shared constants for 1Sat Ordinals SDK
  */
@@ -472,6 +475,60 @@ export const ORDLOCK_LISTING_CREATE_DISABLED =
 /** OrdLock locking script suffix (hex) */
 export const ORD_LOCK_SUFFIX =
 	'615179547a75537a537a537a0079537a75527a527a7575615579008763567901c161517957795779210ac407f0e4bd44bfc207355a778b046225a7068fc59ee7eda43ad905aadbffc800206c266b30e6a1319c66dc401e5bd6b432ba49688eecd118297041da8074ce081059795679615679aa0079610079517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e01007e81517a75615779567956795679567961537956795479577995939521414136d08c5ed2bf3ba048afe6dcaebafeffffffffffffffffffffffffffffff00517951796151795179970079009f63007952799367007968517a75517a75517a7561527a75517a517951795296a0630079527994527a75517a6853798277527982775379012080517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e01205279947f7754537993527993013051797e527e54797e58797e527e53797e52797e57797e0079517a75517a75517a75517a75517a75517a75517a75517a75517a75517a75517a75517a75517a756100795779ac517a75517a75517a75517a75517a75517a75517a75517a75517a7561517a75517a756169587951797e58797eaa577961007982775179517958947f7551790128947f77517a75517a75618777777777777777777767557951876351795779a9876957795779ac777777777777777767006868'
+
+// ============================================================================
+// OrdLock v2 (Rúnar `OrdLockV2Batch`, tag-output binding)
+// ============================================================================
+//
+// Everything script-shaped below is DERIVED from the vendored compiled artifact
+// (./ordlockV2Artifact.ts). Only the contract-level literals that are not part
+// of the ABI (cancel marker, tag output header) are stated here.
+
+/** OrdLock v2 compiled template (hex) with OP_0 placeholders at the constructor slots. */
+export const ORD_LOCK_V2_TEMPLATE: string = ORD_LOCK_V2_ARTIFACT.script
+
+/**
+ * OrdLock v2 constructor slots. Params (per `abi.constructor.params`):
+ * 0 = seller (Addr, 20-B PKH), 1 = payOutput (serialized payout output).
+ */
+export const ORD_LOCK_V2_SLOTS: ReadonlyArray<RunarConstructorSlot> =
+	ORD_LOCK_V2_ARTIFACT.constructorSlots ?? []
+
+/** Byte offset of OP_CODESEPARATOR in the v2 script (inside the purchase branch, before both slots). */
+export const ORD_LOCK_V2_CODESEP_INDEX: number =
+	ORD_LOCK_V2_ARTIFACT.codeSeparatorIndex ?? -1
+
+if (ORD_LOCK_V2_SLOTS.length === 0 || ORD_LOCK_V2_CODESEP_INDEX < 0) {
+	throw new Error(
+		'OrdLockV2 artifact is missing constructorSlots or codeSeparatorIndex',
+	)
+}
+
+/**
+ * OrdLock v2 recognizer prefix (hex): the template bytes before the first
+ * constructor slot, identical for every v2 listing regardless of args.
+ */
+export const ORD_LOCK_V2_PREFIX: string = ORD_LOCK_V2_TEMPLATE.slice(
+	0,
+	Math.min(...ORD_LOCK_V2_SLOTS.map((s) => s.byteOffset)) * 2,
+)
+
+/**
+ * Basket tag applied to wallet-created OrdLock v2 listing outputs. Distinct
+ * from the v1 `ordlock` tag on purpose: the v1 purge paths (auto-cancel on
+ * wallet load, sweep cancel, `isListedOutput`) key on `ordlock` and must not
+ * touch v2 listings. Matches the junglebus `ordlock2` output type name.
+ */
+export const ORDLOCK_V2_TAG = 'ordlock2'
+
+/** Enforced cancel marker pushed first in a v2 cancel unlock: ASCII "ol2:cancel". */
+export const ORD_LOCK_V2_CANCEL_MARKER = '6f6c323a63616e63656c'
+
+/**
+ * Serialized head of a v2 tag output (hex): 0 sats, varint(39), OP_FALSE
+ * OP_RETURN OP_PUSH36. The listing's 36-byte outpoint (txid LE || vout LE) follows.
+ */
+export const ORD_LOCK_V2_TAG_PREFIX = '000000000000000027006a24'
 
 // ============================================================================
 // Lock Template Scripts

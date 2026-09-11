@@ -30,6 +30,21 @@ describe('isListedOutput (OPL-4696)', () => {
 		).toBe(true)
 	})
 
+	it('ignores OrdLock v2 listings (ordlock2) and price tags', () => {
+		expect(
+			isListedOutput(
+				out({
+					outpoint: 'a.0',
+					events: ['ordlock2', 'own:1x', 'price:1000'],
+					data: { ordlock2: { price: 1000 } },
+				}),
+			),
+		).toBe(false)
+		expect(
+			isListedOutput(out({ outpoint: 'a.0', events: ['price:1000'] })),
+		).toBe(false)
+	})
+
 	it('ignores plain ordinals and time-locks', () => {
 		expect(
 			isListedOutput(out({ outpoint: 'a.0', events: ['type:image/png'] })),
