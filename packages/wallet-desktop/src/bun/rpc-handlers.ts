@@ -901,26 +901,12 @@ export function createRpcHandlers(scopedAccountId?: string) {
 			return { txid: result.txid, error: result.error }
 		},
 
-		listOrdinal: async ({
-			outpoint,
-			price,
-		}: { outpoint: string; price: number }) => {
-			const w = requireWallet()
-			const ctx = createContext(w.wallet, {
-				services: w.services,
-				chain: 'main',
-			})
-			const listResult = await w.wallet.listOutputs({
-				basket: ORDINALS_BASKET,
-				includeTags: true,
-				limit: 1000,
-			})
-			const ordinal = listResult.outputs.find((o) => o.outpoint === outpoint)
-			if (!ordinal) return { error: 'Ordinal not found in wallet' }
-			const id = readAssetIdTag(ordinal.tags)
-			if (!id) return { error: 'Ordinal has no wallet tracking id' }
-			const result = await sellOrdinal.execute(ctx, { id, price })
-			return { txid: result.txid, error: result.error }
+		listOrdinal: async (_params: { outpoint: string; price: number }) => {
+			// ORDLOCK_LISTING_DISABLED — restore when the replacement listing contract ships.
+			return {
+				error:
+					'Listing creation is deprecated pending a replacement contract. Existing listings can still be cancelled or bought.',
+			}
 		},
 
 		cancelListing: async ({ outpoint }: { outpoint: string }) => {

@@ -199,9 +199,11 @@ export class OneSatBrowserProvider implements OneSatProvider {
 
 	// Listing methods
 
-	async createListing(request: CreateListingRequest): Promise<ListingResult> {
-		this.requireConnection()
-		return this.sendRequest<ListingResult>(RpcMethods.CREATE_LISTING, request)
+	async createListing(_request: CreateListingRequest): Promise<ListingResult> {
+		// ORDLOCK_LISTING_DISABLED — restore when the replacement listing contract ships.
+		throw new Error(
+			'OrdLock listing creation is deprecated pending a replacement contract. Existing listings can still be cancelled or bought.',
+		)
 	}
 
 	async purchaseListing(request: PurchaseListingRequest): Promise<SendResult> {

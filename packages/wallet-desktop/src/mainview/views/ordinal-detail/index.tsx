@@ -1,5 +1,4 @@
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
 	AlertCircle,
@@ -305,8 +304,6 @@ function MetadataPanel({
 	const [loading, setLoading] = useState(true)
 	const [fetchError, setFetchError] = useState<string | null>(null)
 	const [copied, setCopied] = useState(false)
-	const [showListInput, setShowListInput] = useState(false)
-	const [listPrice, setListPrice] = useState('')
 	const copyTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
 
 	// Marketplace action states
@@ -393,35 +390,6 @@ function MetadataPanel({
 			setActionLoading(false)
 		}
 	}, [outpoint, clearActionState, onListingChanged])
-
-	const handleListToggle = useCallback(() => {
-		setShowListInput((prev) => !prev)
-		setListPrice('')
-	}, [])
-
-	const handleListConfirm = useCallback(async () => {
-		const price = Number(listPrice)
-		if (!listPrice || price <= 0) return
-		clearActionState()
-		setActionLoading(true)
-		try {
-			const result = await rpc.request.listOrdinal({ outpoint, price })
-			if (result.error) {
-				setActionError(result.error)
-			} else {
-				setActionSuccess(
-					`Listed for ${price.toLocaleString()} sats! txid: ${result.txid}`,
-				)
-				setShowListInput(false)
-				setListPrice('')
-				onListingChanged?.()
-			}
-		} catch (err) {
-			setActionError(err instanceof Error ? err.message : 'Listing failed')
-		} finally {
-			setActionLoading(false)
-		}
-	}, [listPrice, outpoint, clearActionState, onListingChanged])
 
 	const handleCancelListing = useCallback(async () => {
 		clearActionState()
@@ -618,54 +586,10 @@ function MetadataPanel({
 						Buy for {listing.priceSats.toLocaleString()} sats
 					</Button>
 				) : isOwned ? (
-					<>
-						<Button
-							variant="outline"
-							size="sm"
-							className="w-full justify-start gap-2 text-xs"
-							disabled={actionLoading}
-							onClick={handleListToggle}
-						>
-							<Tag aria-hidden="true" />
-							{showListInput ? 'Cancel' : 'List for Sale'}
-						</Button>
-						{showListInput && (
-							<div className="flex gap-2">
-								<Input
-									type="number"
-									min={1}
-									placeholder="Price in sats"
-									value={listPrice}
-									onChange={(e) => setListPrice(e.target.value)}
-									onKeyDown={(e) => {
-										if (e.key === 'Enter') handleListConfirm()
-									}}
-									className="h-7 text-xs flex-1"
-									disabled={actionLoading}
-									autoFocus
-								/>
-								<Button
-									variant="default"
-									size="sm"
-									className="h-7 text-xs px-3"
-									disabled={
-										actionLoading || !listPrice || Number(listPrice) <= 0
-									}
-									onClick={handleListConfirm}
-								>
-									{actionLoading ? (
-										<Loader2
-											size={14}
-											className="animate-spin"
-											aria-hidden="true"
-										/>
-									) : (
-										'Confirm'
-									)}
-								</Button>
-							</div>
-						)}
-					</>
+					<p className="text-[11px] text-muted-foreground">
+						Listing creation is deprecated pending a replacement contract.
+						Existing listings can still be cancelled or bought.
+					</p>
 				) : null}
 
 				<Button

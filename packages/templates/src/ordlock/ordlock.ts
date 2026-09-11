@@ -25,6 +25,10 @@ export const ORDLOCK_PREFIX = Utils.toArray(ORD_LOCK_PREFIX, 'hex')
  */
 export const ORDLOCK_SUFFIX = Utils.toArray(ORD_LOCK_SUFFIX, 'hex')
 
+/** Thrown by `lock()` while OrdLock listing creation is deprecated. */
+export const ORDLOCK_CREATE_DISABLED =
+	'OrdLock listing creation is deprecated pending a replacement contract. Existing listings can still be cancelled or bought.'
+
 /**
  * OrdLock decoded data structure
  */
@@ -177,18 +181,12 @@ export default class OrdLock {
 	 * @returns The OrdLock locking script
 	 */
 	static lock(
-		cancelAddress: string,
-		payAddress: string,
-		price: number,
+		_cancelAddress: string,
+		_payAddress: string,
+		_price: number,
 	): Script {
-		const cancelPkh = Utils.fromBase58Check(cancelAddress).data as number[]
-		const payPkh = Utils.fromBase58Check(payAddress).data as number[]
-
-		return new Script()
-			.writeScript(Script.fromBinary(ORDLOCK_PREFIX))
-			.writeBin(cancelPkh)
-			.writeBin(OrdLock.buildOutput(price, new P2PKH().lock(payPkh).toBinary()))
-			.writeScript(Script.fromBinary(ORDLOCK_SUFFIX))
+		// ORDLOCK_LISTING_DISABLED — restore when the replacement listing contract ships.
+		throw new Error(ORDLOCK_CREATE_DISABLED)
 	}
 
 	/**

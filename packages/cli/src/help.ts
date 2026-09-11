@@ -392,7 +392,8 @@ export const COMMANDS: CommandSpec[] = [
 			},
 			{
 				name: 'sell',
-				description: 'List an ordinal for sale (OrdLock)',
+				description:
+					'Deprecated: OrdLock listing creation is paused pending a replacement contract. Cancel/buy still work.',
 				args: [
 					{ flag: '--id', values: '<tracking-id>', required: true },
 					{ flag: '--price', values: '<sats>', required: true },
@@ -616,7 +617,8 @@ export const COMMANDS: CommandSpec[] = [
 			},
 			{
 				name: 'sell',
-				description: 'List an OpNS name for sale',
+				description:
+					'Deprecated: OrdLock listing creation is paused pending a replacement contract. Cancel/buy still work.',
 				args: [
 					{ flag: '--id', values: '<tracking-id>', required: true },
 					{ flag: '--price', values: '<satoshis>', required: true },

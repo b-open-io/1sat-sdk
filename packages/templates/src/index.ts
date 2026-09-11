@@ -79,7 +79,11 @@ export type {
 // OrdLock Types
 // ============================================================================
 export type { OrdLockData } from './ordlock/ordlock.js'
-export { ORDLOCK_PREFIX, ORDLOCK_SUFFIX } from './ordlock/ordlock.js'
+export {
+	ORDLOCK_PREFIX,
+	ORDLOCK_SUFFIX,
+	ORDLOCK_CREATE_DISABLED,
+} from './ordlock/ordlock.js'
 
 // ============================================================================
 // Lock Types

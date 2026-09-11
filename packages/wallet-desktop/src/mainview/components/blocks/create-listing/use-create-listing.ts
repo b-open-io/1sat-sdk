@@ -116,10 +116,8 @@ export function useCreateListing({
 		return null
 	}, [priceInput, priceSats, payAddress])
 
-	const canSubmit =
-		priceSats >= MIN_PRICE_SATS &&
-		payAddress.trim().length > 0 &&
-		!validationError
+	// ORDLOCK_LISTING_DISABLED — restore when the replacement listing contract ships.
+	const canSubmit = false
 
 	const handleList = useCallback(async () => {
 		if (!canSubmit) return

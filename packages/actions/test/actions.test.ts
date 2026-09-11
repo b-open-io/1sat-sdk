@@ -162,7 +162,7 @@ describe('Phase 2 — Create assets', () => {
 
 // We'll inscribe a fresh ordinal on seller, list it, then buy with buyer
 let sellerId: string
-let listingOutpoint: string
+let listingOutpoint: string | undefined
 
 describe('Phase 3 — Ordinal marketplace', () => {
 	test('inscribe on seller wallet for marketplace test', async () => {
@@ -186,61 +186,27 @@ describe('Phase 3 — Ordinal marketplace', () => {
 		sellerId = id!
 	})
 
-	test('sellOrdinal — lists an ordinal for sale', async () => {
+	test('sellOrdinal — listing creation is deprecated', async () => {
 		const result = await sellOrdinal.execute(seller.ctx, {
 			id: sellerId,
 			price: 1000,
 		})
 
-		expect(result.error).toBeUndefined()
-		expect(result.txid).toBeDefined()
-		listingOutpoint = `${result.txid}.0`
+		expect(result.error).toContain('OrdLock listing creation is deprecated')
+		expect(result.txid).toBeUndefined()
 	})
 
-	test('cancelOrdinalListing — cancels an active listing', async () => {
-		// List a second ordinal so we can cancel it without affecting the purchase test
-		const content = JSON.stringify({ cancel: true, ts: Date.now() })
-		const base64Content = Utils.toBase64(
-			Array.from(new TextEncoder().encode(content)),
-		)
-		const insc = await inscribe.execute(seller.ctx, {
-			base64Content,
-			contentType: 'application/json',
-		})
-		expect(insc.txid).toBeDefined()
-
-		const listed = await listOrdinals.execute(seller.ctx, {})
-		const row = listed.outputs.find((o) => o.outpoint.startsWith(insc.txid!))
-		const id = readAssetIdTag(row?.tags)
-		expect(id).toBeDefined()
-
+	test('cancelOrdinalListing — cannot create a listing to cancel', async () => {
 		const listing = await sellOrdinal.execute(seller.ctx, {
-			id: id!,
+			id: sellerId,
 			price: 2000,
 		})
-		expect(listing.txid).toBeDefined()
-
-		const after = await listOrdinals.execute(seller.ctx, {})
-		const listingRow = after.outputs.find((o) =>
-			o.outpoint.startsWith(listing.txid!),
-		)
-		const listingId = readAssetIdTag(listingRow?.tags)
-		expect(listingId).toBeDefined()
-
-		const result = await cancelOrdinalListing.execute(seller.ctx, {
-			id: listingId!,
-		})
-		expect(result.error).toBeUndefined()
-		expect(result.txid).toBeDefined()
+		expect(listing.error).toContain('OrdLock listing creation is deprecated')
+		expect(listing.txid).toBeUndefined()
 	})
 
-	test('buyOrdinal — buyer purchases a listed ordinal', async () => {
-		const result = await buyOrdinal.execute(buyer.ctx, {
-			outpoint: listingOutpoint,
-		})
-
-		expect(result.error).toBeUndefined()
-		expect(result.txid).toBeDefined()
+	test('buyOrdinal — no new listing exists to purchase', async () => {
+		expect(listingOutpoint).toBeUndefined()
 	})
 
 	test('sendOrdinals — transfers an ordinal to another address', async () => {

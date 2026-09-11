@@ -11,7 +11,6 @@ import {
 	getDisplayValue,
 	inscribe,
 	listOrdinals,
-	sellOrdinal,
 	sendOrdinals,
 } from '@1sat/actions'
 import { Utils } from '@bsv/sdk'
@@ -245,38 +244,10 @@ async function ordinalsSend(args: string[], opts: GlobalFlags): Promise<void> {
 	}
 }
 
-async function ordinalsSell(args: string[], opts: GlobalFlags): Promise<void> {
-	const id = requireId(args)
-	const priceStr = extractFlag(args, '--price')
-	const payAddress = extractFlag(args, '--pay-address')
-
-	if (!priceStr) fatal('Missing --price <satoshis>')
-	const price = Number(priceStr)
-	if (!Number.isFinite(price) || price <= 0) {
-		fatal('--price must be a positive number')
-	}
-
-	if (!opts.yes) {
-		const ok = await confirm({
-			message: `List ordinal id ${id} for sale at ${price} satoshis?`,
-		})
-		if (isCancel(ok) || !ok) fatal('Listing cancelled.')
-	}
-
-	const privateKey = await loadKey()
-	const { ctx, destroy } = await loadContext(privateKey, { chain: opts.chain })
-
-	try {
-		const result = await sellOrdinal.execute(ctx, {
-			id,
-			price,
-			...(payAddress && { payAddress }),
-		})
-		if (result.error) fatal(result.error)
-		output(opts.json ? result : { txid: result.txid }, opts)
-	} finally {
-		await destroy()
-	}
+async function ordinalsSell(_args: string[], _opts: GlobalFlags): Promise<void> {
+	fatal(
+		'OrdLock listing creation is deprecated pending a replacement contract. Existing listings can still be cancelled or bought.',
+	)
 }
 
 async function ordinalsCancel(
