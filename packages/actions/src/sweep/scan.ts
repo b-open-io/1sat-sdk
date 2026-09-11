@@ -38,6 +38,7 @@ export async function scanAddress(
 ): Promise<ScanResult> {
 	// Phase 1: Sync the address
 	onProgress?.({ phase: 'sync', detail: 'Syncing address...' })
+	let synced = false
 	for await (const event of services.owner.getTxos(address, {
 		refresh: true,
 		limit: 1,
@@ -48,10 +49,15 @@ export async function scanAddress(
 				phase: 'sync',
 				detail: `${p.phase}: ${p.processed ?? 0}/${p.total ?? '?'}`,
 			})
-		} else if (event.type === 'done' || event.type === 'error') {
+		} else if (event.type === 'error') {
+			throw event.error
+		} else if (event.type === 'done') {
+			synced = true
 			break
 		}
 	}
+	if (!synced)
+		throw new Error('Address sync ended before completion. Retry scanning.')
 
 	// Phase 2: Search for all unspent outputs
 	onProgress?.({ phase: 'search', detail: 'Searching for assets...' })
@@ -59,6 +65,7 @@ export async function scanAddress(
 		(await services.txo.search(`own:${address}`, {
 			unspent: true,
 			events: true,
+			tags: ['ordlock'],
 			sats: true,
 			limit: 0,
 		})) ?? []
