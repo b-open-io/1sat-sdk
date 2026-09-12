@@ -200,6 +200,7 @@ describe('applyOrdLockV2Purchase', () => {
 		// one preparation createAction, exactly the payout, held in the deposit basket
 		expect(wallet.created.length).toBe(1)
 		const prep = wallet.created[0].outputs?.[0]
+		expect(wallet.created[0].options?.acceptDelayedBroadcast).toBe(false)
 		expect(prep?.satoshis).toBe(1000)
 		expect(prep?.basket).toBe(DEPOSIT_BASKET)
 		expect(prep?.tags).toContain(depositHoldTag(NOW + ORDLOCK_FUNDING_HOLD_MS))
@@ -262,6 +263,18 @@ describe('applyOrdLockV2Purchase', () => {
 		expect(JSON.parse(outs[0].customInstructions ?? '{}').keyID).toMatch(
 			/cushion/,
 		)
+	})
+
+	it('leaves a cancel alone: listing input without a payout output', async () => {
+		const wallet = new StubWallet(new PrivateKey(9002))
+		const { args } = listingArgs(1000)
+		// cancel draft: the listing input and the reclaimed ordinal, no payout
+		args.outputs = args.outputs?.filter((o) => o.basket)
+		const before = JSON.stringify(args)
+		expect(hasUnpreparedOrdLockV2Purchase(args)).toBe(false)
+		await applyOrdLockV2Purchase(asWallet(wallet), args, NOW)
+		expect(wallet.created.length).toBe(0)
+		expect(JSON.stringify(args)).toBe(before)
 	})
 
 	it('rejects a draft without one basketed 1-sat receive per listing', async () => {

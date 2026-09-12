@@ -53,6 +53,7 @@ import {
 	type ResolvedSpend,
 } from '../pipeline/spendTargets.js'
 import { stampManagedOutputIds } from '../utils/createTrackedAction.js'
+import { ensurePlaintextCi } from '../utils/walletMetadataCi.js'
 
 /** How long a prepared front-funding or cushion output is held from `sweepDeposit`. */
 export const ORDLOCK_FUNDING_HOLD_MS = 5 * 60_000
@@ -121,14 +122,22 @@ function findListingInputs(args: CreateActionArgs): ListingInput[] {
 	return out
 }
 
-/** True when the draft args spend at least one OrdLock v2 listing and have not been laid out yet. */
+/**
+ * True when the draft args are an OrdLock v2 purchase that has not been laid
+ * out yet: every v2 listing input has a matching payout output in the draft.
+ * A cancel also spends a v2 listing but carries no payout, so it is left
+ * alone; the seller's own key unlocks it.
+ */
 export function hasUnpreparedOrdLockV2Purchase(
 	args: CreateActionArgs,
 ): boolean {
 	if ((args as CreateActionArgs & { [PREPARED_KEY]?: boolean })[PREPARED_KEY]) {
 		return false
 	}
-	return findListingInputs(args).length > 0
+	const listings = findListingInputs(args)
+	if (listings.length === 0) return false
+	const outputs = (args.outputs ?? []).map(serializedOutput)
+	return listings.every((l) => outputs.some((o) => bytesEqual(o, l.payout)))
 }
 
 /** Derive a fresh P1SAT funding key: P2PKH script + spend CI. */
@@ -175,10 +184,14 @@ export async function loadHeldFunding(
 		if (!o.spendable || !o.customInstructions) continue
 		if (!isDepositHeld(o.tags, now)) continue
 		if (exclude.has(o.outpoint)) continue
+		// Stored CI may be WPM-encrypted; the pipeline signs from plaintext.
+		const customInstructions =
+			(await ensurePlaintextCi(wallet, o.customInstructions)) ??
+			o.customInstructions
 		candidates.push({
 			outpoint: o.outpoint,
 			satoshis: o.satoshis,
-			customInstructions: o.customInstructions,
+			customInstructions,
 		})
 	}
 	return { candidates, beef }
@@ -233,7 +246,10 @@ async function prepareFrontFunding(
 				customInstructions: funding.customInstructions,
 			},
 		],
-		options: { randomizeOutputs: false },
+		// Broadcast now, not on the next monitor pass: the purchase built right
+		// after this spends output 0, and the network rejects it as "missing
+		// parents" until this transaction has been sent.
+		options: { randomizeOutputs: false, acceptDelayedBroadcast: false },
 	})
 	if (!result.txid || !result.tx) {
 		throw new Error('ordlock.purchase apply: front funding preparation failed')
@@ -264,8 +280,8 @@ export async function applyOrdLockV2Purchase(
 	args: CreateActionArgs,
 	now = Date.now(),
 ): Promise<void> {
+	if (!hasUnpreparedOrdLockV2Purchase(args)) return
 	const listings = findListingInputs(args)
-	if (listings.length === 0) return
 	const draftInputs = args.inputs ?? []
 	const draftOutputs = args.outputs ?? []
 	const actionId = stampManagedOutputIds(args)
