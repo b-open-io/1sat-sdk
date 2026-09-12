@@ -75,14 +75,22 @@ function isTokenMime(out: IndexedOutput): boolean {
 	return (out.events ?? []).includes('type:application/bsv-20')
 }
 
-/** True when an indexed output is an OrdLock marketplace listing. */
+/** True when an indexed output is an OrdLock v1 or v2 marketplace listing. */
 export function isListedOutput(out: IndexedOutput): boolean {
 	const events = out.events ?? []
-	if (events.includes('ordlock') || events.some((e) => e.startsWith('list:'))) {
+	if (
+		events.includes('ordlock') ||
+		events.includes('ordlock2') ||
+		events.some((e) => e.startsWith('list:'))
+	) {
 		return true
 	}
 	const data = out.data
-	return Boolean(data && typeof data === 'object' && data.ordlock != null)
+	return Boolean(
+		data &&
+			typeof data === 'object' &&
+			(data.ordlock != null || data.ordlock2 != null),
+	)
 }
 
 /**

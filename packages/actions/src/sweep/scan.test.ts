@@ -39,7 +39,7 @@ describe('isListedOutput (OPL-4696)', () => {
 		).toBe(true)
 	})
 
-	it('ignores OrdLock v2 listings (ordlock2) and price tags', () => {
+	it('detects OrdLock v2 listings (ordlock2)', () => {
 		expect(
 			isListedOutput(
 				out({
@@ -48,7 +48,7 @@ describe('isListedOutput (OPL-4696)', () => {
 					data: { ordlock2: { price: 1000 } },
 				}),
 			),
-		).toBe(false)
+		).toBe(true)
 		expect(
 			isListedOutput(out({ outpoint: 'a.0', events: ['price:1000'] })),
 		).toBe(false)

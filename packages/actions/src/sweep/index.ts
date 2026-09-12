@@ -4,7 +4,7 @@
  * Functions for sweeping assets from external wallets into a BRC-100 wallet.
  */
 
-import { BSV20, BSV21, OrdLock } from '@1sat/templates'
+import { BSV20, BSV21, OrdLock, OrdLockV2 } from '@1sat/templates'
 import type { IndexedOutput } from '@1sat/types'
 import type { OrdfsMetadata } from '@1sat/types'
 import { buildTokenLabel } from '@1sat/types'
@@ -126,7 +126,15 @@ function assignLegacyUnlock(
 	key: PrivateKey,
 	source: { script: Script; satoshis: number } | undefined,
 ): void {
-	if (source?.script && OrdLock.isOrdLock(source.script)) {
+	if (source?.script && OrdLockV2.isOrdLockV2(source.script)) {
+		txInput.unlockingScriptTemplate = OrdLockV2.cancelListing(
+			key,
+			'all',
+			true,
+			source.satoshis,
+			source.script,
+		)
+	} else if (source?.script && OrdLock.isOrdLock(source.script)) {
 		txInput.unlockingScriptTemplate = OrdLock.cancelListing(
 			key,
 			'all',
