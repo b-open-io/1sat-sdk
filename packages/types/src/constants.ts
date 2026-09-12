@@ -36,6 +36,8 @@ export const ONESAT_BASKET = '1sat'
 /** @deprecated Prefer {@link ONESAT_BASKET}; same string. */
 export const ORDINALS_BASKET = ONESAT_BASKET
 export const BSV21_BASKET = 'bsv21'
+/** Ticker-based BSV-20 inventory. */
+export const BSV20_BASKET = 'bsv20'
 /** @deprecated Auth UTXOs live in {@link BSV21_BASKET} with {@link BSV21_AUTH_TAG}. */
 export const BSV21_AUTH_BASKET = BSV21_BASKET
 /** Tag on mint-authority BSV21 outputs (no amt). */
@@ -52,6 +54,7 @@ export const BAP_BASKET = 'bap'
 export const ONESAT_ASSET_BASKETS: readonly string[] = [
 	ONESAT_BASKET,
 	BSV21_BASKET,
+	BSV20_BASKET,
 	OPNS_BASKET,
 	LOCK_BASKET,
 	SIGMA_BASKET,
@@ -70,6 +73,7 @@ export const LEGACY_P1SAT_BASKET_MIGRATIONS: ReadonlyArray<{
 	{ from: 'p 1sat ordinals', to: ONESAT_BASKET },
 	{ from: 'ordinals', to: ONESAT_BASKET },
 	{ from: 'p 1sat bsv21', to: BSV21_BASKET },
+	{ from: 'p 1sat bsv20', to: BSV20_BASKET },
 	{ from: 'p 1sat opns', to: OPNS_BASKET },
 	{ from: 'p 1sat lock', to: LOCK_BASKET },
 	{ from: 'p 1sat sigma', to: SIGMA_BASKET },

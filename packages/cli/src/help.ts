@@ -698,13 +698,42 @@ export const COMMANDS: CommandSpec[] = [
 			{
 				name: 'scan',
 				description:
-					'Scan an address for sweepable UTXOs (BSV, ordinals, BSV21)',
-				args: [{ flag: '--wif', values: '<key>', required: true }],
+					'Show every UTXO class at an address (BSV, ordinals, OpNS, BSV-20, BSV-21, leftover locks/RUN)',
+				args: [
+					{ flag: '--wif', values: '<key>', required: true },
+					{
+						flag: '--only',
+						values: '<bsv,ordinals,opns,bsv20,bsv21>',
+						description: 'Limit the report to these classes',
+					},
+					{
+						flag: '--skip',
+						values: '<class,...>',
+						description: 'Omit classes from the report',
+					},
+				],
 			},
 			{
 				name: 'import',
-				description: 'Sweep UTXOs from a WIF into the wallet',
-				args: [{ flag: '--wif', values: '<key>', required: true }],
+				description:
+					'Sweep transferable UTXOs from a WIF into the wallet. Default is all classes we can move to BRC-100 (including listed OrdLocks). Locks and RUN stay.',
+				args: [
+					{ flag: '--wif', values: '<key>', required: true },
+					{
+						flag: '--only',
+						values: '<bsv,ordinals,opns,bsv20,bsv21>',
+						description: 'Sweep only these classes',
+					},
+					{
+						flag: '--skip',
+						values: '<class,...>',
+						description: 'Skip these classes',
+					},
+					{
+						flag: '--dry-run',
+						description: 'Print the plan and do not broadcast',
+					},
+				],
 			},
 		],
 	},

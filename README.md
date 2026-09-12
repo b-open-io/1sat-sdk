@@ -268,12 +268,18 @@ const { wallet, services } = await createNodeWallet({
 
 # Ordinals
 1sat ordinals list
-1sat ordinals mint --file image.png
-1sat ordinals sell --outpoint <txid.vout> --price 10000
+1sat ordinals inscribe --file image.png
+1sat ordinals send --id <id> --to <addr>
 
 # BSV21 tokens
-1sat tokens balances
-1sat tokens send --token-id <id> --to <addr> --amount 100
+1sat bsv21 balances
+1sat bsv21 send --token-id <id> --amount 100 --to <addr>
+
+# Sweep a legacy WIF into this wallet
+1sat sweep scan --wif <key>
+1sat sweep import --wif <key> --dry-run
+1sat sweep import --wif <key>
+1sat sweep import --wif <key> --only opns,bsv20
 
 # Identity
 1sat identity create

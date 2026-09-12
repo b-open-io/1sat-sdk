@@ -1,3 +1,4 @@
+import { groupBsv20Tokens } from '@1sat/actions'
 import { PrivateKey, type WalletInterface } from '@bsv/sdk'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Toaster, toast } from 'sonner'
@@ -12,14 +13,13 @@ import {
 	deriveAddress,
 	scanAddresses,
 } from '../lib/scanner'
-import { executeSweep, sweepBsv21Token } from '../lib/sweeper'
+import { executeSweep, sweepBsv20Token, sweepBsv21Token } from '../lib/sweeper'
 import { getWallet } from '../lib/wallet'
 import type { LegacyKeys } from '../types'
 import {
 	Bsv20Section,
 	Bsv21Section,
 	FundingSection,
-	ListingsSection,
 	LockedSection,
 	OrdinalsSection,
 	RunSection,
@@ -31,7 +31,7 @@ import { Badge } from './ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
 import { WifInput } from './wif-input'
 
-type TabId = 'ordinals' | 'opns' | 'bsv21' | 'bsv20' | 'locks' | 'run'
+type TabId = 'ordinals' | 'opns' | 'bsv20' | 'bsv21' | 'locks' | 'run'
 
 export interface SweepAppProps {
 	legacyKeys?: LegacyKeys
@@ -105,10 +105,10 @@ export function SweepApp({
 			})
 		if (assets.opnsNames.length > 0)
 			t.push({ id: 'opns', label: 'OpNS', count: assets.opnsNames.length })
-		if (assets.bsv21Tokens.length > 0)
-			t.push({ id: 'bsv21', label: 'BSV-21', count: assets.bsv21Tokens.length })
 		if (assets.bsv20Tokens.length > 0)
 			t.push({ id: 'bsv20', label: 'BSV-20', count: assets.bsv20Tokens.length })
+		if (assets.bsv21Tokens.length > 0)
+			t.push({ id: 'bsv21', label: 'BSV-21', count: assets.bsv21Tokens.length })
 		if (assets.locked.length > 0)
 			t.push({ id: 'locks', label: 'Locks', count: assets.locked.length })
 		if (assets.run.length > 0)
@@ -193,15 +193,14 @@ export function SweepApp({
 				result.opnsNames.length +
 				result.bsv21Tokens.reduce((n, t) => n + t.outputs.length, 0) +
 				result.bsv20Tokens.length +
-				result.listings.length +
 				result.locked.length +
 				result.run.length
 			if (total === 0) toast.info('No assets found at legacy addresses')
 
 			if (result.ordinals.length > 0) setActiveTab('ordinals')
 			else if (result.opnsNames.length > 0) setActiveTab('opns')
-			else if (result.bsv21Tokens.length > 0) setActiveTab('bsv21')
 			else if (result.bsv20Tokens.length > 0) setActiveTab('bsv20')
+			else if (result.bsv21Tokens.length > 0) setActiveTab('bsv21')
 			else if (result.locked.length > 0) setActiveTab('locks')
 		} catch (e) {
 			console.error('Scan failed:', e)
@@ -218,7 +217,7 @@ export function SweepApp({
 	const runOperation = useCallback(
 		async (label: string, op: () => Promise<string>) => {
 			setSweeping(true)
-			setSweepProgress(label + '...')
+			setSweepProgress(`${label}...`)
 			try {
 				const txid = await op()
 				if (txid) addTx(label, txid)
@@ -257,15 +256,10 @@ export function SweepApp({
 				keys: keyMap,
 				funding: getSelectedFunding(),
 				ordinals: [],
-				listings: assets.listings,
 				amount: sweepAmount ?? undefined,
 				onProgress: setSweepProgress,
 			})
-			for (const txid of result.listingTxids) addTx('Cancel listings', txid)
-			if (result.errors.length > 0) {
-				if (result.cancelledListings.length > 0) await refreshAssets()
-				throw new Error(result.errors[0])
-			}
+			if (result.errors.length > 0) throw new Error(result.errors[0])
 			return result.bsvTxid ?? ''
 		})
 	}, [
@@ -276,41 +270,6 @@ export function SweepApp({
 		getSelectedFunding,
 		runOperation,
 		keyMap,
-		addTx,
-		refreshAssets,
-	])
-
-	const handleCancelListings = useCallback(async () => {
-		const wallet = resolveWallet()
-		if (!wallet || !legacyKeys || !assets || assets.listings.length === 0)
-			return
-		await runOperation('Cancel listings', async () => {
-			const result = await executeSweep({
-				wallet,
-				keys: keyMap,
-				funding: [],
-				ordinals: [],
-				listings: assets.listings,
-				onProgress: setSweepProgress,
-			})
-			if (result.errors.length > 0) {
-				for (const txid of result.listingTxids) addTx('Cancel listings', txid)
-				if (result.cancelledListings.length > 0) await refreshAssets()
-				throw new Error(result.errors[0])
-			}
-			for (let i = 0; i < result.listingTxids.length - 1; i++) {
-				addTx('Cancel listings', result.listingTxids[i])
-			}
-			return result.listingTxids[result.listingTxids.length - 1] ?? ''
-		})
-	}, [
-		resolveWallet,
-		legacyKeys,
-		assets,
-		keyMap,
-		runOperation,
-		addTx,
-		refreshAssets,
 	])
 
 	const handleSendBsv = useCallback(
@@ -542,6 +501,28 @@ export function SweepApp({
 		[resolveWallet, assets, keyMap, runOperation],
 	)
 
+	const handleSweepBsv20Token = useCallback(
+		async (tick: string) => {
+			const wallet = resolveWallet()
+			if (!wallet || !assets) return
+			const token = groupBsv20Tokens(assets.bsv20Tokens).find(
+				(t) => t.tick === tick,
+			)
+			if (!token) return
+			await runOperation(`Sweep ${token.tick}`, async () => {
+				const result = await sweepBsv20Token({
+					wallet,
+					keys: keyMap,
+					token,
+					onProgress: setSweepProgress,
+				})
+				if (result.error) throw new Error(result.error)
+				return result.txid ?? ''
+			})
+		},
+		[resolveWallet, assets, keyMap, runOperation],
+	)
+
 	return (
 		<div className="min-h-screen bg-background text-foreground">
 			<Toaster position="top-right" />
@@ -585,11 +566,6 @@ export function SweepApp({
 							onSweep={handleSweepBsv}
 							onSend={sweepOnly ? undefined : handleSendBsv}
 							walletConnected={walletConnected}
-						/>
-						<ListingsSection
-							listings={assets.listings}
-							walletConnected={walletConnected}
-							onCancel={handleCancelListings}
 						/>
 
 						{tabs.length > 0 && (
@@ -642,15 +618,19 @@ export function SweepApp({
 										walletConnected={walletConnected}
 									/>
 								</TabsContent>
+								<TabsContent value="bsv20">
+									<Bsv20Section
+										tokens={groupBsv20Tokens(assets.bsv20Tokens)}
+										onSweep={handleSweepBsv20Token}
+										walletConnected={walletConnected}
+									/>
+								</TabsContent>
 								<TabsContent value="bsv21">
 									<Bsv21Section
 										tokens={assets.bsv21Tokens}
 										onSweep={handleSweepBsv21Token}
 										walletConnected={walletConnected}
 									/>
-								</TabsContent>
-								<TabsContent value="bsv20">
-									<Bsv20Section tokens={assets.bsv20Tokens} />
 								</TabsContent>
 								<TabsContent value="locks">
 									<LockedSection locked={assets.locked} />

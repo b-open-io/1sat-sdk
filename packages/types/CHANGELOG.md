@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.46] - 2026-09-12
+
+### Added
+- `BSV20_BASKET` (`bsv20`) and the `p 1sat bsv20` legacy migration.
+
 ## [0.0.34] - 2026-07-15
 
 ### Added

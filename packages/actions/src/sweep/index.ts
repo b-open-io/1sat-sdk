@@ -4,7 +4,7 @@
  * Functions for sweeping assets from external wallets into a BRC-100 wallet.
  */
 
-import { BSV21, OrdLock } from '@1sat/templates'
+import { BSV20, BSV21, OrdLock } from '@1sat/templates'
 import type { IndexedOutput } from '@1sat/types'
 import type { OrdfsMetadata } from '@1sat/types'
 import { buildTokenLabel } from '@1sat/types'
@@ -18,7 +18,7 @@ import {
 	Transaction,
 	Utils,
 } from '@bsv/sdk'
-import { BSV21_BASKET, P1SAT_PROTOCOL } from '../constants.js'
+import { BSV20_BASKET, BSV21_BASKET, P1SAT_PROTOCOL } from '../constants.js'
 import { resolveOrdinalTags } from '../ordinals/index.js'
 import type { Action, ActionLogEntry, OneSatContext } from '../types.js'
 import {
@@ -31,6 +31,8 @@ import {
 } from '../utils/createTrackedAction.js'
 import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance.js'
 import type {
+	SweepBsv20Request,
+	SweepBsv20Response,
 	SweepBsv21Request,
 	SweepBsv21Response,
 	SweepBsvRequest,
@@ -117,6 +119,59 @@ function buildSourceMap(
 		})
 	}
 	return map
+}
+
+function assignLegacyUnlock(
+	txInput: Transaction['inputs'][number],
+	key: PrivateKey,
+	source: { script: Script; satoshis: number } | undefined,
+): void {
+	if (source?.script && OrdLock.isOrdLock(source.script)) {
+		txInput.unlockingScriptTemplate = OrdLock.cancelListing(
+			key,
+			'all',
+			true,
+			source.satoshis,
+			source.script,
+		)
+	} else {
+		txInput.unlockingScriptTemplate = new P2PKH().unlock(
+			key,
+			'all',
+			true,
+			source?.satoshis,
+			source?.script,
+		)
+	}
+}
+
+async function signLegacySweepInputs(
+	tx: Transaction,
+	keyMap: Map<string, PrivateKey>,
+	sourceMap: Map<string, { script: Script; satoshis: number }>,
+): Promise<Record<number, { unlockingScript: string }>> {
+	for (let i = 0; i < tx.inputs.length; i++) {
+		const txInput = tx.inputs[i]
+		const inputOutpoint = formatOutpoint(
+			txInput.sourceTXID!,
+			txInput.sourceOutputIndex,
+		)
+		const key = keyMap.get(inputOutpoint)
+		if (!key) continue
+		assignLegacyUnlock(txInput, key, sourceMap.get(inputOutpoint))
+	}
+	await tx.sign()
+	const spends: Record<number, { unlockingScript: string }> = {}
+	for (let i = 0; i < tx.inputs.length; i++) {
+		const txInput = tx.inputs[i]
+		const inputOutpoint = formatOutpoint(
+			txInput.sourceTXID!,
+			txInput.sourceOutputIndex,
+		)
+		if (!keyMap.has(inputOutpoint)) continue
+		spends[i] = { unlockingScript: txInput.unlockingScript?.toHex() ?? '' }
+	}
+	return spends
 }
 
 /**
@@ -246,43 +301,7 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 				},
 				undefined,
 				beefData as number[],
-				async (tx) => {
-					for (let i = 0; i < tx.inputs.length; i++) {
-						const txInput = tx.inputs[i]
-						const inputOutpoint = formatOutpoint(
-							txInput.sourceTXID!,
-							txInput.sourceOutputIndex,
-						)
-						const key = keyMap.get(inputOutpoint)
-						const source = sourceMap.get(inputOutpoint)
-						if (key) {
-							txInput.unlockingScriptTemplate = new P2PKH().unlock(
-								key,
-								'all',
-								true,
-								source?.satoshis,
-								source?.script,
-							)
-						}
-					}
-
-					await tx.sign()
-
-					const spends: Record<number, { unlockingScript: string }> = {}
-					for (let i = 0; i < tx.inputs.length; i++) {
-						const txInput = tx.inputs[i]
-						const inputOutpoint = formatOutpoint(
-							txInput.sourceTXID!,
-							txInput.sourceOutputIndex,
-						)
-						if (keyMap.has(inputOutpoint)) {
-							spends[i] = {
-								unlockingScript: txInput.unlockingScript?.toHex() ?? '',
-							}
-						}
-					}
-					return spends
-				},
+				async (tx) => signLegacySweepInputs(tx, keyMap, sourceMap),
 			)
 
 			if (ctx.debug && ctx.log) {
@@ -509,53 +528,7 @@ export const sweepOrdinals: Action<
 				},
 				undefined,
 				beefData as number[],
-				async (tx) => {
-					for (let i = 0; i < tx.inputs.length; i++) {
-						const txInput = tx.inputs[i]
-						const inputOutpoint = formatOutpoint(
-							txInput.sourceTXID!,
-							txInput.sourceOutputIndex,
-						)
-						const key = keyMap.get(inputOutpoint)
-						const source = sourceMap.get(inputOutpoint)
-						if (key) {
-							if (source?.script && OrdLock.isOrdLock(source.script)) {
-								txInput.unlockingScriptTemplate = OrdLock.cancelListing(
-									key,
-									'all',
-									true,
-									source.satoshis,
-									source.script,
-								)
-							} else {
-								txInput.unlockingScriptTemplate = new P2PKH().unlock(
-									key,
-									'all',
-									true,
-									source?.satoshis,
-									source?.script,
-								)
-							}
-						}
-					}
-
-					await tx.sign()
-
-					const spends: Record<number, { unlockingScript: string }> = {}
-					for (let i = 0; i < tx.inputs.length; i++) {
-						const txInput = tx.inputs[i]
-						const inputOutpoint = formatOutpoint(
-							txInput.sourceTXID!,
-							txInput.sourceOutputIndex,
-						)
-						if (keyMap.has(inputOutpoint)) {
-							spends[i] = {
-								unlockingScript: txInput.unlockingScript?.toHex() ?? '',
-							}
-						}
-					}
-					return spends
-				},
+				async (tx) => signLegacySweepInputs(tx, keyMap, sourceMap),
 			)
 
 			if (ctx.debug && ctx.log) {
@@ -806,43 +779,7 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 				},
 				undefined,
 				beefData as number[],
-				async (tx) => {
-					for (let i = 0; i < tx.inputs.length; i++) {
-						const txInput = tx.inputs[i]
-						const inputOutpoint = formatOutpoint(
-							txInput.sourceTXID!,
-							txInput.sourceOutputIndex,
-						)
-						const key = keyMap.get(inputOutpoint)
-						const source = sourceMap.get(inputOutpoint)
-						if (key) {
-							txInput.unlockingScriptTemplate = new P2PKH().unlock(
-								key,
-								'all',
-								true,
-								source?.satoshis,
-								source?.script,
-							)
-						}
-					}
-
-					await tx.sign()
-
-					const spends: Record<number, { unlockingScript: string }> = {}
-					for (let i = 0; i < tx.inputs.length; i++) {
-						const txInput = tx.inputs[i]
-						const inputOutpoint = formatOutpoint(
-							txInput.sourceTXID!,
-							txInput.sourceOutputIndex,
-						)
-						if (keyMap.has(inputOutpoint)) {
-							spends[i] = {
-								unlockingScript: txInput.unlockingScript?.toHex() ?? '',
-							}
-						}
-					}
-					return spends
-				},
+				async (tx) => signLegacySweepInputs(tx, keyMap, sourceMap),
 			)
 
 			// Submit to overlay service for indexing
@@ -902,6 +839,153 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 	},
 }
 
+/**
+ * Sweep BSV-20 tokens from external inputs into the destination wallet.
+ *
+ * Consolidates all inputs for one ticker into a single transfer inscription.
+ */
+export const sweepBsv20: Action<SweepBsv20Request, SweepBsv20Response> = {
+	meta: {
+		name: 'sweepBsv20',
+		description:
+			'Sweep BSV-20 tokens from external wallet (via WIF) into the connected wallet',
+		category: 'sweep',
+		requiresServices: true,
+		inputSchema: {
+			type: 'object',
+			properties: {
+				inputs: { type: 'array' },
+				keys: { type: 'array' },
+			},
+			required: ['inputs', 'keys'],
+		},
+	},
+	async execute(ctx, request): Promise<SweepBsv20Response> {
+		if (!ctx.services) return { error: 'services-required' }
+
+		try {
+			const { inputs, keys } = request
+			if (!inputs || inputs.length === 0) return { error: 'no-inputs' }
+
+			const tick = inputs[0].tick
+			if (!tick) return { error: 'missing-tick' }
+			if (!inputs.every((i) => i.tick === tick)) {
+				return { error: 'mixed-token-ids' }
+			}
+
+			const totalAmount = inputs.reduce((sum, i) => sum + BigInt(i.amount), 0n)
+			if (totalAmount <= 0n) return { error: 'no-token-amount' }
+
+			const keyMap = buildKeyMap(inputs, keys)
+			const sourceMap = buildSourceMap(inputs)
+
+			const txids = [
+				...new Set(inputs.map((i) => parseOutpoint(i.outpoint).txid)),
+			]
+			const firstBeef = await ctx.services.getBeefForTxid(txids[0])
+			for (let i = 1; i < txids.length; i++) {
+				firstBeef.mergeBeef(await ctx.services.getBeefForTxid(txids[i]))
+			}
+
+			const inputDescriptors = inputs.map((input) => {
+				const { txid, vout } = parseOutpoint(input.outpoint)
+				return {
+					outpoint: formatOutpoint(txid, vout),
+					inputDescription: `Token input ${input.outpoint}`,
+					unlockingScriptLength: 108,
+					sequenceNumber: 0xffffffff,
+				}
+			})
+
+			const keyID = `bsv20:${tick}-${Date.now()}`
+			const pubKeyResult = await ctx.wallet.getPublicKey({
+				protocolID: P1SAT_PROTOCOL,
+				keyID,
+				forSelf: true,
+			})
+			if (!pubKeyResult.publicKey) return { error: 'failed-to-derive-key' }
+
+			const derivedAddress = PublicKey.fromString(
+				pubKeyResult.publicKey,
+			).toAddress()
+			const destinationLockingScript = new P2PKH().lock(derivedAddress)
+			const transferScript = BSV20.transfer(tick, totalAmount).lock(
+				destinationLockingScript,
+			)
+
+			const beefData = firstBeef.toBinary()
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				{
+					description: `Sweep ${inputs.length} BSV-20 UTXO${inputs.length !== 1 ? 's' : ''}`,
+					labels: [`p 1sat bsv20 ${tick}`],
+					inputBEEF: beefData,
+					inputs: inputDescriptors,
+					outputs: [
+						{
+							lockingScript: transferScript.toHex(),
+							satoshis: 1,
+							outputDescription: `Sweep ${totalAmount} ${tick}`,
+							basket: BSV20_BASKET,
+							tags: [`bsv20:${tick}`, `amt:${totalAmount}`, `sym:${tick}`],
+							customInstructions: JSON.stringify({
+								protocolID: P1SAT_PROTOCOL,
+								keyID,
+								counterparty: 'self',
+								tick,
+								amt: String(totalAmount),
+								op: 'transfer',
+							}),
+						},
+					],
+					options: { randomizeOutputs: false },
+				},
+				undefined,
+				beefData as number[],
+				async (tx) => signLegacySweepInputs(tx, keyMap, sourceMap),
+			)
+
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'sweepBsv20',
+					input: {
+						tick,
+						inputCount: inputs.length,
+						totalAmount: totalAmount.toString(),
+					},
+					txid: result.txid,
+					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
+					outputs: [
+						{
+							index: 0,
+							protocolID: P1SAT_PROTOCOL,
+							keyID,
+							basket: BSV20_BASKET,
+							satoshis: 1,
+						},
+					],
+				})
+			}
+
+			return { txid: result.txid, beef: result.tx }
+		} catch (error) {
+			console.error('[sweepBsv20]', error)
+			if (ctx.debug && ctx.log) {
+				ctx.log({
+					timestamp: new Date().toISOString(),
+					action: 'sweepBsv20',
+					input: { inputCount: request.inputs?.length },
+					error: error instanceof Error ? error.message : 'unknown-error',
+				})
+			}
+			return {
+				error: error instanceof Error ? error.message : 'unknown-error',
+			}
+		}
+	},
+}
+
 // Deposit sweep: rotate plain BSV from DEPOSIT_BASKET into FUNDING_BASKET
 export {
 	sweepDeposit,
@@ -910,13 +994,22 @@ export {
 } from './sweepDeposit.js'
 
 // Export actions array for registry
-export const sweepActions = [sweepBsv, sweepOrdinals, sweepBsv21]
+export const sweepActions = [sweepBsv, sweepOrdinals, sweepBsv21, sweepBsv20]
 
 // Export scan module
-export { isListedOutput, scanAddress, scanAddresses } from './scan.js'
+export {
+	groupBsv20Tokens,
+	isBsv20Output,
+	isBsv21Output,
+	isListedOutput,
+	parseBsv20Token,
+	scanAddress,
+	scanAddresses,
+} from './scan.js'
 
 // Export types
 export type {
+	Bsv20Balance,
 	PrepareResult,
 	ScanProgress,
 	ScanResult,

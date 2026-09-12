@@ -225,11 +225,14 @@ Print **id**, name, outpoint on lookup. Wallet spends: `--id` only.
 ### Sweep / Import
 
 ```bash
-bunx @1sat/cli sweep scan --wif <key>      # Scan an address for sweepable UTXOs (BSV, ordinals, BSV21)
-bunx @1sat/cli sweep import --wif <key>    # Sweep all UTXOs from a WIF into the wallet
+bunx @1sat/cli sweep scan --wif <key>
+bunx @1sat/cli sweep import --wif <key> --dry-run
+bunx @1sat/cli sweep import --wif <key>
+bunx @1sat/cli sweep import --wif <key> --only opns,bsv20
+bunx @1sat/cli sweep import --wif <key> --skip bsv21
 ```
 
-`sweep import` branches internally by asset type — it sweeps funding (BSV), ordinals, and each active BSV21 token in separate transactions. RUN token outputs are detected and excluded (not sweepable).
+Default import is every class that can move into BRC-100: BSV, ordinals, OpNS, BSV-20, and active BSV-21. Listed OrdLocks cancel into the destination in the same transaction. `--only` / `--skip` take `bsv,ordinals,opns,bsv20,bsv21`. `--dry-run` prints the plan and does not broadcast. Time-locks and RUN outputs stay as leftover.
 
 ### Transaction Utilities
 

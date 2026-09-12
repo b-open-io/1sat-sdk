@@ -1,3 +1,4 @@
+import { type Bsv20Balance, isListedOutput } from '@1sat/actions'
 import type { IndexedOutput } from '@1sat/types'
 import { useState } from 'react'
 import type { EnrichedOrdinal, TokenBalance } from '../lib/scanner'
@@ -53,6 +54,13 @@ function OrdinalCard({
 				)}
 			</div>
 			<div className="min-h-[2rem] flex flex-col justify-end">
+				{isListedOutput(ordinal) && (
+					<div className="mb-1">
+						<span className="inline-block px-1 py-0.5 text-[9px] rounded bg-amber-500/20 text-amber-400">
+							listed
+						</span>
+					</div>
+				)}
 				{subtype && (
 					<div className="mb-1">
 						<span className="inline-block max-w-full px-1 py-0.5 text-[9px] rounded bg-blue-500/20 text-blue-400 truncate">
@@ -388,6 +396,7 @@ function TokenRow({
 	onSweep?: (tokenId: string) => void
 	walletConnected: boolean
 }) {
+	const listed = tb.outputs.filter(isListedOutput).length
 	return (
 		<div
 			className={`flex items-center justify-between p-3 rounded-lg border ${tb.isActive ? 'bg-muted/30 border-purple-500/10' : 'bg-muted/20 border-muted/20 opacity-60'}`}
@@ -404,7 +413,7 @@ function TokenRow({
 				<div>
 					<div className="flex items-center gap-2">
 						<span className="font-medium text-foreground">
-							{tb.symbol || tb.tokenId.slice(0, 8) + '...'}
+							{tb.symbol || `${tb.tokenId.slice(0, 8)}...`}
 						</span>
 						{tb.isActive ? (
 							<span className="px-1.5 py-0.5 text-[9px] rounded bg-green-600/20 text-green-700 dark:text-green-400">
@@ -420,7 +429,8 @@ function TokenRow({
 						{formatTokenAmount(tb.totalAmount.toString(), tb.decimals)}{' '}
 						{tb.symbol || ''}
 						<span className="ml-2">
-							({tb.outputs.length} output{tb.outputs.length !== 1 ? 's' : ''})
+							({tb.outputs.length} output{tb.outputs.length !== 1 ? 's' : ''}
+							{listed ? `, ${listed} listed` : ''})
 						</span>
 					</div>
 				</div>
@@ -490,74 +500,61 @@ export function Bsv21Section({
 	)
 }
 
-export function Bsv20Section({ tokens }: { tokens: IndexedOutput[] }) {
+export function Bsv20Section({
+	tokens,
+	onSweep,
+	walletConnected,
+}: {
+	tokens: Bsv20Balance[]
+	onSweep?: (tick: string) => void
+	walletConnected: boolean
+}) {
 	if (tokens.length === 0) return null
 	return (
-		<div className="border border-muted/30 bg-muted/10 p-4 rounded-lg">
-			<div className="flex items-center gap-2 mb-2">
-				<span className="h-2 w-2 rounded-full bg-muted-foreground" />
-				<span className="text-sm font-semibold text-muted-foreground">
+		<div className="border border-teal-500/20 bg-teal-500/5 p-4 rounded-lg">
+			<div className="flex items-center gap-2 mb-3">
+				<span className="h-2 w-2 rounded-full bg-teal-500" />
+				<span className="text-sm font-semibold text-teal-500">
 					BSV-20 Tokens
 				</span>
 			</div>
-			<p className="text-xs text-muted-foreground mb-2">
-				Cannot be swept automatically.
-			</p>
-			<div className="flex flex-wrap gap-2">
-				{tokens.slice(0, 10).map((o) => {
-					const tickEvent = o.events?.find((e) => e.startsWith('tick:'))
-					const tick = tickEvent ? tickEvent.slice(5) : 'Token'
+			<div className="space-y-3">
+				{tokens.map((tb) => {
+					const listed = tb.outputs.filter(isListedOutput).length
 					return (
-						<span
-							key={o.outpoint}
-							className="px-2 py-1 text-xs rounded bg-muted/30 text-muted-foreground"
+						<div
+							key={tb.tick}
+							className="flex items-center justify-between p-3 rounded-lg border bg-muted/30 border-teal-500/10"
 						>
-							{tick}
-						</span>
+							<div>
+								<div className="font-medium text-foreground">{tb.tick}</div>
+								<div className="text-xs text-muted-foreground">
+									{tb.totalAmount.toString()}
+									<span className="ml-2">
+										({tb.outputs.length} output
+										{tb.outputs.length !== 1 ? 's' : ''}
+										{listed ? `, ${listed} listed` : ''})
+									</span>
+								</div>
+							</div>
+							{onSweep && (
+								<Button
+									size="sm"
+									onClick={() => onSweep(tb.tick)}
+									disabled={!walletConnected}
+									title={
+										walletConnected
+											? undefined
+											: 'Connect BRC-100 wallet to sweep'
+									}
+								>
+									Sweep to Wallet
+								</Button>
+							)}
+						</div>
 					)
 				})}
-				{tokens.length > 10 && (
-					<span className="text-xs text-muted-foreground">
-						+{tokens.length - 10} more
-					</span>
-				)}
 			</div>
-		</div>
-	)
-}
-
-export function ListingsSection({
-	listings,
-	walletConnected,
-	onCancel,
-}: {
-	listings: EnrichedOrdinal[]
-	walletConnected?: boolean
-	onCancel?: () => void
-}) {
-	if (listings.length === 0) return null
-	return (
-		<div className="border border-primary/20 bg-primary/5 p-4 rounded-lg space-y-3">
-			<div className="flex items-center gap-2">
-				<span className="h-2 w-2 rounded-full bg-primary" />
-				<span className="text-sm font-semibold text-primary">
-					OrdLock Listings
-				</span>
-			</div>
-			<p className="text-xs text-muted-foreground">
-				{listings.length} listed UTXO{listings.length !== 1 ? 's' : ''}. These
-				are cancelled into your BRC-100 wallet on BSV sweep.
-			</p>
-			{onCancel && (
-				<Button
-					size="sm"
-					disabled={!walletConnected}
-					onClick={onCancel}
-					className="w-full"
-				>
-					Cancel listings into wallet
-				</Button>
-			)}
 		</div>
 	)
 }
