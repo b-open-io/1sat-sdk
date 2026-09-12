@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.0.97
+
+### Changed
+- Picks up `@1sat/actions@0.0.218`.
+
 ## 0.0.96
 
 ### Changed
