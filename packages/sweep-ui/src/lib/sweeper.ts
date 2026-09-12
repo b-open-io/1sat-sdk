@@ -1,28 +1,30 @@
 import {
+	type Bsv20Balance,
+	SWEEP_BATCH_SIZE,
+	bsv21SweepBatches,
 	createContext,
+	groupBsv20Tokens,
 	prepareSweepInputs,
 	sweepBsv,
+	sweepBsv20,
 	sweepBsv21,
 	sweepOrdinals,
 } from '@1sat/actions'
 import type { IndexedOutput } from '@1sat/types'
 import type { PrivateKey, WalletInterface } from '@bsv/sdk'
-import type { TokenBalance } from './scanner'
+import type { ScannedAssets, TokenBalance } from './scanner'
 import { getServices } from './services'
 
-/** Page size, select-page size, and createAction batch size for ordinal/OpNS sweeps. */
-export const SWEEP_BATCH_SIZE = 25
+export { SWEEP_BATCH_SIZE }
 
 export interface SweepResult {
 	bsvTxid?: string
 	ordinalTxids: string[]
-	listingTxids: string[]
+	bsv20Txids: string[]
 	bsv21Txids: string[]
 	errors: string[]
-	/** Outpoints successfully swept (ordinals/OpNS). */
+	/** Outpoints successfully swept (ordinals/OpNS, including listed OrdLocks). */
 	sweptOutpoints: string[]
-	/** Listing outpoints cancelled into the BRC-100 wallet. */
-	cancelledListings: string[]
 }
 
 function getOwner(output: IndexedOutput): string | undefined {
@@ -54,65 +56,27 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 
 /**
- * Sweep BSV funding and ordinals into the connected wallet.
- * Ordinals are processed in batches of {@link SWEEP_BATCH_SIZE}; stops on first batch error.
+ * Sweep BSV funding then ordinals into the connected wallet.
+ * Same class order as `1sat sweep import` for these two classes.
+ * Listed OrdLocks belong in `ordinals` and cancel in that spend.
  */
 export async function executeSweep(params: {
 	wallet: WalletInterface
 	keys: Map<string, PrivateKey>
 	funding: IndexedOutput[]
 	ordinals: IndexedOutput[]
-	/** OPL-4696: listed OrdLock UTXOs — cancelled into BRC-100 via sweepOrdinals. */
-	listings?: IndexedOutput[]
 	amount?: number
 	onProgress: (stage: string) => void
 }): Promise<SweepResult> {
-	const {
-		wallet,
-		keys,
-		funding,
-		ordinals,
-		listings = [],
-		amount,
-		onProgress,
-	} = params
+	const { wallet, keys, funding, ordinals, amount, onProgress } = params
 	const ctx = createContext(wallet, { services: getServices(), chain: 'main' })
 
 	const result: SweepResult = {
 		ordinalTxids: [],
-		listingTxids: [],
+		bsv20Txids: [],
 		bsv21Txids: [],
 		errors: [],
 		sweptOutpoints: [],
-		cancelledListings: [],
-	}
-
-	if (listings.length > 0) {
-		const batches = chunk(listings, SWEEP_BATCH_SIZE)
-		for (let b = 0; b < batches.length; b++) {
-			const batch = batches[b]
-			onProgress(
-				`Cancelling ${batch.length} OrdLock listing${batch.length !== 1 ? 's' : ''} into wallet...`,
-			)
-			try {
-				const inputs = await prepareSweepInputs(ctx, batch)
-				const cancelResult = await sweepOrdinals.execute(ctx, {
-					inputs,
-					keys: buildKeys(batch, keys, inputs),
-				})
-				if (cancelResult.error) throw new Error(cancelResult.error)
-				const txid = cancelResult.txid?.trim()
-				if (!txid) throw new Error('Cancellation returned no transaction ID')
-				result.listingTxids.push(txid)
-				result.cancelledListings.push(...batch.map((o) => o.outpoint))
-			} catch (e) {
-				result.errors.push(
-					`Listings batch ${b + 1}: ${e instanceof Error ? e.message : String(e)}`,
-				)
-				onProgress('Sweep stopped with errors')
-				return result
-			}
-		}
 	}
 
 	if (funding.length > 0) {
@@ -171,19 +135,64 @@ export async function executeSweep(params: {
 }
 
 /**
- * Sweep a single BSV-21 token into the connected wallet.
- * Each token requires its own transaction since all inputs must share a tokenId.
+ * Sweep one BSV-21 token. Listed OrdLocks are each their own tx so one
+ * invalid listing cannot sink the rest. Unlisted UTXOs of the token share a spend.
  */
 export async function sweepBsv21Token(params: {
 	wallet: WalletInterface
 	keys: Map<string, PrivateKey>
 	token: TokenBalance
 	onProgress: (stage: string) => void
+}): Promise<{ txid?: string; txids: string[]; error?: string }> {
+	const { wallet, keys, token, onProgress } = params
+	const ctx = createContext(wallet, { services: getServices(), chain: 'main' })
+	const txids: string[] = []
+	const errors: string[] = []
+	const name = token.symbol ?? token.tokenId.slice(0, 8)
+
+	for (const batch of bsv21SweepBatches(token.outputs)) {
+		onProgress(`Sweeping ${name}...`)
+		try {
+			const sweepInputs = await prepareSweepInputs(ctx, batch)
+			const sweepInputMap = new Map(sweepInputs.map((s) => [s.outpoint, s]))
+			const inputs = batch.map((out) => {
+				const base = sweepInputMap.get(out.outpoint)
+				if (!base) throw new Error(`Missing sweep input for ${out.outpoint}`)
+				return {
+					...base,
+					tokenId: token.tokenId,
+					amount: token.amounts.get(out.outpoint) ?? '0',
+				}
+			})
+			const result = await sweepBsv21.execute(ctx, {
+				inputs,
+				keys: buildKeys(batch, keys),
+			})
+			if (result.error) errors.push(result.error)
+			else if (result.txid) txids.push(result.txid)
+		} catch (e) {
+			errors.push(e instanceof Error ? e.message : String(e))
+		}
+	}
+
+	return {
+		txid: txids.at(-1),
+		txids,
+		error: errors[0],
+	}
+}
+
+/** Sweep one BSV-20 ticker into the connected wallet. */
+export async function sweepBsv20Token(params: {
+	wallet: WalletInterface
+	keys: Map<string, PrivateKey>
+	token: Bsv20Balance
+	onProgress: (stage: string) => void
 }): Promise<{ txid?: string; error?: string }> {
 	const { wallet, keys, token, onProgress } = params
 	const ctx = createContext(wallet, { services: getServices(), chain: 'main' })
 
-	onProgress(`Sweeping ${token.symbol ?? token.tokenId.slice(0, 8)}...`)
+	onProgress(`Sweeping ${token.tick}...`)
 
 	try {
 		const sweepInputs = await prepareSweepInputs(ctx, token.outputs)
@@ -194,17 +203,94 @@ export async function sweepBsv21Token(params: {
 			if (!base) throw new Error(`Missing sweep input for ${out.outpoint}`)
 			return {
 				...base,
-				tokenId: token.tokenId,
+				tick: token.tick,
 				amount: token.amounts.get(out.outpoint) ?? '0',
 			}
 		})
 
-		const tokenKeys = buildKeys(token.outputs, keys)
-
-		const result = await sweepBsv21.execute(ctx, { inputs, keys: tokenKeys })
+		const result = await sweepBsv20.execute(ctx, {
+			inputs,
+			keys: buildKeys(token.outputs, keys),
+		})
 		if (result.error) return { error: result.error }
 		return { txid: result.txid }
 	} catch (e) {
 		return { error: e instanceof Error ? e.message : String(e) }
 	}
+}
+
+/** Same class order as `1sat sweep import`. Continues later classes if one fails. */
+export async function sweepAllClasses(params: {
+	wallet: WalletInterface
+	keys: Map<string, PrivateKey>
+	assets: ScannedAssets
+	amount?: number
+	onProgress: (stage: string) => void
+}): Promise<SweepResult> {
+	const { wallet, keys, assets, amount, onProgress } = params
+	const result: SweepResult = {
+		ordinalTxids: [],
+		bsv20Txids: [],
+		bsv21Txids: [],
+		errors: [],
+		sweptOutpoints: [],
+	}
+
+	const first = await executeSweep({
+		wallet,
+		keys,
+		funding: assets.funding,
+		ordinals: assets.ordinals,
+		amount,
+		onProgress,
+	})
+	result.bsvTxid = first.bsvTxid
+	result.ordinalTxids.push(...first.ordinalTxids)
+	result.sweptOutpoints.push(...first.sweptOutpoints)
+	result.errors.push(...first.errors)
+
+	if (assets.opnsNames.length > 0) {
+		const opns = await executeSweep({
+			wallet,
+			keys,
+			funding: [],
+			ordinals: assets.opnsNames,
+			onProgress,
+		})
+		result.ordinalTxids.push(...opns.ordinalTxids)
+		result.sweptOutpoints.push(...opns.sweptOutpoints)
+		result.errors.push(...opns.errors)
+	}
+
+	for (const token of groupBsv20Tokens(assets.bsv20Tokens)) {
+		const swept = await sweepBsv20Token({
+			wallet,
+			keys,
+			token,
+			onProgress,
+		})
+		if (swept.error) result.errors.push(`BSV-20 ${token.tick}: ${swept.error}`)
+		else if (swept.txid) result.bsv20Txids.push(swept.txid)
+	}
+
+	for (const token of assets.bsv21Tokens) {
+		if (token.outputs.length === 0) continue
+		const swept = await sweepBsv21Token({
+			wallet,
+			keys,
+			token,
+			onProgress,
+		})
+		result.bsv21Txids.push(...swept.txids)
+		if (swept.error) {
+			result.errors.push(
+				`BSV-21 ${token.symbol ?? token.tokenId.slice(0, 8)}: ${swept.error}`,
+			)
+		}
+	}
+
+	onProgress(
+		result.errors.length > 0 ? 'Sweep stopped with errors' : 'Sweep complete',
+	)
+	return result
 }

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+## 0.0.96
+
+### Changed
+- Sweep matches `1sat sweep import`: BSV, ordinals, OpNS, BSV-20, BSV-21. Listed OrdLocks stay in class and cancel in that spend. BSV-20 is sweepable. Sweep all runs that class order. Listed BSV-21 cancels are one per transaction.
+
 ## 0.0.94
 
 ### Fixed

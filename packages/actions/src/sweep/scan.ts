@@ -8,7 +8,12 @@
 import type { OneSatServices } from '@1sat/client'
 import type { IndexedOutput } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
-import type { ScanProgress, ScanResult, TokenBalance } from './types.js'
+import type {
+	Bsv20Balance,
+	ScanProgress,
+	ScanResult,
+	TokenBalance,
+} from './types.js'
 
 /** RUN protocol OP_RETURN prefix: OP_FALSE OP_RETURN OP_PUSH3 "run" */
 const RUN_PREFIX = Uint8Array.from([0x00, 0x6a, 0x03, 0x72, 0x75, 0x6e])
@@ -16,6 +21,58 @@ const RUN_PREFIX = Uint8Array.from([0x00, 0x6a, 0x03, 0x72, 0x75, 0x6e])
 function getEvent(events: string[], prefix: string): string | undefined {
 	const e = events.find((ev) => ev.startsWith(prefix))
 	return e ? e.slice(prefix.length) : undefined
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+	return value !== null && typeof value === 'object' && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: undefined
+}
+
+function asString(value: unknown): string | undefined {
+	if (typeof value === 'string' && value.length > 0) return value
+	if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+	return undefined
+}
+
+function inscriptionJson(
+	out: IndexedOutput,
+): Record<string, unknown> | undefined {
+	return asRecord(asRecord(asRecord(out.data)?.insc)?.json)
+}
+
+/** BSV-21 token ids are the deploy outpoint (`txid_vout` or `txid.vout`). */
+function isOutpointId(value: string): boolean {
+	const parts = value.split(/[._]/)
+	return parts.length === 2 && parts[0].length === 64 && /^\d+$/.test(parts[1])
+}
+
+/**
+ * BSV-21 vs BSV-20 share MIME `application/bsv-20`.
+ * BSV-21 identity is `id` (deploy outpoint) / indexer `bsv21:`.
+ * BSV-20 identity is `tick`.
+ */
+export function isBsv21Output(out: IndexedOutput): boolean {
+	const events = out.events ?? []
+	if (events.some((e) => e.startsWith('bsv21:'))) return true
+	if (asRecord(asRecord(out.data)?.bsv21)) return true
+	const json = inscriptionJson(out)
+	const id = asString(json?.id)
+	if (id && isOutpointId(id)) return true
+	const op = asString(json?.op)?.toLowerCase()
+	return op === 'auth' || (op?.startsWith('deploy+') ?? false)
+}
+
+export function isBsv20Output(out: IndexedOutput): boolean {
+	if (isBsv21Output(out)) return false
+	const events = out.events ?? []
+	if (getEvent(events, 'tick:')) return true
+	if (asString(asRecord(asRecord(out.data)?.bsv20)?.tick)) return true
+	return Boolean(asString(inscriptionJson(out)?.tick))
+}
+
+function isTokenMime(out: IndexedOutput): boolean {
+	return (out.events ?? []).includes('type:application/bsv-20')
 }
 
 /** True when an indexed output is an OrdLock marketplace listing. */
@@ -65,7 +122,7 @@ export async function scanAddress(
 		(await services.txo.search(`own:${address}`, {
 			unspent: true,
 			events: true,
-			tags: ['ordlock'],
+			tags: ['ordlock', 'insc', 'bsv20', 'bsv21'],
 			sats: true,
 			limit: 0,
 		})) ?? []
@@ -129,12 +186,9 @@ async function categorizeOutputs(
 		const events = out.events ?? []
 		const sats = out.satoshis ?? 0
 
-		if (isListedOutput(out)) {
-			listings.push(out)
-			continue
-		}
+		if (isListedOutput(out)) listings.push(out)
 
-		if (events.some((e) => e.startsWith('bsv21:'))) {
+		if (isBsv21Output(out)) {
 			bsv21Raw.push(out)
 			continue
 		}
@@ -144,9 +198,7 @@ async function categorizeOutputs(
 			continue
 		}
 
-		if (
-			events.some((e) => e === 'type:application/bsv-20' || e === 'type:Token')
-		) {
+		if (isBsv20Output(out) || isTokenMime(out)) {
 			bsv20Tokens.push(out)
 			continue
 		}
@@ -243,34 +295,34 @@ async function groupBsv21Tokens(
 		const detail = detailMap.get(tokenId)
 		const isActive = detail?.status?.is_active ?? false
 
-		let totalAmount = 0n
 		const amounts = new Map<string, string>()
-		let validatedOutputs = outs
 
-		// For active tokens, validate against the overlay for real amounts
 		if (isActive) {
 			try {
-				const outpoints = outs.map((o) => o.outpoint)
 				const validated = await services.bsv21.validateOutputs(
 					tokenId,
-					outpoints,
+					outs.map((o) => o.outpoint),
 					{ unspent: true },
 				)
-				const validOutpoints = new Set(validated.map((v) => v.outpoint))
-
 				for (const v of validated) {
 					const bsv21 = v.data?.bsv21 as { amt?: string } | undefined
-					const amt = bsv21?.amt ?? '0'
-					amounts.set(v.outpoint, amt)
-					totalAmount += BigInt(amt)
+					const amt = bsv21?.amt ?? parseBsv21Amount(v)
+					if (amt) amounts.set(v.outpoint, amt)
 				}
-
-				// Keep only original outputs that the overlay validated
-				validatedOutputs = outs.filter((o) => validOutpoints.has(o.outpoint))
 			} catch {
-				// Validation failed — show outputs without amounts
+				// Overlay is advisory. Inscription amounts still sweep.
 			}
 		}
+
+		for (const out of outs) {
+			if (amounts.has(out.outpoint)) continue
+			const amt = parseBsv21Amount(out)
+			if (amt) amounts.set(out.outpoint, amt)
+		}
+
+		const outputs = outs.filter((o) => amounts.has(o.outpoint))
+		let totalAmount = 0n
+		for (const amt of amounts.values()) totalAmount += BigInt(amt)
 
 		balances.push({
 			tokenId,
@@ -278,7 +330,7 @@ async function groupBsv21Tokens(
 			decimals: Number(detail?.token?.dec ?? 0),
 			icon: detail?.token?.icon,
 			totalAmount,
-			outputs: validatedOutputs,
+			outputs,
 			amounts,
 			isActive,
 		})
@@ -323,4 +375,99 @@ function hasRunPrefix(script: number[]): boolean {
 		if (script[i] !== RUN_PREFIX[i]) return false
 	}
 	return true
+}
+
+/** BSV-21 amt from overlay data, events, or inscription JSON. */
+export function parseBsv21Amount(out: IndexedOutput): string | undefined {
+	const events = out.events ?? []
+	const data = asRecord(out.data)
+	const bsv21 = asRecord(data?.bsv21)
+	const json = asRecord(asRecord(data?.insc)?.json)
+	const amount =
+		asString(bsv21?.amt) ?? asString(json?.amt) ?? getEvent(events, 'amt:')
+	if (!amount) return undefined
+	try {
+		if (BigInt(amount) <= 0n) return undefined
+	} catch {
+		return undefined
+	}
+	return amount
+}
+
+/** Listed OrdLocks cancel one-per-tx; unlisted of a class may share a spend. */
+export function partitionListed<T extends IndexedOutput>(
+	outputs: T[],
+): { listed: T[]; unlisted: T[] } {
+	const listed: T[] = []
+	const unlisted: T[] = []
+	for (const out of outputs) {
+		if (isListedOutput(out)) listed.push(out)
+		else unlisted.push(out)
+	}
+	return { listed, unlisted }
+}
+
+/** Listed BSV-21 cancels are each their own tx so one invalid listing cannot sink the rest. */
+export function bsv21SweepBatches<T extends IndexedOutput>(
+	outputs: T[],
+): T[][] {
+	const { listed, unlisted } = partitionListed(outputs)
+	const batches = listed.map((out) => [out])
+	if (unlisted.length) batches.push(unlisted)
+	return batches
+}
+
+/** Tick / amount / decimals from indexer events or inscription JSON. */
+export function parseBsv20Token(
+	out: IndexedOutput,
+): { tick: string; amount: string; decimals: number } | undefined {
+	const events = out.events ?? []
+	const data = asRecord(out.data)
+	const bsv20 = asRecord(data?.bsv20)
+	const json = asRecord(asRecord(data?.insc)?.json)
+	const tick =
+		getEvent(events, 'tick:') ?? asString(bsv20?.tick) ?? asString(json?.tick)
+	const amount =
+		getEvent(events, 'amt:') ?? asString(bsv20?.amt) ?? asString(json?.amt)
+	if (!tick || !amount) return undefined
+	try {
+		if (BigInt(amount) <= 0n) return undefined
+	} catch {
+		return undefined
+	}
+	const decRaw =
+		asString(bsv20?.dec) ??
+		asString(json?.dec) ??
+		getEvent(events, 'dec:') ??
+		'0'
+	const decimals = Number(decRaw)
+	return {
+		tick,
+		amount,
+		decimals: Number.isFinite(decimals) ? decimals : 0,
+	}
+}
+
+/** Group BSV-20 UTXOs by ticker. Outputs with no parseable tick/amt are omitted. */
+export function groupBsv20Tokens(outputs: IndexedOutput[]): Bsv20Balance[] {
+	const groups = new Map<string, Bsv20Balance>()
+	for (const out of outputs) {
+		const parsed = parseBsv20Token(out)
+		if (!parsed) continue
+		let group = groups.get(parsed.tick)
+		if (!group) {
+			group = {
+				tick: parsed.tick,
+				decimals: parsed.decimals,
+				totalAmount: 0n,
+				outputs: [],
+				amounts: new Map(),
+			}
+			groups.set(parsed.tick, group)
+		}
+		group.outputs.push(out)
+		group.amounts.set(out.outpoint, parsed.amount)
+		group.totalAmount += BigInt(parsed.amount)
+	}
+	return [...groups.values()]
 }

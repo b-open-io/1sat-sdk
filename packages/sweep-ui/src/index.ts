@@ -9,7 +9,6 @@ export {
 	OrdinalsSection,
 	Bsv21Section,
 	Bsv20Section,
-	ListingsSection,
 	LockedSection,
 	RunSection,
 } from './components/asset-preview'
@@ -53,6 +52,7 @@ export {
 } from './lib/scanner'
 export {
 	executeSweep,
+	sweepAllClasses,
 	SWEEP_BATCH_SIZE,
 	type SweepResult,
 } from './lib/sweeper'

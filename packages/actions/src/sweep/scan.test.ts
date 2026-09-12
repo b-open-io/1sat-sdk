@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'bun:test'
 import { OneSatServices } from '@1sat/client'
 import type { IndexedOutput } from '@1sat/types'
-import { isListedOutput, scanAddress } from './scan.js'
+import {
+	bsv21SweepBatches,
+	groupBsv20Tokens,
+	isBsv20Output,
+	isBsv21Output,
+	isListedOutput,
+	parseBsv20Token,
+	parseBsv21Amount,
+	scanAddress,
+} from './scan.js'
 
 function out(
 	partial: Partial<IndexedOutput> & Pick<IndexedOutput, 'outpoint'>,
@@ -56,7 +65,7 @@ describe('isListedOutput (OPL-4696)', () => {
 })
 
 describe('legacy owner scan', () => {
-	it('requests listing data when the owner response has no public listing event', async () => {
+	it('requests listing data and still classifies the listed OpNS name', async () => {
 		const paths: URL[] = []
 		const listing = out({
 			outpoint: 'a.0',
@@ -73,7 +82,7 @@ describe('legacy owner scan', () => {
 					return new Response('event: done\ndata: {}\n\n')
 				}
 				return Response.json([
-					url.searchParams.get('tags') === 'ordlock'
+					url.searchParams.get('tags')?.split(',').includes('ordlock')
 						? listing
 						: { ...listing, data: undefined },
 				])
@@ -83,7 +92,7 @@ describe('legacy owner scan', () => {
 		try {
 			const result = await scanAddress(services, 'owner')
 			expect(result.listings).toEqual([listing])
-			expect(result.opnsNames).toEqual([])
+			expect(result.opnsNames).toEqual([listing])
 			expect(result.ordinals).toEqual([])
 			expect(paths).toHaveLength(2)
 			expect(paths[1]?.searchParams.get('key')).toBe('own:owner')
@@ -125,4 +134,159 @@ describe('legacy owner scan', () => {
 			}
 		})
 	}
+})
+
+describe('bsv20 vs bsv21', () => {
+	const deploy =
+		'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_0'
+
+	it('classifies BSV-21 by bsv21: event, data.bsv21, or inscription id', () => {
+		expect(
+			isBsv21Output(out({ outpoint: 'a.0', events: [`bsv21:${deploy}`] })),
+		).toBe(true)
+		expect(
+			isBsv21Output(
+				out({ outpoint: 'a.0', data: { bsv21: { id: deploy, amt: '1' } } }),
+			),
+		).toBe(true)
+		expect(
+			isBsv21Output(
+				out({
+					outpoint: 'a.0',
+					events: ['type:application/bsv-20'],
+					data: {
+						insc: {
+							json: { p: 'bsv-20', op: 'transfer', id: deploy, amt: '1' },
+						},
+					},
+				}),
+			),
+		).toBe(true)
+		expect(
+			isBsv20Output(out({ outpoint: 'a.0', events: [`bsv21:${deploy}`] })),
+		).toBe(false)
+	})
+
+	it('classifies BSV-20 by tick, not shared MIME type', () => {
+		expect(
+			isBsv20Output(
+				out({
+					outpoint: 'a.0',
+					events: ['type:application/bsv-20', 'tick:SHUA'],
+				}),
+			),
+		).toBe(true)
+		expect(
+			isBsv20Output(
+				out({
+					outpoint: 'a.0',
+					events: ['type:application/bsv-20'],
+					data: { bsv20: { tick: 'SHUA', amt: '10' } },
+				}),
+			),
+		).toBe(true)
+		expect(
+			isBsv21Output(
+				out({
+					outpoint: 'a.0',
+					events: ['type:application/bsv-20', 'tick:SHUA'],
+				}),
+			),
+		).toBe(false)
+		expect(
+			isBsv20Output(
+				out({
+					outpoint: 'a.0',
+					events: ['type:application/bsv-20', `bsv21:${deploy}`, 'tick:SHUA'],
+				}),
+			),
+		).toBe(false)
+	})
+})
+
+describe('parseBsv20Token', () => {
+	it('reads tick and amt from events', () => {
+		expect(
+			parseBsv20Token(
+				out({
+					outpoint: 'aa.0',
+					events: ['type:application/bsv-20', 'tick:SHUA', 'amt:1000'],
+				}),
+			),
+		).toEqual({ tick: 'SHUA', amount: '1000', decimals: 0 })
+	})
+
+	it('prefers data.bsv20 over inscription JSON', () => {
+		expect(
+			parseBsv20Token(
+				out({
+					outpoint: 'aa.0',
+					events: ['type:application/bsv-20'],
+					data: {
+						bsv20: { tick: 'SHUA', amt: '50', dec: 2 },
+						insc: { json: { tick: 'OTHER', amt: '1' } },
+					},
+				}),
+			),
+		).toEqual({ tick: 'SHUA', amount: '50', decimals: 2 })
+	})
+
+	it('skips zero and unparseable amounts', () => {
+		expect(
+			parseBsv20Token(
+				out({ outpoint: 'aa.0', events: ['tick:SHUA', 'amt:0'] }),
+			),
+		).toBeUndefined()
+		expect(
+			parseBsv20Token(
+				out({ outpoint: 'aa.0', events: ['tick:SHUA', 'amt:nope'] }),
+			),
+		).toBeUndefined()
+	})
+})
+
+describe('groupBsv20Tokens', () => {
+	it('sums one ticker and drops unparseable rows', () => {
+		const grouped = groupBsv20Tokens([
+			out({ outpoint: 'aa.0', events: ['tick:SHUA', 'amt:10'] }),
+			out({ outpoint: 'bb.0', events: ['tick:SHUA', 'amt:5'] }),
+			out({ outpoint: 'cc.0', events: ['type:application/bsv-20'] }),
+			out({ outpoint: 'dd.0', events: ['tick:PEPE', 'amt:2'] }),
+		])
+		expect(grouped).toHaveLength(2)
+		const shua = grouped.find((g) => g.tick === 'SHUA')
+		expect(shua?.totalAmount).toBe(15n)
+		expect(shua?.outputs).toHaveLength(2)
+		expect(grouped.find((g) => g.tick === 'PEPE')?.totalAmount).toBe(2n)
+	})
+})
+
+describe('listed BSV-21 batches', () => {
+	it('reads amt without overlay', () => {
+		expect(
+			parseBsv21Amount(
+				out({
+					outpoint: 'aa.0',
+					data: { bsv21: { amt: '40' } },
+				}),
+			),
+		).toBe('40')
+	})
+
+	it('puts each listed output in its own batch', () => {
+		const listed = out({
+			outpoint: 'aa.0',
+			events: ['ordlock'],
+			data: { bsv21: { amt: '1' } },
+		})
+		const unlisted = out({
+			outpoint: 'bb.0',
+			data: { bsv21: { amt: '2' } },
+		})
+		expect(bsv21SweepBatches([listed, unlisted, listed])).toEqual([
+			[listed],
+			[listed],
+			[unlisted],
+		])
+	})
 })

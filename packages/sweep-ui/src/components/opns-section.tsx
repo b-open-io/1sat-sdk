@@ -1,3 +1,4 @@
+import { isListedOutput } from '@1sat/actions'
 import { useEffect, useState } from 'react'
 import type { EnrichedOrdinal } from '../lib/scanner'
 import { getServices } from '../lib/services'
@@ -162,6 +163,11 @@ export function OpnsSection({
 							<span className="text-sm text-foreground truncate">
 								{displayName}
 							</span>
+							{isListedOutput(item) && (
+								<span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400">
+									listed
+								</span>
+							)}
 							{!validating &&
 								overlayValid.has(item.outpoint) &&
 								(overlayValid.get(item.outpoint) ? (

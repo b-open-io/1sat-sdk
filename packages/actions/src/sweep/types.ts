@@ -5,6 +5,9 @@
 import type { IndexedOutput } from '@1sat/types'
 import type { PrivateKey } from '@bsv/sdk'
 
+/** Page size for ordinal / OpNS / listing batches in CLI, sweep-ui, and Yours. */
+export const SWEEP_BATCH_SIZE = 25
+
 /** Input for sweep operations - a UTXO to be swept */
 export interface SweepInput {
 	/** Outpoint in format "txid_vout" */
@@ -79,6 +82,29 @@ export interface SweepBsv21Response {
 	error?: string
 }
 
+/** Input for BSV-20 token sweep */
+export interface SweepBsv20Input extends SweepInput {
+	/** Token ticker */
+	tick: string
+	/** Token amount as string (bigint serialization) */
+	amount: string
+}
+
+/** Request to sweep BSV-20 tokens */
+export interface SweepBsv20Request {
+	/** Token UTXOs to sweep (must all be the same tick) */
+	inputs: SweepBsv20Input[]
+	/** Private keys for signing, parallel to inputs */
+	keys: PrivateKey[]
+}
+
+/** Response from BSV-20 token sweep operation */
+export interface SweepBsv20Response {
+	txid?: string
+	beef?: number[]
+	error?: string
+}
+
 /** Result from a prepare operation -- contains unsigned tx for client-side signing */
 export interface PrepareResult {
 	/** BEEF hex of the unsigned transaction */
@@ -116,6 +142,16 @@ export interface TokenBalance {
 	/** Overlay-validated amounts: outpoint → token amount string */
 	amounts: Map<string, string>
 	isActive: boolean
+}
+
+/** A group of BSV-20 token outputs keyed by ticker */
+export interface Bsv20Balance {
+	tick: string
+	decimals: number
+	totalAmount: bigint
+	outputs: IndexedOutput[]
+	/** outpoint → token amount string */
+	amounts: Map<string, string>
 }
 
 /** Categorized UTXOs from scanning an address */
