@@ -16,7 +16,7 @@ List, buy, send, and cancel ordinals with `@1sat/actions` (OrdLock).
 | `sendOrdinals` | Send ordinals (`id` per transfer, or pre-loaded row) |
 | `sellOrdinal` | Put on market (`{ id, price, payAddress? }`) |
 | `cancelOrdinalListing` | Cancel listing (`{ id }`) |
-| `buyOrdinal` | Buy external listing (`{ outpoint, inputBEEF?, fundingReserve? }`) |
+| `buyOrdinal` | Buy external listing (`{ outpoint, inputBEEF? }`) |
 | `burnOrdinals` | Burn (`{ ids }` or pre-loaded rows) |
 
 
@@ -81,11 +81,15 @@ await buyOrdinal.execute(ctx, {
 
 OrdLock v2 purchases are laid out as front funding inputs, then the listing,
 with the seller payout at the listing's input index (SIGHASH_SINGLE) and the
-ordinal routed into the receive output. Front funding is taken from the
-`ordlock-funding` basket; if nothing there covers the price, `buyOrdinal`
-first runs a preparation action that creates one (add `fundingReserve` sats
-so the returned cushion can front the next purchase). The unlock refuses to
-sign unless the listed satoshi lands on the basketed 1-sat receive output.
+ordinal routed into the receive output. The action submits the draft shape
+(listing input; receive, payout, fee outputs) and the apply step
+(`applyOrdLockV2Purchase`) rewrites it after approval: front funding is a
+wallet-owned P2PKH output in the `1sat-deposit` basket under a short
+`hold:<unix ms>` tag, reused when one covers the price and otherwise created
+by a preparation createAction on the base wallet. The cushion returns to the
+same basket under a fresh hold; `sweepDeposit` reclaims anything whose hold
+has lapsed. The unlock refuses to sign unless the listed satoshi lands on the
+basketed 1-sat receive output.
 
 ## Cancel
 

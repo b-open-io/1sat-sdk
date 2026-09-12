@@ -221,8 +221,7 @@ The wallet organizes outputs into baskets:
 | `sigma` | Temporary Sigma inscribe anchors |
 | `bsocial` | Social posts |
 | `bap` | BAP identity |
-| `1sat-deposit` | Inbound BSV queue |
-| `ordlock-funding` | Wallet-owned P2PKH outputs that front OrdLock v2 purchases (purchase cushions return here) |
+| `1sat-deposit` | Outputs waiting to be swept into BRC-29 funding: inbound BSV, and prepared outputs (OrdLock v2 front funding) held by a `hold:<unix ms>` tag until it lapses |
 
 Storage baskets are plain names. `p 1sat …` is **not** a basket: createAction uses labels (`p <scheme> action`, `p <scheme> input id <key>`); `listOutputs` view grants are `p 1sat all|collection|app|creator|id` (rewritten to `1sat`).
 

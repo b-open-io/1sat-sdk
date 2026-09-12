@@ -85,13 +85,50 @@ export function isOneSatAssetBasket(basket: string): boolean {
 }
 
 /**
- * Holding basket for plain BSV received at the user's P1SAT-derived
- * deposit address. UTXOs land here via `internalizeBeef` and stay until
- * `sweepDeposit` rotates them into a fresh P1SAT-derived funding output
- * in {@link FUNDING_BASKET}. The basket name itself is the queue marker
- * — no separate tag is needed.
+ * Holding basket for wallet-owned P2PKH outputs (P1SAT-derived, CI-signed)
+ * waiting to be swept into a fresh BRC-29 funding output in
+ * {@link FUNDING_BASKET}. Plain BSV received at the deposit address lands
+ * here via `internalizeBeef`; actions that need a short-lived prepared
+ * output (OrdLock v2 purchase front funding) park it here too, tagged
+ * with a hold (see {@link depositHoldTag}) so `sweepDeposit` leaves it
+ * alone until the hold passes. The basket name itself is the queue marker.
  */
 export const DEPOSIT_BASKET = '1sat-deposit'
+
+/**
+ * Tag prefix on deposit-basket outputs that must not be swept yet:
+ * `hold:<absolute unix ms>`. The sweep compares it against the wallet's
+ * own clock; there is no on-chain or block timestamp involved.
+ */
+export const DEPOSIT_HOLD_TAG_PREFIX = 'hold:'
+
+/** Tag that keeps a deposit-basket output out of `sweepDeposit` until `untilMs`. */
+export function depositHoldTag(untilMs: number): string {
+	return `${DEPOSIT_HOLD_TAG_PREFIX}${Math.floor(untilMs)}`
+}
+
+/** Hold expiry (unix ms) carried by `hold:` tags, or undefined when none. */
+export function depositHoldUntil(
+	tags: string[] | undefined,
+): number | undefined {
+	if (!tags) return undefined
+	let until: number | undefined
+	for (const t of tags) {
+		if (!t.startsWith(DEPOSIT_HOLD_TAG_PREFIX)) continue
+		const n = Number(t.slice(DEPOSIT_HOLD_TAG_PREFIX.length))
+		if (Number.isFinite(n) && (until === undefined || n > until)) until = n
+	}
+	return until
+}
+
+/** True when a deposit-basket output is still under hold at `nowMs`. */
+export function isDepositHeld(
+	tags: string[] | undefined,
+	nowMs = Date.now(),
+): boolean {
+	const until = depositHoldUntil(tags)
+	return until !== undefined && until > nowMs
+}
 
 // ============================================================================
 // Fee Configuration
@@ -526,16 +563,7 @@ export const ORD_LOCK_V2_PREFIX: string = ORD_LOCK_V2_TEMPLATE.slice(
  */
 export const ORDLOCK_V2_TAG = 'ordlock2'
 
-/**
- * Basket holding wallet-owned P2PKH outputs reserved as OrdLock v2 purchase
- * front funding. A v2 purchase must place funding inputs BEFORE the listing
- * inputs so each seller payout lands at its listing's index; wallet change
- * cannot be spent explicitly, so the SDK keeps dedicated outputs here (and
- * returns the purchase cushion to the same basket).
- */
-export const ORDLOCK_FUNDING_BASKET = 'ordlock-funding'
-
-/** Tag on outputs in {@link ORDLOCK_FUNDING_BASKET}. */
+/** Tag on deposit-basket outputs prepared as OrdLock v2 purchase front funding. */
 export const ORDLOCK_FUNDING_TAG = 'ordlock-funding'
 
 /** Key id prefix (P1SAT protocol, counterparty self) for OrdLock funding outputs. */

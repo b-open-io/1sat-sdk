@@ -78,8 +78,8 @@ await buyBsv21.execute(ctx, {
 ```
 
 External UTXO: BEEF from services/overlay. OrdLock v2 listings use the same
-front-funding layout as `buyOrdinal` (see ordinals-marketplace): funding from
-the `ordlock-funding` basket, payout at the listing's input index, and the
+front-funding layout as `buyOrdinal` (see ordinals-marketplace): funding held
+in the `1sat-deposit` basket, payout at the listing's input index, and the
 BSV-21 transfer output receiving the listed satoshi.
 
 ## Deploy fixed supply

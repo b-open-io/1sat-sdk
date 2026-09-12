@@ -49,7 +49,6 @@ import { loadBasketOutputBeef } from '../utils/loadBasketOutput.js'
 import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance.js'
 import { ordinalSeedTags } from '../utils/ordinalSeedTags.js'
 import { ordLockCancelUnlockLength } from '../utils/ordlockCancelLength.js'
-import { buildOrdLockV2PurchaseArgs } from '../utils/ordlockPurchase.js'
 import { unlockingScriptLengthForInstructions } from '../utils/signOrdinalInput.js'
 
 // ============================================================================
@@ -238,12 +237,6 @@ export interface BuyOrdinalRequest extends ActionOptions {
 	basket?: string
 	/** Tags for the purchased output; default resolveOrdinalTags for ordinals ingress */
 	tags?: string[]
-	/**
-	 * v2 listings only: extra satoshis to include when the purchase has to
-	 * prepare a front-funding output first, so the returned cushion can front
-	 * the next purchase without another preparation. Default 0.
-	 */
-	fundingReserve?: number
 }
 
 export interface OrdinalOperationResponse {
@@ -1367,79 +1360,55 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 
 			const usePermissionModule =
 				input.usePermissionModule ?? input.useOneSatModule ?? input.useModule
-			let receiveIndex = 0
-			let result: Awaited<ReturnType<typeof executeTrackedAction>>
 
-			if (v2Listing) {
-				// Canonical v2 layout: front funding inputs, then the listing, with
-				// the seller payout at the listing's index and the ordinal routed
-				// into the receive output. buildOrdLockV2PurchaseArgs selects or
-				// prepares the front funding and reserves the exact unlock length.
-				const built = await buildOrdLockV2PurchaseArgs(ctx, {
-					outpoint,
-					listingScript: listingOutput.lockingScript,
-					listingBeef: beef,
-					receive,
-					extraOutputs: marketFeeOutputs,
-					description: `Purchase ordinal for ${payoutSatoshis} sats`,
-					fundingProvider: input.fundingProvider,
+			// Draft shape: receive, payout, fees. For a v2 listing the apply
+			// step (applyOrdLockV2Purchase) prepends front funding and lays
+			// the outputs out so the payout sits at the listing's input index
+			// and the ordinal routes into the receive output; v1 keeps this
+			// order as-is with its historical unlock reservation.
+			const outputs: CreateActionOutput[] = [
+				receive,
+				{
+					lockingScript: payoutLockingScript.toHex(),
+					satoshis: payoutSatoshis,
+					outputDescription: 'Payment to seller',
+					tags: [],
+				},
+				...marketFeeOutputs,
+			]
+			const beefBinary = beef.toBinary()
+			const args = await prepareP1SatArgs(ctx, {
+				description: `Purchase ordinal for ${payoutSatoshis} sats`,
+				inputBEEF: beefBinary,
+				inputs: [
+					{
+						outpoint,
+						inputDescription: 'Listed ordinal',
+						unlockingScriptLength: v2Listing
+							? OrdLockV2.estimatePurchaseUnlockLength(
+									listingOutput.lockingScript,
+								)
+							: 1368,
+					},
+				],
+				outputs,
+				options: { randomizeOutputs: false },
+			})
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				args,
+				input.fundingProvider,
+				beefBinary as number[],
+				undefined,
+				{
+					spends: [{ outpoint, scheme: '1sat' }],
 					usePermissionModule,
 					permissionScheme: '1sat',
-					fundingReserve: input.fundingReserve,
-				})
-				if ('error' in built) return built
-				receiveIndex = built.receiveVout
-				result = await executeTrackedAction(
-					ctx.wallet,
-					built.args,
-					input.fundingProvider,
-					built.inputBEEF,
-					undefined,
-					{
-						spends: built.spends,
-						usePermissionModule,
-						permissionScheme: '1sat',
-					},
-				)
-			} else {
-				// Legacy v1: ordinal first, payout second, historical unlock reserve.
-				const outputs: CreateActionOutput[] = [
-					receive,
-					{
-						lockingScript: payoutLockingScript.toHex(),
-						satoshis: payoutSatoshis,
-						outputDescription: 'Payment to seller',
-						tags: [],
-					},
-					...marketFeeOutputs,
-				]
-				const beefBinary = beef.toBinary()
-				const args = await prepareP1SatArgs(ctx, {
-					description: `Purchase ordinal for ${payoutSatoshis} sats`,
-					inputBEEF: beefBinary,
-					inputs: [
-						{
-							outpoint,
-							inputDescription: 'Listed ordinal',
-							unlockingScriptLength: 1368,
-						},
-					],
-					outputs,
-					options: { randomizeOutputs: false },
-				})
-				result = await executeTrackedAction(
-					ctx.wallet,
-					args,
-					input.fundingProvider,
-					beefBinary as number[],
-					undefined,
-					{
-						spends: [{ outpoint, scheme: '1sat' }],
-						usePermissionModule,
-						permissionScheme: '1sat',
-					},
-				)
-			}
+				},
+			)
+			// v2: the apply step places the receive output after the front
+			// slot(s) and the payout; v1 keeps it at 0.
+			const receiveIndex = v2Listing ? 2 : 0
 
 			if (ctx.debug && ctx.log) {
 				ctx.log({

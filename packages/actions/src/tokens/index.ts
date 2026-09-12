@@ -56,7 +56,6 @@ import {
 } from '../utils/listingToken.js'
 import { loadBasketOutputBeef } from '../utils/loadBasketOutput.js'
 import { ordLockCancelUnlockLength } from '../utils/ordlockCancelLength.js'
-import { buildOrdLockV2PurchaseArgs } from '../utils/ordlockPurchase.js'
 import { resolveDestination } from '../utils/resolveDestination.js'
 import { signP2PKHInput } from '../utils/signP2PKH.js'
 
@@ -966,78 +965,52 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 
 			const usePermissionModule =
 				input.usePermissionModule ?? input.useOneSatModule ?? input.useModule
-			let receiveIndex = 0
-			let result: Awaited<ReturnType<typeof executeTrackedAction>>
 
-			if (v2Listing) {
-				// Canonical v2 layout: front funding inputs, then the listing, with
-				// the seller payout at the listing's index and the token transfer
-				// output receiving the listed satoshi.
-				const built = await buildOrdLockV2PurchaseArgs(ctx, {
-					outpoint,
-					listingScript: listingOutput.lockingScript,
-					listingBeef: beef,
-					receive,
-					extraOutputs,
-					description: `Purchase ${tokenAmount} tokens for ${payoutSatoshis} sats`,
-					labels: [buildTokenLabel(tokenId)],
-					fundingProvider: input.fundingProvider,
+			// Draft shape: receive, payout, fees. For a v2 listing the apply
+			// step (applyOrdLockV2Purchase) prepends front funding and lays
+			// the outputs out canonically; v1 keeps this order as-is.
+			const outputs: CreateActionOutput[] = [
+				receive,
+				{
+					lockingScript: payoutLockingScript.toHex(),
+					satoshis: payoutSatoshis,
+					outputDescription: 'Payment to seller',
+					tags: [],
+				},
+				...extraOutputs,
+			]
+			const beefBinary = beef.toBinary()
+			const buyArgs = await prepareP1SatArgs(ctx, {
+				description: `Purchase ${tokenAmount} tokens for ${payoutSatoshis} sats`,
+				labels: [buildTokenLabel(tokenId)],
+				inputBEEF: beefBinary,
+				inputs: [
+					{
+						outpoint,
+						inputDescription: 'Listed token',
+						unlockingScriptLength: v2Listing
+							? OrdLockV2.estimatePurchaseUnlockLength(
+									listingOutput.lockingScript,
+								)
+							: 1402,
+					},
+				],
+				outputs,
+				options: { randomizeOutputs: false },
+			})
+			const result = await executeTrackedAction(
+				ctx.wallet,
+				buyArgs,
+				input.fundingProvider,
+				beefBinary as number[],
+				undefined,
+				{
+					spends: [{ outpoint, scheme: 'bsv21' }],
 					usePermissionModule,
 					permissionScheme: 'bsv21',
-				})
-				if ('error' in built) return built
-				receiveIndex = built.receiveVout
-				result = await executeTrackedAction(
-					ctx.wallet,
-					built.args,
-					input.fundingProvider,
-					built.inputBEEF,
-					undefined,
-					{
-						spends: built.spends,
-						usePermissionModule,
-						permissionScheme: 'bsv21',
-					},
-				)
-			} else {
-				const outputs: CreateActionOutput[] = [
-					receive,
-					{
-						lockingScript: payoutLockingScript.toHex(),
-						satoshis: payoutSatoshis,
-						outputDescription: 'Payment to seller',
-						tags: [],
-					},
-					...extraOutputs,
-				]
-				const beefBinary = beef.toBinary()
-				const buyArgs = await prepareP1SatArgs(ctx, {
-					description: `Purchase ${tokenAmount} tokens for ${payoutSatoshis} sats`,
-					labels: [buildTokenLabel(tokenId)],
-					inputBEEF: beefBinary,
-					inputs: [
-						{
-							outpoint,
-							inputDescription: 'Listed token',
-							unlockingScriptLength: 1402,
-						},
-					],
-					outputs,
-					options: { randomizeOutputs: false },
-				})
-				result = await executeTrackedAction(
-					ctx.wallet,
-					buyArgs,
-					input.fundingProvider,
-					beefBinary as number[],
-					undefined,
-					{
-						spends: [{ outpoint, scheme: 'bsv21' }],
-						usePermissionModule,
-						permissionScheme: 'bsv21',
-					},
-				)
-			}
+				},
+			)
+			const receiveIndex = v2Listing ? 2 : 0
 
 			// Submit to overlay service for indexing
 			if (result.tx && ctx.services) {
