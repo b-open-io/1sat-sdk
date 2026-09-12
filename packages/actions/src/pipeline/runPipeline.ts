@@ -1,3 +1,4 @@
+import type { OrdLockV2DeliveryTarget } from '@1sat/templates'
 import type {
 	CreateActionArgs,
 	CreateActionResult,
@@ -13,6 +14,7 @@ import {
 	PENDING_RESOLVED_SPENDS_KEY,
 	type ResolvedSpend,
 	type Spend,
+	deliveryTargetsFromArgs,
 	mergeResolvedSpends,
 } from './spendTargets.js'
 import { buildSpendsForResolved, materializeSpends } from './unlockInput.js'
@@ -65,7 +67,14 @@ export async function runCreateActionPipeline(
 			? (argsCopy.inputBEEF as number[])
 			: undefined)
 
-	return finishCreateAction(wallet, createResult, records, beef, actionId)
+	return finishCreateAction(
+		wallet,
+		createResult,
+		records,
+		beef,
+		actionId,
+		deliveryTargetsFromArgs(argsCopy),
+	)
 }
 
 /**
@@ -77,6 +86,7 @@ export async function finishCreateAction(
 	outputRecords: ResolvedSpend[],
 	inputBEEF?: number[],
 	actionId?: string,
+	deliveries?: OrdLockV2DeliveryTarget[],
 ): Promise<CompleteSignedActionResult & { actionId: string }> {
 	const id = actionId ?? 'unknown'
 
@@ -95,7 +105,12 @@ export async function finishCreateAction(
 		inputBEEF,
 		async (tx) => {
 			if (outputRecords.length === 0) return {}
-			const unlocks = await buildSpendsForResolved(wallet, tx, outputRecords)
+			const unlocks = await buildSpendsForResolved(
+				wallet,
+				tx,
+				outputRecords,
+				deliveries,
+			)
 			if ('error' in unlocks) throw new Error(unlocks.error)
 			return unlocks
 		},
@@ -116,6 +131,8 @@ export async function embellishCreateActionArgs(
 	args: CreateActionArgs
 	actionId: string
 	resolvedSpends: ResolvedSpend[]
+	/** Buyer-approved OrdLock v2 receive outputs (basketed 1-sat outputs). */
+	deliveries: OrdLockV2DeliveryTarget[]
 }> {
 	const actionId = await applyP1SatCreateAction(wallet, args)
 
@@ -123,7 +140,12 @@ export async function embellishCreateActionArgs(
 	if ('error' in records) {
 		throw new Error(records.error)
 	}
-	return { args, actionId, resolvedSpends: records }
+	return {
+		args,
+		actionId,
+		resolvedSpends: records,
+		deliveries: deliveryTargetsFromArgs(args),
+	}
 }
 
 /** Pending (Sigma) + materialize caller spends → finish list. */

@@ -66,22 +66,31 @@ describe('OrdLockIndexer', () => {
 		const listingTx = new Transaction()
 		listingTx.addOutput({ satoshis: 1, lockingScript: lock as LockingScript })
 
-		const buyer = new PrivateKey(31338).toAddress()
+		const buyer = new PrivateKey(31338)
+		const buyerLock = new P2PKH().lock(buyer.toAddress())
+		// canonical layout: 0 front funding · 1 listing → 0 cushion · 1 payout · 2 receive
+		const funding = new Transaction()
+		funding.addOutput({ satoshis: 10_000, lockingScript: buyerLock })
 		const buy = new Transaction()
+		buy.addInput({
+			sourceTransaction: funding,
+			sourceOutputIndex: 0,
+			unlockingScriptTemplate: new P2PKH().unlock(buyer),
+		})
 		buy.addInput({
 			sourceTransaction: listingTx,
 			sourceOutputIndex: 0,
 			unlockingScriptTemplate: OrdLockV2.purchaseListing(),
 		})
-		buy.addOutput({ satoshis: 1, lockingScript: new P2PKH().lock(buyer) })
+		buy.addOutput({ satoshis: 5_800, lockingScript: buyerLock })
 		buy.addOutput(OrdLockV2.payoutOutput(lock))
-		buy.addOutput(OrdLockV2.tagOutput(listingTx.id('hex'), 0))
+		buy.addOutput({ satoshis: 1, lockingScript: buyerLock })
 		await buy.sign()
 
 		const spendData = { list: { data: {}, tags: [] } }
 		const purchaseCtx = {
 			tx: buy,
-			spends: [{ data: spendData }],
+			spends: [{ data: {} }, { data: spendData }],
 			txos: [],
 		} as unknown as ParseContext
 		expect(await indexer.summarize(purchaseCtx)).toEqual({ amount: 1 })

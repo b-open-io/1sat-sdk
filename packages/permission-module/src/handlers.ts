@@ -4,6 +4,7 @@ import {
 	finishCreateAction,
 	spendsFromLabels,
 } from '@1sat/actions'
+import type { OrdLockV2DeliveryTarget } from '@1sat/templates'
 import type { PermissionSchemeId } from '@1sat/types'
 import type { IPermissionStore } from '@1sat/wallet'
 import type {
@@ -31,7 +32,12 @@ export {
 /** Pending resolved spends between onRequest embellish and onResponse finish. */
 const pendingByOriginator = new Map<
 	string,
-	{ resolvedSpends: ResolvedSpend[]; inputBEEF?: number[] }
+	{
+		resolvedSpends: ResolvedSpend[]
+		inputBEEF?: number[]
+		/** Buyer-approved OrdLock v2 receive outputs of the approved args. */
+		deliveries?: OrdLockV2DeliveryTarget[]
+	}
 >()
 
 interface HandlerDeps {
@@ -94,16 +100,17 @@ export async function handleCreateActionRequest(
 
 	// Same apply as local pipeline (seals, tags, BSV-21 CI stamp) + spend load.
 	const spends = spendsFromLabels(args.labels)
-	const { args: next, resolvedSpends } = await embellishCreateActionArgs(
-		deps.wallet,
-		args,
-		spends,
-	)
+	const {
+		args: next,
+		resolvedSpends,
+		deliveries,
+	} = await embellishCreateActionArgs(deps.wallet, args, spends)
 	pendingByOriginator.set(originator, {
 		resolvedSpends,
 		inputBEEF: Array.isArray(next.inputBEEF)
 			? (next.inputBEEF as number[])
 			: undefined,
+		deliveries,
 	})
 	return next
 }
@@ -292,6 +299,8 @@ export async function handleCreateActionResponse(
 		res,
 		pending?.resolvedSpends ?? [],
 		pending?.inputBEEF,
+		undefined,
+		pending?.deliveries,
 	)
 	if (finished.error) {
 		throw new Error(`1Sat permission module: finish failed: ${finished.error}`)

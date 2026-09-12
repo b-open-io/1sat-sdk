@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- `buyOrdinal`, `buyOpns` and `buyBsv21` submit the draft shape (listing input; receive, payout, fee outputs) and the new apply step `applyOrdLockV2Purchase` lays OrdLock v2 purchases out canonically after approval: front funding inputs first, then the listing, with the seller payout at the listing's index, the receive output next, and wallet fee inputs / change trailing. One prompt in the permission-module path. Front funding is a wallet-owned P2PKH output in the `1sat-deposit` basket under a `hold:` tag, reused when one covers the payout and otherwise created by a preparation createAction on the base wallet; the cushion returns to the basket under a fresh hold.
+- `sweepDeposit` skips outputs whose `hold:` tag has not lapsed, so a sync tick cannot sweep prepared funding out from under a purchase, and reclaims it once the hold passes.
+- `buyBsv21` accepts OrdLock v2 listings.
+- The unlock pipeline passes the createAction's basketed 1-sat outputs to `OrdLockV2.purchaseListing` as approved delivery targets, so a purchase whose listed satoshi would land anywhere else is refused before signing (local pipeline and permission module).
+
+### Added
+- `applyOrdLockV2Purchase`, `hasUnpreparedOrdLockV2Purchase`, `loadHeldFunding`, `selectFrontFunding`, `ORDLOCK_FUNDING_HOLD_MS` (apply); `deliveryTargetsFromArgs` (pipeline).
+
 ## 0.0.220
 
 ### Added

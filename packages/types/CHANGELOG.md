@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- `ORD_LOCK_V2_ARTIFACT` is the canonical `OrdLockV2Batch` build (472-byte template, constructor slots at 436 and 468, SIGHASH_SINGLE purchase). It replaces the earlier v2 draft outright.
+
+### Added
+- `DEPOSIT_HOLD_TAG_PREFIX` (`hold:`), `depositHoldTag`, `depositHoldUntil`, `isDepositHeld`: a `hold:<unix ms>` tag keeps a deposit-basket output out of `sweepDeposit` until the wallet clock passes it.
+- `ORDLOCK_FUNDING_TAG`, `ORDLOCK_FUNDING_KEY_PREFIX` for OrdLock v2 front-funding outputs parked in the deposit basket.
+
+### Removed
+- `ORD_LOCK_V2_TAG_PREFIX` (the draft's tag output no longer exists).
+
 ## [0.0.47]
 
 ### Added

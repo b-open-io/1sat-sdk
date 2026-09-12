@@ -12,6 +12,10 @@ import { stampBsv21OutputCustomInstructions } from '../utils/stampBsv21OutputCi.
 import { stampOrdinalOutputCustomInstructions } from '../utils/stampOrdinalOutputCi.js'
 import { applyInscribeSigma } from './inscribeSigma.js'
 import { applyOpnsRegister } from './opnsRegister.js'
+import {
+	applyOrdLockV2Purchase,
+	hasUnpreparedOrdLockV2Purchase,
+} from './ordlockPurchase.js'
 import { stampScriptDerivedTags } from './stampScriptTags.js'
 
 /**
@@ -30,6 +34,9 @@ export async function applyP1SatCreateAction(
 	}
 	if (hasUnsealedSigmaTape(args)) {
 		await applyInscribeSigma(wallet, args)
+	}
+	if (hasUnpreparedOrdLockV2Purchase(args)) {
+		await applyOrdLockV2Purchase(wallet, args)
 	}
 
 	stampScriptDerivedTags(args)
