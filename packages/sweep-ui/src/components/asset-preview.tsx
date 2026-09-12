@@ -22,12 +22,19 @@ function OrdinalCard({
 	const subtype = ct.includes('/') ? ct.split('/')[1] : ct
 
 	return (
-		<div
+		<label
 			className={`relative p-2 rounded-lg border cursor-pointer transition-all overflow-hidden ${isSelected ? 'border-blue-500 bg-blue-500/10 ring-1 ring-blue-500/30' : 'border-border/50 hover:border-border bg-muted/30'}`}
-			onClick={onToggle}
 		>
+			<input
+				type="checkbox"
+				checked={isSelected}
+				onChange={onToggle}
+				className="sr-only"
+				aria-label={`Select ${ordinal.name || ordinal.outpoint}`}
+			/>
 			<div className="absolute top-1.5 right-1.5 z-10">
 				<div
+					aria-hidden="true"
 					className={`w-4 h-4 rounded border-2 flex items-center justify-center text-[10px] ${isSelected ? 'bg-blue-500 border-blue-500 text-white' : 'border-muted-foreground/40'}`}
 				>
 					{isSelected && '\u2713'}
@@ -91,7 +98,7 @@ function OrdinalCard({
 					</a>
 				)}
 			</div>
-		</div>
+		</label>
 	)
 }
 
