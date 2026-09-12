@@ -575,8 +575,8 @@ function MetadataPanel({
 					</Button>
 				) : isOwned ? (
 					<p className="text-[11px] text-muted-foreground">
-						OrdLock listing create is disabled. Existing listings can still be
-						cancelled.
+						OrdLock v1 listing create is deprecated. Existing listings can still
+						be cancelled.
 					</p>
 				) : null}
 

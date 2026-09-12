@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.0.98
+
+### Added
+- Per-class sweep selection: `sweepAllClasses` accepts `selection` (`SweepClassSelection`, default all via `selectAllSweepClasses`), `completed` retry set, `signal` abort, per-step `onResult` receipts, and `splitListedBsv20`. `sweepBsv20Token`/`sweepBsv21Token` report `sweptOutpoints` and accept `signal`; BSV-20 gains `splitListed`.
+- Sweep-all honors class toggles (CLI `--skip` equivalent), refined by the Ordinals/OpNS tab selections.
+- Sweep results report `cancelledListings` (swept outputs that were marketplace listings); the history header shows the session count.
+
+### Changed
+- Owner key matching fails closed on ambiguous `own:` matches; outpoints compare in canonical `txid.vout` form.
 
 ## 0.0.97
 

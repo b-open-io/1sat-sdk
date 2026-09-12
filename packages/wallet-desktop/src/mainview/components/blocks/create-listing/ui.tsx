@@ -141,7 +141,7 @@ export function CreateListingUI({
 					type="button"
 					disabled
 					className={cn(createListingTriggerVariants({ variant }), className)}
-					title="OrdLock listing create is disabled. Buy and cancel of existing listings remain available."
+					title="OrdLock v1 listing create is deprecated. List via OrdLock v2 (`sellOrdinal`). Buy and cancel of existing listings remain available."
 				>
 					<Tag className="size-4" />
 					{triggerLabel}

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.47]
+
+### Added
+- `ORDLOCK_TAG` (`ordlock`) v1 listing tag export.
+
+### Changed
+- `ORDLOCK_LISTING_CREATE_DISABLED` points at OrdLock v2 (`sellOrdinal`): v1 create stays deprecated, buy and cancel stay on.
+
 ## [0.0.46] - 2026-09-12
 
 ### Added

@@ -1006,6 +1006,7 @@ export const sweepActions = [sweepBsv, sweepOrdinals, sweepBsv21, sweepBsv20]
 
 // Export scan module
 export {
+	bsv20SweepBatches,
 	bsv21SweepBatches,
 	groupBsv20Tokens,
 	isBsv20Output,

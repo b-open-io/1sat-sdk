@@ -425,6 +425,20 @@ export function bsv21SweepBatches<T extends IndexedOutput>(
 	return batches
 }
 
+/**
+ * Listed BSV-20 cancels are each their own tx so one invalid listing cannot
+ * sink the rest. BSV-20 needs no per-tx overlay funding, so splitting is
+ * cheap — callers opt in per sweep (see `splitListed` in sweep-ui).
+ */
+export function bsv20SweepBatches<T extends IndexedOutput>(
+	outputs: T[],
+): T[][] {
+	const { listed, unlisted } = partitionListed(outputs)
+	const batches = listed.map((out) => [out])
+	if (unlisted.length) batches.push(unlisted)
+	return batches
+}
+
 /** Tick / amount / decimals from indexer events or inscription JSON. */
 export function parseBsv20Token(
 	out: IndexedOutput,
