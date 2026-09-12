@@ -302,6 +302,7 @@ async function groupBsv21Tokens(
 	for (const [tokenId, outs] of groups) {
 		const detail = detailMap.get(tokenId)
 		const isActive = detail?.status?.is_active ?? false
+		let validationStatus: TokenBalance['validationStatus'] = 'unconfirmed'
 
 		const amounts = new Map<string, string>()
 
@@ -316,6 +317,16 @@ async function groupBsv21Tokens(
 					const bsv21 = v.data?.bsv21 as { amt?: string } | undefined
 					const amt = bsv21?.amt ?? parseBsv21Amount(v)
 					if (amt) amounts.set(v.outpoint, amt)
+				}
+				const validatedOutpoints = new Set(
+					validated.map((v) => normalizeOutpoint(v.outpoint)),
+				)
+				if (
+					outs.every((out) =>
+						validatedOutpoints.has(normalizeOutpoint(out.outpoint)),
+					)
+				) {
+					validationStatus = 'confirmed'
 				}
 			} catch {
 				// Overlay is advisory. Inscription amounts still sweep.
@@ -340,10 +351,16 @@ async function groupBsv21Tokens(
 			totalAmount,
 			outputs,
 			amounts,
+			validationStatus,
 			isActive,
 		})
 	}
 	return balances
+}
+
+function normalizeOutpoint(outpoint: string): string {
+	const { txid, vout } = parseOutpoint(outpoint)
+	return `${txid}.${vout}`
 }
 
 /**
