@@ -16,7 +16,9 @@ import {
 import {
 	type SweepClass,
 	executeSweep,
+	isSweepAllDisabled,
 	selectAllSweepClasses,
+	showClassSkips,
 	sweepAllClasses,
 	sweepBsv20Token,
 	sweepBsv21Token,
@@ -205,6 +207,7 @@ export function SweepApp({
 		setAssets(null)
 		setSelectedOrdinals(new Set())
 		setSelectedOpns(new Set())
+		setSkippedClasses(new Set())
 		setSweepAmount(null)
 		setLegacyKeys(keys)
 
@@ -714,7 +717,10 @@ export function SweepApp({
 
 				{assets && !sweeping && (
 					<div className="space-y-3">
-						{sweepClasses.length > 1 && (
+						{showClassSkips(
+							sweepClasses.map((c) => c.id),
+							skippedClasses,
+						) && (
 							<div className="flex flex-wrap gap-1.5">
 								{sweepClasses.map((sweepClass) => {
 									const skipped = skippedClasses.has(sweepClass.id)
@@ -746,7 +752,11 @@ export function SweepApp({
 						<Button
 							className="w-full"
 							disabled={
-								!walletConnected || skippedClasses.size >= sweepClasses.length
+								!walletConnected ||
+								isSweepAllDisabled(
+									sweepClasses.map((c) => c.id),
+									skippedClasses,
+								)
 							}
 							onClick={handleSweepAll}
 							title={

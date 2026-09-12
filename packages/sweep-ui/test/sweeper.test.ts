@@ -20,7 +20,9 @@ import type { ScannedAssets } from '../src/lib/scanner.js'
 import { configureServices, getServices } from '../src/lib/services.js'
 import {
 	executeSweep,
+	isSweepAllDisabled,
 	selectAllSweepClasses,
+	showClassSkips,
 	sweepAllClasses,
 } from '../src/lib/sweeper.js'
 
@@ -502,5 +504,83 @@ describe('sweepAllClasses selection, retry, and abort', () => {
 		})
 		expect(result.errors).toEqual([])
 		expect(result.cancelledListings).toEqual([])
+	})
+
+	it('abort mid-token keeps earlier batch receipts and retry state', async () => {
+		const controller = new AbortController()
+		const rows = outputs(2).map((row, i) =>
+			tokenOutput(row, 'SHUA', `${i + 1}`, true),
+		)
+		bsv20Sweep.mockImplementation(async () => {
+			controller.abort()
+			return { txid: 'bsv20-first' }
+		})
+		const completed = new Set<string>()
+		const receipts: { sweepClass: string; label: string; txid?: string }[] = []
+		await expect(
+			sweepAllClasses({
+				wallet,
+				keys,
+				assets: emptyAssets({ bsv20Tokens: rows }),
+				onProgress: () => {},
+				splitListedBsv20: true,
+				completed,
+				signal: controller.signal,
+				onResult: (r) => receipts.push(r),
+			}),
+		).rejects.toThrow()
+		expect(completed.has(rows[0].outpoint)).toBe(true)
+		expect(completed.has(rows[1].outpoint)).toBe(false)
+		expect(receipts).toEqual([
+			{ sweepClass: 'bsv20', label: 'SHUA', txid: 'bsv20-first' },
+		])
+	})
+
+	it('mixed token success and failure still emits the success receipt', async () => {
+		const rows = outputs(2).map((row, i) =>
+			tokenOutput(row, 'SHUA', `${i + 1}`, true),
+		)
+		bsv20Sweep
+			.mockResolvedValueOnce({ txid: 'bsv20-first' })
+			.mockResolvedValueOnce({ error: 'offline failure' })
+		const receipts: {
+			sweepClass: string
+			label: string
+			txid?: string
+			error?: string
+		}[] = []
+		const result = await sweepAllClasses({
+			wallet,
+			keys,
+			assets: emptyAssets({ bsv20Tokens: rows }),
+			onProgress: () => {},
+			splitListedBsv20: true,
+			onResult: (r) => receipts.push(r),
+		})
+		expect(result.bsv20Txids).toEqual(['bsv20-first'])
+		expect(result.errors).toEqual(['BSV-20 SHUA: offline failure'])
+		expect(receipts).toEqual([
+			{ sweepClass: 'bsv20', label: 'SHUA', txid: 'bsv20-first' },
+			{ sweepClass: 'bsv20', label: 'SHUA', error: 'offline failure' },
+		])
+	})
+})
+
+describe('sweep-all class toggles', () => {
+	it('disables only when every current class is skipped', () => {
+		expect(isSweepAllDisabled(['bsv', 'ordinals'], new Set())).toBe(false)
+		expect(isSweepAllDisabled(['bsv', 'ordinals'], new Set(['bsv20']))).toBe(
+			false,
+		)
+		expect(
+			isSweepAllDisabled(['ordinals'], new Set(['bsv20', 'ordinals'])),
+		).toBe(true)
+		expect(isSweepAllDisabled([], new Set())).toBe(true)
+	})
+
+	it('shows chips when there is a choice or a skip to clear', () => {
+		expect(showClassSkips(['bsv', 'ordinals'], new Set())).toBe(true)
+		expect(showClassSkips(['ordinals'], new Set())).toBe(false)
+		expect(showClassSkips(['ordinals'], new Set(['bsv20']))).toBe(true)
 	})
 })

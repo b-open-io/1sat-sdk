@@ -58,6 +58,26 @@ export function selectAllSweepClasses(
 	}
 }
 
+/**
+ * Sweep-all is disabled only when every *currently available* class is
+ * skipped. Comparing counts instead strands the button on stale skip ids
+ * after a refresh drops a class.
+ */
+export function isSweepAllDisabled(
+	available: SweepClass[],
+	skipped: Set<SweepClass>,
+): boolean {
+	return available.every((id) => skipped.has(id))
+}
+
+/** Show class skip chips when there is a choice, or a skip to clear. */
+export function showClassSkips(
+	available: SweepClass[],
+	skipped: Set<SweepClass>,
+): boolean {
+	return available.length > 1 || skipped.size > 0
+}
+
 /** Per-step receipt, emitted via `onResult` as each class/batch completes. */
 export interface SweepStepResult {
 	sweepClass: SweepClass
@@ -322,6 +342,9 @@ export async function sweepBsv21Token(params: {
 	token: TokenBalance
 	onProgress: (stage: string) => void
 	signal?: AbortSignal
+	/** Outpoints to skip; successes are added (canonical `txid.vout` form). */
+	completed?: Set<string>
+	onResult?: (result: SweepStepResult) => void
 }): Promise<{
 	txid?: string
 	txids: string[]
@@ -329,7 +352,8 @@ export async function sweepBsv21Token(params: {
 	cancelledListings: string[]
 	error?: string
 }> {
-	const { wallet, keys, token, onProgress, signal } = params
+	const { wallet, keys, token, onProgress, signal, completed, onResult } =
+		params
 	const ctx = createContext(wallet, { services: getServices(), chain: 'main' })
 	const txids: string[] = []
 	const sweptOutpoints: string[] = []
@@ -341,8 +365,11 @@ export async function sweepBsv21Token(params: {
 			amount,
 		]),
 	)
+	const outputs = token.outputs.filter(
+		(o) => !isCompleted(completed, o.outpoint),
+	)
 
-	for (const batch of bsv21SweepBatches(token.outputs)) {
+	for (const batch of bsv21SweepBatches(outputs)) {
 		signal?.throwIfAborted()
 		onProgress(`Sweeping ${name}...`)
 		try {
@@ -365,6 +392,8 @@ export async function sweepBsv21Token(params: {
 			else if (result.txid) {
 				txids.push(result.txid)
 				sweptOutpoints.push(...batch.map((o) => o.outpoint))
+				markCompleted(completed, batch)
+				onResult?.({ sweepClass: 'bsv21', label: name, txid: result.txid })
 			}
 		} catch (e) {
 			if (signal?.aborted) throw e
@@ -376,7 +405,7 @@ export async function sweepBsv21Token(params: {
 		txid: txids.at(-1),
 		txids,
 		sweptOutpoints,
-		cancelledListings: cancelledIn(token.outputs, sweptOutpoints),
+		cancelledListings: cancelledIn(outputs, sweptOutpoints),
 		error: errors[0],
 	}
 }
@@ -393,6 +422,9 @@ export async function sweepBsv20Token(params: {
 	onProgress: (stage: string) => void
 	signal?: AbortSignal
 	splitListed?: boolean
+	/** Outpoints to skip; successes are added (canonical `txid.vout` form). */
+	completed?: Set<string>
+	onResult?: (result: SweepStepResult) => void
 }): Promise<{
 	txid?: string
 	txids: string[]
@@ -400,7 +432,16 @@ export async function sweepBsv20Token(params: {
 	cancelledListings: string[]
 	error?: string
 }> {
-	const { wallet, keys, token, onProgress, signal, splitListed } = params
+	const {
+		wallet,
+		keys,
+		token,
+		onProgress,
+		signal,
+		splitListed,
+		completed,
+		onResult,
+	} = params
 	const ctx = createContext(wallet, { services: getServices(), chain: 'main' })
 	const txids: string[] = []
 	const sweptOutpoints: string[] = []
@@ -411,9 +452,12 @@ export async function sweepBsv20Token(params: {
 			amount,
 		]),
 	)
-	const batches = splitListed
-		? bsv20SweepBatches(token.outputs)
-		: [token.outputs]
+	const outputs = token.outputs.filter(
+		(o) => !isCompleted(completed, o.outpoint),
+	)
+	if (outputs.length === 0)
+		return { txids: [], sweptOutpoints: [], cancelledListings: [] }
+	const batches = splitListed ? bsv20SweepBatches(outputs) : [outputs]
 
 	for (const batch of batches) {
 		signal?.throwIfAborted()
@@ -440,6 +484,12 @@ export async function sweepBsv20Token(params: {
 			else if (result.txid) {
 				txids.push(result.txid)
 				sweptOutpoints.push(...batch.map((o) => o.outpoint))
+				markCompleted(completed, batch)
+				onResult?.({
+					sweepClass: 'bsv20',
+					label: token.tick,
+					txid: result.txid,
+				})
 			}
 		} catch (e) {
 			if (signal?.aborted) throw e
@@ -451,7 +501,7 @@ export async function sweepBsv20Token(params: {
 		txid: txids.at(-1),
 		txids,
 		sweptOutpoints,
-		cancelledListings: cancelledIn(token.outputs, sweptOutpoints),
+		cancelledListings: cancelledIn(outputs, sweptOutpoints),
 		error: errors[0],
 	}
 }
@@ -545,52 +595,38 @@ export async function sweepAllClasses(params: {
 	for (const token of groupBsv20Tokens(assets.bsv20Tokens)) {
 		signal?.throwIfAborted()
 		if (!selection.bsv20Ticks.has(token.tick)) continue
-		const outputs = token.outputs.filter(
-			(o) => !isCompleted(completed, o.outpoint),
-		)
-		if (outputs.length === 0) continue
 		const swept = await sweepBsv20Token({
 			wallet,
 			keys,
-			token: { ...token, outputs },
+			token,
 			onProgress,
 			signal,
 			splitListed: params.splitListedBsv20,
-		})
-		markCompleted(
 			completed,
-			swept.sweptOutpoints.map((outpoint) => ({ outpoint })),
-		)
+			onResult,
+		})
 		result.bsv20Txids.push(...swept.txids)
-		result.cancelledListings.push(...cancelledIn(outputs, swept.sweptOutpoints))
+		result.cancelledListings.push(...swept.cancelledListings)
 		if (swept.error) {
 			result.errors.push(`BSV-20 ${token.tick}: ${swept.error}`)
 			onResult?.({ sweepClass: 'bsv20', label: token.tick, error: swept.error })
-		} else if (swept.txid) {
-			onResult?.({ sweepClass: 'bsv20', label: token.tick, txid: swept.txid })
 		}
 	}
 
 	for (const token of assets.bsv21Tokens) {
 		signal?.throwIfAborted()
 		if (!selection.bsv21TokenIds.has(token.tokenId)) continue
-		const outputs = token.outputs.filter(
-			(o) => !isCompleted(completed, o.outpoint),
-		)
-		if (outputs.length === 0) continue
 		const swept = await sweepBsv21Token({
 			wallet,
 			keys,
-			token: { ...token, outputs },
+			token,
 			onProgress,
 			signal,
-		})
-		markCompleted(
 			completed,
-			swept.sweptOutpoints.map((outpoint) => ({ outpoint })),
-		)
+			onResult,
+		})
 		result.bsv21Txids.push(...swept.txids)
-		result.cancelledListings.push(...cancelledIn(outputs, swept.sweptOutpoints))
+		result.cancelledListings.push(...swept.cancelledListings)
 		if (swept.error) {
 			result.errors.push(
 				`BSV-21 ${token.symbol ?? token.tokenId.slice(0, 8)}: ${swept.error}`,
@@ -599,12 +635,6 @@ export async function sweepAllClasses(params: {
 				sweepClass: 'bsv21',
 				label: token.symbol ?? token.tokenId,
 				error: swept.error,
-			})
-		} else if (swept.txid) {
-			onResult?.({
-				sweepClass: 'bsv21',
-				label: token.symbol ?? token.tokenId,
-				txid: swept.txid,
 			})
 		}
 	}
