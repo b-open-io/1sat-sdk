@@ -668,23 +668,11 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 			const tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId)
 			const { fee_address, fee_per_output } = tokenDetails.status
 
-			let inputsToSpend = inputs
-			try {
-				const validated = await ctx.services.bsv21.validateOutputs(
-					tokenId,
-					inputs.map((i) => i.outpoint),
-					{ unspent: true },
-				)
-				if (validated.length > 0) {
-					const validSet = new Set(validated.map((v) => v.outpoint))
-					inputsToSpend = inputs.filter((i) => validSet.has(i.outpoint))
-				}
-			} catch {
-				// Overlay is advisory. Spend the inscription amounts we already have.
-			}
-			if (inputsToSpend.length === 0) {
-				return { error: 'unvalidated-inputs' }
-			}
+			// The overlay is advisory and may be behind the chain or return only a
+			// partial result. We already have the inscription amounts, so never drop
+			// inputs based on overlay membership; a successful transaction must move
+			// the whole requested batch.
+			const inputsToSpend = inputs
 
 			const totalAmount = inputsToSpend.reduce(
 				(sum, i) => sum + BigInt(i.amount),
