@@ -30,7 +30,7 @@ export class OrdLockIndexer extends Indexer {
 		const lockingScript = txo.output.lockingScript
 		const mainnet = this.network === 'mainnet'
 
-		// v2 (tag-output binding) first, then legacy v1. The version tag must
+		// v2 (SIGHASH_SINGLE payout binding) first, then legacy v1. The version tag must
 		// match what `sellOrdinal` / `sellOpns` emit for the same script, so a
 		// listing that arrived by sync looks like one we created: v1 purge
 		// paths key on `ordlock` and must not see v2 rows.

@@ -3,6 +3,7 @@ export {
 	type ResolvedSpend,
 	type Spend,
 	PENDING_RESOLVED_SPENDS_KEY,
+	deliveryTargetsFromArgs,
 	labelsFromSpends,
 	mergeResolvedSpends,
 	spendToLabel,

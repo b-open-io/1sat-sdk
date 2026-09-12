@@ -481,12 +481,12 @@ export const ORD_LOCK_SUFFIX =
 	'615179547a75537a537a537a0079537a75527a527a7575615579008763567901c161517957795779210ac407f0e4bd44bfc207355a778b046225a7068fc59ee7eda43ad905aadbffc800206c266b30e6a1319c66dc401e5bd6b432ba49688eecd118297041da8074ce081059795679615679aa0079610079517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e01007e81517a75615779567956795679567961537956795479577995939521414136d08c5ed2bf3ba048afe6dcaebafeffffffffffffffffffffffffffffff00517951796151795179970079009f63007952799367007968517a75517a75517a7561527a75517a517951795296a0630079527994527a75517a6853798277527982775379012080517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e01205279947f7754537993527993013051797e527e54797e58797e527e53797e52797e57797e0079517a75517a75517a75517a75517a75517a75517a75517a75517a75517a75517a75517a75517a756100795779ac517a75517a75517a75517a75517a75517a75517a75517a75517a7561517a75517a756169587951797e58797eaa577961007982775179517958947f7551790128947f77517a75517a75618777777777777777777767557951876351795779a9876957795779ac777777777777777767006868'
 
 // ============================================================================
-// OrdLock v2 (Rúnar `OrdLockV2Batch`, tag-output binding)
+// OrdLock v2 (Rúnar `OrdLockV2Batch`, SIGHASH_SINGLE payout binding)
 // ============================================================================
 //
 // Everything script-shaped below is DERIVED from the vendored compiled artifact
-// (./ordlockV2Artifact.ts). Only the contract-level literals that are not part
-// of the ABI (cancel marker, tag output header) are stated here.
+// (./ordlockV2Artifact.ts). Only the contract-level literal that is not part
+// of the ABI (the cancel marker) is stated here.
 
 /** OrdLock v2 compiled template (hex) with OP_0 placeholders at the constructor slots. */
 export const ORD_LOCK_V2_TEMPLATE: string = ORD_LOCK_V2_ARTIFACT.script
@@ -526,17 +526,26 @@ export const ORD_LOCK_V2_PREFIX: string = ORD_LOCK_V2_TEMPLATE.slice(
  */
 export const ORDLOCK_V2_TAG = 'ordlock2'
 
+/**
+ * Basket holding wallet-owned P2PKH outputs reserved as OrdLock v2 purchase
+ * front funding. A v2 purchase must place funding inputs BEFORE the listing
+ * inputs so each seller payout lands at its listing's index; wallet change
+ * cannot be spent explicitly, so the SDK keeps dedicated outputs here (and
+ * returns the purchase cushion to the same basket).
+ */
+export const ORDLOCK_FUNDING_BASKET = 'ordlock-funding'
+
+/** Tag on outputs in {@link ORDLOCK_FUNDING_BASKET}. */
+export const ORDLOCK_FUNDING_TAG = 'ordlock-funding'
+
+/** Key id prefix (P1SAT protocol, counterparty self) for OrdLock funding outputs. */
+export const ORDLOCK_FUNDING_KEY_PREFIX = 'ordlock-funding'
+
 /** Basket tag applied to wallet-created OrdLock v1 listing outputs. */
 export const ORDLOCK_TAG = 'ordlock'
 
 /** Enforced cancel marker pushed first in a v2 cancel unlock: ASCII "ol2:cancel". */
 export const ORD_LOCK_V2_CANCEL_MARKER = '6f6c323a63616e63656c'
-
-/**
- * Serialized head of a v2 tag output (hex): 0 sats, varint(39), OP_FALSE
- * OP_RETURN OP_PUSH36. The listing's 36-byte outpoint (txid LE || vout LE) follows.
- */
-export const ORD_LOCK_V2_TAG_PREFIX = '000000000000000027006a24'
 
 // ============================================================================
 // Lock Template Scripts

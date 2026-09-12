@@ -44,12 +44,13 @@ import type {
 	OneSatContext,
 } from '../types.js'
 import { executeTrackedAction } from '../utils/createTrackedAction.js'
+import { isTokenListing } from '../utils/listingToken.js'
 import { loadBasketOutputBeef } from '../utils/loadBasketOutput.js'
 import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance.js'
 import { ordinalSeedTags } from '../utils/ordinalSeedTags.js'
 import { ordLockCancelUnlockLength } from '../utils/ordlockCancelLength.js'
+import { buildOrdLockV2PurchaseArgs } from '../utils/ordlockPurchase.js'
 import { unlockingScriptLengthForInstructions } from '../utils/signOrdinalInput.js'
-import { isTokenListing } from '../utils/listingToken.js'
 
 // ============================================================================
 // Helpers
@@ -237,6 +238,12 @@ export interface BuyOrdinalRequest extends ActionOptions {
 	basket?: string
 	/** Tags for the purchased output; default resolveOrdinalTags for ordinals ingress */
 	tags?: string[]
+	/**
+	 * v2 listings only: extra satoshis to include when the purchase has to
+	 * prepare a front-funding output first, so the returned cushion can front
+	 * the next purchase without another preparation. Default 0.
+	 */
+	fundingReserve?: number
 }
 
 export interface OrdinalOperationResponse {
@@ -326,7 +333,7 @@ export function buildOrdLockScript(
 	payAddress: string,
 	price: number,
 ): Script {
-	// New listings are always OrdLock v2 (batch design, tag-output binding).
+	// New listings are always OrdLock v2 (batch design, SIGHASH_SINGLE payout binding).
 	return OrdLockV2.lock(ordAddress, payAddress, price)
 }
 
@@ -1300,8 +1307,8 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 				return { error: 'listing-output-not-found' }
 			}
 
-			// v2 first (tag-output binding), else legacy v1. Both expose the
-			// serialized payout the covenant demands.
+			// v2 first (SIGHASH_SINGLE payout binding), else legacy v1. Both
+			// expose the serialized payout the covenant demands.
 			const v2Listing = OrdLockV2.decode(listingOutput.lockingScript)
 			const ordLockData =
 				v2Listing ?? OrdLock.decode(listingOutput.lockingScript)
@@ -1324,8 +1331,7 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 				}
 			}
 
-			const outputs: CreateActionOutput[] = []
-			outputs.push({
+			const receive: CreateActionOutput = {
 				lockingScript: new P2PKH().lock(ourOrdAddress).toHex(),
 				satoshis: 1,
 				outputDescription: 'Purchased ordinal',
@@ -1338,7 +1344,7 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 					tags,
 					name: resolved.name,
 				}),
-			})
+			}
 
 			const payoutReader = new Utils.Reader(ordLockData.payout)
 			const payoutSatoshis = payoutReader.readUInt64LEBn().toNumber()
@@ -1346,29 +1352,11 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 			const payoutScriptBin = payoutReader.read(payoutScriptLen)
 			const payoutLockingScript = LockingScript.fromBinary(payoutScriptBin)
 
-			outputs.push({
-				lockingScript: payoutLockingScript.toHex(),
-				satoshis: payoutSatoshis,
-				outputDescription: 'Payment to seller',
-				tags: [],
-			})
-
-			// v2: the payout must be IMMEDIATELY followed by this listing's tag
-			// output (0 sats, OP_FALSE OP_RETURN <outpoint>). Output order is
-			// preserved by randomizeOutputs:false below.
-			if (v2Listing) {
-				outputs.push({
-					lockingScript: OrdLockV2.tagScript(txid, vout).toHex(),
-					satoshis: 0,
-					outputDescription: 'Listing tag',
-					tags: [],
-				})
-			}
-
+			const marketFeeOutputs: CreateActionOutput[] = []
 			if (marketplaceAddress && marketplaceRate && marketplaceRate > 0) {
 				const marketFee = Math.ceil(payoutSatoshis * marketplaceRate)
 				if (marketFee > 0) {
-					outputs.push({
+					marketFeeOutputs.push({
 						lockingScript: new P2PKH().lock(marketplaceAddress).toHex(),
 						satoshis: marketFee,
 						outputDescription: 'Marketplace fee',
@@ -1377,58 +1365,81 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 				}
 			}
 
-			const beefBinary = beef.toBinary()
+			const usePermissionModule =
+				input.usePermissionModule ?? input.useOneSatModule ?? input.useModule
+			let receiveIndex = 0
+			let result: Awaited<ReturnType<typeof executeTrackedAction>>
 
-			// v1 reserves its historical constant. v2 is sized from the actual
-			// listing script plus our non-pair outputs; the template adds slack
-			// for the change outputs the wallet appends.
-			let unlockingScriptLength = 1368
 			if (v2Listing) {
-				const otherOutputsBytes = outputs
-					.filter((_, i) => i !== 1 && i !== 2)
-					.reduce(
-						(sum, o) =>
-							sum +
-							OrdLockV2.buildOutput(
-								o.satoshis,
-								Utils.toArray(o.lockingScript, 'hex'),
-							).length,
-						0,
-					)
-				unlockingScriptLength = OrdLockV2.estimatePurchaseUnlockLength(
-					listingOutput.lockingScript,
-					otherOutputsBytes,
+				// Canonical v2 layout: front funding inputs, then the listing, with
+				// the seller payout at the listing's index and the ordinal routed
+				// into the receive output. buildOrdLockV2PurchaseArgs selects or
+				// prepares the front funding and reserves the exact unlock length.
+				const built = await buildOrdLockV2PurchaseArgs(ctx, {
+					outpoint,
+					listingScript: listingOutput.lockingScript,
+					listingBeef: beef,
+					receive,
+					extraOutputs: marketFeeOutputs,
+					description: `Purchase ordinal for ${payoutSatoshis} sats`,
+					fundingProvider: input.fundingProvider,
+					usePermissionModule,
+					permissionScheme: '1sat',
+					fundingReserve: input.fundingReserve,
+				})
+				if ('error' in built) return built
+				receiveIndex = built.receiveVout
+				result = await executeTrackedAction(
+					ctx.wallet,
+					built.args,
+					input.fundingProvider,
+					built.inputBEEF,
+					undefined,
+					{
+						spends: built.spends,
+						usePermissionModule,
+						permissionScheme: '1sat',
+					},
+				)
+			} else {
+				// Legacy v1: ordinal first, payout second, historical unlock reserve.
+				const outputs: CreateActionOutput[] = [
+					receive,
+					{
+						lockingScript: payoutLockingScript.toHex(),
+						satoshis: payoutSatoshis,
+						outputDescription: 'Payment to seller',
+						tags: [],
+					},
+					...marketFeeOutputs,
+				]
+				const beefBinary = beef.toBinary()
+				const args = await prepareP1SatArgs(ctx, {
+					description: `Purchase ordinal for ${payoutSatoshis} sats`,
+					inputBEEF: beefBinary,
+					inputs: [
+						{
+							outpoint,
+							inputDescription: 'Listed ordinal',
+							unlockingScriptLength: 1368,
+						},
+					],
+					outputs,
+					options: { randomizeOutputs: false },
+				})
+				result = await executeTrackedAction(
+					ctx.wallet,
+					args,
+					input.fundingProvider,
+					beefBinary as number[],
+					undefined,
+					{
+						spends: [{ outpoint, scheme: '1sat' }],
+						usePermissionModule,
+						permissionScheme: '1sat',
+					},
 				)
 			}
-
-			const args = await prepareP1SatArgs(ctx, {
-				description: `Purchase ordinal for ${payoutSatoshis} sats`,
-				inputBEEF: beefBinary,
-				inputs: [
-					{
-						outpoint,
-						inputDescription: 'Listed ordinal',
-						unlockingScriptLength,
-					},
-				],
-				outputs,
-				options: { randomizeOutputs: false },
-			})
-			const result = await executeTrackedAction(
-				ctx.wallet,
-				args,
-				input.fundingProvider,
-				beefBinary as number[],
-				undefined,
-				{
-					spends: [{ outpoint, scheme: '1sat' }],
-					usePermissionModule:
-						input.usePermissionModule ??
-						input.useOneSatModule ??
-						input.useModule,
-					permissionScheme: '1sat',
-				},
-			)
 
 			if (ctx.debug && ctx.log) {
 				ctx.log({
@@ -1439,7 +1450,7 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 					outputs: [
 						{
-							index: 0,
+							index: receiveIndex,
 							protocolID: P1SAT_PROTOCOL,
 							keyID: outpoint,
 							basket: basket,

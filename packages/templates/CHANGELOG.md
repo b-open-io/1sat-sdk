@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- `OrdLockV2` targets the canonical contract: the purchase unlock is `<preimage> OP_0` under `SINGLE|ANYONECANPAY|FORKID`, and listing input `i` requires its payout at output `i`. `purchaseListing` refuses to sign unless that holds and the listed satoshi routes (first-sat ordering) to a 1-sat receive output; pass `{ deliveries }` to pin the approved outputs.
+- `estimatePurchaseUnlockLength(lockingScript)` is exact and no longer depends on the other outputs.
+- `isPurchase` recognizes the two-chunk unlock.
+
+### Added
+- `OrdLockV2.planPurchase`, `ordinalOutput`, `assertDelivery`, `ORDLOCK_V2_PURCHASE_SIGHASH`, and the `OrdLockV2DeliveryTarget` / `OrdLockV2PurchaseOptions` / `OrdLockV2PurchasePlan` types.
+- Interpreter vectors (`ORDLOCK_V2_VECTORS_OUT`) now cover single, batch, multi-front-funding, BSV-21 receive, MAP, and cancel cases and are replayed by the ordlock-v2 harness.
+
+### Removed
+- `tagScript` / `tagOutput` / `tagOutputBytes` / `outpointBytes` (draft tag output).
+
 ## 0.0.35
 
 ### Added

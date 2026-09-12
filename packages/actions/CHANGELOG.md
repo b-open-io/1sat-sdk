@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- `buyOrdinal`, `buyOpns` and `buyBsv21` build OrdLock v2 purchases in the canonical layout: front funding inputs first, then the listing, with the seller payout at the listing's index, the ordinal (or BSV-21 transfer) as the receive output, and wallet fee inputs / change trailing. Front funding comes from the `ordlock-funding` basket; when nothing there covers the payout, a preparation action creates one first (`fundingReserve` adds headroom). The cushion returns to that basket.
+- `buyBsv21` accepts OrdLock v2 listings.
+- The unlock pipeline passes the createAction's basketed 1-sat outputs to `OrdLockV2.purchaseListing` as approved delivery targets, so a purchase whose listed satoshi would land anywhere else is refused before signing (local pipeline and permission module).
+
+### Added
+- `buildOrdLockV2PurchaseArgs`, `loadOrdLockFunding`, `selectOrdLockFunding`, `prepareOrdLockFunding` (`utils/ordlockPurchase.ts`); `deliveryTargetsFromArgs` (pipeline).
+
 ## 0.0.220
 
 ### Added
