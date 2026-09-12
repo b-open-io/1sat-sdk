@@ -2,11 +2,13 @@ import { describe, expect, it } from 'bun:test'
 import { OneSatServices } from '@1sat/client'
 import type { IndexedOutput } from '@1sat/types'
 import {
+	bsv21SweepBatches,
 	groupBsv20Tokens,
 	isBsv20Output,
 	isBsv21Output,
 	isListedOutput,
 	parseBsv20Token,
+	parseBsv21Amount,
 	scanAddress,
 } from './scan.js'
 
@@ -256,5 +258,35 @@ describe('groupBsv20Tokens', () => {
 		expect(shua?.totalAmount).toBe(15n)
 		expect(shua?.outputs).toHaveLength(2)
 		expect(grouped.find((g) => g.tick === 'PEPE')?.totalAmount).toBe(2n)
+	})
+})
+
+describe('listed BSV-21 batches', () => {
+	it('reads amt without overlay', () => {
+		expect(
+			parseBsv21Amount(
+				out({
+					outpoint: 'aa.0',
+					data: { bsv21: { amt: '40' } },
+				}),
+			),
+		).toBe('40')
+	})
+
+	it('puts each listed output in its own batch', () => {
+		const listed = out({
+			outpoint: 'aa.0',
+			events: ['ordlock'],
+			data: { bsv21: { amt: '1' } },
+		})
+		const unlisted = out({
+			outpoint: 'bb.0',
+			data: { bsv21: { amt: '2' } },
+		})
+		expect(bsv21SweepBatches([listed, unlisted, listed])).toEqual([
+			[listed],
+			[listed],
+			[unlisted],
+		])
 	})
 })

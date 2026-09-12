@@ -657,37 +657,37 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 				return { error: 'mixed-token-ids' }
 			}
 
-			// Lookup token details to verify it's active and get fee info
 			const tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId)
-			if (!tokenDetails.status.is_active) {
-				return { error: 'token-not-active' }
-			}
 			const { fee_address, fee_per_output } = tokenDetails.status
 
-			// Validate all input outpoints exist in the overlay
-			const candidateOutpoints = inputs.map((i) => i.outpoint)
-			const validated = await ctx.services.bsv21.validateOutputs(
-				tokenId,
-				candidateOutpoints,
-				{ unspent: true },
-			)
-			const validSet = new Set(validated.map((v) => v.outpoint))
-			const invalidInputs = inputs.filter((i) => !validSet.has(i.outpoint))
-			if (invalidInputs.length > 0) {
-				return {
-					error: `unvalidated-inputs: ${invalidInputs.map((i) => i.outpoint).join(', ')}`,
+			let inputsToSpend = inputs
+			try {
+				const validated = await ctx.services.bsv21.validateOutputs(
+					tokenId,
+					inputs.map((i) => i.outpoint),
+					{ unspent: true },
+				)
+				if (validated.length > 0) {
+					const validSet = new Set(validated.map((v) => v.outpoint))
+					inputsToSpend = inputs.filter((i) => validSet.has(i.outpoint))
 				}
+			} catch {
+				// Overlay is advisory. Spend the inscription amounts we already have.
+			}
+			if (inputsToSpend.length === 0) {
+				return { error: 'unvalidated-inputs' }
 			}
 
-			// Sum all input amounts
-			const totalAmount = inputs.reduce((sum, i) => sum + BigInt(i.amount), 0n)
+			const totalAmount = inputsToSpend.reduce(
+				(sum, i) => sum + BigInt(i.amount),
+				0n,
+			)
 			if (totalAmount <= 0n) {
 				return { error: 'no-token-amount' }
 			}
 
-			// Fetch BEEF for all input transactions and merge them
 			const txids = [
-				...new Set(inputs.map((i) => parseOutpoint(i.outpoint).txid)),
+				...new Set(inputsToSpend.map((i) => parseOutpoint(i.outpoint).txid)),
 			]
 			console.log(`[sweepBsv21] Fetching BEEF for ${txids.length} transactions`)
 
@@ -701,8 +701,7 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 				`[sweepBsv21] Merged BEEF valid=${firstBeef.isValid()}, txs=${firstBeef.txs.length}`,
 			)
 
-			// Build input descriptors
-			const inputDescriptors = inputs.map((input) => {
+			const inputDescriptors = inputsToSpend.map((input) => {
 				const { txid, vout } = parseOutpoint(input.outpoint)
 				return {
 					outpoint: formatOutpoint(txid, vout),
@@ -757,20 +756,21 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 				}),
 			})
 
-			// 2. Fee output to overlay fund address
-			outputs.push({
-				lockingScript: p2pkh.lock(fee_address).toHex(),
-				satoshis: fee_per_output,
-				outputDescription: 'Overlay processing fee',
-				tags: [],
-			})
+			if (fee_address && fee_per_output) {
+				outputs.push({
+					lockingScript: p2pkh.lock(fee_address).toHex(),
+					satoshis: fee_per_output,
+					outputDescription: 'Overlay processing fee',
+					tags: [],
+				})
+			}
 
 			const beefData = firstBeef.toBinary()
 
 			const result = await executeTrackedAction(
 				ctx.wallet,
 				{
-					description: `Sweep ${inputs.length} token UTXO${inputs.length !== 1 ? 's' : ''}`,
+					description: `Sweep ${inputsToSpend.length} token UTXO${inputsToSpend.length !== 1 ? 's' : ''}`,
 					labels: [buildTokenLabel(tokenId)],
 					inputBEEF: beefData,
 					inputs: inputDescriptors,
@@ -998,11 +998,14 @@ export const sweepActions = [sweepBsv, sweepOrdinals, sweepBsv21, sweepBsv20]
 
 // Export scan module
 export {
+	bsv21SweepBatches,
 	groupBsv20Tokens,
 	isBsv20Output,
 	isBsv21Output,
 	isListedOutput,
 	parseBsv20Token,
+	parseBsv21Amount,
+	partitionListed,
 	scanAddress,
 	scanAddresses,
 } from './scan.js'

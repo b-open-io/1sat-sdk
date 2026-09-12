@@ -18,10 +18,9 @@ export interface EnrichedOrdinal extends IndexedOutput {
 }
 
 export interface ScannedAssets
-	extends Omit<ScanResult, 'ordinals' | 'opnsNames'> {
+	extends Omit<ScanResult, 'ordinals' | 'opnsNames' | 'listings'> {
 	ordinals: EnrichedOrdinal[]
 	opnsNames: EnrichedOrdinal[]
-	listings: EnrichedOrdinal[]
 	bsv21Tokens: TokenBalance[]
 	totalBsv: number
 }
@@ -93,7 +92,6 @@ function toScannedAssets(result: ScanResult): ScannedAssets {
 		funding: result.funding,
 		ordinals: result.ordinals.map(enrichOrdinal),
 		opnsNames: result.opnsNames.map(enrichOrdinal),
-		listings: result.listings.map(enrichOrdinal),
 		bsv21Tokens: enrichTokenBalances(result.bsv21Tokens),
 		bsv20Tokens: result.bsv20Tokens,
 		locked: result.locked,

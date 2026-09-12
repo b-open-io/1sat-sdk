@@ -8,6 +8,7 @@
 - `sweep import` moves OpNS names and BSV-20 tickers (not only BSV, ordinals, and active BSV-21).
 - `--only` / `--skip` select `bsv,ordinals,opns,bsv20,bsv21`. `--dry-run` prints the plan without broadcasting.
 - Listed OrdLock inputs cancel into the destination wallet in the same sweep transaction.
+- BSV-21 listed cancels are one transaction each so one invalid listing cannot sink the rest. Overlay `is_active` does not gate the sweep.
 
 ### Changed
 - `sweep scan` reports every class, including OpNS, BSV-20, listings, locks, and RUN leftover.

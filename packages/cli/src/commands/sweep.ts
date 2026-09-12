@@ -6,6 +6,7 @@
 
 import {
 	SWEEP_BATCH_SIZE,
+	bsv21SweepBatches,
 	groupBsv20Tokens,
 	prepareSweepInputs,
 	scanAddress,
@@ -85,7 +86,7 @@ function leftoverLines(plan: SweepPlan): string[] {
 		lines.push(`${plan.leftover.run} RUN token output(s) (not sweepable)`)
 	if (plan.leftover.inactiveBsv21)
 		lines.push(
-			`${plan.leftover.inactiveBsv21} inactive BSV-21 UTXO(s) (overlay not active)`,
+			`${plan.leftover.inactiveBsv21} BSV-21 UTXO(s) with no parseable amount`,
 		)
 	if (plan.leftover.unparsedBsv20)
 		lines.push(
@@ -319,11 +320,11 @@ async function sweepImport(args: string[], opts: GlobalFlags): Promise<void> {
 
 		if (plan.bsv21.length) {
 			for (const token of scan.bsv21Tokens) {
-				if (!token.isActive || token.outputs.length === 0) continue
-				await run(
-					`BSV-21 ${token.symbol ?? token.tokenId.slice(0, 12)}`,
-					async () => {
-						const base = await prepareSweepInputs(ctx, token.outputs)
+				if (token.outputs.length === 0) continue
+				const name = token.symbol ?? token.tokenId.slice(0, 12)
+				for (const batch of bsv21SweepBatches(token.outputs)) {
+					await run(`BSV-21 ${name}`, async () => {
+						const base = await prepareSweepInputs(ctx, batch)
 						const inputs = base.map((b) => ({
 							...b,
 							tokenId: token.tokenId,
@@ -333,8 +334,8 @@ async function sweepImport(args: string[], opts: GlobalFlags): Promise<void> {
 							inputs,
 							keys: inputs.map(() => sweepKey),
 						})
-					},
-				)
+					})
+				}
 			}
 		}
 

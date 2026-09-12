@@ -47,12 +47,8 @@ export function buildSweepPlan(
 	const parsedOutpoints = new Set(
 		groupedBsv20.flatMap((g) => g.outputs.map((o) => o.outpoint)),
 	)
-	const activeBsv21 = scan.bsv21Tokens.filter(
-		(t) => t.isActive && t.outputs.length > 0,
-	)
-	const inactiveBsv21 = scan.bsv21Tokens.filter(
-		(t) => !t.isActive || t.outputs.length === 0,
-	)
+	const transferableBsv21 = scan.bsv21Tokens.filter((t) => t.outputs.length > 0)
+	const skippedBsv21 = scan.bsv21Tokens.filter((t) => t.outputs.length === 0)
 
 	return {
 		classes: SWEEP_CLASSES.filter((c) => classes.has(c)),
@@ -80,19 +76,19 @@ export function buildSweepPlan(
 				}))
 			: [],
 		bsv21: want('bsv21')
-			? activeBsv21.map((t) => ({
+			? transferableBsv21.map((t) => ({
 					tokenId: t.tokenId,
 					symbol: t.symbol,
 					amount: t.totalAmount.toString(),
 					count: t.outputs.length,
 					listed: listedCount(t.outputs),
-					active: true,
+					active: t.isActive,
 				}))
 			: [],
 		leftover: {
 			locked: scan.locked.length,
 			run: scan.run.length,
-			inactiveBsv21: inactiveBsv21.reduce((n, t) => n + t.outputs.length, 0),
+			inactiveBsv21: skippedBsv21.reduce((n, t) => n + t.outputs.length, 0),
 			unparsedBsv20: scan.bsv20Tokens.filter(
 				(o) => !parsedOutpoints.has(o.outpoint),
 			).length,

@@ -435,7 +435,7 @@ function TokenRow({
 					</div>
 				</div>
 			</div>
-			{tb.isActive && onSweep && (
+			{onSweep && (
 				<Button
 					size="sm"
 					onClick={() => onSweep(tb.tokenId)}
@@ -502,14 +502,16 @@ export function Bsv21Section({
 
 export function Bsv20Section({
 	tokens,
+	unparsedCount = 0,
 	onSweep,
 	walletConnected,
 }: {
 	tokens: Bsv20Balance[]
+	unparsedCount?: number
 	onSweep?: (tick: string) => void
 	walletConnected: boolean
 }) {
-	if (tokens.length === 0) return null
+	if (tokens.length === 0 && unparsedCount === 0) return null
 	return (
 		<div className="border border-teal-500/20 bg-teal-500/5 p-4 rounded-lg">
 			<div className="flex items-center gap-2 mb-3">
@@ -518,6 +520,12 @@ export function Bsv20Section({
 					BSV-20 Tokens
 				</span>
 			</div>
+			{unparsedCount > 0 && (
+				<p className="text-xs text-muted-foreground mb-3">
+					{unparsedCount} UTXO{unparsedCount !== 1 ? 's' : ''} with no parseable
+					tick/amt — leftover, not swept.
+				</p>
+			)}
 			<div className="space-y-3">
 				{tokens.map((tb) => {
 					const listed = tb.outputs.filter(isListedOutput).length

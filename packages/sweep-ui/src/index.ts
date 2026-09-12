@@ -52,6 +52,7 @@ export {
 } from './lib/scanner'
 export {
 	executeSweep,
+	sweepAllClasses,
 	SWEEP_BATCH_SIZE,
 	type SweepResult,
 } from './lib/sweeper'
