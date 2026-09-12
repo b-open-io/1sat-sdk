@@ -472,9 +472,9 @@ export const BAP_BITCOM_ADDRESS = '1BAPSuaPnfGnSBM3GLV9yhxUdYe4vGbdMT'
 export const ORD_LOCK_PREFIX =
 	'2097dfd76851bf465e8f715593b217714858bbe9570ff3bd5e33840a34e20ff0262102ba79df5f8ae7604a9830f03c7933028186aede0675a16f025dc4f8be8eec0382201008ce7480da41702918d1ec8e6849ba32b4d65b1e40dc669c31a1e6306b266c0000'
 
-/** Thrown / returned when any OrdLock listing-create path is invoked. Buy and cancel stay on. */
+/** Thrown / returned when a v1 OrdLock listing-create path is invoked. List via OrdLock v2 (`sellOrdinal`); buy and cancel stay on. */
 export const ORDLOCK_LISTING_CREATE_DISABLED =
-	'OrdLock listing create is disabled. Buy and cancel of existing listings remain available.'
+	'OrdLock v1 listing create is deprecated. List via OrdLock v2 (`sellOrdinal`). Buy and cancel of existing listings remain available.'
 
 /** OrdLock locking script suffix (hex) */
 export const ORD_LOCK_SUFFIX =
@@ -519,11 +519,15 @@ export const ORD_LOCK_V2_PREFIX: string = ORD_LOCK_V2_TEMPLATE.slice(
 
 /**
  * Basket tag applied to wallet-created OrdLock v2 listing outputs. Distinct
- * from the v1 `ordlock` tag on purpose: the v1 purge paths (auto-cancel on
- * wallet load, sweep cancel, `isListedOutput`) key on `ordlock` and must not
- * touch v2 listings. Matches the junglebus `ordlock2` output type name.
+ * from the v1 `ordlock` tag on purpose: cancel and sweep paths query both
+ * tags (`LISTING_TAGS`-style `['ordlock', 'ordlock2']`) and route each
+ * listing to its own cancel action. Matches the junglebus `ordlock2` output
+ * type name.
  */
 export const ORDLOCK_V2_TAG = 'ordlock2'
+
+/** Basket tag applied to wallet-created OrdLock v1 listing outputs. */
+export const ORDLOCK_TAG = 'ordlock'
 
 /** Enforced cancel marker pushed first in a v2 cancel unlock: ASCII "ol2:cancel". */
 export const ORD_LOCK_V2_CANCEL_MARKER = '6f6c323a63616e63656c'

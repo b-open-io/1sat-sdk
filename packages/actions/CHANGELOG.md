@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.220
+
+### Added
+- `bsv20SweepBatches`: listed BSV-20 outputs each sweep alone, unlisted share a spend (mirrors `bsv21SweepBatches`).
+
 ## 0.0.215
 
 ### Added

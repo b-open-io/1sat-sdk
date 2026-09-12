@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import { OneSatServices } from '@1sat/client'
 import type { IndexedOutput } from '@1sat/types'
 import {
+	bsv20SweepBatches,
 	bsv21SweepBatches,
 	groupBsv20Tokens,
 	isBsv20Output,
@@ -288,5 +289,31 @@ describe('listed BSV-21 batches', () => {
 			[listed],
 			[unlisted],
 		])
+	})
+})
+
+describe('listed BSV-20 batches', () => {
+	it('puts each listed output in its own batch', () => {
+		const listed = out({
+			outpoint: 'aa.0',
+			events: ['ordlock', 'tick:SHUA', 'amt:1'],
+		})
+		const unlisted = out({
+			outpoint: 'bb.0',
+			events: ['tick:SHUA', 'amt:2'],
+		})
+		expect(bsv20SweepBatches([listed, unlisted, listed])).toEqual([
+			[listed],
+			[listed],
+			[unlisted],
+		])
+	})
+
+	it('keeps unlisted outputs in one batch', () => {
+		const outputs = [
+			out({ outpoint: 'aa.0', events: ['tick:SHUA', 'amt:1'] }),
+			out({ outpoint: 'bb.0', events: ['tick:SHUA', 'amt:2'] }),
+		]
+		expect(bsv20SweepBatches(outputs)).toEqual([outputs])
 	})
 })

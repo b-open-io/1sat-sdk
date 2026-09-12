@@ -14,7 +14,9 @@ import {
 	scanAddresses,
 } from '../lib/scanner'
 import {
+	type SweepClass,
 	executeSweep,
+	selectAllSweepClasses,
 	sweepAllClasses,
 	sweepBsv20Token,
 	sweepBsv21Token,
@@ -64,6 +66,10 @@ export function SweepApp({
 	const [selectedOpns, setSelectedOpns] = useState<Set<string>>(new Set())
 	const [sweepAmount, setSweepAmount] = useState<number | null>(null)
 	const [activeTab, setActiveTab] = useState<TabId>('ordinals')
+	/** Classes excluded from Sweep-all (CLI `--skip` equivalent). Empty = all. */
+	const [skippedClasses, setSkippedClasses] = useState<Set<SweepClass>>(
+		new Set(),
+	)
 
 	useEffect(() => {
 		setWalletConnected(!!externalWallet)
@@ -546,16 +552,77 @@ export function SweepApp({
 		[resolveWallet, assets, groupedBsv20, keyMap, runOperation],
 	)
 
+	const toggleSweepClass = useCallback((sweepClass: SweepClass) => {
+		setSkippedClasses((prev) => {
+			const next = new Set(prev)
+			if (next.has(sweepClass)) next.delete(sweepClass)
+			else next.add(sweepClass)
+			return next
+		})
+	}, [])
+
+	const sweepClasses = useMemo(() => {
+		if (!assets) return []
+		const classes: { id: SweepClass; label: string; count: number }[] = []
+		if (assets.funding.length > 0)
+			classes.push({ id: 'bsv', label: 'BSV', count: assets.funding.length })
+		if (assets.ordinals.length > 0)
+			classes.push({
+				id: 'ordinals',
+				label: 'Ordinals',
+				count: assets.ordinals.length,
+			})
+		if (assets.opnsNames.length > 0)
+			classes.push({
+				id: 'opns',
+				label: 'OpNS',
+				count: assets.opnsNames.length,
+			})
+		if (groupedBsv20.length > 0)
+			classes.push({
+				id: 'bsv20',
+				label: 'BSV-20',
+				count: groupedBsv20.reduce((n, t) => n + t.outputs.length, 0),
+			})
+		if (assets.bsv21Tokens.some((t) => t.outputs.length > 0))
+			classes.push({
+				id: 'bsv21',
+				label: 'BSV-21',
+				count: assets.bsv21Tokens.reduce((n, t) => n + t.outputs.length, 0),
+			})
+		return classes
+	}, [assets, groupedBsv20])
+
 	const handleSweepAll = useCallback(async () => {
 		const wallet = resolveWallet()
 		if (!wallet || !legacyKeys || !assets) return
-		await runOperation('Sweep all', async () => {
+		await runOperation('Sweep selected', async () => {
+			const all = selectAllSweepClasses(assets)
 			const result = await sweepAllClasses({
 				wallet,
 				keys: keyMap,
 				assets,
 				amount: sweepAmount ?? undefined,
 				onProgress: setSweepProgress,
+				selection: {
+					sweepBsv: !skippedClasses.has('bsv') && all.sweepBsv,
+					ordinalOutpoints: skippedClasses.has('ordinals')
+						? new Set<string>()
+						: selectedOrdinals.size > 0
+							? selectedOrdinals
+							: all.ordinalOutpoints,
+					opnsOutpoints: skippedClasses.has('opns')
+						? new Set<string>()
+						: selectedOpns.size > 0
+							? selectedOpns
+							: all.opnsOutpoints,
+					bsv20Ticks: skippedClasses.has('bsv20')
+						? new Set<string>()
+						: all.bsv20Ticks,
+					bsv21TokenIds: skippedClasses.has('bsv21')
+						? new Set<string>()
+						: all.bsv21TokenIds,
+				},
 			})
 			if (result.bsvTxid) addTx('BSV', result.bsvTxid)
 			for (const txid of result.ordinalTxids) addTx('Ordinals', txid)
@@ -578,6 +645,9 @@ export function SweepApp({
 		sweepAmount,
 		runOperation,
 		addTx,
+		skippedClasses,
+		selectedOrdinals,
+		selectedOpns,
 	])
 
 	return (
@@ -615,15 +685,48 @@ export function SweepApp({
 
 				{assets && !sweeping && (
 					<div className="space-y-3">
+						{sweepClasses.length > 1 && (
+							<div className="flex flex-wrap gap-1.5">
+								{sweepClasses.map((sweepClass) => {
+									const skipped = skippedClasses.has(sweepClass.id)
+									return (
+										<Button
+											key={sweepClass.id}
+											variant={skipped ? 'outline' : 'secondary'}
+											size="sm"
+											className="gap-1.5"
+											onClick={() => toggleSweepClass(sweepClass.id)}
+											title={
+												skipped
+													? `Include ${sweepClass.label} in Sweep-selected`
+													: `Skip ${sweepClass.label} in Sweep-selected`
+											}
+										>
+											{sweepClass.label}
+											<Badge
+												variant="secondary"
+												className="text-[10px] px-1.5 py-0"
+											>
+												{sweepClass.count}
+											</Badge>
+										</Button>
+									)
+								})}
+							</div>
+						)}
 						<Button
 							className="w-full"
-							disabled={!walletConnected}
+							disabled={
+								!walletConnected || skippedClasses.size >= sweepClasses.length
+							}
 							onClick={handleSweepAll}
 							title={
 								walletConnected ? undefined : 'Connect BRC-100 wallet to sweep'
 							}
 						>
-							Sweep all to wallet
+							{skippedClasses.size > 0
+								? 'Sweep selected to wallet'
+								: 'Sweep all to wallet'}
 						</Button>
 						<FundingSection
 							funding={assets.funding}

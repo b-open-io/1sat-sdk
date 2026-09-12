@@ -53,8 +53,14 @@ export {
 export {
 	executeSweep,
 	sweepAllClasses,
+	sweepBsv20Token,
+	sweepBsv21Token,
+	selectAllSweepClasses,
 	SWEEP_BATCH_SIZE,
+	type SweepClass,
+	type SweepClassSelection,
 	type SweepResult,
+	type SweepStepResult,
 } from './lib/sweeper'
 export {
 	legacySendBsv,

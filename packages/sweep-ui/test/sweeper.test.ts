@@ -7,7 +7,7 @@ import {
 	it,
 	spyOn,
 } from 'bun:test'
-import { sweepBsv, sweepOrdinals } from '@1sat/actions'
+import { sweepBsv, sweepBsv20, sweepBsv21, sweepOrdinals } from '@1sat/actions'
 import type { IndexedOutput } from '@1sat/types'
 import {
 	Beef,
@@ -16,8 +16,13 @@ import {
 	Transaction,
 	type WalletInterface,
 } from '@bsv/sdk'
+import type { ScannedAssets } from '../src/lib/scanner.js'
 import { configureServices, getServices } from '../src/lib/services.js'
-import { executeSweep } from '../src/lib/sweeper.js'
+import {
+	executeSweep,
+	selectAllSweepClasses,
+	sweepAllClasses,
+} from '../src/lib/sweeper.js'
 
 const wallet = {} as WalletInterface
 const ownerKeys = [
@@ -29,6 +34,8 @@ const keys = new Map(ownerKeys.map((key) => [key.toAddress(), key]))
 const transactions = new Map<string, Beef>()
 let ordinalSweep: Mock<typeof sweepOrdinals.execute>
 let bsvSweep: Mock<typeof sweepBsv.execute>
+let bsv20Sweep: Mock<typeof sweepBsv20.execute>
+let bsv21Sweep: Mock<typeof sweepBsv21.execute>
 let getBeef: Mock<ReturnType<typeof getServices>['getBeefForTxid']>
 let fetchGuard: Mock<typeof fetch>
 
@@ -75,11 +82,19 @@ beforeEach(() => {
 	bsvSweep = spyOn(sweepBsv, 'execute').mockResolvedValue({
 		txid: 'funding-tx',
 	})
+	bsv20Sweep = spyOn(sweepBsv20, 'execute').mockResolvedValue({
+		txid: 'bsv20-tx',
+	})
+	bsv21Sweep = spyOn(sweepBsv21, 'execute').mockResolvedValue({
+		txid: 'bsv21-tx',
+	})
 })
 
 afterEach(() => {
 	ordinalSweep.mockRestore()
 	bsvSweep.mockRestore()
+	bsv20Sweep.mockRestore()
+	bsv21Sweep.mockRestore()
 	getBeef.mockRestore()
 	getServices().close()
 	const networkCalls = fetchGuard.mock.calls.length
@@ -249,4 +264,206 @@ describe('sweep receipts and owner key alignment', () => {
 			expect(action).toHaveBeenCalledTimes(1)
 		})
 	}
+})
+
+function emptyAssets(overrides: Partial<ScannedAssets> = {}): ScannedAssets {
+	return {
+		funding: [],
+		ordinals: [],
+		opnsNames: [],
+		bsv21Tokens: [],
+		bsv20Tokens: [],
+		locked: [],
+		run: [],
+		totalFundingSats: 0,
+		totalBsv: 0,
+		...overrides,
+	}
+}
+
+function tokenOutput(
+	row: IndexedOutput,
+	tick: string,
+	amt: string,
+	listed: boolean,
+): IndexedOutput {
+	return {
+		...row,
+		events: [
+			...(row.events ?? []),
+			...(listed ? ['ordlock'] : []),
+			`tick:${tick}`,
+			`amt:${amt}`,
+		],
+	}
+}
+
+describe('sweepAllClasses selection, retry, and abort', () => {
+	it('sweeps only selected classes and items', async () => {
+		const funding = outputs(1, 1000)
+		const ordinals = outputs(2)
+		const tick = tokenOutput(outputs(1)[0], 'SHUA', '10', false)
+		const results: { sweepClass: string; txid?: string; error?: string }[] = []
+		const result = await sweepAllClasses({
+			wallet,
+			keys,
+			assets: emptyAssets({ funding, ordinals, bsv20Tokens: [tick] }),
+			onProgress: () => {},
+			selection: {
+				sweepBsv: false,
+				ordinalOutpoints: new Set([ordinals[0].outpoint]),
+				opnsOutpoints: new Set(),
+				bsv20Ticks: new Set(),
+				bsv21TokenIds: new Set(),
+			},
+			onResult: (r) => results.push(r),
+		})
+		expect(bsvSweep).not.toHaveBeenCalled()
+		expect(bsv20Sweep).not.toHaveBeenCalled()
+		expect(ordinalSweep).toHaveBeenCalledTimes(1)
+		expect(result.ordinalTxids).toEqual(['ordinal-tx'])
+		expect(result.sweptOutpoints).toEqual([ordinals[0].outpoint])
+		expect(result.errors).toEqual([])
+		expect(results).toEqual([
+			{ sweepClass: 'ordinals', label: 'Ordinals', txid: 'ordinal-tx' },
+		])
+	})
+
+	it('selectAllSweepClasses selects every scanned asset', async () => {
+		const funding = outputs(1, 1000)
+		const ordinals = outputs(1)
+		const assets = emptyAssets({ funding, ordinals })
+		const selection = selectAllSweepClasses(assets)
+		expect(selection.sweepBsv).toBe(true)
+		expect(selection.ordinalOutpoints).toEqual(
+			new Set(ordinals.map((o) => o.outpoint)),
+		)
+		const result = await sweepAllClasses({
+			wallet,
+			keys,
+			assets,
+			onProgress: () => {},
+			selection,
+		})
+		expect(result.bsvTxid).toBe('funding-tx')
+		expect(result.ordinalTxids).toEqual(['ordinal-tx'])
+		expect(result.errors).toEqual([])
+	})
+
+	it('skips completed outpoints and records new successes for retry', async () => {
+		const ordinals = outputs(2)
+		const completed = new Set([ordinals[0].outpoint])
+		const result = await sweepAllClasses({
+			wallet,
+			keys,
+			assets: emptyAssets({ ordinals }),
+			onProgress: () => {},
+			completed,
+		})
+		expect(ordinalSweep).toHaveBeenCalledTimes(1)
+		expect(result.sweptOutpoints).toEqual([ordinals[1].outpoint])
+		expect(completed.has(ordinals[0].outpoint)).toBe(true)
+		expect(completed.has(ordinals[1].outpoint)).toBe(true)
+	})
+
+	it('matches completed outpoints across `.` and `_` forms', async () => {
+		const rows = outputs(1)
+		const underscored = {
+			...rows[0],
+			outpoint: rows[0].outpoint.replace('.', '_'),
+		}
+		const completed = new Set([rows[0].outpoint])
+		const result = await sweepAllClasses({
+			wallet,
+			keys,
+			assets: emptyAssets({ ordinals: [underscored] }),
+			onProgress: () => {},
+			completed,
+		})
+		expect(ordinalSweep).not.toHaveBeenCalled()
+		expect(result.ordinalTxids).toEqual([])
+		expect(result.errors).toEqual([])
+	})
+
+	it('aborts before later classes and keeps the emitted BSV receipt', async () => {
+		const controller = new AbortController()
+		bsvSweep.mockImplementation(async () => {
+			controller.abort()
+			return { txid: 'funding-tx' }
+		})
+		const results: { sweepClass: string; txid?: string }[] = []
+		await expect(
+			sweepAllClasses({
+				wallet,
+				keys,
+				assets: emptyAssets({
+					funding: outputs(1, 1000),
+					ordinals: outputs(1),
+				}),
+				onProgress: () => {},
+				signal: controller.signal,
+				onResult: (r) => results.push(r),
+			}),
+		).rejects.toThrow()
+		expect(results).toEqual([
+			{ sweepClass: 'bsv', label: 'BSV', txid: 'funding-tx' },
+		])
+		expect(ordinalSweep).not.toHaveBeenCalled()
+	})
+
+	it('fails closed on ambiguous owner matches', async () => {
+		const rows = outputs(1)
+		rows[0].events = [
+			`own:${ownerKeys[0].toAddress()}`,
+			`own:${ownerKeys[1].toAddress()}`,
+		]
+		const result = await sweepAllClasses({
+			wallet,
+			keys,
+			assets: emptyAssets({ ordinals: rows }),
+			onProgress: () => {},
+		})
+		expect(ordinalSweep).not.toHaveBeenCalled()
+		expect(result.ordinalTxids).toEqual([])
+		expect(result.errors[0]).toContain('No key for output')
+	})
+
+	it('batches a whole BSV-20 tick in one transaction by default', async () => {
+		const rows = outputs(3).map((row, i) =>
+			tokenOutput(row, 'SHUA', `${i + 1}`, i < 2),
+		)
+		const result = await sweepAllClasses({
+			wallet,
+			keys,
+			assets: emptyAssets({ bsv20Tokens: rows }),
+			onProgress: () => {},
+		})
+		expect(bsv20Sweep).toHaveBeenCalledTimes(1)
+		expect(result.bsv20Txids).toEqual(['bsv20-tx'])
+		expect(result.errors).toEqual([])
+	})
+
+	it('splitListedBsv20 sweeps each listed output alone', async () => {
+		const rows = outputs(3).map((row, i) =>
+			tokenOutput(row, 'SHUA', `${i + 1}`, i < 2),
+		)
+		bsv20Sweep.mockImplementation(async (_ctx, input) => {
+			return {
+				txid: `bsv20-${input.inputs.length}-${input.inputs[0].outpoint}`,
+			}
+		})
+		const result = await sweepAllClasses({
+			wallet,
+			keys,
+			assets: emptyAssets({ bsv20Tokens: rows }),
+			onProgress: () => {},
+			splitListedBsv20: true,
+		})
+		expect(bsv20Sweep).toHaveBeenCalledTimes(3)
+		expect(
+			bsv20Sweep.mock.calls.map(([, input]) => input.inputs.length),
+		).toEqual([1, 1, 1])
+		expect(result.bsv20Txids).toHaveLength(3)
+		expect(result.errors).toEqual([])
+	})
 })
