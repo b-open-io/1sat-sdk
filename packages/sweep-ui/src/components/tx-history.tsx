@@ -13,9 +13,16 @@ interface Props {
 	sweeping: boolean
 	progress: string
 	history: TxRecord[]
+	/** Marketplace listings canceled into the wallet across this session. */
+	cancelledListings?: number
 }
 
-export function TxHistory({ sweeping, progress, history }: Props) {
+export function TxHistory({
+	sweeping,
+	progress,
+	history,
+	cancelledListings = 0,
+}: Props) {
 	return (
 		<>
 			{sweeping && (
@@ -32,6 +39,13 @@ export function TxHistory({ sweeping, progress, history }: Props) {
 				<div className="border border-border/50 rounded-lg p-3 space-y-2">
 					<div className="text-xs font-medium text-muted-foreground">
 						Transactions ({history.length})
+						{cancelledListings > 0 && (
+							<span>
+								{' '}
+								· {cancelledListings} listing
+								{cancelledListings !== 1 ? 's' : ''} canceled
+							</span>
+						)}
 					</div>
 					<div className="space-y-2 max-h-48 overflow-y-auto">
 						{[...history].reverse().map((tx, i) => (

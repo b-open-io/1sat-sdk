@@ -5,6 +5,7 @@ import {
 	bsv21SweepBatches,
 	createContext,
 	groupBsv20Tokens,
+	isListedOutput,
 	prepareSweepInputs,
 	sweepBsv,
 	sweepBsv20,
@@ -73,6 +74,8 @@ export interface SweepResult {
 	errors: string[]
 	/** Outpoints successfully swept (ordinals/OpNS, including listed OrdLocks). */
 	sweptOutpoints: string[]
+	/** Swept outpoints that were marketplace listings canceled into the wallet. */
+	cancelledListings: string[]
 }
 
 /**
@@ -143,6 +146,7 @@ export async function executeSweep(params: {
 		bsv21Txids: [],
 		errors: [],
 		sweptOutpoints: [],
+		cancelledListings: [],
 	}
 
 	const fundingStep = await sweepFundingStep({
@@ -171,6 +175,10 @@ export async function executeSweep(params: {
 	result.ordinalTxids.push(...ordinalBatches.txids)
 	result.sweptOutpoints.push(...ordinalBatches.swept)
 	result.errors.push(...ordinalBatches.errors)
+	result.cancelledListings.push(
+		...cancelledIn(funding, fundingStep.swept),
+		...cancelledIn(ordinals, ordinalBatches.swept),
+	)
 
 	onProgress(
 		result.errors.length > 0 ? 'Sweep stopped with errors' : 'Sweep complete',
@@ -181,6 +189,14 @@ export async function executeSweep(params: {
 function isCompleted(completed: Set<string> | undefined, outpoint: string) {
 	if (!completed) return false
 	return completed.has(normalizeOutpoint(outpoint))
+}
+
+/** Swept outpoints that were listings: every one canceled into the wallet. */
+function cancelledIn(outputs: IndexedOutput[], swept: string[]): string[] {
+	const done = new Set(swept.map(normalizeOutpoint))
+	return outputs
+		.filter((o) => done.has(normalizeOutpoint(o.outpoint)) && isListedOutput(o))
+		.map((o) => o.outpoint)
 }
 
 function markCompleted(
@@ -201,12 +217,12 @@ async function sweepFundingStep(options: {
 	signal?: AbortSignal
 	onProgress: (stage: string) => void
 	onResult?: (result: SweepStepResult) => void
-}): Promise<{ bsvTxid?: string; error?: string }> {
+}): Promise<{ bsvTxid?: string; error?: string; swept: string[] }> {
 	const { ctx, keys, amount, completed, signal, onProgress, onResult } = options
 	const pending = options.funding.filter(
 		(o) => !isCompleted(completed, o.outpoint),
 	)
-	if (pending.length === 0) return {}
+	if (pending.length === 0) return { swept: [] }
 	signal?.throwIfAborted()
 	onProgress(`Sweeping ${pending.length} BSV UTXOs...`)
 	try {
@@ -221,12 +237,12 @@ async function sweepFundingStep(options: {
 		if (!txid) throw new Error('Sweep returned no transaction ID')
 		markCompleted(completed, pending)
 		onResult?.({ sweepClass: 'bsv', label: 'BSV', txid })
-		return { bsvTxid: txid }
+		return { bsvTxid: txid, swept: pending.map((o) => o.outpoint) }
 	} catch (e) {
 		if (signal?.aborted) throw e
 		const error = e instanceof Error ? e.message : String(e)
 		onResult?.({ sweepClass: 'bsv', label: 'BSV', error })
-		return { error: `BSV: ${error}` }
+		return { error: `BSV: ${error}`, swept: [] }
 	}
 }
 
@@ -310,6 +326,7 @@ export async function sweepBsv21Token(params: {
 	txid?: string
 	txids: string[]
 	sweptOutpoints: string[]
+	cancelledListings: string[]
 	error?: string
 }> {
 	const { wallet, keys, token, onProgress, signal } = params
@@ -359,6 +376,7 @@ export async function sweepBsv21Token(params: {
 		txid: txids.at(-1),
 		txids,
 		sweptOutpoints,
+		cancelledListings: cancelledIn(token.outputs, sweptOutpoints),
 		error: errors[0],
 	}
 }
@@ -379,6 +397,7 @@ export async function sweepBsv20Token(params: {
 	txid?: string
 	txids: string[]
 	sweptOutpoints: string[]
+	cancelledListings: string[]
 	error?: string
 }> {
 	const { wallet, keys, token, onProgress, signal, splitListed } = params
@@ -432,6 +451,7 @@ export async function sweepBsv20Token(params: {
 		txid: txids.at(-1),
 		txids,
 		sweptOutpoints,
+		cancelledListings: cancelledIn(token.outputs, sweptOutpoints),
 		error: errors[0],
 	}
 }
@@ -469,6 +489,7 @@ export async function sweepAllClasses(params: {
 		bsv21Txids: [],
 		errors: [],
 		sweptOutpoints: [],
+		cancelledListings: [],
 	}
 
 	signal?.throwIfAborted()
@@ -485,6 +506,9 @@ export async function sweepAllClasses(params: {
 		})
 		if (fundingStep.bsvTxid) result.bsvTxid = fundingStep.bsvTxid
 		if (fundingStep.error) result.errors.push(fundingStep.error)
+		result.cancelledListings.push(
+			...cancelledIn(assets.funding, fundingStep.swept),
+		)
 	}
 
 	const inSelection = (outpoints: Set<string>) => (o: IndexedOutput) =>
@@ -515,6 +539,7 @@ export async function sweepAllClasses(params: {
 		result.ordinalTxids.push(...batches.txids)
 		result.sweptOutpoints.push(...batches.swept)
 		result.errors.push(...batches.errors)
+		result.cancelledListings.push(...cancelledIn(outputs, batches.swept))
 	}
 
 	for (const token of groupBsv20Tokens(assets.bsv20Tokens)) {
@@ -537,6 +562,7 @@ export async function sweepAllClasses(params: {
 			swept.sweptOutpoints.map((outpoint) => ({ outpoint })),
 		)
 		result.bsv20Txids.push(...swept.txids)
+		result.cancelledListings.push(...cancelledIn(outputs, swept.sweptOutpoints))
 		if (swept.error) {
 			result.errors.push(`BSV-20 ${token.tick}: ${swept.error}`)
 			onResult?.({ sweepClass: 'bsv20', label: token.tick, error: swept.error })
@@ -564,6 +590,7 @@ export async function sweepAllClasses(params: {
 			swept.sweptOutpoints.map((outpoint) => ({ outpoint })),
 		)
 		result.bsv21Txids.push(...swept.txids)
+		result.cancelledListings.push(...cancelledIn(outputs, swept.sweptOutpoints))
 		if (swept.error) {
 			result.errors.push(
 				`BSV-21 ${token.symbol ?? token.tokenId.slice(0, 8)}: ${swept.error}`,

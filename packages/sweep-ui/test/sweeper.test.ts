@@ -466,4 +466,36 @@ describe('sweepAllClasses selection, retry, and abort', () => {
 		expect(result.bsv20Txids).toHaveLength(3)
 		expect(result.errors).toEqual([])
 	})
+
+	it('reports swept listings canceled into the wallet', async () => {
+		const [listed, plain] = outputs(2)
+		listed.events = [...(listed.events ?? []), 'ordlock']
+		const tick = tokenOutput(outputs(1, 1, [ownerKeys[1]])[0], 'SHUA', '10', true)
+		const result = await sweepAllClasses({
+			wallet,
+			keys,
+			assets: emptyAssets({ ordinals: [listed, plain], bsv20Tokens: [tick] }),
+			onProgress: () => {},
+		})
+		expect(result.errors).toEqual([])
+		expect(result.cancelledListings).toEqual(
+			expect.arrayContaining([listed.outpoint, tick.outpoint]),
+		)
+		expect(result.cancelledListings).not.toContain(plain.outpoint)
+		expect(result.cancelledListings).toHaveLength(2)
+	})
+
+	it('reports no canceled listings when nothing listed swept', async () => {
+		const result = await sweepAllClasses({
+			wallet,
+			keys,
+			assets: emptyAssets({
+				funding: outputs(1, 1000),
+				ordinals: outputs(1),
+			}),
+			onProgress: () => {},
+		})
+		expect(result.errors).toEqual([])
+		expect(result.cancelledListings).toEqual([])
+	})
 })

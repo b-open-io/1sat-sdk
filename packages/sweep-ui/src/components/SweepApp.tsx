@@ -60,6 +60,7 @@ export function SweepApp({
 	const [sweeping, setSweeping] = useState(false)
 	const [sweepProgress, setSweepProgress] = useState('')
 	const [txHistory, setTxHistory] = useState<TxRecord[]>([])
+	const [cancelledListings, setCancelledListings] = useState(0)
 	const [selectedOrdinals, setSelectedOrdinals] = useState<Set<string>>(
 		new Set(),
 	)
@@ -104,6 +105,10 @@ export function SweepApp({
 			...prev,
 			{ label, txid, timestamp: new Date(), error },
 		])
+	}, [])
+
+	const addCancelled = useCallback((count: number) => {
+		if (count > 0) setCancelledListings((prev) => prev + count)
 	}, [])
 
 	const groupedBsv20 = useMemo(
@@ -290,6 +295,7 @@ export function SweepApp({
 				onProgress: setSweepProgress,
 			})
 			if (result.errors.length > 0) throw new Error(result.errors[0])
+			addCancelled(result.cancelledListings.length)
 			return result.bsvTxid ?? ''
 		})
 	}, [
@@ -300,6 +306,7 @@ export function SweepApp({
 		getSelectedFunding,
 		runOperation,
 		keyMap,
+		addCancelled,
 	])
 
 	const handleSendBsv = useCallback(
@@ -342,13 +349,22 @@ export function SweepApp({
 					if (result.sweptOutpoints.length > 0) await refreshAssets()
 					throw new Error(result.errors[0])
 				}
+				addCancelled(result.cancelledListings.length)
 				for (let i = 0; i < result.ordinalTxids.length - 1; i++) {
 					addTx(label, result.ordinalTxids[i])
 				}
 				return result.ordinalTxids[result.ordinalTxids.length - 1] ?? ''
 			})
 		},
-		[resolveWallet, legacyKeys, keyMap, runOperation, addTx, refreshAssets],
+		[
+			resolveWallet,
+			legacyKeys,
+			keyMap,
+			runOperation,
+			addTx,
+			addCancelled,
+			refreshAssets,
+		],
 	)
 
 	const handleSweepOrdinals = useCallback(async () => {
@@ -437,13 +453,22 @@ export function SweepApp({
 					if (result.sweptOutpoints.length > 0) await refreshAssets()
 					throw new Error(result.errors[0])
 				}
+				addCancelled(result.cancelledListings.length)
 				for (let i = 0; i < result.ordinalTxids.length - 1; i++) {
 					addTx(label, result.ordinalTxids[i])
 				}
 				return result.ordinalTxids[result.ordinalTxids.length - 1] ?? ''
 			})
 		},
-		[resolveWallet, legacyKeys, keyMap, runOperation, addTx, refreshAssets],
+		[
+			resolveWallet,
+			legacyKeys,
+			keyMap,
+			runOperation,
+			addTx,
+			addCancelled,
+			refreshAssets,
+		],
 	)
 
 	const handleSweepOpns = useCallback(async () => {
@@ -525,11 +550,12 @@ export function SweepApp({
 					})
 					for (const txid of result.txids.slice(0, -1)) addTx('BSV-21', txid)
 					if (result.error) throw new Error(result.error)
+					addCancelled(result.cancelledListings.length)
 					return result.txid ?? ''
 				},
 			)
 		},
-		[resolveWallet, assets, keyMap, runOperation, addTx],
+		[resolveWallet, assets, keyMap, runOperation, addTx, addCancelled],
 	)
 
 	const handleSweepBsv20Token = useCallback(
@@ -546,10 +572,11 @@ export function SweepApp({
 					onProgress: setSweepProgress,
 				})
 				if (result.error) throw new Error(result.error)
+				addCancelled(result.cancelledListings.length)
 				return result.txid ?? ''
 			})
 		},
-		[resolveWallet, assets, groupedBsv20, keyMap, runOperation],
+		[resolveWallet, assets, groupedBsv20, keyMap, runOperation, addCancelled],
 	)
 
 	const toggleSweepClass = useCallback((sweepClass: SweepClass) => {
@@ -628,6 +655,7 @@ export function SweepApp({
 			for (const txid of result.ordinalTxids) addTx('Ordinals', txid)
 			for (const txid of result.bsv20Txids) addTx('BSV-20', txid)
 			for (const txid of result.bsv21Txids) addTx('BSV-21', txid)
+			addCancelled(result.cancelledListings.length)
 			if (result.errors.length > 0) throw new Error(result.errors[0])
 			return (
 				result.bsvTxid ??
@@ -645,6 +673,7 @@ export function SweepApp({
 		sweepAmount,
 		runOperation,
 		addTx,
+		addCancelled,
 		skippedClasses,
 		selectedOrdinals,
 		selectedOpns,
@@ -818,6 +847,7 @@ export function SweepApp({
 					sweeping={sweeping}
 					progress={sweepProgress}
 					history={txHistory}
+					cancelledListings={cancelledListings}
 				/>
 			</div>
 		</div>
