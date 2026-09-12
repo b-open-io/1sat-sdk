@@ -470,7 +470,12 @@ describe('sweepAllClasses selection, retry, and abort', () => {
 	it('reports swept listings canceled into the wallet', async () => {
 		const [listed, plain] = outputs(2)
 		listed.events = [...(listed.events ?? []), 'ordlock']
-		const tick = tokenOutput(outputs(1, 1, [ownerKeys[1]])[0], 'SHUA', '10', true)
+		const tick = tokenOutput(
+			outputs(1, 1, [ownerKeys[1]])[0],
+			'SHUA',
+			'10',
+			true,
+		)
 		const result = await sweepAllClasses({
 			wallet,
 			keys,
