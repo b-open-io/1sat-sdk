@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- `createAction` finish passes the approved args' basketed 1-sat outputs to the unlock pipeline as OrdLock v2 delivery targets, so a v2 purchase is refused at signing unless the listed satoshi reaches one of them.
+
 ## 0.0.60
 
 ### Changed

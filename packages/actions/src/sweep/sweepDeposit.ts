@@ -12,9 +12,15 @@
  * the change to a freshly BRC-29-derived address recorded in `FUNDING_BASKET`.
  * From that point the funds are normal BRC-29 funding, available for
  * ordinary spending under the wallet's standard funding protocol.
+ *
+ * Outputs tagged `hold:<unix ms>` are skipped until the wallet clock passes
+ * that value. Actions that prepare a short-lived output here (OrdLock v2
+ * purchase front funding) use the hold so a sync tick cannot sweep it out
+ * from under the transaction about to spend it; if that transaction never
+ * happens, the hold expires and the next sweep reclaims the output.
  */
 
-import { DEPOSIT_BASKET, P1SAT_PROTOCOL } from '@1sat/types'
+import { DEPOSIT_BASKET, P1SAT_PROTOCOL, isDepositHeld } from '@1sat/types'
 import type { WalletCounterparty, WalletProtocol } from '@bsv/sdk'
 import type { Action, ActionOptions } from '../types.js'
 import { executeTrackedAction } from '../utils/createTrackedAction.js'
@@ -78,6 +84,7 @@ export const sweepDeposit: Action<SweepDepositInput, SweepDepositResult> = {
 		//    reassembles it here when the deposit isn't yet proven.
 		const list = await ctx.wallet.listOutputs({
 			basket: DEPOSIT_BASKET,
+			includeTags: true,
 			includeCustomInstructions: true,
 			include: 'entire transactions',
 			limit,
@@ -87,9 +94,11 @@ export const sweepDeposit: Action<SweepDepositInput, SweepDepositResult> = {
 		}
 		const inputBEEF = list.BEEF ? Array.from(list.BEEF) : undefined
 
+		const now = Date.now()
 		const inputs: DepositInputInfo[] = []
 		for (const out of list.outputs) {
 			if (!out.customInstructions) continue
+			if (isDepositHeld(out.tags, now)) continue
 			let parsed: {
 				keyID?: string
 				protocolID?: WalletProtocol

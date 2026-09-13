@@ -4,7 +4,6 @@ import {
 	ORD_LOCK_V2_CODESEP_INDEX,
 	ORD_LOCK_V2_PREFIX,
 	ORD_LOCK_V2_SLOTS,
-	ORD_LOCK_V2_TAG_PREFIX,
 	ORD_LOCK_V2_TEMPLATE,
 } from '@1sat/types'
 import {
@@ -37,8 +36,6 @@ export const ORDLOCK_V2_CANCEL_MARKER = Utils.toArray(
 	'hex',
 )
 
-const TAG_PREFIX = Utils.toArray(ORD_LOCK_V2_TAG_PREFIX, 'hex')
-
 /** Public-method index in the artifact ABI; the unlock's trailing selector push. */
 function methodIndex(name: string): number {
 	const i = ORD_LOCK_V2_ARTIFACT.abi.methods.findIndex(
@@ -54,8 +51,22 @@ const PURCHASE_SELECTOR =
 const CANCEL_SELECTOR =
 	CANCEL_METHOD === 0 ? OP.OP_0 : OP.OP_1 + CANCEL_METHOD - 1
 
-/** Sighash flag the purchase preimage is built under (baked into the contract). */
-const PURCHASE_SCOPE =
+/**
+ * Sighash flag the purchase preimage is built under (baked into the
+ * contract's `@sighash` directive): SINGLE|ANYONECANPAY|FORKID. SIGHASH_SINGLE
+ * commits the listing input at index `i` to the complete output at index `i`,
+ * which the covenant requires to equal the seller's embedded payout.
+ */
+export const ORDLOCK_V2_PURCHASE_SIGHASH =
+	TransactionSignature.SIGHASH_SINGLE |
+	TransactionSignature.SIGHASH_ANYONECANPAY |
+	TransactionSignature.SIGHASH_FORKID
+
+/**
+ * Sighash a wallet-signed cancel commits under. ALL binds the seller's chosen
+ * outputs; ANYONECANPAY lets the wallet add fee inputs after the signature.
+ */
+const CANCEL_WALLET_SCOPE =
 	TransactionSignature.SIGHASH_ALL |
 	TransactionSignature.SIGHASH_ANYONECANPAY |
 	TransactionSignature.SIGHASH_FORKID
@@ -63,6 +74,9 @@ const PURCHASE_SCOPE =
 /** Upper bound of a v2 cancel unlock: `<marker> <sig> <pubkey> OP_1` with a 73-byte DER signature. */
 export const ORDLOCK_V2_CANCEL_UNLOCK_LENGTH = 1 + 10 + 1 + 73 + 1 + 33 + 1
 const CANCEL_UNLOCK_LENGTH = ORDLOCK_V2_CANCEL_UNLOCK_LENGTH
+
+/** BIP-143 preimage bytes other than the scriptCode and its varint. */
+const PREIMAGE_FIXED_LENGTH = 156
 
 /**
  * OrdLock v2 decoded data structure
@@ -86,6 +100,56 @@ export interface OrdLockV2Unlocker {
 	estimateLength: (tx: Transaction, inputIndex: number) => Promise<number>
 }
 
+/**
+ * A receive output the buyer approved for a purchased ordinal: the exact
+ * output index and locking script the listed satoshi must land on.
+ */
+export interface OrdLockV2DeliveryTarget {
+	vout: number
+	lockingScript: Script
+}
+
+export interface OrdLockV2PurchaseOptions {
+	/**
+	 * Buyer-approved receive outputs. When given, the purchase refuses to sign
+	 * unless the listed satoshi routes to one of them (same vout and script).
+	 * When omitted, the guard still requires a 1-sat, non-data, non-payout
+	 * destination, but cannot know which script the buyer intended.
+	 */
+	deliveries?: OrdLockV2DeliveryTarget[]
+}
+
+/** Inputs to {@link OrdLockV2.planPurchase}. */
+export interface OrdLockV2PurchasePlanInput {
+	/**
+	 * Satoshis of each front funding input, in input order. These inputs must
+	 * be placed at indices `0 … m-1` of the transaction, before the listings.
+	 */
+	frontSatoshis: number[]
+	/** Locking script of each listing being bought, in input order (indices `m … m+n-1`). */
+	listings: Script[]
+	/** One 1-satoshi receive output per listing, same order as `listings`. */
+	receives: TransactionOutput[]
+	/** Script that takes the cushion (front funding minus payouts) when it is non-zero. */
+	cushionScript: Script
+}
+
+/** Output layout produced by {@link OrdLockV2.planPurchase}. */
+export interface OrdLockV2PurchasePlan {
+	/** Outputs in transaction order: leading slots, payouts, receives. */
+	outputs: TransactionOutput[]
+	/** Index of the cushion output, or -1 when the cushion is zero (all leading slots are fillers). */
+	cushionVout: number
+	/** Indices of the zero-satoshi OP_RETURN fillers among the leading slots. */
+	fillerVouts: number[]
+	/** Index of each seller payout (equals its listing's input index). */
+	payoutVouts: number[]
+	/** Index of each buyer receive output, same order as `listings`. */
+	receiveVouts: number[]
+	/** Total front funding minus total payouts. */
+	cushion: number
+}
+
 function indexOf(arr: number[], subArr: number[], fromIndex = 0): number {
 	for (let i = fromIndex; i <= arr.length - subArr.length; i++) {
 		let found = true
@@ -100,9 +164,6 @@ function indexOf(arr: number[], subArr: number[], fromIndex = 0): number {
 	return -1
 }
 
-/** Header bytes of an OP_PUSHDATA2 push (the largest either output blob needs). */
-const PUSHDATA2_HEADER = 3
-
 function varIntLen(n: number): number {
 	return n < 0xfd ? 1 : n <= 0xffff ? 3 : n <= 0xffffffff ? 5 : 9
 }
@@ -116,6 +177,13 @@ function bytesEqual(a: number[], b: number[]): boolean {
 	if (a.length !== b.length) return false
 	for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
 	return true
+}
+
+function isDataOutput(script: number[]): boolean {
+	return (
+		script[0] === OP.OP_RETURN ||
+		(script[0] === OP.OP_FALSE && script[1] === OP.OP_RETURN)
+	)
 }
 
 function resolveSource(
@@ -153,13 +221,26 @@ function resolveSource(
  *
  * A v2 listing is spent one of two ways:
  *
- * - **purchase**: no signature. The buyer's transaction must contain, somewhere
- *   in its outputs, the listing's payout output IMMEDIATELY followed by a
- *   0-sat tag output `OP_FALSE OP_RETURN <this listing's outpoint>`. Several
- *   listings can be bought in one transaction, each with its own payout+tag
- *   pair. Unlock: `<prefixOutputs> <suffixOutputs> <preimage> OP_0`.
+ * - **purchase**: no signature. The listing at input `i` requires the
+ *   complete output `i` of the spending transaction to equal the seller's
+ *   payout embedded in the listing (SIGHASH_SINGLE supplies the boundary and
+ *   the index). Several listings can be bought in one transaction, each with
+ *   its own same-index payout. Unlock: `<preimage> OP_0`.
  * - **cancel**: signed by the seller key. Unlock:
  *   `<"ol2:cancel"> <sig> <pubkey> OP_1`.
+ *
+ * The covenant binds the seller's payment, not the buyer's delivery. The
+ * listed satoshi follows first-sat ordering, so a purchase transaction is
+ * laid out as:
+ *
+ * ```text
+ * inputs:  0…m-1 front funding · m…m+n-1 listings · trailing fee funding
+ * outputs: 0…m-1 cushion + 0-sat fillers · m…m+n-1 seller payouts · buyer receives · change
+ * ```
+ *
+ * {@link planPurchase} builds that output layout, and {@link purchaseListing}
+ * refuses to sign unless the payout sits at the listing's index and the listed
+ * satoshi reaches an approved 1-sat receive output.
  *
  * The locking script is built by filling the compiled template's constructor
  * slots; {@link decode} is the exact inverse and needs no contract-specific
@@ -264,17 +345,16 @@ export default class OrdLockV2 {
 	}
 
 	/**
-	 * Checks whether an unlocking script is a v2 purchase
-	 * (`<prefix> <suffix> <preimage> OP_0`).
+	 * Checks whether an unlocking script is a v2 purchase (`<preimage> OP_0`).
 	 */
 	static isPurchase(unlockingScript: Script): boolean {
 		const chunks = unlockingScript.chunks
-		const preimage = chunks[2]
-		const last = chunks[chunks.length - 1]
+		const preimage = chunks[0]
+		const last = chunks[1]
 		return (
-			chunks.length === 4 &&
+			chunks.length === 2 &&
 			preimage?.data != null &&
-			preimage.data.length >= 156 &&
+			preimage.data.length >= PREIMAGE_FIXED_LENGTH &&
 			last?.op === PURCHASE_SELECTOR
 		)
 	}
@@ -288,43 +368,6 @@ export default class OrdLockV2 {
 		writer.writeVarIntNum(script.length)
 		writer.write(script)
 		return writer.toArray()
-	}
-
-	/**
-	 * The 36-byte outpoint as the covenant sees it: txid in internal
-	 * (little-endian) byte order followed by the 4-byte LE output index.
-	 */
-	static outpointBytes(txid: string, vout: number): number[] {
-		const w = new Utils.Writer()
-		w.write(Utils.toArray(txid, 'hex').reverse())
-		w.writeUInt32LE(vout)
-		return w.toArray()
-	}
-
-	/**
-	 * Locking script of the tag output a purchase must place immediately after
-	 * the listing's payout: `OP_FALSE OP_RETURN <outpoint>`.
-	 */
-	static tagScript(txid: string, vout: number): LockingScript {
-		return new LockingScript()
-			.writeOpCode(OP.OP_FALSE)
-			.writeOpCode(OP.OP_RETURN)
-			.writeBin(OrdLockV2.outpointBytes(txid, vout))
-	}
-
-	/**
-	 * The 0-sat tag output for a listing outpoint (convenience for tx builders).
-	 */
-	static tagOutput(txid: string, vout: number): TransactionOutput {
-		return { satoshis: 0, lockingScript: OrdLockV2.tagScript(txid, vout) }
-	}
-
-	/**
-	 * Serialized tag output for a listing outpoint (what the contract expects
-	 * to find right after the payout in the output set).
-	 */
-	static tagOutputBytes(txid: string, vout: number): number[] {
-		return [...TAG_PREFIX, ...OrdLockV2.outpointBytes(txid, vout)]
 	}
 
 	/**
@@ -343,61 +386,198 @@ export default class OrdLockV2 {
 	}
 
 	/**
-	 * Upper bound for a v2 purchase unlocking script, for reserving
-	 * `unlockingScriptLength` in createAction. The script serializes every
-	 * output, and the wallet appends its change outputs after createAction,
-	 * so their count is the one thing that cannot be known exactly here.
+	 * Lays out the outputs of a batch purchase so that every listing input's
+	 * payout sits at the listing's own index and every listed satoshi flows
+	 * into its buyer receive output under first-sat ordering.
 	 *
-	 * `<prefixOutputs> <suffixOutputs> <preimage> <selector>`: the two output
-	 * blobs together hold every output except the payout+tag pair exactly
-	 * once; the preimage embeds the scriptCode (locking script after the
-	 * OP_CODESEPARATOR). Everything is exact except the change allowance.
+	 * Front funding inputs `0 … m-1` must together cover the payouts; each one
+	 * reserves a leading output slot. One slot carries the cushion
+	 * (`Σfront − Σpayouts`) and the rest are 0-sat `OP_FALSE OP_RETURN`
+	 * fillers. Fee funding must be added AFTER the listing inputs and change
+	 * AFTER these outputs, or the sat map shifts.
+	 */
+	static planPurchase(
+		input: OrdLockV2PurchasePlanInput,
+	): OrdLockV2PurchasePlan {
+		const { frontSatoshis, listings, receives, cushionScript } = input
+		const m = frontSatoshis.length
+		const n = listings.length
+		if (m < 1)
+			throw new Error(
+				'OrdLockV2.planPurchase: at least one front funding input',
+			)
+		if (n < 1) throw new Error('OrdLockV2.planPurchase: at least one listing')
+		if (receives.length !== n) {
+			throw new Error('OrdLockV2.planPurchase: one receive output per listing')
+		}
+		const payouts = listings.map((l) => OrdLockV2.payoutOutput(l))
+		const totalPayout = payouts.reduce((s, p) => s + (p.satoshis ?? 0), 0)
+		const front = frontSatoshis.reduce((s, v) => s + v, 0)
+		if (front < totalPayout) {
+			throw new Error(
+				`OrdLockV2.planPurchase: front funding ${front} does not cover payouts ${totalPayout}`,
+			)
+		}
+		const cushion = front - totalPayout
+		const filler = new LockingScript()
+			.writeOpCode(OP.OP_FALSE)
+			.writeOpCode(OP.OP_RETURN)
+
+		const outputs: TransactionOutput[] = []
+		const fillerVouts: number[] = []
+		let cushionVout = -1
+		for (let i = 0; i < m; i++) {
+			if (i === 0 && cushion > 0) {
+				cushionVout = outputs.length
+				outputs.push({ satoshis: cushion, lockingScript: cushionScript })
+			} else {
+				fillerVouts.push(outputs.length)
+				outputs.push({ satoshis: 0, lockingScript: filler })
+			}
+		}
+		const payoutVouts: number[] = []
+		for (const p of payouts) {
+			payoutVouts.push(outputs.length)
+			outputs.push(p)
+		}
+		const receiveVouts: number[] = []
+		for (const r of receives) {
+			if ((r.satoshis ?? 0) !== 1) {
+				throw new Error(
+					'OrdLockV2.planPurchase: receive outputs must carry exactly 1 satoshi',
+				)
+			}
+			receiveVouts.push(outputs.length)
+			outputs.push(r)
+		}
+		return {
+			outputs,
+			cushionVout,
+			fillerVouts,
+			payoutVouts,
+			receiveVouts,
+			cushion,
+		}
+	}
+
+	/**
+	 * Output index that receives the first satoshi of `inputIndex` under
+	 * first-sat ordering: inputs form one satoshi stream and outputs consume
+	 * it in order (0-sat outputs consume nothing). Every earlier input must
+	 * carry its source output so its value is known.
+	 */
+	static ordinalOutput(tx: Transaction, inputIndex: number): number {
+		let offset = 0n
+		for (let i = 0; i < inputIndex; i++) {
+			const inp = tx.inputs[i]
+			const sats =
+				inp?.sourceTransaction?.outputs[inp.sourceOutputIndex]?.satoshis
+			if (sats === undefined) {
+				throw new Error(
+					`OrdLockV2: input ${i} has no source satoshis; cannot map the ordinal from input ${inputIndex}`,
+				)
+			}
+			offset += BigInt(sats)
+		}
+		let acc = 0n
+		for (let vout = 0; vout < tx.outputs.length; vout++) {
+			const next = acc + BigInt(tx.outputs[vout].satoshis ?? 0)
+			if (offset < next) return vout
+			acc = next
+		}
+		throw new Error(
+			`OrdLockV2: the ordinal from input ${inputIndex} is not mapped to any output (it would be burned as fee)`,
+		)
+	}
+
+	/**
+	 * Delivery guard. Throws unless the listed satoshi spent by `inputIndex`
+	 * lands on an output that carries exactly 1 satoshi and, when
+	 * `deliveries` is given, matches one of them by index and script. Without
+	 * `deliveries` the destination must at least not be a data output or a
+	 * seller payout slot of any v2 listing in the transaction.
+	 *
+	 * @returns the output index the ordinal is delivered to
+	 */
+	static assertDelivery(
+		tx: Transaction,
+		inputIndex: number,
+		deliveries?: OrdLockV2DeliveryTarget[],
+	): number {
+		const vout = OrdLockV2.ordinalOutput(tx, inputIndex)
+		const out = tx.outputs[vout]
+		if ((out.satoshis ?? 0) !== 1) {
+			throw new Error(
+				`OrdLockV2: listing input ${inputIndex} delivers its ordinal to output ${vout} carrying ${out.satoshis} sats, not a 1-sat receive output`,
+			)
+		}
+		const script = out.lockingScript.toBinary()
+		if (deliveries) {
+			const ok = deliveries.some(
+				(d) =>
+					d.vout === vout && bytesEqual(d.lockingScript.toBinary(), script),
+			)
+			if (!ok) {
+				throw new Error(
+					`OrdLockV2: listing input ${inputIndex} delivers its ordinal to output ${vout}, which is not an approved receive output`,
+				)
+			}
+			return vout
+		}
+		if (isDataOutput(script)) {
+			throw new Error(
+				`OrdLockV2: listing input ${inputIndex} delivers its ordinal to data output ${vout}`,
+			)
+		}
+		for (let i = 0; i < tx.inputs.length; i++) {
+			const inp = tx.inputs[i]
+			const src = inp.sourceTransaction?.outputs[inp.sourceOutputIndex]
+			if (i === vout && src && OrdLockV2.isOrdLockV2(src.lockingScript)) {
+				throw new Error(
+					`OrdLockV2: listing input ${inputIndex} delivers its ordinal to output ${vout}, the payout slot of listing input ${i}`,
+				)
+			}
+		}
+		return vout
+	}
+
+	/**
+	 * Exact length of a v2 purchase unlocking script for a listing, for
+	 * reserving `unlockingScriptLength` in createAction. The unlock is only
+	 * `<preimage> OP_0`, and the preimage size depends solely on the listing's
+	 * scriptCode, so the wallet's later fee inputs and change outputs cannot
+	 * change it.
 	 *
 	 * @param lockingScript - The listing's locking script (trailing data included)
-	 * @param otherOutputsBytes - Serialized size of the caller's outputs other
-	 *   than the payout and tag (e.g. the ordinal output and any fee outputs)
-	 * @param maxChangeOutputs - Cap on P2PKH change outputs the wallet may add.
-	 *   Default matches @bsv/wallet-toolbox `maxChangeOutputsPerTransaction`;
-	 *   a wallet configured above it fails at signAction with a clear
-	 *   "exceeds expected length" error.
 	 */
-	static estimatePurchaseUnlockLength(
-		lockingScript: Script,
-		otherOutputsBytes: number,
-		maxChangeOutputs = 8,
-	): number {
+	static estimatePurchaseUnlockLength(lockingScript: Script): number {
 		const listing = OrdLockV2.decode(lockingScript)
 		if (!listing) throw new Error('OrdLockV2: not a v2 listing')
 		const scriptCodeLen =
 			lockingScript.toBinary().length -
 			(listing.offset + ORD_LOCK_V2_CODESEP_INDEX + 1)
-		// BIP-143 preimage: 156 fixed bytes + varint(scriptCode) + scriptCode
-		const preimageLen = 156 + varIntLen(scriptCodeLen) + scriptCodeLen
-		// Serialized P2PKH change output: 8 sats + 1 varint + 25 script
-		const outputsLen = otherOutputsBytes + maxChangeOutputs * 34
-		return (
-			outputsLen +
-			PUSHDATA2_HEADER * 2 + // prefix + suffix push headers (worst case)
-			pushLen(preimageLen) +
-			1 // method selector
-		)
+		const preimageLen =
+			PREIMAGE_FIXED_LENGTH + varIntLen(scriptCodeLen) + scriptCodeLen
+		return pushLen(preimageLen) + 1
 	}
 
 	/**
 	 * Creates an unlocking script for purchasing a listing.
 	 *
-	 * The transaction's outputs must contain the listing's payout output
-	 * immediately followed by the tag output for this input's outpoint
-	 * (see {@link tagOutput}). Where that pair sits is up to the builder, so
-	 * multiple listings can be purchased in one transaction. No signature is
-	 * required; the contract validates the output set via the preimage.
+	 * The transaction's output at the listing's input index must be the
+	 * listing's payout output, and the listed satoshi must route (first-sat
+	 * ordering) to a 1-sat receive output; see {@link planPurchase} for the
+	 * layout and {@link assertDelivery} for the guard. No signature is
+	 * required; the contract validates the payout via the preimage.
 	 *
 	 * @param sourceSatoshis - Input satoshis (optional if sourceTransaction provided)
 	 * @param lockingScript - Input locking script (optional if sourceTransaction provided)
+	 * @param options - Buyer-approved receive outputs for the delivery guard
 	 */
 	static purchaseListing(
 		sourceSatoshis?: number,
 		lockingScript?: Script,
+		options: OrdLockV2PurchaseOptions = {},
 	): OrdLockV2Unlocker {
 		const purchase: OrdLockV2Unlocker = {
 			sign: async (tx: Transaction, inputIndex: number) => {
@@ -406,30 +586,22 @@ export default class OrdLockV2 {
 				const listing = OrdLockV2.decode(src.lockingScript)
 				if (!listing) throw new Error('OrdLockV2: input is not a v2 listing')
 
-				const serialized = tx.outputs.map((o) =>
-					OrdLockV2.buildOutput(o.satoshis ?? 0, o.lockingScript.toBinary()),
-				)
-				const tag = OrdLockV2.tagOutputBytes(
-					src.sourceTXID,
-					input.sourceOutputIndex,
-				)
-				let pairIndex = -1
-				for (let i = 0; i + 1 < serialized.length; i++) {
-					if (
-						bytesEqual(serialized[i], listing.payout) &&
-						bytesEqual(serialized[i + 1], tag)
-					) {
-						pairIndex = i
-						break
-					}
-				}
-				if (pairIndex === -1) {
+				const bound = tx.outputs[inputIndex]
+				if (!bound) {
 					throw new Error(
-						'OrdLockV2: outputs must contain the listing payout immediately followed by its tag output',
+						`OrdLockV2: no output at index ${inputIndex}; SIGHASH_SINGLE binds listing input ${inputIndex} to output ${inputIndex}`,
 					)
 				}
-				const prefix = serialized.slice(0, pairIndex).flat()
-				const suffix = serialized.slice(pairIndex + 2).flat()
+				const serialized = OrdLockV2.buildOutput(
+					bound.satoshis ?? 0,
+					bound.lockingScript.toBinary(),
+				)
+				if (!bytesEqual(serialized, listing.payout)) {
+					throw new Error(
+						`OrdLockV2: output ${inputIndex} must be the listing payout (${listing.price} sats to the seller's payout script)`,
+					)
+				}
+				OrdLockV2.assertDelivery(tx, inputIndex, options.deliveries)
 
 				// scriptCode is everything after the OP_CODESEPARATOR inside the
 				// purchase branch (it precedes both constructor slots, so the
@@ -449,18 +621,16 @@ export default class OrdLockV2 {
 					inputSequence: input.sequence ?? 0xffffffff,
 					subscript,
 					lockTime: tx.lockTime,
-					scope: PURCHASE_SCOPE,
+					scope: ORDLOCK_V2_PURCHASE_SIGHASH,
 				})
 
-				const script = new UnlockingScript()
-				if (prefix.length) script.writeBin(prefix)
-				else script.writeOpCode(OP.OP_0)
-				if (suffix.length) script.writeBin(suffix)
-				else script.writeOpCode(OP.OP_0)
-				return script.writeBin(preimage).writeOpCode(PURCHASE_SELECTOR)
+				return new UnlockingScript()
+					.writeBin(preimage)
+					.writeOpCode(PURCHASE_SELECTOR)
 			},
 			estimateLength: async (tx: Transaction, inputIndex: number) => {
-				return (await purchase.sign(tx, inputIndex)).toBinary().length
+				const src = resolveSource(tx, inputIndex, sourceSatoshis, lockingScript)
+				return OrdLockV2.estimatePurchaseUnlockLength(src.lockingScript)
 			},
 		}
 		return purchase
@@ -510,7 +680,7 @@ export default class OrdLockV2 {
 			sign: async (tx: Transaction, inputIndex: number) => {
 				const src = resolveSource(tx, inputIndex)
 				const input = tx.inputs[inputIndex]
-				const scope = PURCHASE_SCOPE
+				const scope = CANCEL_WALLET_SCOPE
 				const preimage = TransactionSignature.format({
 					sourceTXID: src.sourceTXID,
 					sourceOutputIndex: input.sourceOutputIndex,

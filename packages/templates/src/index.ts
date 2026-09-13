@@ -85,11 +85,19 @@ export {
 	ORDLOCK_PREFIX,
 	ORDLOCK_SUFFIX,
 } from './ordlock/ordlock.js'
-export type { OrdLockV2Data, OrdLockV2Unlocker } from './ordlock/ordlockV2.js'
+export type {
+	OrdLockV2Data,
+	OrdLockV2DeliveryTarget,
+	OrdLockV2PurchaseOptions,
+	OrdLockV2PurchasePlan,
+	OrdLockV2PurchasePlanInput,
+	OrdLockV2Unlocker,
+} from './ordlock/ordlockV2.js'
 export {
 	ORDLOCK_V2_CANCEL_MARKER,
 	ORDLOCK_V2_CANCEL_UNLOCK_LENGTH,
 	ORDLOCK_V2_PREFIX,
+	ORDLOCK_V2_PURCHASE_SIGHASH,
 	ORDLOCK_V2_TEMPLATE,
 } from './ordlock/ordlockV2.js'
 export type { ConstructorSlot } from './runar/slots.js'

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- `OrdLockIndexer` recognizes the canonical OrdLock v2 purchase unlock (`<preimage> OP_0`).
+
 ## 0.0.106
 
 ### Fixed
