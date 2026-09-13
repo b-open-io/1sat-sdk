@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## [0.0.48]
 
 ### Changed
 - `ORD_LOCK_V2_ARTIFACT` is the canonical `OrdLockV2Batch` build (472-byte template, constructor slots at 436 and 468, SIGHASH_SINGLE purchase). It replaces the earlier v2 draft outright.

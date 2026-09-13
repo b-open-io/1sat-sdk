@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.0.37
 
 ### Changed
 - `OrdLockV2` targets the canonical contract: the purchase unlock is `<preimage> OP_0` under `SINGLE|ANYONECANPAY|FORKID`, and listing input `i` requires its payout at output `i`. `purchaseListing` refuses to sign unless that holds and the listed satoshi routes (first-sat ordering) to a 1-sat receive output; pass `{ deliveries }` to pin the approved outputs.

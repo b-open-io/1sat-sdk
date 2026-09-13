@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.0.221
 
 ### Changed
 - `buyOrdinal`, `buyOpns` and `buyBsv21` submit the draft shape (listing input; receive, payout, fee outputs) and the new apply step `applyOrdLockV2Purchase` lays OrdLock v2 purchases out canonically after approval: front funding inputs first, then the listing, with the seller payout at the listing's index, the receive output next, and wallet fee inputs / change trailing. One prompt in the permission-module path. Front funding is a wallet-owned P2PKH output in the `1sat-deposit` basket under a `hold:` tag, reused when one covers the payout and otherwise created by a preparation createAction on the base wallet; the cushion returns to the basket under a fresh hold.
