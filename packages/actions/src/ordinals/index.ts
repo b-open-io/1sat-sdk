@@ -1308,6 +1308,15 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 			if (!ordLockData) {
 				return { error: 'not-an-ordlock-listing' }
 			}
+			// A v2 purchase needs front funding placed ahead of the listing; the
+			// apply step sources that from this wallet. A FundingProvider would
+			// have to supply and place it itself, which the provider contract does
+			// not cover yet, so refuse rather than fail part-way through.
+			if (v2Listing && input.fundingProvider) {
+				return {
+					error: 'ordlock-v2-purchase-with-funding-provider-unsupported',
+				}
+			}
 
 			const { publicKey } = await ctx.wallet.getPublicKey({
 				protocolID: P1SAT_PROTOCOL,
