@@ -34,13 +34,16 @@
     "@1sat/types": "workspace:*",
     "@1sat/utils": "workspace:*",
     "@1sat/wallet": "workspace:*",
-    "@bsv/message-box-client": "^2.5.0"
+    "@bsv/message-box-client": "^2.5.0",
+    "@limrun/xdelta3-wasm": "^0.2.0",
+    "xdelta3-wasm": "^1.0.0"
   },
   "peerDependencies": {
     "@bsv/sdk": "^2.6.0"
   },
   "devDependencies": {
     "@1sat/wallet-remote": "workspace:*",
+    "@ably/vcdiff-decoder": "^1.0.6",
     "@bsv/sdk": "^2.6.0",
     "typescript": "^5.9.3"
   }
