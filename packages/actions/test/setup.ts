@@ -79,7 +79,7 @@ export async function createTestContext(label: string): Promise<TestContext> {
 
 /**
  * Sync funding outputs from the owner index into the BRC-100 wallet.
- * Fetches outputs for the wallet's BRC-29 deposit address, then
+ * Fetches outputs for the wallet's P1SAT deposit address, then
  * internalizes each as a wallet payment so the wallet can spend them.
  */
 export async function syncFunding(context: TestContext): Promise<number> {

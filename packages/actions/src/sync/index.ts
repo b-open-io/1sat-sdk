@@ -1,7 +1,7 @@
 /**
  * Address Sync Action
  *
- * Derives BRC-29 deposit addresses, fetches new outputs from the
+ * Derives P1SAT deposit addresses, fetches new outputs from the
  * 1sat-stack indexer (triggering lazy indexing), classifies them
  * with the indexer pipeline, and internalizes them into the wallet.
  */
@@ -106,7 +106,7 @@ export const syncAddresses: Action<SyncAddressesInput, SyncAddressesResult> = {
 	meta: {
 		name: 'syncAddresses',
 		description:
-			'Sync external payments to BRC-29 deposit addresses into the wallet',
+			'Sync external payments to P1SAT deposit addresses into the wallet',
 		category: 'sync',
 		inputSchema: {
 			type: 'object',

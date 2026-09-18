@@ -194,7 +194,7 @@ _54 actions, generated from the registry — do not edit by hand._
 | `sweep` | `sweepBsv` | ✓ | Sweep BSV from external wallet (via WIF) into the connected wallet |
 | `sweep` | `sweepBsv21` | ✓ | Sweep BSV-21 tokens from external wallet (via WIF) into the connected wallet |
 | `sweep` | `sweepOrdinals` | ✓ | Sweep ordinals from external wallet (via WIF) into the connected wallet |
-| `sync` | `syncAddresses` | ✓ | Sync external payments to BRC-29 deposit addresses into the wallet |
+| `sync` | `syncAddresses` | ✓ | Sync external payments to P1SAT deposit addresses into the wallet |
 | `sync` | `syncCosignDeliveries` | ✓ | Pull cosign-wrapped BSV21 deliveries from a MessageBox and internalize them into the wallet |
 | `sync` | `syncMessages` |  | Sync incoming paymail payments from the message box into the wallet |
 | `tokens` | `buyBsv21` | ✓ | Purchase BSV21 tokens from the marketplace |
