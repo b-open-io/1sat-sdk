@@ -24,7 +24,7 @@ import { Utils } from '@bsv/sdk'
 import { formatOutpoint, parseOutpoint } from '@1sat/utils'
 import { vcdiffDecode, vcdiffEncode } from './vcdiff'
 
-export const PATCH_VERSION = 1
+export const PATCH_VERSION = 0x00
 const BASE_BYTES = 36
 
 export class PatchFormatError extends Error {
