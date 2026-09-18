@@ -34,7 +34,7 @@ import {
 	MAP_PREFIX,
 } from '@1sat/templates'
 import type { Protocol } from '@1sat/templates'
-import { type LockingScript, P2PKH, Script, Utils } from '@bsv/sdk'
+import { type LockingScript, OP, P2PKH, Script, Utils } from '@bsv/sdk'
 import type { OneSatContext } from '../types.js'
 import { type OrdfsDirManifest, buildOrdfsDirManifest } from './manifest.js'
 
@@ -176,7 +176,15 @@ function buildLeafScript(
 	vout: number,
 ): Script {
 	if (writeMode === 'b') {
-		return new Script(B.lock(content, contentType, Encoding.Binary).chunks)
+		// A standalone zero-sat data output is only relayable/minable as
+		// provably-unspendable OP_FALSE OP_RETURN (post-Genesis). BitCom
+		// emits a bare OP_RETURN fragment because it can also be appended to
+		// a spendable script; standalone callers own the OP_FALSE prefix —
+		// same pattern as BSocial.lock().
+		return new Script([
+			{ op: OP.OP_FALSE },
+			...B.lock(content, contentType, Encoding.Binary).chunks,
+		])
 	}
 	if (!locking) {
 		throw new Error(
@@ -219,7 +227,11 @@ function buildManifestScript(
 				toProtocol(MAP_PREFIX, MAP.set(map as Record<string, string>)),
 			)
 		}
-		return new Script(new BitCom(protocols).lock().chunks)
+		// Standalone output — same OP_FALSE prefix rule as buildLeafScript.
+		return new Script([
+			{ op: OP.OP_FALSE },
+			...new BitCom(protocols).lock().chunks,
+		])
 	}
 
 	if (!locking) {
