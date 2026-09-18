@@ -2,12 +2,13 @@ import { describe, expect, it } from 'bun:test'
 import { Utils } from '@bsv/sdk'
 import {
 	DIR_VERSION,
+	DirFormatError,
+	type DirManifest,
 	dirDecode,
+	dirDefault,
 	dirEncode,
 	dirName,
 	dirNameString,
-	DirFormatError,
-	type DirManifest,
 } from '../src/ordfs/dir'
 
 const hex = (s: string) => new Uint8Array(Utils.toArray(s, 'hex'))
@@ -169,5 +170,29 @@ describe('dirDecode', () => {
 		const empty = dirEncode({ version: DIR_VERSION, entries: [] })
 		expect(empty).toEqual(new Uint8Array([0x01, 0x00, 0x00]))
 		expect(dirDecode(empty).entries).toEqual([])
+	})
+
+	it('dirDefault prefers "." then index.html', () => {
+		const m: DirManifest = {
+			version: DIR_VERSION,
+			entries: [
+				{
+					name: text('index.html'),
+					isDir: false,
+					ref: { kind: 'same-tx', vout: 1 },
+				},
+				{ name: text('.'), isDir: false, ref: { kind: 'same-tx', vout: 0 } },
+			],
+		}
+		expect(dirNameString(dirDefault(m)!.name)).toBe('.')
+		expect(
+			dirNameString(
+				dirDefault({
+					version: DIR_VERSION,
+					entries: [m.entries[0]],
+				})!.name,
+			),
+		).toBe('index.html')
+		expect(dirDefault({ version: DIR_VERSION, entries: [] })).toBeUndefined()
 	})
 })

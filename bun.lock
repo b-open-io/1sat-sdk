@@ -38,6 +38,7 @@
         "@1sat/utils": "workspace:*",
         "@1sat/wallet": "workspace:*",
         "@bsv/message-box-client": "^2.5.0",
+        "xdelta3-wasm": "^1.0.0",
       },
       "devDependencies": {
         "@1sat/wallet-remote": "workspace:*",
@@ -3048,6 +3049,8 @@
     "wrappy": ["wrappy@1.0.2", "", {}, "sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ=="],
 
     "ws": ["ws@8.21.3", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw=="],
+
+    "xdelta3-wasm": ["xdelta3-wasm@1.0.0", "", {}, "sha512-vhS28BhVaE3S/PGG1KQIwjBVqJecuS5Sdh82UAZysbnYaU93KS6l8ZPtsqonNZMeuyFgrGW9D44hh2lwQCsidA=="],
 
     "xml-naming": ["xml-naming@0.3.0", "", {}, "sha512-ghig2TBE/H11aOVgmahA3MhimvkBr6JIYknH/Dhdk10nXwdbIqBJsbfMxpvFPG8bAw77gN29aQWvKpmVoPlvPQ=="],
 

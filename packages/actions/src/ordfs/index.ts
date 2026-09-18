@@ -57,6 +57,42 @@ export type {
 	OrdfsDirWriteMode,
 	OrdfsLocking,
 } from './outputs.js'
+export {
+	DIR_CONTENT_TYPE,
+	DIR_VERSION,
+	JSON_MANIFEST_CONTENT_TYPE_LEGACY,
+	MAX_DIR_ENTRIES,
+	DirFormatError,
+	dirDefault,
+	dirDecode,
+	dirEncode,
+	dirEntryNameCompare,
+	dirName,
+	dirNameString,
+} from './dir.js'
+export type {
+	DirEntry,
+	DirManifest,
+	DirRef,
+	OutpointRef,
+	SameTxRef,
+} from './dir.js'
+export {
+	VcdiffError,
+	vcdiffDecode,
+	vcdiffEncode,
+	vcdiffReady,
+} from './vcdiff.js'
+export {
+	PATCH_CONTENT_TYPE,
+	PATCH_VERSION,
+	PatchFormatError,
+	patchApply,
+	patchDecode,
+	patchEncode,
+	patchFromContent,
+} from './patch.js'
+export type { PatchOutpoint, PatchRecord } from './patch.js'
 
 // ============================================================================
 // Types

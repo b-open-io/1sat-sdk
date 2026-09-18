@@ -299,3 +299,19 @@ export function dirName(name: string): Uint8Array {
 export function dirNameString(name: Uint8Array): string {
 	return utf8Decoder.decode(name)
 }
+
+const DOT = utf8Encoder.encode('.')
+const INDEX_HTML = utf8Encoder.encode('index.html')
+
+/**
+ * Default file for a directory with no remaining path: an entry named `.`,
+ * else `index.html`. Same convention as `ord-fs/json`.
+ */
+export function dirDefault(manifest: DirManifest): DirEntry | undefined {
+	let index: DirEntry | undefined
+	for (const e of manifest.entries) {
+		if (compareBytes(e.name, DOT) === 0) return e
+		if (!index && compareBytes(e.name, INDEX_HTML) === 0) index = e
+	}
+	return index
+}
