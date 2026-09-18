@@ -154,6 +154,7 @@ export * from './signing/index.js'
 export * from './social/index.js'
 export * from './identity/index.js'
 export * from './opns/index.js'
+export * from './pushdrop/index.js'
 export * from './mnee/index.js'
 
 // Export cosign module (cosigner-validated BSV21 transfer actions)
