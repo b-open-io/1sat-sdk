@@ -388,5 +388,34 @@ async function publish(
 // Module exports
 // ============================================================================
 
+// Binary `ordfs/dir` directory manifests (content type ordfs/dir).
+export {
+	DIR_VERSION,
+	dirDecode,
+	dirDefault,
+	dirEncode,
+	dirName,
+	dirNameString,
+	DirFormatError,
+} from './dir.js'
+export type { DirEntry, DirManifest, DirRef } from './dir.js'
+
+// `ordfs/patch` record envelope + VCDIFF codec (content type ordfs/patch).
+export {
+	outpointFromBytes,
+	outpointToBytes,
+	patchApply,
+	patchDecode,
+	patchEncode,
+	PATCH_VERSION,
+	PatchFormatError,
+} from './patch.js'
+export type { PatchRecord } from './patch.js'
+export {
+	VcdiffError,
+	vcdiffDecode,
+	vcdiffEncode,
+} from './vcdiff.js'
+
 /** All ordfs directory-writing actions for the registry. */
 export const ordfsActions = [deployOrdfsDir]

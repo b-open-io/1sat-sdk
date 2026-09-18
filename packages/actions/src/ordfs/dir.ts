@@ -299,3 +299,19 @@ export function dirName(name: string): Uint8Array {
 export function dirNameString(name: Uint8Array): string {
 	return utf8Decoder.decode(name)
 }
+
+/**
+ * Resolve the default entry for a manifest by convention: an entry
+ * named "." first, then "index.html". Returns undefined when neither
+ * exists (a directory with no default entry). Mirrors the ORDFS JSON
+ * gateway behavior; the choice is convention, not a header field.
+ */
+export function dirDefault(manifest: DirManifest): DirEntry | undefined {
+	const dot = manifest.entries.find(
+		(e) => dirNameString(e.name) === '.',
+	)
+	if (dot) return dot
+	return manifest.entries.find(
+		(e) => dirNameString(e.name) === 'index.html',
+	)
+}
