@@ -154,6 +154,17 @@ export interface ServerConfig {
 	accounts?: ServerAccountsConfig
 	/** Messagebox subcommand settings. */
 	messagebox?: ServerMessageboxConfig
+	/**
+	 * Application-facing BRC-100 endpoint (`1sat serve wallet-api`):
+	 * dApp connectivity for the CLI wallet (encrypt/decrypt/sign/create-action).
+	 * Defaults: 127.0.0.1:3321, headless auto-approval of sensitive methods.
+	 */
+	dapp?: {
+		host?: string
+		port?: number
+		/** Require TTY confirmation for sensitive methods. Default false. */
+		approve?: boolean
+	}
 	/** Paymail settings for the unified host. */
 	paymail?: ServerPaymailConfig
 	/** Shared BSV/USD repricer engine for the accounts storage price. */
