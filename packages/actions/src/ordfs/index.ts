@@ -78,6 +78,7 @@ export type {
 	SameTxRef,
 } from './dir.js'
 export {
+	assertPlainRfc,
 	VcdiffError,
 	vcdiffDecode,
 	vcdiffEncode,

@@ -1,5 +1,10 @@
 import { outpointFromWire, outpointToWire } from './outpoint.js'
-import { VcdiffError, vcdiffDecode, vcdiffEncode } from './vcdiff.js'
+import {
+	VcdiffError,
+	assertPlainRfc,
+	vcdiffDecode,
+	vcdiffEncode,
+} from './vcdiff.js'
 
 /** Content type written on `ordfs/patch` inscription outputs. */
 export const PATCH_CONTENT_TYPE = 'ordfs/patch'
@@ -47,8 +52,12 @@ export function patchEncode(record: PatchRecord): Uint8Array {
 	) {
 		throw new PatchFormatError(`outpoint vout ${record.base.vout} out of range`)
 	}
-	if (record.delta.length < 5) {
-		throw new PatchFormatError('empty vcdiff delta is invalid')
+	try {
+		assertPlainRfc(record.delta)
+	} catch (err) {
+		throw new PatchFormatError(
+			err instanceof Error ? err.message : 'invalid vcdiff delta',
+		)
 	}
 	let wire: Uint8Array
 	try {

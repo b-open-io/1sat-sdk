@@ -107,8 +107,7 @@ describe('vcdiff strict decode', () => {
 describe('xdelta3 interoperability', () => {
 	const hasXdelta = Bun.which('xdelta3') !== null
 
-	it('xdelta3 decodes OUR delta', async () => {
-		if (!hasXdelta) return
+	it.skipIf(!hasXdelta)('xdelta3 decodes OUR delta', async () => {
 		const base = enc(
 			'AAAA base content for testing, with enough length to hash',
 		)
@@ -129,8 +128,7 @@ describe('xdelta3 interoperability', () => {
 		expect(res.out).toEqual(target)
 	}, 15000)
 
-	it('we decode xdelta3 -e -n -S none -A', async () => {
-		if (!hasXdelta) return
+	it.skipIf(!hasXdelta)('we decode xdelta3 -e -n -S none -A', async () => {
 		const base = enc(
 			'BBBB base content for testing, with enough length to hash and match',
 		)

@@ -44,16 +44,7 @@ const example: DirManifest = {
 }
 
 const exampleBytes = hex(
-	'01' + // version
-	'0004' + // 4 entries
-	// LICENSE <txid> 03000000 (sorted first)
-	'08' + '07' + '4c4943454e5345' + LICENSE_TXID + '03000000' +
-	// README.md _1
-	'00' + '09' + '524541444d452e6d64' + '01' +
-	// package.json _6
-	'00' + '0c' + '7061636b6167652e6a736f6e' + '06' +
-	// src (dir) _11
-	'01' + '03' + '737263' + '0b',
+	`01000408074c4943454e5345${LICENSE_TXID}030000000009524541444d452e6d6401000c7061636b6167652e6a736f6e0601037372630b`,
 )
 
 describe('dirEncode', () => {
@@ -76,8 +67,18 @@ describe('dirEncode', () => {
 		const out = dirEncode({
 			version: DIR_VERSION,
 			entries: [
-				{ name: text('run.sh'), isDir: false, exec: true, ref: { kind: 'same-tx', vout: 0 } },
-				{ name: text('link'), isDir: false, symlink: true, ref: { kind: 'same-tx', vout: 1 } },
+				{
+					name: text('run.sh'),
+					isDir: false,
+					exec: true,
+					ref: { kind: 'same-tx', vout: 0 },
+				},
+				{
+					name: text('link'),
+					isDir: false,
+					symlink: true,
+					ref: { kind: 'same-tx', vout: 1 },
+				},
 			],
 		})
 		// canonical order: "link" < "run.sh"; flags: symlink 0x04, exec 0x02
@@ -105,7 +106,11 @@ describe('dirEncode', () => {
 			dirEncode({
 				version: DIR_VERSION,
 				entries: [
-					{ name: text('a'), isDir: false, ref: { kind: 'same-tx', vout: 256 } },
+					{
+						name: text('a'),
+						isDir: false,
+						ref: { kind: 'same-tx', vout: 256 },
+					},
 				],
 			}),
 		).toThrow(DirFormatError)
@@ -140,11 +145,7 @@ describe('dirDecode', () => {
 		// easiest: decode, mutate, re-encode is impossible (encoder sorts), so
 		// hand-craft: same header, entries in README/LICENSE order
 		const swapped = hex(
-			'01' + '0004' +
-			'00' + '09' + '524541444d452e6d64' + '01' +
-			'08' + '07' + '4c4943454e5345' + LICENSE_TXID + '03000000' +
-			'00' + '0c' + '7061636b6167652e6a736f6e' + '06' +
-			'01' + '03' + '737263' + '0b',
+			`0100040009524541444d452e6d640108074c4943454e5345${LICENSE_TXID}03000000000c7061636b6167652e6a736f6e0601037372630b`,
 		)
 		expect(() => dirDecode(swapped)).toThrow(DirFormatError)
 		expect(unsorted.length).toBeGreaterThan(0)
@@ -159,7 +160,9 @@ describe('dirDecode', () => {
 		badVersion[0] = 0x02
 		expect(() => dirDecode(badVersion)).toThrow(DirFormatError)
 
-		expect(() => dirDecode(exampleBytes.subarray(0, 10))).toThrow(DirFormatError)
+		expect(() => dirDecode(exampleBytes.subarray(0, 10))).toThrow(
+			DirFormatError,
+		)
 
 		const trailing = new Uint8Array(exampleBytes.length + 1)
 		trailing.set(exampleBytes)

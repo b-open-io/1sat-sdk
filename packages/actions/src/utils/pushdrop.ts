@@ -7,7 +7,7 @@ import {
 	type WalletProtocol,
 } from '@bsv/sdk'
 
-/** Zeroed DER-sized placeholder so unsealed script length matches sealed. */
+/** Worst-case DER length (70–72). Unsealed script is at most this long. */
 export const PUSHDROP_SIG_PLACEHOLDER_LEN = 72
 
 export type PushDropLockParams = {
@@ -34,7 +34,7 @@ export async function pushDropLock(
 ): Promise<LockingScript> {
 	const includeSignature = opts?.includeSignature ?? false
 	const fields = includeSignature
-		? params.fields
+		? [...params.fields]
 		: [
 				...params.fields,
 				new Array(opts?.placeholderLen ?? PUSHDROP_SIG_PLACEHOLDER_LEN).fill(0),

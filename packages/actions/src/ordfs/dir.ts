@@ -127,9 +127,7 @@ function validateEntry(e: DirEntry): void {
 	}
 	if (e.ref.kind === 'same-tx') {
 		if (!Number.isInteger(e.ref.vout) || e.ref.vout < 0 || e.ref.vout > 255) {
-			throw new DirFormatError(
-				`same-tx vout ${e.ref.vout} out of range 0..255`,
-			)
+			throw new DirFormatError(`same-tx vout ${e.ref.vout} out of range 0..255`)
 		}
 	} else {
 		if (
@@ -164,10 +162,12 @@ export function dirEncode(manifest: DirManifest): Uint8Array {
 		}
 	}
 
-	const size = 3 + entries.reduce(
-		(acc, e) => acc + 2 + e.name.length + (e.ref.kind === 'same-tx' ? 1 : 36),
-		0,
-	)
+	const size =
+		3 +
+		entries.reduce(
+			(acc, e) => acc + 2 + e.name.length + (e.ref.kind === 'same-tx' ? 1 : 36),
+			0,
+		)
 	const out = new Uint8Array(size)
 	const view = new DataView(out.buffer)
 	let p = 0
