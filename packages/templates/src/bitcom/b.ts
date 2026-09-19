@@ -1,4 +1,4 @@
-import { type LockingScript, Script, Utils } from '@bsv/sdk'
+import { type LockingScript, OP, Script, Utils } from '@bsv/sdk'
 import BitCom, { type Protocol } from './bitcom.js'
 
 /**
@@ -154,14 +154,17 @@ export default class B {
 		}
 
 		// Access parsed chunks directly
+		// DATA: a pushed payload, or a bare OP_0 for a zero-length file
+		// (Script encodes an empty push as OP_0 with no data).
 		const dataChunk = chunks[0]
-		if (dataChunk.data == null) {
+		let data: number[]
+		if (dataChunk.data != null) {
+			data = dataChunk.data
+		} else if (dataChunk.op === OP.OP_0) {
+			data = []
+		} else {
 			return null
 		}
-		const data = dataChunk.data
-
-		// Return null for empty data as expected by tests
-		if (data.length === 0) return null
 
 		// Read MEDIA_TYPE (second chunk)
 		const mediaTypeChunk = chunks[1]
