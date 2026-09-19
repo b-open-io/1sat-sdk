@@ -62,6 +62,12 @@ export default class B {
 		mediaType: MediaType | string = MediaType.TextPlain,
 		encoding: Encoding | string = Encoding.UTF8,
 		filename?: string,
+		/**
+		 * The script this B section is appended to (BitCom's ScriptPrefix).
+		 * Empty means "just the section". A standalone zero-sat data output
+		 * needs `[OP.OP_FALSE]` here to be provably unspendable and minable.
+		 */
+		scriptPrefix: number[] = [],
 	): LockingScript {
 		// Convert data to number array
 		let dataBytes: number[]
@@ -107,7 +113,7 @@ export default class B {
 		protocols[0].script = script.toBinary()
 
 		// Create BitCom structure and return locking script
-		const bitcom = new BitCom(protocols)
+		const bitcom = new BitCom(protocols, scriptPrefix)
 		return bitcom.lock()
 	}
 
