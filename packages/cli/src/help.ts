@@ -754,6 +754,11 @@ export const COMMANDS: CommandSpec[] = [
 				description: 'Wallet storage server only (BRC-100 HTTP)',
 			},
 			{ name: 'monitor', description: 'Monitor daemon only' },
+			{
+				name: 'wallet-api',
+				description:
+					'App-facing BRC-100 wallet endpoint only (headless, default port 3321)',
+			},
 		],
 	},
 	{
