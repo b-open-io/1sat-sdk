@@ -48,7 +48,7 @@ export interface BRC100RouterConfig {
 	isOriginTrusted?: BRC100TrustCheck
 	/** Serves GET /manifest.json when provided (babbage trust manifest). */
 	manifest?: unknown
-	/** Override the Origin/Originator parsing. */
+	/** Override how the caller's origin is derived; '' rejects the request. */
 	parseOrigin?: (req: Request) => string
 	/** Extra response headers on every reply (CORS etc.). */
 	baseHeaders?: Record<string, string>
@@ -60,31 +60,24 @@ const JSON_HEADERS: Record<string, string> = {
 	'Content-Type': 'application/json',
 }
 
-/** Default origin parsing: X-1Sat-Origin, then Origin, then Originator. */
+/**
+ * Default origin parsing: the `Origin` header only.
+ *
+ * Browsers set `Origin` themselves and page scripts cannot change it, so it
+ * is the one caller identity the server can rely on. Node clients using the
+ * SDK's HTTPWalletJSON send `Origin: http://<originator>`; other local apps
+ * set it the same way. `Originator` and `X-1Sat-Origin` are ordinary headers
+ * any page can forge and are ignored. Returns '' when the header is absent
+ * or the opaque `null`, which the router rejects.
+ */
 export function defaultParseOrigin(req: Request): string {
-	const satOrigin = req.headers.get('X-1Sat-Origin')
-	if (satOrigin?.startsWith('1sat://')) return satOrigin
-
-	const origin = req.headers.get('Origin')
-	if (origin) {
-		try {
-			return new URL(origin).host
-		} catch {
-			return origin
-		}
+	const origin = req.headers.get('Origin')?.trim()
+	if (!origin || origin === 'null') return ''
+	try {
+		return new URL(origin).host || origin
+	} catch {
+		return origin
 	}
-	const originator = req.headers.get('Originator')
-	if (originator) {
-		try {
-			const candidate = originator.includes('://')
-				? originator
-				: `http://${originator}`
-			return new URL(candidate).host
-		} catch {
-			return originator
-		}
-	}
-	return 'unknown'
 }
 
 /** Create a fetch handler for the BRC-100 endpoints. */
@@ -141,6 +134,16 @@ export function createBRC100Router(
 		}
 
 		const origin = parseOrigin(req)
+		if (!origin) {
+			config.onEvent?.({
+				event: 'brc100_call',
+				method: walletMethod,
+				origin: '',
+				status: 400,
+				error: 'Origin header required',
+			})
+			return reply({ error: 'Origin header required' }, 400)
+		}
 
 		let args: unknown = {}
 		if (!NO_ARG_METHODS.has(walletMethod)) {
