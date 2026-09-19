@@ -103,12 +103,12 @@ bunx @1sat/cli wallet balance
 bunx @1sat/cli wallet balance                                     # Show BSV balance
 bunx @1sat/cli wallet address                                     # Show primary deposit address
 bunx @1sat/cli wallet address --count 5 --start-index 0           # Derive multiple addresses
-bunx @1sat/cli wallet address --prefix mcp --count 3               # Custom BRC-29 prefix
+bunx @1sat/cli wallet address --prefix mcp --count 3               # Custom deposit keyID prefix
 bunx @1sat/cli wallet send --to 1A... --sats 5000                 # Send BSV to address
 bunx @1sat/cli wallet send --script <hex> --sats 5000              # Send to custom locking script
 bunx @1sat/cli wallet send --data-asm "deadbeef cafe"              # Publish OP_RETURN (0 sats)
 bunx @1sat/cli wallet send-all --to 1A...                          # Send entire balance
-bunx @1sat/cli wallet sync --prefix mcp --count 5                  # Sync inbound payments at BRC-29 addresses
+bunx @1sat/cli wallet sync --prefix mcp --count 5                  # Sync inbound payments at P1SAT deposit addresses
 bunx @1sat/cli wallet info                                         # Address, identity key, balance, network
 ```
 

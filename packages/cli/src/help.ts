@@ -163,12 +163,12 @@ export const COMMANDS: CommandSpec[] = [
 			{ name: 'balance', description: 'Show wallet balance in satoshis' },
 			{
 				name: 'address',
-				description: 'Show BRC-29 deposit address(es)',
+				description: 'Show P1SAT deposit address(es)',
 				args: [
 					{
 						flag: '--prefix',
 						values: '<p>',
-						description: 'BRC-29 prefix (default: 1sat)',
+						description: 'Deposit keyID prefix (default: 1sat)',
 					},
 					{ flag: '--start-index', values: '<n>' },
 					{ flag: '--count', values: '<n>' },
@@ -196,7 +196,7 @@ export const COMMANDS: CommandSpec[] = [
 			},
 			{
 				name: 'sync',
-				description: 'Sync inbound payments at BRC-29 deposit addresses',
+				description: 'Sync inbound payments at P1SAT deposit addresses',
 				args: [
 					{ flag: '--prefix', values: '<p>' },
 					{ flag: '--start-index', values: '<n>' },

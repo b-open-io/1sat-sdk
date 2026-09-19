@@ -25,7 +25,7 @@ export interface AddressSyncMonitorTask {
 
 /**
  * Builds a monitor task that periodically internalizes payments to
- * BRC-29 deposit addresses. Add it after wallet create, then call
+ * P1SAT deposit addresses. Add it after wallet create, then call
  * `monitor.runOnce()` — the factory's boot `runOnce` runs before
  * callers can `addTask`.
  *
