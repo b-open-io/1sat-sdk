@@ -163,6 +163,23 @@ function toProtocol(prefix: string, locked: LockingScript): Protocol {
 }
 
 /**
+ * Standalone zero-sat B data output: `OP_FALSE OP_RETURN | B | data | type`.
+ *
+ * Post-Genesis only OP_FALSE OP_RETURN is provably unspendable, which a
+ * zero-satoshi output needs to be relayable and minable (otherwise miners
+ * treat it as dust). BitCom emits the bare OP_RETURN fragment because it is
+ * also appended to spendable scripts; standalone callers own the OP_FALSE
+ * prefix — same pattern as BSocial.lock(). Every writer of standalone data
+ * outputs (ordfs leaves and manifests, gib records) goes through here.
+ */
+export function buildDataScript(content: Uint8Array, contentType: string): Script {
+	return new Script([
+		{ op: OP.OP_FALSE },
+		...B.lock(content, contentType, Encoding.Binary).chunks,
+	])
+}
+
+/**
  * Build a single output's content script for the given write mode.
  *
  * `'inscription'` requires `locking` (there's a UTXO to protect); `'b'` never
@@ -176,15 +193,7 @@ function buildLeafScript(
 	vout: number,
 ): Script {
 	if (writeMode === 'b') {
-		// A standalone zero-sat data output is only relayable/minable as
-		// provably-unspendable OP_FALSE OP_RETURN (post-Genesis). BitCom
-		// emits a bare OP_RETURN fragment because it can also be appended to
-		// a spendable script; standalone callers own the OP_FALSE prefix —
-		// same pattern as BSocial.lock().
-		return new Script([
-			{ op: OP.OP_FALSE },
-			...B.lock(content, contentType, Encoding.Binary).chunks,
-		])
+		return buildDataScript(content, contentType)
 	}
 	if (!locking) {
 		throw new Error(

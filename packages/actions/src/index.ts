@@ -49,6 +49,14 @@ export {
 	type SigningCallback,
 } from './utils/completeSignedAction.js'
 export {
+	PUSHDROP_SIG_PLACEHOLDER_LEN,
+	pushDropCustomInstructions,
+	pushDropDecode,
+	pushDropLock,
+	pushDropSeal,
+	type PushDropLockParams,
+} from './utils/pushdrop.js'
+export {
 	createTrackedAction,
 	executeTrackedAction,
 	randomActionId,
