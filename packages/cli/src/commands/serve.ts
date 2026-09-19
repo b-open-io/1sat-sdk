@@ -25,12 +25,15 @@ import {
 	createNodeWallet,
 } from '@1sat/wallet-node'
 import {
+	type BRC100WalletHandle,
 	KnexAccountStore,
 	KnexHandleCertStore,
 	KnexPendingStore,
 	createHostServer,
 	createWalletServer,
+	startBRC100Server,
 } from '@1sat/wallet-server'
+import type { Wallet, WalletInterface } from '@bsv/sdk'
 import type { PrivateKey } from '@bsv/sdk'
 import { initLogger } from 'evlog'
 import knexLib from 'knex'
@@ -64,7 +67,7 @@ const DEFAULT_SATS_PER_UNIT = 1_000_000
 const DEFAULT_DURATION_BLOCKS = 4383
 const DEFAULT_STORAGE_IDENTITY_KEY = '1sat-cli-default'
 
-type ServeMode = 'all' | 'wallet' | 'monitor'
+type ServeMode = 'all' | 'wallet' | 'monitor' | 'wallet-api'
 
 interface ResolvedServe {
 	chain: 'main' | 'test'
@@ -130,6 +133,7 @@ function resolveMode(subcommand: string | undefined): ServeMode | null {
 	switch (subcommand) {
 		case 'wallet':
 		case 'monitor':
+		case 'wallet-api':
 			return subcommand
 		default:
 			return null
@@ -268,6 +272,18 @@ async function runWithStorage(
 		// below); the factory's initial runOnce is redundant in every case.
 		skipInitialMonitor: true,
 	})
+
+	// wallet-api serves only the app-facing BRC-100 endpoint: no storage
+	// server, no accounts, no monitor.
+	if (mode === 'wallet-api') {
+		const dapp = await startDappEndpoint(walletResult)
+		return {
+			stop: async () => {
+				await dapp.close()
+				await walletResult.destroy()
+			},
+		}
+	}
 
 	// One active monitor per deployment: wallet mode never runs it, monitor
 	// mode always does, all mode runs it unless server.monitor.enabled=false
@@ -537,4 +553,95 @@ function waitForShutdown(): Promise<void> {
 		process.once('SIGINT', () => handler('SIGINT'))
 		process.once('SIGTERM', () => handler('SIGTERM'))
 	})
+}
+
+// ---------------------------------------------------------------------------
+// wallet-api: application-facing BRC-100 endpoint (dApp connectivity)
+// ---------------------------------------------------------------------------
+
+const DEFAULT_DAPP_HOST = '127.0.0.1'
+const DEFAULT_DAPP_PORT = 3321
+
+/**
+ * Wrap the CLI's wallet (wallet-toolbox client) as a BRC100WalletHandle.
+ * The toolbox Wallet already implements the 28 BRC-100 methods with the
+ * `(args, originator)` signature the dApps send.
+ */
+function walletApiHandle(wallet: Wallet): BRC100WalletHandle {
+	return {
+		async call(method, args, origin) {
+			const iface = wallet as unknown as WalletInterface
+			const fn = (iface as unknown as Record<string, unknown>)[method] as (
+				a: unknown,
+				o: string,
+			) => Promise<unknown>
+			if (typeof fn !== 'function') {
+				throw new Error(`Method not available: ${method}`)
+			}
+			return await fn.call(iface, args, origin)
+		},
+	}
+}
+
+/**
+ * Start the app-facing BRC-100 HTTP endpoint (the interface dApps like
+ * wallet-desktop's :3321 server speak; see bitplan and other BRC-100
+ * clients). Headless by design: sensitive methods are auto-approved with a
+ * console line unless `server.dapp.approve` is set, in which case each one
+ * must be confirmed on the TTY.
+ */
+async function startDappEndpoint(
+	walletResult: NodeWalletResult,
+): Promise<{ close: () => Promise<void> }> {
+	const config = loadConfig()
+	const dapp = config.server?.dapp ?? {}
+	const host = dapp.host ?? DEFAULT_DAPP_HOST
+	const port =
+		dapp.port ??
+		(process.env.ONESAT_DAPP_PORT
+			? Number(process.env.ONESAT_DAPP_PORT)
+			: DEFAULT_DAPP_PORT)
+
+	const approve = dapp.approve === true
+
+	const handle = await startBRC100Server({
+		host,
+		port,
+		wallet: walletApiHandle(walletResult.wallet),
+		approvalPolicy: approve
+			? async ({ method, origin, args }) => {
+					const { confirm, isCancel } = await import('@clack/prompts')
+					console.log(`\n[brc-100] ${method} requested by ${origin}`)
+					console.log(`          ${JSON.stringify(args).slice(0, 400)}`)
+					const ok = await confirm({
+						message: `Approve ${method}?`,
+					})
+					if (isCancel(ok) || !ok) {
+						throw new Error('User denied permission')
+					}
+				}
+			: undefined,
+		onEvent: (event) => {
+			if (event.event === 'brc100_sensitive') {
+				const trustNote = event.trusted
+					? ' (trusted)'
+					: approve
+						? ''
+						: ' (auto-approved)'
+				console.log(
+					`[brc-100] sensitive ${event.method} from ${event.origin}${trustNote}`,
+				)
+			}
+		},
+	})
+
+	console.log(`[wallet-api] BRC-100 app endpoint on http://${host}:${port}`)
+	console.log(
+		approve
+			? '[wallet-api] sensitive methods require TTY confirmation'
+			: '[wallet-api] sensitive methods are AUTO-APPROVED (headless). ' +
+					'Set server.dapp.approve=true to require confirmation.',
+	)
+
+	return { close: async () => await handle.close() }
 }
