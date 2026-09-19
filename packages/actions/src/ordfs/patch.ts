@@ -1,3 +1,4 @@
+import { outpointFromWire, outpointToWire } from './outpoint.js'
 import { VcdiffError, vcdiffDecode, vcdiffEncode } from './vcdiff.js'
 
 /** Content type written on `ordfs/patch` inscription outputs. */
@@ -13,7 +14,7 @@ export class PatchFormatError extends Error {
 	}
 }
 
-/** Native Bitcoin outpoint (txid bytes as hex + little-endian vout). */
+/** Display-hex txid + vout; wire form is internal-order txid + LE vout. */
 export interface PatchOutpoint {
 	txid: string
 	vout: number
@@ -23,22 +24,6 @@ export interface PatchRecord {
 	version: number
 	base: PatchOutpoint
 	delta: Uint8Array
-}
-
-const toHex = (b: Uint8Array): string =>
-	Array.from(b)
-		.map((x) => x.toString(16).padStart(2, '0'))
-		.join('')
-
-const hexToBytes = (hex: string): Uint8Array => {
-	if (!/^([0-9a-fA-F]{2})*$/.test(hex) || hex.length !== 64) {
-		throw new PatchFormatError(`invalid txid hex: ${hex}`)
-	}
-	const out = new Uint8Array(32)
-	for (let i = 0; i < 32; i++) {
-		out[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16)
-	}
-	return out
 }
 
 function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
@@ -65,11 +50,17 @@ export function patchEncode(record: PatchRecord): Uint8Array {
 	if (record.delta.length < 5) {
 		throw new PatchFormatError('empty vcdiff delta is invalid')
 	}
+	let wire: Uint8Array
+	try {
+		wire = outpointToWire(record.base.txid, record.base.vout)
+	} catch (err) {
+		throw new PatchFormatError(
+			err instanceof Error ? err.message : 'invalid outpoint',
+		)
+	}
 	const out = new Uint8Array(1 + 36 + record.delta.length)
-	const view = new DataView(out.buffer)
 	out[0] = record.version
-	out.set(hexToBytes(record.base.txid), 1)
-	view.setUint32(33, record.base.vout, true)
+	out.set(wire, 1)
 	out.set(record.delta, 37)
 	return out
 }
@@ -81,16 +72,21 @@ export function patchDecode(bytes: Uint8Array): PatchRecord {
 	if (bytes[0] !== PATCH_VERSION) {
 		throw new PatchFormatError(`unsupported patch version ${bytes[0]}`)
 	}
-	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-	const txid = toHex(bytes.subarray(1, 33))
-	const vout = view.getUint32(33, true)
+	let base: PatchOutpoint
+	try {
+		base = outpointFromWire(bytes.subarray(1, 37))
+	} catch (err) {
+		throw new PatchFormatError(
+			err instanceof Error ? err.message : 'invalid outpoint',
+		)
+	}
 	const delta = bytes.subarray(37)
 	if (delta.length < 5) {
 		throw new PatchFormatError('empty vcdiff delta is invalid')
 	}
 	return {
 		version: PATCH_VERSION,
-		base: { txid, vout },
+		base,
 		delta,
 	}
 }

@@ -93,6 +93,12 @@ export {
 	patchFromContent,
 } from './patch.js'
 export type { PatchOutpoint, PatchRecord } from './patch.js'
+export {
+	outpointFromWire,
+	outpointToWire,
+	txidFromWire,
+	txidToWire,
+} from './outpoint.js'
 
 // ============================================================================
 // Types

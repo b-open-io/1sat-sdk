@@ -25,11 +25,13 @@
  *     [target]
  *          REFTYPE 0:  [1B vout]              sibling output in the same tx
  *          REFTYPE 1:  [32B txid][4B vout]    exact Bitcoin outpoint bytes
- *                                             (vout little-endian)
+ *                                             (txid internal order, vout LE)
  *
  * Spec: docs/plans/ordfs-formats.html in the gib repo. Writers MUST emit
  * canonical form; readers MUST reject anything else.
  */
+
+import { outpointFromWire, outpointToWire } from './outpoint.js'
 
 /** Content type written on `ordfs/dir` inscription outputs. */
 export const DIR_CONTENT_TYPE = 'ordfs/dir'
@@ -94,22 +96,6 @@ export class DirFormatError extends Error {
 
 const utf8Encoder = new TextEncoder()
 const utf8Decoder = new TextDecoder('utf-8', { fatal: false })
-
-const toHex = (b: Uint8Array): string =>
-	Array.from(b)
-		.map((x) => x.toString(16).padStart(2, '0'))
-		.join('')
-
-const hexToBytes = (hex: string): Uint8Array => {
-	if (!/^([0-9a-fA-F]{2})*$/.test(hex) || hex.length !== 64) {
-		throw new DirFormatError(`invalid txid hex: ${hex}`)
-	}
-	const out = new Uint8Array(32)
-	for (let i = 0; i < 32; i++) {
-		out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
-	}
-	return out
-}
 
 /** Compare two byte arrays lexicographically (unsigned bytes). Returns <0, 0, >0. */
 function compareBytes(a: Uint8Array, b: Uint8Array): number {
@@ -203,11 +189,14 @@ export function dirEncode(manifest: DirManifest): Uint8Array {
 		if (e.ref.kind === 'same-tx') {
 			out[p++] = e.ref.vout
 		} else {
-			out.set(hexToBytes(e.ref.txid), p)
-			p += 32
-			// native Bitcoin outpoint: vout is little-endian uint32
-			view.setUint32(p, e.ref.vout, true)
-			p += 4
+			try {
+				out.set(outpointToWire(e.ref.txid, e.ref.vout), p)
+			} catch (err) {
+				throw new DirFormatError(
+					err instanceof Error ? err.message : 'invalid outpoint',
+				)
+			}
+			p += 36
 		}
 	}
 	return out
@@ -259,11 +248,15 @@ export function dirDecode(bytes: Uint8Array): DirManifest {
 			ref = { kind: 'same-tx', vout: bytes[p++] }
 		} else {
 			if (p + 36 > bytes.length) throw new DirFormatError('truncated outpoint')
-			const txid = toHex(bytes.subarray(p, p + 32))
-			p += 32
-			const vout = view.getUint32(p, true)
-			p += 4
-			ref = { kind: 'outpoint', txid, vout }
+			try {
+				const op = outpointFromWire(bytes.subarray(p, p + 36))
+				ref = { kind: 'outpoint', txid: op.txid, vout: op.vout }
+			} catch (err) {
+				throw new DirFormatError(
+					err instanceof Error ? err.message : 'invalid outpoint',
+				)
+			}
+			p += 36
 		}
 
 		entries.push({
