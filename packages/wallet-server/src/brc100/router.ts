@@ -2,19 +2,20 @@
  * BRC-100 application-facing request router.
  *
  * Framework-agnostic fetch handler (`(Request) => Response`) that dispatches
- * `POST /<walletMethod>` to a wallet, applying the sensitive-method approval
- * policy and manifest-based origin trust. This is the shared core of the
- * dApp-connectivity endpoint first implemented in wallet-desktop; the desktop
- * keeps its own HTTP/TLS/permission plumbing and can adopt this core as it
- * evolves. Node/Bun-agnostic: uses only Web-standard Request/Response.
+ * `POST /<walletMethod>` to a wallet. The router does not decide what an app
+ * may do: it derives the caller's origin, hands `(method, args, origin)` to
+ * the wallet and relays the result. Permissions are the wallet's job — serve
+ * a `WalletPermissionsManager` (or `LocalWalletPermissionsManager` from
+ * `@1sat/wallet`) so every call is checked against the originator's grants
+ * and the user is prompted when one is missing. A permission denial surfaces
+ * like any other wallet error: 400 with `{ error }`.
+ *
+ * Node/Bun-agnostic: uses only Web-standard Request/Response.
  */
 
+import { normalizeOriginator } from '@1sat/wallet'
 import type { WalletMethod } from './methods.js'
-import {
-	NO_ARG_METHODS,
-	SENSITIVE_METHODS,
-	walletMethodSet,
-} from './methods.js'
+import { NO_ARG_METHODS, walletMethodSet } from './methods.js'
 
 /** Execution surface the router dispatches to. */
 export interface BRC100WalletHandle {
@@ -24,28 +25,15 @@ export interface BRC100WalletHandle {
 	isReady?(): boolean
 }
 
-/** Approval request handed to the policy for a sensitive method. */
-export interface BRC100ApprovalRequest {
-	method: WalletMethod
-	origin: string
-	args: unknown
-}
-
-/**
- * Gate for sensitive methods. Resolve to approve, reject to deny.
- * Trusted origins (manifest trust) skip the policy entirely.
- */
-export type BRC100ApprovalPolicy = (req: BRC100ApprovalRequest) => Promise<void>
-
-/** Origin trust check; resolve true to auto-approve sensitive methods. */
-export type BRC100TrustCheck = (origin: string) => Promise<boolean>
-
 export interface BRC100RouterConfig {
 	wallet: BRC100WalletHandle
-	/** Defaults to auto-approve (headless CLI use). */
-	approvalPolicy?: BRC100ApprovalPolicy
-	/** Defaults to "no origin is trusted". */
-	isOriginTrusted?: BRC100TrustCheck
+	/**
+	 * The wallet's admin originator. A request whose derived origin matches
+	 * it (after the permissions manager's originator normalization) is
+	 * rejected with 400 before it reaches the wallet, so the originator
+	 * that bypasses permission checks can never be claimed over HTTP.
+	 */
+	adminOriginator?: string
 	/** Serves GET /manifest.json when provided (babbage trust manifest). */
 	manifest?: unknown
 	/** Override how the caller's origin is derived; '' rejects the request. */
@@ -85,7 +73,9 @@ export function createBRC100Router(
 	config: BRC100RouterConfig,
 ): (req: Request) => Promise<Response> {
 	const parseOrigin = config.parseOrigin ?? defaultParseOrigin
-	const isTrusted = config.isOriginTrusted ?? (async () => false)
+	const adminOriginator = config.adminOriginator
+		? normalizeOriginator(config.adminOriginator)
+		: ''
 
 	const reply = (
 		body: unknown,
@@ -100,6 +90,22 @@ export function createBRC100Router(
 				...(extra ?? {}),
 			},
 		})
+
+	const rejectCall = (
+		method: WalletMethod,
+		origin: string,
+		status: number,
+		error: string,
+	): Response => {
+		config.onEvent?.({
+			event: 'brc100_call',
+			method,
+			origin,
+			status,
+			error,
+		})
+		return reply({ error }, status)
+	}
 
 	return async (req: Request): Promise<Response> => {
 		const url = new URL(req.url)
@@ -135,14 +141,15 @@ export function createBRC100Router(
 
 		const origin = parseOrigin(req)
 		if (!origin) {
-			config.onEvent?.({
-				event: 'brc100_call',
-				method: walletMethod,
-				origin: '',
-				status: 400,
-				error: 'Origin header required',
-			})
-			return reply({ error: 'Origin header required' }, 400)
+			return rejectCall(walletMethod, '', 400, 'Origin header required')
+		}
+		if (adminOriginator && normalizeOriginator(origin) === adminOriginator) {
+			return rejectCall(
+				walletMethod,
+				origin,
+				400,
+				'Origin is reserved for the wallet itself',
+			)
 		}
 
 		let args: unknown = {}
@@ -155,26 +162,6 @@ export function createBRC100Router(
 		}
 
 		try {
-			if (SENSITIVE_METHODS.has(walletMethod)) {
-				const trusted = await isTrusted(origin)
-				config.onEvent?.({
-					event: 'brc100_sensitive',
-					method: walletMethod,
-					origin,
-					trusted,
-				})
-				if (!trusted) {
-					if (config.approvalPolicy) {
-						await config.approvalPolicy({
-							method: walletMethod,
-							origin,
-							args,
-						})
-					}
-					// No policy configured → headless auto-approve.
-				}
-			}
-
 			const result = await config.wallet.call(walletMethod, args, origin)
 			config.onEvent?.({
 				event: 'brc100_call',
@@ -185,12 +172,14 @@ export function createBRC100Router(
 			return reply(result)
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err)
+			const code = (err as { code?: unknown })?.code
 			config.onEvent?.({
 				event: 'brc100_call',
 				method: walletMethod,
 				origin,
 				status: 400,
 				error: message,
+				...(typeof code === 'string' ? { code } : {}),
 			})
 			return reply({ error: message }, 400)
 		}

@@ -3,7 +3,9 @@
  *
  * Mirrors the 28 `WalletInterface` methods exposed by the desktop's dApp
  * connectivity server (`packages/wallet-desktop/src/bun/http-server.ts`) so a
- * headless wallet can answer the same endpoints dApps expect.
+ * headless wallet can answer the same endpoints dApps expect. Which of them
+ * an app may call is decided by the served wallet's permissions manager, not
+ * by this table.
  */
 
 /** All 28 BRC-100 WalletInterface method names. */
@@ -52,18 +54,3 @@ export const NO_ARG_METHODS: ReadonlySet<WalletMethod> = new Set<WalletMethod>([
 	'getNetwork',
 	'getVersion',
 ])
-
-/**
- * Methods that spend funds, reveal key material, or decrypt. These are routed
- * through the approval policy unless the caller's origin is trusted.
- */
-export const SENSITIVE_METHODS: ReadonlySet<WalletMethod> =
-	new Set<WalletMethod>([
-		'createAction',
-		'signAction',
-		'encrypt',
-		'decrypt',
-		'createSignature',
-		'createHmac',
-		'acquireCertificate',
-	])

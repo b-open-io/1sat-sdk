@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Changed
+- The BRC-100 router no longer decides what an app may do. `SENSITIVE_METHODS`, the `approvalPolicy` / `isOriginTrusted` hooks, their `BRC100ApprovalPolicy` / `BRC100ApprovalRequest` / `BRC100TrustCheck` types and the `brc100_sensitive` event are removed, along with the auto-approve path taken when no policy was configured. The router now derives the origin, calls `wallet.call(method, args, origin)` and relays the result; serve a `WalletPermissionsManager` (or `@1sat/wallet`'s `LocalWalletPermissionsManager`) as the wallet so permissions are checked per originator and grant. A permission denial comes back as 400 `{ error }` and is logged through `onEvent` (with the manager's `code` when present).
+- New `adminOriginator` router option: a request whose derived origin normalizes to the wallet's admin originator is rejected with 400 before dispatch, so the originator that bypasses permission checks cannot be claimed over HTTP.
 - BRC-100 router derives the caller's origin from the `Origin` header only. The `Originator` and `X-1Sat-Origin` fallbacks are removed: browsers set `Origin` and pages cannot change it, while the other two are ordinary headers any page can set. Requests without an `Origin` header (or with the opaque `null`) are rejected with 400. Node clients on the SDK's `HTTPWalletJSON` already send `Origin: http://<originator>`; other local apps set `Origin` the same way.
 
 ## 0.0.48
