@@ -156,14 +156,14 @@ export interface ServerConfig {
 	messagebox?: ServerMessageboxConfig
 	/**
 	 * Application-facing BRC-100 endpoint (`1sat serve wallet-api`):
-	 * dApp connectivity for the CLI wallet (encrypt/decrypt/sign/create-action).
-	 * Defaults: 127.0.0.1:3321, headless auto-approval of sensitive methods.
+	 * dApp connectivity for the CLI wallet. Defaults to 127.0.0.1:3321.
+	 * Each app origin is limited to the permissions the user granted it;
+	 * missing grants are asked for on the terminal and there is no setting
+	 * that approves without a prompt.
 	 */
 	dapp?: {
 		host?: string
 		port?: number
-		/** Require TTY confirmation for sensitive methods. Default false. */
-		approve?: boolean
 	}
 	/** Paymail settings for the unified host. */
 	paymail?: ServerPaymailConfig

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Changed
+- `1sat serve wallet-api` serves the wallet through a `LocalWalletPermissionsManager`. Each app origin is limited to the permissions the user has granted it; a missing grant (protocol, basket, certificate, spending or a manifest's grouped request) is asked on the terminal as a y/N question and a `y` is remembered in `<dataDir>/permissions-<chain>.json` (mode 0600). Without an interactive terminal every request is denied and the app receives an error explaining how to run interactively.
+- The previous behaviour, where the endpoint answered every app with the full wallet and approved sensitive methods without a prompt unless `server.dapp.approve` was set, is deprecated and removed. `server.dapp.approve` is gone; there is no setting that approves requests without a prompt.
+- The endpoint rejects requests whose origin is the wallet's own admin originator.
+
 ## 0.0.115
 
 ### Added

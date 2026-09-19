@@ -250,6 +250,7 @@ The same binary can run a BRC-100 wallet storage RPC server backed by the **same
 1sat serve wallet       # Wallet server only (BRC-100 HTTP, no monitor loop)
 1sat serve monitor      # Monitor daemon only (no HTTP)
 1sat serve messagebox   # BSV message-box server (port 8771 default; uses wallet identity)
+1sat serve wallet-api   # App-facing BRC-100 endpoint for dApps (127.0.0.1:3321, permission prompts on the terminal)
 ```
 
 Key properties:
@@ -270,6 +271,10 @@ Server-specific settings live under `server.*` in the config — edit via `1sat 
 1sat config set server.accounts.satsPerUnit 1000000           # price per chunk
 1sat config set server.accounts.durationBlocks 4383           # validity window (~1 month)
 ```
+
+#### wallet-api (dApp connectivity)
+
+`1sat serve wallet-api` exposes the CLI wallet to local BRC-100 apps on `127.0.0.1:3321` (`server.dapp.host` / `server.dapp.port`, or `ONESAT_DAPP_PORT`). The served wallet is a permissions manager: each app origin (taken from the request's `Origin` header) only gets what the user has granted it. A missing grant (protocol use, basket access, certificate disclosure, spending, or an app manifest's grouped request) is printed on the terminal as a y/N question; `y` answers the request and is remembered in `<dataDir>/permissions-<chain>.json` (mode 0600), anything else denies it. Run it in an interactive terminal: without a TTY every request is denied and the app receives an error saying so. There is no setting that approves requests without a prompt. To forget an app's grants, delete its entries from the permissions file and restart.
 
 Pricing model: new payments charge `unitsCharged × satsPerUnit` (rounded up to a whole chunk) for `durationBlocks` from now, minus a prorated refund credit for unused time on the prior payment. One active payment row per account at a time.
 

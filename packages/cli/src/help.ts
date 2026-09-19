@@ -757,7 +757,7 @@ export const COMMANDS: CommandSpec[] = [
 			{
 				name: 'wallet-api',
 				description:
-					'App-facing BRC-100 wallet endpoint only (headless, default port 3321)',
+					'App-facing BRC-100 wallet endpoint only (permission prompts on this terminal, default port 3321)',
 			},
 		],
 	},
