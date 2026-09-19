@@ -48,7 +48,7 @@ export type {
 	OrdfsDirManifest,
 	OrdfsSubdirManifest,
 } from './manifest.js'
-export { buildOrdFsDirOutputs } from './outputs.js'
+export { buildDataScript, buildOrdFsDirOutputs } from './outputs.js'
 export type {
 	BuildOrdFsDirOutputsOptions,
 	BuildOrdFsDirOutputsResult,
