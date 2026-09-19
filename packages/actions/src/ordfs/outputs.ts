@@ -181,9 +181,10 @@ function buildLeafScript(
 		// emits a bare OP_RETURN fragment because it can also be appended to
 		// a spendable script; standalone callers own the OP_FALSE prefix —
 		// same pattern as BSocial.lock().
-		return new Script(
-			B.lock(content, contentType, Encoding.Binary, undefined, [OP.OP_FALSE]).chunks,
-		)
+		return new Script([
+			{ op: OP.OP_FALSE },
+			...B.lock(content, contentType, Encoding.Binary).chunks,
+		])
 	}
 	if (!locking) {
 		throw new Error(
