@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- BRC-100 router derives the caller's origin from the `Origin` header only. The `Originator` and `X-1Sat-Origin` fallbacks are removed: browsers set `Origin` and pages cannot change it, while the other two are ordinary headers any page can set. Requests without an `Origin` header (or with the opaque `null`) are rejected with 400. Node clients on the SDK's `HTTPWalletJSON` already send `Origin: http://<originator>`; other local apps set `Origin` the same way.
+
 ## 0.0.48
 
 ### Changed
