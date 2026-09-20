@@ -4,6 +4,7 @@
  *   1sat serve              Host server (storage + accounts + paymail + messagebox) + monitor
  *   1sat serve wallet       Wallet storage server only
  *   1sat serve monitor      Monitor daemon only
+ *   1sat serve wallet-api   App-facing BRC-100 endpoint (headless; grants come from `1sat permissions`)
  *
  * The server wraps the same wallet instance the CLI uses. Storage, active
  * remote, and backups all come from `~/.1sat/cli/config.json` via the same
@@ -25,15 +26,12 @@ import {
 	createNodeWallet,
 } from '@1sat/wallet-node'
 import {
-	type BRC100WalletHandle,
 	KnexAccountStore,
 	KnexHandleCertStore,
 	KnexPendingStore,
 	createHostServer,
 	createWalletServer,
-	startBRC100Server,
 } from '@1sat/wallet-server'
-import type { Wallet, WalletInterface } from '@bsv/sdk'
 import type { PrivateKey } from '@bsv/sdk'
 import { initLogger } from 'evlog'
 import knexLib from 'knex'
@@ -57,6 +55,9 @@ import {
 	createAccountsConfigLoader,
 	resolveRateProvider,
 } from '../repricer/index.js'
+import { startWalletApi } from '../wallet-api/endpoint.js'
+import { GRANT_COMMAND } from '../wallet-api/grants.js'
+import { permissionStorePath } from '../wallet-api/permission-store.js'
 
 const DEFAULT_HOST = '127.0.0.1'
 const DEFAULT_PORT = 8100
@@ -276,7 +277,7 @@ async function runWithStorage(
 	// wallet-api serves only the app-facing BRC-100 endpoint: no storage
 	// server, no accounts, no monitor.
 	if (mode === 'wallet-api') {
-		const dapp = await startDappEndpoint(walletResult)
+		const dapp = await startDappEndpoint(walletResult, resolved)
 		return {
 			stop: async () => {
 				await dapp.close()
@@ -563,35 +564,17 @@ const DEFAULT_DAPP_HOST = '127.0.0.1'
 const DEFAULT_DAPP_PORT = 3321
 
 /**
- * Wrap the CLI's wallet (wallet-toolbox client) as a BRC100WalletHandle.
- * The toolbox Wallet already implements the 28 BRC-100 methods with the
- * `(args, originator)` signature the dApps send.
- */
-function walletApiHandle(wallet: Wallet): BRC100WalletHandle {
-	return {
-		async call(method, args, origin) {
-			const iface = wallet as unknown as WalletInterface
-			const fn = (iface as unknown as Record<string, unknown>)[method] as (
-				a: unknown,
-				o: string,
-			) => Promise<unknown>
-			if (typeof fn !== 'function') {
-				throw new Error(`Method not available: ${method}`)
-			}
-			return await fn.call(iface, args, origin)
-		},
-	}
-}
-
-/**
  * Start the app-facing BRC-100 HTTP endpoint (the interface dApps like
  * wallet-desktop's :3321 server speak; see bitplan and other BRC-100
- * clients). Headless by design: sensitive methods are auto-approved with a
- * console line unless `server.dapp.approve` is set, in which case each one
- * must be confirmed on the TTY.
+ * clients). See `../wallet-api/endpoint.ts` for what is served: a
+ * permissions manager around the CLI wallet, grants kept in
+ * `<dataDir>/permissions-<chain>.json`, and every ungranted request denied
+ * on the spot with the `1sat permissions grant` command that would allow
+ * it. Nothing is ever asked on this terminal.
  */
 async function startDappEndpoint(
 	walletResult: NodeWalletResult,
+	resolved: ResolvedServe,
 ): Promise<{ close: () => Promise<void> }> {
 	const config = loadConfig()
 	const dapp = config.server?.dapp ?? {}
@@ -602,46 +585,26 @@ async function startDappEndpoint(
 			? Number(process.env.ONESAT_DAPP_PORT)
 			: DEFAULT_DAPP_PORT)
 
-	const approve = dapp.approve === true
-
-	const handle = await startBRC100Server({
+	const storePath = permissionStorePath(resolved.dataDir, resolved.chain)
+	// Denials print the command that would allow them, so it has to carry
+	// the chain when this is not the default one.
+	const grantCommandPrefix =
+		resolved.chain === 'test'
+			? '1sat --chain test permissions grant'
+			: GRANT_COMMAND
+	const api = await startWalletApi({
+		wallet: walletResult.wallet,
+		storePath,
 		host,
 		port,
-		wallet: walletApiHandle(walletResult.wallet),
-		approvalPolicy: approve
-			? async ({ method, origin, args }) => {
-					const { confirm, isCancel } = await import('@clack/prompts')
-					console.log(`\n[brc-100] ${method} requested by ${origin}`)
-					console.log(`          ${JSON.stringify(args).slice(0, 400)}`)
-					const ok = await confirm({
-						message: `Approve ${method}?`,
-					})
-					if (isCancel(ok) || !ok) {
-						throw new Error('User denied permission')
-					}
-				}
-			: undefined,
-		onEvent: (event) => {
-			if (event.event === 'brc100_sensitive') {
-				const trustNote = event.trusted
-					? ' (trusted)'
-					: approve
-						? ''
-						: ' (auto-approved)'
-				console.log(
-					`[brc-100] sensitive ${event.method} from ${event.origin}${trustNote}`,
-				)
-			}
-		},
+		grantCommandPrefix,
 	})
 
 	console.log(`[wallet-api] BRC-100 app endpoint on http://${host}:${port}`)
+	console.log(`[wallet-api] permission grants: ${storePath}`)
 	console.log(
-		approve
-			? '[wallet-api] sensitive methods require TTY confirmation'
-			: '[wallet-api] sensitive methods are AUTO-APPROVED (headless). ' +
-					'Set server.dapp.approve=true to require confirmation.',
+		'[wallet-api] ungranted requests are denied; the error names the `1sat permissions grant` command that allows them',
 	)
 
-	return { close: async () => await handle.close() }
+	return { close: () => api.close() }
 }

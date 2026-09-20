@@ -5,6 +5,11 @@
  * not run in-process (avoids toolbox/console noise on the TTY). After the
  * wallet is destroyed, a detached `__monitor-once` child may run against the
  * same storage with logs in <dataDir>/monitor.log.
+ *
+ * The context's wallet is the permissions manager called as the CLI's admin
+ * originator, not the raw toolbox wallet: checks are bypassed, transaction
+ * metadata is encrypted at rest and decrypted on the way back. See
+ * `wallet-api/admin.ts`.
  */
 
 import { type OneSatContext, createContext } from '@1sat/actions'
@@ -12,6 +17,11 @@ import { type NodeWalletResult, createNodeWallet } from '@1sat/wallet-node'
 import type { PrivateKey } from '@bsv/sdk'
 import { ensureDataDir, loadConfig } from './config.js'
 import { spawnDetachedMonitorOnce } from './monitor-once.js'
+import { adminWallet } from './wallet-api/admin.js'
+import {
+	FilePermissionStore,
+	permissionStorePath,
+} from './wallet-api/permission-store.js'
 
 /** Extended context that includes cleanup */
 export interface CliContext {
@@ -52,7 +62,17 @@ export async function loadContext(
 		skipInitialMonitor: true,
 	})
 
-	const ctx = createContext(walletResult.wallet, {
+	// Commands talk to the wallet through the permissions manager as the
+	// admin originator: checks are bypassed, and transaction metadata is
+	// encrypted and decrypted the same way the served endpoint does it. The
+	// store is the same file `1sat permissions` and the endpoint use, so
+	// nothing here can disagree with what the endpoint enforces.
+	const wallet = adminWallet(
+		walletResult.wallet,
+		new FilePermissionStore(permissionStorePath(dataDir, opts.chain)),
+	)
+
+	const ctx = createContext(wallet, {
 		services: walletResult.services,
 		chain: opts.chain,
 		dataDir,

@@ -21,6 +21,7 @@ import { handleMcpProxyCommand } from './commands/mcp-proxy.js'
 import { handleMessageboxCommand } from './commands/messagebox.js'
 import { handleOpnsCommand } from './commands/opns.js'
 import { handleOrdinalsCommand } from './commands/ordinals.js'
+import { handlePermissionsCommand } from './commands/permissions.js'
 import { handleRemoteCommand } from './commands/remote.js'
 import { handleServeCommand } from './commands/serve.js'
 import { handleSocialCommand } from './commands/social.js'
@@ -149,6 +150,10 @@ async function main(): Promise<void> {
 
 		case 'serve':
 			await handleServeCommand(rest, flags)
+			break
+
+		case 'permissions':
+			await handlePermissionsCommand(rest, flags)
 			break
 
 		case 'storage':

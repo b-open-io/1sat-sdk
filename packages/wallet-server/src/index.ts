@@ -71,7 +71,6 @@ export {
 	WALLET_METHODS,
 	walletMethodSet,
 	NO_ARG_METHODS,
-	SENSITIVE_METHODS,
 } from './brc100/methods.js'
 export type { WalletMethod } from './brc100/methods.js'
 export {
@@ -80,9 +79,6 @@ export {
 } from './brc100/router.js'
 export type {
 	BRC100WalletHandle,
-	BRC100ApprovalRequest,
-	BRC100ApprovalPolicy,
-	BRC100TrustCheck,
 	BRC100RouterConfig,
 } from './brc100/router.js'
 export { startBRC100Server } from './brc100/server.js'
