@@ -274,31 +274,9 @@ Server-specific settings live under `server.*` in the config — edit via `1sat 
 
 #### wallet-api (dApp connectivity)
 
-`1sat serve wallet-api` exposes the CLI wallet to local BRC-100 apps on `127.0.0.1:3321` (`server.dapp.host` / `server.dapp.port`, or `ONESAT_DAPP_PORT`). The served wallet is a permissions manager: each app origin (taken from the request's `Origin` header) only gets what has been granted to it in `<dataDir>/permissions-<chain>.json` (mode 0600).
+`1sat serve wallet-api` exposes the CLI wallet to local BRC-100 apps and agents on `127.0.0.1:3321`. It is deny-by-default: an app is identified by its `Origin` header, gets only what `1sat permissions grant <origin> …` has written to `<dataDir>/permissions-<chain>.json`, and is never prompted — a denial names the grant command that would allow the call.
 
-**It never prompts.** This endpoint is for agents and automation; a person who wants to be asked runs a graphical wallet such as BSV Desktop. Anything not already granted — protocol use, basket access, certificate disclosure, spending, or an app manifest's grouped request — is denied on the spot. There is no interactive mode and no auto-approve.
-
-**A denial says how to fix itself.** The error names the exact command, and the router relays it unchanged as the 400 `{ error }` body, so it comes out of the app you are driving:
-
-```
-permission denied for gib: run `1sat permissions grant gib --protocol "gib branch" --level 1` and retry
-```
-
-Run that, then retry the operation — the manager reads the grant file on every check, so a running server picks it up on the next call with no restart. A grouped (manifest) request lists one command per permission it asked for. Only the first missing permission of a call is reported, so a first-run app may need a few rounds.
-
-```bash
-1sat permissions list                       # every grant, grouped by app origin
-1sat permissions list gib                   # one app
-1sat permissions grant gib --basket "gib refs" --label "gib push"
-1sat permissions grant gib --protocol "gib branch" --level 1
-1sat permissions grant gib --spending 50000 # monthly cap, in satoshis
-1sat permissions revoke gib --basket "gib refs"
-1sat permissions revoke gib --all           # forget the app entirely
-```
-
-`1sat permissions` works on the grant file directly: no wallet key, no unlock, and it does not care whether the server is running. Selectors: `--protocol <name> --level <0|1|2> [--counterparty <hex|self|anyone>]`, `--basket <name>`, `--label <name>` (an action label), `--certificate <type> --fields <a,b> [--counterparty <verifier>]`, `--spending <satoshis>`, and `--privileged` for the privileged variant of a protocol or certificate. Several selectors in one call write several grants. Level-1 protocols are counterparty-less, so `--counterparty` is ignored there.
-
-**Metadata.** Transaction descriptions and custom instructions are encrypted at rest, whether an app wrote them through this endpoint or the CLI wrote them itself. The CLI's own commands read through the permissions manager as the wallet's admin originator — every check bypassed, metadata decrypted — so `1sat wallet actions` and friends still show text, including rows written before encryption was turned on (a value that was never encrypted is returned unchanged). `1sat serve wallet` is the storage interface underneath and passes these records through without reading them; the wallet on the other end decrypts with its own permissions manager.
+**See the `wallet-api` skill** (`packages/cli/skills/wallet-api`) for the permission model, the grant-and-retry loop, the full `1sat permissions` reference and troubleshooting.
 
 Pricing model: new payments charge `unitsCharged × satsPerUnit` (rounded up to a whole chunk) for `durationBlocks` from now, minus a prorated refund credit for unused time on the prior payment. One active payment row per account at a time.
 
