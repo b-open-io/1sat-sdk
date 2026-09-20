@@ -250,7 +250,7 @@ The same binary can run a BRC-100 wallet storage RPC server backed by the **same
 1sat serve wallet       # Wallet server only (BRC-100 HTTP, no monitor loop)
 1sat serve monitor      # Monitor daemon only (no HTTP)
 1sat serve messagebox   # BSV message-box server (port 8771 default; uses wallet identity)
-1sat serve wallet-api   # App-facing BRC-100 endpoint for dApps (127.0.0.1:3321, permission prompts on the terminal)
+1sat serve wallet-api   # App-facing BRC-100 endpoint for dApps (127.0.0.1:3321, headless)
 ```
 
 Key properties:
@@ -274,7 +274,31 @@ Server-specific settings live under `server.*` in the config — edit via `1sat 
 
 #### wallet-api (dApp connectivity)
 
-`1sat serve wallet-api` exposes the CLI wallet to local BRC-100 apps on `127.0.0.1:3321` (`server.dapp.host` / `server.dapp.port`, or `ONESAT_DAPP_PORT`). The served wallet is a permissions manager: each app origin (taken from the request's `Origin` header) only gets what the user has granted it. A missing grant (protocol use, basket access, certificate disclosure, spending, or an app manifest's grouped request) is printed on the terminal as a y/N question; `y` answers the request and is remembered in `<dataDir>/permissions-<chain>.json` (mode 0600), anything else denies it. Run it in an interactive terminal: without a TTY every request is denied and the app receives an error saying so. There is no setting that approves requests without a prompt. To forget an app's grants, delete its entries from the permissions file and restart.
+`1sat serve wallet-api` exposes the CLI wallet to local BRC-100 apps on `127.0.0.1:3321` (`server.dapp.host` / `server.dapp.port`, or `ONESAT_DAPP_PORT`). The served wallet is a permissions manager: each app origin (taken from the request's `Origin` header) only gets what has been granted to it in `<dataDir>/permissions-<chain>.json` (mode 0600).
+
+**It never prompts.** This endpoint is for agents and automation; a person who wants to be asked runs a graphical wallet such as BSV Desktop. Anything not already granted — protocol use, basket access, certificate disclosure, spending, or an app manifest's grouped request — is denied on the spot. There is no interactive mode and no auto-approve.
+
+**A denial says how to fix itself.** The error names the exact command, and the router relays it unchanged as the 400 `{ error }` body, so it comes out of the app you are driving:
+
+```
+permission denied for gib: run `1sat permissions grant gib --protocol "gib branch" --level 1` and retry
+```
+
+Run that, then retry the operation — the manager reads the grant file on every check, so a running server picks it up on the next call with no restart. A grouped (manifest) request lists one command per permission it asked for. Only the first missing permission of a call is reported, so a first-run app may need a few rounds.
+
+```bash
+1sat permissions list                       # every grant, grouped by app origin
+1sat permissions list gib                   # one app
+1sat permissions grant gib --basket "gib refs" --label "gib push"
+1sat permissions grant gib --protocol "gib branch" --level 1
+1sat permissions grant gib --spending 50000 # monthly cap, in satoshis
+1sat permissions revoke gib --basket "gib refs"
+1sat permissions revoke gib --all           # forget the app entirely
+```
+
+`1sat permissions` works on the grant file directly: no wallet key, no unlock, and it does not care whether the server is running. Selectors: `--protocol <name> --level <0|1|2> [--counterparty <hex|self|anyone>]`, `--basket <name>`, `--label <name>` (an action label), `--certificate <type> --fields <a,b> [--counterparty <verifier>]`, `--spending <satoshis>`, and `--privileged` for the privileged variant of a protocol or certificate. Several selectors in one call write several grants. Level-1 protocols are counterparty-less, so `--counterparty` is ignored there.
+
+**Metadata.** Transaction descriptions an app writes through this endpoint are encrypted at rest. The CLI's own commands read through the permissions manager as the wallet's admin originator — every check bypassed, metadata decrypted — so `1sat wallet actions` and friends still show text. What the CLI itself writes stays plaintext, so `1sat serve wallet` and remote clients are unaffected.
 
 Pricing model: new payments charge `unitsCharged × satsPerUnit` (rounded up to a whole chunk) for `durationBlocks` from now, minus a prorated refund credit for unused time on the prior payment. One active payment row per account at a time.
 

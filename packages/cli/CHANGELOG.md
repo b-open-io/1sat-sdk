@@ -2,10 +2,19 @@
 
 ## Unreleased
 
+### Added
+- `1sat permissions` manages what apps on `1sat serve wallet-api` may do, directly on the grant store — no wallet key, no running server.
+  - `1sat permissions list [<origin>]` shows grants grouped by app origin.
+  - `1sat permissions grant <origin> [--protocol <name> --level <0|1|2> --counterparty <hex|self|anyone>] [--basket <name>] [--label <name>] [--certificate <type> --fields <a,b>] [--spending <satoshis>] [--privileged]` writes them. Selectors can be combined in one call.
+  - `1sat permissions revoke <origin> [same selectors] | --all` removes them.
+  - The endpoint's manager reads the store on every check, so a grant written while `1sat serve wallet-api` is running applies to the app's next call; no restart.
+
 ### Changed
-- `1sat serve wallet-api` serves the wallet through a `LocalWalletPermissionsManager`. Each app origin is limited to the permissions the user has granted it; a missing grant (protocol, basket, certificate, spending or a manifest's grouped request) is asked on the terminal as a y/N question and a `y` is remembered in `<dataDir>/permissions-<chain>.json` (mode 0600). Without an interactive terminal every request is denied and the app receives an error explaining how to run interactively.
-- The previous behaviour, where the endpoint answered every app with the full wallet and approved sensitive methods without a prompt unless `server.dapp.approve` was set, is deprecated and removed. `server.dapp.approve` is gone; there is no setting that approves requests without a prompt.
+- `1sat serve wallet-api` serves the wallet through a `LocalWalletPermissionsManager` and is headless. Each app origin is limited to the permissions granted to it; anything else is denied immediately. There are no terminal prompts, no interactive mode and no auto-approve.
+- A denial names the command that would allow the call, with every argument that request needs, e.g. ``permission denied for gib: run `1sat permissions grant gib --protocol "gib branch" --level 1` and retry``. A BRC-73 grouped request lists one command per permission it asked for. The message reaches the app unchanged as the 400 `{ error }` body, so the agent driving the app can read the fix out of the app's own output.
+- The previous behaviour, where the endpoint answered every app with the full wallet and approved sensitive methods without a prompt unless `server.dapp.approve` was set, is deprecated and removed. `server.dapp.approve` is gone; there is no setting that approves requests without a grant.
 - The endpoint rejects requests whose origin is the wallet's own admin originator.
+- Transaction metadata an app writes through the endpoint is encrypted at rest (the wallet-toolbox default). The CLI's own commands now run against the permissions manager as the admin originator, which bypasses every check and decrypts that metadata on the way back, so descriptions and custom instructions still read as text. The CLI keeps writing its own metadata in plaintext, so other readers of the same storage (`1sat serve wallet`, remote clients) are unaffected.
 
 ## 0.0.115
 
