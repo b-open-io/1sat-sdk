@@ -757,7 +757,88 @@ export const COMMANDS: CommandSpec[] = [
 			{
 				name: 'wallet-api',
 				description:
-					'App-facing BRC-100 wallet endpoint only (permission prompts on this terminal, default port 3321)',
+					'App-facing BRC-100 wallet endpoint only (headless, default port 3321). Ungranted requests are denied with the `1sat permissions grant` command that would allow them',
+			},
+		],
+	},
+	{
+		group: 'Server',
+		name: 'permissions',
+		description:
+			"What apps on `1sat serve wallet-api` may do. Grants live in <dataDir>/permissions-<chain>.json; the endpoint reads the file on every check, so a grant applies to the app's next call without a restart. Works with the server stopped or running and needs no wallet key.",
+		subcommands: [
+			{
+				name: 'list',
+				description: 'Show grants, grouped by app origin',
+				positional: '[<origin>]',
+			},
+			{
+				name: 'grant',
+				description:
+					'Allow an app one or more permissions. Selectors may be combined in one call.',
+				positional: '<origin>',
+				args: [
+					{
+						flag: '--protocol',
+						values: '<name>',
+						description: 'Protocol name; requires --level',
+					},
+					{
+						flag: '--level',
+						values: '<0|1|2>',
+						description: 'Protocol security level',
+					},
+					{
+						flag: '--counterparty',
+						values: '<hex|self|anyone>',
+						description:
+							"Counterparty for a level 0/2 protocol (default self; ignored at level 1), or a certificate's verifier (also --verifier)",
+					},
+					{
+						flag: '--privileged',
+						description:
+							'Grant the privileged variant of a protocol/certificate',
+					},
+					{ flag: '--basket', values: '<name>', description: 'Basket access' },
+					{
+						flag: '--label',
+						values: '<name>',
+						description:
+							'Action label (a level-1 `action label <name>` protocol)',
+					},
+					{
+						flag: '--certificate',
+						values: '<type>',
+						description: 'Certificate type; requires --fields',
+					},
+					{
+						flag: '--fields',
+						values: '<a,b>',
+						description: 'Certificate fields that may be disclosed',
+					},
+					{
+						flag: '--spending',
+						values: '<satoshis>',
+						description:
+							'Monthly spending cap; month-to-date spend is read from action history on every check',
+					},
+				],
+			},
+			{
+				name: 'revoke',
+				description: 'Remove matching grants, or every grant for an origin',
+				positional: '<origin>',
+				args: [
+					{
+						flag: '--all',
+						description: 'Remove every grant for the origin',
+					},
+					{
+						flag: '--protocol',
+						values: '<name>',
+						description: 'Same selectors as `grant`',
+					},
+				],
 			},
 		],
 	},
