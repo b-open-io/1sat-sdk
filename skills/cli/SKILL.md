@@ -249,6 +249,7 @@ The same binary can run a BRC-100 wallet storage RPC server backed by the **same
 1sat serve wallet       # Wallet server only (BRC-100 HTTP, no monitor loop)
 1sat serve monitor      # Monitor daemon only (no HTTP)
 1sat serve messagebox   # BSV message-box server (port 8771 default; uses wallet identity)
+1sat serve wallet-api   # App-facing BRC-100 endpoint for dApps (127.0.0.1:3321, headless)
 ```
 
 Key properties:
@@ -269,6 +270,12 @@ Server-specific settings live under `server.*` in the config — edit via `1sat 
 1sat config set server.accounts.satsPerUnit 1000000           # price per chunk
 1sat config set server.accounts.durationBlocks 4383           # validity window (~1 month)
 ```
+
+#### wallet-api (dApp connectivity)
+
+`1sat serve wallet-api` exposes the CLI wallet to local BRC-100 apps and agents on `127.0.0.1:3321`. It is deny-by-default: an app is identified by its `Origin` header, gets only what `1sat permissions grant <origin> …` has written to `<dataDir>/permissions-<chain>.json`, and is never prompted — a denial names the grant command that would allow the call.
+
+**See the `wallet-api` skill** (`packages/cli/skills/wallet-api`) for the permission model, the grant-and-retry loop, the full `1sat permissions` reference and troubleshooting.
 
 Pricing model: new payments charge `unitsCharged × satsPerUnit` (rounded up to a whole chunk) for `durationBlocks` from now, minus a prorated refund credit for unused time on the prior payment. One active payment row per account at a time.
 

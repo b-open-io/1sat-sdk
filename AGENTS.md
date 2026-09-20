@@ -71,6 +71,7 @@ with `bun run scripts/gen-action-index.ts`).
 | wallet-setup | `packages/wallet/skills/wallet-setup` | Creating a BRC-100 wallet (node / browser / remote) |
 | dapp-connect | `packages/connect/skills/dapp-connect` | Connecting a dApp to an existing wallet (extension / desktop / Sigma) |
 | cli | `packages/cli/skills/cli` | The `@1sat/cli` terminal commands |
+| wallet-api | `packages/cli/skills/wallet-api` | Driving the CLI wallet from an app or agent over `1sat serve wallet-api` (BRC-100 on 127.0.0.1:3321) and granting it permissions with `1sat permissions` |
 | stack-api | `packages/client/skills/stack-api` | The api.1sat.app unified indexer API |
 | collections | `packages/client/skills/collections` | 1Sat collection overlay admission, topics, routes, and SDK compatibility |
 | blockchain-media | `packages/client/skills/blockchain-media` | ORDFS content access (service-level; no SDK action) |
