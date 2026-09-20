@@ -48,10 +48,10 @@ type AnyPermissionEventHandler =
  *  - `ensure*Access` checks the local store first; on miss it delegates to
  *    super (which then consults its own cache, on-chain tokens, and falls
  *    through to firing a prompt). Existing on-chain grants are honored.
- *  - Because super's grouped-permission filter calls back through
- *    `this.has*Access` → `this.ensure*Access`, our overrides are picked up
- *    polymorphically and the connect-time grouped prompt only requests
- *    permissions still missing from the store.
+ *  - Super's grouped-permission filter uses `has*Access` → `ensure*Access`
+ *    for protocol / basket / certificate (picked up polymorphically) and
+ *    `findSpendingToken` for spending. We wrap `findSpendingToken` so a
+ *    store grant counts as a standing authorization.
  *
  * Writes:
  *  - `grantPermission` writes to the store and resolves super's pending
@@ -81,6 +81,7 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 	) {
 		super(underlyingWallet, adminOriginator, config)
 		this.permissionStore = options.store
+		this.installFindSpendingTokenOverride()
 	}
 
 	// -----------------------------------------------------------------
@@ -260,6 +261,35 @@ export class LocalWalletPermissionsManager extends WalletPermissionsManager {
 			)
 		}
 		return fn.call(this, proto)
+	}
+
+	// Same TS-private prototype reach-in as isAdminBasket. Grouped/connect
+	// filters spending via findSpendingToken (on-chain DSAP); without this
+	// wrap a store grant is invisible and the allowance is re-requested.
+	private installFindSpendingTokenOverride(): void {
+		type FindSpendingToken = (
+			originator: string,
+			originatorLookupValues?: string[],
+		) => Promise<PermissionToken | undefined>
+		const self = this as unknown as { findSpendingToken?: FindSpendingToken }
+		const original = self.findSpendingToken
+		if (typeof original !== 'function') {
+			throw new Error(
+				'LocalWalletPermissionsManager: super.findSpendingToken is unavailable; grouped spending checks would miss store grants',
+			)
+		}
+		self.findSpendingToken = async (originator, originatorLookupValues) => {
+			const grant = await this.permissionStore.findGrant({
+				type: 'spending',
+				originator: normalizeOriginator(originator),
+			})
+			if (grant && !isExpired(grant.expiry) && grant.authorizedAmount != null) {
+				const token = grantToToken(grant)
+				token.rawOriginator = originator
+				return token
+			}
+			return original.call(this, originator, originatorLookupValues)
+		}
 	}
 
 	// -----------------------------------------------------------------
