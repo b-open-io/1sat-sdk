@@ -1,24 +1,24 @@
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { PassThrough } from 'node:stream'
 import type { WalletInterface } from '@bsv/sdk'
+import { Utils } from '@bsv/sdk'
 import { CLI_ADMIN_ORIGINATOR } from '../src/wallet-api/admin'
 import {
 	type WalletApiHandle,
 	startWalletApi,
 } from '../src/wallet-api/endpoint'
 import { FilePermissionStore } from '../src/wallet-api/permission-store'
-import { NOT_INTERACTIVE_MESSAGE } from '../src/wallet-api/prompts'
 
 /**
  * Stand-in for the toolbox wallet: answers the calls the permissions
- * manager makes while looking for on-chain tokens (none) and records the
- * originator it was handed for the app-facing call.
+ * manager makes while looking for on-chain tokens (none) and records what
+ * it was handed for the app-facing call.
  */
 function mockWallet() {
 	const originators: Array<string | undefined> = []
+	const created: Array<Record<string, unknown>> = []
 	const wallet = {
 		async getPublicKey(_args: unknown, originator?: string) {
 			originators.push(originator)
@@ -33,8 +33,17 @@ function mockWallet() {
 		async getVersion() {
 			return { version: 'mock' }
 		},
+		async encrypt(args: { plaintext: number[] }) {
+			// Reversible stand-in for the metadata encryption key.
+			return { ciphertext: args.plaintext.map((b) => b ^ 0x5a) }
+		},
+		async createAction(args: Record<string, unknown>, originator?: string) {
+			originators.push(originator)
+			created.push(args)
+			return { txid: 'ab'.repeat(32), tx: [], noSendChange: [] }
+		},
 	} as unknown as WalletInterface
-	return { wallet, originators }
+	return { wallet, originators, created }
 }
 
 function portOf(api: WalletApiHandle): number {
@@ -64,26 +73,33 @@ describe('startWalletApi', () => {
 	let dir: string
 	let storePath: string
 
-	beforeAll(() => {
+	beforeEach(() => {
 		dir = mkdtempSync(join(tmpdir(), '1sat-wallet-api-'))
 		storePath = join(dir, 'permissions-test.json')
 	})
 
-	afterAll(() => {
+	afterEach(() => {
 		rmSync(dir, { recursive: true, force: true })
 	})
 
-	test('denies with the interactive hint when no TTY is attached', async () => {
-		const { wallet, originators } = mockWallet()
-		const api = await startWalletApi({
+	const start = (
+		wallet: WalletInterface,
+		grantCommandPrefix?: string,
+	): Promise<WalletApiHandle> =>
+		startWalletApi({
 			wallet,
 			storePath,
 			host: '127.0.0.1',
 			port: 0,
-			prompts: { interactive: false },
+			grantCommandPrefix,
+			// Manifest lookups would reach the network for the app's origin.
 			managerConfig: { seekGroupedPermission: false },
 			log: () => {},
 		})
+
+	test('an ungranted call is denied with the command that would allow it', async () => {
+		const { wallet, originators } = mockWallet()
+		const api = await start(wallet)
 		try {
 			const res = await call(
 				api,
@@ -92,9 +108,83 @@ describe('startWalletApi', () => {
 				'http://gib',
 			)
 			expect(res.status).toBe(400)
-			expect(String(res.body.error)).toContain('Permission denied.')
-			expect(String(res.body.error)).toContain(NOT_INTERACTIVE_MESSAGE)
+			expect(res.body).toEqual({
+				error:
+					'permission denied for gib: run `1sat permissions grant gib --protocol "identity key retrieval" --level 1` and retry',
+			})
+			// Nothing reached the underlying wallet.
 			expect(originators).toEqual([])
+		} finally {
+			await api.close()
+		}
+	})
+
+	test('the denial carries the global flags the server was started with', async () => {
+		const { wallet } = mockWallet()
+		const api = await start(wallet, '1sat --chain test permissions grant')
+		try {
+			const res = await call(
+				api,
+				'getPublicKey',
+				{ identityKey: true },
+				'http://gib',
+			)
+			expect(String(res.body.error)).toBe(
+				'permission denied for gib: run `1sat --chain test permissions grant gib --protocol "identity key retrieval" --level 1` and retry',
+			)
+		} finally {
+			await api.close()
+		}
+	})
+
+	test('a grant written while the server runs applies to the next call', async () => {
+		const { wallet, originators } = mockWallet()
+		const api = await start(wallet)
+		try {
+			const denied = await call(
+				api,
+				'getPublicKey',
+				{ identityKey: true },
+				'http://gib',
+			)
+			expect(denied.status).toBe(400)
+
+			// Exactly what the denial told the caller to run, applied to the
+			// same file `1sat permissions grant` writes. No restart.
+			await new FilePermissionStore(storePath).putGrant({
+				key: {
+					type: 'protocol',
+					originator: 'gib',
+					privileged: false,
+					protocolLevel: 1,
+					protocolName: 'identity key retrieval',
+					counterparty: '',
+				},
+				expiry: 0,
+				grantedAt: Date.now(),
+			})
+
+			const allowed = await call(
+				api,
+				'getPublicKey',
+				{ identityKey: true },
+				'http://gib',
+			)
+			expect(allowed.status).toBe(200)
+			expect(allowed.body).toEqual({ publicKey: '02aa' })
+			expect(originators).toEqual(['gib'])
+
+			// The grant is for one origin only.
+			const other = await call(
+				api,
+				'getPublicKey',
+				{ identityKey: true },
+				'http://bitplan.dev',
+			)
+			expect(other.status).toBe(400)
+			expect(String(other.body.error)).toContain(
+				'1sat permissions grant bitplan.dev',
+			)
 		} finally {
 			await api.close()
 		}
@@ -102,15 +192,7 @@ describe('startWalletApi', () => {
 
 	test('rejects the admin originator on the wire', async () => {
 		const { wallet, originators } = mockWallet()
-		const api = await startWalletApi({
-			wallet,
-			storePath,
-			host: '127.0.0.1',
-			port: 0,
-			prompts: { interactive: false },
-			managerConfig: { seekGroupedPermission: false },
-			log: () => {},
-		})
+		const api = await start(wallet)
 		try {
 			const res = await call(
 				api,
@@ -128,77 +210,25 @@ describe('startWalletApi', () => {
 		}
 	})
 
-	test('a y on the terminal grants, persists, and covers the next instance', async () => {
-		const { wallet, originators } = mockWallet()
-		const input = new PassThrough()
-		const output = new PassThrough()
-		let shown = ''
-		output.on('data', (chunk) => {
-			shown += chunk.toString()
-			if (shown.includes('Approve? [y/N]')) {
-				shown = ''
-				input.write('y\n')
-			}
-		})
-		const api = await startWalletApi({
-			wallet,
-			storePath,
-			host: '127.0.0.1',
-			port: 0,
-			prompts: { interactive: true, input, output },
-			managerConfig: { seekGroupedPermission: false },
-			log: () => {},
-		})
+	test('the served manager encrypts transaction metadata', async () => {
+		const { wallet, created } = mockWallet()
+		const api = await start(wallet)
 		try {
 			const res = await call(
 				api,
-				'getPublicKey',
-				{ identityKey: true },
+				'createAction',
+				{ description: 'push refs/heads/main', outputs: [] },
 				'http://gib',
 			)
 			expect(res.status).toBe(200)
-			expect(res.body).toEqual({ publicKey: '02aa' })
-			expect(originators).toEqual(['gib'])
+			expect(created).toHaveLength(1)
+			const description = created[0].description as string
+			expect(description).not.toBe('push refs/heads/main')
+			expect(
+				Utils.toUTF8(Utils.toArray(description, 'base64').map((b) => b ^ 0x5a)),
+			).toBe('push refs/heads/main')
 		} finally {
 			await api.close()
-		}
-
-		const grants = await new FilePermissionStore(storePath).listGrants({
-			originator: 'gib',
-		})
-		expect(grants.length).toBeGreaterThan(0)
-		expect(grants.every((g) => g.key.type === 'protocol')).toBe(true)
-
-		// Fresh manager over the same store: no prompt is possible, yet the
-		// remembered grant lets the call through.
-		const again = mockWallet()
-		const headless = await startWalletApi({
-			wallet: again.wallet,
-			storePath,
-			host: '127.0.0.1',
-			port: 0,
-			prompts: { interactive: false },
-			managerConfig: { seekGroupedPermission: false },
-			log: () => {},
-		})
-		try {
-			const res = await call(
-				headless,
-				'getPublicKey',
-				{ identityKey: true },
-				'http://gib',
-			)
-			expect(res.status).toBe(200)
-			expect(again.originators).toEqual(['gib'])
-			const other = await call(
-				headless,
-				'getPublicKey',
-				{ identityKey: true },
-				'http://bitplan.dev',
-			)
-			expect(other.status).toBe(400)
-		} finally {
-			await headless.close()
 		}
 	})
 })

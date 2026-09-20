@@ -157,9 +157,10 @@ export interface ServerConfig {
 	/**
 	 * Application-facing BRC-100 endpoint (`1sat serve wallet-api`):
 	 * dApp connectivity for the CLI wallet. Defaults to 127.0.0.1:3321.
-	 * Each app origin is limited to the permissions the user granted it;
-	 * missing grants are asked for on the terminal and there is no setting
-	 * that approves without a prompt.
+	 * Each app origin is limited to the permissions granted to it with
+	 * `1sat permissions grant`; anything else is denied on the spot. The
+	 * endpoint never prompts and there is no setting that approves
+	 * without a grant.
 	 */
 	dapp?: {
 		host?: string

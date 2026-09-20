@@ -4,7 +4,7 @@
  *   1sat serve              Host server (storage + accounts + paymail + messagebox) + monitor
  *   1sat serve wallet       Wallet storage server only
  *   1sat serve monitor      Monitor daemon only
- *   1sat serve wallet-api   App-facing BRC-100 endpoint (permission prompts on the TTY)
+ *   1sat serve wallet-api   App-facing BRC-100 endpoint (headless; grants come from `1sat permissions`)
  *
  * The server wraps the same wallet instance the CLI uses. Storage, active
  * remote, and backups all come from `~/.1sat/cli/config.json` via the same
@@ -56,8 +56,8 @@ import {
 	resolveRateProvider,
 } from '../repricer/index.js'
 import { startWalletApi } from '../wallet-api/endpoint.js'
+import { GRANT_COMMAND } from '../wallet-api/grants.js'
 import { permissionStorePath } from '../wallet-api/permission-store.js'
-import { NOT_INTERACTIVE_MESSAGE } from '../wallet-api/prompts.js'
 
 const DEFAULT_HOST = '127.0.0.1'
 const DEFAULT_PORT = 8100
@@ -568,8 +568,9 @@ const DEFAULT_DAPP_PORT = 3321
  * wallet-desktop's :3321 server speak; see bitplan and other BRC-100
  * clients). See `../wallet-api/endpoint.ts` for what is served: a
  * permissions manager around the CLI wallet, grants kept in
- * `<dataDir>/permissions-<chain>.json`, prompts on this terminal, and every
- * request denied when no TTY is attached.
+ * `<dataDir>/permissions-<chain>.json`, and every ungranted request denied
+ * on the spot with the `1sat permissions grant` command that would allow
+ * it. Nothing is ever asked on this terminal.
  */
 async function startDappEndpoint(
 	walletResult: NodeWalletResult,
@@ -585,19 +586,24 @@ async function startDappEndpoint(
 			: DEFAULT_DAPP_PORT)
 
 	const storePath = permissionStorePath(resolved.dataDir, resolved.chain)
+	// Denials print the command that would allow them, so it has to carry
+	// the chain when this is not the default one.
+	const grantCommandPrefix =
+		resolved.chain === 'test'
+			? '1sat --chain test permissions grant'
+			: GRANT_COMMAND
 	const api = await startWalletApi({
 		wallet: walletResult.wallet,
 		storePath,
 		host,
 		port,
+		grantCommandPrefix,
 	})
 
 	console.log(`[wallet-api] BRC-100 app endpoint on http://${host}:${port}`)
 	console.log(`[wallet-api] permission grants: ${storePath}`)
 	console.log(
-		api.prompts.interactive
-			? '[wallet-api] permission requests are asked on this terminal (y/N); a "y" is remembered in the grants file'
-			: `[wallet-api] ${NOT_INTERACTIVE_MESSAGE}`,
+		'[wallet-api] ungranted requests are denied; the error names the `1sat permissions grant` command that allows them',
 	)
 
 	return { close: () => api.close() }

@@ -6,9 +6,11 @@
  * may do: it derives the caller's origin, hands `(method, args, origin)` to
  * the wallet and relays the result. Permissions are the wallet's job — serve
  * a `WalletPermissionsManager` (or `LocalWalletPermissionsManager` from
- * `@1sat/wallet`) so every call is checked against the originator's grants
- * and the user is prompted when one is missing. A permission denial surfaces
- * like any other wallet error: 400 with `{ error }`.
+ * `@1sat/wallet`) so every call is checked against the originator's grants.
+ * What happens when a grant is missing is that wallet's business — the CLI's
+ * endpoint denies and says which command would allow the call. A permission
+ * denial surfaces like any other wallet error: 400 with `{ error }`, with the
+ * wallet's message relayed unchanged so the app can print it verbatim.
  *
  * Node/Bun-agnostic: uses only Web-standard Request/Response.
  */
