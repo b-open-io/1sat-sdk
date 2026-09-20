@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.0.56
 
 ### Changed
 - The BRC-100 router no longer decides what an app may do. `SENSITIVE_METHODS`, the `approvalPolicy` / `isOriginTrusted` hooks, their `BRC100ApprovalPolicy` / `BRC100ApprovalRequest` / `BRC100TrustCheck` types and the `brc100_sensitive` event are removed, along with the auto-approve path taken when no policy was configured. The router now derives the origin, calls `wallet.call(method, args, origin)` and relays the result; serve a `WalletPermissionsManager` (or `@1sat/wallet`'s `LocalWalletPermissionsManager`) as the wallet so permissions are checked per originator and grant. A permission denial comes back as 400 `{ error }` and is logged through `onEvent` (with the manager's `code` when present).

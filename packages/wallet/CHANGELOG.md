@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.112
+
+### Fixed
+- `LocalWalletPermissionsManager` wraps the parent's `findSpendingToken` so a standing spending allowance held in the injected store is visible to grouped and connect-time checks. Upstream filters those through that method, which reads on-chain DSAP tokens only, so a granted allowance looked missing and was requested again every session. Spend-time checks and the monthly ledger are unchanged.
+
 ## 0.0.110
 
 ### Changed

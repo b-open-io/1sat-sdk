@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.0.121
 
 ### Added
 - `1sat permissions` manages what apps on `1sat serve wallet-api` may do, directly on the grant store — no wallet key, no running server.
