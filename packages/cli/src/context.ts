@@ -7,9 +7,9 @@
  * same storage with logs in <dataDir>/monitor.log.
  *
  * The context's wallet is the permissions manager called as the CLI's admin
- * originator, not the raw toolbox wallet: checks are bypassed, and metadata
- * an app encrypted through `1sat serve wallet-api` is decrypted on the way
- * back. See `wallet-api/admin.ts`.
+ * originator, not the raw toolbox wallet: checks are bypassed, transaction
+ * metadata is encrypted at rest and decrypted on the way back. See
+ * `wallet-api/admin.ts`.
  */
 
 import { type OneSatContext, createContext } from '@1sat/actions'
@@ -63,10 +63,10 @@ export async function loadContext(
 	})
 
 	// Commands talk to the wallet through the permissions manager as the
-	// admin originator: checks are bypassed, and metadata an app encrypted
-	// through `1sat serve wallet-api` comes back decrypted. The store is the
-	// same file `1sat permissions` and the endpoint use, so nothing here can
-	// disagree with what the endpoint enforces.
+	// admin originator: checks are bypassed, and transaction metadata is
+	// encrypted and decrypted the same way the served endpoint does it. The
+	// store is the same file `1sat permissions` and the endpoint use, so
+	// nothing here can disagree with what the endpoint enforces.
 	const wallet = adminWallet(
 		walletResult.wallet,
 		new FilePermissionStore(permissionStorePath(dataDir, opts.chain)),

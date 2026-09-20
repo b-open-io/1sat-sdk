@@ -9,9 +9,9 @@
  * normalization (lowercase, no scheme, no port).
  *
  * The CLI's own commands go through a manager too, rather than the raw
- * toolbox wallet. That is what keeps their output readable now that apps
- * on `1sat serve wallet-api` write encrypted transaction metadata: the
- * manager decrypts descriptions and custom instructions on the way back
+ * toolbox wallet. That is what keeps their output readable now that
+ * transaction metadata is encrypted at rest: the manager decrypts
+ * descriptions and custom instructions on the way back
  * (`decryptListActionsMetadata` / `maybeDecryptMetadata`, which return
  * values that were never encrypted unchanged), while the admin originator
  * skips every grant check.
@@ -34,11 +34,16 @@ export const CLI_ADMIN_ORIGINATOR = '1sat-cli.internal'
  * "Originator is required for permission checks" on calls the CLI's own
  * actions make without one.
  *
- * Writes stay in plaintext (`encryptWalletMetadata: false`). The CLI is
- * not the only reader of this storage — `1sat serve wallet` hands the same
- * records to remote clients — so the CLI does not start encrypting what it
- * writes. Decryption is not gated on that flag, so app-written metadata
- * still comes back readable.
+ * Metadata encryption is left at the toolbox default (on), the same as
+ * the served endpoint: the CLI writes encrypted descriptions and custom
+ * instructions and reads them back decrypted. Nothing downstream loses by
+ * that. `1sat serve wallet` is the wallet-toolbox *storage* interface, not
+ * a BRC-100 API — it moves opaque records and never interprets a
+ * description — and the wallet at the far end (wallet-desktop, the
+ * browser wallet, a remote CLI) runs its own permissions manager, which
+ * decrypts. Records written before this change stay readable: decryption
+ * is attempted unconditionally and `maybeDecryptMetadata` returns the
+ * original string when it fails.
  */
 export function adminWallet(
 	wallet: WalletInterface,
@@ -47,7 +52,7 @@ export function adminWallet(
 	const manager = new LocalWalletPermissionsManager(
 		wallet,
 		CLI_ADMIN_ORIGINATOR,
-		{ encryptWalletMetadata: false },
+		{},
 		{ store },
 	)
 	return withAdminOriginator(manager)

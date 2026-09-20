@@ -101,12 +101,15 @@ describe('adminWallet', () => {
 		expect(outputs.outputs[0].customInstructions).toBe('{"id":"1"}')
 	})
 
-	test('writes stay plaintext for every other reader of this storage', async () => {
+	test('writes encrypt, at the same default the endpoint uses', async () => {
 		const { wallet, created } = mockWallet()
 		await adminWallet(wallet, new InMemoryPermissionStore()).createAction({
 			description: 'sweep',
 			outputs: [],
 		})
-		expect(created[0].description).toBe('sweep')
+		// What storage holds is ciphertext, and it is the same ciphertext
+		// this manager reads back as text (see the decryption test above).
+		expect(created[0].description).not.toBe('sweep')
+		expect(created[0].description).toBe(encrypted('sweep'))
 	})
 })
