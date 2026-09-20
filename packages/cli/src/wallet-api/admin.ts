@@ -17,6 +17,7 @@
  * skips every grant check.
  */
 
+import { PERMISSION_SCHEME_IDS } from '@1sat/types'
 import {
 	type IPermissionStore,
 	LocalWalletPermissionsManager,
@@ -24,6 +25,32 @@ import {
 import type { WalletInterface } from '@bsv/sdk'
 
 export const CLI_ADMIN_ORIGINATOR = '1sat-cli.internal'
+
+/**
+ * Pass-through permission modules for every scheme the actions package can
+ * label with.
+ *
+ * `buildInputAssetLabel` puts `p <scheme> input id <id>` on any action that
+ * spends a basket asset, unconditionally — there is no opt-out on the action.
+ * The manager routes a `p ` label to `config.permissionModules[scheme]` and
+ * throws `Unsupported P-module scheme` when none is registered, so the CLI's
+ * own commands would fail on a label they have always emitted.
+ *
+ * A real module exists to describe an intent and apply it once a person
+ * approves. The admin originator bypasses every check and has no prompt
+ * surface, so there is nothing for it to do: passing the request and response
+ * through unchanged is what the raw toolbox wallet did before the CLI gained
+ * a manager.
+ */
+const adminPermissionModules = Object.fromEntries(
+	PERMISSION_SCHEME_IDS.map((scheme) => [
+		scheme,
+		{
+			onRequest: async (req: { args: object }) => ({ args: req.args }),
+			onResponse: async (res: unknown) => res,
+		},
+	]),
+)
 
 /**
  * Wrap the toolbox wallet in a permissions manager the CLI calls as the
@@ -52,7 +79,7 @@ export function adminWallet(
 	const manager = new LocalWalletPermissionsManager(
 		wallet,
 		CLI_ADMIN_ORIGINATOR,
-		{},
+		{ permissionModules: adminPermissionModules },
 		{ store },
 	)
 	return withAdminOriginator(manager)
