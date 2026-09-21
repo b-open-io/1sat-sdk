@@ -22,12 +22,19 @@ function OrdinalCard({
 	const subtype = ct.includes('/') ? ct.split('/')[1] : ct
 
 	return (
-		<div
+		<label
 			className={`relative p-2 rounded-lg border cursor-pointer transition-all overflow-hidden ${isSelected ? 'border-blue-500 bg-blue-500/10 ring-1 ring-blue-500/30' : 'border-border/50 hover:border-border bg-muted/30'}`}
-			onClick={onToggle}
 		>
+			<input
+				type="checkbox"
+				checked={isSelected}
+				onChange={onToggle}
+				className="sr-only"
+				aria-label={`Select ${ordinal.name || ordinal.outpoint}`}
+			/>
 			<div className="absolute top-1.5 right-1.5 z-10">
 				<div
+					aria-hidden="true"
 					className={`w-4 h-4 rounded border-2 flex items-center justify-center text-[10px] ${isSelected ? 'bg-blue-500 border-blue-500 text-white' : 'border-muted-foreground/40'}`}
 				>
 					{isSelected && '\u2713'}
@@ -91,7 +98,7 @@ function OrdinalCard({
 					</a>
 				)}
 			</div>
-		</div>
+		</label>
 	)
 }
 
@@ -397,9 +404,11 @@ function TokenRow({
 	walletConnected: boolean
 }) {
 	const listed = tb.outputs.filter(isListedOutput).length
+	const validationPending =
+		tb.validationStatus === 'unconfirmed' || !tb.isActive
 	return (
 		<div
-			className={`flex items-center justify-between p-3 rounded-lg border ${tb.isActive ? 'bg-muted/30 border-purple-500/10' : 'bg-muted/20 border-muted/20 opacity-60'}`}
+			className={`flex items-center justify-between p-3 rounded-lg border ${validationPending ? 'bg-muted/20 border-muted/20' : 'bg-muted/30 border-purple-500/10'}`}
 		>
 			<div className="flex items-center gap-3">
 				<img
@@ -415,13 +424,13 @@ function TokenRow({
 						<span className="font-medium text-foreground">
 							{tb.symbol || `${tb.tokenId.slice(0, 8)}...`}
 						</span>
-						{tb.isActive ? (
-							<span className="px-1.5 py-0.5 text-[9px] rounded bg-green-600/20 text-green-700 dark:text-green-400">
-								active
+						{validationPending ? (
+							<span className="px-1.5 py-0.5 text-[9px] rounded bg-amber-600/20 text-amber-700 dark:text-amber-400">
+								overlay unconfirmed
 							</span>
 						) : (
-							<span className="px-1.5 py-0.5 text-[9px] rounded bg-muted text-muted-foreground">
-								inactive
+							<span className="px-1.5 py-0.5 text-[9px] rounded bg-green-600/20 text-green-700 dark:text-green-400">
+								overlay confirmed
 							</span>
 						)}
 					</div>
@@ -444,7 +453,7 @@ function TokenRow({
 						walletConnected ? undefined : 'Connect BRC-100 wallet to sweep'
 					}
 				>
-					Sweep to Wallet
+					{validationPending ? 'Transfer anyway' : 'Sweep to Wallet'}
 				</Button>
 			)}
 		</div>
@@ -461,8 +470,9 @@ export function Bsv21Section({
 	walletConnected: boolean
 }) {
 	if (tokens.length === 0) return null
-	const active = tokens.filter((t) => t.isActive)
-	const inactive = tokens.filter((t) => !t.isActive)
+	const unconfirmed = tokens.filter(
+		(t) => t.validationStatus === 'unconfirmed' || !t.isActive,
+	)
 
 	return (
 		<div className="border border-purple-500/20 bg-purple-500/5 p-4 rounded-lg">
@@ -472,26 +482,20 @@ export function Bsv21Section({
 					BSV-21 Tokens
 				</span>
 			</div>
+			{unconfirmed.length > 0 && (
+				<p className="text-xs text-muted-foreground mb-3">
+					The overlay has not confirmed {unconfirmed.length}{' '}
+					{unconfirmed.length === 1 ? 'token' : 'tokens'} yet. Transfer anyway
+					uses the amounts in the inscriptions; leaving them here lets you retry
+					later.
+				</p>
+			)}
 			<div className="space-y-3">
-				{active.map((tb) => (
+				{tokens.map((tb) => (
 					<TokenRow
 						key={tb.tokenId}
 						tb={tb}
 						onSweep={onSweep}
-						walletConnected={walletConnected}
-					/>
-				))}
-				{inactive.length > 0 && active.length > 0 && (
-					<div className="border-t border-purple-500/10 pt-3 mt-3">
-						<div className="text-xs text-muted-foreground mb-2">
-							Inactive overlays ({inactive.length}) — cannot be swept
-						</div>
-					</div>
-				)}
-				{inactive.map((tb) => (
-					<TokenRow
-						key={tb.tokenId}
-						tb={tb}
 						walletConnected={walletConnected}
 					/>
 				))}

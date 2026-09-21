@@ -47,12 +47,18 @@ export interface SweepAppProps {
 	legacyKeys?: LegacyKeys
 	wallet?: WalletInterface | null
 	sweepOnly?: boolean
+	/** Optional host-wallet identity shown above the assets being swept. */
+	accountProfile?: {
+		name?: string
+		avatar?: string
+	}
 }
 
 export function SweepApp({
 	legacyKeys: initialKeys,
 	wallet: externalWallet,
 	sweepOnly,
+	accountProfile,
 }: SweepAppProps) {
 	const [walletConnected, setWalletConnected] = useState(!!externalWallet)
 	const [scanning, setScanning] = useState(false)
@@ -692,6 +698,31 @@ export function SweepApp({
 						Transfer or sweep legacy assets
 					</p>
 				</div>
+
+				{accountProfile && (accountProfile.name || accountProfile.avatar) && (
+					<div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-3">
+						{accountProfile.avatar ? (
+							<img
+								src={accountProfile.avatar}
+								alt=""
+								className="h-9 w-9 rounded-full object-cover"
+								onError={(e) => {
+									;(e.target as HTMLImageElement).style.display = 'none'
+								}}
+							/>
+						) : (
+							<div className="h-9 w-9 rounded-full bg-muted" />
+						)}
+						<div className="min-w-0">
+							<div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+								Sweeping account
+							</div>
+							<div className="truncate text-sm font-medium">
+								{accountProfile.name || 'Current account'}
+							</div>
+						</div>
+					</div>
+				)}
 
 				{!externalWallet && (
 					<ConnectWallet

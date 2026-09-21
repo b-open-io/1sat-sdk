@@ -141,6 +141,12 @@ export interface TokenBalance {
 	outputs: IndexedOutput[]
 	/** Overlay-validated amounts: outpoint → token amount string */
 	amounts: Map<string, string>
+	/**
+	 * Whether every scanned output was confirmed by the overlay.
+	 * `unconfirmed` is advisory: the output may still be valid while the
+	 * overlay is inactive, unfunded, or behind the chain.
+	 */
+	validationStatus?: 'confirmed' | 'unconfirmed'
 	isActive: boolean
 }
 
