@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.56
+
+### Changed
+- Depends on upstream `@bsv/wallet-toolbox-client` 2.14.4 instead of the `@bopen-io` fork.
+
 ## Unreleased
 
 ### Documentation

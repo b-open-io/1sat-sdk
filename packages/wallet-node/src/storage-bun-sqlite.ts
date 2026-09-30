@@ -14,75 +14,68 @@ type Database = SqliteDb
 import { Beef, Transaction as BsvTransaction } from '@bsv/sdk'
 import type { ListActionsResult, ListOutputsResult, Validation } from '@bsv/sdk'
 import {
-	applyBrc153ReferenceLabel,
-	makeBrc114ActionTimeLabel,
-	parseBrc114ActionTimeLabels,
-} from '@bsv/wallet-toolbox'
-import { WERR_UNAUTHORIZED } from '@bsv/wallet-toolbox/out/src/sdk/WERR_errors.js'
-import { WERR_INVALID_PARAMETER } from '@bsv/wallet-toolbox/out/src/sdk/WERR_errors.js'
-import { WERR_INTERNAL } from '@bsv/wallet-toolbox/out/src/sdk/WERR_errors.js'
-import { WERR_NOT_IMPLEMENTED } from '@bsv/wallet-toolbox/out/src/sdk/WERR_errors.js'
-import type {
-	AuthId,
-	FindCertificateFieldsArgs,
-	FindCertificatesArgs,
-	FindCommissionsArgs,
-	FindForUserSincePagedArgs,
-	FindMonitorEventsArgs,
-	FindOutputBasketsArgs,
-	FindOutputTagMapsArgs,
-	FindOutputTagsArgs,
-	FindOutputsArgs,
-	FindProvenTxReqsArgs,
-	FindProvenTxsArgs,
-	FindSyncStatesArgs,
-	FindTransactionsArgs,
-	FindTxLabelMapsArgs,
-	FindTxLabelsArgs,
-	FindUsersArgs,
-	ProvenOrRawTx,
-	PurgeParams,
-	PurgeResults,
-	TrxToken,
-} from '@bsv/wallet-toolbox/out/src/sdk/WalletStorage.interfaces.js'
-import type { EntityTimeStamp } from '@bsv/wallet-toolbox/out/src/sdk/types.js'
-import { isListActionsSpecOp } from '@bsv/wallet-toolbox/out/src/sdk/types.js'
-import {
+	type AdminStatsResult,
 	StorageProvider,
 	type StorageProviderOptions,
-} from '@bsv/wallet-toolbox/out/src/storage/StorageProvider.js'
-import type { AdminStatsResult } from '@bsv/wallet-toolbox/out/src/storage/StorageProvider.js'
-import type { DBType } from '@bsv/wallet-toolbox/out/src/storage/StorageReader.js'
-import { getLabelToSpecOp } from '@bsv/wallet-toolbox/out/src/storage/methods/ListActionsSpecOp.js'
-import { getListOutputsSpecOp } from '@bsv/wallet-toolbox/out/src/storage/methods/ListOutputsSpecOp.js'
-import { outputColumnsWithoutLockingScript } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/TableOutput.js'
-import { transactionColumnsWithoutRawTx } from '@bsv/wallet-toolbox/out/src/storage/schema/tables/TableTransaction.js'
-import type {
-	TableActionBatch,
-	TableCertificate,
-	TableCertificateField,
-	TableCertificateX,
-	TableCommission,
-	TableMonitorEvent,
-	TableOutput,
-	TableOutputBasket,
-	TableOutputTag,
-	TableOutputTagMap,
-	TableProvenTx,
-	TableProvenTxReq,
-	TableSettings,
-	TableSyncState,
-	TableTransaction,
-	TableTxLabel,
-	TableTxLabelMap,
-	TableUser,
-} from '@bsv/wallet-toolbox/out/src/storage/schema/tables/index.js'
-import {
+	type TableActionBatch,
+	type TableCertificate,
+	type TableCertificateField,
+	type TableCertificateX,
+	type TableCommission,
+	type TableMonitorEvent,
+	type TableOutput,
+	type TableOutputBasket,
+	type TableOutputTag,
+	type TableOutputTagMap,
+	type TableProvenTx,
+	type TableProvenTxReq,
+	type TableSettings,
+	type TableSyncState,
+	type TableTransaction,
+	type TableTxLabel,
+	type TableTxLabelMap,
+	type TableUser,
+	applyBrc153ReferenceLabel,
+	asString,
+	getLabelToSpecOp,
+	getListOutputsSpecOp,
+	makeBrc114ActionTimeLabel,
+	outputColumnsWithoutLockingScript,
+	parseBrc114ActionTimeLabels,
+	transactionColumnsWithoutRawTx,
 	verifyId,
 	verifyOneOrNone,
 	verifyTruthy,
-} from '@bsv/wallet-toolbox/out/src/utility/utilityHelpers.js'
-import { asString } from '@bsv/wallet-toolbox/out/src/utility/utilityHelpers.noBuffer.js'
+} from '@bsv/wallet-toolbox'
+import {
+	type AuthId,
+	type EntityTimeStamp,
+	type FindCertificateFieldsArgs,
+	type FindCertificatesArgs,
+	type FindCommissionsArgs,
+	type FindForUserSincePagedArgs,
+	type FindMonitorEventsArgs,
+	type FindOutputBasketsArgs,
+	type FindOutputTagMapsArgs,
+	type FindOutputTagsArgs,
+	type FindOutputsArgs,
+	type FindProvenTxReqsArgs,
+	type FindProvenTxsArgs,
+	type FindSyncStatesArgs,
+	type FindTransactionsArgs,
+	type FindTxLabelMapsArgs,
+	type FindTxLabelsArgs,
+	type FindUsersArgs,
+	type ProvenOrRawTx,
+	type PurgeParams,
+	type PurgeResults,
+	type TrxToken,
+	WERR_INTERNAL,
+	WERR_INVALID_PARAMETER,
+	WERR_NOT_IMPLEMENTED,
+	WERR_UNAUTHORIZED,
+	isListActionsSpecOp,
+} from '@bsv/wallet-toolbox/out/src/sdk'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1111,14 +1104,14 @@ export class StorageBunSqlite extends StorageProvider {
 	// verifyReadyForDatabaseAccess
 	// -----------------------------------------------------------------------
 
-	async verifyReadyForDatabaseAccess(_trx?: TrxToken): Promise<DBType> {
+	async verifyReadyForDatabaseAccess(_trx?: TrxToken): Promise<TableSettings['dbtype']> {
 		if (!this._settings) {
 			this._settings = await this.readSettings()
 		}
 		// Always ensure foreign keys are enabled
 		this.db.run('PRAGMA foreign_keys = ON')
 		this._verifiedReadyForDatabaseAccess = true
-		return this._settings.dbtype as DBType
+		return this._settings.dbtype as TableSettings['dbtype']
 	}
 
 	// -----------------------------------------------------------------------

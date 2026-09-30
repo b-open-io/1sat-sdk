@@ -72,7 +72,7 @@ describe('dispatch', () => {
 			{ storage },
 			{ method: 'destroy', params: [], id: 2, identity: IDENTITY },
 		)
-		expect(res).toEqual({ jsonrpc: '2.0', result: undefined, id: 2 })
+		expect(res).toEqual({ jsonrpc: '2.0', result: null, id: 2 })
 		expect(calls.find((c) => c.method === 'destroy')).toBeUndefined()
 	})
 

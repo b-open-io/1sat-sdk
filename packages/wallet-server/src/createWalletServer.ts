@@ -1,9 +1,5 @@
 import type { WalletInterface } from '@bsv/sdk'
-import {
-	BINARY_ENCODING,
-	BINARY_ENCODING_HEADER,
-	stringifyJsonRpc,
-} from '@bsv/wallet-toolbox/out/src/storage/remoting/BinaryJson.js'
+import { stringifyJsonRpc } from '@bsv/wallet-toolbox-client'
 import { createLogger } from 'evlog'
 import { evlog, useLogger } from 'evlog/express'
 import express, {
@@ -23,6 +19,7 @@ import {
 import { registrationStatus } from './accounts/registrationRoutes.js'
 import type { AccountStore } from './accounts/store.js'
 import type { AccountsConfigProvider } from './accounts/types.js'
+import { BINARY_ENCODING, BINARY_ENCODING_HEADER } from './binaryEncoding.js'
 import { createWalletRpcHandler } from './createWalletRpcHandler.js'
 import { dispatch } from './dispatch.js'
 import { mountTerminalErrorHandler } from './errorHandler.js'

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.113
+
+### Changed
+- Peer dependency is upstream `@bsv/wallet-toolbox-client` ^2.14.4 instead of the `@bopen-io` fork.
+
+### Fixed
+- `createWalletCore` sets `maxRebroadcastAttempts` on the Monitor options; toolbox 2.14 rejects Monitor options without it.
+
 ## 0.0.112
 
 ### Fixed

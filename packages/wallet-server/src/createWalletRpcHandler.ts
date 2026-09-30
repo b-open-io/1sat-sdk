@@ -1,8 +1,5 @@
-import {
-	BINARY_ENCODING,
-	BINARY_ENCODING_HEADER,
-	stringifyJsonRpc,
-} from '@bsv/wallet-toolbox/out/src/storage/remoting/BinaryJson.js'
+import { stringifyJsonRpc } from '@bsv/wallet-toolbox-client'
+import { BINARY_ENCODING, BINARY_ENCODING_HEADER } from './binaryEncoding.js'
 import { dispatch } from './dispatch.js'
 import type {
 	JsonRpcRequest,

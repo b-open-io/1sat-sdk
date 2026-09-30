@@ -5,7 +5,7 @@ import {
 	createRemoteWallet,
 } from '@1sat/wallet-remote'
 import { PublicKey, Utils } from '@bsv/sdk'
-import type { Wallet } from '@bsv/wallet-toolbox/out/src/index.client.js'
+import type { Wallet } from '@bsv/wallet-toolbox-client'
 
 const DEFAULT_REMOTE_STORAGE_URL = 'http://localhost:8080/1sat/wallet'
 const TEST_ADDRESS_PREFIX = 'test'

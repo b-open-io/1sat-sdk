@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.123
+
+### Changed
+- Uses upstream `@bsv/wallet-toolbox` ^2.14.4 instead of the `@bopen-io` fork, via wallet-node and wallet-server releases in this set.
+
 ## 0.0.121
 
 ### Added

@@ -1,5 +1,5 @@
-import { WERR_UNAUTHORIZED } from '@bsv/wallet-toolbox/out/src/sdk/WERR_errors.js'
-import { WalletError } from '@bsv/wallet-toolbox/out/src/sdk/WalletError.js'
+import { WERR_UNAUTHORIZED } from '@bsv/wallet-toolbox/out/src/sdk'
+import { WalletError } from '@bsv/wallet-toolbox/out/src/sdk'
 import type {
 	JsonRpcResponse,
 	MakeWalletLogger,
@@ -57,7 +57,7 @@ export async function dispatch(
 	}
 
 	if (METHODS_IGNORED.has(method)) {
-		return { jsonrpc: '2.0', result: undefined, id }
+		return { jsonrpc: '2.0', result: null, id }
 	}
 
 	try {
@@ -73,7 +73,7 @@ export async function dispatch(
 		try {
 			const result = await storage[method](...preparedParams)
 			attachLoggerTail(logger, result)
-			return { jsonrpc: '2.0', result, id }
+			return { jsonrpc: '2.0', result: result ?? null, id }
 		} catch (err) {
 			logger?.flush?.()
 			throw err

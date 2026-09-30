@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.57
+
+### Changed
+- Peer dependencies are upstream `@bsv/wallet-toolbox` and `@bsv/wallet-toolbox-client` ^2.14.4 instead of the `@bopen-io` fork. `stringifyJsonRpc` comes from `@bsv/wallet-toolbox-client`.
+
+### Fixed
+- JSON-RPC responses for methods that return nothing (e.g. `destroy`) carry `result: null`. The field was dropped, and toolbox 2.14 clients reject responses without `result` or `error`.
+
 ## 0.0.56
 
 ### Changed

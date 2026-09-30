@@ -320,6 +320,7 @@ export async function createWalletCore(
 			abandonedMsecs: 300000,
 			unprovenAttemptsLimitTest: 10,
 			unprovenAttemptsLimitMain: 144,
+			maxRebroadcastAttempts: 0,
 		})
 		if (!config.activeRemote) {
 			monitor.addDefaultTasks()
