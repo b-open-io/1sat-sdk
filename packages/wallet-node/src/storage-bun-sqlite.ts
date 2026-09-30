@@ -738,6 +738,254 @@ export class StorageBunSqlite extends StorageProvider {
 			},
 		}
 
+		// Migrations below match wallet-toolbox KnexMigrations by name.
+
+		const addColumns = (
+			db: Database,
+			table: string,
+			columns: [name: string, definition: string][],
+		) => {
+			const existing = new Set(
+				(
+					db.query(`PRAGMA table_info(${table})`).all() as { name: string }[]
+				).map((c) => c.name),
+			)
+			for (const [name, definition] of columns) {
+				if (!existing.has(name)) {
+					db.run(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`)
+				}
+			}
+		}
+
+		migrations['2026-02-27-001 add listOutputs path indexes'] = {
+			up: (db: Database) => {
+				db.run(
+					'CREATE INDEX IF NOT EXISTS idx_outputs_user_spendable_outputid ON outputs (userId, spendable, outputId)',
+				)
+				db.run(
+					'CREATE INDEX IF NOT EXISTS idx_outputs_user_basket_spendable_outputid ON outputs (userId, basketId, spendable, outputId)',
+				)
+				db.run(
+					'CREATE INDEX IF NOT EXISTS idx_output_tags_map_output_deleted_tag ON output_tags_map (outputId, isDeleted, outputTagId)',
+				)
+				db.run(
+					'CREATE INDEX IF NOT EXISTS idx_tx_labels_map_tx_deleted ON tx_labels_map (transactionId, isDeleted)',
+				)
+			},
+			down: (db: Database) => {
+				db.run('DROP INDEX IF EXISTS idx_outputs_user_spendable_outputid')
+				db.run(
+					'DROP INDEX IF EXISTS idx_outputs_user_basket_spendable_outputid',
+				)
+				db.run('DROP INDEX IF EXISTS idx_output_tags_map_output_deleted_tag')
+				db.run('DROP INDEX IF EXISTS idx_tx_labels_map_tx_deleted')
+			},
+		}
+
+		migrations['2026-02-27-002 add createAction path indexes'] = {
+			up: (db: Database) => {
+				db.run(
+					'CREATE INDEX IF NOT EXISTS idx_outputs_user_basket_spendable_satoshis ON outputs (userId, basketId, spendable, satoshis)',
+				)
+				db.run(
+					'CREATE INDEX IF NOT EXISTS idx_outputs_spentby ON outputs (spentBy)',
+				)
+			},
+			down: (db: Database) => {
+				db.run(
+					'DROP INDEX IF EXISTS idx_outputs_user_basket_spendable_satoshis',
+				)
+				db.run('DROP INDEX IF EXISTS idx_outputs_spentby')
+			},
+		}
+
+		migrations[
+			'2026-04-30-001 add wasBroadcast and rebroadcastAttempts to proven_tx_reqs'
+		] = {
+			up: (db: Database) => {
+				addColumns(db, 'proven_tx_reqs', [
+					['wasBroadcast', 'INTEGER NOT NULL DEFAULT 0'],
+					['rebroadcastAttempts', 'INTEGER NOT NULL DEFAULT 0'],
+				])
+				db.run(
+					`UPDATE proven_tx_reqs SET wasBroadcast = 1
+					 WHERE status IN ('unmined', 'callback', 'unconfirmed', 'completed')`,
+				)
+			},
+			down: (db: Database) => {
+				db.run('ALTER TABLE proven_tx_reqs DROP COLUMN rebroadcastAttempts')
+				db.run('ALTER TABLE proven_tx_reqs DROP COLUMN wasBroadcast')
+			},
+		}
+
+		migrations['2026-07-14-002 add monitor created index'] = {
+			up: (db: Database) => {
+				db.run(
+					'CREATE INDEX IF NOT EXISTS idx_monitor_events_created_at ON monitor_events (created_at)',
+				)
+			},
+			down: (db: Database) => {
+				db.run('DROP INDEX IF EXISTS idx_monitor_events_created_at')
+			},
+		}
+
+		migrations['2026-08-02-001 add createAction funding selection index'] = {
+			up: (db: Database) => {
+				db.run(
+					'CREATE INDEX IF NOT EXISTS idx_outputs_funding_selection ON outputs (userId, basketId, spendable, spentBy, satoshis, outputId)',
+				)
+			},
+			down: (db: Database) => {
+				db.run('DROP INDEX IF EXISTS idx_outputs_funding_selection')
+			},
+		}
+
+		migrations['2026-08-17-001 add wallet sync source indexes'] = {
+			up: (db: Database) => {
+				db.run(
+					'CREATE INDEX IF NOT EXISTS idx_transactions_user_proven_tx ON transactions (userId, provenTxId)',
+				)
+				db.run(
+					'CREATE INDEX IF NOT EXISTS idx_transactions_user_txid ON transactions (userId, txid)',
+				)
+			},
+			down: (db: Database) => {
+				db.run('DROP INDEX IF EXISTS idx_transactions_user_proven_tx')
+				db.run('DROP INDEX IF EXISTS idx_transactions_user_txid')
+			},
+		}
+
+		const noSendExpiryColumns: [string, string][] = [
+			['noSendExpiryMode', 'TEXT'],
+			['noSendExpiryValue', 'INTEGER'],
+			['noSendExpiryDeadline', 'INTEGER'],
+			['noSendExpiryState', 'TEXT'],
+			['noSendExpiryAnchorTxid', 'TEXT'],
+			['noSendExpiryAnchorVout', 'INTEGER'],
+			['noSendExpiryReleasedAt', 'INTEGER'],
+			['noSendExpiryObservedAt', 'INTEGER'],
+			['noSendExpiryReclaimTxid', 'TEXT'],
+			['noSendExpiryReclaimRawTx', 'BLOB'],
+			['noSendExpiryReclaimDerivationPrefix', 'TEXT'],
+			['noSendExpiryReclaimDerivationSuffix', 'TEXT'],
+			['noSendExpiryReclaimSatoshis', 'INTEGER'],
+		]
+
+		migrations['2026-08-30-001 add brc177 nosend expiry state'] = {
+			up: (db: Database) => {
+				addColumns(db, 'transactions', noSendExpiryColumns)
+				db.run(
+					'CREATE INDEX IF NOT EXISTS idx_transactions_nosend_expiry ON transactions (noSendExpiryState, noSendExpiryDeadline)',
+				)
+				db.run(
+					'CREATE INDEX IF NOT EXISTS idx_transactions_nosend_reclaim ON transactions (userId, noSendExpiryReclaimTxid)',
+				)
+			},
+			down: (db: Database) => {
+				db.run('DROP INDEX IF EXISTS idx_transactions_nosend_expiry')
+				db.run('DROP INDEX IF EXISTS idx_transactions_nosend_reclaim')
+				for (const [name] of noSendExpiryColumns) {
+					db.run(`ALTER TABLE transactions DROP COLUMN ${name}`)
+				}
+			},
+		}
+
+		// Not an upstream migration; see the same migration in storage-pg.ts.
+		migrations['2026-09-30-001 unique sync state per storage identity'] = {
+			up: (db: Database) => {
+				db.run('BEGIN IMMEDIATE')
+				try {
+					db.run(`
+						DELETE FROM sync_states
+						WHERE syncStateId IN (
+							SELECT newer.syncStateId FROM sync_states newer
+							JOIN sync_states older
+							  ON newer.userId = older.userId
+							 AND newer.storageIdentityKey = older.storageIdentityKey
+							 AND newer.syncStateId > older.syncStateId
+						)
+					`)
+					db.run(
+						'CREATE UNIQUE INDEX IF NOT EXISTS sync_states_user_storage_identity ON sync_states (userId, storageIdentityKey)',
+					)
+					db.run('COMMIT')
+				} catch (err) {
+					db.run('ROLLBACK')
+					throw err
+				}
+			},
+			down: (db: Database) => {
+				db.run('DROP INDEX IF EXISTS sync_states_user_storage_identity')
+			},
+		}
+
+		// Not an upstream migration; see the same migration in storage-pg.ts.
+		const legacyBaskets: [legacy: string, target: string][] = [
+			['p 1sat ordinals', '1sat'],
+			['ordinals', '1sat'],
+			['p 1sat bsv21', 'bsv21'],
+			['p 1sat opns', 'opns'],
+			['p 1sat lock', 'lock'],
+			['p 1sat sigma', 'sigma'],
+			['p 1sat bsocial', 'bsocial'],
+		]
+		migrations['2026-09-30-002 re-file legacy p 1sat baskets'] = {
+			up: (db: Database) => {
+				const now = new Date().toISOString()
+				db.run('BEGIN IMMEDIATE')
+				try {
+					for (const [legacy, target] of legacyBaskets) {
+						db.run(
+							`UPDATE output_baskets SET isDeleted = 0, updated_at = ?
+							 WHERE name = ? AND isDeleted = 1 AND userId IN (
+							   SELECT lb.userId FROM output_baskets lb
+							   WHERE lb.name = ?
+							     AND EXISTS (SELECT 1 FROM outputs o WHERE o.basketId = lb.basketId)
+							 )`,
+							[now, target, legacy],
+						)
+						db.run(
+							`UPDATE outputs SET updated_at = ?, basketId = (
+							   SELECT tb.basketId FROM output_baskets lb
+							   JOIN output_baskets tb ON tb.userId = lb.userId AND tb.name = ?
+							   WHERE lb.basketId = outputs.basketId
+							 )
+							 WHERE basketId IN (
+							   SELECT lb.basketId FROM output_baskets lb
+							   JOIN output_baskets tb ON tb.userId = lb.userId AND tb.name = ?
+							   WHERE lb.name = ?
+							 )`,
+							[now, target, target, legacy],
+						)
+						db.run(
+							`UPDATE outputs SET updated_at = ?
+							 WHERE basketId IN (
+							   SELECT lb.basketId FROM output_baskets lb
+							   WHERE lb.name = ? AND NOT EXISTS (
+							     SELECT 1 FROM output_baskets tb
+							     WHERE tb.userId = lb.userId AND tb.name = ?
+							   )
+							 )`,
+							[now, legacy, target],
+						)
+						db.run(
+							`UPDATE output_baskets SET name = ?, updated_at = ?
+							 WHERE name = ? AND NOT EXISTS (
+							   SELECT 1 FROM output_baskets tb
+							   WHERE tb.userId = output_baskets.userId AND tb.name = ?
+							 )`,
+							[target, now, legacy, target],
+						)
+					}
+					db.run('COMMIT')
+				} catch (err) {
+					db.run('ROLLBACK')
+					throw err
+				}
+			},
+			down: (_db: Database) => {},
+		}
+
 		// Storage-payment ledger state lives on the server wallet's own
 		// transactions + tx_labels (see @1sat/wallet-server accounts/queries).
 		// No separate `accounts` / `payments` tables required; the old
@@ -1104,7 +1352,9 @@ export class StorageBunSqlite extends StorageProvider {
 	// verifyReadyForDatabaseAccess
 	// -----------------------------------------------------------------------
 
-	async verifyReadyForDatabaseAccess(_trx?: TrxToken): Promise<TableSettings['dbtype']> {
+	async verifyReadyForDatabaseAccess(
+		_trx?: TrxToken,
+	): Promise<TableSettings['dbtype']> {
 		if (!this._settings) {
 			this._settings = await this.readSettings()
 		}
@@ -1506,7 +1756,7 @@ export class StorageBunSqlite extends StorageProvider {
 		return this.validateEntities(
 			this.allSql(sql, params) as TableProvenTxReq[],
 			undefined,
-			['notified'],
+			['notified', 'wasBroadcast'],
 		)
 	}
 
@@ -2269,7 +2519,7 @@ export class StorageBunSqlite extends StorageProvider {
 				extraParams.length > 0 ? extraParams : undefined,
 			) as TableProvenTxReq[],
 			undefined,
-			['notified'],
+			['notified', 'wasBroadcast'],
 		)
 	}
 

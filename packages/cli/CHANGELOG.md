@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.124
+
+### Removed
+- `wallet move-basket` and `wallet migrate-baskets`. Local wallets re-file legacy baskets through the storage migration on start.
+
+### Changed
+- Picks up the wallet-node and wallet-server changes in this release; `serve` applies the new storage migrations on start.
+
 ## 0.0.123
 
 ### Changed

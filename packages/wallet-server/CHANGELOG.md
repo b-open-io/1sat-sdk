@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.58
+
+### Security
+- RPC dispatch only calls the storage methods a toolbox client may call (matching the toolbox `StorageServer` list); previously any storage method, including `dropAllData`, `migrate` and unscoped finds, was callable by any authenticated identity. `migrate` is ignored like `destroy`.
+- The `AuthId` argument is rebuilt from the authenticated identity; a client-supplied `userId` or `isActive` is replaced. `findOutputBaskets`, `findProvenTxReqs` and `updateProvenTxReqWithNewProvenTx` are served by their user-scoped `*Auth` methods, and active-storage methods require the user's active storage.
+- `processSyncChunk` validates entities and incoming proofs against the chain tracker before merging.
+- Request budgets on list limits (max 10,000), offsets, array sizes and `getSyncChunk` size.
+- Clients receive only `WalletError` details; other errors are reported as `WERR_INTERNAL`. `DispatchContext.onError` receives the original error (logged as `rpcCause`).
+
+### Changed
+- `makeAvailable` / `getSettings` omit a `dbtype` the toolbox client does not accept (StoragePg stores `Postgres`) and advertise `syncCheckpointVersion: 1`.
+
 ## 0.0.57
 
 ### Changed

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.228
+
+### Removed
+- `moveBasketOutputs`, `migrateLegacyP1SatBaskets` and the `LEGACY_P1SAT_BASKET_MIGRATIONS` re-export. Toolbox 2.14 rejects a basket insertion for an output that already has a basket, so outputs cannot be moved between baskets through the wallet interface.
+
 ## 0.0.226
 
 ### Fixed

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.49
+
+### Removed
+- `LEGACY_P1SAT_BASKET_MIGRATIONS`. Legacy `p 1sat …` baskets are re-filed by storage migrations (`@1sat/wallet-node`) and by the host wallet on its local store.
+
 ## [0.0.48]
 
 ### Changed

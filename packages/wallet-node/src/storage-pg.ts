@@ -911,6 +911,220 @@ export class StoragePg extends StorageProvider {
 			},
 		}
 
+		// Migrations below match wallet-toolbox KnexMigrations by name. Indexes on
+		// the large tables build CONCURRENTLY; migrate() runs outside a transaction.
+
+		migrations[
+			'2026-04-30-001 add wasBroadcast and rebroadcastAttempts to proven_tx_reqs'
+		] = {
+			up: async (db) => {
+				await db.query(`
+					ALTER TABLE proven_tx_reqs
+						ADD COLUMN IF NOT EXISTS "wasBroadcast" SMALLINT NOT NULL DEFAULT 0,
+						ADD COLUMN IF NOT EXISTS "rebroadcastAttempts" INTEGER NOT NULL DEFAULT 0
+				`)
+				await db.query(
+					`UPDATE proven_tx_reqs SET "wasBroadcast" = 1
+					 WHERE status IN ('unmined', 'callback', 'unconfirmed', 'completed')`,
+				)
+			},
+			down: async (db) => {
+				await db.query(`
+					ALTER TABLE proven_tx_reqs
+						DROP COLUMN IF EXISTS "rebroadcastAttempts",
+						DROP COLUMN IF EXISTS "wasBroadcast"
+				`)
+			},
+		}
+
+		migrations['2026-07-14-002 add monitor created index'] = {
+			up: async (db) => {
+				await db.query(
+					'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_monitor_events_created_at ON monitor_events(created_at)',
+				)
+			},
+			down: async (db) => {
+				await db.query('DROP INDEX IF EXISTS idx_monitor_events_created_at')
+			},
+		}
+
+		migrations['2026-08-02-001 add createAction funding selection index'] = {
+			up: async (db) => {
+				await db.query(
+					`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_outputs_funding_selection
+					 ON outputs ("userId", "basketId", spendable, "spentBy", satoshis, "outputId")`,
+				)
+			},
+			down: async (db) => {
+				await db.query('DROP INDEX IF EXISTS idx_outputs_funding_selection')
+			},
+		}
+
+		migrations['2026-08-17-001 add wallet sync source indexes'] = {
+			up: async (db) => {
+				await db.query(
+					`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transactions_user_proven_tx ON transactions ("userId", "provenTxId")`,
+				)
+				await db.query(
+					`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transactions_user_txid ON transactions ("userId", txid)`,
+				)
+			},
+			down: async (db) => {
+				await db.query('DROP INDEX IF EXISTS idx_transactions_user_proven_tx')
+				await db.query('DROP INDEX IF EXISTS idx_transactions_user_txid')
+			},
+		}
+
+		migrations['2026-08-30-001 add brc177 nosend expiry state'] = {
+			up: async (db) => {
+				await db.query(`
+					ALTER TABLE transactions
+						ADD COLUMN IF NOT EXISTS "noSendExpiryMode" TEXT,
+						ADD COLUMN IF NOT EXISTS "noSendExpiryValue" BIGINT,
+						ADD COLUMN IF NOT EXISTS "noSendExpiryDeadline" BIGINT,
+						ADD COLUMN IF NOT EXISTS "noSendExpiryState" TEXT,
+						ADD COLUMN IF NOT EXISTS "noSendExpiryAnchorTxid" TEXT,
+						ADD COLUMN IF NOT EXISTS "noSendExpiryAnchorVout" INTEGER,
+						ADD COLUMN IF NOT EXISTS "noSendExpiryReleasedAt" BIGINT,
+						ADD COLUMN IF NOT EXISTS "noSendExpiryObservedAt" BIGINT,
+						ADD COLUMN IF NOT EXISTS "noSendExpiryReclaimTxid" TEXT,
+						ADD COLUMN IF NOT EXISTS "noSendExpiryReclaimRawTx" BYTEA,
+						ADD COLUMN IF NOT EXISTS "noSendExpiryReclaimDerivationPrefix" TEXT,
+						ADD COLUMN IF NOT EXISTS "noSendExpiryReclaimDerivationSuffix" TEXT,
+						ADD COLUMN IF NOT EXISTS "noSendExpiryReclaimSatoshis" BIGINT
+				`)
+				await db.query(
+					`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transactions_nosend_expiry ON transactions ("noSendExpiryState", "noSendExpiryDeadline")`,
+				)
+				await db.query(
+					`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transactions_nosend_reclaim ON transactions ("userId", "noSendExpiryReclaimTxid")`,
+				)
+			},
+			down: async (db) => {
+				await db.query('DROP INDEX IF EXISTS idx_transactions_nosend_expiry')
+				await db.query('DROP INDEX IF EXISTS idx_transactions_nosend_reclaim')
+				await db.query(`
+					ALTER TABLE transactions
+						DROP COLUMN IF EXISTS "noSendExpiryMode",
+						DROP COLUMN IF EXISTS "noSendExpiryValue",
+						DROP COLUMN IF EXISTS "noSendExpiryDeadline",
+						DROP COLUMN IF EXISTS "noSendExpiryState",
+						DROP COLUMN IF EXISTS "noSendExpiryAnchorTxid",
+						DROP COLUMN IF EXISTS "noSendExpiryAnchorVout",
+						DROP COLUMN IF EXISTS "noSendExpiryReleasedAt",
+						DROP COLUMN IF EXISTS "noSendExpiryObservedAt",
+						DROP COLUMN IF EXISTS "noSendExpiryReclaimTxid",
+						DROP COLUMN IF EXISTS "noSendExpiryReclaimRawTx",
+						DROP COLUMN IF EXISTS "noSendExpiryReclaimDerivationPrefix",
+						DROP COLUMN IF EXISTS "noSendExpiryReclaimDerivationSuffix",
+						DROP COLUMN IF EXISTS "noSendExpiryReclaimSatoshis"
+				`)
+			},
+		}
+
+		// Not an upstream migration. Concurrent findOrInsertSyncStateAuth calls
+		// could insert two rows for one (userId, storageIdentityKey); toolbox
+		// lookups then fail for that pair. Rows in a pair are interchangeable, so
+		// the oldest is kept. The unique index turns a later race into a
+		// constraint error, which the toolbox's insert retry resolves.
+		migrations['2026-09-30-001 unique sync state per storage identity'] = {
+			up: async (db) => {
+				const client = await (db as Pool).connect()
+				try {
+					await client.query('BEGIN')
+					await client.query(
+						'LOCK TABLE sync_states IN SHARE ROW EXCLUSIVE MODE',
+					)
+					await client.query(`
+						DELETE FROM sync_states newer
+						USING sync_states older
+						WHERE newer."userId" = older."userId"
+						  AND newer."storageIdentityKey" = older."storageIdentityKey"
+						  AND newer."syncStateId" > older."syncStateId"
+					`)
+					await client.query(
+						'CREATE UNIQUE INDEX IF NOT EXISTS sync_states_user_storage_identity ON sync_states ("userId", "storageIdentityKey")',
+					)
+					await client.query('COMMIT')
+				} catch (err) {
+					await client.query('ROLLBACK')
+					throw err
+				} finally {
+					client.release()
+				}
+			},
+			down: async (db) => {
+				await db.query('DROP INDEX IF EXISTS sync_states_user_storage_identity')
+			},
+		}
+
+		// Not an upstream migration. Moves outputs out of the legacy 'p 1sat …'
+		// baskets for every user in one transaction; the wallet interface cannot
+		// reclassify a basketed output. A legacy basket is renamed when the user
+		// has no target basket, otherwise its outputs are re-pointed. updated_at
+		// is bumped on affected rows so sync carries the change to local stores.
+		// The pairs are fixed here so the migration's effect never changes.
+		const legacyBaskets: [legacy: string, target: string][] = [
+			['p 1sat ordinals', '1sat'],
+			['ordinals', '1sat'],
+			['p 1sat bsv21', 'bsv21'],
+			['p 1sat opns', 'opns'],
+			['p 1sat lock', 'lock'],
+			['p 1sat sigma', 'sigma'],
+			['p 1sat bsocial', 'bsocial'],
+		]
+		migrations['2026-09-30-002 re-file legacy p 1sat baskets'] = {
+			up: async (db) => {
+				const client = await (db as Pool).connect()
+				try {
+					await client.query('BEGIN')
+					for (const [legacy, target] of legacyBaskets) {
+						await client.query(
+							`UPDATE output_baskets tb SET "isDeleted" = 0, updated_at = NOW()
+							 FROM output_baskets lb
+							 WHERE lb.name = $1 AND tb.name = $2 AND tb."userId" = lb."userId"
+							   AND tb."isDeleted" = 1
+							   AND EXISTS (SELECT 1 FROM outputs o WHERE o."basketId" = lb."basketId")`,
+							[legacy, target],
+						)
+						await client.query(
+							`UPDATE outputs o SET "basketId" = tb."basketId", updated_at = NOW()
+							 FROM output_baskets lb, output_baskets tb
+							 WHERE lb.name = $1 AND tb.name = $2 AND tb."userId" = lb."userId"
+							   AND o."basketId" = lb."basketId"`,
+							[legacy, target],
+						)
+						await client.query(
+							`UPDATE outputs o SET updated_at = NOW()
+							 FROM output_baskets lb
+							 WHERE lb.name = $1 AND o."basketId" = lb."basketId"
+							   AND NOT EXISTS (
+								 SELECT 1 FROM output_baskets tb
+								 WHERE tb."userId" = lb."userId" AND tb.name = $2
+							   )`,
+							[legacy, target],
+						)
+						await client.query(
+							`UPDATE output_baskets lb SET name = $2, updated_at = NOW()
+							 WHERE lb.name = $1
+							   AND NOT EXISTS (
+								 SELECT 1 FROM output_baskets tb
+								 WHERE tb."userId" = lb."userId" AND tb.name = $2
+							   )`,
+							[legacy, target],
+						)
+					}
+					await client.query('COMMIT')
+				} catch (err) {
+					await client.query('ROLLBACK')
+					throw err
+				} finally {
+					client.release()
+				}
+			},
+			down: async () => {},
+		}
+
 		return migrations
 	}
 
@@ -1308,7 +1522,9 @@ export class StoragePg extends StorageProvider {
 	// verifyReadyForDatabaseAccess
 	// -----------------------------------------------------------------------
 
-	async verifyReadyForDatabaseAccess(trx?: TrxToken): Promise<TableSettings['dbtype']> {
+	async verifyReadyForDatabaseAccess(
+		trx?: TrxToken,
+	): Promise<TableSettings['dbtype']> {
 		if (!this._settings) {
 			this._settings = await this.readSettings(trx)
 		}
@@ -1709,7 +1925,7 @@ export class StoragePg extends StorageProvider {
 				args.trx as PgTrxToken | undefined,
 			)) as unknown as TableProvenTxReq[],
 			undefined,
-			['notified'],
+			['notified', 'wasBroadcast'],
 		)
 	}
 
@@ -2553,7 +2769,7 @@ export class StoragePg extends StorageProvider {
 				extraParams.length > 0 ? extraParams : undefined,
 			)) as unknown as TableProvenTxReq[],
 			undefined,
-			['notified'],
+			['notified', 'wasBroadcast'],
 		)
 	}
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.114
+
+### Changed
+- `createChromeCWI` sends the bare extension ID as its originator. Toolbox 2.14 permission checks reject originators with a URL scheme; host wallets must use the same value as their admin originator.
+
 ## 0.0.113
 
 ### Changed

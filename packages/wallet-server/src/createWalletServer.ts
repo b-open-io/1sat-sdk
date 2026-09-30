@@ -275,6 +275,11 @@ export function dispatchHandler(config: WalletServerConfig) {
 				storage: config.storage,
 				adminIdentityKeys: config.adminIdentityKeys,
 				makeLogger: config.makeLogger,
+				onError: (err) =>
+					log.set({
+						rpcCause: err instanceof Error ? err.message : String(err),
+						rpcCauseStack: err instanceof Error ? err.stack : undefined,
+					}),
 			},
 			{
 				method: body.method,
