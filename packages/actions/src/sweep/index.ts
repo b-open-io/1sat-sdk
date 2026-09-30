@@ -7,7 +7,6 @@
 import { BSV20, BSV21, OrdLock, OrdLockV2 } from '@1sat/templates'
 import type { IndexedOutput } from '@1sat/types'
 import type { OrdfsMetadata } from '@1sat/types'
-import { buildTokenLabel } from '@1sat/types'
 import { formatOutpoint, parseOutpoint } from '@1sat/utils'
 import {
 	type CreateActionOutput,
@@ -779,7 +778,7 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 				ctx.wallet,
 				{
 					description: `Sweep ${inputsToSpend.length} token UTXO${inputsToSpend.length !== 1 ? 's' : ''}`,
-					labels: [buildTokenLabel(tokenId)],
+					labels: [`bsv21 ${tokenId}`],
 					inputBEEF: beefData,
 					inputs: inputDescriptors,
 					outputs,
@@ -926,7 +925,7 @@ export const sweepBsv20: Action<SweepBsv20Request, SweepBsv20Response> = {
 				ctx.wallet,
 				{
 					description: `Sweep ${inputs.length} BSV-20 UTXO${inputs.length !== 1 ? 's' : ''}`,
-					labels: [`p 1sat bsv20 ${tick}`],
+					labels: [`bsv20 ${tick}`],
 					inputBEEF: beefData,
 					inputs: inputDescriptors,
 					outputs: [

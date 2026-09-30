@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.226
+
+### Fixed
+- `sweepBsv21` and `sweepBsv20` label their actions `bsv21 <id>` / `bsv20 <tick>` instead of `p …` labels. The `p` labels routed the createAction to a permission module, which finished and signed the transaction without the sweep's legacy-key unlocking scripts.
+
 ## 0.0.221
 
 ### Changed

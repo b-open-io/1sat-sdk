@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.104
+
+### Changed
+- Picks up `@1sat/actions@0.0.226` (BSV-21/BSV-20 sweeps no longer routed through permission modules).
+
 ## 0.0.98
 
 ### Added
