@@ -8,6 +8,7 @@
 #   ssh -t ovh-n0001 '~/pm2/deploy-storageknex.sh preflight'
 #   ssh -t ovh-n0001 '~/pm2/deploy-storageknex.sh prepare'
 #   ssh -t ovh-n0001 '~/pm2/deploy-storageknex.sh window'
+#   ssh -t ovh-n0001 '~/pm2/deploy-storageknex.sh resume'     # steps 6-9, if the window stopped in step 6
 #   ssh -t ovh-n0001 '~/pm2/deploy-storageknex.sh rollback'
 #
 #   preflight  read-only checks, before-counts, staged install of the new CLI (scratch dir)
@@ -298,9 +299,10 @@ verify_db() {
 	n=$(sql "$BEHIND_SEQUENCES_SQL"); echo "sequences behind max(id): $n (expect 0)"
 	[ "$n" = "0" ] || die "$n sequences are behind their column maximum"
 
+	# The monitor started in step 5 writes monitor_events, so that table is not compared.
 	sql "$COUNTS_SQL" > "$BACKUP_DIR/counts.after"
-	if diff "$BACKUP_DIR/counts.before" "$BACKUP_DIR/counts.after"; then
-		echo "row counts:               unchanged ($(wc -l < "$BACKUP_DIR/counts.after") tables)"
+	if diff <(grep -v '^monitor_events|' "$BACKUP_DIR/counts.before") <(grep -v '^monitor_events|' "$BACKUP_DIR/counts.after"); then
+		echo "row counts:               unchanged ($(grep -vc '^monitor_events|' "$BACKUP_DIR/counts.after") tables; monitor_events not compared)"
 	else
 		die "row counts changed (diff above: before < > after)"
 	fi
@@ -447,6 +449,11 @@ window() {
 	(cd "$MONITOR_CWD" && pm2 start "$ECOSYSTEM" --only wallet-monitor)
 	wait_for_migrations
 
+	finish
+}
+
+# Steps 6-9. `resume` runs these alone after the window stopped in step 6.
+finish() {
 	say "6/9 Verify database (hosts not started yet)"
 	verify_db
 
@@ -546,6 +553,7 @@ case "${1:-}" in
 	preflight) preflight ;;
 	prepare) prepare ;;
 	window) window ;;
+	resume) finish ;;
 	rollback) rollback ;;
 	*) sed -n '2,18p' "$0"; exit 1 ;;
 esac
