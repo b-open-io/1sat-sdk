@@ -14,7 +14,7 @@ local rehearsal: `2026-10-01-storagepg-to-storageknex-migration.md`.
 
 ## What changes
 
-- `@1sat/cli` 0.0.125 → `VERSION` (not yet published). The new build opens `account_wallet` with
+- `@1sat/cli` 0.0.125 → 0.0.127. The new build opens `account_wallet` with
   wallet-toolbox `StorageKnex` (`@1sat/wallet-node` `StorageKnexPg`) instead of StoragePg.
   Toolbox: `@bsv/wallet-toolbox` → `npm:@bopen-io/wallet-toolbox@2.14.5`.
 - Storage RPC moves out of `wallet-host` into a new PM2 app, `wallet-storage` (`1sat serve storage`,
@@ -60,7 +60,7 @@ request counts against 127.0.0.1.
 
 ## Before you start
 
-1. Publish the new `@1sat/cli` from the laptop and set `VERSION` at the top of the script.
+1. `@1sat/cli` 0.0.127 is published and set as `VERSION` at the top of the script.
 2. Copy the files (from `1sat-sdk/`):
    ```bash
    ssh ovh-n0001 'mkdir -p ~/pm2/storageknex'
