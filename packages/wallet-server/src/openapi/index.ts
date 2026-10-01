@@ -15,11 +15,9 @@ import {
 	messageboxPaths,
 	paymailPaths,
 	registrationPaths,
-	storagePaths,
 } from './fragments.js'
 
 export interface OpenApiSurfaces {
-	storage?: boolean
 	accounts?: boolean
 	/** Account registry (username + profile) mounted. */
 	registration?: boolean
@@ -38,10 +36,6 @@ export interface OpenApiOptions {
 export function buildOpenApiSpec(options: OpenApiOptions): object {
 	const paths: PathsFragment = { ...authPaths(), ...exchangeRatePaths() }
 	const tags = new Set(['auth'])
-	if (options.surfaces.storage) {
-		Object.assign(paths, storagePaths())
-		tags.add('storage')
-	}
 	if (options.surfaces.accounts || options.surfaces.registration) {
 		Object.assign(paths, accountPaths())
 		tags.add('account')
@@ -65,7 +59,7 @@ export function buildOpenApiSpec(options: OpenApiOptions): object {
 			version: options.version ?? '1.0.0',
 			description:
 				options.description ??
-				'BRC-100 wallet storage host. Authenticated surfaces use BRC-103/104 mutual auth (one handshake at POST /.well-known/auth covers all of them); paid surfaces use the BRC-41 402 payment flow.',
+				'1sat wallet host. Authenticated surfaces use BRC-103/104 mutual auth (one handshake at POST /.well-known/auth covers all of them); paid surfaces use the BRC-41 402 payment flow.',
 		},
 		'x-server-identity-key': options.serverIdentityKey,
 		tags: TAG_DOCS.filter((t) => tags.has(t.name)),

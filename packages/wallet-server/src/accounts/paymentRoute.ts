@@ -1,5 +1,5 @@
 /**
- * Out-of-band payment delivery for the backup sync case.
+ * Storage capacity payments.
  *
  * Mounts `POST {basePath}/account/payment` with our BRC-41 payment
  * middleware (vendored copy of `@bsv/payment-express-middleware` with an
@@ -8,16 +8,10 @@
  * accounts-ledger labels (`wallet-storage-payment`, `payer:<id>`,
  * `bytes:<n>`, `block:<n>`) so `listPaymentsForPayer` can find the
  * payment at `/account/status` time.
- *
- * Scope: only used for the backup path (sync writes). The active path
- * keeps its inline capacity-gate bypass + auto-internalize in
- * `accountsCapacityGate` because the active case has a structural
- * chicken-and-egg — paying the active with a tx built on the active.
  */
 
 import type { WalletInterface } from '@bsv/sdk'
 import type { Express, NextFunction, Request, Response } from 'express'
-import { nextPaymentDerivation } from './middleware.js'
 import { createAccountsPaymentMiddleware } from './paymentMiddleware.js'
 import { quoteRefundedCharge } from './pricing.js'
 import {
@@ -25,6 +19,7 @@ import {
 	blockLabel,
 	bytesLabel,
 	latestActivePaymentForPayer,
+	nextPaymentDerivation,
 	payerLabel,
 } from './queries.js'
 import { registrationStatus } from './registrationRoutes.js'

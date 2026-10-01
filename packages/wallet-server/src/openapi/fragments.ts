@@ -18,13 +18,7 @@ export const TAG_DOCS: TagDoc[] = [
 		name: 'auth',
 		'x-displayName': 'Authentication',
 		description:
-			'BRC-103/104 mutual authentication. Complete one handshake here and the resulting peer session authenticates you on every authed endpoint below — storage, account, and messagebox.',
-	},
-	{
-		name: 'storage',
-		'x-displayName': 'Wallet storage',
-		description:
-			'Remote storage for BRC-100 wallets. A wallet-toolbox client connects here to persist and sync its outputs, actions, and certificates.',
+			'BRC-103/104 mutual authentication. Complete one handshake here and the resulting peer session authenticates you on every authed endpoint below — account and messagebox.',
 	},
 	{
 		name: 'account',
@@ -118,42 +112,6 @@ export function authPaths(): PathsFragment {
 					'Establishes a mutually authenticated peer session (BRC-103/104). One handshake authenticates the client for every authed surface on this server.',
 				responses: {
 					'200': { description: 'Handshake message accepted.' },
-				},
-			},
-		},
-	}
-}
-
-export function storagePaths(): PathsFragment {
-	return {
-		'/': {
-			post: {
-				tags: ['storage'],
-				summary: 'Wallet storage JSON-RPC',
-				description:
-					'JSON-RPC 2.0 endpoint exposing wallet-toolbox storage methods (`createAction`, `listOutputs`, `findOrInsertUser`, …) to remote BRC-100 wallets. When account metering is enabled, requests from over-capacity accounts fail with JSON-RPC error `-32005` (insufficient capacity).',
-				security: brc104,
-				requestBody: {
-					required: true,
-					content: {
-						'application/json': {
-							schema: {
-								type: 'object',
-								required: ['jsonrpc', 'id', 'method'],
-								properties: {
-									jsonrpc: { type: 'string', example: '2.0' },
-									id: { type: 'integer' },
-									method: { type: 'string' },
-									params: { type: 'array', items: {} },
-								},
-							},
-						},
-					},
-				},
-				responses: {
-					'200': {
-						description: 'JSON-RPC response (result or error object).',
-					},
 				},
 			},
 		},

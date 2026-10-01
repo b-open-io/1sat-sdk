@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.126
+
+### Changed
+- `1sat serve storage` replaces `1sat serve wallet`: the wallet-toolbox `StorageServer` over the configured storage (`server.storage`), with Redis-shared sessions when `server.sessionStore.redisUrl` is set and `server.trustProxy` for its IP rate limit.
+- `1sat serve` (host) no longer serves storage RPC.
+
 ## 0.0.125
 
 ### Changed

@@ -890,7 +890,7 @@ export class StorageBunSqlite extends StorageProvider {
 			},
 		}
 
-		// Not an upstream migration; see the same migration in storage-pg.ts.
+		// Not an upstream migration.
 		migrations['2026-09-30-001 unique sync state per storage identity'] = {
 			up: (db: Database) => {
 				db.run('BEGIN IMMEDIATE')
@@ -919,7 +919,7 @@ export class StorageBunSqlite extends StorageProvider {
 			},
 		}
 
-		// Not an upstream migration; see the same migration in storage-pg.ts.
+		// Not an upstream migration.
 		const legacyBaskets: [legacy: string, target: string][] = [
 			['p 1sat ordinals', '1sat'],
 			['ordinals', '1sat'],
@@ -1582,8 +1582,7 @@ export class StorageBunSqlite extends StorageProvider {
 	 * In multi-tenant deployments this over-counts aggregate disk usage
 	 * but reflects each user's standalone storage cost fairly.
 	 *
-	 * The equivalent Postgres impl (forthcoming `StoragePg`) uses
-	 * OCTET_LENGTH(bytea) with the same shape.
+	 * `StorageKnexPg.measureUsedBytes` is the Postgres equivalent.
 	 */
 	async measureUsedBytes(userId: number): Promise<number> {
 		const tx = this.db
@@ -3922,7 +3921,7 @@ export class StorageBunSqlite extends StorageProvider {
 	}
 
 	// -----------------------------------------------------------------------
-	// Action batching — not implemented by this backend (see storage-pg.ts).
+	// Action batching — not implemented by this backend.
 	// The base StorageProvider throws NOT_IMPLEMENTED, which makes the
 	// monitor's CleanupActionBatches task fail every cycle. Since these
 	// providers never create action batches, the correct answer is an empty

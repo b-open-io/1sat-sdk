@@ -326,11 +326,9 @@ export async function handleCreateSignatureRequest(
 ): Promise<CreateSignatureArgs> {
 	if (isAdmin(deps, originator)) return args
 
-	// `args.data` carries the full BIP-143 preimage when the caller is
-	// signing a tx input (signP2PKHInput passes both `data: preimage` and
-	// `hashToDirectlySign: sha256(sha256(preimage))`). Prefer `data` so we
-	// can parse hashOutputs + outpoint and verify against the commitment;
-	// fall back to `hashToDirectlySign` only when `data` is absent.
+	// A caller that passes a full BIP-143 preimage as `data` can be verified
+	// against the commitment by its hashOutputs + outpoint. A 32-byte
+	// `hashToDirectlySign` is too short to parse and falls through to the prompt.
 	const preimage = args.data ?? args.hashToDirectlySign
 	if (preimage && preimage.length >= MIN_BIP143_PREIMAGE_BYTES) {
 		const parsed = parsePreimage(preimage)

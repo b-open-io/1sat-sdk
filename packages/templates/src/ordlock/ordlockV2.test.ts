@@ -10,6 +10,7 @@ import {
 } from '@1sat/types'
 import {
 	Hash,
+	KeyDeriver,
 	type LockingScript,
 	OP,
 	P2PKH,
@@ -17,6 +18,7 @@ import {
 	ProtoWallet,
 	PublicKey,
 	Script,
+	Spend,
 	Transaction,
 	type TransactionOutput,
 	TransactionSignature,
@@ -156,6 +158,26 @@ async function buildPurchase(
 	return { tx, plan, listing }
 }
 type OrdLockV2DeliveryTargetLike = { vout: number; lockingScript: Script }
+
+/** Runs the script interpreter over a signed input; throws on failure. */
+function spendValidates(tx: Transaction, inputIndex: number): boolean {
+	const input = tx.inputs[inputIndex]
+	const src = input.sourceTransaction as Transaction
+	const out = src.outputs[input.sourceOutputIndex]
+	return new Spend({
+		sourceTXID: src.id('hex'),
+		sourceOutputIndex: input.sourceOutputIndex,
+		lockingScript: out.lockingScript,
+		sourceSatoshis: out.satoshis as number,
+		transactionVersion: tx.version,
+		otherInputs: tx.inputs.filter((_, i) => i !== inputIndex),
+		unlockingScript: input.unlockingScript as Script,
+		inputSequence: input.sequence ?? 0xffffffff,
+		inputIndex,
+		outputs: tx.outputs,
+		lockTime: tx.lockTime,
+	}).validate()
+}
 
 describe('OrdLockV2 artifact', () => {
 	it('is the frozen b3f08f2 build of the canonical OrdLockV2Batch', () => {
@@ -532,7 +554,8 @@ describe('OrdLockV2 cancel', () => {
 	})
 
 	it('cancelWithWallet() signs with a BRC-100 derived key', async () => {
-		const wallet = new ProtoWallet(new PrivateKey(4004))
+		const rootKey = new PrivateKey(4004)
+		const wallet = new ProtoWallet(rootKey)
 		const protocolID = P1SAT_PROTOCOL
 		const keyID = 'abc_0'
 		const { publicKey } = await wallet.getPublicKey({
@@ -559,6 +582,19 @@ describe('OrdLockV2 cancel', () => {
 		const unlock = tx.inputs[0].unlockingScript as Script
 		expect(OrdLockV2.isCancel(unlock)).toBe(true)
 		expect(Utils.toHex(unlock.chunks[2].data ?? [])).toBe(publicKey)
+		expect(spendValidates(tx, 0)).toBe(true)
+
+		const derivedKey = new KeyDeriver(rootKey).derivePrivateKey(
+			protocolID,
+			keyID,
+			'self',
+		)
+		const rawUnlock = await OrdLockV2.cancelListing(
+			derivedKey,
+			'all',
+			true,
+		).sign(tx, 0)
+		expect(unlock.toHex()).toBe(rawUnlock.toHex())
 		record('cancel-wallet', tx, {})
 	})
 

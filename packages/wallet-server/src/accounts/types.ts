@@ -29,6 +29,12 @@ export interface AccountsConfig {
  */
 export type AccountsConfigProvider = () => AccountsConfig
 
+/** Accounts metering inputs for the host server. */
+export interface WalletServerAccounts {
+	getConfig: AccountsConfigProvider
+	currentBlock: () => Promise<number>
+}
+
 /**
  * BRC-29 derivation the server expects on the next incoming payment. The
  * prefix is a constant; the suffix is the monotonic payment count for this

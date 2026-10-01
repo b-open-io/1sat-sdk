@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.82
+
+### Changed
+- `StorageKnexPg` (the wallet-toolbox `StorageKnex` on a Postgres knex) replaces `StoragePg`. `storage.provider: 'pg'` options: `poolConfig` is now `pool`. Existing StoragePg databases need `scripts/migrations/2026-10-01-storagepg-to-storageknex.sql` before first start.
+
 ## 0.0.81
 
 ### Added

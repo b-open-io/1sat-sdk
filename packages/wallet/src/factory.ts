@@ -180,6 +180,7 @@ export async function createWalletCore(
 		const client = new toolbox.StorageClient(
 			wallet as unknown as WalletInterface,
 			url,
+			{ binaryRequests: true },
 		)
 		installStorageClientPaymentAutoRetry({
 			client,

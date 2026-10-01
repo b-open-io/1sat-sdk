@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.40
+
+### Fixed
+- `OrdLock`, `OrdLockV2`, `Lock` and `Multisig` pass only `hashToDirectlySign` to `createSignature`. `@bsv/sdk` 2.8.11 rejects calls that also pass `data`. Signatures are unchanged.
+
 ## 0.0.37
 
 ### Changed

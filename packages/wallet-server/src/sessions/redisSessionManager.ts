@@ -1,148 +1,189 @@
 /**
- * Redis-mirrored BRC-104 session store for multi-instance deployments.
+ * Redis-backed BRC-103/104 session store for multi-instance deployments.
  *
- * The SDK's SessionManager interface is synchronous, so Redis cannot sit on
- * the read path directly. Instead this subclass keeps the normal in-memory
- * maps for sync reads and mirrors every write to Redis; the express wrapper
- * (`wrapAuthWithSessionHydration`) async-loads a peer's sessions from Redis
- * into local memory before the auth middleware's sync lookups run.
+ * Implements the `@bsv/sdk` `AsyncSessionManager` contract. `Peer` (and so
+ * `createAuthMiddleware` and the toolbox `StorageServer`) awaits every call,
+ * so Redis is the only copy of a session: any instance can continue a
+ * handshake another instance started.
  *
- * TODO: rewrite against `AsyncSessionManager` from `@bsv/sdk`. It is built for
- * exactly this case and `Peer` awaits every session call, so Redis can serve
- * reads directly — which removes this subclass, the write mirroring and
- * `wrapAuthWithSessionHydration`, along with the per-identity preload that
- * currently pulls every stored session into each instance's memory.
- * Keep an identity-key index: the auth middleware still resolves
- * `hasSession(identityKey)` when deciding whether to wait for certificates.
+ * Keys, all expiring `ttlSeconds` after their last write:
+ * - `<prefix>n:<sessionNonce>`        session JSON
+ * - `<prefix>i:<identityKey>`         set of that identity's session nonces
+ * - `<prefix>m:<sessionNonce>`        set of claimed message nonces
+ * - `<prefix>r:<identityKey>:<nonce>` claimed initial-request nonce
  */
 
 import { createAuthMiddleware } from '@bsv/auth-express-middleware'
-import { SessionManager, type WalletInterface } from '@bsv/sdk'
-import type { NextFunction, Request, RequestHandler, Response } from 'express'
+import type {
+	AsyncSessionManager,
+	PeerSession,
+	WalletInterface,
+} from '@bsv/sdk'
+import type { RequestHandler } from 'express'
 import { Redis } from 'ioredis'
 
-/** Peer session shape from @bsv/sdk (not exported by the package root). */
-interface PeerSession {
-	isAuthenticated: boolean
-	sessionNonce?: string
-	peerNonce?: string
-	peerIdentityKey?: string
-	lastUpdate: number
-	certificatesRequired?: boolean
-	certificatesValidated?: boolean
-}
-
-/** Minimal Redis surface used — lets tests substitute an in-memory fake. */
+/** Redis commands the session store uses — lets tests substitute a fake. */
 export interface SessionRedis {
-	hgetall(key: string): Promise<Record<string, string>>
-	hset(key: string, field: string, value: string): Promise<unknown>
-	hdel(key: string, field: string): Promise<unknown>
+	get(key: string): Promise<string | null>
+	mget(...keys: string[]): Promise<(string | null)[]>
+	set(key: string, value: string, mode: 'EX', seconds: number): Promise<unknown>
+	set(
+		key: string,
+		value: string,
+		mode: 'EX',
+		seconds: number,
+		flag: 'NX',
+	): Promise<'OK' | null>
+	del(...keys: string[]): Promise<number>
+	sadd(key: string, member: string): Promise<number>
+	srem(key: string, member: string): Promise<number>
+	smembers(key: string): Promise<string[]>
 	expire(key: string, seconds: number): Promise<unknown>
 }
 
 export interface RedisSessionManagerOptions {
-	/** Redis TTL per identity's session set, refreshed on every write. Default 24h. */
+	/** Lifetime of a session and its replay claims since their last write. Default 24h. */
 	ttlSeconds?: number
 	keyPrefix?: string
-	/** Called when a background Redis write fails. Defaults to console.error. */
-	onError?: (err: Error) => void
 }
 
 const DEFAULT_TTL_SECONDS = 86_400
 
-export class RedisSessionManager extends SessionManager {
+export class RedisSessionManager implements AsyncSessionManager {
 	private readonly redis: SessionRedis
 	private readonly ttlSeconds: number
 	private readonly keyPrefix: string
-	private readonly onError: (err: Error) => void
 
 	constructor(redis: SessionRedis, options: RedisSessionManagerOptions = {}) {
-		super()
 		this.redis = redis
 		this.ttlSeconds = options.ttlSeconds ?? DEFAULT_TTL_SECONDS
 		this.keyPrefix = options.keyPrefix ?? 'authsess:'
-		this.onError =
-			options.onError ??
-			((err) => console.error('[session-store] redis write failed', err))
 	}
 
-	private key(identityKey: string): string {
-		return `${this.keyPrefix}${identityKey}`
+	private sessionKey(sessionNonce: string): string {
+		return `${this.keyPrefix}n:${sessionNonce}`
 	}
 
-	addSession(session: PeerSession): void {
-		super.addSession(session)
-		// Sessions without an identity key are mid-handshake and only
-		// meaningful on the instance running that handshake.
-		if (!session.peerIdentityKey || !session.sessionNonce) return
-		const key = this.key(session.peerIdentityKey)
-		this.redis
-			.hset(key, session.sessionNonce, JSON.stringify(session))
-			.then(() => this.redis.expire(key, this.ttlSeconds))
-			.catch((err) => this.onError(err as Error))
+	private identityKey(identityKey: string): string {
+		return `${this.keyPrefix}i:${identityKey}`
 	}
 
-	removeSession(session: PeerSession): void {
-		super.removeSession(session)
-		if (!session.peerIdentityKey || !session.sessionNonce) return
-		this.redis
-			.hdel(this.key(session.peerIdentityKey), session.sessionNonce)
-			.catch((err) => this.onError(err as Error))
+	private messageNoncesKey(sessionNonce: string): string {
+		return `${this.keyPrefix}m:${sessionNonce}`
+	}
+
+	async addSession(session: PeerSession): Promise<void> {
+		if (!session.sessionNonce) {
+			throw new TypeError(
+				'Invalid session: sessionNonce is required to add a session.',
+			)
+		}
+		await this.redis.set(
+			this.sessionKey(session.sessionNonce),
+			JSON.stringify(session),
+			'EX',
+			this.ttlSeconds,
+		)
+		if (session.peerIdentityKey) {
+			const key = this.identityKey(session.peerIdentityKey)
+			await this.redis.sadd(key, session.sessionNonce)
+			await this.redis.expire(key, this.ttlSeconds)
+		}
+	}
+
+	updateSession(session: PeerSession): Promise<void> {
+		return this.addSession(session)
 	}
 
 	/**
-	 * Load every Redis-stored session for this identity into local memory so
-	 * subsequent synchronous lookups (by identity key or session nonce) hit.
+	 * By session nonce, that session. By identity key, the best of that
+	 * identity's sessions, ranked as the sdk's in-memory `SessionManager`
+	 * ranks them.
 	 */
-	async hydrate(identityKey: string): Promise<void> {
-		const stored = await this.redis.hgetall(this.key(identityKey))
-		for (const json of Object.values(stored)) {
-			try {
-				const session = JSON.parse(json) as PeerSession
-				if (session.sessionNonce && !this.hasSession(session.sessionNonce)) {
-					super.addSession(session)
-				}
-			} catch {
-				// Skip unparseable entries; they age out via TTL.
+	async getSession(identifier: string): Promise<PeerSession | undefined> {
+		const direct = await this.redis.get(this.sessionKey(identifier))
+		if (direct != null) return JSON.parse(direct) as PeerSession
+
+		const nonces = await this.redis.smembers(this.identityKey(identifier))
+		if (nonces.length === 0) return undefined
+		const stored = await this.redis.mget(
+			...nonces.map((nonce) => this.sessionKey(nonce)),
+		)
+		let best: PeerSession | undefined
+		for (let i = 0; i < nonces.length; i++) {
+			const json = stored[i]
+			if (json == null) {
+				await this.redis.srem(this.identityKey(identifier), nonces[i])
+				continue
 			}
+			const session = JSON.parse(json) as PeerSession
+			if (best == null || ranksAbove(session, best)) best = session
 		}
+		return best
+	}
+
+	async removeSession(session: PeerSession): Promise<void> {
+		if (!session.sessionNonce) return
+		await this.redis.del(
+			this.sessionKey(session.sessionNonce),
+			this.messageNoncesKey(session.sessionNonce),
+		)
+		if (session.peerIdentityKey) {
+			await this.redis.srem(
+				this.identityKey(session.peerIdentityKey),
+				session.sessionNonce,
+			)
+		}
+	}
+
+	async hasSession(identifier: string): Promise<boolean> {
+		return (await this.getSession(identifier)) != null
+	}
+
+	/** SADD is atomic: exactly one instance sees the nonce as new. */
+	async claimMessageNonce(
+		sessionNonce: string,
+		messageNonce: string,
+	): Promise<boolean> {
+		const key = this.messageNoncesKey(sessionNonce)
+		const added = await this.redis.sadd(key, messageNonce)
+		await this.redis.expire(key, this.ttlSeconds)
+		return added === 1
+	}
+
+	/** SET NX is atomic: exactly one instance claims the nonce. */
+	async claimInitialRequestNonce(
+		identityKey: string,
+		initialNonce: string,
+	): Promise<boolean> {
+		const claimed = await this.redis.set(
+			`${this.keyPrefix}r:${identityKey}:${initialNonce}`,
+			'1',
+			'EX',
+			this.ttlSeconds,
+			'NX',
+		)
+		return claimed === 'OK'
 	}
 }
 
-/**
- * Wrap the BRC-104 auth middleware so that a request referencing a session
- * created on another instance is hydrated from Redis before the middleware's
- * synchronous session lookups run. Requests without auth headers (handshake,
- * public routes) pass straight through.
- */
-export function wrapAuthWithSessionHydration(
-	authMiddleware: RequestHandler,
-	sessions: RedisSessionManager,
-	onError: (err: Error) => void = (err) =>
-		console.error('[session-store] hydrate failed', err),
-): (req: Request, res: Response, next: NextFunction) => Promise<void> {
-	return async (req: Request, res: Response, next: NextFunction) => {
-		const identityKey = req.headers['x-bsv-auth-identity-key']
-		const nonce = req.headers['x-bsv-auth-your-nonce']
-		if (typeof identityKey === 'string' && identityKey !== '') {
-			// General messages are looked up by the server session nonce the
-			// client echoes back; fall back to identity key when absent.
-			const missing =
-				typeof nonce === 'string' && nonce !== ''
-					? !sessions.hasSession(nonce)
-					: !sessions.hasSession(identityKey)
-			if (missing) {
-				try {
-					await sessions.hydrate(identityKey)
-				} catch (err) {
-					// Auth still works for sessions this instance already
-					// holds; a failed hydrate just means a possible re-auth.
-					onError(err as Error)
-				}
-			}
-		}
-		authMiddleware(req, res, next)
+function isAuthorizationReady(session: PeerSession): boolean {
+	return (
+		session.isAuthenticated === true &&
+		(session.certificatesRequired !== true ||
+			session.certificatesValidated === true)
+	)
+}
+
+/** Authenticated first, then authorization-ready, then most recently updated. */
+function ranksAbove(session: PeerSession, best: PeerSession): boolean {
+	if (session.isAuthenticated !== best.isAuthenticated) {
+		return session.isAuthenticated === true
 	}
+	if (isAuthorizationReady(session) !== isAuthorizationReady(best)) {
+		return isAuthorizationReady(session)
+	}
+	return session.lastUpdate > best.lastUpdate
 }
 
 /** ioredis client for the session store. Connects on first command. */
@@ -155,13 +196,18 @@ export interface SessionStoreConfig {
 	ttlSeconds?: number
 }
 
+/** Redis session manager for a configured store; undefined keeps sessions in memory. */
+export function createSessionManager(
+	sessionStore?: SessionStoreConfig,
+): RedisSessionManager | undefined {
+	if (!sessionStore) return undefined
+	return new RedisSessionManager(createSessionRedis(sessionStore.redisUrl), {
+		ttlSeconds: sessionStore.ttlSeconds,
+	})
+}
+
 /**
- * BRC-104 auth middleware with optional Redis-shared sessions. Without a
- * store config this is exactly `createAuthMiddleware({ wallet })`.
- */
-/**
- * Response bound matches the toolbox StorageServer default (8 MiB); larger
- * responses become 413, which toolbox clients answer with smaller sync pages.
+ * Response bound matches the toolbox StorageServer default (8 MiB).
  * Requests stay up to the SDK's 16 MiB authenticated-message limit.
  */
 const AUTH_TRANSPORT_LIMITS = {
@@ -169,26 +215,17 @@ const AUTH_TRANSPORT_LIMITS = {
 	maxRequestBytes: 16 * 1024 * 1024,
 }
 
+/**
+ * BRC-104 auth middleware for the host's routes, with Redis-shared sessions
+ * when a store is configured and in-memory sessions otherwise.
+ */
 export function buildAuthMiddleware(
 	wallet: WalletInterface,
 	sessionStore?: SessionStoreConfig,
 ): RequestHandler {
-	if (!sessionStore) {
-		return createAuthMiddleware({
-			wallet,
-			transportLimits: AUTH_TRANSPORT_LIMITS,
-		}) as RequestHandler
-	}
-	const sessions = new RedisSessionManager(
-		createSessionRedis(sessionStore.redisUrl),
-		{ ttlSeconds: sessionStore.ttlSeconds },
-	)
-	return wrapAuthWithSessionHydration(
-		createAuthMiddleware({
-			wallet,
-			sessionManager: sessions,
-			transportLimits: AUTH_TRANSPORT_LIMITS,
-		}) as RequestHandler,
-		sessions,
-	) as RequestHandler
+	return createAuthMiddleware({
+		wallet,
+		sessionManager: createSessionManager(sessionStore),
+		transportLimits: AUTH_TRANSPORT_LIMITS,
+	}) as RequestHandler
 }

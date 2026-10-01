@@ -1,0 +1,429 @@
+column action_batch_blobs.actionBatchBlobId integer not null default nextval('"action_batch_blobs_actionBatchBlobId_seq"'::regclass)
+column action_batch_blobs.actionBatchId integer not null
+column action_batch_blobs.bytes bytea not null
+column action_batch_blobs.created_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column action_batch_blobs.digest character varying(64) not null
+column action_batch_blobs.updated_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column action_batch_outputs.actionBatchId integer not null
+column action_batch_outputs.created_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column action_batch_outputs.outputId integer not null
+column action_batch_outputs.updated_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column action_batches.actionBatchId integer not null default nextval('"action_batches_actionBatchId_seq"'::regclass)
+column action_batches.batchId character varying(64) not null
+column action_batches.created_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column action_batches.expiresAt timestamp with time zone not null
+column action_batches.hardExpiresAt timestamp with time zone not null
+column action_batches.manifest text null
+column action_batches.manifestDigest character varying(64) null
+column action_batches.result text null
+column action_batches.status character varying(16) not null
+column action_batches.updated_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column action_batches.uploadDigests text null
+column action_batches.userId integer not null
+column auth_message_nonces.expiresAt bigint not null
+column auth_message_nonces.messageNonce character varying(64) not null
+column auth_message_nonces.sessionNonce character varying(130) not null
+column auth_sessions.certificatesRequired boolean null
+column auth_sessions.certificatesValidated boolean null
+column auth_sessions.expiresAt bigint not null
+column auth_sessions.isAuthenticated boolean not null
+column auth_sessions.lastUpdate bigint not null
+column auth_sessions.peerIdentityKey character varying(130) null
+column auth_sessions.peerNonce character varying(64) null
+column auth_sessions.sessionNonce character varying(64) not null
+column certificate_fields.certificateId integer not null
+column certificate_fields.created_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column certificate_fields.fieldName character varying(100) not null
+column certificate_fields.fieldValue character varying(255) not null
+column certificate_fields.masterKey character varying(255) not null default ''::character varying
+column certificate_fields.updated_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column certificate_fields.userId integer not null
+column certificates.certificateId integer not null default nextval('"certificates_certificateId_seq"'::regclass)
+column certificates.certifier character varying(100) not null
+column certificates.created_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column certificates.isDeleted boolean not null default false
+column certificates.revocationOutpoint character varying(100) not null
+column certificates.serialNumber character varying(100) not null
+column certificates.signature character varying(255) not null
+column certificates.subject character varying(100) not null
+column certificates.type character varying(100) not null
+column certificates.updated_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column certificates.userId integer not null
+column certificates.verifier character varying(100) null
+column commissions.commissionId integer not null default nextval('"commissions_commissionId_seq"'::regclass)
+column commissions.created_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column commissions.isRedeemed boolean not null default false
+column commissions.keyOffset character varying(130) not null
+column commissions.lockingScript bytea not null
+column commissions.satoshis integer not null
+column commissions.transactionId integer not null
+column commissions.updated_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column commissions.userId integer not null
+column knex_migrations.batch integer null
+column knex_migrations.id integer not null default nextval('knex_migrations_id_seq'::regclass)
+column knex_migrations.migration_time timestamp with time zone null
+column knex_migrations.name character varying(255) null
+column knex_migrations_lock.index integer not null default nextval('knex_migrations_lock_index_seq'::regclass)
+column knex_migrations_lock.is_locked integer null
+column monitor_events.created_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column monitor_events.details text null
+column monitor_events.event character varying(64) not null
+column monitor_events.id integer not null default nextval('monitor_events_id_seq'::regclass)
+column monitor_events.updated_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column output_baskets.basketId integer not null default nextval('"output_baskets_basketId_seq"'::regclass)
+column output_baskets.created_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column output_baskets.isDeleted boolean not null default false
+column output_baskets.minimumDesiredUTXOValue integer not null default 5000
+column output_baskets.name character varying(300) not null
+column output_baskets.numberOfDesiredUTXOs integer not null default 144
+column output_baskets.updated_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column output_baskets.userId integer not null
+column output_tags.created_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column output_tags.isDeleted boolean not null default false
+column output_tags.outputTagId integer not null default nextval('"output_tags_outputTagId_seq"'::regclass)
+column output_tags.tag character varying(150) not null
+column output_tags.updated_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column output_tags.userId integer not null
+column output_tags_map.created_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column output_tags_map.isDeleted boolean not null default false
+column output_tags_map.outputId integer not null
+column output_tags_map.outputTagId integer not null
+column output_tags_map.updated_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column outputs.basketId integer null
+column outputs.change boolean not null default false
+column outputs.created_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column outputs.customInstructions character varying(2500) null
+column outputs.derivationPrefix character varying(200) null
+column outputs.derivationSuffix character varying(200) null
+column outputs.lockingScript bytea null
+column outputs.outputDescription character varying(2048) null
+column outputs.outputId integer not null default nextval('"outputs_outputId_seq"'::regclass)
+column outputs.providedBy character varying(130) not null
+column outputs.purpose character varying(20) not null
+column outputs.satoshis bigint not null
+column outputs.scriptLength bigint null
+column outputs.scriptOffset bigint null
+column outputs.senderIdentityKey character varying(130) null
+column outputs.sequenceNumber integer null
+column outputs.spendable boolean not null default false
+column outputs.spendingDescription character varying(2048) null
+column outputs.spentBy integer null
+column outputs.transactionId integer not null
+column outputs.txid character varying(64) null
+column outputs.type character varying(50) not null
+column outputs.updated_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column outputs.userId integer not null
+column outputs.vout integer not null
+column payment_replays.createdAt timestamp with time zone not null default CURRENT_TIMESTAMP
+column payment_replays.expiresAt timestamp with time zone null
+column payment_replays.transactionId character varying(64) not null
+column prepared_beef_metadata.preparedBeefMetadataId integer not null
+column prepared_beef_metadata.proofEpoch integer not null
+column prepared_beefs.beef bytea not null
+column prepared_beefs.bumpCount integer not null
+column prepared_beefs.byteLength integer not null
+column prepared_beefs.checksum character varying(64) not null
+column prepared_beefs.created_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column prepared_beefs.formatVersion integer not null
+column prepared_beefs.preparedBeefId integer not null default nextval('"prepared_beefs_preparedBeefId_seq"'::regclass)
+column prepared_beefs.rootTxid character varying(64) not null
+column prepared_beefs.state character varying(16) not null
+column prepared_beefs.txCount integer not null
+column prepared_beefs.updated_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column prepared_beefs.userId integer not null
+column proven_tx_reqs.attempts integer not null default 0
+column proven_tx_reqs.batch character varying(64) null
+column proven_tx_reqs.created_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column proven_tx_reqs.history text not null default '{}'::text
+column proven_tx_reqs.inputBEEF bytea null
+column proven_tx_reqs.notified boolean not null default false
+column proven_tx_reqs.notify text not null default '{}'::text
+column proven_tx_reqs.provenTxId integer null
+column proven_tx_reqs.provenTxReqId integer not null default nextval('"proven_tx_reqs_provenTxReqId_seq"'::regclass)
+column proven_tx_reqs.rawTx bytea not null
+column proven_tx_reqs.rebroadcastAttempts integer not null default 0
+column proven_tx_reqs.status character varying(16) not null default 'unknown'::character varying
+column proven_tx_reqs.txid character varying(64) not null
+column proven_tx_reqs.updated_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column proven_tx_reqs.wasBroadcast boolean not null default false
+column proven_txs.blockHash character varying(64) not null
+column proven_txs.created_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column proven_txs.height integer not null
+column proven_txs.index integer not null
+column proven_txs.merklePath bytea not null
+column proven_txs.merkleRoot character varying(64) not null
+column proven_txs.provenTxId integer not null default nextval('"proven_txs_provenTxId_seq"'::regclass)
+column proven_txs.rawTx bytea not null
+column proven_txs.txid character varying(64) not null
+column proven_txs.updated_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column settings.chain character varying(10) not null
+column settings.created_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column settings.dbtype character varying(10) not null
+column settings.maxOutputScript integer not null
+column settings.storageIdentityKey character varying(130) not null
+column settings.storageName character varying(128) not null
+column settings.updated_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column sync_states.created_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column sync_states.errorLocal text null
+column sync_states.errorOther text null
+column sync_states.init boolean not null default false
+column sync_states.refNum character varying(100) not null
+column sync_states.satoshis bigint null
+column sync_states.status character varying(255) not null default 'unknown'::character varying
+column sync_states.storageIdentityKey character varying(130) not null default ''::character varying
+column sync_states.storageName character varying(255) not null
+column sync_states.syncMap text not null
+column sync_states.syncStateId integer not null default nextval('"sync_states_syncStateId_seq"'::regclass)
+column sync_states.updated_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column sync_states.userId integer not null
+column sync_states.when timestamp with time zone null
+column sync_transfer_parts.bytes bytea not null
+column sync_transfer_parts.offset integer not null
+column sync_transfer_parts.slot integer not null
+column sync_transfers.context character varying(64) null
+column sync_transfers.digest character varying(64) null
+column sync_transfers.direction character varying(8) null
+column sync_transfers.expiresAt bigint not null default '0'::bigint
+column sync_transfers.identityKey character varying(130) null
+column sync_transfers.partBytes integer null
+column sync_transfers.receivedBytes integer not null default 0
+column sync_transfers.result text null
+column sync_transfers.slot integer not null
+column sync_transfers.state character varying(16) null
+column sync_transfers.totalBytes integer null
+column sync_transfers.transferId character varying(64) null
+column transactions.created_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column transactions.description character varying(2048) null
+column transactions.inputBEEF bytea null
+column transactions.isOutgoing boolean not null
+column transactions.lockTime integer null
+column transactions.noSendExpiryAnchorTxid character varying(64) null
+column transactions.noSendExpiryAnchorVout integer null
+column transactions.noSendExpiryDeadline bigint null
+column transactions.noSendExpiryMode character varying(16) null
+column transactions.noSendExpiryObservedAt bigint null
+column transactions.noSendExpiryReclaimDerivationPrefix character varying(32) null
+column transactions.noSendExpiryReclaimDerivationSuffix character varying(32) null
+column transactions.noSendExpiryReclaimRawTx bytea null
+column transactions.noSendExpiryReclaimSatoshis bigint null
+column transactions.noSendExpiryReclaimTxid character varying(64) null
+column transactions.noSendExpiryReleasedAt bigint null
+column transactions.noSendExpiryState character varying(24) null
+column transactions.noSendExpiryValue bigint null
+column transactions.provenTxId integer null
+column transactions.rawTx bytea null
+column transactions.reference character varying(64) not null
+column transactions.satoshis bigint not null default '0'::bigint
+column transactions.status character varying(64) not null
+column transactions.transactionId integer not null default nextval('"transactions_transactionId_seq"'::regclass)
+column transactions.txid character varying(64) null
+column transactions.updated_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column transactions.userId integer not null
+column transactions.version integer null
+column tx_labels.created_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column tx_labels.isDeleted boolean not null default false
+column tx_labels.label character varying(300) not null
+column tx_labels.txLabelId integer not null default nextval('"tx_labels_txLabelId_seq"'::regclass)
+column tx_labels.updated_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column tx_labels.userId integer not null
+column tx_labels_map.created_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column tx_labels_map.isDeleted boolean not null default false
+column tx_labels_map.transactionId integer not null
+column tx_labels_map.txLabelId integer not null
+column tx_labels_map.updated_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column users.activeStorage character varying(255) not null
+column users.created_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column users.identityKey character varying(130) not null
+column users.updated_at timestamp(3) with time zone not null default CURRENT_TIMESTAMP
+column users.userId integer not null default nextval('"users_userId_seq"'::regclass)
+constraint action_batch_blobs action_batch_blobs_actionbatchid_digest_unique UNIQUE ("actionBatchId", digest)
+constraint action_batch_blobs action_batch_blobs_actionbatchid_foreign FOREIGN KEY ("actionBatchId") REFERENCES action_batches("actionBatchId")
+constraint action_batch_blobs action_batch_blobs_pkey PRIMARY KEY ("actionBatchBlobId")
+constraint action_batch_outputs action_batch_outputs_actionbatchid_foreign FOREIGN KEY ("actionBatchId") REFERENCES action_batches("actionBatchId")
+constraint action_batch_outputs action_batch_outputs_outputid_foreign FOREIGN KEY ("outputId") REFERENCES outputs("outputId")
+constraint action_batch_outputs action_batch_outputs_outputid_unique UNIQUE ("outputId")
+constraint action_batch_outputs action_batch_outputs_pkey PRIMARY KEY ("actionBatchId", "outputId")
+constraint action_batches action_batches_pkey PRIMARY KEY ("actionBatchId")
+constraint action_batches action_batches_userid_batchid_unique UNIQUE ("userId", "batchId")
+constraint action_batches action_batches_userid_foreign FOREIGN KEY ("userId") REFERENCES users("userId")
+constraint auth_message_nonces auth_message_nonces_pkey PRIMARY KEY ("sessionNonce", "messageNonce")
+constraint auth_sessions auth_sessions_pkey PRIMARY KEY ("sessionNonce")
+constraint certificate_fields certificate_fields_certificateid_foreign FOREIGN KEY ("certificateId") REFERENCES certificates("certificateId")
+constraint certificate_fields certificate_fields_fieldname_certificateid_unique UNIQUE ("fieldName", "certificateId")
+constraint certificate_fields certificate_fields_userid_foreign FOREIGN KEY ("userId") REFERENCES users("userId")
+constraint certificates certificates_pkey PRIMARY KEY ("certificateId")
+constraint certificates certificates_userid_foreign FOREIGN KEY ("userId") REFERENCES users("userId")
+constraint certificates certificates_userid_type_certifier_serialnumber_unique UNIQUE ("userId", type, certifier, "serialNumber")
+constraint commissions commissions_pkey PRIMARY KEY ("commissionId")
+constraint commissions commissions_transactionid_foreign FOREIGN KEY ("transactionId") REFERENCES transactions("transactionId")
+constraint commissions commissions_transactionid_unique UNIQUE ("transactionId")
+constraint commissions commissions_userid_foreign FOREIGN KEY ("userId") REFERENCES users("userId")
+constraint knex_migrations knex_migrations_pkey PRIMARY KEY (id)
+constraint knex_migrations_lock knex_migrations_lock_pkey PRIMARY KEY (index)
+constraint monitor_events monitor_events_pkey PRIMARY KEY (id)
+constraint output_baskets output_baskets_name_userid_unique UNIQUE (name, "userId")
+constraint output_baskets output_baskets_pkey PRIMARY KEY ("basketId")
+constraint output_baskets output_baskets_userid_foreign FOREIGN KEY ("userId") REFERENCES users("userId")
+constraint output_tags output_tags_pkey PRIMARY KEY ("outputTagId")
+constraint output_tags output_tags_tag_userid_unique UNIQUE (tag, "userId")
+constraint output_tags output_tags_userid_foreign FOREIGN KEY ("userId") REFERENCES users("userId")
+constraint output_tags_map output_tags_map_outputid_foreign FOREIGN KEY ("outputId") REFERENCES outputs("outputId")
+constraint output_tags_map output_tags_map_outputtagid_foreign FOREIGN KEY ("outputTagId") REFERENCES output_tags("outputTagId")
+constraint output_tags_map output_tags_map_outputtagid_outputid_unique UNIQUE ("outputTagId", "outputId")
+constraint outputs outputs_basketid_foreign FOREIGN KEY ("basketId") REFERENCES output_baskets("basketId")
+constraint outputs outputs_pkey PRIMARY KEY ("outputId")
+constraint outputs outputs_spentby_foreign FOREIGN KEY ("spentBy") REFERENCES transactions("transactionId")
+constraint outputs outputs_transactionid_foreign FOREIGN KEY ("transactionId") REFERENCES transactions("transactionId")
+constraint outputs outputs_transactionid_vout_userid_unique UNIQUE ("transactionId", vout, "userId")
+constraint outputs outputs_userid_foreign FOREIGN KEY ("userId") REFERENCES users("userId")
+constraint payment_replays payment_replays_pkey PRIMARY KEY ("transactionId")
+constraint prepared_beef_metadata prepared_beef_metadata_pkey PRIMARY KEY ("preparedBeefMetadataId")
+constraint prepared_beefs prepared_beefs_pkey PRIMARY KEY ("preparedBeefId")
+constraint prepared_beefs prepared_beefs_userid_foreign FOREIGN KEY ("userId") REFERENCES users("userId")
+constraint prepared_beefs prepared_beefs_userid_roottxid_unique UNIQUE ("userId", "rootTxid")
+constraint proven_tx_reqs proven_tx_reqs_pkey PRIMARY KEY ("provenTxReqId")
+constraint proven_tx_reqs proven_tx_reqs_proventxid_foreign FOREIGN KEY ("provenTxId") REFERENCES proven_txs("provenTxId")
+constraint proven_tx_reqs proven_tx_reqs_txid_unique UNIQUE (txid)
+constraint proven_txs proven_txs_pkey PRIMARY KEY ("provenTxId")
+constraint proven_txs proven_txs_txid_unique UNIQUE (txid)
+constraint sync_states sync_states_pkey PRIMARY KEY ("syncStateId")
+constraint sync_states sync_states_refnum_unique UNIQUE ("refNum")
+constraint sync_states sync_states_userid_foreign FOREIGN KEY ("userId") REFERENCES users("userId")
+constraint sync_transfer_parts sync_transfer_parts_pkey PRIMARY KEY (slot, "offset")
+constraint sync_transfer_parts sync_transfer_parts_slot_foreign FOREIGN KEY (slot) REFERENCES sync_transfers(slot)
+constraint sync_transfers sync_transfers_pkey PRIMARY KEY (slot)
+constraint sync_transfers sync_transfers_transferid_unique UNIQUE ("transferId")
+constraint transactions transactions_pkey PRIMARY KEY ("transactionId")
+constraint transactions transactions_proventxid_foreign FOREIGN KEY ("provenTxId") REFERENCES proven_txs("provenTxId")
+constraint transactions transactions_reference_unique UNIQUE (reference)
+constraint transactions transactions_userid_foreign FOREIGN KEY ("userId") REFERENCES users("userId")
+constraint tx_labels tx_labels_label_userid_unique UNIQUE (label, "userId")
+constraint tx_labels tx_labels_pkey PRIMARY KEY ("txLabelId")
+constraint tx_labels tx_labels_userid_foreign FOREIGN KEY ("userId") REFERENCES users("userId")
+constraint tx_labels_map tx_labels_map_transactionid_foreign FOREIGN KEY ("transactionId") REFERENCES transactions("transactionId")
+constraint tx_labels_map tx_labels_map_txlabelid_foreign FOREIGN KEY ("txLabelId") REFERENCES tx_labels("txLabelId")
+constraint tx_labels_map tx_labels_map_txlabelid_transactionid_unique UNIQUE ("txLabelId", "transactionId")
+constraint users users_identitykey_unique UNIQUE ("identityKey")
+constraint users users_pkey PRIMARY KEY ("userId")
+index action_batch_blobs action_batch_blobs_actionbatchid_digest_unique CREATE UNIQUE INDEX action_batch_blobs_actionbatchid_digest_unique ON public.action_batch_blobs USING btree ("actionBatchId", digest)
+index action_batch_blobs action_batch_blobs_actionbatchid_index CREATE INDEX action_batch_blobs_actionbatchid_index ON public.action_batch_blobs USING btree ("actionBatchId")
+index action_batch_blobs action_batch_blobs_pkey CREATE UNIQUE INDEX action_batch_blobs_pkey ON public.action_batch_blobs USING btree ("actionBatchBlobId")
+index action_batch_outputs action_batch_outputs_actionbatchid_index CREATE INDEX action_batch_outputs_actionbatchid_index ON public.action_batch_outputs USING btree ("actionBatchId")
+index action_batch_outputs action_batch_outputs_outputid_unique CREATE UNIQUE INDEX action_batch_outputs_outputid_unique ON public.action_batch_outputs USING btree ("outputId")
+index action_batch_outputs action_batch_outputs_pkey CREATE UNIQUE INDEX action_batch_outputs_pkey ON public.action_batch_outputs USING btree ("actionBatchId", "outputId")
+index action_batches action_batches_expiresat_index CREATE INDEX action_batches_expiresat_index ON public.action_batches USING btree ("expiresAt")
+index action_batches action_batches_pkey CREATE UNIQUE INDEX action_batches_pkey ON public.action_batches USING btree ("actionBatchId")
+index action_batches action_batches_userid_batchid_unique CREATE UNIQUE INDEX action_batches_userid_batchid_unique ON public.action_batches USING btree ("userId", "batchId")
+index action_batches action_batches_userid_status_index CREATE INDEX action_batches_userid_status_index ON public.action_batches USING btree ("userId", status)
+index auth_message_nonces auth_message_nonces_pkey CREATE UNIQUE INDEX auth_message_nonces_pkey ON public.auth_message_nonces USING btree ("sessionNonce", "messageNonce")
+index auth_message_nonces idx_auth_message_nonces_expires CREATE INDEX idx_auth_message_nonces_expires ON public.auth_message_nonces USING btree ("expiresAt")
+index auth_sessions auth_sessions_pkey CREATE UNIQUE INDEX auth_sessions_pkey ON public.auth_sessions USING btree ("sessionNonce")
+index auth_sessions idx_auth_sessions_expires CREATE INDEX idx_auth_sessions_expires ON public.auth_sessions USING btree ("expiresAt")
+index auth_sessions idx_auth_sessions_identity_updated CREATE INDEX idx_auth_sessions_identity_updated ON public.auth_sessions USING btree ("peerIdentityKey", "lastUpdate")
+index certificate_fields certificate_fields_fieldname_certificateid_unique CREATE UNIQUE INDEX certificate_fields_fieldname_certificateid_unique ON public.certificate_fields USING btree ("fieldName", "certificateId")
+index certificates certificates_pkey CREATE UNIQUE INDEX certificates_pkey ON public.certificates USING btree ("certificateId")
+index certificates certificates_userid_type_certifier_serialnumber_unique CREATE UNIQUE INDEX certificates_userid_type_certifier_serialnumber_unique ON public.certificates USING btree ("userId", type, certifier, "serialNumber")
+index commissions commissions_pkey CREATE UNIQUE INDEX commissions_pkey ON public.commissions USING btree ("commissionId")
+index commissions commissions_transactionid_index CREATE INDEX commissions_transactionid_index ON public.commissions USING btree ("transactionId")
+index commissions commissions_transactionid_unique CREATE UNIQUE INDEX commissions_transactionid_unique ON public.commissions USING btree ("transactionId")
+index knex_migrations knex_migrations_pkey CREATE UNIQUE INDEX knex_migrations_pkey ON public.knex_migrations USING btree (id)
+index knex_migrations_lock knex_migrations_lock_pkey CREATE UNIQUE INDEX knex_migrations_lock_pkey ON public.knex_migrations_lock USING btree (index)
+index monitor_events idx_monitor_events_created_at CREATE INDEX idx_monitor_events_created_at ON public.monitor_events USING btree (created_at)
+index monitor_events monitor_events_event_index CREATE INDEX monitor_events_event_index ON public.monitor_events USING btree (event)
+index monitor_events monitor_events_pkey CREATE UNIQUE INDEX monitor_events_pkey ON public.monitor_events USING btree (id)
+index output_baskets output_baskets_name_userid_unique CREATE UNIQUE INDEX output_baskets_name_userid_unique ON public.output_baskets USING btree (name, "userId")
+index output_baskets output_baskets_pkey CREATE UNIQUE INDEX output_baskets_pkey ON public.output_baskets USING btree ("basketId")
+index output_tags output_tags_pkey CREATE UNIQUE INDEX output_tags_pkey ON public.output_tags USING btree ("outputTagId")
+index output_tags output_tags_tag_userid_unique CREATE UNIQUE INDEX output_tags_tag_userid_unique ON public.output_tags USING btree (tag, "userId")
+index output_tags_map idx_output_tags_map_output_deleted_tag CREATE INDEX idx_output_tags_map_output_deleted_tag ON public.output_tags_map USING btree ("outputId", "isDeleted", "outputTagId")
+index output_tags_map output_tags_map_outputid_index CREATE INDEX output_tags_map_outputid_index ON public.output_tags_map USING btree ("outputId")
+index output_tags_map output_tags_map_outputtagid_outputid_unique CREATE UNIQUE INDEX output_tags_map_outputtagid_outputid_unique ON public.output_tags_map USING btree ("outputTagId", "outputId")
+index outputs idx_outputs_funding_selection CREATE INDEX idx_outputs_funding_selection ON public.outputs USING btree ("userId", "basketId", spendable, "spentBy", satoshis, "outputId")
+index outputs idx_outputs_spentby CREATE INDEX idx_outputs_spentby ON public.outputs USING btree ("spentBy")
+index outputs idx_outputs_user_basket_spendable_outputid CREATE INDEX idx_outputs_user_basket_spendable_outputid ON public.outputs USING btree ("userId", "basketId", spendable, "outputId")
+index outputs idx_outputs_user_basket_spendable_satoshis CREATE INDEX idx_outputs_user_basket_spendable_satoshis ON public.outputs USING btree ("userId", "basketId", spendable, satoshis)
+index outputs idx_outputs_user_spendable_outputid CREATE INDEX idx_outputs_user_spendable_outputid ON public.outputs USING btree ("userId", spendable, "outputId")
+index outputs outputs_pkey CREATE UNIQUE INDEX outputs_pkey ON public.outputs USING btree ("outputId")
+index outputs outputs_spendable_index CREATE INDEX outputs_spendable_index ON public.outputs USING btree (spendable)
+index outputs outputs_transactionid_vout_userid_unique CREATE UNIQUE INDEX outputs_transactionid_vout_userid_unique ON public.outputs USING btree ("transactionId", vout, "userId")
+index payment_replays idx_payment_replays_expires CREATE INDEX idx_payment_replays_expires ON public.payment_replays USING btree ("expiresAt")
+index payment_replays payment_replays_pkey CREATE UNIQUE INDEX payment_replays_pkey ON public.payment_replays USING btree ("transactionId")
+index prepared_beef_metadata prepared_beef_metadata_pkey CREATE UNIQUE INDEX prepared_beef_metadata_pkey ON public.prepared_beef_metadata USING btree ("preparedBeefMetadataId")
+index prepared_beefs idx_prepared_beefs_state_version CREATE INDEX idx_prepared_beefs_state_version ON public.prepared_beefs USING btree (state, "formatVersion")
+index prepared_beefs prepared_beefs_pkey CREATE UNIQUE INDEX prepared_beefs_pkey ON public.prepared_beefs USING btree ("preparedBeefId")
+index prepared_beefs prepared_beefs_userid_roottxid_unique CREATE UNIQUE INDEX prepared_beefs_userid_roottxid_unique ON public.prepared_beefs USING btree ("userId", "rootTxid")
+index proven_tx_reqs proven_tx_reqs_batch_index CREATE INDEX proven_tx_reqs_batch_index ON public.proven_tx_reqs USING btree (batch)
+index proven_tx_reqs proven_tx_reqs_pkey CREATE UNIQUE INDEX proven_tx_reqs_pkey ON public.proven_tx_reqs USING btree ("provenTxReqId")
+index proven_tx_reqs proven_tx_reqs_status_index CREATE INDEX proven_tx_reqs_status_index ON public.proven_tx_reqs USING btree (status)
+index proven_tx_reqs proven_tx_reqs_txid_index CREATE INDEX proven_tx_reqs_txid_index ON public.proven_tx_reqs USING btree (txid)
+index proven_tx_reqs proven_tx_reqs_txid_unique CREATE UNIQUE INDEX proven_tx_reqs_txid_unique ON public.proven_tx_reqs USING btree (txid)
+index proven_txs proven_txs_blockhash_index CREATE INDEX proven_txs_blockhash_index ON public.proven_txs USING btree ("blockHash")
+index proven_txs proven_txs_pkey CREATE UNIQUE INDEX proven_txs_pkey ON public.proven_txs USING btree ("provenTxId")
+index proven_txs proven_txs_txid_unique CREATE UNIQUE INDEX proven_txs_txid_unique ON public.proven_txs USING btree (txid)
+index sync_states sync_states_pkey CREATE UNIQUE INDEX sync_states_pkey ON public.sync_states USING btree ("syncStateId")
+index sync_states sync_states_refnum_index CREATE INDEX sync_states_refnum_index ON public.sync_states USING btree ("refNum")
+index sync_states sync_states_refnum_unique CREATE UNIQUE INDEX sync_states_refnum_unique ON public.sync_states USING btree ("refNum")
+index sync_states sync_states_status_index CREATE INDEX sync_states_status_index ON public.sync_states USING btree (status)
+index sync_transfer_parts sync_transfer_parts_pkey CREATE UNIQUE INDEX sync_transfer_parts_pkey ON public.sync_transfer_parts USING btree (slot, "offset")
+index sync_transfers sync_transfers_pkey CREATE UNIQUE INDEX sync_transfers_pkey ON public.sync_transfers USING btree (slot)
+index sync_transfers sync_transfers_transferid_unique CREATE UNIQUE INDEX sync_transfers_transferid_unique ON public.sync_transfers USING btree ("transferId")
+index transactions idx_transactions_nosend_expiry CREATE INDEX idx_transactions_nosend_expiry ON public.transactions USING btree ("noSendExpiryState", "noSendExpiryDeadline")
+index transactions idx_transactions_nosend_reclaim CREATE INDEX idx_transactions_nosend_reclaim ON public.transactions USING btree ("userId", "noSendExpiryReclaimTxid")
+index transactions idx_transactions_user_proven_tx CREATE INDEX idx_transactions_user_proven_tx ON public.transactions USING btree ("userId", "provenTxId")
+index transactions idx_transactions_user_txid CREATE INDEX idx_transactions_user_txid ON public.transactions USING btree ("userId", txid)
+index transactions transactions_pkey CREATE UNIQUE INDEX transactions_pkey ON public.transactions USING btree ("transactionId")
+index transactions transactions_reference_unique CREATE UNIQUE INDEX transactions_reference_unique ON public.transactions USING btree (reference)
+index transactions transactions_status_index CREATE INDEX transactions_status_index ON public.transactions USING btree (status)
+index transactions transactions_txid_index CREATE INDEX transactions_txid_index ON public.transactions USING btree (txid)
+index tx_labels tx_labels_label_userid_unique CREATE UNIQUE INDEX tx_labels_label_userid_unique ON public.tx_labels USING btree (label, "userId")
+index tx_labels tx_labels_pkey CREATE UNIQUE INDEX tx_labels_pkey ON public.tx_labels USING btree ("txLabelId")
+index tx_labels_map idx_tx_labels_map_tx_deleted CREATE INDEX idx_tx_labels_map_tx_deleted ON public.tx_labels_map USING btree ("transactionId", "isDeleted")
+index tx_labels_map tx_labels_map_transactionid_index CREATE INDEX tx_labels_map_transactionid_index ON public.tx_labels_map USING btree ("transactionId")
+index tx_labels_map tx_labels_map_txlabelid_transactionid_unique CREATE UNIQUE INDEX tx_labels_map_txlabelid_transactionid_unique ON public.tx_labels_map USING btree ("txLabelId", "transactionId")
+index users users_identitykey_unique CREATE UNIQUE INDEX users_identitykey_unique ON public.users USING btree ("identityKey")
+index users users_pkey CREATE UNIQUE INDEX users_pkey ON public.users USING btree ("userId")
+sequence action_batch_blobs_actionBatchBlobId_seq integer inc 1 min 1 max 2147483647 start 1 cache 1 owned by action_batch_blobs.actionBatchBlobId
+sequence action_batches_actionBatchId_seq integer inc 1 min 1 max 2147483647 start 1 cache 1 owned by action_batches.actionBatchId
+sequence certificates_certificateId_seq integer inc 1 min 1 max 2147483647 start 1 cache 1 owned by certificates.certificateId
+sequence commissions_commissionId_seq integer inc 1 min 1 max 2147483647 start 1 cache 1 owned by commissions.commissionId
+sequence knex_migrations_id_seq integer inc 1 min 1 max 2147483647 start 1 cache 1 owned by knex_migrations.id
+sequence knex_migrations_lock_index_seq integer inc 1 min 1 max 2147483647 start 1 cache 1 owned by knex_migrations_lock.index
+sequence monitor_events_id_seq integer inc 1 min 1 max 2147483647 start 1 cache 1 owned by monitor_events.id
+sequence output_baskets_basketId_seq integer inc 1 min 1 max 2147483647 start 1 cache 1 owned by output_baskets.basketId
+sequence output_tags_outputTagId_seq integer inc 1 min 1 max 2147483647 start 1 cache 1 owned by output_tags.outputTagId
+sequence outputs_outputId_seq integer inc 1 min 1 max 2147483647 start 1 cache 1 owned by outputs.outputId
+sequence prepared_beefs_preparedBeefId_seq integer inc 1 min 1 max 2147483647 start 1 cache 1 owned by prepared_beefs.preparedBeefId
+sequence proven_tx_reqs_provenTxReqId_seq integer inc 1 min 1 max 2147483647 start 1 cache 1 owned by proven_tx_reqs.provenTxReqId
+sequence proven_txs_provenTxId_seq integer inc 1 min 1 max 2147483647 start 1 cache 1 owned by proven_txs.provenTxId
+sequence sync_states_syncStateId_seq integer inc 1 min 1 max 2147483647 start 1 cache 1 owned by sync_states.syncStateId
+sequence transactions_transactionId_seq integer inc 1 min 1 max 2147483647 start 1 cache 1 owned by transactions.transactionId
+sequence tx_labels_txLabelId_seq integer inc 1 min 1 max 2147483647 start 1 cache 1 owned by tx_labels.txLabelId
+sequence users_userId_seq integer inc 1 min 1 max 2147483647 start 1 cache 1 owned by users.userId
+table action_batch_blobs
+table action_batch_outputs
+table action_batches
+table auth_message_nonces
+table auth_sessions
+table certificate_fields
+table certificates
+table commissions
+table knex_migrations
+table knex_migrations_lock
+table monitor_events
+table output_baskets
+table output_tags
+table output_tags_map
+table outputs
+table payment_replays
+table prepared_beef_metadata
+table prepared_beefs
+table proven_tx_reqs
+table proven_txs
+table settings
+table sync_states
+table sync_transfer_parts
+table sync_transfers
+table transactions
+table tx_labels
+table tx_labels_map
+table users

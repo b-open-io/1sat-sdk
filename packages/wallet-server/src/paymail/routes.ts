@@ -58,6 +58,15 @@ interface ReceiveHexBody {
 	metadata?: PaymailMetadata
 }
 
+const DEFAULT_AVATAR_PATH = '/bsvalias/default-avatar.svg'
+
+const DEFAULT_AVATAR_SVG =
+	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180">' +
+	'<rect width="180" height="180" fill="#d4d4d8"/>' +
+	'<circle cx="90" cy="70" r="34" fill="#a1a1aa"/>' +
+	'<path d="M28 180c0-38 28-62 62-62s62 24 62 62z" fill="#a1a1aa"/>' +
+	'</svg>'
+
 class NotFoundError extends Error {
 	constructor(message = 'paymail not found') {
 		super(message)
@@ -73,6 +82,9 @@ export async function mountPaymailRoutes(
 	// Avatars resolve through the same ORDFS host used for name resolution;
 	// content lives at /content, matching OrdfsClient.
 	const ordfsBaseUrl = `${deps.stackUrl.replace(/\/$/, '')}/content`
+	// The public-profile route requires an https avatar URL, so accounts
+	// without an avatar get this host's generic one.
+	const defaultAvatarUrl = joinUrl(deps.baseUrl, DEFAULT_AVATAR_PATH)
 	const messageBox =
 		deps.messageboxUrl && deps.hostPrivateKey
 			? MessageBoxClient.fromPrivateKey(deps.messageboxUrl, deps.hostPrivateKey)
@@ -203,7 +215,7 @@ export async function mountPaymailRoutes(
 					name: bind.profileName || name,
 					avatar: bind.avatarOrigin
 						? `${ordfsBaseUrl}/${bind.avatarOrigin}`
-						: '',
+						: defaultAvatarUrl,
 				}
 			},
 		}),
@@ -337,6 +349,13 @@ export async function mountPaymailRoutes(
 		capabilities[RequestSenderValidationCapability.getCode()] =
 			deps.verifySignature === true
 		res.type('application/json').send({ bsvalias: '1.0', capabilities })
+	})
+
+	app.get(DEFAULT_AVATAR_PATH, (_req, res) => {
+		res
+			.type('image/svg+xml')
+			.set('Cache-Control', 'public, max-age=86400')
+			.send(DEFAULT_AVATAR_SVG)
 	})
 
 	app.use(router.getRouter())

@@ -7,16 +7,16 @@ description: "This skill should be used when an application or agent needs to dr
 
 `1sat serve wallet-api` exposes the CLI's wallet as the BRC-100 method surface over HTTP JSON on `127.0.0.1:3321`, so applications and agents can drive the wallet: `POST /<walletMethod>` with a JSON body, get a JSON result back.
 
-## This is not `1sat serve wallet`
+## This is not `1sat serve storage`
 
 Two different servers, commonly confused:
 
 | Command | What it speaks | Who talks to it |
 |---------|----------------|-----------------|
 | `1sat serve wallet-api` | **App-facing BRC-100** — `createAction`, `getPublicKey`, `listOutputs`, … the 28 `WalletInterface` methods | dApps, agents, anything on `HTTPWalletJSON` |
-| `1sat serve wallet` | **wallet-toolbox *storage*** — the RPC a wallet uses to persist and fetch its own records | Another wallet's storage layer |
+| `1sat serve storage` | **wallet-toolbox *storage*** — the RPC a wallet uses to persist and fetch its own records | Another wallet's storage layer |
 
-`1sat serve wallet` moves opaque storage records; it has no permission model, no app origins and no notion of "an app asking for something". If the goal is "let this program use my wallet", it is `wallet-api`. Everything below is about `wallet-api` only.
+`1sat serve storage` moves opaque storage records; it has no permission model, no app origins and no notion of "an app asking for something". If the goal is "let this program use my wallet", it is `wallet-api`. Everything below is about `wallet-api` only.
 
 ## Starting it
 
@@ -165,7 +165,7 @@ Transaction descriptions and custom instructions are encrypted at rest by defaul
 
 Records written before encryption was turned on still read as plaintext: decryption is attempted unconditionally and a value that was never encrypted is returned unchanged.
 
-`1sat serve wallet` (the storage interface) never interprets these fields — it passes the records through opaquely, and the wallet at the far end decrypts with its own manager.
+`1sat serve storage` (the storage interface) never interprets these fields — it passes the records through opaquely, and the wallet at the far end decrypts with its own manager.
 
 ## Troubleshooting
 

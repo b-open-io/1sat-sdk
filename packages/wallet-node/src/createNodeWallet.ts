@@ -174,11 +174,11 @@ async function buildLocalStorage(
 	if (config.provider === 'pg') {
 		// Dynamic import — pg is an optional peer dep so bun-sqlite-only
 		// consumers don't pay for it.
-		const { StoragePg } = await import('./storage-pg.js')
-		return new StoragePg({
+		const { StorageKnexPg } = await import('./storage-knex-pg.js')
+		return new StorageKnexPg({
 			...baseOptions,
 			dbUrl: config.dbUrl,
-			poolConfig: config.pool,
+			pool: config.pool,
 		})
 	}
 	// Exhaustiveness check

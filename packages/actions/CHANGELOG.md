@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.229
+
+### Fixed
+- Signing helpers (`signP2PKH`, `signOrdinalInput`, pipeline unlocks) pass only `hashToDirectlySign` to `createSignature`. `@bsv/sdk` 2.8.11 rejects calls that also pass `data`.
+
 ## 0.0.228
 
 ### Removed

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.58
+
+### Changed
+- `@bsv/wallet-toolbox-client` resolves to `@bopen-io/wallet-toolbox-client@2.14.5` (upstream 2.14.4 plus Postgres StorageKnex, bsv-blockchain/ts-stack#719). Clients on 2.13.2–2.14.4 reject a storage server whose `dbtype` is `Postgres`.
+
 ## 0.0.56
 
 ### Changed

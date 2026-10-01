@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.60
+
+### Changed
+- Storage RPC is no longer served by `createHostServer`. New `createStorageServer` runs the `@bsv/wallet-toolbox` `StorageServer` standalone, with `monetize: false`, `maxRpcListLimit` 10,000 and `maxRpcArrayItems` 4,194,304; everything else is the toolbox default.
+- `RedisSessionManager` implements the `@bsv/sdk` `AsyncSessionManager`: sessions and nonce claims live only in Redis, so any instance, host or storage server, accepts a session made on another.
+- The host's OpenAPI document no longer lists `POST /`.
+
+### Removed
+- The accounts capacity gate (`accountsCapacityGate`, `BILLABLE_METHODS`, `isBillableMethod`, `ERR_INSUFFICIENT_CAPACITY`). Storage writes are not metered; `/account/status` and `/account/payment` are unchanged.
+- `createWalletServer`, `createWalletRpcHandler`, `createBearerServer`, `bearerResolver`, `dispatch` and their types.
+- `wrapAuthWithSessionHydration` and `RedisSessionManager.hydrate`.
+
 ## 0.0.59
 
 ### Fixed

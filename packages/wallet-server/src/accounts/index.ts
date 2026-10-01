@@ -6,6 +6,7 @@ export type {
 	NextPaymentDerivation,
 	RegisteredHandleView,
 	RegistrationStatus,
+	WalletServerAccounts,
 } from './types.js'
 export {
 	type Account,
@@ -51,12 +52,6 @@ export {
 	type RefundedQuoteInput,
 } from './pricing.js'
 export {
-	type AccountsMiddlewareDeps,
-	accountsCapacityGate,
-	ERR_INSUFFICIENT_CAPACITY,
-	nextPaymentDerivation,
-} from './middleware.js'
-export {
 	type PaymentRecord,
 	PAYMENT_LABEL,
 	blockLabel,
@@ -64,6 +59,7 @@ export {
 	countPaymentsForPayer,
 	latestActivePaymentForPayer,
 	listPaymentsForPayer,
+	nextPaymentDerivation,
 	payerLabel,
 } from './queries.js'
 export { mountPaymentRoute, type PaymentRouteDeps } from './paymentRoute.js'

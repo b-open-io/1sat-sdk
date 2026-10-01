@@ -102,8 +102,8 @@ async function openServeStorage(opts: GlobalFlags): Promise<StorageProvider> {
 				'server.storage.provider is pg but server.storage.dbUrl is not set.',
 			)
 		}
-		const { StoragePg } = await import('@1sat/wallet-node')
-		storage = new StoragePg({ ...baseOptions, dbUrl: storageConfig.dbUrl })
+		const { StorageKnexPg } = await import('@1sat/wallet-node')
+		storage = new StorageKnexPg({ ...baseOptions, dbUrl: storageConfig.dbUrl })
 	} else {
 		storage = new StorageBunSqlite({
 			...baseOptions,

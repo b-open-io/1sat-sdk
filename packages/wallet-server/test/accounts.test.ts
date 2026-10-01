@@ -313,7 +313,13 @@ describe('mountPaymailRoutes domain dispatch', () => {
 		expect(res.status).toBe(200)
 		const body = (await res.json()) as { name: string; avatar: string }
 		expect(body.name).toBe('Alice A.')
-		expect(body.avatar).toBe('')
+		expect(body.avatar).toBe('https://1sat.app/bsvalias/default-avatar.svg')
+	})
+
+	test('default avatar is served as svg', async () => {
+		const res = await fetch(`${base}/bsvalias/default-avatar.svg`)
+		expect(res.status).toBe(200)
+		expect(res.headers.get('content-type')).toContain('image/svg+xml')
 	})
 
 	test('unknown alias on userDomain is 404', async () => {

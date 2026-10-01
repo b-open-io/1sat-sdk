@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.115
+
+### Changed
+- `StorageClient` sends binary request bodies (`binaryRequests: true`), so sync chunks stay under the auth middleware request limits.
+
 ## 0.0.114
 
 ### Changed
