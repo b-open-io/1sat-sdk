@@ -553,7 +553,7 @@ case "${1:-}" in
 	preflight) preflight ;;
 	prepare) prepare ;;
 	window) window ;;
-	resume) finish ;;
+	resume) load_db_env; finish ;;
 	rollback) rollback ;;
 	*) sed -n '2,18p' "$0"; exit 1 ;;
 esac
