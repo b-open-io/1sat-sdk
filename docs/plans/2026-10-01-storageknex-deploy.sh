@@ -19,7 +19,7 @@
 # Every step stops at the first failure. Nothing prints the database password.
 set -euo pipefail
 
-VERSION="${VERSION:-}"            # new @1sat/cli version; set here or in the environment
+VERSION="${VERSION:-0.0.127}"      # new @1sat/cli version; set here or in the environment
 OLD_VERSION="${OLD_VERSION:-0.0.125}"
 TOOLBOX_VERSION="2.14.5"  # @bsv/wallet-toolbox -> npm:@bopen-io/wallet-toolbox
 TRUST_PROXY="loopback"            # nginx on this host connects from 127.0.0.1
