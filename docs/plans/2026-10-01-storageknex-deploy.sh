@@ -163,14 +163,15 @@ set_trust_proxy() {
 	' "$CONFIG" "$TRUST_PROXY"
 }
 
-# Every installed wallet-toolbox copy under $1/node_modules: "<path> <name>@<version>".
+# Every installed copy of package dir $2 (wallet-toolbox or wallet-toolbox-client) under
+# $1/node_modules: "<path> <name>@<version>".
 toolbox_copies() {
 	node -e '
 		const fs = require("node:fs"), path = require("node:path")
-		const root = process.argv[1], found = []
+		const root = process.argv[1], want = process.argv[2], found = []
 		const dirs = (d) => { try { return fs.readdirSync(d, { withFileTypes: true }).filter(e => e.isDirectory()) } catch { return [] } }
 		const visit = (dir, name) => {
-			if (/\/wallet-toolbox$/.test(name)) {
+			if (name.endsWith("/" + want)) {
 				const j = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"))
 				found.push(`${path.relative(root, dir)} ${j.name}@${j.version}`)
 			}
@@ -185,24 +186,27 @@ toolbox_copies() {
 		}
 		walk(path.join(root, "node_modules"))
 		console.log(found.join("\n"))
-	' "$1"
+	' "$1" "$2"
 }
 
-# The install in $1 is @1sat/cli $VERSION with one wallet-toolbox ($TOOLBOX_VERSION) and the
+# The install in $1 is @1sat/cli $VERSION with one wallet-toolbox and one wallet-toolbox-client
+# ($TOOLBOX_VERSION) and the
 # StorageKnex wallet-node build.
 check_install() {
 	local dir=$1 v copies n wn knexpg
 	v=$(node "$dir/node_modules/@1sat/cli/dist/cli.js" --version 2>/dev/null | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | tail -1)
 	echo "@1sat/cli: $v"
 	[ "$v" = "$VERSION" ] || die "installed @1sat/cli is '$v', expected $VERSION"
-	(cd "$dir" && npm ls @bsv/wallet-toolbox) || true
-	copies=$(toolbox_copies "$dir")
-	n=$(printf '%s\n' "$copies" | grep -c . || true)
-	echo "wallet-toolbox copies ($n):"
-	printf '%s\n' "$copies" | sed 's/^/  /'
-	[ "$n" = "1" ] || die "expected exactly one wallet-toolbox in the tree, found $n"
-	[ "${copies##* }" = "@bopen-io/wallet-toolbox@$TOOLBOX_VERSION" ] \
-		|| die "wallet-toolbox is '${copies##* }', expected @bopen-io/wallet-toolbox@$TOOLBOX_VERSION"
+	(cd "$dir" && npm ls @bsv/wallet-toolbox @bsv/wallet-toolbox-client) || true
+	for pkg in wallet-toolbox wallet-toolbox-client; do
+		copies=$(toolbox_copies "$dir" "$pkg")
+		n=$(printf '%s\n' "$copies" | grep -c . || true)
+		echo "$pkg copies ($n):"
+		printf '%s\n' "$copies" | sed 's/^/  /'
+		[ "$n" = "1" ] || die "expected exactly one $pkg in the tree, found $n"
+		[ "${copies##* }" = "@bopen-io/$pkg@$TOOLBOX_VERSION" ] \
+			|| die "$pkg is '${copies##* }', expected @bopen-io/$pkg@$TOOLBOX_VERSION"
+	done
 	wn=$(find "$dir/node_modules" -path '*/@1sat/wallet-node/dist/index.js' | wc -l | tr -d ' ')
 	knexpg=$(find "$dir/node_modules" -path '*/@1sat/wallet-node/dist/storage-knex-pg.js' | wc -l | tr -d ' ')
 	echo "@1sat/wallet-node copies: $wn, with storage-knex-pg.js: $knexpg"

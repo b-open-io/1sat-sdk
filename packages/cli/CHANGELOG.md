@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.127
+
+### Fixed
+- Depends on `@bsv/wallet-toolbox-client` (aliased to `@bopen-io/wallet-toolbox-client@2.14.5`) directly. With only `@1sat/client`'s nested alias, npm installed upstream 2.14.4 for the `@1sat/wallet` peer, and remote mode rejected a Postgres storage server.
+
 ## 0.0.126
 
 ### Changed
