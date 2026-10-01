@@ -461,7 +461,7 @@ window() {
 	pm2 save
 	ls -l "$HOME/.pm2/dump.pm2"
 
-	say "8/9 nginx: wallet.1sat.app -> wallet-storage, /account/ -> wallet-host (operator)"
+	say "8/9 nginx: wallet.1sat.app -> wallet-storage (operator)"
 	echo "Until this is done wallet.1sat.app storage calls reach wallet-host, which no longer serves them."
 	echo "Apply the change from the runbook (\"nginx\" section) in another shell, then:"
 	echo "  sudo nginx -t && sudo systemctl reload nginx"
@@ -476,8 +476,6 @@ window() {
 		https://wallet.1sat.app/) (expect 401)"
 	curl -s -o /dev/null -D - -X POST -H 'Content-Type: application/json' -d '{}' https://wallet.1sat.app/ \
 		| grep -i '^ratelimit' || echo "no RateLimit headers on POST / (expected from the toolbox StorageServer)"
-	echo "GET  https://wallet.1sat.app/account/status unauthenticated: $(curl -s -o /dev/null -w '%{http_code}' \
-		https://wallet.1sat.app/account/status) (expect 401, from wallet-host)"
 	echo "GET  https://messagebox.1sat.app/: $(curl -s -o /dev/null -w '%{http_code}' https://messagebox.1sat.app/)"
 	echo "GET  https://1sat.app/.well-known/bsvalias: $(curl -s -o /dev/null -w '%{http_code}' https://1sat.app/.well-known/bsvalias) (expect 200)"
 	echo "trustProxy: $(trust_proxy_value)"

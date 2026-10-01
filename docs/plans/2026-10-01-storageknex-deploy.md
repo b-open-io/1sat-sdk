@@ -22,12 +22,13 @@ local rehearsal: `2026-10-01-storagepg-to-storageknex-migration.md`.
   request path: no capacity gate, no dbtype filter. `wallet-host` (`1sat serve`, `127.0.0.1:8100`)
   keeps `/account/*`, paymail, messagebox, `/exchange-rate` and the OpenAPI docs, and no longer
   answers `POST /`.
-- nginx: `wallet.1sat.app` → `wallet-storage`, except `/account/` → `wallet-host` (clients call
-  `<storage url>/account/status|payment|register|profile`). `messagebox.1sat.app` and `1sat.app`
-  stay on `wallet-host`. Operator step during the window; see "nginx".
+- nginx: `wallet.1sat.app` → `wallet-storage`. `messagebox.1sat.app` and `1sat.app` stay on
+  `wallet-host`. Operator step during the window; see "nginx". `<storage url>/account/*` is not
+  routed: `wallet.1sat.app/account/status` answers 404, which yours-wallet's Storage Status page and
+  provider picker catch (they show the provider as offline). Account status moves to
+  accounts.1sat.app in a later yours-wallet release.
 - BRC-104 sessions: both apps use `server.sessionStore.redisUrl` (already set) and the same server key,
-  so a handshake on `wallet.1sat.app` made against `wallet-storage` also authenticates
-  `/account/*` on `wallet-host`, and any of the 4 storage workers accepts it.
+  so any of the 4 storage workers accepts a session made on another.
 - `account_wallet` schema: converted by
   `1sat-sdk/scripts/migrations/2026-10-01-storagepg-to-storageknex.sql` (one transaction), then
   `StorageKnex.migrate` on first start adds 8 toolbox migrations (7 new tables, plus the managed-change
@@ -114,12 +115,6 @@ server {
     server_name wallet.1sat.app;
     # ...existing listen / ssl / log lines unchanged...
 
-    # Account routes stay on the host. Same proxy_set_header lines as the existing location.
-    location /account/ {
-        proxy_pass http://wallet_backend;
-        # ...existing proxy_set_header / proxy_http_version lines...
-    }
-
     # Storage RPC (POST /, PUT /action-batch/*, /.well-known/auth, GET /, /healthz).
     location / {
         proxy_pass http://wallet_storage;   # was http://wallet_backend
@@ -163,7 +158,7 @@ connections, row counts. Then `npm cache add @1sat/cli@VERSION` and a scratch in
 | 6 | Gate (hosts not started on failure): 26 migrations, none of the 4 StoragePg-only names, the 8 toolbox ones present, lock free, `settings.dbtype` = `Postgres`, no `smallint`/identity columns, `sync_states_user_storage_identity` unique index present, every sequence ≥ max(id), row counts identical to `counts.before`, schema matches the expected file except that index | < 1 min |
 | 7 | Start `wallet-storage`, wait for 127.0.0.1:8110 (`GET /` = StorageServer banner); start `wallet-host`, wait for 127.0.0.1:8100; `pm2 save` | < 1 min |
 | 8 | Operator applies the nginx change ("nginx"), script waits for `yes` | 1–2 min |
-| 9 | `wallet.1sat.app`: `GET /` banner, `/healthz` 200, unauthenticated `POST /` 401 with `RateLimit` headers, unauthenticated `/account/status` 401 (host); messagebox and `1sat.app/.well-known/bsvalias` status; `trustProxy`; error lines in the three apps' new logs (new PM2 ids, so fresh log files) | 30 s |
+| 9 | `wallet.1sat.app`: `GET /` banner, `/healthz` 200, unauthenticated `POST /` 401 with `RateLimit` headers; messagebox and `1sat.app/.well-known/bsvalias` status; `trustProxy`; error lines in the three apps' new logs (new PM2 ids, so fresh log files) | 30 s |
 
 Total downtime about 8–10 minutes; budget 15. Every run is kept in
 `~/predeploy-backups/storageknex/` (`counts.*`, `schema.after.txt`, `schema.diff`).
@@ -208,7 +203,7 @@ are lost.
   (`"Wallet storage returned invalid settings."` on `makeAvailable`). `wallet-storage` reports
   `Postgres` and has no filter, so those clients cannot connect until they upgrade.
 - The accounts capacity gate is gone: storage writes are no longer refused for over-capacity
-  accounts. `/account/status` still reports usage and `/account/payment` still sells capacity.
+  accounts. `/account/*` stays in `wallet-host` but is not reachable through `wallet.1sat.app`.
 - Clients that synced from the StoragePg server may be missing rows: StoragePg's paged sync queries
   had no `ORDER BY`, so full syncs skipped some rows (rehearsal: 42,359 of 237,526 output tag maps
   for the largest wallet). Incremental sync does not resend them. Affected wallets need one full

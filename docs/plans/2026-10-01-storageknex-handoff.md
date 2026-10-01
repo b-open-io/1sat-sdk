@@ -54,6 +54,7 @@ Storage reconcile (Repair Sync), per-account `dataVersion` + IndexedDB legacy-ba
 
 ## Deferred / known issues (not blocking)
 
+- `wallet.1sat.app/account/*` is not routed (nginx sends all of wallet.1sat.app to `wallet-storage`); `/account/status` answers 404 and yours-wallet shows the provider as offline on Storage Status and in the provider picker. Next yours-wallet release: read account status from accounts.1sat.app.
 - Fable review index: `docs/plans/2026-10-01-fable-review.md` (items 3–6, 11 are now moot after closing #722 and dropping the mount design).
 - `listOutputs` with entire transactions: cap at 100 and page callers (`actions/src/tokens/index.ts`, `locks/index.ts`, yours-wallet).
 - `/manifest.json` references an unserved `icon.png`.
