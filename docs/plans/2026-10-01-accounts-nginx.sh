@@ -29,7 +29,7 @@ apply() {
 	fi
 
 	[ -e "$SITE" ] && die "$SITE already exists; not overwriting it"
-	grep -rq 'upstream wallet_backend' /etc/nginx/sites-enabled/ || die "no wallet_backend upstream in sites-enabled"
+	grep -Rq 'upstream wallet_backend' /etc/nginx/sites-enabled/ || die "no wallet_backend upstream in sites-enabled"
 
 	say "Write $SITE"
 	cat > "$SITE" <<EOF
