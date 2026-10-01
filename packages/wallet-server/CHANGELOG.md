@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.59
+
+### Fixed
+- `getSyncChunk` responses carry byte fields as base64 when the client asks for binary (toolbox `syncChunkBinary`, as the toolbox StorageServer does). They were JSON number arrays about 3.6× larger, and large pages exceeded the auth layer's signing limit (`ERR_RESPONSE_SIGNING_FAILED`, 500), which stopped toolbox 2.14 sync and Repair Sync.
+- Binary-encoded request params (`X-BSV-Binary-Request-Encoding`) are decoded before the capacity gate and dispatch.
+
+### Changed
+- Uses upstream `@bsv/auth-express-middleware` ^2.2.8 instead of the `@bopen-io` interim repack (its fix, ts-stack#368, shipped in 2.1.5). Responses over 8 MiB return 413, which toolbox clients answer with smaller sync pages; requests are accepted up to 16 MiB.
+- Binary codec and sync validators come from the toolbox's own `storage/remoting` modules; `@bsv/wallet-toolbox-client` is no longer a dependency.
+
 ## 0.0.58
 
 ### Security

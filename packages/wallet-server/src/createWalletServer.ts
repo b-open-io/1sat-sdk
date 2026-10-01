@@ -1,5 +1,4 @@
 import type { WalletInterface } from '@bsv/sdk'
-import { stringifyJsonRpc } from '@bsv/wallet-toolbox-client'
 import { createLogger } from 'evlog'
 import { evlog, useLogger } from 'evlog/express'
 import express, {
@@ -19,12 +18,18 @@ import {
 import { registrationStatus } from './accounts/registrationRoutes.js'
 import type { AccountStore } from './accounts/store.js'
 import type { AccountsConfigProvider } from './accounts/types.js'
-import { BINARY_ENCODING, BINARY_ENCODING_HEADER } from './binaryEncoding.js'
 import { createWalletRpcHandler } from './createWalletRpcHandler.js'
 import { dispatch } from './dispatch.js'
 import { mountTerminalErrorHandler } from './errorHandler.js'
 import { bearerResolver } from './resolvers/bearer.js'
 import { buildAuthMiddleware } from './sessions/redisSessionManager.js'
+import {
+	BINARY_ENCODING,
+	BINARY_ENCODING_HEADER,
+	BINARY_REQUEST_ENCODING_HEADER,
+	decodeBinaryJsonValue,
+	stringifyJsonRpc,
+} from './toolboxRemoting.js'
 import type {
 	MakeWalletLogger,
 	PreDispatchHook,
@@ -218,13 +223,32 @@ function mountPublicRoute(
 	// inline self-payment (label + BRC-29 output) that the gate recognises.
 	const postHandlers: Array<
 		(req: ExpressRequest, res: ExpressResponse, next: NextFunction) => unknown
-	> = []
+	> = [decodeBinaryRequest]
 	if (accountsDeps) {
 		postHandlers.push(accountsCapacityGate(accountsDeps))
 	}
 	postHandlers.push(dispatchHandler(config))
 
 	app.post(path, ...postHandlers)
+}
+
+/**
+ * Decodes base64-tagged params when the client sent them that way
+ * (X-BSV-Binary-Request-Encoding), before the capacity gate and dispatch read
+ * them.
+ */
+function decodeBinaryRequest(
+	req: ExpressRequest,
+	_res: ExpressResponse,
+	next: NextFunction,
+): void {
+	if (
+		req.header(BINARY_REQUEST_ENCODING_HEADER) === BINARY_ENCODING &&
+		Array.isArray(req.body?.params)
+	) {
+		req.body.params = decodeBinaryJsonValue(req.body.params)
+	}
+	next()
 }
 
 export function dispatchHandler(config: WalletServerConfig) {
@@ -286,6 +310,7 @@ export function dispatchHandler(config: WalletServerConfig) {
 				params: Array.isArray(body.params) ? body.params : [],
 				id: normalizeJsonRpcId(body.id),
 				identity: { identityKey },
+				binaryResponse: useBinary,
 			},
 		)
 

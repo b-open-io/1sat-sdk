@@ -397,4 +397,45 @@ describe('dispatch', () => {
 			'WERR_INVALID_PARAMETER',
 		)
 	})
+
+	test('getSyncChunk byte fields go out as base64 when the client asks for binary', async () => {
+		const chunk = {
+			fromStorageIdentityKey: 'a',
+			toStorageIdentityKey: 'b',
+			userIdentityKey: IDENTITY.identityKey,
+			provenTxs: [
+				{
+					txid: 't',
+					rawTx: Array(200).fill(7),
+					merklePath: Array(150).fill(9),
+				},
+			],
+		}
+		const { storage } = makeStorage({ getSyncChunk: () => chunk })
+		const res = (await dispatch(
+			{ storage },
+			{
+				method: 'getSyncChunk',
+				params: [{}],
+				id: 21,
+				identity: IDENTITY,
+				binaryResponse: true,
+			},
+		)) as { result: { provenTxs: { rawTx: unknown }[] } }
+		expect(res.result.provenTxs[0].rawTx).toBeInstanceOf(Uint8Array)
+		const { stringifyJsonRpc } = await import('../src/toolboxRemoting.js')
+		expect(stringifyJsonRpc(res, true)).toContain('"$bsvBinary"')
+	})
+
+	test('getSyncChunk keeps number[] for clients without binary', async () => {
+		const chunk = {
+			provenTxs: [{ txid: 't', rawTx: [1, 2, 3], merklePath: [4] }],
+		}
+		const { storage } = makeStorage({ getSyncChunk: () => chunk })
+		const res = (await dispatch(
+			{ storage },
+			{ method: 'getSyncChunk', params: [{}], id: 22, identity: IDENTITY },
+		)) as { result: { provenTxs: { rawTx: unknown }[] } }
+		expect(Array.isArray(res.result.provenTxs[0].rawTx)).toBe(true)
+	})
 })

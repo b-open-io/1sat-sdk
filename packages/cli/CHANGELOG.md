@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.125
+
+### Changed
+- Picks up wallet-server 0.0.59 (binary sync chunks, upstream auth middleware with 413 on oversized responses).
+
 ## 0.0.124
 
 ### Removed

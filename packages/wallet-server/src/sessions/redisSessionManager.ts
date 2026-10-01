@@ -159,12 +159,25 @@ export interface SessionStoreConfig {
  * BRC-104 auth middleware with optional Redis-shared sessions. Without a
  * store config this is exactly `createAuthMiddleware({ wallet })`.
  */
+/**
+ * Response bound matches the toolbox StorageServer default (8 MiB); larger
+ * responses become 413, which toolbox clients answer with smaller sync pages.
+ * Requests stay up to the SDK's 16 MiB authenticated-message limit.
+ */
+const AUTH_TRANSPORT_LIMITS = {
+	maxResponseBytes: 8 * 1024 * 1024,
+	maxRequestBytes: 16 * 1024 * 1024,
+}
+
 export function buildAuthMiddleware(
 	wallet: WalletInterface,
 	sessionStore?: SessionStoreConfig,
 ): RequestHandler {
 	if (!sessionStore) {
-		return createAuthMiddleware({ wallet }) as RequestHandler
+		return createAuthMiddleware({
+			wallet,
+			transportLimits: AUTH_TRANSPORT_LIMITS,
+		}) as RequestHandler
 	}
 	const sessions = new RedisSessionManager(
 		createSessionRedis(sessionStore.redisUrl),
@@ -174,6 +187,7 @@ export function buildAuthMiddleware(
 		createAuthMiddleware({
 			wallet,
 			sessionManager: sessions,
+			transportLimits: AUTH_TRANSPORT_LIMITS,
 		}) as RequestHandler,
 		sessions,
 	) as RequestHandler

@@ -1,6 +1,11 @@
-import { stringifyJsonRpc } from '@bsv/wallet-toolbox-client'
-import { BINARY_ENCODING, BINARY_ENCODING_HEADER } from './binaryEncoding.js'
 import { dispatch } from './dispatch.js'
+import {
+	BINARY_ENCODING,
+	BINARY_ENCODING_HEADER,
+	BINARY_REQUEST_ENCODING_HEADER,
+	decodeBinaryJsonValue,
+	stringifyJsonRpc,
+} from './toolboxRemoting.js'
 import type {
 	JsonRpcRequest,
 	JsonRpcResponse,
@@ -26,6 +31,14 @@ export function createWalletRpcHandler(
 		const body = await parseBody(req)
 		if (!body.ok) {
 			return invalidRequest(body.id, useBinary)
+		}
+		if (
+			req.headers.get(BINARY_REQUEST_ENCODING_HEADER) === BINARY_ENCODING &&
+			body.request.params
+		) {
+			body.request.params = decodeBinaryJsonValue(
+				body.request.params,
+			) as unknown[]
 		}
 
 		let identity: Awaited<ReturnType<typeof config.resolveIdentity>>
@@ -58,6 +71,7 @@ export function createWalletRpcHandler(
 				params: body.request.params ?? [],
 				id: body.request.id ?? null,
 				identity,
+				binaryResponse: useBinary,
 			},
 		)
 

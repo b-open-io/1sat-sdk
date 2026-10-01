@@ -1,6 +1,4 @@
-import { createRequire } from 'node:module'
 import type {
-	TableProvenTx,
 	StorageProvider as ToolboxStorage,
 	sdk,
 } from '@bsv/wallet-toolbox'
@@ -11,6 +9,11 @@ import {
 	WalletError,
 } from '@bsv/wallet-toolbox/out/src/sdk'
 import { enforceRpcBudgets } from './rpcBudgets.js'
+import {
+	syncChunkBinary,
+	validateSyncChunkEntities,
+	validateSyncProofs,
+} from './toolboxRemoting.js'
 import type {
 	JsonRpcResponse,
 	MakeWalletLogger,
@@ -30,21 +33,6 @@ export interface DispatchContext {
 	onError?: (err: unknown, method: string) => void
 }
 
-// The toolbox's RPC-side sync validators are not re-exported from its entry
-// points; its exports map serves ./out/src/* to require() only.
-const toolboxRequire = createRequire(import.meta.url)
-const { validateSyncChunkEntities } = toolboxRequire(
-	'@bsv/wallet-toolbox/out/src/storage/remoting/entityValidationHelpers',
-) as { validateSyncChunkEntities: (chunk: sdk.SyncChunk) => sdk.SyncChunk }
-const { validateSyncProofs } = toolboxRequire(
-	'@bsv/wallet-toolbox/out/src/storage/remoting/validateRpcSyncProofs',
-) as {
-	validateSyncProofs: (
-		storage: ToolboxStorage,
-		candidates: TableProvenTx[],
-	) => Promise<void>
-}
-
 /** dbtype values a toolbox client accepts in remote settings. */
 const CLIENT_DBTYPES: ReadonlySet<string> = new Set([
 	'SQLite',
@@ -57,6 +45,8 @@ export interface DispatchInput {
 	params: unknown[]
 	id: string | number | null
 	identity: ResolvedIdentity
+	/** The caller accepts base64-tagged binary (X-BSV-Binary-Encoding). */
+	binaryResponse?: boolean
 }
 
 /**
@@ -223,6 +213,9 @@ export async function dispatch(
 			let result = await storage[target](...preparedParams)
 			if (method === 'makeAvailable' || method === 'getSettings') {
 				result = settingsForWire(result as Record<string, unknown>, storage)
+			}
+			if (method === 'getSyncChunk' && input.binaryResponse && result) {
+				result = syncChunkBinary(result as sdk.SyncChunk)
 			}
 			attachLoggerTail(logger, result)
 			return { jsonrpc: '2.0', result: result ?? null, id }
