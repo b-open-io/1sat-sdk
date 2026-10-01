@@ -463,8 +463,8 @@ window() {
 
 	say "8/9 nginx: wallet.1sat.app -> wallet-storage (operator)"
 	echo "Until this is done wallet.1sat.app storage calls reach wallet-host, which no longer serves them."
-	echo "Apply the change from the runbook (\"nginx\" section) in another shell, then:"
-	echo "  sudo nginx -t && sudo systemctl reload nginx"
+	echo "In another shell on this host:"
+	echo "  sudo ~/pm2/storageknex/nginx-wallet-storage.sh"
 	confirm "nginx reloaded with the change?"
 
 	say "9/9 Checks"

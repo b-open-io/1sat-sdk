@@ -125,7 +125,7 @@ server {
 
 `X-Forwarded-For $proxy_add_x_forwarded_for` must stay on the `wallet_storage` location (rate limits
 key on it). `client_max_body_size` must stay at least 8m (StorageServer's JSON and binary body
-limits). Apply with `sudo nginx -t && sudo systemctl reload nginx` when step 8 of the window asks.
+limits). When step 8 of the window asks, run `sudo ~/pm2/storageknex/nginx-wallet-storage.sh` (`2026-10-01-storageknex-nginx.sh`): it saves the current file, makes this change, runs `nginx -t` (restoring the file if it fails) and reloads. `... rollback` restores the saved file and reloads.
 
 ## preflight (read-only, safe any time)
 
