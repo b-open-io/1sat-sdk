@@ -12,6 +12,7 @@ import {
 	parseBsv21Amount,
 	scanAddress,
 } from './scan.js'
+import type { ScanResult } from './types.js'
 
 function out(
 	partial: Partial<IndexedOutput> & Pick<IndexedOutput, 'outpoint'>,
@@ -289,6 +290,70 @@ describe('listed BSV-21 batches', () => {
 			[listed],
 			[unlisted],
 		])
+	})
+})
+
+describe('BSV-21 overlay status', () => {
+	const tokenId = `${'a'.repeat(64)}_0`
+	const outputs = [
+		out({
+			outpoint: `${'b'.repeat(64)}.0`,
+			satoshis: 1,
+			events: [`bsv21:${tokenId}`],
+			data: { bsv21: { amt: '40' } },
+		}),
+		out({
+			outpoint: `${'c'.repeat(64)}.0`,
+			satoshis: 1,
+			events: [`bsv21:${tokenId}`],
+			data: { bsv21: { amt: '2' } },
+		}),
+	]
+
+	async function scanWithValidation(
+		validated: IndexedOutput[],
+	): Promise<ScanResult['bsv21Tokens'][number]> {
+		const server = Bun.serve({
+			port: 0,
+			fetch(request) {
+				const url = new URL(request.url)
+				if (url.pathname.endsWith('/txos')) {
+					return new Response('event: done\ndata: {}\n\n')
+				}
+				if (url.pathname.endsWith('/search')) return Response.json(outputs)
+				if (url.pathname.endsWith('/tokens')) {
+					return Response.json([
+						{
+							tokenId,
+							token: { sym: 'TEST', dec: '0' },
+							status: { is_active: true },
+						},
+					])
+				}
+				if (url.pathname.endsWith('/outputs')) return Response.json(validated)
+				return Response.json([])
+			},
+		})
+		const services = new OneSatServices('main', server.url.origin)
+		try {
+			const result = await scanAddress(services, 'owner')
+			return result.bsv21Tokens[0]
+		} finally {
+			services.close()
+			server.stop(true)
+		}
+	}
+
+	it('keeps all inscription amounts when the overlay returns only a partial result', async () => {
+		const token = await scanWithValidation([outputs[0]])
+		expect(token?.outputs).toHaveLength(2)
+		expect(token?.totalAmount).toBe(42n)
+		expect(token?.validationStatus).toBe('unconfirmed')
+	})
+
+	it('reports confirmed only when every output is validated', async () => {
+		const token = await scanWithValidation(outputs)
+		expect(token?.validationStatus).toBe('confirmed')
 	})
 })
 
