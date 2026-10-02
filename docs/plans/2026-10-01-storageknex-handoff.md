@@ -42,7 +42,13 @@ Single source of truth for wrapping up. Work through "Remaining" in order.
 
 Storage reconcile (Repair Sync), per-account `dataVersion` + IndexedDB legacy-basket refile, xdelta3 Vite stub, toolbox-client alias (currently bopen.1 — must move to `2.14.5` via new `@1sat/*` releases), reconcile push pages 100 items / 1 MB.
 
-## Remaining, in order
+## Status (2026-10-02)
+
+Done: 1sat-sdk released (`@1sat/cli` 0.0.127, `@bopen-io/wallet-toolbox(-client)` 2.14.5); deployed to ovh-n0001 (`wallet-storage` ×4 on 8110, `wallet-host` ×1, nginx sends all of wallet.1sat.app to `wallet-storage`); accounts.1sat.app → `wallet-host`; yours-wallet committed to main (5a33677, not published); 83 April proofs with index 0 corrected on the server (backup table `proven_txs_index_fix_20261002`). Sep 30 snapshot vs production: no output lost or misfiled; 27,790 outputs of never-mined failed transactions were set unspendable by the toolbox `reviewStatus` (correct).
+
+Open: get #719 merged, then move aliases to upstream; yours-wallet release; three unmapped legacy baskets (`p 1sat bsv21-auth`, `p 1sat bsv21-deploy-funding`, `p 1sat hosting`: 18 spendable outputs, ~5,800 sats, ≤5 wallets); pg "client.query() already executing" deprecation warning from a StorageKnex path; 12 small change outputs (885 sats, user 1605) marked unspendable but unspent per the indexer.
+
+## Remaining, in order (original plan)
 
 1. User reviews 1sat-sdk uncommitted changes in the editor.
 2. Commit; release `@1sat/*` per `.claude/skills/sdk-publish` + npm-publish skill (npm login as `dcasegr`; open auth URLs in Chrome via `open`, NOT Safari).
