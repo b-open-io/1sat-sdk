@@ -510,7 +510,9 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 					return { error: 'services-required' }
 				}
 				try {
-					tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId)
+					tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId, {
+						fresh: true,
+					})
 				} catch (e) {
 					console.error('[sendBsv21] getTokenDetails failed:', e)
 					return { error: 'token-not-found' }
@@ -521,7 +523,9 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 			} else if (ctx.services?.bsv21) {
 				// Best-effort meta/fees only — never gate the send.
 				try {
-					tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId)
+					tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId, {
+						fresh: true,
+					})
 				} catch {
 					tokenDetails = undefined
 				}
@@ -878,7 +882,9 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 				return { error: 'listing-not-found-in-overlay' }
 			}
 
-			const tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId)
+			const tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId, {
+				fresh: true,
+			})
 
 			const beef = await ctx.services.getBeefForTxid(txid)
 			const listingBeefTx = beef.findTxid(txid)
@@ -1485,7 +1491,9 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 			}
 
 			// Look up the token's metadata for tag enrichment.
-			const tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId)
+			const tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId, {
+				fresh: true,
+			})
 			if (!tokenDetails.status.is_active) {
 				return { error: 'token-not-active' }
 			}
@@ -1799,7 +1807,9 @@ export const cancelTokenListing: Action<
 			]
 			if (isBsv21Transfer(token)) {
 				if (!ctx.services?.bsv21) return { error: 'services-required' }
-				const details = await ctx.services.bsv21.getTokenDetails(token.id)
+				const details = await ctx.services.bsv21.getTokenDetails(token.id, {
+					fresh: true,
+				})
 				if (!details.status.is_active) return { error: 'token-not-active' }
 				const feePerOutput = details.status.fee_per_output
 				const feeAddress = details.status.fee_address

@@ -320,6 +320,13 @@ export interface TokenStatus {
 }
 
 /**
+ * BSV21 token overlay backlog from GET /bsv21/:tokenId/queue
+ */
+export interface TokenQueueResponse {
+	queue_depth: number
+}
+
+/**
  * BSV21 output data from overlay API
  */
 export interface Bsv21OutputData {

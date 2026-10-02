@@ -664,7 +664,9 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 				return { error: 'mixed-token-ids' }
 			}
 
-			const tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId)
+			const tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId, {
+				fresh: true,
+			})
 			const { fee_address, fee_per_output } = tokenDetails.status
 
 			let inputsToSpend = inputs

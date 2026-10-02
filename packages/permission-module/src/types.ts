@@ -96,7 +96,7 @@ export interface VerificationServices {
 		getOrigin?(name: string): Promise<{ name: string; outpoint: string } | null>
 	}
 	bsv21?: {
-		getTokenDetails?(tokenId: string): Promise<{
+		getTokenDetails?(tokenId: string, options?: { fresh?: boolean }): Promise<{
 			token?: {
 				sym?: string
 				dec?: string | number

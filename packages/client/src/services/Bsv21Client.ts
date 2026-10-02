@@ -3,6 +3,7 @@ import type {
 	ClientOptions,
 	IndexedOutput,
 	TokenDetailResponse,
+	TokenQueueResponse,
 } from '@1sat/types'
 import { BaseClient } from './BaseClient.js'
 
@@ -33,6 +34,7 @@ export interface OutputQueryOptions {
  * - GET /tokens - List tokens
  * - POST /tokens - Lookup tokens (bulk)
  * - GET /:tokenId - Get token details
+ * - GET /:tokenId/queue - Get queue depth
  * - GET /:tokenId/tx/:txid - Get transaction
  * - POST /:tokenId/outputs - Validate outpoints (bulk)
  * - GET /:tokenId/outputs/:outpoint - Validate outpoint
@@ -65,15 +67,29 @@ export class Bsv21Client extends BaseClient {
 
 	/**
 	 * Get token details with funding status.
-	 * Results are cached since token deploy data is immutable.
+	 * Results are cached for the deploy data, which is immutable. The cached
+	 * status goes stale, so callers that act on it pass `fresh: true`, which
+	 * fetches and refreshes the cache.
 	 */
-	async getTokenDetails(tokenId: string): Promise<TokenDetailResponse> {
-		const cached = this.cache.get(tokenId)
+	async getTokenDetails(
+		tokenId: string,
+		options: { fresh?: boolean } = {},
+	): Promise<TokenDetailResponse> {
+		const cached = options.fresh ? undefined : this.cache.get(tokenId)
 		if (cached) return cached
 
 		const details = await this.request<TokenDetailResponse>(`/${tokenId}`)
 		this.cache.set(tokenId, details)
 		return details
+	}
+
+	/**
+	 * Get the number of outputs waiting in the token's overlay queue. The
+	 * server scans the queue to count it, so call this only when the backlog
+	 * matters, e.g. to size funding for an inactive token.
+	 */
+	async getQueue(tokenId: string): Promise<TokenQueueResponse> {
+		return this.request<TokenQueueResponse>(`/${tokenId}/queue`)
 	}
 
 	/**

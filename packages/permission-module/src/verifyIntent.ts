@@ -143,7 +143,7 @@ async function verifyBsv21(
 	const bsv21 = services.bsv21
 	if (typeof bsv21?.getTokenDetails !== 'function') return { state: 'unverified' }
 
-	const res = await withTimeout(bsv21.getTokenDetails(tokenId))
+	const res = await withTimeout(bsv21.getTokenDetails(tokenId, { fresh: true }))
 	if (!res) return { state: 'unverified' }
 
 	if (res.status?.is_active === false) {
