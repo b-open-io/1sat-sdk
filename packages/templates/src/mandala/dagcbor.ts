@@ -24,7 +24,7 @@ const utf8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true })
 /**
  * Encode a map of text keys to DAG-CBOR. Keys are sorted length-first then
  * bytewise (the DAG-CBOR order); integers and lengths are minimal; all lengths
- * are definite. Values are limited to what the 1Color display fields need:
+ * are definite. Values are limited to what the Mandala display fields need:
  * text, unsigned integers and byte strings.
  */
 export function encodeDagCborMap(
