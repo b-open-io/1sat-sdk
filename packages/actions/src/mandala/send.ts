@@ -2,6 +2,11 @@
  * Mandala (BRC-162) send.
  *
  * Destinations:
+ * - `{ handle }` — a BRC-169 handle (`@handle@domain` / `handle@domain`),
+ *   resolved with `resolveHandle`. A peer send like the next one, delivered
+ *   as a §7.3 DAG-CBOR envelope (payment + BRC-78 encrypted note, signed per
+ *   §7.2) to the resolved messagebox's `payment_inbox`, in the BRC-231
+ *   binary encoding over BRC-104.
  * - `{ identityKey, messagebox }` — a peer send. The recipient key is derived
  *   BRC-42 under {@link MANDALA_PROTOCOL}; the transaction is NOT broadcast
  *   (BRC-169 §6.1: the recipient broadcasts on internalization). It travels
@@ -24,7 +29,11 @@
  * and `tx` so the caller can retry delivery or abort.
  */
 
-import { OverlayClient } from '@1sat/client'
+import {
+	type HandleResolution,
+	OverlayClient,
+	resolveHandle,
+} from '@1sat/client'
 import { Mandala } from '@1sat/templates'
 import {
 	MANDALA_PROTOCOL,
@@ -36,6 +45,7 @@ import { MessageBoxClient } from '@bsv/message-box-client'
 import {
 	Beef,
 	type CreateActionOutput,
+	Hash,
 	type LockingScript,
 	P2PKH,
 	PublicKey,
@@ -45,9 +55,16 @@ import {
 import type { Action, OneSatContext } from '../types.js'
 import { executeTrackedAction } from '../utils/createTrackedAction.js'
 import { resolveDestination } from '../utils/resolveDestination.js'
+import { encryptBrc78 } from './brc78.js'
+import { signEnvelope } from './envelope.js'
+import { sendCborMessage } from './relay.js'
 
 /** Where a Mandala send goes: exactly one of these shapes. */
 export type MandalaDestination =
+	| {
+			/** BRC-169 handle: `@handle@domain` or `handle@domain` */
+			handle: string
+	  }
 	| {
 			/** Recipient identity key (66-char compressed hex) */
 			identityKey: string
@@ -91,10 +108,11 @@ export interface SendMandalaResult {
 	/** Atomic BEEF of the send */
 	tx?: number[]
 	/**
+	 * `envelope`: BRC-169 envelope to the handle's messagebox, not broadcast;
 	 * `message`: BRC-33 to the messagebox, not broadcast; `broadcast`: by the
 	 * wallet; `overlay`: submitted to the given overlay, not broadcast by the wallet
 	 */
-	delivered?: 'message' | 'broadcast' | 'overlay'
+	delivered?: 'envelope' | 'message' | 'broadcast' | 'overlay'
 	/** Messagebox message id (peer sends) */
 	messageId?: string
 	error?: string
@@ -150,6 +168,7 @@ function tokenAmount(
 async function recipientLock(
 	ctx: OneSatContext,
 	destination: MandalaDestination,
+	recipientKey: string | undefined,
 ): Promise<{
 	lockingScript: LockingScript
 	derivationPrefix?: string
@@ -158,12 +177,13 @@ async function recipientLock(
 	if ('address' in destination) {
 		return { lockingScript: new P2PKH().lock(destination.address) }
 	}
+	if (!recipientKey) throw new Error('no recipient identity key')
 	const derivationPrefix = randomBase64()
 	const derivationSuffix = randomBase64()
 	const { publicKey } = await ctx.wallet.getPublicKey({
 		protocolID: MANDALA_PROTOCOL,
 		keyID: `${derivationPrefix} ${derivationSuffix}`,
-		counterparty: destination.identityKey,
+		counterparty: recipientKey,
 	})
 	return {
 		lockingScript: new P2PKH().lock(
@@ -172,6 +192,64 @@ async function recipientLock(
 		derivationPrefix,
 		derivationSuffix,
 	}
+}
+
+/**
+ * Build, sign and send the BRC-169 §7.3 envelope for a handle send. `content`
+ * is a BRC-78 encrypted JSON note `{ tokenId, amount }`; `contentHash` is the
+ * SHA-256 of that plaintext.
+ */
+async function deliverEnvelope(
+	ctx: OneSatContext,
+	resolution: HandleResolution,
+	p: {
+		senderIdentityKey: string
+		derivationPrefix: string
+		derivationSuffix: string
+		tx: number[]
+		tokenId: string
+		amount: bigint
+	},
+): Promise<{ messageId: string }> {
+	const plaintext = Utils.toArray(
+		JSON.stringify({ tokenId: p.tokenId, amount: p.amount.toString() }),
+		'utf8',
+	)
+	const content = await encryptBrc78(
+		ctx.wallet,
+		plaintext,
+		resolution.identityKey,
+	)
+	const bytes = (a: number[]) => Uint8Array.from(a)
+	const { envelope } = await signEnvelope(
+		ctx.wallet,
+		{
+			metanetHandles: '1.0',
+			recipient: {
+				handle: resolution.handle,
+				tag: resolution.tag,
+				domain: resolution.domain,
+			},
+			sender: { identityKey: bytes(Utils.toArray(p.senderIdentityKey, 'hex')) },
+			created: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+			payment: {
+				derivationPrefix: bytes(Utils.toArray(p.derivationPrefix, 'base64')),
+				derivationSuffix: bytes(Utils.toArray(p.derivationSuffix, 'base64')),
+				protocol: bytes(Utils.toArray(MANDALA_PROTOCOL[1], 'utf8')),
+				satoshis: 1,
+				beef: bytes(p.tx),
+			},
+			contentHash: bytes(Hash.sha256(plaintext)),
+		},
+		bytes(content),
+	)
+	return sendCborMessage(
+		ctx.wallet,
+		resolution.messagebox,
+		resolution.identityKey,
+		PAYMENT_INBOX,
+		envelope,
+	)
 }
 
 export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
@@ -194,7 +272,7 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 				destination: {
 					type: 'object',
 					description:
-						'Exactly one of { identityKey, messagebox } or { address }',
+						'Exactly one of { handle } (BRC-169), { identityKey, messagebox } or { address }',
 				},
 				overlay: {
 					type: 'string',
@@ -220,6 +298,15 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 			const overlay = peer ? undefined : input.overlay
 			const basket = mandalaTokenBasket(tokenId)
 
+			// Handle: resolve first; the recipient key is derived from it.
+			const resolution =
+				'handle' in destination
+					? await resolveHandle(destination.handle)
+					: undefined
+			const recipientKey =
+				resolution?.identityKey ??
+				('identityKey' in destination ? destination.identityKey : undefined)
+
 			const listed = await ctx.wallet.listOutputs({
 				basket,
 				include: 'entire transactions',
@@ -242,7 +329,7 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 			if (totalIn < amount) return { error: 'insufficient-tokens' }
 
 			const idBytes = Mandala.idFromString(`${tokenId}_0`)
-			const recipient = await recipientLock(ctx, destination)
+			const recipient = await recipientLock(ctx, destination, recipientKey)
 			const outputs: CreateActionOutput[] = [
 				{
 					lockingScript: Mandala.value(idBytes, amount, {
@@ -336,31 +423,46 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 			const { publicKey: senderIdentityKey } = await ctx.wallet.getPublicKey({
 				identityKey: true,
 			})
-			const body: MandalaPaymentMessage = {
-				customInstructions: {
-					derivationPrefix: recipient.derivationPrefix!,
-					derivationSuffix: recipient.derivationSuffix!,
-					protocol: MANDALA_PROTOCOL[1],
-				},
-				transaction: result.tx,
-				outputIndex: 0,
-				amount: 1,
-				senderIdentityKey,
-			}
-			const client = new MessageBoxClient({
-				walletClient: ctx.wallet,
-				host: destination.messagebox,
-			})
+			const derivationPrefix = recipient.derivationPrefix!
+			const derivationSuffix = recipient.derivationSuffix!
 			let sent: { messageId: string }
 			try {
-				sent = await client.sendMessage(
-					{
-						recipient: destination.identityKey,
-						messageBox: PAYMENT_INBOX,
-						body,
-					},
-					destination.messagebox,
-				)
+				if (resolution) {
+					sent = await deliverEnvelope(ctx, resolution, {
+						senderIdentityKey,
+						derivationPrefix,
+						derivationSuffix,
+						tx: result.tx,
+						tokenId,
+						amount,
+					})
+				} else if ('identityKey' in destination) {
+					const body: MandalaPaymentMessage = {
+						customInstructions: {
+							derivationPrefix,
+							derivationSuffix,
+							protocol: MANDALA_PROTOCOL[1],
+						},
+						transaction: result.tx,
+						outputIndex: 0,
+						amount: 1,
+						senderIdentityKey,
+					}
+					const client = new MessageBoxClient({
+						walletClient: ctx.wallet,
+						host: destination.messagebox,
+					})
+					sent = await client.sendMessage(
+						{
+							recipient: destination.identityKey,
+							messageBox: PAYMENT_INBOX,
+							body,
+						},
+						destination.messagebox,
+					)
+				} else {
+					return { error: 'unsupported-destination' }
+				}
 			} catch (error) {
 				// The send exists as a noSend action: return it so the caller can
 				// retry delivery or abortAction it.
@@ -373,7 +475,7 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 			return {
 				txid: result.txid,
 				tx: result.tx,
-				delivered: 'message',
+				delivered: resolution ? 'envelope' : 'message',
 				messageId: sent.messageId,
 			}
 		} catch (error) {

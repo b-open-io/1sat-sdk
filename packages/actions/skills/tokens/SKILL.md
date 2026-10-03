@@ -136,6 +136,15 @@ const peer = await sendMandala.execute(ctx, {
 })
 // peer.delivered === 'message', peer.messageId, peer.tx (Atomic BEEF)
 
+// BRC-169 handle: resolved via https://<domain>/manifest.json, then the
+// same peer send delivered as a signed BRC-169 envelope (DAG-CBOR).
+await sendMandala.execute(ctx, {
+  tokenId: '<deploy txid>',
+  amount: '1000',
+  destination: { handle: '@alice@example.com' },
+})
+// delivered === 'envelope'
+
 // Address: broadcast by the wallet.
 await sendMandala.execute(ctx, {
   tokenId: '<deploy txid>',
@@ -166,8 +175,11 @@ await sendMandala.execute(ctx, {
 - The message body is the PeerPay shape plus `protocol`, `outputIndex` and
   `senderIdentityKey`:
   `{ customInstructions: { derivationPrefix, derivationSuffix, protocol: 'mandala' }, transaction, outputIndex, amount: 1, senderIdentityKey }`.
-- BRC-169 handle destinations are not wired yet. `resolveHandle`
-  (`@1sat/client`) and `signEnvelope` (§7.3 DAG-CBOR envelope) exist for them.
+- Handle sends post a BRC-169 §7.3 envelope (DAG-CBOR, BRC-231 body over
+  BRC-104) to the resolved messagebox's `payment_inbox`. It carries
+  `payment: { derivationPrefix, derivationSuffix, protocol: 'mandala', satoshis: 1, beef }`,
+  a BRC-78 encrypted note `{ tokenId, amount }` as `content` (encrypted by
+  `wallet.encrypt`), its SHA-256 as `contentHash`, and a §7.2 signature.
 
 ## Requirements
 

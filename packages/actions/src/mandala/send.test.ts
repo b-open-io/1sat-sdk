@@ -4,6 +4,8 @@ import { MANDALA_PROTOCOL } from '@1sat/types'
 import {
 	Beef,
 	type CreateActionArgs,
+	EncryptedMessage,
+	Hash,
 	LockingScript,
 	MerklePath,
 	P2PKH,
@@ -13,8 +15,10 @@ import {
 	type SignActionArgs,
 	Transaction,
 	UnlockingScript,
+	Utils,
 	type WalletInterface,
 } from '@bsv/sdk'
+import { decode as dagCborDecode } from '@ipld/dag-cbor'
 
 // Messagebox fake: records sends instead of touching the network.
 const sent: Array<{ host?: string; message: Record<string, unknown> }> = []
@@ -31,7 +35,32 @@ mock.module('@bsv/message-box-client', () => ({
 	},
 }))
 
+// BRC-231 relay fake: records CBOR sends instead of AuthFetch.
+const relayed: Array<{
+	messagebox: string
+	recipient: string
+	messageBox: string
+	body: Uint8Array
+}> = []
+mock.module('./relay.js', () => ({
+	sendCborMessage: async (
+		_wallet: unknown,
+		messagebox: string,
+		recipient: string,
+		messageBox: string,
+		body: Uint8Array,
+	) => {
+		relayed.push({ messagebox, recipient, messageBox, body })
+		return { status: 'success', messageId: 'env-1' }
+	},
+}))
+
 const { sendMandala } = await import('./send.js')
+const {
+	envelopeSigningPreimage,
+	ENVELOPE_SIGNATURE_PROTOCOL,
+	ENVELOPE_SIGNATURE_KEY_ID,
+} = await import('./envelope.js')
 const { createContext } = await import('../types.js')
 
 const TOKEN_ID = 'ab'.repeat(32)
@@ -146,6 +175,7 @@ async function fakeWallet(): Promise<{
 
 beforeEach(() => {
 	sent.length = 0
+	relayed.length = 0
 })
 
 describe('sendMandala', () => {
@@ -225,6 +255,130 @@ describe('sendMandala', () => {
 		)
 		// The token input was unlocked by the pipeline (P2PKH under the prefix).
 		expect(rec.signArgs[0].spends[0].unlockingScript.length).toBeGreaterThan(0)
+	})
+
+	test('handle: resolves, sends a signed §7.3 envelope with BRC-78 content to payment_inbox', async () => {
+		const { wallet, rec } = await fakeWallet()
+		const realFetch = globalThis.fetch
+		const fetched: string[] = []
+		globalThis.fetch = (async (url: RequestInfo | URL) => {
+			fetched.push(String(url))
+			if (String(url) === 'https://lkup.net/manifest.json') {
+				return new Response(
+					JSON.stringify({ metanet: { handles: { version: '1.0' } } }),
+				)
+			}
+			return new Response(
+				JSON.stringify({
+					metanetHandles: '1.0',
+					handle: 'deggen',
+					domain: 'lkup.net',
+					identityKey: RECIPIENT_ID,
+					certificate: { subject: RECIPIENT_ID },
+					messagebox: 'https://messagebox.lkup.net',
+					ttl: 3600,
+					revoked: false,
+				}),
+			)
+		}) as typeof fetch
+		let res: Awaited<ReturnType<typeof sendMandala.execute>>
+		try {
+			res = await sendMandala.execute(createContext(wallet), {
+				tokenId: TOKEN_ID,
+				amount: '60',
+				destination: { handle: '@deggen+conf@lkup.net' },
+			})
+		} finally {
+			globalThis.fetch = realFetch
+		}
+		expect(res.error).toBeUndefined()
+		expect(res.delivered).toBe('envelope')
+		expect(res.messageId).toBe('env-1')
+		expect(fetched[1]).toBe(
+			'https://lkup.net/.well-known/metanet-handles/resolve?handle=deggen',
+		)
+
+		// Same peer-send rules as identityKey + messagebox.
+		const args = rec.createArgs[0]
+		expect(args.options?.noSend).toBe(true)
+		expect(args.labels).toEqual([
+			'mandala',
+			`mandala:${TOKEN_ID}`,
+			'p nosend expiry seconds 604800',
+		])
+
+		// Posted to the resolved messagebox, payment_inbox, for the identity key.
+		expect(sent).toHaveLength(0)
+		expect(relayed).toHaveLength(1)
+		expect(relayed[0].messagebox).toBe('https://messagebox.lkup.net')
+		expect(relayed[0].recipient).toBe(RECIPIENT_ID)
+		expect(relayed[0].messageBox).toBe('payment_inbox')
+
+		const env = dagCborDecode(relayed[0].body) as {
+			metanetHandles: string
+			recipient: { handle: string; tag?: string; domain: string }
+			sender: { identityKey: Uint8Array }
+			payment: {
+				derivationPrefix: Uint8Array
+				derivationSuffix: Uint8Array
+				protocol: Uint8Array
+				satoshis: number
+				beef: Uint8Array
+			}
+			contentHash: Uint8Array
+			content: Uint8Array
+			signature: Uint8Array
+		}
+		expect(env.metanetHandles).toBe('1.0')
+		expect(env.recipient).toEqual({
+			handle: 'deggen',
+			tag: 'conf',
+			domain: 'lkup.net',
+		})
+		const senderHex = Utils.toHex(Array.from(env.sender.identityKey))
+		expect(senderHex).toBe(SENDER.toPublicKey().toString())
+		expect(Utils.toUTF8(Array.from(env.payment.protocol))).toBe('mandala')
+		expect(env.payment.satoshis).toBe(1)
+		expect(Array.from(env.payment.beef)).toEqual(res.tx!)
+
+		// content: BRC-78, decrypts with @bsv/sdk using the recipient's raw key.
+		const plaintext = EncryptedMessage.decrypt(
+			Array.from(env.content),
+			RECIPIENT,
+		)
+		expect(JSON.parse(Utils.toUTF8(plaintext))).toEqual({
+			tokenId: TOKEN_ID,
+			amount: '60',
+		})
+		expect(Array.from(env.contentHash)).toEqual(Hash.sha256(plaintext))
+
+		// signature: §7.2 item 3, verifiable from sender.identityKey alone.
+		const { content: _c, signature, ...unsigned } = env
+		const { valid } = await new ProtoWallet('anyone').verifySignature({
+			data: Array.from(
+				envelopeSigningPreimage(
+					unsigned as unknown as Parameters<typeof envelopeSigningPreimage>[0],
+				),
+			),
+			signature: Array.from(signature),
+			protocolID: ENVELOPE_SIGNATURE_PROTOCOL,
+			keyID: ENVELOPE_SIGNATURE_KEY_ID,
+			counterparty: senderHex,
+		})
+		expect(valid).toBe(true)
+
+		// The recipient derives the token output's key from the envelope.
+		const keyID = `${Utils.toBase64(Array.from(env.payment.derivationPrefix))} ${Utils.toBase64(Array.from(env.payment.derivationSuffix))}`
+		const { publicKey } = await new ProtoWallet(RECIPIENT).getPublicKey({
+			protocolID: MANDALA_PROTOCOL,
+			keyID,
+			counterparty: senderHex,
+			forSelf: true,
+		})
+		const tx = Transaction.fromAtomicBEEF(Array.from(env.payment.beef))
+		expect(Mandala.decode(tx.outputs[0].lockingScript)?.lock.toHex()).toBe(
+			new P2PKH().lock(PublicKey.fromString(publicKey).toAddress()).toHex(),
+		)
 	})
 
 	test('address: broadcast, no noSend, no expiry label', async () => {
