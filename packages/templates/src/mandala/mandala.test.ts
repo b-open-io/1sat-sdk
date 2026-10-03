@@ -369,6 +369,47 @@ describe('Mandala payload', () => {
 		expect(d?.lock.toHex()).toBe(P2PKH_HEX)
 	})
 
+	it('no payload and an inner lock starting with <push> OP_DROP: explicit empty payload', () => {
+		// inner: <02> OP_DROP, then P2PKH
+		const inner = LockingScript.fromHex(`010275${P2PKH_HEX}`)
+		const t = Mandala.value(ID0, 17n, { lock: inner })
+		expect(t.prefix().toHex()).toBe(`20${hex(ID0_BYTES)}01116d0075`)
+		const d = Mandala.decode(t.lock())
+		expect(d?.payload).toEqual(new Uint8Array(0))
+		expect(d?.lock.toHex()).toBe(inner.toHex())
+	})
+
+	it('explicit empty payload for every push form before OP_DROP', () => {
+		for (const push of ['00', '4f', '51', '60', '0102', '4c01ff']) {
+			const inner = LockingScript.fromHex(`${push}75${P2PKH_HEX}`)
+			const t = Mandala.deployAuthority({ lock: inner })
+			expect(t.prefix().toHex()).toBe('00006d0075')
+			const d = Mandala.decode(t.lock())
+			expect(d?.payload).toEqual(new Uint8Array(0))
+			expect(d?.lock.toHex()).toBe(inner.toHex())
+		}
+	})
+
+	it('a given payload is written as-is before an inner <push> OP_DROP', () => {
+		const inner = LockingScript.fromHex(`010275${P2PKH_HEX}`)
+		const t = Mandala.value(ID0, 17n, {
+			lock: inner,
+			payload: Uint8Array.of(0xaa),
+		})
+		expect(t.prefix().toHex()).toBe(`20${hex(ID0_BYTES)}01116d01aa75`)
+		const d = Mandala.decode(t.lock())
+		expect(hex(d?.payload ?? [])).toBe('aa')
+		expect(d?.lock.toHex()).toBe(inner.toHex())
+	})
+
+	it('no payload and a P2PKH inner lock: no payload written', () => {
+		const t = Mandala.value(ID0, 17n, { lock: P2PKH_LOCK })
+		expect(t.prefix().toHex()).toBe(`20${hex(ID0_BYTES)}01116d`)
+		const d = Mandala.decode(t.lock())
+		expect(d?.payload).toBeUndefined()
+		expect(d?.lock.toHex()).toBe(P2PKH_HEX)
+	})
+
 	it('accepts a non-minimal payload push (matches the reference decoder)', () => {
 		const d = Mandala.decode(Script.fromHex(`00516d4c010275${P2PKH_HEX}`))
 		expect(hex(d?.payload ?? [])).toBe('02')

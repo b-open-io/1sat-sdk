@@ -165,6 +165,13 @@ function readPush(s: Uint8Array, pos: number): Push | null {
 	return { op, data: s.slice(at, at + len), next: at + len }
 }
 
+/** Whether a script begins with a push operation followed by OP_DROP */
+function startsWithPushDrop(script: Script): boolean {
+	const s = Uint8Array.from(script.toBinary())
+	const p = readPush(s, 0)
+	return p !== null && p.next < s.length && s[p.next] === OP_DROP
+}
+
 function amountOf(p: Push): bigint | null {
 	if (p.op === OP.OP_0) return 0n
 	if (p.op >= OP_1 && p.op <= OP_16) return BigInt(p.op - OP_1 + 1)
@@ -275,6 +282,11 @@ function metadataOf(map: Record<string, DagCborValue>): MandalaMetadata {
  * - **Payload** (optional): any single push followed by `OP_DROP`. On deploys a
  *   DAG-CBOR map may carry `sym`, `dec` and `icon`. The payload never affects
  *   balance or authority admission.
+ * - **Empty payload rule**: when no payload is given and the inner lock itself
+ *   begins with a push operation (`OP_0`, `OP_1NEGATE`, `OP_1`..`OP_16` or any
+ *   data push) followed by `OP_DROP`, the prefix carries an explicit empty
+ *   payload, `OP_0 OP_DROP`, so a decoder does not read the inner lock's first
+ *   push as the payload. With a payload given, nothing changes.
  *
  * Everything built here uses minimal pushes (MINIMALDATA): 0 → `OP_0`,
  * 1..16 → `OP_1`..`OP_16`, otherwise the shortest direct push.
@@ -513,7 +525,11 @@ export default class Mandala implements ScriptTemplate {
 		return this.idBytes ? outpointString(this.idBytes) : undefined
 	}
 
-	/** The prefix alone: id, amount, OP_2DROP and the payload push with OP_DROP */
+	/**
+	 * The prefix alone: id, amount, OP_2DROP and the payload push with OP_DROP.
+	 * With no payload, an inner lock that begins with `<push> OP_DROP` gets an
+	 * explicit empty payload (`OP_0 OP_DROP`) here.
+	 */
 	prefix(): Script {
 		const chunks: { op: number; data?: number[] }[] = []
 		chunks.push(
@@ -525,6 +541,10 @@ export default class Mandala implements ScriptTemplate {
 		chunks.push({ op: OP_2DROP })
 		if (this.payload !== undefined) {
 			chunks.push(pushChunk(Array.from(this.payload)))
+			chunks.push({ op: OP_DROP })
+		} else if (startsWithPushDrop(this.inner)) {
+			// Without this, a decoder would read the inner lock's first push as the payload
+			chunks.push({ op: OP.OP_0 })
 			chunks.push({ op: OP_DROP })
 		}
 		return new Script(chunks)
