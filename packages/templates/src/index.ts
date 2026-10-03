@@ -25,14 +25,6 @@ export {
 	OPNS_GENESIS_BYTES,
 } from './opns/opns.js'
 export type { OpNSData } from './opns/opns.js'
-export {
-	decodeOpnsProfile,
-	decodeOpnsRecord,
-	encodeOpnsProfile,
-	encodeOpnsRecord,
-	isOpnsDomain,
-} from './opns/record.js'
-export type { OpnsProfile, OpnsRecord } from './opns/record.js'
 export { default as Lock } from './lock/lock.js'
 export { default as Cosign } from './cosign/cosign.js'
 export type { CosignData } from './cosign/cosign.js'

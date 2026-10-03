@@ -313,6 +313,19 @@ export function validateSubTypeData(
 }
 
 // ============================================================================
+// Key/value PushDrop field codecs
+// ============================================================================
+
+export {
+	type Profile,
+	decodeProfile,
+	encodeProfile,
+	fieldPairs,
+	isHostname,
+	isIdentityKey,
+} from './fields.js'
+
+// ============================================================================
 // Key Derivation Utilities
 // ============================================================================
 

@@ -204,15 +204,15 @@ export const OPNS_REGISTER_COUNTERPARTY = 'anyone' as const
 export const OPNS_PUBLISHED_TAG = 'opns:published'
 
 /**
- * OpNS record pair keys. The name coin's PushDrop fields are key/value pairs
- * (`key, value, key, value, …, signature`); keys are UTF-8 text pushes and the
- * key names the value's encoding. Readers skip pairs whose key they do not
- * know, so future concerns append a pair rather than restate identity.
+ * Key/value PushDrop field keys. A PushDrop whose fields are pairs
+ * (`key, value, key, value, …, signature`) uses UTF-8 text keys; the key
+ * names the value's encoding (codecs in `@1sat/utils`). Readers skip keys
+ * they do not know. The OpNS publish (`registerOpns`) is one use.
  */
 /** Value: 33-byte compressed identity public key (raw bytes). */
-export const OPNS_RECORD_IDENTITY_KEY = 'identity'
-/** Value: DAG-CBOR map — see {@link OPNS_PROFILE_FIELD}. */
-export const OPNS_RECORD_PROFILE_KEY = 'profile'
+export const IDENTITY_FIELD = 'identity'
+/** Value: DAG-CBOR map — see {@link PROFILE_FIELDS}. */
+export const PROFILE_FIELD = 'profile'
 
 /**
  * Field names inside the `profile` DAG-CBOR map. PROVISIONAL — the names are
@@ -223,7 +223,7 @@ export const OPNS_RECORD_PROFILE_KEY = 'profile'
  * - `avatar` (optional): 36-byte outpoint of an image ordinal origin; absent
  *   when unset.
  */
-export const OPNS_PROFILE_FIELD = {
+export const PROFILE_FIELDS = {
 	domain: 'domain',
 	displayName: 'displayName',
 	avatar: 'avatar',

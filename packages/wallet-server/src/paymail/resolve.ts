@@ -3,13 +3,25 @@
  */
 
 import type { OneSatServices } from '@1sat/client'
-import { type OpnsRecord, decodeOpnsRecord } from '@1sat/templates'
-import { P1SAT_PROTOCOL, opnsRegisterKeyId } from '@1sat/types'
+import { outpointFromBytes } from '@1sat/templates'
+import {
+	IDENTITY_FIELD,
+	P1SAT_PROTOCOL,
+	PROFILE_FIELD,
+	opnsRegisterKeyId,
+} from '@1sat/types'
+import {
+	type Profile,
+	decodeProfile,
+	fieldPairs,
+	isIdentityKey,
+} from '@1sat/utils'
 import {
 	type LockingScript,
 	ProtoWallet,
 	PushDrop,
 	Transaction,
+	Utils,
 } from '@bsv/sdk'
 import type { ResolvedBind } from './types.js'
 
@@ -49,12 +61,38 @@ export async function resolvePaymailBind(
 }
 
 /**
- * Verify the OpNS record on a name coin and return the identity it binds.
+ * Read `identity` / `profile` from key/value PushDrop fields (signature
+ * removed). Unknown keys are skipped. Exactly one `identity` (33-byte
+ * compressed key) and at most one `profile` are allowed; anything else —
+ * including the pre-#83 positional bind — is "no bind".
+ */
+function readBindFields(fields: number[][]): {
+	identityKey: string
+	profile?: Profile
+} {
+	let identityKey: string | undefined
+	let profile: Profile | undefined
+	let sawProfile = false
+	for (const [key, value] of fieldPairs(fields)) {
+		if (key === IDENTITY_FIELD) {
+			if (identityKey !== undefined) throw new Error('duplicate identity')
+			if (!isIdentityKey(value)) throw new Error('identity is not a key')
+			identityKey = Utils.toHex(value)
+		} else if (key === PROFILE_FIELD) {
+			if (sawProfile) throw new Error('duplicate profile')
+			sawProfile = true
+			profile = decodeProfile(value)
+		}
+	}
+	if (identityKey === undefined) throw new Error('missing identity')
+	return { identityKey, ...(profile ? { profile } : {}) }
+}
+
+/**
+ * Verify the bind on a name coin and return the identity it names.
  *
- * The record is a signed PushDrop whose fields are key/value pairs
- * (`identity`, `profile`, …) followed by the field signature. Anything else —
- * including the pre-#83 positional bind `[pubkey, name?, avatar?, sig]` — is
- * "no bind" (clean break, no compat path).
+ * The lock is a signed PushDrop whose fields are key/value pairs
+ * (`identity`, `profile`, …) followed by the field signature.
  */
 export async function verifyPushDropBind(
 	tx: Transaction,
@@ -63,20 +101,20 @@ export async function verifyPushDropBind(
 ): Promise<Omit<ResolvedBind, 'outpoint'>> {
 	const decoded = PushDrop.decode(lockingScript)
 	if (decoded.fields.length < 3) {
-		throw new Error('no bind: not a signed OpNS record')
+		throw new Error('no bind: not a signed key/value PushDrop')
 	}
 
 	const fields = decoded.fields.map((f) => [...f])
 	const signature = fields.pop() as number[]
-	let record: OpnsRecord
+	let bind: ReturnType<typeof readBindFields>
 	try {
-		record = decodeOpnsRecord(fields)
+		bind = readBindFields(fields)
 	} catch (err) {
 		throw new Error(
 			`no bind: ${err instanceof Error ? err.message : String(err)}`,
 		)
 	}
-	const { identityKey, profile } = record
+	const { identityKey, profile } = bind
 
 	const input = tx.inputs[0]
 	const sourceTxid =
@@ -116,6 +154,8 @@ export async function verifyPushDropBind(
 		identityKey,
 		...(profile?.domain ? { domain: profile.domain } : {}),
 		...(profile?.displayName ? { profileName: profile.displayName } : {}),
-		...(profile?.avatar ? { avatarOrigin: profile.avatar } : {}),
+		...(profile?.avatar
+			? { avatarOrigin: outpointFromBytes(profile.avatar) ?? undefined }
+			: {}),
 	}
 }

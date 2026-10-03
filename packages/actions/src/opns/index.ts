@@ -6,19 +6,22 @@
  * Ingress (internalizeOpns / buyOpns) stamps full tags including id:.
  */
 
-import { Inscription, OpNS, OrdLockV2, encodeOpnsRecord } from '@1sat/templates'
+import { Inscription, OpNS, OrdLockV2, outpointToBytes } from '@1sat/templates'
 import {
+	IDENTITY_FIELD,
 	OPNS_BASKET,
 	OPNS_PUBLISHED_TAG,
 	OPNS_REGISTER_COUNTERPARTY,
 	OPNS_REGISTER_SIG_PLACEHOLDER_LEN,
 	ORDLOCK_V2_TAG,
 	P1SAT_PROTOCOL,
+	PROFILE_FIELD,
 	buildInputAssetLabel,
 	formatOrdinalOutpoint,
 	opnsRegisterKeyId,
 	readAssetIdTag,
 } from '@1sat/types'
+import { encodeProfile } from '@1sat/utils'
 import {
 	type BEEF,
 	type CreateActionArgs,
@@ -26,6 +29,7 @@ import {
 	PublicKey,
 	PushDrop,
 	Transaction,
+	Utils,
 	type WalletCounterparty,
 	type WalletOutput,
 	type WalletProtocol,
@@ -71,7 +75,7 @@ export interface OpnsIdInput extends ActionOptions {
 	id: string
 }
 
-/** Inscription carried on the name coin alongside the record. */
+/** Inscription carried on the name coin after the PushDrop fields. */
 export interface OpnsInscription {
 	contentType: string
 	content: number[] | Uint8Array
@@ -84,14 +88,14 @@ export interface RegisterOpnsRequest extends OpnsIdInput {
 	 */
 	domain: string
 	/**
-	 * Display name in the record's `profile` (served by paymail
+	 * Display name in the `profile` field (served by paymail
 	 * public-profile). Presentation only — the OpNS name is the unique value.
 	 */
 	profileName?: string
 	/** Origin outpoint (`txid_vout`) of an on-chain image ordinal */
 	avatar?: string
 	/**
-	 * Optional inscription envelope appended after the record lock. ORDFS
+	 * Optional inscription envelope appended after the PushDrop lock. ORDFS
 	 * records it as a new rev of the name's origin (`/<origin>:-1`). The
 	 * action does not interpret the content type.
 	 */
@@ -341,10 +345,11 @@ export const internalizeOpns: Action<
 // ============================================================================
 
 /**
- * Publish an OpNS name: lock the name coin in a signed PushDrop whose fields
- * are the key/value record
- * `["identity", <identity key>, "profile", <dag-cbor {domain, displayName?, avatar?}>, <sig>]`
- * (see `docs/protocols/opns-paymail-bind.md`).
+ * Publish an OpNS name: lock the name coin in a signed PushDrop (the plain
+ * template) whose fields are key/value pairs
+ * `["identity", <identity key>, "profile", <dag-cbor {domain, displayName?, avatar?}>, <sig>]`.
+ * The field codecs are in `@1sat/utils`; this action owns the layout (see
+ * `docs/protocols/opns-paymail-bind.md`).
  *
  * With `inscription`, the output script is that PushDrop lock followed by a
  * standard 1-sat inscription envelope, so ORDFS serves the content as the
@@ -381,7 +386,7 @@ export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 		meta: {
 			name: 'registerOpns',
 			description:
-				'Bind BRC-100 identity key to an OpNS name via signed PushDrop record (identity + profile), optionally with an inscription',
+				'Bind BRC-100 identity key to an OpNS name via signed PushDrop identity + profile fields, optionally with an inscription',
 			category: 'opns',
 			inputSchema: {
 				type: 'object',
@@ -404,7 +409,7 @@ export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 					inscription: {
 						type: 'object',
 						description:
-							'Optional inscription appended after the record (any content type)',
+							'Optional inscription appended after the PushDrop (any content type)',
 						properties: {
 							contentType: { type: 'string' },
 							content: { type: 'array', items: { type: 'integer' } },
@@ -428,21 +433,29 @@ export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 				const { publicKey: identityKey } = await ctx.wallet.getPublicKey({
 					identityKey: true,
 				})
-				const recordFields = encodeOpnsRecord({
-					identityKey,
-					profile: {
+				let avatar: number[] | undefined
+				if (input.avatar?.trim()) {
+					const bytes = outpointToBytes(formatOrdinalOutpoint(input.avatar))
+					if (!bytes)
+						throw new Error(`invalid avatar outpoint: ${input.avatar}`)
+					avatar = bytes
+				}
+				// Key/value fields on the plain PushDrop template; this action owns
+				// the layout.
+				const fields = [
+					Utils.toArray(IDENTITY_FIELD, 'utf8'),
+					Utils.toArray(identityKey, 'hex'),
+					Utils.toArray(PROFILE_FIELD, 'utf8'),
+					encodeProfile({
 						domain: input.domain,
 						displayName: input.profileName,
-						avatar: input.avatar,
-					},
-				})
+						avatar,
+					}),
+				]
 				// Complete script, signature field zeroed — apply swaps in the real
 				// signature, so the size here is the size on chain.
-				const recordLock = await new PushDrop(ctx.wallet).lock(
-					[
-						...recordFields,
-						new Array(OPNS_REGISTER_SIG_PLACEHOLDER_LEN).fill(0),
-					],
+				const pushDropLock = await new PushDrop(ctx.wallet).lock(
+					[...fields, new Array(OPNS_REGISTER_SIG_PLACEHOLDER_LEN).fill(0)],
 					P1SAT_PROTOCOL,
 					keyID,
 					OPNS_REGISTER_COUNTERPARTY,
@@ -453,9 +466,9 @@ export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 					? Inscription.create(
 							Uint8Array.from(input.inscription.content),
 							input.inscription.contentType,
-							{ scriptPrefix: recordLock },
+							{ scriptPrefix: pushDropLock },
 						).lock()
-					: recordLock
+					: pushDropLock
 				const name = nameFromOutput(output)
 				const tags = opnsFileTags(output, [OPNS_PUBLISHED_TAG])
 				const inputId = readAssetIdTag(output.tags)

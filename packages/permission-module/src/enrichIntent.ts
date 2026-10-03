@@ -27,18 +27,21 @@ import {
 	ORDFS_HOST,
 	OPNS_BASKET,
 	ORDINALS_BASKET,
+	PROFILE_FIELD,
 	SIGMA_BASKET,
 	formatOrdinalOutpoint,
 	parseInputAssetLabels,
 } from '@1sat/types'
+import { pushDropDecode } from '@1sat/actions'
 import {
 	BSV21,
 	Inscription,
 	Lock,
 	OrdLock,
 	Sigma,
-	decodeOpnsRecord,
+	outpointFromBytes,
 } from '@1sat/templates'
+import { decodeProfile, fieldPairs } from '@1sat/utils'
 import { parseAddress } from '@1sat/wallet'
 import type {
 	CreateActionArgs,
@@ -56,11 +59,11 @@ const METADATA_ENCRYPTION_PROTOCOL: [2, string] = [
 ]
 
 /**
- * Profile fields on an OpNS record (`identity` / `profile` key/value pairs,
- * signature last). Decoded from the script because that is what the
- * signature covers — tags are only what the caller asserted. Anything that is
- * not a well-formed record (including the pre-#83 positional bind) yields
- * nothing.
+ * Profile on an OpNS publish: the `profile` field of a key/value PushDrop
+ * (signature last). Decoded from the script because that is what the
+ * signature covers — tags are only what the caller asserted. A script with
+ * no well-formed `profile` field (including the pre-#83 positional bind)
+ * yields nothing.
  */
 function decodeOpnsProfile(script: Script): {
 	opnsProfileName?: string
@@ -68,13 +71,17 @@ function decodeOpnsProfile(script: Script): {
 	opnsDomain?: string
 } {
 	try {
-		const fields = PushDrop.decode(LockingScript.fromHex(script.toHex())).fields
-		const profile = decodeOpnsRecord(fields.slice(0, -1)).profile
-		if (!profile) return {}
+		const { fields } = pushDropDecode(script.toHex())
+		const pair = fieldPairs(fields.slice(0, -1)).find(
+			([key]) => key === PROFILE_FIELD,
+		)
+		if (!pair) return {}
+		const profile = decodeProfile(pair[1])
+		const avatar = profile.avatar ? outpointFromBytes(profile.avatar) : null
 		return {
 			opnsDomain: profile.domain,
 			...(profile.displayName ? { opnsProfileName: profile.displayName } : {}),
-			...(profile.avatar ? { opnsAvatarOrigin: profile.avatar } : {}),
+			...(avatar ? { opnsAvatarOrigin: avatar } : {}),
 		}
 	} catch {
 		return {}

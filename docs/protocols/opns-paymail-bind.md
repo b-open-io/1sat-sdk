@@ -1,11 +1,19 @@
-# OpNS name record (signed PushDrop)
+# OpNS publish: key/value PushDrop fields
 
-A published OpNS name carries a **record** on its **current name UTXO**: which
-identity the name represents (`identity`), facts about that identity
-(`profile`), and optionally an inscription the name publishes. Decided in
-[#83](https://github.com/b-open-io/1sat-sdk/issues/83); constants live in
-`@1sat/types`, the codec in `@1sat/templates` (`encodeOpnsRecord` /
-`decodeOpnsRecord`).
+A published OpNS name is locked in the plain signed **PushDrop** template on
+its **current name UTXO**. Its fields are **key/value pairs**: which identity
+the name represents (`identity`), facts about that identity (`profile`), and
+optionally an inscription after the lock. There is no separate template — the
+`identity` and `profile` field codecs are generic, and the OpNS publish
+(`registerOpns`) is one use of them. Decided in
+[#83](https://github.com/b-open-io/1sat-sdk/issues/83).
+
+- Field keys and provisional profile member names: `IDENTITY_FIELD`,
+  `PROFILE_FIELD`, `PROFILE_FIELDS` in `@1sat/types`.
+- Field codecs: `encodeProfile` / `decodeProfile`, `isIdentityKey`,
+  `fieldPairs` in `@1sat/utils`.
+- Layout: `registerOpns` builds the field list itself; readers decode with
+  `pushDropDecode` (or `PushDrop.decode`) and walk the pairs.
 
 Host billing / paymail server are separate and not specified here.
 
@@ -34,7 +42,7 @@ OP_2DROP … OP_DROP
 | Field signature | yes, same derivation; covers the concatenation of every field before it |
 | Wallet tag | `opns:published` |
 
-The per-input keyID is what stops a signed record being copied onto another
+The per-input keyID is what stops signed fields being copied onto another
 output. The counterparty must stay `anyone`, or no outsider can derive the
 verifying key.
 
@@ -49,8 +57,8 @@ followed by its **value**. The key names the value's encoding.
 | `profile` | DAG-CBOR map (IPLD deterministic encoding, `@ipld/dag-cbor`) | written by `registerOpns`; optional for readers |
 
 Readers go through the pairs in order and **skip pairs whose key they do not
-know**. A record without exactly one `identity` pair, with a dangling key, or
-with a malformed known value is not a record. Future concerns append a pair;
+know**. Fields without exactly one `identity` pair, with a dangling key, or
+with a malformed known value are not a bind. Future concerns append a pair;
 they do not restate identity.
 
 ### `profile` map
@@ -66,7 +74,7 @@ Unknown map fields are ignored. A BRC-169 host using OpNS names as handles
 serves these as the handle's profile; unlike host-supplied attributes they
 are signed by the holder.
 
-The field names inside `profile` are **provisional** (`OPNS_PROFILE_FIELD` in
+The member names inside `profile` are **provisional** (`PROFILE_FIELDS` in
 `@1sat/types`).
 
 ## Optional inscription
@@ -76,7 +84,7 @@ PushDrop (any content type). ORDFS records it as a new rev on the name's
 origin chain, so `/<origin>:-1` serves it. Publishing a release or a state is
 the caller passing an `ordfs/dir` whose `"."` entry points at the root
 outpoint; `registerOpns` does not interpret the content. Without an
-inscription the output is the record alone and ORDFS keeps serving the last
+inscription the output is the PushDrop alone and ORDFS keeps serving the last
 rev.
 
 ## Verify
@@ -84,7 +92,7 @@ rev.
 1. `OpnsClient.getOrigin(name)` → origin outpoint; `OrdfsClient.getMetadata(origin, -1)` → current outpoint.
 2. Load the transaction (BEEF) and the output's locking script.
 3. `PushDrop.decode` → fields; pop the trailing signature.
-4. `decodeOpnsRecord(fields)` → `identityKey`, `profile`.
+4. `fieldPairs(fields)` → `[key, value]` pairs; take the one `identity` (check `isIdentityKey`), at most one `profile` (`decodeProfile`), skip unknown keys.
 5. keyID = `opnsRegisterKeyId(<tx.inputs[0] outpoint>)`.
 6. Re-derive the lock pubkey: `ProtoWallet('anyone').getPublicKey({ protocolID, keyID, counterparty: identityKey, forSelf: false })`; it must equal the script's lock pubkey.
 7. Verify the field signature over the concatenated fields with the same protocol / keyID / counterparty.
@@ -95,11 +103,11 @@ rev.
 
 Clean break. The earlier positional bind
 (`[identityKey, displayName?, avatarOutpoint?, sig]`) is not read: verifiers
-treat it as "no bind". Re-register to publish a record.
+treat it as "no bind". Re-register to publish the key/value fields.
 
 ## Lifecycle
 
-`registerOpns` creates the record (two phases: the action emits the script
+`registerOpns` creates the lock (two phases: the action emits the script
 with a zeroed signature field; apply re-locks with the real signature and
 carries the inscription envelope over unchanged). Transfer / list / burn /
-deregister spend it and re-lock without a record unless registered again.
+deregister spend it and re-lock without the fields unless registered again.

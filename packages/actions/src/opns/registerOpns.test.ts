@@ -1,13 +1,14 @@
 import { describe, expect, test } from 'bun:test'
-import { Inscription, decodeOpnsRecord, outpointToBytes } from '@1sat/templates'
+import { Inscription, outpointFromBytes } from '@1sat/templates'
 import {
+	IDENTITY_FIELD,
 	OPNS_BASKET,
-	OPNS_RECORD_IDENTITY_KEY,
-	OPNS_RECORD_PROFILE_KEY,
 	OPNS_REGISTER_SIG_PLACEHOLDER_LEN,
 	P1SAT_PROTOCOL,
+	PROFILE_FIELD,
 	opnsRegisterKeyId,
 } from '@1sat/types'
+import { decodeProfile } from '@1sat/utils'
 import {
 	type CreateActionArgs,
 	LockingScript,
@@ -20,6 +21,7 @@ import {
 import { applyOpnsRegister } from '../apply/opnsRegister.js'
 import { DIR_CONTENT_TYPE, DIR_VERSION, dirEncode } from '../ordfs/dir.js'
 import { createContext } from '../types.js'
+import { pushDropDecode } from '../utils/pushdrop.js'
 import { registerOpns } from './index.js'
 
 const NAME_OUTPOINT = `${'cd'.repeat(32)}.0`
@@ -101,20 +103,20 @@ describe('registerOpns record', () => {
 			profileName: 'Alice',
 			avatar: AVATAR,
 		})
-		const { fields } = PushDrop.decode(LockingScript.fromHex(out.lockingScript))
+		const { fields } = pushDropDecode(out.lockingScript)
 		expect(fields).toHaveLength(5)
-		expect(Utils.toUTF8(fields[0])).toBe(OPNS_RECORD_IDENTITY_KEY)
-		expect(Utils.toUTF8(fields[2])).toBe(OPNS_RECORD_PROFILE_KEY)
+		expect(Utils.toUTF8(fields[0])).toBe(IDENTITY_FIELD)
+		expect(Utils.toUTF8(fields[2])).toBe(PROFILE_FIELD)
 		const sig = fields[4]
 		expect(sig).toHaveLength(OPNS_REGISTER_SIG_PLACEHOLDER_LEN)
 		expect(sig.every((b) => b === 0)).toBe(true)
 
 		const { publicKey } = await proto.getPublicKey({ identityKey: true })
-		expect(decodeOpnsRecord(fields.slice(0, 4))).toEqual({
-			identityKey: publicKey,
-			profile: { domain: '1sat.name', displayName: 'Alice', avatar: AVATAR },
-		})
-		expect(outpointToBytes(AVATAR)).toHaveLength(36)
+		expect(Utils.toHex(fields[1])).toBe(publicKey)
+		const profile = decodeProfile(fields[3])
+		expect(profile.domain).toBe('1sat.name')
+		expect(profile.displayName).toBe('Alice')
+		expect(outpointFromBytes(profile.avatar ?? [])).toBe(AVATAR)
 		expect(Inscription.decode(LockingScript.fromHex(out.lockingScript))).toBe(
 			null,
 		)
@@ -210,6 +212,6 @@ describe('registerOpns record', () => {
 		}
 		await expect(
 			applyOpnsRegister(proto as unknown as WalletInterface, args),
-		).rejects.toThrow(/opns record/)
+		).rejects.toThrow(/key\/value pairs/)
 	})
 })

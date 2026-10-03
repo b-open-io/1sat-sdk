@@ -1,6 +1,6 @@
 ---
 name: opns
-description: "This skill should be used when working with OpNS decentralized names on BSV — claiming or buying a name at 1sat.name, publishing or removing its wallet identity binding, listing or transferring an owned name, looking up resolution, or managing the OpNS wallet basket. Triggers on 'OpNS', '1sat.name', 'claim name', 'buy name', 'register name', 'decentralized domain', 'name service', 'on-chain DNS', 'identity binding', 'name resolution', 'name record', 'publish release to name', 'list name', 'transfer name', or 'deregister name'. Uses 1sat.name for acquisition and @1sat/actions for the owned-name lifecycle."
+description: "This skill should be used when working with OpNS decentralized names on BSV — claiming or buying a name at 1sat.name, publishing or removing its wallet identity binding, listing or transferring an owned name, looking up resolution, or managing the OpNS wallet basket. Triggers on 'OpNS', '1sat.name', 'claim name', 'buy name', 'register name', 'decentralized domain', 'name service', 'on-chain DNS', 'identity binding', 'name resolution', 'name profile', 'publish release to name', 'list name', 'transfer name', or 'deregister name'. Uses 1sat.name for acquisition and @1sat/actions for the owned-name lifecycle."
 ---
 
 # OpNS Names
@@ -18,7 +18,7 @@ Never pass a bare name string to `registerOpns` as if it creates the name.
 ## What is OpNS?
 
 - Names are ordinal inscriptions (1-sat) with content type `application/op-ns`
-- Published names carry a signed PushDrop **record** of key/value pairs: `identity` (pubkey) + `profile` (DAG-CBOR `{ domain, displayName?, avatar? }`), optionally followed by an inscription — spec: `docs/protocols/opns-paymail-bind.md`
+- Published names are locked in the plain signed PushDrop whose fields are key/value pairs: `identity` (pubkey) + `profile` (DAG-CBOR `{ domain, displayName?, avatar? }`), optionally followed by an inscription. Field codecs are in `@1sat/utils` (`encodeProfile`/`decodeProfile`, `isIdentityKey`, `fieldPairs`); `registerOpns` owns the layout — spec: `docs/protocols/opns-paymail-bind.md`
 - Overlay tracks the mine tree; ORDFS resolves ordinal-level state
 - Genesis: `58b7558ea379f24266c7e2f5fe321992ad9a724fd7a87423ba412677179ccb25`
 
@@ -31,7 +31,7 @@ External buys take **`outpoint`** + optional **`inputBEEF`** (else services fetc
 |--------|-------------|
 | `listOpns` | List owned names (metadata/tags default; optional BEEF) |
 | `internalizeOpns` | File foreign mint AtomicBEEF → OPNS basket + full tags |
-| `registerOpns` | Publish the record (`{ id, domain, profileName?, avatar?, inscription? }`) |
+| `registerOpns` | Publish identity + profile fields (`{ id, domain, profileName?, avatar?, inscription? }`) |
 | `deregisterOpns` | Clear identity bind (`{ id }`) |
 | `sellOpns` | List for sale (`{ id, price, payAddress? }`) |
 | `sendOpns` | Send to counterparty or address (`{ id, counterparty? \| address? }`) |
@@ -72,14 +72,14 @@ const result = await registerOpns.execute(ctx, {
 })
 ```
 
-The record is `["identity", <identity key>, "profile", <dag-cbor>, <sig>]`.
+The PushDrop fields are `["identity", <identity key>, "profile", <dag-cbor>, <sig>]`.
 Unset optionals are absent from the CBOR map (no placeholders). `profile`
 field names are provisional.
 
 ### Publish content on the name (optional inscription)
 
 `inscription: { contentType, content }` appends a standard 1-sat inscription
-envelope after the record; ORDFS serves it as the name's latest rev
+envelope after the PushDrop; ORDFS serves it as the name's latest rev
 (`/<origin>:-1`). The action does not interpret the content. A release or
 state is an `ordfs/dir` whose `"."` entry points at the root outpoint:
 
@@ -140,23 +140,32 @@ await buyOpns.execute(ctx, {
 await deregisterOpns.execute(ctx, { id })
 ```
 
-## Lookup (resolve a name to its record)
+## Lookup (resolve a name to its identity + profile)
 
-The record lives in the locking script of the name's **current** UTXO: origin
+The fields live in the locking script of the name's **current** UTXO: origin
 → ORDFS tip (`-1`) → BEEF → script → decode.
 
 ```typescript
 import { BeefClient, OpnsClient, OrdfsClient } from '@1sat/client'
-import { decodeOpnsRecord } from '@1sat/templates'
-import { PushDrop, Transaction } from '@bsv/sdk'
+import { pushDropDecode } from '@1sat/actions'
+import { outpointFromBytes } from '@1sat/templates'
+import { IDENTITY_FIELD, PROFILE_FIELD } from '@1sat/types'
+import { decodeProfile, fieldPairs, isIdentityKey } from '@1sat/utils'
+import { Transaction, Utils } from '@bsv/sdk'
 
 const base = 'https://api.1sat.app'
 const { outpoint: origin } = await new OpnsClient(base).getOrigin('alice')
 const tip = await new OrdfsClient(base).getMetadata(origin, -1)
 const [txid, vout] = tip.outpoint.replace('_', '.').split('.')
 const tx = Transaction.fromBEEF(Array.from(await new BeefClient(base).getBeef(txid)))
-const { fields } = PushDrop.decode(tx.outputs[Number(vout)].lockingScript)
-const { identityKey, profile } = decodeOpnsRecord(fields.slice(0, -1)) // drop signature
+const { fields } = pushDropDecode(tx.outputs[Number(vout)].lockingScript)
+let identityKey: string | undefined
+let profile
+for (const [key, value] of fieldPairs(fields.slice(0, -1))) { // drop signature
+  if (key === IDENTITY_FIELD && isIdentityKey(value)) identityKey = Utils.toHex(value)
+  else if (key === PROFILE_FIELD) profile = decodeProfile(value) // unknown keys skipped
+}
+const avatarOrigin = profile?.avatar && outpointFromBytes(profile.avatar)
 ```
 
 Decoding does not verify the signature. To trust the result, re-derive the

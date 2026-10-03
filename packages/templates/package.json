@@ -33,7 +33,6 @@
   "license": "MIT",
   "dependencies": {
     "@1sat/types": "workspace:*",
-    "@ipld/dag-cbor": "^10.0.2",
     "cbor2": "^2.3.0"
   },
   "peerDependencies": {
