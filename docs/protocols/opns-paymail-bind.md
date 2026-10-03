@@ -27,7 +27,7 @@ Host billing / paymail server are separate and not specified here.
 ```
 <lock pubkey> OP_CHECKSIG
 "identity" <33-byte identity pubkey>
-"profile"  <dag-cbor { domain, displayName?, avatar? }>
+"profile"  <dag-cbor { domain, name?, avatar? }>
 <field signature>
 OP_2DROP … OP_DROP
 [ OP_FALSE OP_IF "ord" OP_1 <content type> OP_0 <content> OP_ENDIF ]   ← optional
@@ -66,7 +66,7 @@ they do not restate identity.
 | Field | Type | Notes |
 |-------|------|-------|
 | `domain` | text | **Required.** A BRC-169 ecosystem domain, lowercase hostname (no scheme, no port). Readers go `https://<domain>/manifest.json` → `metanet.handles.resolve` → messagebox. |
-| `displayName` | text | Optional presentation name. |
+| `name` | text | Optional presentation name. |
 | `avatar` | bytes (36) | Optional origin outpoint of an image ordinal (txid internal order ‖ vout LE). |
 
 Optional fields are **absent** when unset — no placeholders, no empty values.
@@ -107,7 +107,8 @@ treat it as "no bind". Re-register to publish the key/value fields.
 
 ## Lifecycle
 
-`registerOpns` creates the lock (two phases: the action emits the script
-with a zeroed signature field; apply re-locks with the real signature and
-carries the inscription envelope over unchanged). Transfer / list / burn /
+`registerOpns` creates the lock (two phases: the action emits the complete
+script with a zero-filled signature push; apply locates that push and puts
+the real signature there — nothing else in the script, including any
+inscription envelope, changes). Transfer / list / burn /
 deregister spend it and re-lock without the fields unless registered again.

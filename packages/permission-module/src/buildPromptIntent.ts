@@ -532,7 +532,7 @@ function panelFromOrdinalEdge(
 	contentUrls: Record<string, string>,
 ): PromptPanel {
 	const assetName = edge.spend?.name ?? edge.create?.name
-	const profileName = edge.create?.opnsProfileName
+	const opnsName = edge.create?.opnsName
 	const origin = edge.create?.origin ?? edge.spend?.origin
 	const contentType =
 		edge.create?.contentType ??
@@ -634,7 +634,7 @@ function panelFromOrdinalEdge(
 	const isOpns =
 		edge.operation === 'register' ||
 		edge.operation === 'unregister' ||
-		Boolean(profileName) ||
+		Boolean(opnsName) ||
 		edge.spend?.basket === OPNS_BASKET ||
 		Boolean(edge.spend?.basket?.includes('opns'))
 
@@ -652,7 +652,7 @@ function panelFromOrdinalEdge(
 			...(avatarUrl ? { imageUrl: avatarUrl } : {}),
 			title: actionTitle,
 			...(assetName ? { subtitle: assetName } : {}),
-			...(profileName ? { opnsHero: profileName } : {}),
+			...(opnsName ? { opnsHero: opnsName } : {}),
 			meta,
 		}
 	}

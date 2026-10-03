@@ -207,7 +207,7 @@ export interface OpnsOperationParams {
 }
 
 export interface OpnsRegisterParams extends OpnsOperationParams {
-	/** BRC-169 domain written into the record's profile; default `1sat.name`. */
+	/** BRC-169 domain written into the name's profile; default `1sat.name`. */
 	domain?: string
 }
 

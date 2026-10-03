@@ -219,13 +219,13 @@ export const PROFILE_FIELD = 'profile'
  * not final (issue #83); change them here, nowhere else.
  *
  * - `domain` (required): BRC-169 ecosystem domain, lowercase hostname.
- * - `displayName` (optional): presentation name; absent when unset.
+ * - `name` (optional): presentation name; absent when unset.
  * - `avatar` (optional): 36-byte outpoint of an image ordinal origin; absent
  *   when unset.
  */
 export const PROFILE_FIELDS = {
 	domain: 'domain',
-	displayName: 'displayName',
+	name: 'name',
 	avatar: 'avatar',
 } as const
 

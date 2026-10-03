@@ -15,26 +15,26 @@ const utf8 = (s: string) => Utils.toArray(s, 'utf8')
 
 describe('profile field codec', () => {
 	test('round trip with all members', () => {
-		const profile = { domain: '1sat.name', displayName: 'Alice', avatar }
+		const profile = { domain: '1sat.name', name: 'Alice', avatar }
 		const bytes = encodeProfile(profile)
 		expect(decodeProfile(bytes)).toEqual(profile)
 		const map = cborDecode<Record<string, unknown>>(Uint8Array.from(bytes))
 		expect(map[PROFILE_FIELDS.domain]).toBe('1sat.name')
-		expect(map[PROFILE_FIELDS.displayName]).toBe('Alice')
+		expect(map[PROFILE_FIELDS.name]).toBe('Alice')
 		expect(map[PROFILE_FIELDS.avatar]).toBeInstanceOf(Uint8Array)
 		expect((map[PROFILE_FIELDS.avatar] as Uint8Array).length).toBe(36)
 	})
 
 	test('absent optionals have no keys in the CBOR map', () => {
-		const bytes = encodeProfile({ domain: '1sat.name', displayName: '  ' })
+		const bytes = encodeProfile({ domain: '1sat.name', name: '  ' })
 		const map = cborDecode<Record<string, unknown>>(Uint8Array.from(bytes))
 		expect(Object.keys(map)).toEqual([PROFILE_FIELDS.domain])
 		expect(decodeProfile(bytes)).toEqual({ domain: '1sat.name' })
 	})
 
 	test('encoding is deterministic', () => {
-		const a = encodeProfile({ domain: 'x.io', displayName: 'A', avatar })
-		const b = encodeProfile({ avatar, displayName: 'A', domain: 'x.io' })
+		const a = encodeProfile({ domain: 'x.io', name: 'A', avatar })
+		const b = encodeProfile({ avatar, name: 'A', domain: 'x.io' })
 		expect(a).toEqual(b)
 	})
 
@@ -44,9 +44,9 @@ describe('profile field codec', () => {
 		).toBe('example.com')
 		expect(() => encodeProfile({ domain: '' })).toThrow(/domain/)
 		expect(() => encodeProfile({ domain: 'https://x.com' })).toThrow(/domain/)
-		expect(() =>
-			decodeProfile(Array.from(cborEncode({ displayName: 'x' }))),
-		).toThrow(/domain/)
+		expect(() => decodeProfile(Array.from(cborEncode({ name: 'x' })))).toThrow(
+			/domain/,
+		)
 		expect(() =>
 			decodeProfile(Array.from(cborEncode({ domain: 'Upper.io' }))),
 		).toThrow(/domain/)

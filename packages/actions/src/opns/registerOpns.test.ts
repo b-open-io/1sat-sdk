@@ -69,7 +69,7 @@ async function draftFor(
 	const { wallet, proto, created } = fakeWallet(seed)
 	const res = await registerOpns.execute(createContext(wallet), {
 		id: 'name-1',
-		domain: '1sat.name',
+		profile: { domain: '1sat.name' },
 		usePermissionModule: true,
 		...extra,
 	})
@@ -100,8 +100,7 @@ async function verifySealed(proto: ProtoWallet, script: LockingScript) {
 describe('registerOpns record', () => {
 	test('builds identity + profile pairs with a zeroed signature field', async () => {
 		const { out, proto } = await draftFor(9001, {
-			profileName: 'Alice',
-			avatar: AVATAR,
+			profile: { domain: '1sat.name', name: 'Alice', avatar: AVATAR },
 		})
 		const { fields } = pushDropDecode(out.lockingScript)
 		expect(fields).toHaveLength(5)
@@ -115,7 +114,7 @@ describe('registerOpns record', () => {
 		expect(Utils.toHex(fields[1])).toBe(publicKey)
 		const profile = decodeProfile(fields[3])
 		expect(profile.domain).toBe('1sat.name')
-		expect(profile.displayName).toBe('Alice')
+		expect(profile.name).toBe('Alice')
 		expect(outpointFromBytes(profile.avatar ?? [])).toBe(AVATAR)
 		expect(Inscription.decode(LockingScript.fromHex(out.lockingScript))).toBe(
 			null,
@@ -126,7 +125,7 @@ describe('registerOpns record', () => {
 		const { wallet } = fakeWallet(9002)
 		const res = await registerOpns.execute(createContext(wallet), {
 			id: 'name-1',
-			domain: 'not a host',
+			profile: { domain: 'not a host' },
 			usePermissionModule: true,
 		})
 		expect(res.error).toMatch(/domain/)
@@ -146,7 +145,7 @@ describe('registerOpns record', () => {
 		expect(fields).toHaveLength(4)
 	})
 
-	test('inscription rides after the record and survives apply', async () => {
+	test('inscription rides after the PushDrop and survives apply', async () => {
 		const content = dirEncode({
 			version: DIR_VERSION,
 			entries: [
@@ -160,6 +159,7 @@ describe('registerOpns record', () => {
 		const { args, out, proto } = await draftFor(9004, {
 			inscription: { contentType: DIR_CONTENT_TYPE, content },
 		})
+		const draftChunks = LockingScript.fromHex(out.lockingScript).chunks
 
 		const before = Inscription.decode(LockingScript.fromHex(out.lockingScript))
 		expect(before?.file.type).toBe(DIR_CONTENT_TYPE)
@@ -170,10 +170,21 @@ describe('registerOpns record', () => {
 		const { valid } = await verifySealed(proto, sealed)
 		expect(valid).toBe(true)
 
+		// In-place swap: only the signature push (chunk 2 + 4 fields) changed.
+		expect(sealed.chunks).toHaveLength(draftChunks.length)
+		sealed.chunks.forEach((chunk, i) => {
+			if (i === 6) {
+				expect(chunk.data?.some((b) => b !== 0)).toBe(true)
+				expect(chunk.op).toBe(chunk.data?.length ?? -1)
+			} else {
+				expect(chunk).toEqual(draftChunks[i])
+			}
+		})
+
 		const after = Inscription.decode(sealed)
 		expect(after?.file.type).toBe(DIR_CONTENT_TYPE)
 		expect(Array.from(after?.file.content ?? [])).toEqual(Array.from(content))
-		// The envelope follows the PushDrop: its prefix is the sealed record lock.
+		// The envelope follows the PushDrop: its prefix is the sealed lock.
 		const prefix = after?.scriptPrefix
 		expect(prefix).toBeDefined()
 		const prefixFields = PushDrop.decode(
@@ -182,6 +193,14 @@ describe('registerOpns record', () => {
 		expect(prefixFields[prefixFields.length - 1].some((b) => b !== 0)).toBe(
 			true,
 		)
+	})
+
+	test('apply refuses a draft locked to a different key', async () => {
+		const { args } = await draftFor(9006)
+		const other = new ProtoWallet(new PrivateKey(9007))
+		await expect(
+			applyOpnsRegister(other as unknown as WalletInterface, args),
+		).rejects.toThrow(/lock key/)
 	})
 
 	test('apply refuses a positional (pre-#83) draft', async () => {

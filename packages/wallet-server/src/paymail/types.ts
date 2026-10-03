@@ -23,9 +23,10 @@ export interface ResolvedBind {
 	identityKey: string
 	outpoint: string
 	/**
-	 * Presentation-only display name (`profile.displayName` on an OpNS
-	 * record). The OpNS name is the unique, owned value; this is decoration
-	 * and may be absent.
+	 * Presentation-only display name — `profile.name` on an OpNS publish, the
+	 * account display name on the accounts backend. Paymail wire name; the
+	 * OpNS name is the unique, owned value and this is decoration that may be
+	 * absent.
 	 */
 	profileName?: string
 	/** Origin outpoint (`txid_vout`) of an image ordinal (`profile.avatar`). */

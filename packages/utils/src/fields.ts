@@ -19,7 +19,7 @@ export interface Profile {
 	/** BRC-169 ecosystem domain (lowercase hostname). Required. */
 	domain: string
 	/** Presentation name. */
-	displayName?: string
+	name?: string
 	/** 36-byte outpoint (txid internal order ‖ vout LE) of an image ordinal. */
 	avatar?: number[]
 }
@@ -42,8 +42,8 @@ export function isIdentityKey(bytes: number[]): boolean {
 
 /**
  * Encode a `profile` value: DAG-CBOR map with `domain` and, when set,
- * `displayName` / `avatar`. `domain` is trimmed and lowercased; an empty
- * `displayName` or `avatar` is omitted.
+ * `name` / `avatar`. `domain` is trimmed and lowercased; an empty `name` or
+ * `avatar` is omitted.
  */
 export function encodeProfile(profile: Profile): number[] {
 	const domain = profile.domain?.trim().toLowerCase() ?? ''
@@ -53,8 +53,8 @@ export function encodeProfile(profile: Profile): number[] {
 	const map: Record<string, string | Uint8Array> = {
 		[PROFILE_FIELDS.domain]: domain,
 	}
-	const displayName = profile.displayName?.trim()
-	if (displayName) map[PROFILE_FIELDS.displayName] = displayName
+	const name = profile.name?.trim()
+	if (name) map[PROFILE_FIELDS.name] = name
 	if (profile.avatar?.length) {
 		if (profile.avatar.length !== 36) {
 			throw new Error('profile avatar must be a 36-byte outpoint')
@@ -77,12 +77,12 @@ export function decodeProfile(bytes: number[]): Profile {
 	}
 	const profile: Profile = { domain }
 
-	const displayName = m[PROFILE_FIELDS.displayName]
-	if (displayName !== undefined) {
-		if (typeof displayName !== 'string') {
-			throw new Error('profile: displayName is not a string')
+	const name = m[PROFILE_FIELDS.name]
+	if (name !== undefined) {
+		if (typeof name !== 'string') {
+			throw new Error('profile: name is not a string')
 		}
-		profile.displayName = displayName
+		profile.name = name
 	}
 
 	const avatar = m[PROFILE_FIELDS.avatar]

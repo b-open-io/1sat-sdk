@@ -10,28 +10,9 @@ import { decodeProfile, fieldPairs, isIdentityKey } from '@1sat/utils'
 import {
 	type CreateActionArgs,
 	LockingScript,
-	OP,
-	PushDrop,
-	Script,
 	type WalletInterface,
 } from '@bsv/sdk'
 import { pushDropDecode } from '../utils/pushdrop.js'
-
-/**
- * Index of the first chunk after a lock-before PushDrop: `<pubkey> CHECKSIG`,
- * the field pushes, then the run of `OP_2DROP` / `OP_DROP`. Anything from
- * there on (an inscription envelope) is not part of the PushDrop.
- */
-function pushDropEnd(script: LockingScript, fieldCount: number): number {
-	let i = 2 + fieldCount
-	while (
-		i < script.chunks.length &&
-		(script.chunks[i].op === OP.OP_2DROP || script.chunks[i].op === OP.OP_DROP)
-	) {
-		i++
-	}
-	return i
-}
 
 /**
  * Check the key/value fields before signing them: exactly one `identity`
@@ -60,17 +41,18 @@ function assertPublishFields(fields: number[][]): void {
 }
 
 /**
- * Replace the zeroed signature field of an `opns.register` lock with the real
- * one. The action emits the complete script — the key/value fields
- * (`identity`, `profile`, …), a zero-filled signature field of final length,
- * and optionally an inscription envelope after the PushDrop — so the only
- * thing left here is the signature.
+ * Put the real signature into an `opns.register` draft lock. The action emits
+ * the complete script — `<lock pubkey> CHECKSIG`, the key/value fields
+ * (`identity`, `profile`, …), a zero-filled signature push, the drops, and
+ * optionally an inscription envelope. Apply signs the fields and replaces the
+ * placeholder push (chunk `2 + fieldCount`) with the signature push; nothing
+ * else in the script changes. The DER signature may be shorter than the
+ * placeholder, so the push is re-encoded with its own length.
  *
- * The inscription travels in the draft script itself: everything after the
- * PushDrop's drops is carried over unchanged onto the sealed lock. The fields
- * are checked before signing so only a well-formed publish (exactly one
- * `identity` pair) is ever signed. Uses the given wallet (must be base —
- * never a gated WPM wrapper).
+ * The lock pubkey in the draft must be this wallet's key for the publish
+ * keyID, and the fields are checked before signing so only a well-formed
+ * publish (exactly one `identity` pair) is ever signed. Uses the given wallet
+ * (must be base — never a gated WPM wrapper).
  */
 export async function applyOpnsRegister(
 	wallet: WalletInterface,
@@ -94,22 +76,37 @@ export async function applyOpnsRegister(
 	}
 
 	const draft = LockingScript.fromHex(out.lockingScript)
-	const fields = pushDropDecode(draft).fields.map((f) => [...f])
-	const suffix = draft.chunks.slice(pushDropEnd(draft, fields.length))
+	const decoded = pushDropDecode(draft)
+	const fields = decoded.fields.map((f) => [...f])
 	const placeholder = fields.pop()
 	if (!placeholder?.length || placeholder.some((b) => b !== 0)) {
 		throw new Error('opns.register apply: signature field is not zeroed')
 	}
 	assertPublishFields(fields)
 
-	const sealed = await new PushDrop(wallet).lock(
-		fields,
-		P1SAT_PROTOCOL,
-		opnsRegisterKeyId(input.outpoint),
-		OPNS_REGISTER_COUNTERPARTY,
-		true,
-		true,
-	)
-	if (suffix.length) sealed.writeScript(new Script(suffix))
-	out.lockingScript = sealed.toHex()
+	const keyID = opnsRegisterKeyId(input.outpoint)
+	const { publicKey } = await wallet.getPublicKey({
+		protocolID: P1SAT_PROTOCOL,
+		keyID,
+		counterparty: OPNS_REGISTER_COUNTERPARTY,
+		forSelf: true,
+	})
+	if (publicKey !== decoded.lockingPublicKey.toString()) {
+		throw new Error('opns.register apply: lock key does not match keyID')
+	}
+
+	const { signature } = await wallet.createSignature({
+		data: fields.flat(),
+		protocolID: P1SAT_PROTOCOL,
+		keyID,
+		counterparty: OPNS_REGISTER_COUNTERPARTY,
+	})
+	// Signatures are 70–72 bytes: always a direct push (opcode = length).
+	const chunks = [...draft.chunks]
+	const at = 2 + fields.length
+	if (chunks[at]?.data?.length !== placeholder.length) {
+		throw new Error('opns.register apply: placeholder push not found')
+	}
+	chunks[at] = { op: signature.length, data: signature }
+	out.lockingScript = new LockingScript(chunks).toHex()
 }

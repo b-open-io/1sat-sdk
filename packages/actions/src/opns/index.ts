@@ -81,19 +81,27 @@ export interface OpnsInscription {
 	content: number[] | Uint8Array
 }
 
-export interface RegisterOpnsRequest extends OpnsIdInput {
+/**
+ * The `profile` written on the name — same members as the on-chain DAG-CBOR
+ * map; `avatar` is given as an outpoint and stored as its 36 bytes.
+ */
+export interface OpnsProfile {
 	/**
 	 * BRC-169 ecosystem domain the identity is reached at (lowercase
 	 * hostname, e.g. `1sat.name`). Readers go `https://<domain>/manifest.json`.
 	 */
 	domain: string
 	/**
-	 * Display name in the `profile` field (served by paymail
-	 * public-profile). Presentation only — the OpNS name is the unique value.
+	 * Presentation name (served by paymail public-profile). The OpNS name is
+	 * the unique value; this is decoration.
 	 */
-	profileName?: string
+	name?: string
 	/** Origin outpoint (`txid_vout`) of an on-chain image ordinal */
 	avatar?: string
+}
+
+export interface RegisterOpnsRequest extends OpnsIdInput {
+	profile: OpnsProfile
 	/**
 	 * Optional inscription envelope appended after the PushDrop lock. ORDFS
 	 * records it as a new rev of the name's origin (`/<origin>:-1`). The
@@ -347,7 +355,7 @@ export const internalizeOpns: Action<
 /**
  * Publish an OpNS name: lock the name coin in a signed PushDrop (the plain
  * template) whose fields are key/value pairs
- * `["identity", <identity key>, "profile", <dag-cbor {domain, displayName?, avatar?}>, <sig>]`.
+ * `["identity", <identity key>, "profile", <dag-cbor {domain, name?, avatar?}>, <sig>]`.
  * The field codecs are in `@1sat/utils`; this action owns the layout (see
  * `docs/protocols/opns-paymail-bind.md`).
  *
@@ -361,7 +369,7 @@ export const internalizeOpns: Action<
  * import { DIR_CONTENT_TYPE, DIR_VERSION, dirEncode } from '@1sat/actions'
  * await registerOpns.execute(ctx, {
  *   id,
- *   domain: '1sat.name',
+ *   profile: { domain: '1sat.name' },
  *   inscription: {
  *     contentType: DIR_CONTENT_TYPE, // 'ordfs/dir'
  *     content: dirEncode({
@@ -377,9 +385,9 @@ export const internalizeOpns: Action<
  * ```
  *
  * Two phases: the action emits the complete script with a zeroed signature
- * field (and the envelope already appended); `applyOpnsRegister` re-locks the
- * same fields with the real signature and re-appends whatever followed the
- * PushDrop, so the envelope rides in the draft script itself.
+ * field (and the envelope already appended); `applyOpnsRegister` finds that
+ * placeholder push and replaces it with the real signature. Nothing else in
+ * the script changes, so the envelope simply stays where it is.
  */
 export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 	{
@@ -392,19 +400,26 @@ export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 				type: 'object',
 				properties: {
 					id: { type: 'string', description: 'OPNS basket tracking id' },
-					domain: {
-						type: 'string',
-						description:
-							'BRC-169 ecosystem domain (lowercase hostname, e.g. 1sat.name)',
-					},
-					profileName: {
-						type: 'string',
-						description: 'Display name for paymail public-profile',
-					},
-					avatar: {
-						type: 'string',
-						description:
-							'Origin outpoint (txid_vout) of an on-chain image ordinal',
+					profile: {
+						type: 'object',
+						description: 'Profile written on the name',
+						properties: {
+							domain: {
+								type: 'string',
+								description:
+									'BRC-169 ecosystem domain (lowercase hostname, e.g. 1sat.name)',
+							},
+							name: {
+								type: 'string',
+								description: 'Presentation name for paymail public-profile',
+							},
+							avatar: {
+								type: 'string',
+								description:
+									'Origin outpoint (txid_vout) of an on-chain image ordinal',
+							},
+						},
+						required: ['domain'],
 					},
 					inscription: {
 						type: 'object',
@@ -417,7 +432,7 @@ export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 						required: ['contentType', 'content'],
 					},
 				},
-				required: ['id', 'domain'],
+				required: ['id', 'profile'],
 			},
 		},
 		async execute(ctx, input) {
@@ -433,11 +448,12 @@ export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 				const { publicKey: identityKey } = await ctx.wallet.getPublicKey({
 					identityKey: true,
 				})
+				const avatarOutpoint = input.profile?.avatar
 				let avatar: number[] | undefined
-				if (input.avatar?.trim()) {
-					const bytes = outpointToBytes(formatOrdinalOutpoint(input.avatar))
+				if (avatarOutpoint?.trim()) {
+					const bytes = outpointToBytes(formatOrdinalOutpoint(avatarOutpoint))
 					if (!bytes)
-						throw new Error(`invalid avatar outpoint: ${input.avatar}`)
+						throw new Error(`invalid avatar outpoint: ${avatarOutpoint}`)
 					avatar = bytes
 				}
 				// Key/value fields on the plain PushDrop template; this action owns
@@ -447,8 +463,8 @@ export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 					Utils.toArray(identityKey, 'hex'),
 					Utils.toArray(PROFILE_FIELD, 'utf8'),
 					encodeProfile({
-						domain: input.domain,
-						displayName: input.profileName,
+						domain: input.profile?.domain ?? '',
+						name: input.profile?.name,
 						avatar,
 					}),
 				]

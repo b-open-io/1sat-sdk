@@ -67,7 +67,7 @@ describe('verifyPushDropBind (key/value fields)', () => {
 			wallet,
 			publishFields(identityKey, {
 				domain: '1sat.name',
-				displayName: 'Alice',
+				name: 'Alice',
 				avatar: outpointToBytes(AVATAR) ?? undefined,
 			}),
 		)

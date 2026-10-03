@@ -211,7 +211,7 @@ Tags (`--tags a,b,c`) land on the on-chain post's MAP payload and on the wallet 
 
 ```bash
 bunx @1sat/cli opns lookup [--limit] [--offset] [--ids] [--names] [--tags] …
-bunx @1sat/cli opns register --id <id> --domain <hostname>
+bunx @1sat/cli opns register --id <id> --domain <hostname> [--name <n>] [--avatar <txid_vout>]
 bunx @1sat/cli opns deregister --id <id>
 bunx @1sat/cli opns sell --id <id> --price <sats> [--pay-address <addr>]
 bunx @1sat/cli opns cancel-listing --id <id>

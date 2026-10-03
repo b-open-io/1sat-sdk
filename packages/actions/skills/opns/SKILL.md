@@ -18,7 +18,7 @@ Never pass a bare name string to `registerOpns` as if it creates the name.
 ## What is OpNS?
 
 - Names are ordinal inscriptions (1-sat) with content type `application/op-ns`
-- Published names are locked in the plain signed PushDrop whose fields are key/value pairs: `identity` (pubkey) + `profile` (DAG-CBOR `{ domain, displayName?, avatar? }`), optionally followed by an inscription. Field codecs are in `@1sat/utils` (`encodeProfile`/`decodeProfile`, `isIdentityKey`, `fieldPairs`); `registerOpns` owns the layout — spec: `docs/protocols/opns-paymail-bind.md`
+- Published names are locked in the plain signed PushDrop whose fields are key/value pairs: `identity` (pubkey) + `profile` (DAG-CBOR `{ domain, name?, avatar? }`), optionally followed by an inscription. Field codecs are in `@1sat/utils` (`encodeProfile`/`decodeProfile`, `isIdentityKey`, `fieldPairs`); `registerOpns` owns the layout — spec: `docs/protocols/opns-paymail-bind.md`
 - Overlay tracks the mine tree; ORDFS resolves ordinal-level state
 - Genesis: `58b7558ea379f24266c7e2f5fe321992ad9a724fd7a87423ba412677179ccb25`
 
@@ -31,7 +31,7 @@ External buys take **`outpoint`** + optional **`inputBEEF`** (else services fetc
 |--------|-------------|
 | `listOpns` | List owned names (metadata/tags default; optional BEEF) |
 | `internalizeOpns` | File foreign mint AtomicBEEF → OPNS basket + full tags |
-| `registerOpns` | Publish identity + profile fields (`{ id, domain, profileName?, avatar?, inscription? }`) |
+| `registerOpns` | Publish identity + profile fields (`{ id, profile: { domain, name?, avatar? }, inscription? }`) |
 | `deregisterOpns` | Clear identity bind (`{ id }`) |
 | `sellOpns` | List for sale (`{ id, price, payAddress? }`) |
 | `sendOpns` | Send to counterparty or address (`{ id, counterparty? \| address? }`) |
@@ -66,9 +66,11 @@ if (!id) throw new Error('missing id: tag')
 
 const result = await registerOpns.execute(ctx, {
   id,
-  domain: '1sat.name',     // required: BRC-169 domain (lowercase hostname)
-  profileName: 'Alice',    // optional → profile.displayName
-  avatar: 'txid_0',        // optional → profile.avatar (image ordinal origin)
+  profile: {
+    domain: '1sat.name',   // required: BRC-169 domain (lowercase hostname)
+    name: 'Alice',         // optional presentation name
+    avatar: 'txid_0',      // optional image ordinal origin (stored as 36 bytes)
+  },
 })
 ```
 
@@ -88,7 +90,7 @@ import { DIR_CONTENT_TYPE, DIR_VERSION, dirEncode, registerOpns } from '@1sat/ac
 
 await registerOpns.execute(ctx, {
   id,
-  domain: '1sat.name',
+  profile: { domain: '1sat.name' },
   inscription: {
     contentType: DIR_CONTENT_TYPE, // 'ordfs/dir'
     content: dirEncode({

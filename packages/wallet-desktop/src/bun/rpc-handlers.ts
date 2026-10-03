@@ -96,7 +96,7 @@ import {
 } from './wallet-manager'
 import { openAccountWindow } from './window-manager'
 
-/** Domain written into an OpNS record when the caller gives none (issue #83). */
+/** Domain written into an OpNS name's profile when the caller gives none (issue #83). */
 const DEFAULT_OPNS_DOMAIN = '1sat.name'
 
 // ============================================================================
@@ -913,7 +913,7 @@ export function createRpcHandlers(scopedAccountId?: string) {
 			if (!id) return { error: 'OpNS name has no wallet tracking id' }
 			const result = await registerOpns.execute(ctx, {
 				id,
-				domain: domain ?? DEFAULT_OPNS_DOMAIN,
+				profile: { domain: domain ?? DEFAULT_OPNS_DOMAIN },
 			})
 			return { txid: result.txid, error: result.error }
 		},

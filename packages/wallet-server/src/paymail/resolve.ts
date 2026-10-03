@@ -153,7 +153,7 @@ export async function verifyPushDropBind(
 	return {
 		identityKey,
 		...(profile?.domain ? { domain: profile.domain } : {}),
-		...(profile?.displayName ? { profileName: profile.displayName } : {}),
+		...(profile?.name ? { profileName: profile.name } : {}),
 		...(profile?.avatar
 			? { avatarOrigin: outpointFromBytes(profile.avatar) ?? undefined }
 			: {}),
