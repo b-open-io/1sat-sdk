@@ -61,6 +61,9 @@ export interface WalletFundingProviderOptions {
  * 3. Broadcast it with `options.broadcast` (default `ctx.services.postBeef`).
  * 4. Return `{ txid, tx: AtomicBEEF }`.
  *
+ * Not used by `deployMandala` (which is one createAction + one
+ * internalizeAction); kept as a reusable provider.
+ *
  * Caller inputs must already carry their unlocking script, signed so the
  * appended funding input does not invalidate it (`SIGHASH_ALL |
  * ANYONECANPAY`); scripts are not re-signed or checked. An input with only

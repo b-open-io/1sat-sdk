@@ -41,18 +41,20 @@ export const BSV21_AUTH_BASKET = BSV21_BASKET
 export const BSV21_AUTH_TAG = 'bsv21:auth'
 /** Tag on a single-CA deploy output; tokenId is the outpoint (`txid_vout`). */
 export const BSV21_DEPLOY_TAG = 'bsv21:deploy'
-/** Tag on a Mandala deploy output; its txid is the token id. */
-export const MANDALA_DEPLOY_TAG = 'mandala:deploy'
-/** Tag on a Mandala authority (minting capability) output. */
-export const MANDALA_AUTH_TAG = 'mandala:auth'
-/** Tag on a deploy output filed in the `mandala` index basket. */
-export const MANDALA_INDEX_TAG = 'mandala:index'
+/**
+ * Action label on every Mandala transaction: `listActions({ labels:
+ * ['mandala'] })` indexes the tokens this wallet tracks.
+ */
+export const MANDALA_LABEL = 'mandala'
+/** Per-token action label `mandala:<txid>` (token id = deploy txid). */
+export function mandalaTokenLabel(tokenId: string): string {
+	return `${MANDALA_LABEL}:${tokenId.toLowerCase()}`
+}
 /** Overlay discovery topic for Mandala deploys (BRC-22). */
 export const MANDALA_TOPIC = 'tm_mandala'
 /**
- * Per-token basket for a Mandala token's value/authority outputs: the bare
- * token id (deploy txid hex, lowercase). The `mandala` basket holds only
- * deploy outputs, as the index of tracked tokens.
+ * Per-token basket holding all of a Mandala token's outputs (deploy, value,
+ * authority): the bare token id (deploy txid hex, lowercase).
  */
 export function mandalaTokenBasket(tokenId: string): string {
 	return tokenId.toLowerCase()
@@ -729,7 +731,12 @@ export const ORDFS_STREAM_PARAM = 'stream=ordfs'
 // Mandala (BRC-162)
 // ============================================================================
 
-/** Basket holding the wallet's Mandala token outputs, tagged `mandala:<tokenId>`. */
+/**
+ * Basket holding the wallet's Mandala token outputs, tagged `mandala:<tokenId>`.
+ * @deprecated Tokens live in per-token baskets (`mandalaTokenBasket`), indexed
+ * by the `mandala` action label; deploy uses this name only as the
+ * createAction placeholder before internalize moves the output.
+ */
 export const MANDALA_BASKET = 'mandala'
 
 /**
