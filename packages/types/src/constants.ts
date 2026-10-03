@@ -203,6 +203,32 @@ export const OPNS_REGISTER_COUNTERPARTY = 'anyone' as const
 /** Wallet tag on a published (bound) OpNS name */
 export const OPNS_PUBLISHED_TAG = 'opns:published'
 
+/**
+ * OpNS record pair keys. The name coin's PushDrop fields are key/value pairs
+ * (`key, value, key, value, …, signature`); keys are UTF-8 text pushes and the
+ * key names the value's encoding. Readers skip pairs whose key they do not
+ * know, so future concerns append a pair rather than restate identity.
+ */
+/** Value: 33-byte compressed identity public key (raw bytes). */
+export const OPNS_RECORD_IDENTITY_KEY = 'identity'
+/** Value: DAG-CBOR map — see {@link OPNS_PROFILE_FIELD}. */
+export const OPNS_RECORD_PROFILE_KEY = 'profile'
+
+/**
+ * Field names inside the `profile` DAG-CBOR map. PROVISIONAL — the names are
+ * not final (issue #83); change them here, nowhere else.
+ *
+ * - `domain` (required): BRC-169 ecosystem domain, lowercase hostname.
+ * - `displayName` (optional): presentation name; absent when unset.
+ * - `avatar` (optional): 36-byte outpoint of an image ordinal origin; absent
+ *   when unset.
+ */
+export const OPNS_PROFILE_FIELD = {
+	domain: 'domain',
+	displayName: 'displayName',
+	avatar: 'avatar',
+} as const
+
 /** PushDrop keyID from spent input outpoint (`txid.vout` → `opns:{txid}_{vout}`) */
 export function opnsRegisterKeyId(outpoint: string): string {
 	const [txid, vout] = outpoint.split('.')
