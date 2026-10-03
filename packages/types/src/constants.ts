@@ -41,17 +41,21 @@ export const BSV21_AUTH_BASKET = BSV21_BASKET
 export const BSV21_AUTH_TAG = 'bsv21:auth'
 /** Tag on a single-CA deploy output; tokenId is the outpoint (`txid_vout`). */
 export const BSV21_DEPLOY_TAG = 'bsv21:deploy'
-/** Tag prefix carrying a Mandala token id: `mandala:<deploy txid>`. */
-export const MANDALA_TAG_PREFIX = 'mandala:'
 /** Tag on a Mandala deploy output; its txid is the token id. */
 export const MANDALA_DEPLOY_TAG = 'mandala:deploy'
 /** Tag on a Mandala authority (minting capability) output. */
 export const MANDALA_AUTH_TAG = 'mandala:auth'
+/** Tag on a deploy output filed in the `mandala` index basket. */
+export const MANDALA_INDEX_TAG = 'mandala:index'
 /** Overlay discovery topic for Mandala deploys (BRC-22). */
 export const MANDALA_TOPIC = 'tm_mandala'
-/** Token tag `mandala:<txid>` — the id is the deploy txid alone, never `txid_0`. */
-export function mandalaTokenTag(tokenId: string): string {
-	return `${MANDALA_TAG_PREFIX}${tokenId}`
+/**
+ * Per-token basket for a Mandala token's value/authority outputs: the bare
+ * token id (deploy txid hex, lowercase). The `mandala` basket holds only
+ * deploy outputs, as the index of tracked tokens.
+ */
+export function mandalaTokenBasket(tokenId: string): string {
+	return tokenId.toLowerCase()
 }
 export const OPNS_BASKET = 'opns'
 export const LOCK_BASKET = 'lock'

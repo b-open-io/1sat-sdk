@@ -130,9 +130,16 @@ const dep = await deployMandala.execute(ctx, {
   `fundingProvider` to override) creates one funding UTXO in the `funding`
   basket, builds and broadcasts the deploy spending it, and the wallet then
   internalizes vout 0.
-- Filed in the `mandala` basket with tags `mandala:<txid>` and `mandala:deploy`
-  (+ `mandala:auth` for an authority deploy). customInstructions carry the key
-  derivation plus `amt`/`dec`/`sym`/`icon`.
+- Baskets: `mandala` holds **only deploy outputs** — the index of tokens the
+  wallet tracks. A token's value/authority outputs go in a per-token basket
+  named by the bare token id (`mandalaTokenBasket(tokenId)`, lowercase txid).
+- The deploy output is filed in `mandala` with tags `mandala:deploy`,
+  `mandala:index` (+ `mandala:auth` for an authority deploy).
+  customInstructions carry only the key derivation (`protocolID`
+  `[2, 'mandala']`, `keyID`, `counterparty` when not self): amount and id are
+  read from the script, `sym`/`dec`/`icon` from the deploy payload.
+- Open: a fixed-supply deploy output is both the index record and the whole
+  supply; it is filed in `mandala` for now (see PR #86).
 - `overlay` (optional, an overlay base URL): broadcast the deploy as a BRC-22
   submit to `<overlay>/submit` with `X-Topics: tm_mandala,tm_<txid>` (bare
   comma-separated string) instead of the default broadcaster; a STEAK response

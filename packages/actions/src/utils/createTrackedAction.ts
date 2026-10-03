@@ -206,7 +206,7 @@ export async function executeTrackedAction(
 			description: args.description,
 			labels: args.labels,
 		})
-		return { txid: funded.txid, actionId }
+		return { txid: funded.txid, tx: Array.from(funded.tx), actionId }
 	}
 
 	if (opts.bypassP1Sat) {

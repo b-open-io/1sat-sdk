@@ -9,9 +9,9 @@ import {
 	MANDALA_AUTH_TAG,
 	MANDALA_BASKET,
 	MANDALA_DEPLOY_TAG,
+	MANDALA_INDEX_TAG,
 	MANDALA_PROTOCOL,
 	MANDALA_TOPIC,
-	mandalaTokenTag,
 } from '@1sat/types'
 import type { CreateActionArgs } from '@bsv/sdk'
 import type { FundingProvider } from '../funding/index.js'
@@ -57,9 +57,13 @@ export interface DeployMandalaResponse {
 /**
  * Deploy a Mandala token. The deploy output is vout 0; the token id is the
  * deploy txid. The transaction is funded through a side door
- * ({@link FundingProvider}) and then internalized into `mandala` with the
- * tags `mandala:<txid>`, `mandala:deploy` and, for an authority deploy,
- * `mandala:auth` — `createAction` cannot tag an output with its own txid.
+ * ({@link FundingProvider}) and then internalized into the `mandala` index
+ * basket with tags `mandala:deploy`, `mandala:index` and, for an authority
+ * deploy, `mandala:auth`. customInstructions carry only the key derivation:
+ * amount and id are read from the script, display fields from the payload.
+ * Value/authority outputs of the token belong in its per-token basket
+ * (`mandalaTokenBasket`); a fixed-supply deploy output is filed in
+ * `mandala` for now (open design question, see PR #86).
  */
 export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 	{
@@ -122,16 +126,15 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 							payload,
 						})
 
+				// Index record: amount and id are read from the script, display
+				// fields from the payload; customInstructions carry only the
+				// derivation (absent for an address / literal-script destination).
 				const tags = authority
-					? [MANDALA_DEPLOY_TAG, MANDALA_AUTH_TAG]
-					: [MANDALA_DEPLOY_TAG]
-				const customInstructions = JSON.stringify({
-					...resolved.customInstructions,
-					amt: amount.toString(),
-					...(input.decimals !== undefined && { dec: input.decimals }),
-					...(input.symbol !== undefined && { sym: input.symbol }),
-					...(input.icon !== undefined && { icon: input.icon }),
-				})
+					? [MANDALA_DEPLOY_TAG, MANDALA_AUTH_TAG, MANDALA_INDEX_TAG]
+					: [MANDALA_DEPLOY_TAG, MANDALA_INDEX_TAG]
+				const customInstructions = resolved.customInstructions
+					? JSON.stringify(resolved.customInstructions)
+					: undefined
 
 				const args: CreateActionArgs = {
 					description: authority
@@ -156,25 +159,10 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 						ctx,
 						input.overlay ? { broadcast: overlaySubmit(input.overlay) } : {},
 					)
-				let tx: number[] | undefined
-				// The txid is known only once the provider has built the
-				// transaction; executeTrackedAction reads the output tags after
-				// fund() returns, so the token tag is added here.
-				const tagging: FundingProvider = {
-					async fund(fundArgs) {
-						const funded = await provider.fund(fundArgs)
-						const out = fundArgs.outputs?.[0]
-						if (out) {
-							out.tags = [...(out.tags ?? []), mandalaTokenTag(funded.txid)]
-						}
-						tx = Array.from(funded.tx)
-						return funded
-					},
-				}
 
-				const result = await executeTrackedAction(ctx.wallet, args, tagging)
+				const result = await executeTrackedAction(ctx.wallet, args, provider)
 				if (!result.txid) return { error: result.error ?? 'deploy-no-txid' }
-				return { txid: result.txid, tx, tokenId: result.txid }
+				return { txid: result.txid, tx: result.tx, tokenId: result.txid }
 			} catch (error) {
 				return {
 					error: error instanceof Error ? error.message : 'unknown-error',

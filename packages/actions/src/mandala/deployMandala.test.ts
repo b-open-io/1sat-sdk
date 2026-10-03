@@ -4,9 +4,10 @@ import {
 	MANDALA_AUTH_TAG,
 	MANDALA_BASKET,
 	MANDALA_DEPLOY_TAG,
+	MANDALA_INDEX_TAG,
 	MANDALA_PROTOCOL,
 	MANDALA_TOPIC,
-	mandalaTokenTag,
+	mandalaTokenBasket,
 } from '@1sat/types'
 import {
 	type CreateActionArgs,
@@ -78,7 +79,7 @@ async function derivedLock(ci: { keyID: string }) {
 }
 
 describe('deployMandala', () => {
-	test('fixed supply: deploy at vout 0, filed under mandala:<txid>, tokenId = txid', async () => {
+	test('fixed supply: deploy at vout 0, filed in the mandala index, tokenId = txid', async () => {
 		const { ctx, fundingProvider, internalized, funded } = setup()
 		const res = await deployMandala.execute(ctx, {
 			amount: '21000000',
@@ -103,14 +104,15 @@ describe('deployMandala', () => {
 		const remit = out.insertionRemittance
 		expect(remit?.basket).toBe(MANDALA_BASKET)
 		expect(remit?.tags).toContain(MANDALA_DEPLOY_TAG)
-		expect(remit?.tags).toContain(mandalaTokenTag(res.txid as string))
+		expect(remit?.tags).toContain(MANDALA_INDEX_TAG)
 		expect(remit?.tags).not.toContain(MANDALA_AUTH_TAG)
-		expect(
-			remit?.tags?.filter((t) => t.startsWith('mandala:') && t.includes('_')),
-		).toEqual([])
+		expect(remit?.tags?.filter((t) => t.startsWith('mandala:')).sort()).toEqual(
+			[MANDALA_DEPLOY_TAG, MANDALA_INDEX_TAG].sort(),
+		)
 
 		const ci = JSON.parse(remit?.customInstructions ?? '{}')
-		expect(ci).toMatchObject({ amt: '21000000', dec: 8, sym: 'GOLD' })
+		// derivation only: no token fields
+		expect(Object.keys(ci).sort()).toEqual(['keyID', 'protocolID'])
 		expect(ci.protocolID).toEqual(MANDALA_PROTOCOL)
 		expect(ci.keyID).toStartWith('mandala-deploy-')
 
@@ -146,11 +148,16 @@ describe('deployMandala', () => {
 			expect.arrayContaining([
 				MANDALA_DEPLOY_TAG,
 				MANDALA_AUTH_TAG,
-				mandalaTokenTag(res.txid as string),
+				MANDALA_INDEX_TAG,
 			]),
 		)
 		const ci = JSON.parse(remit?.customInstructions ?? '{}')
-		expect(ci).toMatchObject({ amt: '0', dec: 2, sym: 'STABLE', icon: 1 })
+		expect(Object.keys(ci).sort()).toEqual(['keyID', 'protocolID'])
+		// nothing filed in the token's own basket yet
+		expect(
+			internalized[0].outputs.map((o) => o.insertionRemittance?.basket),
+		).toEqual([MANDALA_BASKET])
+		expect(mandalaTokenBasket(res.txid as string)).toBe(res.txid as string)
 		expect(ci.protocolID).toEqual(MANDALA_PROTOCOL)
 
 		const tx = Transaction.fromAtomicBEEF(internalized[0].tx)
@@ -264,5 +271,27 @@ describe('deployMandala overlay', () => {
 			},
 		])
 		expect(internalized).toHaveLength(1)
+	})
+})
+
+describe('deployMandala filing', () => {
+	test('an address destination files the deploy with no customInstructions', async () => {
+		const { ctx, fundingProvider, internalized } = setup()
+		const res = await deployMandala.execute(ctx, {
+			amount: '5',
+			destination: {
+				address: PrivateKey.fromHex('06'.repeat(32)).toPublicKey().toAddress(),
+			},
+			fundingProvider,
+		})
+		expect(res.error).toBeUndefined()
+		expect(res.tx).toBeDefined()
+		const remit = internalized[0].outputs[0].insertionRemittance
+		expect(remit?.basket).toBe(MANDALA_BASKET)
+		expect(remit?.customInstructions).toBeUndefined()
+	})
+
+	test('mandalaTokenBasket is the bare lowercase token id', () => {
+		expect(mandalaTokenBasket('AB'.repeat(32))).toBe('ab'.repeat(32))
 	})
 })
