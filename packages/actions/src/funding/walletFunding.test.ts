@@ -140,12 +140,11 @@ describe('createWalletFundingProvider', () => {
 			tx.outputs.map((o) => [o.lockingScript.toHex(), o.satoshis]),
 		).toEqual((args.outputs ?? []).map((o) => [o.lockingScript, o.satoshis]))
 
-		// fee: funding = outputs + the model's fee for this transaction
+		// fee: funding = outputs + the model's fee at the maximum unlock length
 		const paid = (fundOut?.satoshis ?? 0) - 547
 		expect(paid).toBeGreaterThan(0)
-		expect(
-			Math.abs(paid - (await feeModel.computeFee(tx))),
-		).toBeLessThanOrEqual(1)
+		// sized at the maximum unlock length: never under-pays the signed tx
+		expect(paid).toBeGreaterThanOrEqual(await feeModel.computeFee(tx))
 
 		// signed with the derived key
 		const input = tx.inputs[0]

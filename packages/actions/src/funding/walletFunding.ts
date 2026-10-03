@@ -21,7 +21,12 @@ type FeeModel = Exclude<Parameters<Transaction['fee']>[0], number | undefined>
 /** Basket the wallet files side-door funding UTXOs into. */
 export const FUNDING_BASKET = 'funding'
 
-/** P2PKH unlocking script length used for fee sizing (sig + pubkey pushes). */
+/**
+ * Maximum P2PKH unlocking script length, used for fee sizing so the funding
+ * UTXO never under-pays: push opcode (1) + DER signature at most 72 bytes +
+ * sighash byte (1) + push opcode (1) + compressed pubkey (33) = 108 bytes.
+ * A shorter real signature over-pays by a byte or two.
+ */
 const P2PKH_UNLOCK_LENGTH = 108
 
 export interface WalletFundingProviderOptions {
