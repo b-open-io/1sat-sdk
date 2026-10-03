@@ -714,15 +714,20 @@ export const ORDFS_STREAM_PARAM = 'stream=ordfs'
 // ============================================================================
 
 /**
- * Index of tracked Mandala tokens: holds deploy outputs only (tag
- * `mandala:index`) and is never spent from. A token's value and authority
- * outputs live in its own basket, {@link mandalaTokenBasket}.
+ * Reserved/unused: outputs live in per-token baskets
+ * ({@link mandalaTokenBasket}), tokens are indexed by label
+ * (`mandala` + {@link mandalaTokenLabel}).
  */
 export const MANDALA_BASKET = 'mandala'
 
 /** Per-token basket: the bare token id (deploy txid hex, lowercase). */
 export function mandalaTokenBasket(tokenId: string): string {
 	return tokenId.toLowerCase()
+}
+
+/** Per-token action label `mandala:<txid>`, alongside the `mandala` label. */
+export function mandalaTokenLabel(txid: string): string {
+	return `mandala:${txid.toLowerCase()}`
 }
 
 /**

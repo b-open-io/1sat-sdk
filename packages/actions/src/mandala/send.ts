@@ -30,6 +30,7 @@ import {
 	MANDALA_PROTOCOL,
 	PAYMENT_INBOX,
 	mandalaTokenBasket,
+	mandalaTokenLabel,
 } from '@1sat/types'
 import { MessageBoxClient } from '@bsv/message-box-client'
 import {
@@ -280,9 +281,15 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 				ctx.wallet,
 				{
 					description: `Send ${amount} Mandala tokens`,
-					labels: peer
-						? [noSendExpiryLabel(input.expiry ?? DEFAULT_MANDALA_SEND_EXPIRY)]
-						: undefined,
+					// Token index labels: listActions({ labels: ['mandala'] }) and
+					// mandala:<txid> show this send under the token.
+					labels: [
+						'mandala',
+						mandalaTokenLabel(tokenId),
+						...(peer
+							? [noSendExpiryLabel(input.expiry ?? DEFAULT_MANDALA_SEND_EXPIRY)]
+							: []),
+					],
 					inputBEEF,
 					inputs: selected.map((o) => ({
 						outpoint: o.outpoint,

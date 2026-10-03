@@ -163,7 +163,11 @@ describe('sendMandala', () => {
 		const args = rec.createArgs[0]
 		expect(args.options?.noSend).toBe(true)
 		expect(args.options?.randomizeOutputs).toBe(false)
-		expect(args.labels).toContain('p nosend expiry seconds 604800')
+		expect(args.labels).toEqual([
+			'mandala',
+			`mandala:${TOKEN_ID}`,
+			'p nosend expiry seconds 604800',
+		])
 		// Every output is a 1-sat Mandala output: no satoshi change.
 		const outputs = args.outputs ?? []
 		expect(outputs).toHaveLength(2)
@@ -237,7 +241,7 @@ describe('sendMandala', () => {
 
 		const args = rec.createArgs[0]
 		expect(args.options?.noSend).toBeUndefined()
-		expect(args.labels ?? []).not.toContain('p nosend expiry seconds 604800')
+		expect(args.labels).toEqual(['mandala', `mandala:${TOKEN_ID}`])
 		expect(args.outputs).toHaveLength(1)
 		const token = Mandala.decode(
 			LockingScript.fromHex(args.outputs![0].lockingScript),

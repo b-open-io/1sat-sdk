@@ -111,10 +111,14 @@ await mintBsv21.execute(ctx, {
 
 ## Mandala send (BRC-162)
 
-`sendMandala` spends the wallet's Mandala outputs for a token. Each token has
-its own basket named by the bare token id (the deploy txid, lowercase hex;
-`mandalaTokenBasket(tokenId)` in `@1sat/types`). The `mandala` basket is only
-the index of tracked tokens (deploy outputs) and is never spent from. Token
+`sendMandala` spends the wallet's Mandala outputs for a token. Every output of a
+token, deploy included, lives in its own basket named by the bare token id
+(the deploy txid, lowercase hex; `mandalaTokenBasket(tokenId)` in
+`@1sat/types`). Tokens are indexed by transaction label, not by basket:
+`listActions({ labels: ['mandala'] })` lists tracked tokens, and each token's
+actions also carry `mandala:<txid>` (`mandalaTokenLabel`). `sendMandala` adds
+both labels, and a future recipient-side flow will internalize received
+tokens with the same two labels. Token
 change goes back to a wallet-derived key in the token's basket. Its
 customInstructions hold only the derivation (`protocolID`, `keyID`); amounts
 are read from the script.
