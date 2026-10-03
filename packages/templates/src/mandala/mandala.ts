@@ -10,11 +10,78 @@ import {
 	Utils,
 } from '@bsv/sdk'
 import {
-	DagCborLink,
-	type DagCborValue,
-	decodeDagCbor,
-	encodeDagCborMap,
-} from './dagcbor.js'
+	decode as dagCborDecode,
+	encode as dagCborEncode,
+} from '@ipld/dag-cbor'
+
+/** A DAG-CBOR link (tag 42): the CID bytes, without the leading 0x00 multibase prefix */
+export class DagCborLink {
+	constructor(public readonly cid: Uint8Array) {}
+}
+
+/** A value decoded from strict DAG-CBOR */
+export type DagCborValue =
+	| number
+	| bigint
+	| string
+	| boolean
+	| null
+	| Uint8Array
+	| DagCborLink
+	| DagCborValue[]
+	| { [key: string]: DagCborValue }
+
+/**
+ * Strictly decode a complete DAG-CBOR document with `@ipld/dag-cbor`. Returns
+ * `undefined` (not `null`, which is a valid value) when the bytes are not
+ * canonical DAG-CBOR.
+ *
+ * `@ipld/dag-cbor` rejects indefinite lengths, non-minimal integers and
+ * lengths, duplicate or non-text map keys, tags other than 42, NaN, the
+ * infinities and trailing bytes, but it does not check map key order, float
+ * width or UTF-8 validity, and it reads `undefined` as `null`. Canonical
+ * DAG-CBOR has exactly one encoding per value, so the decoded value is
+ * re-encoded and must reproduce the input bytes. One consequence: JavaScript
+ * cannot tell an integral 64-bit float from an integer, so a document holding
+ * one (e.g. `1.0`) does not reproduce and is rejected.
+ */
+export function decodeDagCbor(
+	bytes: Uint8Array | number[],
+): DagCborValue | undefined {
+	const buf = bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes)
+	let again: Uint8Array
+	let value: unknown
+	try {
+		value = dagCborDecode(buf)
+		again = dagCborEncode(value)
+	} catch {
+		return undefined
+	}
+	if (again.length !== buf.length) return undefined
+	for (let i = 0; i < buf.length; i++) {
+		if (again[i] !== buf[i]) return undefined
+	}
+	return fromIpld(value)
+}
+
+/** Replace the CIDs `@ipld/dag-cbor` decodes tag 42 into with {@link DagCborLink}s */
+function fromIpld(value: unknown): DagCborValue {
+	if (Array.isArray(value)) return value.map(fromIpld)
+	if (
+		value === null ||
+		typeof value !== 'object' ||
+		value instanceof Uint8Array
+	) {
+		return value as DagCborValue
+	}
+	const cid = value as { asCID?: unknown; bytes?: Uint8Array }
+	if (cid.asCID === value && cid.bytes instanceof Uint8Array) {
+		return new DagCborLink(Uint8Array.from(cid.bytes))
+	}
+	const out: { [key: string]: DagCborValue } = {}
+	for (const [k, v] of Object.entries(value)) out[k] = fromIpld(v)
+	return out
+}
 
 /**
  * Role of a Mandala output, determined only by the id and amount fields:
@@ -213,7 +280,7 @@ function encodeMetadata(meta: MandalaMetadata): Uint8Array | undefined {
 		}
 	}
 	if (Object.keys(wire).length === 0) return undefined
-	return encodeDagCborMap(wire)
+	return dagCborEncode(wire)
 }
 
 function u32le(v: number): number[] {

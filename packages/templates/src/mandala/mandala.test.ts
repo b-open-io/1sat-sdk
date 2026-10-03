@@ -10,9 +10,14 @@ import {
 	Transaction,
 	Utils,
 } from '@bsv/sdk'
+import { encode as dagCborEncode } from '@ipld/dag-cbor'
 import BSV21 from '../bsv21/bsv21.js'
-import { DagCborLink, decodeDagCbor, encodeDagCborMap } from './dagcbor.js'
-import Mandala, { MANDALA_MAX_AMOUNT } from './mandala.js'
+import Mandala, {
+	DagCborLink,
+	type DagCborValue,
+	decodeDagCbor,
+	MANDALA_MAX_AMOUNT,
+} from './mandala.js'
 
 // Transactions from amm-poc programs/amm-topic/src/fixtures/vectors.zig (2a9ea90)
 function fixture(name: string): Transaction {
@@ -332,25 +337,33 @@ describe('Mandala payload', () => {
 		expect(d?.metadata).toBeUndefined()
 	})
 
-	it('a non-map or non-strict payload has no payloadMap', () => {
+	it('a non-map or non-strict payload has no payloadMap or metadata', () => {
 		for (const p of [
-			'83010203',
-			'a26373796d6158',
-			'a26373796d61586364656308',
-			'bf6373796d6158ff',
+			'83010203', // array, not a map
+			'6158', // text, not a map
+			'a26373796d6158', // truncated
+			'a26373796d61586364656308', // keys out of order
+			'bf6373796d6158ff', // indefinite-length map
+			'a1636465631808', // non-minimal integer
+			'b8016373796d6158', // non-minimal map length
+			'a16373796dc16158', // tag 1
+			'c1a16373796d6158', // tagged map, tag 1
+			'a16373796df7', // undefined
 		]) {
 			const s = Mandala.deployAuthority({
 				lock: P2PKH_LOCK,
 				payload: Utils.toArray(p, 'hex'),
 			}).lock()
 			const d = Mandala.decode(s)
+			expect(d?.role).toBe('deploy')
 			expect(d?.payload).toBeDefined()
 			expect(d?.payloadMap).toBeUndefined()
+			expect(d?.metadata).toBeUndefined()
 		}
 	})
 
 	it('malformed display fields are dropped, the deploy stays valid', () => {
-		const payload = encodeDagCborMap({
+		const payload = dagCborEncode({
 			sym: 'OK',
 			dec: 19,
 			icon: Uint8Array.of(1, 2, 3),
@@ -428,8 +441,23 @@ describe('strict DAG-CBOR', () => {
 			aa: null,
 		})
 		expect(decodeDagCbor(Utils.toArray('fb3ff8000000000000', 'hex'))).toBe(1.5)
-		const link = decodeDagCbor(Utils.toArray('d82a4400017112', 'hex'))
+		// CIDv1, dag-cbor, sha2-256
+		const cid = `01711220${'ab'.repeat(32)}`
+		const link = decodeDagCbor(Utils.toArray(`d82a582500${cid}`, 'hex'))
 		expect(link).toBeInstanceOf(DagCborLink)
+		expect(hex((link as DagCborLink).cid)).toBe(cid)
+		const nested = decodeDagCbor(
+			Utils.toArray(`a1616cd82a582500${cid}`, 'hex'),
+		) as Record<string, DagCborValue>
+		expect(nested.l).toBeInstanceOf(DagCborLink)
+	})
+	it('encodes the spec examples byte for byte', () => {
+		expect(hex(dagCborEncode({ sym: 'GOLD', dec: 8 }))).toBe(
+			'a263646563086373796d64474f4c44',
+		)
+		expect(hex(dagCborEncode({ sym: 'STABLE', dec: 2 }))).toBe(
+			'a263646563026373796d66535441424c45',
+		)
 	})
 	const bad: [string, string][] = [
 		['unsorted keys', 'a2616201616101'],
@@ -444,7 +472,9 @@ describe('strict DAG-CBOR', () => {
 		['f32 float', 'fa3fc00000'],
 		['NaN', 'fb7ff8000000000000'],
 		['tag other than 42', 'c11a00000000'],
-		['tag 42 without 0x00 prefix', 'd82a4401017112'],
+		['tag 42 without 0x00 prefix', `d82a5825${'01711220'}${'ab'.repeat(33)}`],
+		['tag 42 holding a malformed CID', 'd82a4400017112'],
+		['integral 64-bit float (JS cannot keep it a float)', 'fb3ff0000000000000'],
 		['trailing bytes', 'a000'],
 		['invalid UTF-8', '62c328'],
 		['truncated', 'a161'],

@@ -8,18 +8,19 @@ export { buildInscriptionScript } from './inscription/compose.js'
 export { default as BSV20 } from './bsv20/bsv20.js'
 export { default as BSV21 } from './bsv21/bsv21.js'
 export {
+	DagCborLink,
+	decodeDagCbor,
 	default as Mandala,
 	MANDALA_MAX_AMOUNT,
 } from './mandala/mandala.js'
 export type {
+	DagCborValue,
 	MandalaLock,
 	MandalaMetadata,
 	MandalaOptions,
 	MandalaRole,
 	MandalaToken,
 } from './mandala/mandala.js'
-export { DagCborLink, decodeDagCbor } from './mandala/dagcbor.js'
-export type { DagCborValue } from './mandala/dagcbor.js'
 export { default as Shrug, SHRUG_TAG_HEX } from './shrug/shrug.js'
 export type { ShrugData } from './shrug/shrug.js'
 export {
