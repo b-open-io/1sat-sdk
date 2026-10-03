@@ -218,7 +218,7 @@ export const PROFILE_FIELD = 'profile'
  * Field names inside the `profile` DAG-CBOR map. PROVISIONAL — the names are
  * not final (issue #83); change them here, nowhere else.
  *
- * - `domain` (required): BRC-169 ecosystem domain, lowercase hostname.
+ * - `domain` (required): BRC-169 ecosystem domain, non-empty, as entered.
  * - `name` (optional): presentation name; absent when unset.
  * - `avatar` (optional): 36-byte outpoint of an image ordinal origin; absent
  *   when unset.

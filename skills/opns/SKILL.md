@@ -67,7 +67,7 @@ if (!id) throw new Error('missing id: tag')
 const result = await registerOpns.execute(ctx, {
   id,
   profile: {
-    domain: '1sat.name',   // required: BRC-169 domain (lowercase hostname)
+    domain: '1sat.name',   // required: BRC-169 domain, stored as given
     name: 'Alice',         // optional presentation name
     avatar: 'txid_0',      // optional image ordinal origin (stored as 36 bytes)
   },

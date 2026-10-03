@@ -16,23 +16,12 @@ import { decode as cborDecode, encode as cborEncode } from '@ipld/dag-cbor'
  * map) when unset — never placeholders.
  */
 export interface Profile {
-	/** BRC-169 ecosystem domain (lowercase hostname). Required. */
+	/** BRC-169 ecosystem domain, as entered. Required, non-empty. */
 	domain: string
 	/** Presentation name. */
 	name?: string
 	/** 36-byte outpoint (txid internal order ‖ vout LE) of an image ordinal. */
 	avatar?: number[]
-}
-
-const HOSTNAME_LABEL = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/
-
-/**
- * Loose hostname check — lowercase labels of `[a-z0-9-]`, no ports, no
- * scheme, no DNS lookup.
- */
-export function isHostname(domain: string): boolean {
-	if (!domain || domain.length > 253) return false
-	return domain.split('.').every((label) => HOSTNAME_LABEL.test(label))
 }
 
 /** `identity` field check: 33-byte compressed public key. */
@@ -42,18 +31,21 @@ export function isIdentityKey(bytes: number[]): boolean {
 
 /**
  * Encode a `profile` value: DAG-CBOR map with `domain` and, when set,
- * `name` / `avatar`. `domain` is trimmed and lowercased; an empty `name` or
- * `avatar` is omitted.
+ * `name` / `avatar`. Values are written exactly as given — no trimming, case
+ * folding or format checks (a typo is fixed by republishing); only the types
+ * are checked. An unset or empty `name` / `avatar` is omitted.
  */
 export function encodeProfile(profile: Profile): number[] {
-	const domain = profile.domain?.trim().toLowerCase() ?? ''
-	if (!isHostname(domain)) {
-		throw new Error(`invalid profile domain: ${profile.domain}`)
+	const { domain, name } = profile
+	if (typeof domain !== 'string' || domain === '') {
+		throw new Error('profile domain is required')
+	}
+	if (name !== undefined && typeof name !== 'string') {
+		throw new Error('profile name must be a string')
 	}
 	const map: Record<string, string | Uint8Array> = {
 		[PROFILE_FIELDS.domain]: domain,
 	}
-	const name = profile.name?.trim()
 	if (name) map[PROFILE_FIELDS.name] = name
 	if (profile.avatar?.length) {
 		if (profile.avatar.length !== 36) {
@@ -72,8 +64,8 @@ export function decodeProfile(bytes: number[]): Profile {
 	}
 	const m = map as Record<string, unknown>
 	const domain = m[PROFILE_FIELDS.domain]
-	if (typeof domain !== 'string' || !isHostname(domain)) {
-		throw new Error('profile: missing or invalid domain')
+	if (typeof domain !== 'string' || domain === '') {
+		throw new Error('profile: missing domain')
 	}
 	const profile: Profile = { domain }
 

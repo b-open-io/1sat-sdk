@@ -321,7 +321,6 @@ export {
 	decodeProfile,
 	encodeProfile,
 	fieldPairs,
-	isHostname,
 	isIdentityKey,
 } from './fields.js'
 

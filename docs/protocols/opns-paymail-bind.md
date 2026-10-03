@@ -65,7 +65,7 @@ they do not restate identity.
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `domain` | text | **Required.** A BRC-169 ecosystem domain, lowercase hostname (no scheme, no port). Readers go `https://<domain>/manifest.json` → `metanet.handles.resolve` → messagebox. |
+| `domain` | text | **Required**, non-empty. A BRC-169 ecosystem domain, stored exactly as entered — not validated, trimmed or case-folded (a typo is fixed by republishing; readers compare case-insensitively themselves). Readers go `https://<domain>/manifest.json` → `metanet.handles.resolve` → messagebox. |
 | `name` | text | Optional presentation name. |
 | `avatar` | bytes (36) | Optional origin outpoint of an image ordinal (txid internal order ‖ vout LE). |
 

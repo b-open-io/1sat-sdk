@@ -6,7 +6,6 @@ import {
 	decodeProfile,
 	encodeProfile,
 	fieldPairs,
-	isHostname,
 	isIdentityKey,
 } from '../src/fields'
 
@@ -26,7 +25,7 @@ describe('profile field codec', () => {
 	})
 
 	test('absent optionals have no keys in the CBOR map', () => {
-		const bytes = encodeProfile({ domain: '1sat.name', name: '  ' })
+		const bytes = encodeProfile({ domain: '1sat.name', name: '' })
 		const map = cborDecode<Record<string, unknown>>(Uint8Array.from(bytes))
 		expect(Object.keys(map)).toEqual([PROFILE_FIELDS.domain])
 		expect(decodeProfile(bytes)).toEqual({ domain: '1sat.name' })
@@ -38,18 +37,22 @@ describe('profile field codec', () => {
 		expect(a).toEqual(b)
 	})
 
-	test('domain is lowercased and required', () => {
-		expect(
-			decodeProfile(encodeProfile({ domain: ' Example.COM ' })).domain,
-		).toBe('example.com')
+	test('values are written exactly as given; domain required', () => {
+		const odd = { domain: ' Example.COM/x ', name: '  Spaced  ' }
+		expect(decodeProfile(encodeProfile(odd))).toEqual(odd)
 		expect(() => encodeProfile({ domain: '' })).toThrow(/domain/)
-		expect(() => encodeProfile({ domain: 'https://x.com' })).toThrow(/domain/)
+		expect(() =>
+			encodeProfile({ domain: undefined as unknown as string }),
+		).toThrow(/domain/)
 		expect(() => decodeProfile(Array.from(cborEncode({ name: 'x' })))).toThrow(
 			/domain/,
 		)
+		expect(() => decodeProfile(Array.from(cborEncode({ domain: 7 })))).toThrow(
+			/domain/,
+		)
 		expect(() =>
-			decodeProfile(Array.from(cborEncode({ domain: 'Upper.io' }))),
-		).toThrow(/domain/)
+			decodeProfile(Array.from(cborEncode({ domain: 'x', name: 1 }))),
+		).toThrow(/name/)
 	})
 
 	test('avatar must be 36 bytes', () => {
@@ -67,14 +70,6 @@ describe('profile field codec', () => {
 		const bytes = Array.from(cborEncode({ domain: 'x.io', future: 1 }))
 		expect(decodeProfile(bytes)).toEqual({ domain: 'x.io' })
 		expect(() => decodeProfile(Array.from(cborEncode([1, 2])))).toThrow(/map/)
-	})
-
-	test('isHostname', () => {
-		expect(isHostname('a-b.c0.io')).toBe(true)
-		expect(isHostname('localhost')).toBe(true)
-		expect(isHostname('Upper.io')).toBe(false)
-		expect(isHostname('host:80')).toBe(false)
-		expect(isHostname('-bad.io')).toBe(false)
 	})
 })
 

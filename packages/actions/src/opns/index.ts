@@ -87,8 +87,9 @@ export interface OpnsInscription {
  */
 export interface OpnsProfile {
 	/**
-	 * BRC-169 ecosystem domain the identity is reached at (lowercase
-	 * hostname, e.g. `1sat.name`). Readers go `https://<domain>/manifest.json`.
+	 * BRC-169 ecosystem domain the identity is reached at (e.g. `1sat.name`).
+	 * Written exactly as given — not validated; fix a typo by republishing.
+	 * Readers go `https://<domain>/manifest.json`.
 	 */
 	domain: string
 	/**
@@ -407,7 +408,7 @@ export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 							domain: {
 								type: 'string',
 								description:
-									'BRC-169 ecosystem domain (lowercase hostname, e.g. 1sat.name)',
+									'BRC-169 ecosystem domain, written as given (e.g. 1sat.name)',
 							},
 							name: {
 								type: 'string',

@@ -125,7 +125,7 @@ describe('registerOpns record', () => {
 		const { wallet } = fakeWallet(9002)
 		const res = await registerOpns.execute(createContext(wallet), {
 			id: 'name-1',
-			profile: { domain: 'not a host' },
+			profile: { domain: '' },
 			usePermissionModule: true,
 		})
 		expect(res.error).toMatch(/domain/)
