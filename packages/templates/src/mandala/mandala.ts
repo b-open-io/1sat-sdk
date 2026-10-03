@@ -11,8 +11,10 @@ import {
 } from '@bsv/sdk'
 import {
 	decode as dagCborDecode,
+	decodeOptions as dagCborDecodeOptions,
 	encode as dagCborEncode,
 } from '@ipld/dag-cbor'
+import { Tokenizer, decodeFirst } from 'cborg'
 
 /** A DAG-CBOR link (tag 42): the CID bytes, without the leading 0x00 multibase prefix */
 export class DagCborLink {
@@ -118,9 +120,12 @@ export interface MandalaToken {
 	amount: bigint
 	/** The payload push, when present (OP_1..OP_16 / OP_1NEGATE give the pushed byte) */
 	payload?: Uint8Array
-	/** The payload as a DAG-CBOR map, when it strictly decodes as one */
+	/** The payload as a DAG-CBOR map, when `@ipld/dag-cbor` decodes it to one */
 	payloadMap?: Record<string, DagCborValue>
-	/** Display fields read from `payloadMap`; deploys only, malformed fields omitted */
+	/**
+	 * Display fields read from `payloadMap`; deploys only. Attribute types are
+	 * checked per BRC-162 at the CBOR token level; malformed fields are omitted.
+	 */
 	metadata?: MandalaMetadata
 	/** The rest of the script after the prefix (and payload) */
 	lock: LockingScript
@@ -293,19 +298,46 @@ function outpointString(bytes: Uint8Array): string {
 	return `${txid}_${bytes.length === 36 ? readU32le(bytes, 32) : 0}`
 }
 
-function metadataOf(map: Record<string, DagCborValue>): MandalaMetadata {
+/**
+ * The CBOR major type of each top-level value of a DAG-CBOR map, read from its
+ * tokens with `cborg` (the tokenizer `@ipld/dag-cbor` is built on). The
+ * decoded JavaScript value cannot tell an integer from an integral float, so
+ * attribute types are checked here. Only called on payloads the library has
+ * already decoded to a map.
+ */
+function mapValueTypes(payload: Uint8Array): Map<string, number> {
+	const types = new Map<string, number>()
+	const head = new Tokenizer(payload).next()
+	if (head.type.major !== 5) return types
+	let rest = payload.subarray(head.encodedLength ?? 1)
+	for (let i = 0; i < head.value; i++) {
+		const [key, afterKey] = decodeFirst(rest, dagCborDecodeOptions)
+		types.set(key, new Tokenizer(afterKey).next().type.major)
+		rest = decodeFirst(afterKey, dagCborDecodeOptions)[1]
+	}
+	return types
+}
+
+/**
+ * The BRC-162 display fields of a deploy payload map. Each attribute must have
+ * its BRC-162 CBOR type, checked at the token level: `sym` a text string,
+ * `dec` an unsigned integer (major type 0) 0-18, `icon` a byte string of 4 or
+ * 36 bytes. A malformed attribute is absent; the others are unaffected.
+ */
+function metadataOf(
+	map: Record<string, DagCborValue>,
+	payload: Uint8Array,
+): MandalaMetadata {
+	const types = mapValueTypes(payload)
 	const meta: MandalaMetadata = {}
-	if (typeof map.sym === 'string') meta.sym = map.sym
-	if (
-		typeof map.dec === 'number' &&
-		Number.isInteger(map.dec) &&
-		map.dec >= 0 &&
-		map.dec <= 18
-	) {
+	if (types.get('sym') === 3 && typeof map.sym === 'string') {
+		meta.sym = map.sym
+	}
+	if (types.get('dec') === 0 && typeof map.dec === 'number' && map.dec <= 18) {
 		meta.dec = map.dec
 	}
 	const icon = map.icon
-	if (icon instanceof Uint8Array) {
+	if (types.get('icon') === 2 && icon instanceof Uint8Array) {
 		if (icon.length === 36) meta.icon = outpointString(icon)
 		else if (icon.length === 4) meta.icon = readU32le(icon, 0)
 	}
@@ -330,8 +362,11 @@ function metadataOf(map: Record<string, DagCborValue>): MandalaMetadata {
  *   vout 0 is invalid. The string form is `<display txid>_<vout>`.
  * - **Amount**: minimal script number, 1 .. 2^64-1 for value; `OP_0` for authority.
  * - **Payload** (optional): any single push followed by `OP_DROP`. On deploys a
- *   DAG-CBOR map may carry `sym`, `dec` and `icon`. The payload never affects
- *   balance or authority admission.
+ *   DAG-CBOR map may carry `sym`, `dec` and `icon`. The payload is decoded
+ *   with `@ipld/dag-cbor` as-is; each attribute's type is checked per BRC-162
+ *   at the CBOR token level (`sym` text, `dec` unsigned integer 0-18, `icon`
+ *   4 or 36 bytes), and a malformed attribute is absent without affecting the
+ *   others. The payload never affects balance or authority admission.
  * - **Empty payload rule**: when no payload is given and the inner lock itself
  *   begins with a push operation (`OP_0`, `OP_1NEGATE`, `OP_1`..`OP_16` or any
  *   data push) followed by `OP_DROP`, the prefix carries an explicit empty
@@ -558,7 +593,9 @@ export default class Mandala implements ScriptTemplate {
 				!(map instanceof DagCborLink)
 			) {
 				token.payloadMap = map as Record<string, DagCborValue>
-				if (role === 'deploy') token.metadata = metadataOf(token.payloadMap)
+				if (role === 'deploy') {
+					token.metadata = metadataOf(token.payloadMap, payload)
+				}
 			}
 		}
 		return token

@@ -360,17 +360,50 @@ describe('Mandala payload', () => {
 		}
 	})
 
-	it('dec as a 64-bit float still decodes as a map; sym and icon read', () => {
-		const payload = `a363646563fb3ff00000000000006373796d6147${'6469636f6e4401000000'}`
-		const d = Mandala.decode(
-			Mandala.deployAuthority({
-				lock: P2PKH_LOCK,
-				payload: Utils.toArray(payload, 'hex'),
-			}).lock(),
-		)
-		expect(d?.payloadMap).toBeDefined()
-		expect(d?.metadata?.sym).toBe('G')
-		expect(d?.metadata?.icon).toBe(1)
+	it('attribute types are checked per BRC-162; a malformed one is absent', () => {
+		const SYM_G = '6373796d6147' // "sym": "G"
+		const ICON_1 = '6469636f6e4401000000' // "icon": h'01000000'
+		const cases: [string, string, Record<string, unknown>][] = [
+			[
+				'dec as f64 1.0',
+				`a363646563fb3ff0000000000000${SYM_G}${ICON_1}`,
+				{ sym: 'G', icon: 1 },
+			],
+			['dec negative', `a36364656320${SYM_G}${ICON_1}`, { sym: 'G', icon: 1 }],
+			['dec as text', `a3636465636131${SYM_G}${ICON_1}`, { sym: 'G', icon: 1 }],
+			['dec above 18', `a36364656313${SYM_G}${ICON_1}`, { sym: 'G', icon: 1 }],
+			[
+				'icon of 5 bytes',
+				`a36364656302${SYM_G}6469636f6e450100000000`,
+				{ sym: 'G', dec: 2 },
+			],
+			[
+				'icon as text',
+				`a36364656302${SYM_G}6469636f6e6461626364`,
+				{ sym: 'G', dec: 2 },
+			],
+			[
+				'sym as bytes',
+				`a363646563026373796d4147${ICON_1}`,
+				{ dec: 2, icon: 1 },
+			],
+			[
+				'every attribute well-typed',
+				`a36364656302${SYM_G}${ICON_1}`,
+				{ sym: 'G', dec: 2, icon: 1 },
+			],
+		]
+		for (const [name, payload, metadata] of cases) {
+			const d = Mandala.decode(
+				Mandala.deployAuthority({
+					lock: P2PKH_LOCK,
+					payload: Utils.toArray(payload, 'hex'),
+				}).lock(),
+			)
+			expect(d?.role, name).toBe('deploy')
+			expect(d?.payloadMap, name).toBeDefined()
+			expect(d?.metadata, name).toEqual(metadata)
+		}
 	})
 
 	it('malformed display fields are dropped, the deploy stays valid', () => {
