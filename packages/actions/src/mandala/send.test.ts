@@ -237,6 +237,65 @@ describe('sendMandala', () => {
 		expect(token?.lock.toHex()).toBe(new P2PKH().lock(address).toHex())
 	})
 
+	test('address + overlay: BRC-22 submit with tm_<tokenId>, wallet does not broadcast', async () => {
+		const { wallet, rec } = await fakeWallet()
+		const posts: Array<{ url: string; topics: string | null; body: Blob }> = []
+		const realFetch = globalThis.fetch
+		globalThis.fetch = (async (url: RequestInfo | URL, init?: RequestInit) => {
+			const headers = new Headers(init?.headers)
+			posts.push({
+				url: String(url),
+				topics: headers.get('x-topics'),
+				body: init?.body as Blob,
+			})
+			return new Response(JSON.stringify({ status: 'success' }))
+		}) as typeof fetch
+		try {
+			const res = await sendMandala.execute(createContext(wallet), {
+				tokenId: TOKEN_ID,
+				amount: '100',
+				destination: { address: RECIPIENT.toPublicKey().toAddress() },
+				overlay: 'https://overlay.example/',
+			})
+			expect(res.error).toBeUndefined()
+			expect(res.delivered).toBe('overlay')
+			// Default broadcast not requested: the wallet holds it as noSend.
+			expect(rec.createArgs[0].options?.noSend).toBe(true)
+			expect(rec.signArgs[0].options?.sendWith).toBeUndefined()
+			expect(posts).toHaveLength(1)
+			expect(posts[0].url).toBe('https://overlay.example/submit')
+			expect(posts[0].topics).toBe(`tm_${TOKEN_ID}`)
+			const sentBeef = Array.from(
+				new Uint8Array(await posts[0].body.arrayBuffer()),
+			)
+			expect(sentBeef).toEqual(res.tx!)
+		} finally {
+			globalThis.fetch = realFetch
+		}
+	})
+
+	test('overlay is ignored for peer sends', async () => {
+		const { wallet } = await fakeWallet()
+		const realFetch = globalThis.fetch
+		let fetched = 0
+		globalThis.fetch = (async () => {
+			fetched++
+			return new Response('{}')
+		}) as unknown as typeof fetch
+		try {
+			const res = await sendMandala.execute(createContext(wallet), {
+				tokenId: TOKEN_ID,
+				amount: '10',
+				destination: { identityKey: RECIPIENT_ID, messagebox: MESSAGEBOX },
+				overlay: 'https://overlay.example',
+			})
+			expect(res.delivered).toBe('message')
+			expect(fetched).toBe(0)
+		} finally {
+			globalThis.fetch = realFetch
+		}
+	})
+
 	test('insufficient balance', async () => {
 		const { wallet, rec } = await fakeWallet()
 		const res = await sendMandala.execute(createContext(wallet), {

@@ -8,7 +8,10 @@
  *   as Atomic BEEF in a BRC-33 message to the recipient's `payment_inbox`,
  *   in the PeerPay body shape (BRC-29) extended with `protocol`,
  *   `outputIndex` and `senderIdentityKey`.
- * - `{ address }` — P2PKH lock, broadcast by the wallet.
+ * - `{ address }` — P2PKH lock, broadcast by the wallet, or, when `overlay`
+ *   is set, submitted to that BRC-22 overlay instead (`POST <overlay>/submit`,
+ *   `X-Topics: tm_<tokenId>`); the wallet then holds it as a `noSend` action.
+ *   `overlay` applies only to this path: peer sends never broadcast.
  *
  * Peer sends are BRC-177 protected `noSend` actions: the wallet broadcasts a
  * funding transaction with one dedicated anchor output sized to fund the
@@ -21,6 +24,7 @@
  * and `tx` so the caller can retry delivery or abort.
  */
 
+import { OverlayClient } from '@1sat/client'
 import { Mandala } from '@1sat/templates'
 import { MANDALA_BASKET, MANDALA_PROTOCOL, PAYMENT_INBOX } from '@1sat/types'
 import { MessageBoxClient } from '@bsv/message-box-client'
@@ -69,14 +73,23 @@ export interface SendMandalaInput {
 	destination: MandalaDestination
 	/** Peer sends only: BRC-177 expiry (default {@link DEFAULT_MANDALA_SEND_EXPIRY}) */
 	expiry?: MandalaSendExpiry
+	/**
+	 * Address destinations only: overlay base URL. The transaction is submitted
+	 * there (BRC-22, topic `tm_<tokenId>`) instead of the wallet's broadcast.
+	 * Ignored for peer sends, which do not broadcast.
+	 */
+	overlay?: string
 }
 
 export interface SendMandalaResult {
 	txid?: string
 	/** Atomic BEEF of the send */
 	tx?: number[]
-	/** `message`: BRC-33 to the messagebox, not broadcast; `broadcast`: by the wallet */
-	delivered?: 'message' | 'broadcast'
+	/**
+	 * `message`: BRC-33 to the messagebox, not broadcast; `broadcast`: by the
+	 * wallet; `overlay`: submitted to the given overlay, not broadcast by the wallet
+	 */
+	delivered?: 'message' | 'broadcast' | 'overlay'
 	/** Messagebox message id (peer sends) */
 	messageId?: string
 	error?: string
@@ -183,6 +196,11 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 					description:
 						'Exactly one of { identityKey, messagebox } or { address }',
 				},
+				overlay: {
+					type: 'string',
+					description:
+						'Address destinations only: overlay base URL to submit to (topic tm_<tokenId>) instead of the wallet broadcast. Ignored for peer sends.',
+				},
 				expiry: {
 					type: 'object',
 					description:
@@ -198,6 +216,7 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 			const { tokenId, destination } = input
 			const amount = BigInt(input.amount)
 			const peer = !('address' in destination)
+			const overlay = peer ? undefined : input.overlay
 			const tag = mandalaTag(tokenId)
 
 			const listed = await ctx.wallet.listOutputs({
@@ -275,9 +294,10 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 						unlockingScriptLength: 108,
 					})),
 					outputs,
-					options: peer
-						? { noSend: true, randomizeOutputs: false }
-						: { randomizeOutputs: false },
+					options:
+						peer || overlay
+							? { noSend: true, randomizeOutputs: false }
+							: { randomizeOutputs: false },
 				},
 				undefined,
 				inputBEEF,
@@ -293,7 +313,21 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 			if (!result.txid || !result.tx) return { error: 'no-transaction' }
 
 			if ('address' in destination) {
-				return { txid: result.txid, tx: result.tx, delivered: 'broadcast' }
+				if (!overlay) {
+					return { txid: result.txid, tx: result.tx, delivered: 'broadcast' }
+				}
+				try {
+					await new OverlayClient(overlay).submitMandala(result.tx, tokenId)
+				} catch (error) {
+					// The send exists as a noSend action: return it so the caller can
+					// retry the submit or abortAction it.
+					return {
+						txid: result.txid,
+						tx: result.tx,
+						error: `overlay-submit-failed: ${error instanceof Error ? error.message : String(error)}`,
+					}
+				}
+				return { txid: result.txid, tx: result.tx, delivered: 'overlay' }
 			}
 
 			const { publicKey: senderIdentityKey } = await ctx.wallet.getPublicKey({

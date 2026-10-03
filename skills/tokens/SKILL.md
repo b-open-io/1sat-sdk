@@ -131,7 +131,20 @@ await sendMandala.execute(ctx, {
   amount: '1000',
   destination: { address: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' },
 })
+
+// Address via an overlay: submitted (BRC-22) to <overlay>/submit with
+// X-Topics: tm_<tokenId> instead of the wallet's broadcast.
+await sendMandala.execute(ctx, {
+  tokenId: '<deploy txid>',
+  amount: '1000',
+  destination: { address: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' },
+  overlay: 'https://overlay.example',
+})
+// delivered === 'overlay'
 ```
+
+- `overlay` applies only to address destinations. Peer sends never broadcast
+  (the recipient does), so `overlay` is ignored there.
 
 - The recipient key is BRC-42 under `MANDALA_PROTOCOL` (`[2, 'mandala']`),
   keyID `<derivationPrefix> <derivationSuffix>`, counterparty = recipient.
