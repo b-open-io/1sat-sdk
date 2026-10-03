@@ -433,6 +433,10 @@ describe('Mandala payload', () => {
 		expect(t.prefix().toHex()).toBe(`20${hex(ID0_BYTES)}01116d0075`)
 		const d = Mandala.decode(t.lock())
 		expect(d?.payload).toEqual(new Uint8Array(0))
+		expect(t.payload).toEqual(new Uint8Array(0))
+		expect(t.payload).toEqual(d?.payload as Uint8Array)
+		expect(d?.payloadMap).toBeUndefined()
+		expect(d?.metadata).toBeUndefined()
 		expect(d?.lock.toHex()).toBe(inner.toHex())
 	})
 
@@ -443,6 +447,9 @@ describe('Mandala payload', () => {
 			expect(t.prefix().toHex()).toBe('00006d0075')
 			const d = Mandala.decode(t.lock())
 			expect(d?.payload).toEqual(new Uint8Array(0))
+			expect(t.payload).toEqual(d?.payload as Uint8Array)
+			expect(d?.payloadMap).toBeUndefined()
+			expect(d?.metadata).toBeUndefined()
 			expect(d?.lock.toHex()).toBe(inner.toHex())
 		}
 	})
@@ -464,6 +471,7 @@ describe('Mandala payload', () => {
 		expect(t.prefix().toHex()).toBe(`20${hex(ID0_BYTES)}01116d`)
 		const d = Mandala.decode(t.lock())
 		expect(d?.payload).toBeUndefined()
+		expect(t.payload).toBeUndefined()
 		expect(d?.lock.toHex()).toBe(P2PKH_HEX)
 	})
 

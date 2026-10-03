@@ -371,7 +371,9 @@ function metadataOf(
  *   begins with a push operation (`OP_0`, `OP_1NEGATE`, `OP_1`..`OP_16` or any
  *   data push) followed by `OP_DROP`, the prefix carries an explicit empty
  *   payload, `OP_0 OP_DROP`, so a decoder does not read the inner lock's first
- *   push as the payload. With a payload given, nothing changes.
+ *   push as the payload. The instance's `payload` is then empty bytes, as the
+ *   decoder reports (no `payloadMap`, no `metadata`). With a payload given,
+ *   nothing changes.
  *
  * Everything built here uses minimal pushes (MINIMALDATA): 0 → `OP_0`,
  * 1..16 → `OP_1`..`OP_16`, otherwise the shortest direct push.
@@ -412,7 +414,10 @@ export default class Mandala implements ScriptTemplate {
 	public readonly idBytes?: Uint8Array
 	/** 0n = authority, otherwise value */
 	public readonly amount: bigint
-	/** Raw payload bytes, when present */
+	/**
+	 * Raw payload bytes, when present: the bytes given, or empty bytes under the
+	 * empty payload rule. Always equal to what `decode` reads from `lock()`.
+	 */
 	public readonly payload?: Uint8Array
 	/** The locking script after the prefix */
 	public readonly inner: LockingScript
@@ -439,10 +444,13 @@ export default class Mandala implements ScriptTemplate {
 			this.idBytes = id
 		}
 		this.amount = amount
+		this.inner = resolveLock(fields.lock)
 		if (fields.payload !== undefined) {
 			this.payload = Uint8Array.from(fields.payload)
+		} else if (startsWithPushDrop(this.inner)) {
+			// Empty payload rule: otherwise a decoder would read the inner lock's first push as the payload
+			this.payload = new Uint8Array(0)
 		}
-		this.inner = resolveLock(fields.lock)
 	}
 
 	/**
@@ -613,9 +621,8 @@ export default class Mandala implements ScriptTemplate {
 	}
 
 	/**
-	 * The prefix alone: id, amount, OP_2DROP and the payload push with OP_DROP.
-	 * With no payload, an inner lock that begins with `<push> OP_DROP` gets an
-	 * explicit empty payload (`OP_0 OP_DROP`) here.
+	 * The prefix alone: id, amount, OP_2DROP and, when {@link payload} is set
+	 * (including the empty payload rule), the payload push with OP_DROP.
 	 */
 	prefix(): Script {
 		const chunks: { op: number; data?: number[] }[] = []
@@ -628,10 +635,6 @@ export default class Mandala implements ScriptTemplate {
 		chunks.push({ op: OP_2DROP })
 		if (this.payload !== undefined) {
 			chunks.push(pushChunk(Array.from(this.payload)))
-			chunks.push({ op: OP_DROP })
-		} else if (startsWithPushDrop(this.inner)) {
-			// Without this, a decoder would read the inner lock's first push as the payload
-			chunks.push({ op: OP.OP_0 })
 			chunks.push({ op: OP_DROP })
 		}
 		return new Script(chunks)
