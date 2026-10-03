@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.59
+
+### Added
+- `Bsv21Client.getOutputStatus`: per-outpoint overlay state (`valid`, `spent`, `queued`, `unknown`), batched 1000 per request.
+- `Bsv21Client.getFundingTemplate` and `submitFunding` for the overlay funding routes.
+
+### Removed
+- `Bsv21Client.getQueue`.
+
 ## 0.0.58
 
 ### Changed

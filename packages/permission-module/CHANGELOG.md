@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.73
+
+### Changed
+- `verifyIntent` checks BSV21 inputs with `getOutputStatus`: spent or unknown inputs are a mismatch, queued inputs are unverified. `VerificationServices.bsv21.validateOutputs` is replaced by `getOutputStatus`.
+
 ## 0.0.64
 
 ### Changed

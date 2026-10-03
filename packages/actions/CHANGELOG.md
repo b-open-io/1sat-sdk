@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.230
+
+### Added
+- `fundBsv21Overlay`: pays the overlay's funding template for a token and submits the transaction so indexing starts immediately. Returns `funding-not-needed` when the overlay needs no payment, and `funding-submit-failed` with the txid when the payment went out but the submission failed.
+
+### Changed
+- `sendBsv21`, `buyBsv21` and `sweepBsv21` check inputs with `getOutputStatus` and spend only outputs the overlay reports `valid`.
+- `sendBsv21` returns `tokens-queued` when the valid outputs fall short but queued ones would cover the amount.
+- `sweepBsv21` returns `unvalidated-inputs` when no input is valid and `overlay-validation-failed` when the overlay cannot be reached, instead of sweeping unverified inputs. Its response lists `spentOutpoints`.
+- `dispatchPlainPayment` is exported.
+
 ## 0.0.229
 
 ### Fixed

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.50
+
+### Added
+- `Bsv21OutputState`, `Bsv21OutputStatus` and `Bsv21FundingTemplate` for the overlay's outpoint status and funding routes.
+- `TokenStatus.min_funding`.
+
+### Removed
+- `TokenQueueResponse`.
+
 ## 0.0.49
 
 ### Removed
