@@ -36,7 +36,7 @@ import type { Action, ActionOptions } from '../types.js'
  * `wallet.createAction` directly, preserving `fundingProvider` support
  * for callers that fund payments externally.
  */
-async function dispatchPlainPayment(
+export async function dispatchPlainPayment(
 	wallet: import('@bsv/sdk').WalletInterface,
 	args: CreateActionArgs,
 	fundingProvider?: FundingProvider,

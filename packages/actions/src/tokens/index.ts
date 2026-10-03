@@ -7,9 +7,11 @@
 import { BSV21, OrdLock, OrdLockV2, P2MS } from '@1sat/templates'
 import {
 	BSV21_DEPLOY_TAG,
+	type Bsv21OutputState,
 	type Destination,
 	buildInputAssetLabel,
 	buildTokenLabel,
+	type TokenStatus,
 	readAssetIdTag,
 } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
@@ -35,6 +37,7 @@ import {
 	P1SAT_PROTOCOL,
 } from '../constants.js'
 import { deriveCancelAddressInternal } from '../ordinals/index.js'
+import { dispatchPlainPayment } from '../payments/index.js'
 import type {
 	Action,
 	ActionLogEntry,
@@ -543,18 +546,16 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				matchesTokenId(o, tokenId),
 			)
 
-			// When validateOverlay: only spend tips the overlay still lists unspent.
-			const validOutpoints = new Set<string>()
+			// When validateOverlay: only spend tips the overlay reports valid.
+			const overlayStates = new Map<string, Bsv21OutputState>()
 			if (validateOverlay) {
-				const candidateOutpoints = tokenUtxos.map((o) => o.outpoint)
 				try {
-					const validated = await ctx.services!.bsv21!.validateOutputs(
+					const statuses = await ctx.services!.bsv21!.getOutputStatus(
 						tokenId,
-						candidateOutpoints,
-						{ unspent: true },
+						tokenUtxos.map((o) => o.outpoint),
 					)
-					for (const v of validated) {
-						validOutpoints.add(v.outpoint.replace('_', '.'))
+					for (const s of statuses) {
+						overlayStates.set(s.outpoint, s.state)
 					}
 				} catch (e) {
 					console.error('[sendBsv21] overlay validation error:', e)
@@ -564,6 +565,7 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 
 			const selected: WalletOutput[] = []
 			let totalIn = 0n
+			let queuedIn = 0n
 
 			for (const utxo of tokenUtxos) {
 				if (totalIn >= totalAmount) break
@@ -572,8 +574,10 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				if (!amtStr) continue
 				const utxoAmount = BigInt(amtStr)
 
-				if (validateOverlay && !validOutpoints.has(utxo.outpoint)) {
-					continue
+				if (validateOverlay) {
+					const state = overlayStates.get(utxo.outpoint)
+					if (state === 'queued') queuedIn += utxoAmount
+					if (state !== 'valid') continue
 				}
 
 				selected.push(utxo)
@@ -581,10 +585,13 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 			}
 
 			if (totalIn < totalAmount) {
+				if (!validateOverlay) return { error: 'insufficient-tokens' }
+				// Enough tokens are waiting in the overlay's queue: not invalid, just not indexed yet.
 				return {
-					error: validateOverlay
-						? 'insufficient-valid-tokens'
-						: 'insufficient-tokens',
+					error:
+						totalIn + queuedIn >= totalAmount
+							? 'tokens-queued'
+							: 'insufficient-valid-tokens',
 				}
 			}
 
@@ -876,7 +883,17 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 			const { txid, vout } = parseOutpoint(outpoint)
 
 			try {
-				await ctx.services.bsv21.validateOutput(tokenId, outpoint)
+				const [listing] = await ctx.services.bsv21.getOutputStatus(tokenId, [
+					outpoint,
+				])
+				if (listing?.state !== 'valid') {
+					console.error(
+						'[buyBsv21] listing not valid on overlay:',
+						outpoint,
+						listing?.state,
+					)
+					return { error: 'listing-not-found-in-overlay' }
+				}
 			} catch (e) {
 				console.error('[buyBsv21] overlay validation error:', e)
 				return { error: 'listing-not-found-in-overlay' }
@@ -1871,6 +1888,86 @@ export const cancelTokenListing: Action<
 	},
 }
 
+/** Input for fundBsv21Overlay action */
+export interface FundBsv21OverlayInput extends ActionOptions {
+	tokenId: string
+}
+
+export interface FundBsv21OverlayResponse extends TokenOperationResponse {
+	/** The token's overlay status after the payment */
+	status?: TokenStatus
+}
+
+/**
+ * Pay the token overlay's funding so it indexes the token. The overlay sets
+ * the amount: its minimum funding plus the queued backlog. The wallet
+ * broadcasts the payment and the overlay starts indexing on receipt.
+ */
+export const fundBsv21Overlay: Action<
+	FundBsv21OverlayInput,
+	FundBsv21OverlayResponse
+> = {
+	meta: {
+		name: 'fundBsv21Overlay',
+		description:
+			'Fund the token overlay so it indexes and validates a BSV21 token',
+		category: 'tokens',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				tokenId: { type: 'string', description: 'Token ID (txid_vout format)' },
+			},
+			required: ['tokenId'],
+		},
+	},
+	async execute(ctx, input) {
+		try {
+			if (!ctx.services?.bsv21) return { error: 'services-required' }
+			const { tokenId } = input
+
+			const template = await ctx.services.bsv21.getFundingTemplate(tokenId)
+			if (template.outputs.length === 0) {
+				return { error: 'funding-not-needed' }
+			}
+
+			const result = await dispatchPlainPayment(
+				ctx.wallet,
+				{
+					description: template.outputs[0].outputDescription,
+					outputs: template.outputs.map((o) => ({ ...o, tags: [] })),
+					options: { acceptDelayedBroadcast: false },
+				},
+				input.fundingProvider,
+			)
+			if (!result.txid || !result.tx) {
+				return { error: 'no-txid-returned' }
+			}
+
+			// The payment is broadcast either way; if the overlay misses this
+			// submission it still finds the payment on its next fee-address check.
+			try {
+				const status = await ctx.services.bsv21.submitFunding(
+					tokenId,
+					result.tx,
+				)
+				return { txid: result.txid, tx: result.tx, status }
+			} catch (e) {
+				console.error('[fundBsv21Overlay] funding submission failed:', e)
+				return {
+					txid: result.txid,
+					tx: result.tx,
+					error: 'funding-submit-failed',
+				}
+			}
+		} catch (error) {
+			console.error('[fundBsv21Overlay]', error)
+			return {
+				error: error instanceof Error ? error.message : 'unknown-error',
+			}
+		}
+	},
+}
+
 // ============================================================================
 // Module exports
 // ============================================================================
@@ -1880,6 +1977,7 @@ export const tokensActions = [
 	listBsv21,
 	getBsv21Balances,
 	sendBsv21,
+	fundBsv21Overlay,
 	buyBsv21,
 	cancelTokenListing,
 	deployBsv21Mint,

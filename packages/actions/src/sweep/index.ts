@@ -669,20 +669,24 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 			})
 			const { fee_address, fee_per_output } = tokenDetails.status
 
-			let inputsToSpend = inputs
+			// Spend only inputs the overlay reports valid: one invalid input in
+			// the transfer would burn the valid ones alongside it.
+			let statuses: Awaited<
+				ReturnType<typeof ctx.services.bsv21.getOutputStatus>
+			>
 			try {
-				const validated = await ctx.services.bsv21.validateOutputs(
+				statuses = await ctx.services.bsv21.getOutputStatus(
 					tokenId,
 					inputs.map((i) => i.outpoint),
-					{ unspent: true },
 				)
-				if (validated.length > 0) {
-					const validSet = new Set(validated.map((v) => v.outpoint))
-					inputsToSpend = inputs.filter((i) => validSet.has(i.outpoint))
-				}
-			} catch {
-				// Overlay is advisory. Spend the inscription amounts we already have.
+			} catch (e) {
+				console.error('[sweepBsv21] overlay validation error:', e)
+				return { error: 'overlay-validation-failed' }
 			}
+			const validSet = new Set(
+				statuses.filter((s) => s.state === 'valid').map((s) => s.outpoint),
+			)
+			const inputsToSpend = inputs.filter((i) => validSet.has(i.outpoint))
 			if (inputsToSpend.length === 0) {
 				return { error: 'unvalidated-inputs' }
 			}
@@ -830,6 +834,7 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 			return {
 				txid: result.txid,
 				beef: result.tx,
+				spentOutpoints: inputsToSpend.map((i) => i.outpoint),
 			}
 		} catch (error) {
 			console.error('[sweepBsv21]', error)

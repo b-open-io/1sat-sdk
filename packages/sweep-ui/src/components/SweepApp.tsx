@@ -614,11 +614,14 @@ export function SweepApp({
 				label: 'BSV-20',
 				count: groupedBsv20.reduce((n, t) => n + t.outputs.length, 0),
 			})
-		if (assets.bsv21Tokens.some((t) => t.outputs.length > 0))
+		const sweepableBsv21 = assets.bsv21Tokens.filter(
+			(t) => t.isActive && t.outputs.length > 0,
+		)
+		if (sweepableBsv21.length > 0)
 			classes.push({
 				id: 'bsv21',
 				label: 'BSV-21',
-				count: assets.bsv21Tokens.reduce((n, t) => n + t.outputs.length, 0),
+				count: sweepableBsv21.reduce((n, t) => n + t.outputs.length, 0),
 			})
 		return classes
 	}, [assets, groupedBsv20])

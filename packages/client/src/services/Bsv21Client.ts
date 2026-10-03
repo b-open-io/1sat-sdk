@@ -2,8 +2,10 @@ import type {
 	Bsv21TransactionData,
 	ClientOptions,
 	IndexedOutput,
+	Bsv21FundingTemplate,
+	Bsv21OutputStatus,
 	TokenDetailResponse,
-	TokenQueueResponse,
+	TokenStatus,
 } from '@1sat/types'
 import { BaseClient } from './BaseClient.js'
 
@@ -34,7 +36,9 @@ export interface OutputQueryOptions {
  * - GET /tokens - List tokens
  * - POST /tokens - Lookup tokens (bulk)
  * - GET /:tokenId - Get token details
- * - GET /:tokenId/queue - Get queue depth
+ * - GET /:tokenId/fund - Get funding template
+ * - POST /:tokenId/fund - Submit funding transaction
+ * - POST /:tokenId/outputs/status - Outpoint states (bulk)
  * - GET /:tokenId/tx/:txid - Get transaction
  * - POST /:tokenId/outputs - Validate outpoints (bulk)
  * - GET /:tokenId/outputs/:outpoint - Validate outpoint
@@ -84,12 +88,51 @@ export class Bsv21Client extends BaseClient {
 	}
 
 	/**
-	 * Get the number of outputs waiting in the token's overlay queue. The
-	 * server scans the queue to count it, so call this only when the backlog
-	 * matters, e.g. to size funding for an inactive token.
+	 * Get the payment outputs that activate the token's overlay: enough to meet
+	 * its minimum funding and index its queued backlog. The outputs are in
+	 * createAction form. Empty when no funding is needed.
 	 */
-	async getQueue(tokenId: string): Promise<TokenQueueResponse> {
-		return this.request<TokenQueueResponse>(`/${tokenId}/queue`)
+	async getFundingTemplate(tokenId: string): Promise<Bsv21FundingTemplate> {
+		return this.request<Bsv21FundingTemplate>(`/${tokenId}/fund`)
+	}
+
+	/**
+	 * Submit a transaction paying the token's fee address. The server
+	 * broadcasts it, indexes it, and starts the token's overlay if the funding
+	 * qualifies. Returns the token's status after the payment.
+	 */
+	async submitFunding(
+		tokenId: string,
+		beef: Uint8Array | number[],
+	): Promise<TokenStatus> {
+		return this.request<TokenStatus>(`/${tokenId}/fund`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/octet-stream' },
+			body: new Blob([new Uint8Array(beef)]),
+		})
+	}
+
+	/**
+	 * Get the overlay state of each outpoint: valid, spent, queued, or unknown.
+	 * Results come back in request order, with outpoints as sent.
+	 */
+	async getOutputStatus(
+		tokenId: string,
+		outpoints: string[],
+	): Promise<Bsv21OutputStatus[]> {
+		const results: Bsv21OutputStatus[] = []
+		for (let i = 0; i < outpoints.length; i += 1000) {
+			const batch = await this.request<Bsv21OutputStatus[]>(
+				`/${tokenId}/outputs/status`,
+				{
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(outpoints.slice(i, i + 1000)),
+				},
+			)
+			results.push(...batch)
+		}
+		return results
 	}
 
 	/**
