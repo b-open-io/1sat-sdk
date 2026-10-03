@@ -64,7 +64,7 @@ const adminPermissionModules = Object.fromEntries(
  * Metadata encryption is left at the toolbox default (on), the same as
  * the served endpoint: the CLI writes encrypted descriptions and custom
  * instructions and reads them back decrypted. Nothing downstream loses by
- * that. `1sat serve wallet` is the wallet-toolbox *storage* interface, not
+ * that. `1sat serve storage` is the wallet-toolbox *storage* interface, not
  * a BRC-100 API — it moves opaque records and never interprets a
  * description — and the wallet at the far end (wallet-desktop, the
  * browser wallet, a remote CLI) runs its own permissions manager, which

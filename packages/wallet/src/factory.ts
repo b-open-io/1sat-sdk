@@ -180,6 +180,7 @@ export async function createWalletCore(
 		const client = new toolbox.StorageClient(
 			wallet as unknown as WalletInterface,
 			url,
+			{ binaryRequests: true },
 		)
 		installStorageClientPaymentAutoRetry({
 			client,
@@ -320,6 +321,7 @@ export async function createWalletCore(
 			abandonedMsecs: 300000,
 			unprovenAttemptsLimitTest: 10,
 			unprovenAttemptsLimitMain: 144,
+			maxRebroadcastAttempts: 0,
 		})
 		if (!config.activeRemote) {
 			monitor.addDefaultTasks()

@@ -696,14 +696,10 @@ export default class OrdLockV2 {
 				})
 				const sighash = Hash.sha256(Hash.sha256(preimage))
 
-				// Full BIP-143 preimage as `data` so the 1Sat permission module can
-				// extract hashOutputs + outpoint and auto-grant against the
-				// commitment captured at createAction time.
 				const { signature } = await wallet.createSignature({
 					protocolID,
 					keyID,
 					counterparty,
-					data: Array.from(preimage),
 					hashToDirectlySign: Array.from(sighash),
 				})
 				const { publicKey } = await wallet.getPublicKey({

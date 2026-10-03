@@ -25,9 +25,7 @@ console.log('ok  cli help under node')
 
 // 2. SQLite storage on node:sqlite.
 const { StorageBunSqlite } = await import('@1sat/wallet-node')
-const { StorageProvider } = await import(
-	'@bsv/wallet-toolbox/out/src/storage/StorageProvider.js'
-)
+const { StorageProvider } = await import('@bsv/wallet-toolbox')
 const storage = new StorageBunSqlite({
 	...StorageProvider.createStorageBaseOptions('main'),
 	filename: ':memory:',

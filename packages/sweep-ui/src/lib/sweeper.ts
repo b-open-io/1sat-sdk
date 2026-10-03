@@ -50,9 +50,10 @@ export function selectAllSweepClasses(
 		bsv20Ticks: new Set(
 			groupBsv20Tokens(assets.bsv20Tokens).map((t) => t.tick),
 		),
+		// Inactive tokens cannot be validated, so sweeping them risks a burn.
 		bsv21TokenIds: new Set(
 			assets.bsv21Tokens
-				.filter((t) => t.outputs.length > 0)
+				.filter((t) => t.isActive && t.outputs.length > 0)
 				.map((t) => t.tokenId),
 		),
 	}
@@ -390,9 +391,11 @@ export async function sweepBsv21Token(params: {
 			})
 			if (result.error) errors.push(result.error)
 			else if (result.txid) {
+				const spent = new Set(result.spentOutpoints)
+				const sweptBatch = batch.filter((o) => spent.has(o.outpoint))
 				txids.push(result.txid)
-				sweptOutpoints.push(...batch.map((o) => o.outpoint))
-				markCompleted(completed, batch)
+				sweptOutpoints.push(...sweptBatch.map((o) => o.outpoint))
+				markCompleted(completed, sweptBatch)
 				onResult?.({ sweepClass: 'bsv21', label: name, txid: result.txid })
 			}
 		} catch (e) {

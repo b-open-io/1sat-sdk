@@ -181,6 +181,12 @@ export interface ServerConfig {
 	 * run behind one load balancer; unset keeps sessions in-memory.
 	 */
 	sessionStore?: ServerSessionStoreConfig
+	/**
+	 * Express `trust proxy` for `serve storage`, whose IP rate limit keys on
+	 * the client address: a hop count, or an address/subnet list such as
+	 * `"loopback"`. Set it behind a reverse proxy. Unset = the socket address.
+	 */
+	trustProxy?: number | string | string[]
 	/** Background monitor task loop. Defaults to enabled. */
 	monitor?: ServerMonitorConfig
 }

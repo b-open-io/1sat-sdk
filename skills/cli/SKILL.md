@@ -1,6 +1,6 @@
 ---
 name: cli
-description: "This skill should be used when working with the 1Sat CLI tool for BSV operations from the terminal -- running wallet commands, minting ordinals, managing tokens, creating listings, locking BSV, sweeping assets, managing identity, OR running the wallet-storage RPC server (`1sat serve`) from the same binary. Triggers on '1sat CLI', 'command line wallet', '1sat init', '1sat wallet', '1sat ordinals', '1sat tokens', '1sat lock', '1sat sweep', '1sat action', '1sat serve', '1sat serve wallet', '1sat serve monitor', 'wallet server', 'BRC-100 storage server', 'bunx @1sat/cli', or 'terminal BSV operations'. Uses @1sat/cli and @1sat/wallet-server packages."
+description: "This skill should be used when working with the 1Sat CLI tool for BSV operations from the terminal -- running wallet commands, minting ordinals, managing tokens, creating listings, locking BSV, sweeping assets, managing identity, OR running the wallet-storage RPC server (`1sat serve`) from the same binary. Triggers on '1sat CLI', 'command line wallet', '1sat init', '1sat wallet', '1sat ordinals', '1sat tokens', '1sat lock', '1sat sweep', '1sat action', '1sat serve', '1sat serve storage', '1sat serve monitor', 'wallet server', 'BRC-100 storage server', 'bunx @1sat/cli', or 'terminal BSV operations'. Uses @1sat/cli and @1sat/wallet-server packages."
 ---
 
 # 1Sat CLI
@@ -211,7 +211,7 @@ Tags (`--tags a,b,c`) land on the on-chain post's MAP payload and on the wallet 
 
 ```bash
 bunx @1sat/cli opns lookup [--limit] [--offset] [--ids] [--names] [--tags] …
-bunx @1sat/cli opns register --id <id>
+bunx @1sat/cli opns register --id <id> --domain <hostname> [--name <n>] [--avatar <txid_vout>]
 bunx @1sat/cli opns deregister --id <id>
 bunx @1sat/cli opns sell --id <id> --price <sats> [--pay-address <addr>]
 bunx @1sat/cli opns cancel-listing --id <id>
@@ -245,8 +245,8 @@ bunx @1sat/cli tx decode <hex>             # Decode a raw transaction hex
 The same binary can run a BRC-100 wallet storage RPC server backed by the **same wallet instance** the CLI commands use.
 
 ```bash
-1sat serve              # Wallet server + monitor daemon (single process)
-1sat serve wallet       # Wallet server only (BRC-100 HTTP, no monitor loop)
+1sat serve              # Host server (accounts, paymail, messagebox) + monitor daemon
+1sat serve storage      # Wallet storage server only (wallet-toolbox StorageServer, no monitor loop)
 1sat serve monitor      # Monitor daemon only (no HTTP)
 1sat serve messagebox   # BSV message-box server (port 8771 default; uses wallet identity)
 1sat serve wallet-api   # App-facing BRC-100 endpoint for dApps (127.0.0.1:3321, headless)
@@ -257,7 +257,7 @@ Key properties:
 - **Same wallet instance** — `serve` wraps the wallet created by `createNodeWallet` using the exact same config inputs (`chain`, `dataDir`, `storageIdentityKey`, `activeRemote`, `backups`) as `1sat wallet <command>`. There's one wallet on disk at `~/.1sat/data/wallet-${chain}.db`; HTTP and CLI access the same one.
 - **Server identity = CLI identity** — loaded via `loadKey()` (`PRIVATE_KEY_WIF` env or `keys.bep` + `ONESAT_PASSWORD`). No separate server key.
 - **Storage provider** — defaults to `bun-sqlite`. Set `server.storage.provider` to `pg` for Postgres deployments.
-- **Accounts layer (opt-in)** — per-identity capacity metering on billable writes. Reads always free. Over-capacity writes get an HTTP `507 Insufficient Storage` with a JSON body describing deficit + pricing. Top-up via `POST /account/payment` (BRC-29 payment body). Toggle via `1sat config set server.accounts.enabled true`.
+- **Accounts layer (opt-in)** — the host reports per-identity storage usage and capacity at `GET /account/status`; capacity is bought via `POST /account/payment` (BRC-29 payment body). Storage writes are not gated. Toggle via `1sat config set server.accounts.enabled true`.
 
 Server-specific settings live under `server.*` in the config — edit via `1sat config set`:
 

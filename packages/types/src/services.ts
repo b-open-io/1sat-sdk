@@ -315,8 +315,38 @@ export interface TokenStatus {
 	output_count: number
 	fee_per_output: number
 	fee_address: string
+	/** Satoshis the fee address must receive before the token is indexed */
+	min_funding: number
 	is_whitelisted: boolean
 	is_blacklisted: boolean
+}
+
+/**
+ * Overlay state of a token outpoint, from POST /bsv21/:tokenId/outputs/status
+ * - valid: indexed and unspent
+ * - spent: indexed and spent
+ * - queued: waiting in the token's indexing queue
+ * - unknown: neither indexed nor queued
+ */
+export type Bsv21OutputState = 'valid' | 'spent' | 'queued' | 'unknown'
+
+export interface Bsv21OutputStatus {
+	/** Outpoint exactly as sent */
+	outpoint: string
+	state: Bsv21OutputState
+}
+
+/**
+ * Payment outputs that fund a token's overlay, from GET /bsv21/:tokenId/fund.
+ * Empty when the token is active and funded past its backlog.
+ */
+export interface Bsv21FundingTemplate {
+	outputs: {
+		/** Hex locking script paying the token's fee address */
+		lockingScript: string
+		satoshis: number
+		outputDescription: string
+	}[]
 }
 
 /**

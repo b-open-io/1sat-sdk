@@ -96,7 +96,7 @@ export interface VerificationServices {
 		getOrigin?(name: string): Promise<{ name: string; outpoint: string } | null>
 	}
 	bsv21?: {
-		getTokenDetails?(tokenId: string): Promise<{
+		getTokenDetails?(tokenId: string, options?: { fresh?: boolean }): Promise<{
 			token?: {
 				sym?: string
 				dec?: string | number
@@ -105,14 +105,12 @@ export interface VerificationServices {
 			status?: { is_active?: boolean }
 		} | null>
 		/**
-		 * Validate outpoints against the token overlay topic.
-		 * Returns only those found (optionally unspent).
+		 * Overlay state of each outpoint, in request order with outpoints as sent.
 		 */
-		validateOutputs?(
+		getOutputStatus?(
 			tokenId: string,
 			outpoints: string[],
-			opts?: { unspent?: boolean },
-		): Promise<Array<{ outpoint: string }>>
+		): Promise<Array<{ outpoint: string; state: 'valid' | 'spent' | 'queued' | 'unknown' }>>
 	}
 }
 

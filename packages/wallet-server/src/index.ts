@@ -1,49 +1,19 @@
-export { createWalletRpcHandler } from './createWalletRpcHandler.js'
-export type { WalletRpcHandler } from './createWalletRpcHandler.js'
-
-export { createBearerServer } from './createBearerServer.js'
-export type {
-	BearerServerConfig,
-	BearerServerHandle,
-} from './createBearerServer.js'
-
-export { createWalletServer } from './createWalletServer.js'
-export type {
-	WalletServerConfig,
-	WalletServerHandle,
-} from './createWalletServer.js'
-
 export { WalletServerClient } from './client.js'
 export { topUpStorage } from './topUp.js'
 export type { TopUpResult } from './topUp.js'
 
-export { BILLABLE_METHODS, dispatch, isBillableMethod } from './dispatch.js'
-export type { DispatchContext, DispatchInput } from './dispatch.js'
-
-export * from './resolvers/index.js'
 export * from './accounts/index.js'
 
-export type {
-	IdentityResolver,
-	JsonRpcRequest,
-	JsonRpcResponse,
-	JsonRpcResponseErr,
-	JsonRpcResponseOk,
-	PreDispatchContext,
-	PreDispatchHook,
-	PreDispatchResult,
-	ResolvedIdentity,
-	WalletRpcHandlerConfig,
-	WalletStorageProvider,
-} from './types.js'
+export type { WalletStorageProvider } from './types.js'
 
-export type { WalletServerAccounts } from './createWalletServer.js'
 export { createHostServer } from './createHostServer.js'
 export type {
 	HostServerConfig,
 	HostServerHandle,
 	HostServerMessageboxConfig,
 } from './createHostServer.js'
+export { createStorageServer } from './createStorageServer.js'
+export type { StorageServerConfig } from './createStorageServer.js'
 export { mountPaymailRoutes } from './paymail/routes.js'
 export { KnexPendingStore, DEFAULT_TTL_MS } from './paymail/pending.js'
 export { createAccountResolver } from './paymail/resolvers.js'
@@ -59,8 +29,8 @@ export type { OpenApiOptions, OpenApiSurfaces } from './openapi/index.js'
 export {
 	RedisSessionManager,
 	buildAuthMiddleware,
+	createSessionManager,
 	createSessionRedis,
-	wrapAuthWithSessionHydration,
 } from './sessions/redisSessionManager.js'
 export type {
 	RedisSessionManagerOptions,

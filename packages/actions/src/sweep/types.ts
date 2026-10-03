@@ -78,6 +78,8 @@ export interface SweepBsv21Response {
 	txid?: string
 	/** BEEF (transaction with validity proof) */
 	beef?: number[]
+	/** Inputs the transaction spent: those the overlay reported valid */
+	spentOutpoints?: string[]
 	/** Error message if failed */
 	error?: string
 }

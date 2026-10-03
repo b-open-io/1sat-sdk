@@ -27,9 +27,6 @@ export const FUNDING_BASKET = 'default'
  * not P-baskets. Permission routing for createAction stays on `p 1sat …`
  * **labels**; basket list/internalize uses the known-set check in the module
  * when registered, else generic WPM basket access.
- *
- * Legacy `p 1sat …` baskets are not dual-read — migrate once via
- * {@link LEGACY_P1SAT_BASKET_MIGRATIONS} / `moveBasketOutputs`.
  */
 /** Collectables / ordinals inventory (BRC-147). */
 export const ONESAT_BASKET = '1sat'
@@ -60,24 +57,6 @@ export const ONESAT_ASSET_BASKETS: readonly string[] = [
 	SIGMA_BASKET,
 	BSOCIAL_BASKET,
 	BAP_BASKET,
-]
-
-/**
- * Legacy inventory basket → preferred basket. Migrate only; no dual-read.
- * Includes leftover theme-token `ordinals` (hardcoded basket, not a P-name).
- */
-export const LEGACY_P1SAT_BASKET_MIGRATIONS: ReadonlyArray<{
-	from: string
-	to: string
-}> = [
-	{ from: 'p 1sat ordinals', to: ONESAT_BASKET },
-	{ from: 'ordinals', to: ONESAT_BASKET },
-	{ from: 'p 1sat bsv21', to: BSV21_BASKET },
-	{ from: 'p 1sat bsv20', to: BSV20_BASKET },
-	{ from: 'p 1sat opns', to: OPNS_BASKET },
-	{ from: 'p 1sat lock', to: LOCK_BASKET },
-	{ from: 'p 1sat sigma', to: SIGMA_BASKET },
-	{ from: 'p 1sat bsocial', to: BSOCIAL_BASKET },
 ]
 
 export function isOneSatAssetBasket(basket: string): boolean {
@@ -223,6 +202,32 @@ export const OPNS_REGISTER_COUNTERPARTY = 'anyone' as const
 
 /** Wallet tag on a published (bound) OpNS name */
 export const OPNS_PUBLISHED_TAG = 'opns:published'
+
+/**
+ * Key/value PushDrop field keys. A PushDrop whose fields are pairs
+ * (`key, value, key, value, …, signature`) uses UTF-8 text keys; the key
+ * names the value's encoding (codecs in `@1sat/utils`). Readers skip keys
+ * they do not know. The OpNS publish (`registerOpns`) is one use.
+ */
+/** Value: 33-byte compressed identity public key (raw bytes). */
+export const IDENTITY_FIELD = 'identity'
+/** Value: DAG-CBOR map — see {@link PROFILE_FIELDS}. */
+export const PROFILE_FIELD = 'profile'
+
+/**
+ * Field names inside the `profile` DAG-CBOR map. PROVISIONAL — the names are
+ * not final (issue #83); change them here, nowhere else.
+ *
+ * - `domain` (required): BRC-169 ecosystem domain, non-empty, as entered.
+ * - `name` (optional): presentation name; absent when unset.
+ * - `avatar` (optional): 36-byte outpoint of an image ordinal origin; absent
+ *   when unset.
+ */
+export const PROFILE_FIELDS = {
+	domain: 'domain',
+	name: 'name',
+	avatar: 'avatar',
+} as const
 
 /** PushDrop keyID from spent input outpoint (`txid.vout` → `opns:{txid}_{vout}`) */
 export function opnsRegisterKeyId(outpoint: string): string {

@@ -607,7 +607,12 @@ export const COMMANDS: CommandSpec[] = [
 			{
 				name: 'register',
 				description: 'Register identity on an owned OpNS name',
-				args: [{ flag: '--id', values: '<tracking-id>', required: true }],
+				args: [
+					{ flag: '--id', values: '<tracking-id>', required: true },
+					{ flag: '--domain', values: '<hostname>', required: true },
+					{ flag: '--name', values: '<display name>' },
+					{ flag: '--avatar', values: '<txid_vout>' },
+				],
 			},
 			{
 				name: 'deregister',
@@ -743,15 +748,16 @@ export const COMMANDS: CommandSpec[] = [
 		group: 'Server',
 		name: 'serve',
 		description:
-			'Run unified host server (storage + accounts + paymail + messagebox) and/or monitor (config under server.* in config.json)',
+			'Run unified host server (accounts + paymail + messagebox), wallet storage server and/or monitor (config under server.* in config.json)',
 		subcommands: [
 			{
 				name: '(no subcommand)',
 				description: 'Host server + monitor daemon',
 			},
 			{
-				name: 'wallet',
-				description: 'Wallet storage server only (BRC-100 HTTP)',
+				name: 'storage',
+				description:
+					'Wallet storage server only (wallet-toolbox StorageServer, BRC-100 HTTP)',
 			},
 			{ name: 'monitor', description: 'Monitor daemon only' },
 			{

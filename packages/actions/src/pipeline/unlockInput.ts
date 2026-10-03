@@ -407,7 +407,6 @@ async function signPushDropInput(
 		protocolID,
 		keyID,
 		counterparty,
-		data: Array.from(preimage),
 		hashToDirectlySign: Array.from(sighash),
 	})
 
@@ -466,7 +465,6 @@ async function signP2PKHInputWallet(
 		protocolID,
 		keyID,
 		counterparty,
-		data: Array.from(preimage),
 		hashToDirectlySign: Array.from(sighash),
 	})
 	const { publicKey } = await wallet.getPublicKey({

@@ -6,19 +6,22 @@
  * Ingress (internalizeOpns / buyOpns) stamps full tags including id:.
  */
 
-import { OpNS, OrdLockV2, outpointToBytes } from '@1sat/templates'
+import { Inscription, OpNS, OrdLockV2, outpointToBytes } from '@1sat/templates'
 import {
+	IDENTITY_FIELD,
 	OPNS_BASKET,
 	OPNS_PUBLISHED_TAG,
 	OPNS_REGISTER_COUNTERPARTY,
 	OPNS_REGISTER_SIG_PLACEHOLDER_LEN,
 	ORDLOCK_V2_TAG,
 	P1SAT_PROTOCOL,
+	PROFILE_FIELD,
 	buildInputAssetLabel,
 	formatOrdinalOutpoint,
 	opnsRegisterKeyId,
 	readAssetIdTag,
 } from '@1sat/types'
+import { encodeProfile } from '@1sat/utils'
 import {
 	type BEEF,
 	type CreateActionArgs,
@@ -53,24 +56,6 @@ import { unlockingScriptLengthForInstructions } from '../utils/signOrdinalInput.
 
 const OPNS_CONTENT_TYPE = 'application/op-ns'
 
-/**
- * Presentation slots published after the identity key: slot 1 display name
- * (utf8), slot 2 avatar origin outpoint (36 bytes). Slot 1 is an empty push
- * when only an avatar is set; trailing unset slots are omitted.
- */
-function profileFields(profileName?: string, avatar?: string): number[][] {
-	const displayName = profileName?.trim() ?? ''
-	const origin = avatar?.trim() ?? ''
-	if (!displayName && !origin) return []
-
-	const nameField = displayName ? Utils.toArray(displayName, 'utf8') : []
-	if (!origin) return [nameField]
-
-	const avatarField = outpointToBytes(formatOrdinalOutpoint(origin))
-	if (!avatarField) throw new Error(`invalid avatar outpoint: ${origin}`)
-	return [nameField, avatarField]
-}
-
 export { opnsRegisterKeyId } from '@1sat/types'
 
 // ============================================================================
@@ -90,14 +75,40 @@ export interface OpnsIdInput extends ActionOptions {
 	id: string
 }
 
-export interface RegisterOpnsRequest extends OpnsIdInput {
+/** Inscription carried on the name coin after the PushDrop fields. */
+export interface OpnsInscription {
+	contentType: string
+	content: number[] | Uint8Array
+}
+
+/**
+ * The `profile` written on the name — same members as the on-chain DAG-CBOR
+ * map; `avatar` is given as an outpoint and stored as its 36 bytes.
+ */
+export interface OpnsProfile {
 	/**
-	 * Display name returned by the paymail public-profile capability.
-	 * Presentation only — the OpNS name is the unique, owned value.
+	 * BRC-169 ecosystem domain the identity is reached at (e.g. `1sat.name`).
+	 * Written exactly as given — not validated; fix a typo by republishing.
+	 * Readers go `https://<domain>/manifest.json`.
 	 */
-	profileName?: string
+	domain: string
+	/**
+	 * Presentation name (served by paymail public-profile). The OpNS name is
+	 * the unique value; this is decoration.
+	 */
+	name?: string
 	/** Origin outpoint (`txid_vout`) of an on-chain image ordinal */
 	avatar?: string
+}
+
+export interface RegisterOpnsRequest extends OpnsIdInput {
+	profile: OpnsProfile
+	/**
+	 * Optional inscription envelope appended after the PushDrop lock. ORDFS
+	 * records it as a new rev of the name's origin (`/<origin>:-1`). The
+	 * action does not interpret the content type.
+	 */
+	inscription?: OpnsInscription
 }
 
 export type DeregisterOpnsRequest = OpnsIdInput
@@ -342,28 +353,87 @@ export const internalizeOpns: Action<
 // register / deregister
 // ============================================================================
 
+/**
+ * Publish an OpNS name: lock the name coin in a signed PushDrop (the plain
+ * template) whose fields are key/value pairs
+ * `["identity", <identity key>, "profile", <dag-cbor {domain, name?, avatar?}>, <sig>]`.
+ * The field codecs are in `@1sat/utils`; this action owns the layout (see
+ * `docs/protocols/opns-paymail-bind.md`).
+ *
+ * With `inscription`, the output script is that PushDrop lock followed by a
+ * standard 1-sat inscription envelope, so ORDFS serves the content as the
+ * name's latest rev (`/<origin>:-1`). The action is ignorant of the content
+ * type. Publishing a release or state is an `ordfs/dir` whose `"."` entry is
+ * the root outpoint:
+ *
+ * ```ts
+ * import { DIR_CONTENT_TYPE, DIR_VERSION, dirEncode } from '@1sat/actions'
+ * await registerOpns.execute(ctx, {
+ *   id,
+ *   profile: { domain: '1sat.name' },
+ *   inscription: {
+ *     contentType: DIR_CONTENT_TYPE, // 'ordfs/dir'
+ *     content: dirEncode({
+ *       version: DIR_VERSION,
+ *       entries: [{
+ *         name: new TextEncoder().encode('.'),
+ *         isDir: true,
+ *         ref: { kind: 'outpoint', txid: rootTxid, vout: 0 },
+ *       }],
+ *     }),
+ *   },
+ * })
+ * ```
+ *
+ * Two phases: the action emits the complete script with a zeroed signature
+ * field (and the envelope already appended); `applyOpnsRegister` finds that
+ * placeholder push and replaces it with the real signature. Nothing else in
+ * the script changes, so the envelope simply stays where it is.
+ */
 export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 	{
 		meta: {
 			name: 'registerOpns',
 			description:
-				'Bind BRC-100 identity key to an OpNS name via signed PushDrop',
+				'Bind BRC-100 identity key to an OpNS name via signed PushDrop identity + profile fields, optionally with an inscription',
 			category: 'opns',
 			inputSchema: {
 				type: 'object',
 				properties: {
 					id: { type: 'string', description: 'OPNS basket tracking id' },
-					profileName: {
-						type: 'string',
-						description: 'Display name for paymail public-profile',
+					profile: {
+						type: 'object',
+						description: 'Profile written on the name',
+						properties: {
+							domain: {
+								type: 'string',
+								description:
+									'BRC-169 ecosystem domain, written as given (e.g. 1sat.name)',
+							},
+							name: {
+								type: 'string',
+								description: 'Presentation name for paymail public-profile',
+							},
+							avatar: {
+								type: 'string',
+								description:
+									'Origin outpoint (txid_vout) of an on-chain image ordinal',
+							},
+						},
+						required: ['domain'],
 					},
-					avatar: {
-						type: 'string',
+					inscription: {
+						type: 'object',
 						description:
-							'Origin outpoint (txid_vout) of an on-chain image ordinal',
+							'Optional inscription appended after the PushDrop (any content type)',
+						properties: {
+							contentType: { type: 'string' },
+							content: { type: 'array', items: { type: 'integer' } },
+						},
+						required: ['contentType', 'content'],
 					},
 				},
-				required: ['id'],
+				required: ['id', 'profile'],
 			},
 		},
 		async execute(ctx, input) {
@@ -376,23 +446,46 @@ export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 				}
 
 				const keyID = opnsRegisterKeyId(output.outpoint)
-				const { publicKey: identityPubKey } = await ctx.wallet.getPublicKey({
+				const { publicKey: identityKey } = await ctx.wallet.getPublicKey({
 					identityKey: true,
 				})
+				const avatarOutpoint = input.profile?.avatar
+				let avatar: number[] | undefined
+				if (avatarOutpoint?.trim()) {
+					const bytes = outpointToBytes(formatOrdinalOutpoint(avatarOutpoint))
+					if (!bytes)
+						throw new Error(`invalid avatar outpoint: ${avatarOutpoint}`)
+					avatar = bytes
+				}
+				// Key/value fields on the plain PushDrop template; this action owns
+				// the layout.
+				const fields = [
+					Utils.toArray(IDENTITY_FIELD, 'utf8'),
+					Utils.toArray(identityKey, 'hex'),
+					Utils.toArray(PROFILE_FIELD, 'utf8'),
+					encodeProfile({
+						domain: input.profile?.domain ?? '',
+						name: input.profile?.name,
+						avatar,
+					}),
+				]
 				// Complete script, signature field zeroed — apply swaps in the real
 				// signature, so the size here is the size on chain.
-				const unsealedLock = await new PushDrop(ctx.wallet).lock(
-					[
-						Utils.toArray(identityPubKey, 'hex'),
-						...profileFields(input.profileName, input.avatar),
-						new Array(OPNS_REGISTER_SIG_PLACEHOLDER_LEN).fill(0),
-					],
+				const pushDropLock = await new PushDrop(ctx.wallet).lock(
+					[...fields, new Array(OPNS_REGISTER_SIG_PLACEHOLDER_LEN).fill(0)],
 					P1SAT_PROTOCOL,
 					keyID,
 					OPNS_REGISTER_COUNTERPARTY,
 					true,
 					false,
 				)
+				const unsealedLock = input.inscription
+					? Inscription.create(
+							Uint8Array.from(input.inscription.content),
+							input.inscription.contentType,
+							{ scriptPrefix: pushDropLock },
+						).lock()
+					: pushDropLock
 				const name = nameFromOutput(output)
 				const tags = opnsFileTags(output, [OPNS_PUBLISHED_TAG])
 				const inputId = readAssetIdTag(output.tags)

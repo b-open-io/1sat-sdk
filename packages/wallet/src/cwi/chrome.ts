@@ -16,9 +16,9 @@ const chromeTransport: CWITransport = <TResult>(
 	params: unknown,
 ): Promise<TResult> => {
 	return new Promise<TResult>((resolve, reject) => {
-		// Use originator at message level (BRC-100 standard)
-		// Format as chrome-extension://<id> to match the admin originator in initWallet.ts
-		const originator = `chrome-extension://${chrome.runtime?.id}`
+		// Originator at message level (BRC-100). The bare extension ID is the host
+		// wallet's admin originator; toolbox permission checks reject a URL scheme.
+		const originator = chrome.runtime?.id
 		console.log('[ChromeCWI] Sending message:', {
 			action,
 			originator,

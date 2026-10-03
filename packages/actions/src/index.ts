@@ -142,13 +142,6 @@ export {
 	type TipDerivation,
 	type InternalizeOutpointBeefResult,
 } from './utils/internalizeOutpointBeef.js'
-export {
-	moveBasketOutputs,
-	migrateLegacyP1SatBaskets,
-	type MoveBasketOptions,
-	type MoveBasketResult,
-	type MigrateLegacyBasketsResult,
-} from './utils/moveBasket.js'
 
 // Export module actions and types
 export * from './addresses/index.js'

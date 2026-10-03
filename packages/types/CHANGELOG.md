@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.0.50
+
+### Added
+- `Bsv21OutputState`, `Bsv21OutputStatus` and `Bsv21FundingTemplate` for the overlay's outpoint status and funding routes.
+- `TokenStatus.min_funding`.
+
+### Removed
+- `TokenQueueResponse`.
+
+## 0.0.49
+
+### Removed
+- `LEGACY_P1SAT_BASKET_MIGRATIONS`. Legacy `p 1sat …` baskets are re-filed by storage migrations (`@1sat/wallet-node`) and by the host wallet on its local store.
+
 ## [0.0.48]
 
 ### Changed

@@ -2,7 +2,10 @@ import type {
 	Bsv21TransactionData,
 	ClientOptions,
 	IndexedOutput,
+	Bsv21FundingTemplate,
+	Bsv21OutputStatus,
 	TokenDetailResponse,
+	TokenStatus,
 } from '@1sat/types'
 import { BaseClient } from './BaseClient.js'
 
@@ -33,6 +36,9 @@ export interface OutputQueryOptions {
  * - GET /tokens - List tokens
  * - POST /tokens - Lookup tokens (bulk)
  * - GET /:tokenId - Get token details
+ * - GET /:tokenId/fund - Get funding template
+ * - POST /:tokenId/fund - Submit funding transaction
+ * - POST /:tokenId/outputs/status - Outpoint states (bulk)
  * - GET /:tokenId/tx/:txid - Get transaction
  * - POST /:tokenId/outputs - Validate outpoints (bulk)
  * - GET /:tokenId/outputs/:outpoint - Validate outpoint
@@ -65,15 +71,68 @@ export class Bsv21Client extends BaseClient {
 
 	/**
 	 * Get token details with funding status.
-	 * Results are cached since token deploy data is immutable.
+	 * Results are cached for the deploy data, which is immutable. The cached
+	 * status goes stale, so callers that act on it pass `fresh: true`, which
+	 * fetches and refreshes the cache.
 	 */
-	async getTokenDetails(tokenId: string): Promise<TokenDetailResponse> {
-		const cached = this.cache.get(tokenId)
+	async getTokenDetails(
+		tokenId: string,
+		options: { fresh?: boolean } = {},
+	): Promise<TokenDetailResponse> {
+		const cached = options.fresh ? undefined : this.cache.get(tokenId)
 		if (cached) return cached
 
 		const details = await this.request<TokenDetailResponse>(`/${tokenId}`)
 		this.cache.set(tokenId, details)
 		return details
+	}
+
+	/**
+	 * Get the payment outputs that activate the token's overlay: enough to meet
+	 * its minimum funding and index its queued backlog. The outputs are in
+	 * createAction form. Empty when no funding is needed.
+	 */
+	async getFundingTemplate(tokenId: string): Promise<Bsv21FundingTemplate> {
+		return this.request<Bsv21FundingTemplate>(`/${tokenId}/fund`)
+	}
+
+	/**
+	 * Submit a transaction paying the token's fee address. The server
+	 * broadcasts it, indexes it, and starts the token's overlay if the funding
+	 * qualifies. Returns the token's status after the payment.
+	 */
+	async submitFunding(
+		tokenId: string,
+		beef: Uint8Array | number[],
+	): Promise<TokenStatus> {
+		return this.request<TokenStatus>(`/${tokenId}/fund`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/octet-stream' },
+			body: new Blob([new Uint8Array(beef)]),
+		})
+	}
+
+	/**
+	 * Get the overlay state of each outpoint: valid, spent, queued, or unknown.
+	 * Results come back in request order, with outpoints as sent.
+	 */
+	async getOutputStatus(
+		tokenId: string,
+		outpoints: string[],
+	): Promise<Bsv21OutputStatus[]> {
+		const results: Bsv21OutputStatus[] = []
+		for (let i = 0; i < outpoints.length; i += 1000) {
+			const batch = await this.request<Bsv21OutputStatus[]>(
+				`/${tokenId}/outputs/status`,
+				{
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(outpoints.slice(i, i + 1000)),
+				},
+			)
+			results.push(...batch)
+		}
+		return results
 	}
 
 	/**

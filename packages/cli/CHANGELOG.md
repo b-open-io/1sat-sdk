@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.0.127
+
+### Fixed
+- Depends on `@bsv/wallet-toolbox-client` (aliased to `@bopen-io/wallet-toolbox-client@2.14.5`) directly. With only `@1sat/client`'s nested alias, npm installed upstream 2.14.4 for the `@1sat/wallet` peer, and remote mode rejected a Postgres storage server.
+
+## 0.0.126
+
+### Changed
+- `1sat serve storage` replaces `1sat serve wallet`: the wallet-toolbox `StorageServer` over the configured storage (`server.storage`), with Redis-shared sessions when `server.sessionStore.redisUrl` is set and `server.trustProxy` for its IP rate limit.
+- `1sat serve` (host) no longer serves storage RPC.
+
+## 0.0.125
+
+### Changed
+- Picks up wallet-server 0.0.59 (binary sync chunks, upstream auth middleware with 413 on oversized responses).
+
+## 0.0.124
+
+### Removed
+- `wallet move-basket` and `wallet migrate-baskets`. Local wallets re-file legacy baskets through the storage migration on start.
+
+### Changed
+- Picks up the wallet-node and wallet-server changes in this release; `serve` applies the new storage migrations on start.
+
+## 0.0.123
+
+### Changed
+- Uses upstream `@bsv/wallet-toolbox` ^2.14.4 instead of the `@bopen-io` fork, via wallet-node and wallet-server releases in this set.
+
 ## 0.0.121
 
 ### Added

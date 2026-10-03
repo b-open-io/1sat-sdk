@@ -1,8 +1,8 @@
 /**
  * `1sat serve` command — launch the unified host server and/or monitor.
  *
- *   1sat serve              Host server (storage + accounts + paymail + messagebox) + monitor
- *   1sat serve wallet       Wallet storage server only
+ *   1sat serve              Host server (accounts + paymail + messagebox) + monitor
+ *   1sat serve storage      Wallet storage server only (wallet-toolbox StorageServer)
  *   1sat serve monitor      Monitor daemon only
  *   1sat serve wallet-api   App-facing BRC-100 endpoint (headless; grants come from `1sat permissions`)
  *
@@ -29,14 +29,17 @@ import {
 	KnexAccountStore,
 	KnexHandleCertStore,
 	KnexPendingStore,
+	type WalletServerAccounts,
 	createHostServer,
-	createWalletServer,
+	createStorageServer,
 } from '@1sat/wallet-server'
 import type { PrivateKey } from '@bsv/sdk'
+import { StorageProvider } from '@bsv/wallet-toolbox'
 import { initLogger } from 'evlog'
 import knexLib from 'knex'
 import type { GlobalFlags } from '../args.js'
 import {
+	type OneSatCliConfig,
 	type RepricerConfig,
 	type ServerAccountsConfig,
 	type ServerMessageboxConfig,
@@ -68,7 +71,7 @@ const DEFAULT_SATS_PER_UNIT = 1_000_000
 const DEFAULT_DURATION_BLOCKS = 4383
 const DEFAULT_STORAGE_IDENTITY_KEY = '1sat-cli-default'
 
-type ServeMode = 'all' | 'wallet' | 'monitor' | 'wallet-api'
+type ServeMode = 'all' | 'storage' | 'monitor' | 'wallet-api'
 
 interface ResolvedServe {
 	chain: 'main' | 'test'
@@ -132,7 +135,7 @@ export async function handleServeCommand(
 function resolveMode(subcommand: string | undefined): ServeMode | null {
 	if (!subcommand) return 'all'
 	switch (subcommand) {
-		case 'wallet':
+		case 'storage':
 		case 'monitor':
 		case 'wallet-api':
 			return subcommand
@@ -286,9 +289,21 @@ async function runWithStorage(
 		}
 	}
 
-	// One active monitor per deployment: wallet mode never runs it, monitor
-	// mode always does, all mode runs it unless server.monitor.enabled=false
-	// (set on redundant host instances that share a dedicated serve monitor).
+	// storage serves only the wallet-toolbox StorageServer: no accounts, no
+	// monitor.
+	if (mode === 'storage') {
+		const server = startStorageServer(resolved, walletResult)
+		return {
+			stop: async () => {
+				await server.close()
+				await walletResult.destroy()
+			},
+		}
+	}
+
+	// One active monitor per deployment: monitor mode always runs it, all mode
+	// runs it unless server.monitor.enabled=false (set on redundant host
+	// instances that share a dedicated serve monitor).
 	const runMonitor =
 		mode === 'monitor' || (mode === 'all' && resolved.monitorEnabled)
 
@@ -300,7 +315,7 @@ async function runWithStorage(
 	const serverHandle =
 		mode === 'monitor'
 			? undefined
-			: await startWalletServer(resolved, walletResult, accounts, mode)
+			: await startWalletServer(resolved, walletResult, accounts)
 
 	if (runMonitor) {
 		const r = resolved.repricer
@@ -370,44 +385,49 @@ async function runWithStorage(
 	}
 }
 
+/**
+ * BRC-104 sessions in Redis when server.sessionStore.redisUrl is set (several
+ * instances behind one load balancer); in memory otherwise.
+ */
+function resolveSessionStore(
+	config: OneSatCliConfig,
+): { redisUrl: string; ttlSeconds?: number } | undefined {
+	const sessionStore = config.server?.sessionStore
+	return sessionStore?.redisUrl
+		? { redisUrl: sessionStore.redisUrl, ttlSeconds: sessionStore.ttlSeconds }
+		: undefined
+}
+
+/** The wallet's own storage, served to remote wallets by the toolbox StorageServer. */
+function startStorageServer(
+	resolved: ResolvedServe,
+	walletResult: NodeWalletResult,
+): ReturnType<typeof createStorageServer> {
+	const storage = walletResult.getActiveStorage()
+	if (!(storage instanceof StorageProvider)) {
+		fatal('serve storage needs local storage active; activeRemote is set.')
+	}
+	const config = loadConfig()
+	const server = createStorageServer({
+		storage,
+		wallet: walletResult.wallet,
+		listen: { port: resolved.port, host: resolved.host },
+		sessionStore: resolveSessionStore(config),
+		trustProxy: config.server?.trustProxy,
+	})
+	server.start()
+	return server
+}
+
 async function startWalletServer(
 	resolved: ResolvedServe,
 	walletResult: NodeWalletResult,
 	accounts: AccountsRuntime | undefined,
-	mode: ServeMode,
 ): Promise<{ stop(): Promise<void> }> {
 	const config = loadConfig()
+	const sessionStore = resolveSessionStore(config)
 
-	const sessionStoreCfg = config.server?.sessionStore
-	const sessionStore = sessionStoreCfg?.redisUrl
-		? {
-				redisUrl: sessionStoreCfg.redisUrl,
-				ttlSeconds: sessionStoreCfg.ttlSeconds,
-			}
-		: undefined
-
-	if (mode === 'wallet') {
-		const handle = createWalletServer({
-			wallet: walletResult.wallet,
-			storage: walletResult.getActiveStorage(),
-			serverIdentityKey: walletResult.wallet.identityKey,
-			listen: { port: resolved.port, host: resolved.host },
-			publicPath: '/',
-			internalPath: null,
-			accounts: accounts?.walletServerAccounts,
-			sessionStore,
-		})
-		const port = await handle.start()
-		const notes = [resolved.accounts.enabled ? 'accounts: on' : '']
-			.filter(Boolean)
-			.join(', ')
-		console.log(
-			`[wallet] listening on ${resolved.host}:${port}${notes ? ` (${notes})` : ''}`,
-		)
-		return { stop: () => handle.stop() }
-	}
-
-	// Unified host: storage + accounts + paymail + messagebox. The account
+	// Unified host: accounts + paymail + messagebox. The account
 	// registry is always on: it is the paymail user-domain backend and the
 	// entitlement gate for paymail resolution and messagebox delivery.
 	const serverCfg = config.server ?? {}
@@ -508,9 +528,7 @@ function createMessageboxKnex(
 }
 
 interface AccountsRuntime {
-	walletServerAccounts: NonNullable<
-		Parameters<typeof createWalletServer>[0]['accounts']
-	>
+	walletServerAccounts: WalletServerAccounts
 }
 
 async function buildAccountsForServer(

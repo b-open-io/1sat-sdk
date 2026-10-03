@@ -1,6 +1,6 @@
 {
   "name": "@1sat/utils",
-  "version": "0.0.38",
+  "version": "0.0.40",
   "description": "Utility functions for 1Sat Ordinals SDK",
   "type": "module",
   "main": "./dist/index.js",
@@ -28,6 +28,7 @@
   "license": "MIT",
   "dependencies": {
     "@1sat/types": "workspace:*",
+    "@ipld/dag-cbor": "^10.0.2",
     "image-meta": "^0.2.2"
   },
   "peerDependencies": {

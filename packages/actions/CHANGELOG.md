@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.0.230
+
+### Added
+- `fundBsv21Overlay`: pays the overlay's funding template for a token and submits the transaction so indexing starts immediately. Returns `funding-not-needed` when the overlay needs no payment, and `funding-submit-failed` with the txid when the payment went out but the submission failed.
+
+### Changed
+- `sendBsv21`, `buyBsv21` and `sweepBsv21` check inputs with `getOutputStatus` and spend only outputs the overlay reports `valid`.
+- `sendBsv21` returns `tokens-queued` when the valid outputs fall short but queued ones would cover the amount.
+- `sweepBsv21` returns `unvalidated-inputs` when no input is valid and `overlay-validation-failed` when the overlay cannot be reached, instead of sweeping unverified inputs. Its response lists `spentOutpoints`.
+- `dispatchPlainPayment` is exported.
+
+## 0.0.229
+
+### Fixed
+- Signing helpers (`signP2PKH`, `signOrdinalInput`, pipeline unlocks) pass only `hashToDirectlySign` to `createSignature`. `@bsv/sdk` 2.8.11 rejects calls that also pass `data`.
+
+## 0.0.228
+
+### Removed
+- `moveBasketOutputs`, `migrateLegacyP1SatBaskets` and the `LEGACY_P1SAT_BASKET_MIGRATIONS` re-export. Toolbox 2.14 rejects a basket insertion for an output that already has a basket, so outputs cannot be moved between baskets through the wallet interface.
+
+## 0.0.226
+
+### Fixed
+- `sweepBsv21` and `sweepBsv20` label their actions `bsv21 <id>` / `bsv20 <tick>` instead of `p …` labels. The `p` labels routed the createAction to a permission module, which finished and signed the transaction without the sweep's legacy-key unlocking scripts.
+
 ## 0.0.221
 
 ### Changed

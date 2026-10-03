@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.108
+
+### Fixed
+- Sweep all no longer includes BSV21 tokens whose overlay is inactive; it could spend unvalidated token outputs together.
+- A BSV21 sweep marks only the outpoints the transaction spent as swept.
+
+## 0.0.104
+
+### Changed
+- Picks up `@1sat/actions@0.0.226` (BSV-21/BSV-20 sweeps no longer routed through permission modules).
+
 ## 0.0.98
 
 ### Added

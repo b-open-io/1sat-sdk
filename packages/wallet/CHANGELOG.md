@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.0.115
+
+### Changed
+- `StorageClient` sends binary request bodies (`binaryRequests: true`), so sync chunks stay under the auth middleware request limits.
+
+## 0.0.114
+
+### Changed
+- `createChromeCWI` sends the bare extension ID as its originator. Toolbox 2.14 permission checks reject originators with a URL scheme; host wallets must use the same value as their admin originator.
+
+## 0.0.113
+
+### Changed
+- Peer dependency is upstream `@bsv/wallet-toolbox-client` ^2.14.4 instead of the `@bopen-io` fork.
+
+### Fixed
+- `createWalletCore` sets `maxRebroadcastAttempts` on the Monitor options; toolbox 2.14 rejects Monitor options without it.
+
 ## 0.0.112
 
 ### Fixed

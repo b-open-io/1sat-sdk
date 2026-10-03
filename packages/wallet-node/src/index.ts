@@ -22,8 +22,8 @@ export {
 } from './sqlite-driver.js'
 export type { StorageBunSqliteOptions } from './storage-bun-sqlite.js'
 
-export { StoragePg } from './storage-pg.js'
-export type { StoragePgOptions } from './storage-pg.js'
+export { StorageKnexPg } from './storage-knex-pg.js'
+export type { StorageKnexPgOptions } from './storage-knex-pg.js'
 
 export {
 	Monitor,
