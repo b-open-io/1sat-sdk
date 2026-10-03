@@ -26,7 +26,11 @@
 
 import { OverlayClient } from '@1sat/client'
 import { Mandala } from '@1sat/templates'
-import { MANDALA_BASKET, MANDALA_PROTOCOL, PAYMENT_INBOX } from '@1sat/types'
+import {
+	MANDALA_PROTOCOL,
+	PAYMENT_INBOX,
+	mandalaTokenBasket,
+} from '@1sat/types'
 import { MessageBoxClient } from '@bsv/message-box-client'
 import {
 	Beef,
@@ -66,7 +70,7 @@ export const DEFAULT_MANDALA_SEND_EXPIRY: MandalaSendExpiry = {
 }
 
 export interface SendMandalaInput {
-	/** Token id: the deploy txid (the value of the `mandala:<tokenId>` tag) */
+	/** Token id: the deploy txid (hex); also the name of the token's basket */
 	tokenId: string
 	/** Amount in raw units */
 	amount: bigint | string
@@ -109,11 +113,6 @@ export interface MandalaPaymentMessage {
 	/** Satoshis on the token output */
 	amount: number
 	senderIdentityKey: string
-}
-
-/** The tag every Mandala output of a token carries. */
-export function mandalaTag(tokenId: string): string {
-	return `mandala:${tokenId}`
 }
 
 /** BRC-177 action label for an expiry. */
@@ -213,15 +212,15 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 
 	async execute(ctx, input) {
 		try {
-			const { tokenId, destination } = input
+			const { destination } = input
+			const tokenId = input.tokenId.toLowerCase()
 			const amount = BigInt(input.amount)
 			const peer = !('address' in destination)
 			const overlay = peer ? undefined : input.overlay
-			const tag = mandalaTag(tokenId)
+			const basket = mandalaTokenBasket(tokenId)
 
 			const listed = await ctx.wallet.listOutputs({
-				basket: MANDALA_BASKET,
-				tags: [tag],
+				basket,
 				include: 'entire transactions',
 				includeTags: true,
 				includeCustomInstructions: true,
@@ -270,12 +269,9 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 						.toHex(),
 					satoshis: 1,
 					outputDescription: 'Mandala token change',
-					basket: MANDALA_BASKET,
-					tags: [tag],
-					customInstructions: JSON.stringify({
-						...self.customInstructions,
-						amount: change.toString(),
-					}),
+					basket,
+					// Derivation only: the amount is read from the script.
+					customInstructions: JSON.stringify(self.customInstructions),
 				})
 			}
 

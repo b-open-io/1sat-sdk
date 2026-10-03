@@ -713,8 +713,17 @@ export const ORDFS_STREAM_PARAM = 'stream=ordfs'
 // Mandala (BRC-162)
 // ============================================================================
 
-/** Basket holding the wallet's Mandala token outputs, tagged `mandala:<tokenId>`. */
+/**
+ * Index of tracked Mandala tokens: holds deploy outputs only (tag
+ * `mandala:index`) and is never spent from. A token's value and authority
+ * outputs live in its own basket, {@link mandalaTokenBasket}.
+ */
 export const MANDALA_BASKET = 'mandala'
+
+/** Per-token basket: the bare token id (deploy txid hex, lowercase). */
+export function mandalaTokenBasket(tokenId: string): string {
+	return tokenId.toLowerCase()
+}
 
 /**
  * BRC-42/43 protocol for Mandala transfer keys. Level 2 (per-counterparty

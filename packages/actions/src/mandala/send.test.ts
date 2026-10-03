@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import { Mandala } from '@1sat/templates'
-import { MANDALA_BASKET, MANDALA_PROTOCOL } from '@1sat/types'
+import { MANDALA_PROTOCOL } from '@1sat/types'
 import {
 	Beef,
 	type CreateActionArgs,
@@ -35,7 +35,6 @@ const { sendMandala } = await import('./send.js')
 const { createContext } = await import('../types.js')
 
 const TOKEN_ID = 'ab'.repeat(32)
-const TAG = `mandala:${TOKEN_ID}`
 const SENDER = PrivateKey.fromHex('11'.repeat(32))
 const RECIPIENT = PrivateKey.fromHex('22'.repeat(32))
 const RECIPIENT_ID = RECIPIENT.toPublicKey().toString()
@@ -74,6 +73,7 @@ async function walletHolding(proto: ProtoWallet) {
 interface Recorded {
 	createArgs: CreateActionArgs[]
 	signArgs: SignActionArgs[]
+	listBaskets: string[]
 }
 
 /** BRC-100 fake over a ProtoWallet: lists the holding, builds signable txs, applies spends. */
@@ -83,26 +83,29 @@ async function fakeWallet(): Promise<{
 }> {
 	const proto = new ProtoWallet(SENDER)
 	const holding = await walletHolding(proto)
-	const rec: Recorded = { createArgs: [], signArgs: [] }
+	const rec: Recorded = { createArgs: [], signArgs: [], listBaskets: [] }
 	let pending: Transaction | undefined
 
 	const wallet = Object.assign(Object.create(proto), {
-		listOutputs: async () => ({
-			totalOutputs: 1,
-			outputs: [
-				{
-					outpoint: `${holding.id('hex')}.0`,
-					satoshis: 1,
-					spendable: true,
-					tags: [TAG],
-					customInstructions: JSON.stringify({
-						protocolID: MANDALA_PROTOCOL,
-						keyID: HOLD_KEY_ID,
-					}),
-				},
-			],
-			BEEF: holding.toBEEF(),
-		}),
+		listOutputs: async (args: { basket: string }) => {
+			rec.listBaskets.push(args.basket)
+			return {
+				totalOutputs: 1,
+				outputs: [
+					{
+						outpoint: `${holding.id('hex')}.0`,
+						satoshis: 1,
+						spendable: true,
+						tags: [],
+						customInstructions: JSON.stringify({
+							protocolID: MANDALA_PROTOCOL,
+							keyID: HOLD_KEY_ID,
+						}),
+					},
+				],
+				BEEF: holding.toBEEF(),
+			}
+		},
 		createAction: async (args: CreateActionArgs) => {
 			rec.createArgs.push(args)
 			const beef = Beef.fromBinary(Array.from(args.inputBEEF ?? []))
@@ -173,8 +176,14 @@ describe('sendMandala', () => {
 			expect(decoded[i]?.tokenId).toBe(`${TOKEN_ID}_0`)
 		}
 		expect(decoded.map((d) => d?.amount)).toEqual([60n, 40n])
-		expect(outputs[1].basket).toBe(MANDALA_BASKET)
-		expect(outputs[1].tags).toContain(TAG)
+		// Inputs come from, and change goes to, the per-token basket.
+		expect(rec.listBaskets).toEqual([TOKEN_ID])
+		expect(outputs[1].basket).toBe(TOKEN_ID)
+		expect(outputs[1].tags ?? []).not.toContain(`mandala:${TOKEN_ID}`)
+		// Change CI carries only the derivation; the amount is in the script.
+		const ci = JSON.parse(outputs[1].customInstructions!)
+		expect(Object.keys(ci).sort()).toEqual(['keyID', 'protocolID'])
+		expect(ci.protocolID).toEqual(MANDALA_PROTOCOL)
 
 		// The message: PeerPay body + protocol/outputIndex/sender, to payment_inbox.
 		expect(sent).toHaveLength(1)
