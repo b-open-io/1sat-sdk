@@ -3,14 +3,13 @@
  */
 
 import type { OneSatServices } from '@1sat/client'
-import { outpointFromBytes } from '@1sat/templates'
+import { type OpnsRecord, decodeOpnsRecord } from '@1sat/templates'
 import { P1SAT_PROTOCOL, opnsRegisterKeyId } from '@1sat/types'
 import {
 	type LockingScript,
 	ProtoWallet,
 	PushDrop,
 	Transaction,
-	Utils,
 } from '@bsv/sdk'
 import type { ResolvedBind } from './types.js'
 
@@ -50,44 +49,34 @@ export async function resolvePaymailBind(
 }
 
 /**
- * Slots after the identity key are presentation-only: slot 1 display name
- * (utf8), slot 2 avatar origin outpoint (36 bytes). Both optional. An empty
- * push decodes as `[]` or `[0]`, either of which means unset.
+ * Verify the OpNS record on a name coin and return the identity it binds.
+ *
+ * The record is a signed PushDrop whose fields are key/value pairs
+ * (`identity`, `profile`, …) followed by the field signature. Anything else —
+ * including the pre-#83 positional bind `[pubkey, name?, avatar?, sig]` — is
+ * "no bind" (clean break, no compat path).
  */
-function decodeProfileSlots(fields: number[][]): {
-	profileName?: string
-	avatarOrigin?: string
-} {
-	const isUnset = (f: number[] | undefined) =>
-		!f?.length || (f.length === 1 && f[0] === 0)
-
-	const name = fields[1]
-	const avatar = fields[2]
-	return {
-		...(isUnset(name) ? {} : { profileName: Utils.toUTF8(name as number[]) }),
-		...(isUnset(avatar) || avatar?.length !== 36
-			? {}
-			: { avatarOrigin: outpointFromBytes(avatar) ?? undefined }),
-	}
-}
-
 export async function verifyPushDropBind(
 	tx: Transaction,
-	vout: number,
+	_vout: number,
 	lockingScript: LockingScript,
 ): Promise<Omit<ResolvedBind, 'outpoint'>> {
 	const decoded = PushDrop.decode(lockingScript)
-	if (decoded.fields.length < 2) {
-		throw new Error('not a signed PushDrop bind')
+	if (decoded.fields.length < 3) {
+		throw new Error('no bind: not a signed OpNS record')
 	}
 
 	const fields = decoded.fields.map((f) => [...f])
 	const signature = fields.pop() as number[]
-	const idKeyBytes = fields[0]
-	if (!idKeyBytes?.length) {
-		throw new Error('missing identity field')
+	let record: OpnsRecord
+	try {
+		record = decodeOpnsRecord(fields)
+	} catch (err) {
+		throw new Error(
+			`no bind: ${err instanceof Error ? err.message : String(err)}`,
+		)
 	}
-	const identityKey = Utils.toHex(idKeyBytes)
+	const { identityKey, profile } = record
 
 	const input = tx.inputs[0]
 	const sourceTxid =
@@ -111,7 +100,7 @@ export async function verifyPushDropBind(
 		throw new Error('lock pubkey does not match bind derivation')
 	}
 
-	const data = fields.reduce<number[]>((a, e) => [...a, ...e], [])
+	const data = fields.flat()
 	const { valid } = await anyone.verifySignature({
 		data,
 		signature,
@@ -123,5 +112,10 @@ export async function verifyPushDropBind(
 		throw new Error('invalid PushDrop field signature')
 	}
 
-	return { identityKey, ...decodeProfileSlots(fields) }
+	return {
+		identityKey,
+		...(profile?.domain ? { domain: profile.domain } : {}),
+		...(profile?.displayName ? { profileName: profile.displayName } : {}),
+		...(profile?.avatar ? { avatarOrigin: profile.avatar } : {}),
+	}
 }
