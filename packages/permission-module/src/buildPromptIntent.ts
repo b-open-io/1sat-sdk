@@ -615,6 +615,9 @@ function panelFromOrdinalEdge(
 			if (edge.create?.sealPending || edge.create?.sealKind === 'pushdrop') {
 				meta.push({ key: 'Sign', value: 'PushDrop identity bind' })
 			}
+			if (edge.create?.opnsDomain) {
+				meta.push({ key: 'Domain', value: edge.create.opnsDomain })
+			}
 			break
 		case 'unregister':
 			actionTitle = 'Unpublish'

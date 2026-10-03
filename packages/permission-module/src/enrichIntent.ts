@@ -36,8 +36,8 @@ import {
 	Inscription,
 	Lock,
 	OrdLock,
-	outpointFromBytes,
 	Sigma,
+	decodeOpnsRecord,
 } from '@1sat/templates'
 import { parseAddress } from '@1sat/wallet'
 import type {
@@ -56,32 +56,28 @@ const METADATA_ENCRYPTION_PROTOCOL: [2, string] = [
 ]
 
 /**
- * Presentation fields on an OpNS bind: field 0 is the identity key and the
- * last is the signature, so field 1 is the display name and field 2 the
- * avatar origin. Decoded from the script because that is what the signature
- * covers — tags are only what the caller asserted.
+ * Profile fields on an OpNS record (`identity` / `profile` key/value pairs,
+ * signature last). Decoded from the script because that is what the
+ * signature covers — tags are only what the caller asserted. Anything that is
+ * not a well-formed record (including the pre-#83 positional bind) yields
+ * nothing.
  */
 function decodeOpnsProfile(script: Script): {
 	opnsProfileName?: string
 	opnsAvatarOrigin?: string
+	opnsDomain?: string
 } {
-	let fields: number[][]
 	try {
-		fields = PushDrop.decode(LockingScript.fromHex(script.toHex())).fields
+		const fields = PushDrop.decode(LockingScript.fromHex(script.toHex())).fields
+		const profile = decodeOpnsRecord(fields.slice(0, -1)).profile
+		if (!profile) return {}
+		return {
+			opnsDomain: profile.domain,
+			...(profile.displayName ? { opnsProfileName: profile.displayName } : {}),
+			...(profile.avatar ? { opnsAvatarOrigin: profile.avatar } : {}),
+		}
 	} catch {
 		return {}
-	}
-	if (fields.length < 3) return {}
-
-	const body = fields.slice(0, -1)
-	const unset = (f?: number[]) => !f?.length || (f.length === 1 && f[0] === 0)
-	const name = body[1]
-	const avatar = body[2]
-	return {
-		...(unset(name) ? {} : { opnsProfileName: Utils.toUTF8(name) }),
-		...(unset(avatar) || avatar.length !== 36
-			? {}
-			: { opnsAvatarOrigin: outpointFromBytes(avatar) ?? undefined }),
 	}
 }
 
@@ -142,6 +138,7 @@ export interface TxLeg {
 	lockUntilHeight?: number
 	opnsProfileName?: string
 	opnsAvatarOrigin?: string
+	opnsDomain?: string
 	origin?: string
 	name?: string
 	/** True when this leg is part of an {@link OrdinalEdge} (UI may de-dupe). */
@@ -199,6 +196,7 @@ export interface OrdinalEdge {
 		listingSeller?: string
 		opnsProfileName?: string
 		opnsAvatarOrigin?: string
+		opnsDomain?: string
 		name?: string
 		origin?: string
 		/** Best-effort content type from tags (`type:image/png`). */
@@ -248,6 +246,8 @@ export interface EnrichedOutput {
 	opnsProfileName?: string
 	/** Avatar origin outpoint (`txid_vout`) decoded from an OpNS bind. */
 	opnsAvatarOrigin?: string
+	/** BRC-169 domain decoded from an OpNS record's `profile`. */
+	opnsDomain?: string
 	/** Case-preserving display name from customInstructions when present. */
 	customInstructions?: string
 	/** BSV21 token id from script (or tags). */
@@ -1074,6 +1074,7 @@ function edge(
 						listingSeller: create.listingSeller,
 						opnsProfileName: create.opnsProfileName,
 						opnsAvatarOrigin: create.opnsAvatarOrigin,
+						opnsDomain: create.opnsDomain,
 						...(name ? { name } : {}),
 						...(origin ? { origin } : {}),
 						...(contentType || create.inscriptionType
@@ -1177,6 +1178,7 @@ function buildLegs(
 			lockUntilHeight: out.lockUntilHeight,
 			opnsProfileName: out.opnsProfileName,
 			opnsAvatarOrigin: out.opnsAvatarOrigin,
+			opnsDomain: out.opnsDomain,
 			...(name ? { name } : {}),
 			...(origin ? { origin } : {}),
 			...(out.tokenId ? { tokenId: out.tokenId } : {}),
