@@ -95,6 +95,19 @@ export class OverlayClient extends BaseClient {
 		return this.submitToPath('/1sat/bsv21/overlay/submit', beef, ['tm_bsv21'])
 	}
 
+	/**
+	 * Submit a Mandala (BRC-162) token transaction to its per-token topic at a
+	 * BRC-22 overlay: `POST <baseUrl>/submit` with `X-Topics: tm_<tokenId>`.
+	 * @param beef - BEEF data
+	 * @param tokenId - Token id: the deploy txid (hex)
+	 */
+	async submitMandala(
+		beef: Uint8Array | number[],
+		tokenId: string,
+	): Promise<{ status: string; txid?: string; message?: string }> {
+		return this.submitToPath('/submit', beef, [`tm_${tokenId}`])
+	}
+
 	private async submitToPath(
 		path: string,
 		beef: Uint8Array | number[],

@@ -4,6 +4,14 @@
 
 export { HttpError } from './errors.js'
 export {
+	DEFAULT_HANDLE_RESOLVE_PATH,
+	type HandleCertificate,
+	type HandleResolution,
+	parseHandle,
+	resolveHandle,
+	type ResolveHandleOptions,
+} from './handles.js'
+export {
 	AdminClient,
 	ArcadeClient,
 	BapClient,

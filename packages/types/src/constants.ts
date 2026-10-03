@@ -708,3 +708,39 @@ export const DEFAULT_STREAM_CHUNK_SIZE = 1024 * 1024
 export const ORDFS_STREAM_CONTENT_TYPE = 'ordfs/stream'
 /** Media-type parameter on the origin chunk (e.g. `video/mp4; stream=ordfs`) */
 export const ORDFS_STREAM_PARAM = 'stream=ordfs'
+
+// ============================================================================
+// Mandala (BRC-162)
+// ============================================================================
+
+/**
+ * Reserved/unused: outputs live in per-token baskets
+ * ({@link mandalaTokenBasket}), tokens are indexed by label
+ * (`mandala` + {@link mandalaTokenLabel}).
+ */
+export const MANDALA_BASKET = 'mandala'
+
+/** Per-token basket: the bare token id (deploy txid hex, lowercase). */
+export function mandalaTokenBasket(tokenId: string): string {
+	return tokenId.toLowerCase()
+}
+
+/** Per-token action label `mandala:<txid>`, alongside the `mandala` label. */
+export function mandalaTokenLabel(txid: string): string {
+	return `mandala:${txid.toLowerCase()}`
+}
+
+/**
+ * BRC-42/43 protocol for a Mandala token's keys: `[2, 'mandala <txid>']`, one
+ * protocol per token, so a BRC-43 grant covers only that token. Level 2
+ * (per-counterparty permission) mirrors BRC-29's `[2, '3241645161d8']`. The
+ * recipient derives the key with keyID `<derivationPrefix> <derivationSuffix>`
+ * and counterparty = the sender's identity key, and routes `payment_inbox`
+ * messages on the protocol name, which also names the token.
+ */
+export function mandalaProtocol(tokenId: string): WalletProtocol {
+	return [2, `mandala ${tokenId.toLowerCase()}`]
+}
+
+/** Messagebox box for payments (PeerPay's name, documented in BRC-29). */
+export const PAYMENT_INBOX = 'payment_inbox'
