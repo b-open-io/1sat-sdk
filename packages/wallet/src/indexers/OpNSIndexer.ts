@@ -56,8 +56,12 @@ export class OpNSIndexer extends Indexer {
 	}
 
 	/**
-	 * Transfers resolve type/content in OriginIndexer.summarize (OrdFS).
-	 * Tag name: here from origin.content (or in-script content already parsed).
+	 * An OpNS name is recognised by its ORIGIN's type (OriginIndexer has
+	 * resolved it by now), never by an inscription on the current output: a
+	 * published name may carry a reinscription (e.g. an `ordfs/dir` release)
+	 * and is still the same name. The name string comes from the origin
+	 * content (fetched by OriginIndexer for transfers) or, when this output is
+	 * the origin, from the `name:` tag parse() took from its own content.
 	 */
 	async summarize(
 		ctx: ParseContext,
@@ -67,26 +71,32 @@ export class OpNSIndexer extends Indexer {
 			if (!txo.owner || !this.owners.has(txo.owner)) continue
 
 			const origin = txo.data.origin?.data as Origin | undefined
-			const insc = txo.data.insc?.data as Inscription | undefined
-			const type =
-				baseType(origin?.insc?.file?.type) ?? baseType(insc?.file?.type)
-			if (type !== OPNS_TYPE) continue
+			if (!origin) continue
+			if (baseType(origin.insc?.file?.type) !== OPNS_TYPE) {
+				// parse() saw an op-ns envelope on an output whose origin is
+				// something else — a reinscription, not a name.
+				const { opns: _misclaimed, ...rest } = txo.data
+				txo.data = rest
+				continue
+			}
 
 			txo.basket = OPNS_BASKET
 
+			// parse() read a name from this output's own envelope; that is the
+			// name only when this output IS the origin (the mint).
+			const isOrigin = origin.outpoint === txo.outpoint.toString()
 			const opns = txo.data.opns
-			const tags = opns?.tags ? [...opns.tags] : []
+			const tags = isOrigin && opns?.tags ? [...opns.tags] : []
 			if (!tags.some((t) => t.startsWith('name:'))) {
-				const name =
-					nameFromContent(txo.data.origin?.content) ??
-					nameFromContent(insc?.file?.content)
+				const name = nameFromContent(txo.data.origin?.content)
 				if (name) tags.push(`name:${name}`)
 			}
 
 			txo.data.opns = {
-				data: opns?.data ?? insc ?? origin?.insc,
+				data: origin.insc,
 				tags,
-				content: opns?.content ?? txo.data.origin?.content,
+				content:
+					txo.data.origin?.content ?? (isOrigin ? opns?.content : undefined),
 			}
 		}
 		return undefined
