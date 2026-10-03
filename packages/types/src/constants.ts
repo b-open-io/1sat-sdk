@@ -708,3 +708,22 @@ export const DEFAULT_STREAM_CHUNK_SIZE = 1024 * 1024
 export const ORDFS_STREAM_CONTENT_TYPE = 'ordfs/stream'
 /** Media-type parameter on the origin chunk (e.g. `video/mp4; stream=ordfs`) */
 export const ORDFS_STREAM_PARAM = 'stream=ordfs'
+
+// ============================================================================
+// Mandala (BRC-162)
+// ============================================================================
+
+/** Basket holding the wallet's Mandala token outputs, tagged `mandala:<tokenId>`. */
+export const MANDALA_BASKET = 'mandala'
+
+/**
+ * BRC-42/43 protocol for Mandala transfer keys. Level 2 (per-counterparty
+ * permission) mirrors BRC-29's `[2, '3241645161d8']`. The recipient derives
+ * the key with keyID `<derivationPrefix> <derivationSuffix>` and counterparty
+ * = the sender's identity key, and routes `payment_inbox` messages on the
+ * protocol name.
+ */
+export const MANDALA_PROTOCOL: WalletProtocol = [2, 'mandala']
+
+/** Messagebox box for payments (PeerPay's name, documented in BRC-29). */
+export const PAYMENT_INBOX = 'payment_inbox'

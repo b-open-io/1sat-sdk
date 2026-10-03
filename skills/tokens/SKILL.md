@@ -106,6 +106,45 @@ await mintBsv21.execute(ctx, {
 })
 ```
 
+## Mandala send (BRC-162)
+
+`sendMandala` spends the wallet's Mandala outputs for a token (basket
+`mandala`, tag `mandala:<tokenId>`, where `tokenId` is the deploy txid).
+Token change goes back to a wallet-derived key in the same basket.
+
+```typescript
+import { sendMandala } from '@1sat/actions'
+
+// Peer send: not broadcast. Delivered as Atomic BEEF to the recipient's
+// payment_inbox; the recipient broadcasts when it internalizes.
+const peer = await sendMandala.execute(ctx, {
+  tokenId: '<deploy txid>',
+  amount: '1000',
+  destination: { identityKey: '02abc...', messagebox: 'https://messagebox.example' },
+  // expiry: { seconds: 86400 }, // BRC-177; default 7 days
+})
+// peer.delivered === 'message', peer.messageId, peer.tx (Atomic BEEF)
+
+// Address: broadcast by the wallet.
+await sendMandala.execute(ctx, {
+  tokenId: '<deploy txid>',
+  amount: '1000',
+  destination: { address: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' },
+})
+```
+
+- The recipient key is BRC-42 under `MANDALA_PROTOCOL` (`[2, 'mandala']`),
+  keyID `<derivationPrefix> <derivationSuffix>`, counterparty = recipient.
+- Peer sends are BRC-177 protected `noSend` actions (`p nosend expiry …`
+  label): the wallet funds them from one exact anchor output, with no change.
+  If the recipient does not broadcast before the expiry, the wallet reclaims
+  the anchor; `abortAction` reclaims early.
+- The message body is the PeerPay shape plus `protocol`, `outputIndex` and
+  `senderIdentityKey`:
+  `{ customInstructions: { derivationPrefix, derivationSuffix, protocol: 'mandala' }, transaction, outputIndex, amount: 1, senderIdentityKey }`.
+- BRC-169 handle destinations are not wired yet. `resolveHandle`
+  (`@1sat/client`) and `signEnvelope` (§7.3 DAG-CBOR envelope) exist for them.
+
 ## Requirements
 
 ```bash
