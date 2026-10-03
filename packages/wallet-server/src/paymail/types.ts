@@ -23,12 +23,16 @@ export interface ResolvedBind {
 	identityKey: string
 	outpoint: string
 	/**
-	 * Presentation-only display name from PushDrop slot 1. The OpNS name is
-	 * the unique, owned value; this is decoration and may be absent.
+	 * Presentation-only display name — `profile.name` on an OpNS publish, the
+	 * account display name on the accounts backend. Paymail wire name; the
+	 * OpNS name is the unique, owned value and this is decoration that may be
+	 * absent.
 	 */
 	profileName?: string
-	/** Origin outpoint (`txid_vout`) of an image ordinal, from slot 2. */
+	/** Origin outpoint (`txid_vout`) of an image ordinal (`profile.avatar`). */
 	avatarOrigin?: string
+	/** BRC-169 domain the identity is reached at (`profile.domain`). */
+	domain?: string
 }
 
 /**

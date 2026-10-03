@@ -1,13 +1,16 @@
 import { describe, expect, test } from 'bun:test'
 import {
+	IDENTITY_FIELD,
 	OPNS_BASKET,
 	OPNS_REGISTER_COUNTERPARTY,
 	OPNS_REGISTER_SIG_PLACEHOLDER_LEN,
 	P1SAT_PROTOCOL,
+	PROFILE_FIELD,
 	buildActionDispatchLabel,
 	buildInputAssetLabel,
 	opnsRegisterKeyId,
 } from '@1sat/types'
+import { encodeProfile } from '@1sat/utils'
 import type {
 	CreateActionArgs,
 	CreateSignatureArgs,
@@ -62,7 +65,10 @@ async function unsealedLock(
 	const { publicKey } = await wallet.getPublicKey({ identityKey: true })
 	const script = await new PushDrop(wallet).lock(
 		[
+			Utils.toArray(IDENTITY_FIELD, 'utf8'),
 			Utils.toArray(publicKey, 'hex'),
+			Utils.toArray(PROFILE_FIELD, 'utf8'),
+			encodeProfile({ domain: '1sat.name' }),
 			new Array(OPNS_REGISTER_SIG_PLACEHOLDER_LEN).fill(0),
 		],
 		P1SAT_PROTOCOL,

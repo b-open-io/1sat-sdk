@@ -47,6 +47,7 @@ import type {
 	MintCollectionParams,
 	OpnsNameInfo,
 	OpnsOperationParams,
+	OpnsRegisterParams,
 	OrdinalInfo,
 	SendBsv21Params,
 	SweepScanResult,
@@ -94,6 +95,9 @@ import {
 	lockAccount,
 } from './wallet-manager'
 import { openAccountWindow } from './window-manager'
+
+/** Domain written into an OpNS name's profile when the caller gives none (issue #83). */
+const DEFAULT_OPNS_DOMAIN = '1sat.name'
 
 // ============================================================================
 // MIME type lookup
@@ -889,7 +893,7 @@ export function createRpcHandlers(scopedAccountId?: string) {
 			}
 		},
 
-		opnsRegister: async ({ outpoint }: OpnsOperationParams) => {
+		opnsRegister: async ({ outpoint, domain }: OpnsRegisterParams) => {
 			const w = requireWallet()
 			const ctx = createContext(w.wallet, {
 				services: w.services,
@@ -907,7 +911,10 @@ export function createRpcHandlers(scopedAccountId?: string) {
 			}
 			const id = readAssetIdTag(ordinal.tags)
 			if (!id) return { error: 'OpNS name has no wallet tracking id' }
-			const result = await registerOpns.execute(ctx, { id })
+			const result = await registerOpns.execute(ctx, {
+				id,
+				profile: { domain: domain ?? DEFAULT_OPNS_DOMAIN },
+			})
 			return { txid: result.txid, error: result.error }
 		},
 

@@ -607,7 +607,12 @@ export const COMMANDS: CommandSpec[] = [
 			{
 				name: 'register',
 				description: 'Register identity on an owned OpNS name',
-				args: [{ flag: '--id', values: '<tracking-id>', required: true }],
+				args: [
+					{ flag: '--id', values: '<tracking-id>', required: true },
+					{ flag: '--domain', values: '<hostname>', required: true },
+					{ flag: '--name', values: '<display name>' },
+					{ flag: '--avatar', values: '<txid_vout>' },
+				],
 			},
 			{
 				name: 'deregister',

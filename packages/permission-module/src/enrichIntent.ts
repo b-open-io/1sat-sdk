@@ -27,18 +27,21 @@ import {
 	ORDFS_HOST,
 	OPNS_BASKET,
 	ORDINALS_BASKET,
+	PROFILE_FIELD,
 	SIGMA_BASKET,
 	formatOrdinalOutpoint,
 	parseInputAssetLabels,
 } from '@1sat/types'
+import { pushDropDecode } from '@1sat/actions'
 import {
 	BSV21,
 	Inscription,
 	Lock,
 	OrdLock,
-	outpointFromBytes,
 	Sigma,
+	outpointFromBytes,
 } from '@1sat/templates'
+import { decodeProfile, fieldPairs } from '@1sat/utils'
 import { parseAddress } from '@1sat/wallet'
 import type {
 	CreateActionArgs,
@@ -56,32 +59,32 @@ const METADATA_ENCRYPTION_PROTOCOL: [2, string] = [
 ]
 
 /**
- * Presentation fields on an OpNS bind: field 0 is the identity key and the
- * last is the signature, so field 1 is the display name and field 2 the
- * avatar origin. Decoded from the script because that is what the signature
- * covers — tags are only what the caller asserted.
+ * Profile on an OpNS publish: the `profile` field of a key/value PushDrop
+ * (signature last). Decoded from the script because that is what the
+ * signature covers — tags are only what the caller asserted. A script with
+ * no well-formed `profile` field (including the pre-#83 positional bind)
+ * yields nothing.
  */
 function decodeOpnsProfile(script: Script): {
-	opnsProfileName?: string
+	opnsName?: string
 	opnsAvatarOrigin?: string
+	opnsDomain?: string
 } {
-	let fields: number[][]
 	try {
-		fields = PushDrop.decode(LockingScript.fromHex(script.toHex())).fields
+		const { fields } = pushDropDecode(script.toHex())
+		const pair = fieldPairs(fields.slice(0, -1)).find(
+			([key]) => key === PROFILE_FIELD,
+		)
+		if (!pair) return {}
+		const profile = decodeProfile(pair[1])
+		const avatar = profile.avatar ? outpointFromBytes(profile.avatar) : null
+		return {
+			opnsDomain: profile.domain,
+			...(profile.name ? { opnsName: profile.name } : {}),
+			...(avatar ? { opnsAvatarOrigin: avatar } : {}),
+		}
 	} catch {
 		return {}
-	}
-	if (fields.length < 3) return {}
-
-	const body = fields.slice(0, -1)
-	const unset = (f?: number[]) => !f?.length || (f.length === 1 && f[0] === 0)
-	const name = body[1]
-	const avatar = body[2]
-	return {
-		...(unset(name) ? {} : { opnsProfileName: Utils.toUTF8(name) }),
-		...(unset(avatar) || avatar.length !== 36
-			? {}
-			: { opnsAvatarOrigin: outpointFromBytes(avatar) ?? undefined }),
 	}
 }
 
@@ -140,8 +143,9 @@ export interface TxLeg {
 	listingPriceSats?: number
 	listingSeller?: string
 	lockUntilHeight?: number
-	opnsProfileName?: string
+	opnsName?: string
 	opnsAvatarOrigin?: string
+	opnsDomain?: string
 	origin?: string
 	name?: string
 	/** True when this leg is part of an {@link OrdinalEdge} (UI may de-dupe). */
@@ -197,8 +201,9 @@ export interface OrdinalEdge {
 		recipient?: string
 		listingPriceSats?: number
 		listingSeller?: string
-		opnsProfileName?: string
+		opnsName?: string
 		opnsAvatarOrigin?: string
+		opnsDomain?: string
 		name?: string
 		origin?: string
 		/** Best-effort content type from tags (`type:image/png`). */
@@ -245,9 +250,11 @@ export interface EnrichedOutput {
 	 * Read this rather than a tag — the signed script is what the approval
 	 * actually commits to.
 	 */
-	opnsProfileName?: string
+	opnsName?: string
 	/** Avatar origin outpoint (`txid_vout`) decoded from an OpNS bind. */
 	opnsAvatarOrigin?: string
+	/** BRC-169 domain decoded from an OpNS record's `profile`. */
+	opnsDomain?: string
 	/** Case-preserving display name from customInstructions when present. */
 	customInstructions?: string
 	/** BSV21 token id from script (or tags). */
@@ -998,7 +1005,7 @@ function buildOrdinalEdges(
 		const name = displayNameFrom(
 			out.tags,
 			out.customInstructions,
-			out.opnsProfileName,
+			out.opnsName,
 		)
 		const origin = tagValue(out.tags, 'origin')
 		const hasSellerPay = outputs.some(
@@ -1050,7 +1057,7 @@ function edge(
 		displayNameFrom(
 			create?.tags,
 			create?.customInstructions,
-			create?.opnsProfileName,
+			create?.opnsName,
 		) ?? spend?.name
 	const origin = tagValue(create?.tags, 'origin') ?? spend?.origin
 	const contentType = contentTypeFromTags(create?.tags ?? spend?.tags)
@@ -1072,8 +1079,9 @@ function edge(
 						recipient: create.recipient,
 						listingPriceSats: create.listingPriceSats,
 						listingSeller: create.listingSeller,
-						opnsProfileName: create.opnsProfileName,
+						opnsName: create.opnsName,
 						opnsAvatarOrigin: create.opnsAvatarOrigin,
+						opnsDomain: create.opnsDomain,
 						...(name ? { name } : {}),
 						...(origin ? { origin } : {}),
 						...(contentType || create.inscriptionType
@@ -1155,7 +1163,7 @@ function buildLegs(
 		const name = displayNameFrom(
 			out.tags,
 			out.customInstructions,
-			out.opnsProfileName,
+			out.opnsName,
 		)
 		const origin = tagValue(out.tags, 'origin')
 		const inOrdinalEdge = edgeOutIdx.has(out.index)
@@ -1175,8 +1183,9 @@ function buildLegs(
 			listingPriceSats: out.listingPriceSats,
 			listingSeller: out.listingSeller,
 			lockUntilHeight: out.lockUntilHeight,
-			opnsProfileName: out.opnsProfileName,
+			opnsName: out.opnsName,
 			opnsAvatarOrigin: out.opnsAvatarOrigin,
+			opnsDomain: out.opnsDomain,
 			...(name ? { name } : {}),
 			...(origin ? { origin } : {}),
 			...(out.tokenId ? { tokenId: out.tokenId } : {}),

@@ -34,6 +34,7 @@
     "@1sat/client": "workspace:*",
     "@1sat/templates": "workspace:*",
     "@1sat/types": "workspace:*",
+    "@1sat/utils": "workspace:*",
     "@1sat/wallet": "workspace:*",
     "@bopen-io/messagebox-server": "^1.3.2",
     "@bsv/auth-express-middleware": "^2.2.8",

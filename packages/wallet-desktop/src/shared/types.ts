@@ -206,6 +206,11 @@ export interface OpnsOperationParams {
 	outpoint: string
 }
 
+export interface OpnsRegisterParams extends OpnsOperationParams {
+	/** BRC-169 domain written into the name's profile; default `1sat.name`. */
+	domain?: string
+}
+
 // OpNS operation result
 export interface OpnsOperationResult {
 	txid?: string
@@ -455,7 +460,7 @@ type BunRequests = {
 		response: { success: boolean; txid?: string; error?: string }
 	}
 	opnsRegister: {
-		params: OpnsOperationParams
+		params: OpnsRegisterParams
 		response: OpnsOperationResult
 	}
 	opnsDeregister: {

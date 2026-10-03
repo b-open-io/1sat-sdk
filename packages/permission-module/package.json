@@ -32,6 +32,7 @@
     "@1sat/actions": "workspace:*",
     "@1sat/templates": "workspace:*",
     "@1sat/types": "workspace:*",
+    "@1sat/utils": "workspace:*",
     "@1sat/wallet": "workspace:*"
   },
   "peerDependencies": {
