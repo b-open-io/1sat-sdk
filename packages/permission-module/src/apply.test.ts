@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { encodeOpnsRecord } from '@1sat/templates'
 import {
 	OPNS_BASKET,
 	OPNS_REGISTER_COUNTERPARTY,
@@ -14,7 +15,7 @@ import type {
 	GetPublicKeyArgs,
 	WalletInterface,
 } from '@bsv/sdk'
-import { LockingScript, PrivateKey, PushDrop, Utils } from '@bsv/sdk'
+import { LockingScript, PrivateKey, PushDrop } from '@bsv/sdk'
 import { applyCreateAction } from './apply'
 import { CommitmentCache } from './commitmentCache'
 import { handleCreateActionRequest } from './handlers'
@@ -62,7 +63,10 @@ async function unsealedLock(
 	const { publicKey } = await wallet.getPublicKey({ identityKey: true })
 	const script = await new PushDrop(wallet).lock(
 		[
-			Utils.toArray(publicKey, 'hex'),
+			...encodeOpnsRecord({
+				identityKey: publicKey,
+				profile: { domain: '1sat.name' },
+			}),
 			new Array(OPNS_REGISTER_SIG_PLACEHOLDER_LEN).fill(0),
 		],
 		P1SAT_PROTOCOL,
