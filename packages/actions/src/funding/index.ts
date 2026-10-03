@@ -24,3 +24,9 @@ export interface FundingResult {
 	txid: string
 	tx: AtomicBEEF
 }
+
+export {
+	createWalletFundingProvider,
+	FUNDING_BASKET,
+	type WalletFundingProviderOptions,
+} from './walletFunding.js'

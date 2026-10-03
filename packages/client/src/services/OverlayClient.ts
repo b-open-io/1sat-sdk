@@ -1,4 +1,5 @@
 import type { ClientOptions } from '@1sat/types'
+import type { STEAK } from '@bsv/sdk'
 import { BaseClient } from './BaseClient.js'
 
 /** Topic manager metadata returned by listTopicManagers */
@@ -95,23 +96,33 @@ export class OverlayClient extends BaseClient {
 		return this.submitToPath('/1sat/bsv21/overlay/submit', beef, ['tm_bsv21'])
 	}
 
-	private async submitToPath(
-		path: string,
+	/**
+	 * BRC-22 submit to `<baseUrl>/submit` on an overlay given by its base URL.
+	 * Topics go in `X-Topics` as a comma-separated bare string (the stack
+	 * rejects a JSON array).
+	 * @param beef - BEEF data
+	 * @param topics - Topic names (e.g. ["tm_mandala"])
+	 * @returns the overlay's STEAK
+	 */
+	async submitBrc22(
 		beef: Uint8Array | number[],
 		topics: string[],
-	): Promise<{ status: string; txid?: string; message?: string }> {
+	): Promise<STEAK> {
+		return this.submitToPath<STEAK>('/submit', beef, topics)
+	}
+
+	private async submitToPath<
+		T = { status: string; txid?: string; message?: string },
+	>(path: string, beef: Uint8Array | number[], topics: string[]): Promise<T> {
 		const beefArray = beef instanceof Uint8Array ? Array.from(beef) : beef
-		return this.request<{ status: string; txid?: string; message?: string }>(
-			path,
-			{
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/octet-stream',
-					// OpenAPI "simple" style with explode — comma-separated, not JSON.
-					'X-Topics': topics.join(','),
-				},
-				body: new Blob([new Uint8Array(beefArray)]),
+		return this.request<T>(path, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/octet-stream',
+				// OpenAPI "simple" style with explode — comma-separated, not JSON.
+				'X-Topics': topics.join(','),
 			},
-		)
+			body: new Blob([new Uint8Array(beefArray)]),
+		})
 	}
 }

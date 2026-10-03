@@ -20,6 +20,7 @@ CLI group is **`bsv21`** (was `tokens`).
 | `deployBsv21Mint` | Fixed-supply deploy+mint |
 | `deployBsv21Auth` | Mintable deploy+auth |
 | `mintBsv21` | Spend auth to mint / re-issue / end |
+| `deployMandala` | Mandala (BRC-162) deploy: fixed supply or authority |
 
 
 Fungible API stays **value-based** (not spend-by-id). Basket UTXOs still carry `id:` internally. **Self destinations must be basketed/tagged.**
@@ -105,6 +106,49 @@ await mintBsv21.execute(ctx, {
   mint: { amount: '1000000', destination: { address: recipient } },
 })
 ```
+
+## Mandala (BRC-162) deploy
+
+```typescript
+import { deployMandala } from '@1sat/actions'
+
+// amount > 0: fixed supply; amount 0: authority (first minting authority)
+const dep = await deployMandala.execute(ctx, {
+  amount: '21000000',
+  symbol: 'GOLD',
+  decimals: 8,
+})
+// dep.tokenId === dep.txid
+```
+
+- The deploy output is always vout 0. **The token id is the deploy txid alone**
+  (the 32-byte wire id) — never `txid_0`.
+- **Labels index tokens, per-token baskets hold outputs.** Every Mandala
+  transaction carries the action label `mandala`, plus `mandala:<txid>` for
+  its token: `listActions({ labels: ['mandala'] })` lists the tokens the wallet
+  tracks, and labels survive outputs being spent. Every output of a token —
+  the deploy output included, fixed-supply or authority — lives in the
+  per-token basket named by the bare token id (`mandalaTokenBasket(txid)`,
+  lowercase).
+- Deploy is one `createAction` (deploy at vout 0, label `mandala`, placeholder
+  basket `mandala`) and one `internalizeAction` on the same transaction, which
+  moves vout 0 into `mandalaTokenBasket(txid)` and adds the labels `mandala`
+  and `mandala:<txid>`. No tags are used.
+- customInstructions carry only the key derivation (`protocolID`, `keyID`,
+  `counterparty` when not self): amount and id are read from the script,
+  `sym`/`dec`/`icon` from the deploy payload.
+- Keys: a token's outputs derive under its own protocol
+  `mandalaProtocol(tokenId)` = `[2, 'mandala <txid>']` (a BRC-43 grant is per
+  protocol, so one token's grant does not cover another). The deploy output is
+  the one exception: its txid is unknown when its key is derived, so it uses
+  `P1SAT_PROTOCOL` (keyID `mandala-deploy-<hex>`), as BSV-21 deploys do.
+- `overlay` (optional, an overlay base URL): the wallet creates the deploy with
+  `noSend`, and it is broadcast as a BRC-22 submit to `<overlay>/submit` with
+  `X-Topics: tm_mandala,tm_<txid>` (bare comma-separated string); a STEAK
+  response is success, then the internalize advances the wallet's `nosend`
+  record. This `overlay` input is the pattern other broadcasting actions will
+  adopt.
+- BSV-21 will move to the same scheme later, and a BRC will be written for it.
 
 ## Requirements
 

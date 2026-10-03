@@ -41,6 +41,13 @@ export const BSV21_AUTH_BASKET = BSV21_BASKET
 export const BSV21_AUTH_TAG = 'bsv21:auth'
 /** Tag on a single-CA deploy output; tokenId is the outpoint (`txid_vout`). */
 export const BSV21_DEPLOY_TAG = 'bsv21:deploy'
+/**
+ * Action label on every Mandala transaction: `listActions({ labels:
+ * ['mandala'] })` indexes the tokens this wallet tracks.
+ */
+export const MANDALA_LABEL = 'mandala'
+/** Overlay discovery topic for Mandala deploys (BRC-22). */
+export const MANDALA_TOPIC = 'tm_mandala'
 export const OPNS_BASKET = 'opns'
 export const LOCK_BASKET = 'lock'
 export const SIGMA_BASKET = 'sigma'
@@ -708,3 +715,34 @@ export const DEFAULT_STREAM_CHUNK_SIZE = 1024 * 1024
 export const ORDFS_STREAM_CONTENT_TYPE = 'ordfs/stream'
 /** Media-type parameter on the origin chunk (e.g. `video/mp4; stream=ordfs`) */
 export const ORDFS_STREAM_PARAM = 'stream=ordfs'
+
+// ============================================================================
+// Mandala (BRC-162)
+// ============================================================================
+
+/**
+ * Reserved/unused: outputs live in per-token baskets
+ * ({@link mandalaTokenBasket}), tokens are indexed by label
+ * (`mandala` + {@link mandalaTokenLabel}).
+ */
+export const MANDALA_BASKET = 'mandala'
+
+/** Per-token basket: the bare token id (deploy txid hex, lowercase). */
+export function mandalaTokenBasket(tokenId: string): string {
+	return tokenId.toLowerCase()
+}
+
+/** Per-token action label `mandala:<txid>`, alongside the `mandala` label. */
+export function mandalaTokenLabel(txid: string): string {
+	return `mandala:${txid.toLowerCase()}`
+}
+
+/**
+ * BRC-42/43 protocol for a Mandala token's keys, one per token: a BRC-43
+ * grant is per protocol, so a flat `[2, 'mandala']` would let an app sign for
+ * every token. Level 2 (per-counterparty permission) mirrors BRC-29.
+ */
+export const mandalaProtocol = (tokenId: string): WalletProtocol => [
+	2,
+	`mandala ${tokenId.toLowerCase()}`,
+]
