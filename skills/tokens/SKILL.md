@@ -134,9 +134,14 @@ const dep = await deployMandala.execute(ctx, {
   basket `mandala`) and one `internalizeAction` on the same transaction, which
   moves vout 0 into `mandalaTokenBasket(txid)` and adds the labels `mandala`
   and `mandala:<txid>`. No tags are used.
-- customInstructions carry only the key derivation (`protocolID`
-  `[2, 'mandala']`, `keyID`, `counterparty` when not self): amount and id are
-  read from the script, `sym`/`dec`/`icon` from the deploy payload.
+- customInstructions carry only the key derivation (`protocolID`, `keyID`,
+  `counterparty` when not self): amount and id are read from the script,
+  `sym`/`dec`/`icon` from the deploy payload.
+- Keys: a token's outputs derive under its own protocol
+  `mandalaProtocol(tokenId)` = `[2, 'mandala <txid>']` (a BRC-43 grant is per
+  protocol, so one token's grant does not cover another). The deploy output is
+  the one exception: its txid is unknown when its key is derived, so it uses
+  `P1SAT_PROTOCOL` (keyID `mandala-deploy-<hex>`), as BSV-21 deploys do.
 - `overlay` (optional, an overlay base URL): the wallet creates the deploy with
   `noSend`, and it is broadcast as a BRC-22 submit to `<overlay>/submit` with
   `X-Topics: tm_mandala,tm_<txid>` (bare comma-separated string); a STEAK

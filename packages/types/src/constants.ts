@@ -46,19 +46,8 @@ export const BSV21_DEPLOY_TAG = 'bsv21:deploy'
  * ['mandala'] })` indexes the tokens this wallet tracks.
  */
 export const MANDALA_LABEL = 'mandala'
-/** Per-token action label `mandala:<txid>` (token id = deploy txid). */
-export function mandalaTokenLabel(tokenId: string): string {
-	return `${MANDALA_LABEL}:${tokenId.toLowerCase()}`
-}
 /** Overlay discovery topic for Mandala deploys (BRC-22). */
 export const MANDALA_TOPIC = 'tm_mandala'
-/**
- * Per-token basket holding all of a Mandala token's outputs (deploy, value,
- * authority): the bare token id (deploy txid hex, lowercase).
- */
-export function mandalaTokenBasket(tokenId: string): string {
-	return tokenId.toLowerCase()
-}
 export const OPNS_BASKET = 'opns'
 export const LOCK_BASKET = 'lock'
 export const SIGMA_BASKET = 'sigma'
@@ -732,18 +721,28 @@ export const ORDFS_STREAM_PARAM = 'stream=ordfs'
 // ============================================================================
 
 /**
- * Basket holding the wallet's Mandala token outputs, tagged `mandala:<tokenId>`.
- * @deprecated Tokens live in per-token baskets (`mandalaTokenBasket`), indexed
- * by the `mandala` action label; deploy uses this name only as the
- * createAction placeholder before internalize moves the output.
+ * Reserved/unused: outputs live in per-token baskets
+ * ({@link mandalaTokenBasket}), tokens are indexed by label
+ * (`mandala` + {@link mandalaTokenLabel}).
  */
 export const MANDALA_BASKET = 'mandala'
 
+/** Per-token basket: the bare token id (deploy txid hex, lowercase). */
+export function mandalaTokenBasket(tokenId: string): string {
+	return tokenId.toLowerCase()
+}
+
+/** Per-token action label `mandala:<txid>`, alongside the `mandala` label. */
+export function mandalaTokenLabel(txid: string): string {
+	return `mandala:${txid.toLowerCase()}`
+}
+
 /**
- * BRC-42/43 protocol for Mandala transfer keys. Level 2 (per-counterparty
- * permission) mirrors BRC-29's `[2, '3241645161d8']`. The recipient derives
- * the key with keyID `<derivationPrefix> <derivationSuffix>` and counterparty
- * = the sender's identity key, and routes `payment_inbox` messages on the
- * protocol name.
+ * BRC-42/43 protocol for a Mandala token's keys, one per token: a BRC-43
+ * grant is per protocol, so a flat `[2, 'mandala']` would let an app sign for
+ * every token. Level 2 (per-counterparty permission) mirrors BRC-29.
  */
-export const MANDALA_PROTOCOL: WalletProtocol = [2, 'mandala']
+export const mandalaProtocol = (tokenId: string): WalletProtocol => [
+	2,
+	`mandala ${tokenId.toLowerCase()}`,
+]

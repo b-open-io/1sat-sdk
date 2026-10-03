@@ -14,12 +14,12 @@ import {
 	type Destination,
 	MANDALA_BASKET,
 	MANDALA_LABEL,
-	MANDALA_PROTOCOL,
 	MANDALA_TOPIC,
 	mandalaTokenBasket,
 	mandalaTokenLabel,
 } from '@1sat/types'
 import type { CreateActionArgs } from '@bsv/sdk'
+import { P1SAT_PROTOCOL } from '../constants.js'
 import type { Action } from '../types.js'
 import { executeTrackedAction } from '../utils/createTrackedAction.js'
 import { resolveDestination } from '../utils/resolveDestination.js'
@@ -60,7 +60,7 @@ export interface DeployMandalaResponse {
  *
  * 1. `createAction` with the deploy output at vout 0 (`randomizeOutputs:
  *    false`) in the placeholder basket `mandala`, customInstructions = the
- *    key derivation only, label `mandala`. Broadcast by the wallet, or via
+ *    key derivation only (`P1SAT_PROTOCOL`, see below), label `mandala`. Broadcast by the wallet, or via
  *    `overlay` (see {@link DeployMandalaInput.overlay}).
  * 2. `internalizeAction` on that transaction: vout 0 moves to the per-token
  *    basket `mandalaTokenBasket(txid)` with the same customInstructions, and
@@ -115,8 +115,12 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 					typeof input.amount === 'string' ? BigInt(input.amount) : input.amount
 				const authority = amount === 0n
 
+				// The one exception to per-token `mandalaProtocol(tokenId)` keys: the
+				// token id is this transaction's txid, unknown when the deploy
+				// output's key is derived, so it derives under P1SAT_PROTOCOL as
+				// BSV-21 deploys do.
 				const resolved = await resolveDestination(ctx, input.destination, {
-					protocolID: MANDALA_PROTOCOL,
+					protocolID: P1SAT_PROTOCOL,
 					keyIDPrefix: 'mandala-deploy',
 				})
 

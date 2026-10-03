@@ -2,8 +2,9 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { Mandala } from '@1sat/templates'
 import {
 	MANDALA_LABEL,
-	MANDALA_PROTOCOL,
 	MANDALA_TOPIC,
+	P1SAT_PROTOCOL,
+	mandalaProtocol,
 	mandalaTokenBasket,
 	mandalaTokenLabel,
 } from '@1sat/types'
@@ -78,10 +79,10 @@ function setup() {
 	return { ctx, created, internalized }
 }
 
-/** The P2PKH the wallet derives under MANDALA_PROTOCOL for this keyID. */
+/** The P2PKH the wallet derives under P1SAT_PROTOCOL for this keyID. */
 async function derivedLock(ci: { keyID: string }) {
 	const { publicKey } = await proto.getPublicKey({
-		protocolID: MANDALA_PROTOCOL,
+		protocolID: P1SAT_PROTOCOL,
 		keyID: ci.keyID,
 		counterparty: 'self',
 		forSelf: true,
@@ -101,7 +102,8 @@ function expectFiling(
 	expect(created[0].outputs).toHaveLength(1)
 	const ci = JSON.parse(created[0].outputs?.[0].customInstructions ?? '{}')
 	expect(Object.keys(ci).sort()).toEqual(['keyID', 'protocolID'])
-	expect(ci.protocolID).toEqual(MANDALA_PROTOCOL)
+	// deploy key: P1SAT_PROTOCOL (txid unknown at derivation time)
+	expect(ci.protocolID).toEqual(P1SAT_PROTOCOL)
 	expect(ci.keyID).toStartWith('mandala-deploy-')
 
 	// one internalizeAction on the same tx: vout 0 into the per-token basket
@@ -185,6 +187,13 @@ describe('deployMandala', () => {
 		expect(
 			internalized[0].outputs[0].insertionRemittance?.customInstructions,
 		).toBeUndefined()
+	})
+
+	test('mandalaProtocol is per token', () => {
+		expect(mandalaProtocol('AB'.repeat(32))).toEqual([
+			2,
+			`mandala ${'ab'.repeat(32)}`,
+		])
 	})
 
 	test('mandalaTokenBasket / mandalaTokenLabel use the bare lowercase token id', () => {
