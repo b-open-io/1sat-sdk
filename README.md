@@ -462,7 +462,7 @@ if (
 | `@1sat/react` | 0.0.7 | React hooks and ConnectButton component |
 | `@1sat/extension` | 0.0.4 | Build browser wallet extensions that implement `window.onesat` |
 | `@1sat/client` | 0.0.16 | API clients for indexer, broadcast (Arcade), and ORDFS |
-| `@1sat/templates` | 0.0.2 | Bitcoin script templates: Inscription, OrdLock, Lock, BSV20, BSV21, AIP, BAP, MAP, Sigma, BSocial |
+| `@1sat/templates` | 0.0.2 | Bitcoin script templates: Inscription, OrdLock, Lock, BSV20, BSV21, Mandala, AIP, BAP, MAP, Sigma, BSocial |
 | `@1sat/types` | 0.0.13 | TypeScript type definitions and protocol constants |
 | `@1sat/utils` | 0.0.11 | Encoding, validation, and key derivation utilities |
 | `@1sat/wallet` | 0.0.24 | BRC-100 wallet engine with indexers, sync, backup, and CWI |
@@ -482,6 +482,7 @@ if (
 | **1Sat Ordinals** | NFT inscriptions on BSV |
 | **BSV20** | Fungible tokens (tick-based, similar to BRC-20) |
 | **BSV21** | Fungible tokens (origin-based, contract-like) |
+| **Mandala Tokens (BRC-162)** | Binary encoding of the BSV21 token model, a script prefix in front of any lock (`Mandala` template) |
 | **MAP** | Magic Attribute Protocol — on-chain metadata |
 | **Sigma** | Transaction data signing and attestation |
 | **OrdLock** | Trustless marketplace listing contract |

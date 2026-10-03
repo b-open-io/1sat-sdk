@@ -249,7 +249,9 @@
       "version": "0.0.41",
       "dependencies": {
         "@1sat/types": "workspace:*",
+        "@ipld/dag-cbor": "^10.0.2",
         "cbor2": "^2.3.0",
+        "cborg": "^6.1.1",
       },
       "devDependencies": {
         "@bsv/sdk": "^2.6.0",
