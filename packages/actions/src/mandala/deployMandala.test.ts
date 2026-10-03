@@ -1,15 +1,17 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
 import { Mandala } from '@1sat/templates'
 import {
 	MANDALA_AUTH_TAG,
 	MANDALA_BASKET,
 	MANDALA_DEPLOY_TAG,
+	MANDALA_TOPIC,
 	mandalaTokenTag,
 } from '@1sat/types'
 import {
 	type CreateActionArgs,
 	type InternalizeActionArgs,
 	LockingScript,
+	MerklePath,
 	P2PKH,
 	PrivateKey,
 	ProtoWallet,
@@ -156,5 +158,107 @@ describe('deployMandala', () => {
 		const decoded = Mandala.decode(tx.outputs[0].lockingScript as Script)
 		expect(decoded?.role).toBe('deploy')
 		expect(decoded?.amount).toBe(0n)
+	})
+})
+
+describe('deployMandala overlay', () => {
+	const realFetch = globalThis.fetch
+	afterEach(() => {
+		globalThis.fetch = realFetch
+	})
+
+	test('broadcasts as a BRC-22 submit to tm_mandala and tm_<txid>, not postBeef', async () => {
+		const submits: { url: string; topics: string | null }[] = []
+		globalThis.fetch = (async (
+			url: string | URL | Request,
+			init?: RequestInit,
+		) => {
+			const u = String(url)
+			if (u.endsWith('/submit')) {
+				submits.push({
+					url: u,
+					topics: new Headers(init?.headers).get('x-topics'),
+				})
+				return new Response(
+					JSON.stringify({
+						[MANDALA_TOPIC]: { outputsToAdmit: [0], coinsToRetain: [] },
+					}),
+					{ status: 200 },
+				)
+			}
+			// fee policy lookup: fail so LivePolicy uses its default rate
+			return new Response('', { status: 404 })
+		}) as typeof fetch
+
+		let postBeefCalls = 0
+		const internalized: InternalizeActionArgs[] = []
+		const wallet: Partial<WalletInterface> = {
+			getPublicKey: (a) => proto.getPublicKey(a),
+			createSignature: (a) => proto.createSignature(a),
+			createAction: async (args) => {
+				const parent = new Transaction()
+				parent.addInput({
+					sourceTXID: '11'.repeat(32),
+					sourceOutputIndex: 0,
+					unlockingScript: new UnlockingScript(),
+					sequence: 0xffffffff,
+				})
+				parent.addOutput({
+					lockingScript: new P2PKH().lock(
+						PrivateKey.fromHex('05'.repeat(32)).toPublicKey().toAddress(),
+					),
+					satoshis: 100_000,
+				})
+				parent.merklePath = new MerklePath(100, [
+					[{ offset: 0, hash: parent.id('hex'), txid: true }],
+				])
+				const tx = new Transaction()
+				tx.addInput({
+					sourceTransaction: parent,
+					sourceOutputIndex: 0,
+					unlockingScript: new UnlockingScript(),
+					sequence: 0xffffffff,
+				})
+				for (const o of args.outputs ?? []) {
+					tx.addOutput({
+						lockingScript: LockingScript.fromHex(o.lockingScript),
+						satoshis: o.satoshis,
+					})
+				}
+				return { txid: tx.id('hex'), tx: tx.toAtomicBEEF() }
+			},
+			internalizeAction: async (args) => {
+				internalized.push(args)
+				return { accepted: true }
+			},
+		}
+		const ctx = {
+			wallet: wallet as WalletInterface,
+			chain: 'main',
+			isBaseWallet: true,
+			services: {
+				postBeef: async () => {
+					postBeefCalls++
+					return []
+				},
+			},
+		} as unknown as OneSatContext
+
+		const res = await deployMandala.execute(ctx, {
+			amount: '1000',
+			symbol: 'OVL',
+			overlay: 'https://overlay.example/',
+		})
+
+		expect(res.error).toBeUndefined()
+		expect(res.tokenId).toBe(res.txid as string)
+		expect(postBeefCalls).toBe(0)
+		expect(submits).toEqual([
+			{
+				url: 'https://overlay.example/submit',
+				topics: `${MANDALA_TOPIC},tm_${res.txid}`,
+			},
+		])
+		expect(internalized).toHaveLength(1)
 	})
 })

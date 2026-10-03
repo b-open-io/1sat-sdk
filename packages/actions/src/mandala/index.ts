@@ -2,12 +2,14 @@
  * Mandala (BRC-162) token actions.
  */
 
+import { OverlayClient } from '@1sat/client'
 import { Mandala, type MandalaMetadata } from '@1sat/templates'
 import {
 	type Destination,
 	MANDALA_AUTH_TAG,
 	MANDALA_BASKET,
 	MANDALA_DEPLOY_TAG,
+	MANDALA_TOPIC,
 	mandalaTokenTag,
 } from '@1sat/types'
 import type { CreateActionArgs } from '@bsv/sdk'
@@ -29,6 +31,13 @@ export interface DeployMandalaInput {
 	icon?: string | number
 	/** Holder of the deploy output. Defaults to self */
 	destination?: Destination
+	/**
+	 * Overlay base URL. When set, the deploy is broadcast as a BRC-22 submit
+	 * to `<overlay>/submit` with `X-Topics: tm_mandala,tm_<txid>` instead of
+	 * `services.postBeef`; a STEAK response is success. Applies to the default
+	 * funding provider. This is the pattern other broadcasting actions adopt.
+	 */
+	overlay?: string
 	/**
 	 * Side-door funding. Defaults to {@link createWalletFundingProvider} over
 	 * the context's wallet and services.
@@ -81,6 +90,11 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 						type: 'object',
 						description:
 							'Holder destination. One of lockingScript (hex), counterparty (pubkey), or address. Defaults to self.',
+					},
+					overlay: {
+						type: 'string',
+						description:
+							'Overlay base URL: broadcast as a BRC-22 submit (tm_mandala, tm_<txid>) instead of the default broadcaster',
 					},
 				},
 				required: ['amount'],
@@ -137,7 +151,11 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 				}
 
 				const provider =
-					input.fundingProvider ?? createWalletFundingProvider(ctx)
+					input.fundingProvider ??
+					createWalletFundingProvider(
+						ctx,
+						input.overlay ? { broadcast: overlaySubmit(input.overlay) } : {},
+					)
 				let tx: number[] | undefined
 				// The txid is known only once the provider has built the
 				// transaction; executeTrackedAction reads the output tags after
@@ -164,5 +182,21 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 			}
 		},
 	}
+
+/**
+ * BRC-22 submit of a deploy to `<overlay>/submit` under `tm_mandala` and the
+ * token's own topic `tm_<txid>`. Any STEAK (a JSON object) is success.
+ */
+function overlaySubmit(overlay: string) {
+	return async (beef: number[] | Uint8Array, txid: string): Promise<void> => {
+		const steak = await new OverlayClient(overlay).submitBrc22(beef, [
+			MANDALA_TOPIC,
+			`tm_${txid}`,
+		])
+		if (!steak || typeof steak !== 'object' || Array.isArray(steak)) {
+			throw new Error('overlay-no-steak')
+		}
+	}
+}
 
 export const mandalaActions = [deployMandala]

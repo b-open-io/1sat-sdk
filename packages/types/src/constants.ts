@@ -49,6 +49,8 @@ export const MANDALA_TAG_PREFIX = 'mandala:'
 export const MANDALA_DEPLOY_TAG = 'mandala:deploy'
 /** Tag on a Mandala authority (minting capability) output. */
 export const MANDALA_AUTH_TAG = 'mandala:auth'
+/** Overlay discovery topic for Mandala deploys (BRC-22). */
+export const MANDALA_TOPIC = 'tm_mandala'
 /** Token tag `mandala:<txid>` — the id is the deploy txid alone, never `txid_0`. */
 export function mandalaTokenTag(tokenId: string): string {
 	return `${MANDALA_TAG_PREFIX}${tokenId}`

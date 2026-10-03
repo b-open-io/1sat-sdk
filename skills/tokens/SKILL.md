@@ -130,6 +130,11 @@ const dep = await deployMandala.execute(ctx, {
 - Filed in the `mandala` basket with tags `mandala:<txid>` and `mandala:deploy`
   (+ `mandala:auth` for an authority deploy). customInstructions carry the key
   derivation plus `amt`/`dec`/`sym`/`icon`.
+- `overlay` (optional, an overlay base URL): broadcast the deploy as a BRC-22
+  submit to `<overlay>/submit` with `X-Topics: tm_mandala,tm_<txid>` (bare
+  comma-separated string) instead of the default broadcaster; a STEAK response
+  is success. This `overlay` input is the pattern other broadcasting actions
+  will adopt.
 - If broadcast succeeds and internalize fails, the wallet never learns of the
   output (known gap).
 

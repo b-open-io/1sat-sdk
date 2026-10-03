@@ -1,5 +1,6 @@
 import { parseOutpoint } from '@1sat/utils'
 import {
+	type AtomicBEEF,
 	Beef,
 	type CreateActionArgs,
 	type CreateActionOutput,
@@ -36,6 +37,11 @@ export interface WalletFundingProviderOptions {
 	feeModel?: FeeModel
 	/** Basket for the funding UTXO. Default {@link FUNDING_BASKET}. */
 	basket?: string
+	/**
+	 * Broadcast step for the signed target transaction. Resolve on success,
+	 * throw otherwise. Default: `ctx.services.postBeef`.
+	 */
+	broadcast?: (beef: AtomicBEEF, txid: string) => Promise<void>
 }
 
 /**
@@ -52,7 +58,7 @@ export interface WalletFundingProviderOptions {
  *    `getPublicKey` / `createSignature` for the stored derivation; the
  *    caller's outputs in the caller's order. The UTXO is sized exactly, so
  *    there is no change output.
- * 3. Broadcast it through `ctx.services.postBeef`.
+ * 3. Broadcast it with `options.broadcast` (default `ctx.services.postBeef`).
  * 4. Return `{ txid, tx: AtomicBEEF }`.
  *
  * Caller inputs must already carry their unlocking script, signed so the
@@ -67,12 +73,24 @@ export function createWalletFundingProvider(
 ): FundingProvider {
 	const feeModel = options.feeModel ?? LivePolicy.getInstance()
 	const basket = options.basket ?? FUNDING_BASKET
+	const broadcast =
+		options.broadcast ??
+		(async (beef: AtomicBEEF, txid: string) => {
+			if (!ctx.services) throw new Error('services-required')
+			const [result] = await ctx.services.postBeef(Beef.fromBinary(beef), [
+				txid,
+			])
+			if (result?.status !== 'success') {
+				throw new Error(result?.error?.message ?? 'no result')
+			}
+		})
 
 	return {
 		async fund(args: CreateActionArgs): Promise<FundingResult> {
+			if (!options.broadcast && !ctx.services) {
+				throw new Error('services-required')
+			}
 			const callerInputs = callerTransactionInputs(args)
-			const services = ctx.services
-			if (!services) throw new Error('services-required')
 			const outputs = args.outputs ?? []
 
 			const funding = await resolveDestination(ctx, undefined, {
@@ -120,10 +138,11 @@ export function createWalletFundingProvider(
 
 			const txid = tx.id('hex')
 			const beef = tx.toAtomicBEEF()
-			const [result] = await services.postBeef(Beef.fromBinary(beef), [txid])
-			if (result?.status !== 'success') {
+			try {
+				await broadcast(beef, txid)
+			} catch (e) {
 				throw new Error(
-					`funding-broadcast-failed: ${result?.error?.message ?? 'no result'}`,
+					`funding-broadcast-failed: ${e instanceof Error ? e.message : String(e)}`,
 				)
 			}
 			return { txid, tx: beef }
