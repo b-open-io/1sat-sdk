@@ -163,18 +163,25 @@ await sendMandala.execute(ctx, {
 - `overlay` applies only to address destinations. Peer sends never broadcast
   (the recipient does), so `overlay` is ignored there.
 
-- The recipient key is BRC-42 under `MANDALA_PROTOCOL` (`[2, 'mandala']`),
-  keyID `<derivationPrefix> <derivationSuffix>`, counterparty = recipient.
+- Keys are BRC-42 under the per-token protocol `mandalaProtocol(tokenId)` =
+  `[2, 'mandala <txid>']`, so a BRC-43 grant covers one token. The recipient
+  key uses keyID `<derivationPrefix> <derivationSuffix>`, counterparty =
+  recipient.
 - Peer sends are BRC-177 protected `noSend` actions (`p nosend expiry …`
   label): the wallet funds them from one exact anchor output, with no change.
   If the recipient does not broadcast before the expiry, the wallet reclaims
   the anchor; `abortAction` reclaims early.
+- A peer send is up to three transactions: (1) a split, broadcast normally,
+  when no token output holds exactly `amount` (the inputs go to an exact
+  output plus a remainder, both back to the token's basket); (2) the BRC-177
+  anchor funding, made by the wallet; (3) the protected send, spending only
+  the exact output, with no token or satoshi change.
 - The message body is the PeerPay shape plus `protocol`, `outputIndex` and
   `senderIdentityKey`:
-  `{ customInstructions: { derivationPrefix, derivationSuffix, protocol: 'mandala' }, transaction, outputIndex, amount: 1, senderIdentityKey }`.
+  `{ customInstructions: { derivationPrefix, derivationSuffix, protocol: 'mandala <txid>' }, transaction, outputIndex, amount: 1, senderIdentityKey }`.
 - Handle sends post a BRC-169 §7.3 envelope (DAG-CBOR, BRC-231 body over
   BRC-104) to the resolved messagebox's `payment_inbox`. It carries
-  `payment: { derivationPrefix, derivationSuffix, protocol: 'mandala', satoshis: 1, beef }`,
+  `payment: { derivationPrefix, derivationSuffix, protocol: 'mandala <txid>' (bytes), satoshis: 1, beef }`,
   a BRC-78 encrypted note `{ tokenId, amount }` as `content` (encrypted by
   `wallet.encrypt`), its SHA-256 as `contentHash`, and a §7.2 signature.
 

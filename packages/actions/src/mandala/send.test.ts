@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import { Mandala } from '@1sat/templates'
-import { MANDALA_PROTOCOL } from '@1sat/types'
+import { mandalaProtocol } from '@1sat/types'
 import {
 	Beef,
 	type CreateActionArgs,
@@ -69,6 +69,7 @@ const RECIPIENT = PrivateKey.fromHex('22'.repeat(32))
 const RECIPIENT_ID = RECIPIENT.toPublicKey().toString()
 const MESSAGEBOX = 'https://messagebox.example'
 const HOLD_KEY_ID = 'hold-1'
+const PROTOCOL = mandalaProtocol(TOKEN_ID)
 
 /** A mined parent, then a tx holding one 100-unit Mandala output for the sender. */
 async function walletHolding(proto: ProtoWallet) {
@@ -79,7 +80,7 @@ async function walletHolding(proto: ProtoWallet) {
 	])
 
 	const { publicKey } = await proto.getPublicKey({
-		protocolID: MANDALA_PROTOCOL,
+		protocolID: PROTOCOL,
 		keyID: HOLD_KEY_ID,
 		counterparty: 'self',
 		forSelf: true,
@@ -103,6 +104,7 @@ interface Recorded {
 	createArgs: CreateActionArgs[]
 	signArgs: SignActionArgs[]
 	listBaskets: string[]
+	holdingTxid: string
 }
 
 /** BRC-100 fake over a ProtoWallet: lists the holding, builds signable txs, applies spends. */
@@ -112,7 +114,12 @@ async function fakeWallet(): Promise<{
 }> {
 	const proto = new ProtoWallet(SENDER)
 	const holding = await walletHolding(proto)
-	const rec: Recorded = { createArgs: [], signArgs: [], listBaskets: [] }
+	const rec: Recorded = {
+		createArgs: [],
+		signArgs: [],
+		listBaskets: [],
+		holdingTxid: holding.id('hex'),
+	}
 	let pending: Transaction | undefined
 
 	const wallet = Object.assign(Object.create(proto), {
@@ -127,7 +134,7 @@ async function fakeWallet(): Promise<{
 						spendable: true,
 						tags: [],
 						customInstructions: JSON.stringify({
-							protocolID: MANDALA_PROTOCOL,
+							protocolID: PROTOCOL,
 							keyID: HOLD_KEY_ID,
 						}),
 					},
@@ -190,7 +197,35 @@ describe('sendMandala', () => {
 		expect(res.delivered).toBe('message')
 		expect(res.messageId).toBe('msg-1')
 
-		const args = rec.createArgs[0]
+		expect(rec.listBaskets).toEqual([TOKEN_ID])
+		expect(rec.createArgs).toHaveLength(2)
+
+		// 1. Split: ordinary broadcast, exact 60 + remainder 40, both to us in
+		// the per-token basket, CI = derivation only.
+		const split = rec.createArgs[0]
+		expect(split.options?.noSend).toBeUndefined()
+		expect(split.labels).toEqual(['mandala', `mandala:${TOKEN_ID}`])
+		expect(split.inputs?.map((i) => i.outpoint)).toEqual([
+			`${rec.holdingTxid}.0`,
+		])
+		const splitOuts = split.outputs ?? []
+		expect(
+			splitOuts.map(
+				(o) => Mandala.decode(LockingScript.fromHex(o.lockingScript))?.amount,
+			),
+		).toEqual([60n, 40n])
+		for (const o of splitOuts) {
+			expect(o.satoshis).toBe(1)
+			expect(o.basket).toBe(TOKEN_ID)
+			expect(o.tags ?? []).not.toContain(`mandala:${TOKEN_ID}`)
+			const ci = JSON.parse(o.customInstructions!)
+			expect(Object.keys(ci).sort()).toEqual(['keyID', 'protocolID'])
+			expect(ci.protocolID).toEqual(PROTOCOL)
+		}
+
+		// 2. (BRC-177 anchor funding is the wallet's.) 3. Protected send: spends
+		// only the exact split output; one output, no token or satoshi change.
+		const args = rec.createArgs[1]
 		expect(args.options?.noSend).toBe(true)
 		expect(args.options?.randomizeOutputs).toBe(false)
 		expect(args.labels).toEqual([
@@ -198,26 +233,18 @@ describe('sendMandala', () => {
 			`mandala:${TOKEN_ID}`,
 			'p nosend expiry seconds 604800',
 		])
-		// Every output is a 1-sat Mandala output: no satoshi change.
+		const splitTxid = args.inputs![0].outpoint.split('.')[0]
+		expect(args.inputs?.map((i) => i.outpoint)).toEqual([`${splitTxid}.0`])
+		expect(splitTxid).not.toBe(rec.holdingTxid)
 		const outputs = args.outputs ?? []
-		expect(outputs).toHaveLength(2)
-		const decoded = outputs.map((o) =>
-			Mandala.decode(LockingScript.fromHex(o.lockingScript)),
+		expect(outputs).toHaveLength(1)
+		const token0 = Mandala.decode(
+			LockingScript.fromHex(outputs[0].lockingScript),
 		)
-		for (const [i, o] of outputs.entries()) {
-			expect(o.satoshis).toBe(1)
-			expect(decoded[i]?.role).toBe('value')
-			expect(decoded[i]?.tokenId).toBe(`${TOKEN_ID}_0`)
-		}
-		expect(decoded.map((d) => d?.amount)).toEqual([60n, 40n])
-		// Inputs come from, and change goes to, the per-token basket.
-		expect(rec.listBaskets).toEqual([TOKEN_ID])
-		expect(outputs[1].basket).toBe(TOKEN_ID)
-		expect(outputs[1].tags ?? []).not.toContain(`mandala:${TOKEN_ID}`)
-		// Change CI carries only the derivation; the amount is in the script.
-		const ci = JSON.parse(outputs[1].customInstructions!)
-		expect(Object.keys(ci).sort()).toEqual(['keyID', 'protocolID'])
-		expect(ci.protocolID).toEqual(MANDALA_PROTOCOL)
+		expect(token0?.role).toBe('value')
+		expect(token0?.tokenId).toBe(`${TOKEN_ID}_0`)
+		expect(token0?.amount).toBe(60n)
+		expect(outputs[0].satoshis).toBe(1)
 
 		// The message: PeerPay body + protocol/outputIndex/sender, to payment_inbox.
 		expect(sent).toHaveLength(1)
@@ -235,7 +262,7 @@ describe('sendMandala', () => {
 			amount: number
 			senderIdentityKey: string
 		}
-		expect(body.customInstructions.protocol).toBe('mandala')
+		expect(body.customInstructions.protocol).toBe(`mandala ${TOKEN_ID}`)
 		expect(body.outputIndex).toBe(0)
 		expect(body.amount).toBe(1)
 		expect(body.senderIdentityKey).toBe(SENDER.toPublicKey().toString())
@@ -243,7 +270,7 @@ describe('sendMandala', () => {
 
 		// The recipient derives the token output's key from the message alone.
 		const { publicKey } = await new ProtoWallet(RECIPIENT).getPublicKey({
-			protocolID: MANDALA_PROTOCOL,
+			protocolID: PROTOCOL,
 			keyID: `${body.customInstructions.derivationPrefix} ${body.customInstructions.derivationSuffix}`,
 			counterparty: body.senderIdentityKey,
 			forSelf: true,
@@ -253,8 +280,26 @@ describe('sendMandala', () => {
 		expect(token?.lock.toHex()).toBe(
 			new P2PKH().lock(PublicKey.fromString(publicKey).toAddress()).toHex(),
 		)
-		// The token input was unlocked by the pipeline (P2PKH under the prefix).
+		// The token inputs were unlocked by the pipeline (P2PKH under the prefix).
 		expect(rec.signArgs[0].spends[0].unlockingScript.length).toBeGreaterThan(0)
+		expect(rec.signArgs[1].spends[0].unlockingScript.length).toBeGreaterThan(0)
+	})
+
+	test('peer send of an exact-amount output: no split, one protected send', async () => {
+		const { wallet, rec } = await fakeWallet()
+		const res = await sendMandala.execute(createContext(wallet), {
+			tokenId: TOKEN_ID,
+			amount: '100',
+			destination: { identityKey: RECIPIENT_ID, messagebox: MESSAGEBOX },
+		})
+		expect(res.error).toBeUndefined()
+		expect(rec.createArgs).toHaveLength(1)
+		const args = rec.createArgs[0]
+		expect(args.options?.noSend).toBe(true)
+		expect(args.inputs?.map((i) => i.outpoint)).toEqual([
+			`${rec.holdingTxid}.0`,
+		])
+		expect(args.outputs).toHaveLength(1)
 	})
 
 	test('handle: resolves, sends a signed §7.3 envelope with BRC-78 content to payment_inbox', async () => {
@@ -299,7 +344,8 @@ describe('sendMandala', () => {
 		)
 
 		// Same peer-send rules as identityKey + messagebox.
-		const args = rec.createArgs[0]
+		expect(rec.createArgs).toHaveLength(2)
+		const args = rec.createArgs[1]
 		expect(args.options?.noSend).toBe(true)
 		expect(args.labels).toEqual([
 			'mandala',
@@ -337,7 +383,9 @@ describe('sendMandala', () => {
 		})
 		const senderHex = Utils.toHex(Array.from(env.sender.identityKey))
 		expect(senderHex).toBe(SENDER.toPublicKey().toString())
-		expect(Utils.toUTF8(Array.from(env.payment.protocol))).toBe('mandala')
+		expect(Utils.toUTF8(Array.from(env.payment.protocol))).toBe(
+			`mandala ${TOKEN_ID}`,
+		)
 		expect(env.payment.satoshis).toBe(1)
 		expect(Array.from(env.payment.beef)).toEqual(res.tx!)
 
@@ -370,7 +418,7 @@ describe('sendMandala', () => {
 		// The recipient derives the token output's key from the envelope.
 		const keyID = `${Utils.toBase64(Array.from(env.payment.derivationPrefix))} ${Utils.toBase64(Array.from(env.payment.derivationSuffix))}`
 		const { publicKey } = await new ProtoWallet(RECIPIENT).getPublicKey({
-			protocolID: MANDALA_PROTOCOL,
+			protocolID: PROTOCOL,
 			keyID,
 			counterparty: senderHex,
 			forSelf: true,

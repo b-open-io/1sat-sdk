@@ -8,7 +8,7 @@
  *   §7.2) to the resolved messagebox's `payment_inbox`, in the BRC-231
  *   binary encoding over BRC-104.
  * - `{ identityKey, messagebox }` — a peer send. The recipient key is derived
- *   BRC-42 under {@link MANDALA_PROTOCOL}; the transaction is NOT broadcast
+ *   BRC-42 under `mandalaProtocol(tokenId)`; the transaction is NOT broadcast
  *   (BRC-169 §6.1: the recipient broadcasts on internalization). It travels
  *   as Atomic BEEF in a BRC-33 message to the recipient's `payment_inbox`,
  *   in the PeerPay body shape (BRC-29) extended with `protocol`,
@@ -24,7 +24,19 @@
  * and no change. BRC-100 `createAction` has no option to forbid change; the
  * `p nosend expiry …` label is how the wallet is asked for it. If the
  * recipient has not broadcast by the deadline, the wallet reclaims the anchor
- * (invalidating the send); `abortAction` reclaims early. When delivery to
+ * (invalidating the send); `abortAction` reclaims early.
+ *
+ * The anchor funding is wallet-internal and cannot carry token outputs, so
+ * token change inside the protected send would reserve the whole token UTXO
+ * until broadcast or expiry. A peer send is therefore up to three
+ * transactions:
+ *   1. split (only when no token output holds exactly `amount` and the
+ *      selected inputs do not sum to it): an ordinary, broadcast action that
+ *      spends the token inputs into an exact-`amount` output and a remainder,
+ *      both back to the wallet in the token's basket;
+ *   2. the BRC-177 anchor funding, made and broadcast by the wallet;
+ *   3. the protected `noSend` send, spending only the exact output plus the
+ *      anchor, with no token change and no satoshi change. When delivery to
  * the messagebox fails, the result carries the error together with `txid`
  * and `tx` so the caller can retry delivery or abort.
  */
@@ -36,8 +48,8 @@ import {
 } from '@1sat/client'
 import { Mandala } from '@1sat/templates'
 import {
-	MANDALA_PROTOCOL,
 	PAYMENT_INBOX,
+	mandalaProtocol,
 	mandalaTokenBasket,
 	mandalaTokenLabel,
 } from '@1sat/types'
@@ -123,7 +135,7 @@ export interface MandalaPaymentMessage {
 	customInstructions: {
 		derivationPrefix: string
 		derivationSuffix: string
-		/** BRC-43 protocol name ({@link MANDALA_PROTOCOL}[1]) */
+		/** BRC-43 protocol name of `mandalaProtocol(tokenId)`: `mandala <txid>` */
 		protocol: string
 	}
 	/** Atomic BEEF bytes */
@@ -169,6 +181,7 @@ async function recipientLock(
 	ctx: OneSatContext,
 	destination: MandalaDestination,
 	recipientKey: string | undefined,
+	tokenId: string,
 ): Promise<{
 	lockingScript: LockingScript
 	derivationPrefix?: string
@@ -181,7 +194,7 @@ async function recipientLock(
 	const derivationPrefix = randomBase64()
 	const derivationSuffix = randomBase64()
 	const { publicKey } = await ctx.wallet.getPublicKey({
-		protocolID: MANDALA_PROTOCOL,
+		protocolID: mandalaProtocol(tokenId),
 		keyID: `${derivationPrefix} ${derivationSuffix}`,
 		counterparty: recipientKey,
 	})
@@ -191,6 +204,130 @@ async function recipientLock(
 		),
 		derivationPrefix,
 		derivationSuffix,
+	}
+}
+
+/** A wallet token output to spend: outpoint, its derivation CI, its amount */
+interface TokenInput {
+	outpoint: string
+	customInstructions?: string
+	amount: bigint
+}
+
+/**
+ * A token value output back to the wallet, in the token's basket, with a
+ * fresh self-derived key; customInstructions carry only the derivation.
+ */
+async function selfTokenOutput(
+	ctx: OneSatContext,
+	tokenId: string,
+	amount: bigint,
+	outputDescription: string,
+): Promise<CreateActionOutput & { customInstructions: string }> {
+	const self = await resolveDestination(
+		ctx,
+		{ counterparty: 'self' },
+		{ protocolID: mandalaProtocol(tokenId), keyIDPrefix: tokenId },
+	)
+	return {
+		lockingScript: Mandala.value(`${tokenId}_0`, amount, {
+			lock: self.lockingScript,
+		})
+			.lock()
+			.toHex(),
+		satoshis: 1,
+		outputDescription,
+		basket: mandalaTokenBasket(tokenId),
+		customInstructions: JSON.stringify(self.customInstructions),
+	}
+}
+
+/** Spend wallet token outputs through the shared pipeline. */
+function spendTokens(
+	ctx: OneSatContext,
+	p: {
+		description: string
+		labels: string[]
+		inputs: TokenInput[]
+		inputBEEF: number[]
+		outputs: CreateActionOutput[]
+		noSend: boolean
+	},
+) {
+	return executeTrackedAction(
+		ctx.wallet,
+		{
+			description: p.description,
+			labels: [...p.labels],
+			inputBEEF: p.inputBEEF,
+			inputs: p.inputs.map((i) => ({
+				outpoint: i.outpoint,
+				inputDescription: 'Mandala token input',
+				unlockingScriptLength: 108,
+			})),
+			outputs: p.outputs,
+			options: p.noSend
+				? { noSend: true, randomizeOutputs: false }
+				: { randomizeOutputs: false },
+		},
+		undefined,
+		p.inputBEEF,
+		undefined,
+		{
+			spends: p.inputs.map((i) => ({
+				outpoint: i.outpoint,
+				customInstructions: i.customInstructions,
+			})),
+		},
+	)
+}
+
+/**
+ * Split token inputs into an exact `amount` output (vout 0) and a remainder,
+ * both back to the wallet in the token's basket, broadcast normally. Returns
+ * the exact output as the next input, with BEEF that carries it.
+ */
+async function splitExact(
+	ctx: OneSatContext,
+	p: {
+		tokenId: string
+		labels: string[]
+		inputs: TokenInput[]
+		inputBEEF: number[]
+		amount: bigint
+		change: bigint
+	},
+): Promise<{ input: TokenInput; beef: number[] } | { error: string }> {
+	const exactOut = await selfTokenOutput(
+		ctx,
+		p.tokenId,
+		p.amount,
+		'Mandala exact amount',
+	)
+	const rest = await selfTokenOutput(
+		ctx,
+		p.tokenId,
+		p.change,
+		'Mandala remainder',
+	)
+	const result = await spendTokens(ctx, {
+		description: `Split ${p.amount} Mandala tokens`,
+		labels: p.labels,
+		inputs: p.inputs,
+		inputBEEF: p.inputBEEF,
+		outputs: [exactOut, rest],
+		noSend: false,
+	})
+	if (result.error) return { error: `split-failed: ${result.error}` }
+	if (!result.txid || !result.tx)
+		return { error: 'split-failed: no-transaction' }
+	return {
+		input: {
+			outpoint: `${result.txid}.0`,
+			customInstructions: exactOut.customInstructions,
+			amount: p.amount,
+		},
+		beef: Beef.fromBinary(result.tx).toBinary(),
 	}
 }
 
@@ -235,7 +372,7 @@ async function deliverEnvelope(
 			payment: {
 				derivationPrefix: bytes(Utils.toArray(p.derivationPrefix, 'base64')),
 				derivationSuffix: bytes(Utils.toArray(p.derivationSuffix, 'base64')),
-				protocol: bytes(Utils.toArray(MANDALA_PROTOCOL[1], 'utf8')),
+				protocol: bytes(Utils.toArray(mandalaProtocol(p.tokenId)[1], 'utf8')),
 				satoshis: 1,
 				beef: bytes(p.tx),
 			},
@@ -317,19 +454,63 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 			if (!listed.BEEF) return { error: 'no-beef-available' }
 			const beef = Beef.fromBinary(Array.from(listed.BEEF))
 
-			const selected: WalletOutput[] = []
-			let totalIn = 0n
+			// Spendable token outputs, amounts read from the script.
+			const candidates: TokenInput[] = []
 			for (const o of listed.outputs) {
-				if (totalIn >= amount) break
 				const amt = tokenAmount(beef, o, tokenId)
 				if (amt === undefined) continue
-				selected.push(o)
-				totalIn += amt
+				candidates.push({
+					outpoint: o.outpoint,
+					customInstructions: o.customInstructions,
+					amount: amt,
+				})
 			}
-			if (totalIn < amount) return { error: 'insufficient-tokens' }
+
+			// Token index labels: listActions({ labels: ['mandala'] }) and
+			// mandala:<txid> show these actions under the token.
+			const labels = ['mandala', mandalaTokenLabel(tokenId)]
+			let inputBEEF = Array.from(listed.BEEF)
+			let inputs: TokenInput[] = []
+			let change = 0n
+			const exact = peer
+				? candidates.find((c) => c.amount === amount)
+				: undefined
+			if (exact) {
+				inputs = [exact]
+			} else {
+				let totalIn = 0n
+				for (const c of candidates) {
+					if (totalIn >= amount) break
+					inputs.push(c)
+					totalIn += c.amount
+				}
+				if (totalIn < amount) return { error: 'insufficient-tokens' }
+				change = totalIn - amount
+				if (peer && change > 0n) {
+					// A protected send must not hold token change: split off an
+					// exact-amount output first (ordinary broadcast).
+					const split = await splitExact(ctx, {
+						tokenId,
+						labels,
+						inputs,
+						inputBEEF,
+						amount,
+						change,
+					})
+					if ('error' in split) return { error: split.error }
+					inputs = [split.input]
+					inputBEEF = split.beef
+					change = 0n
+				}
+			}
 
 			const idBytes = Mandala.idFromString(`${tokenId}_0`)
-			const recipient = await recipientLock(ctx, destination, recipientKey)
+			const recipient = await recipientLock(
+				ctx,
+				destination,
+				recipientKey,
+				tokenId,
+			)
 			const outputs: CreateActionOutput[] = [
 				{
 					lockingScript: Mandala.value(idBytes, amount, {
@@ -341,64 +522,25 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 					outputDescription: 'Mandala tokens',
 				},
 			]
-
-			const change = totalIn - amount
 			if (change > 0n) {
-				const self = await resolveDestination(
-					ctx,
-					{ counterparty: 'self' },
-					{ protocolID: MANDALA_PROTOCOL, keyIDPrefix: tokenId },
+				outputs.push(
+					await selfTokenOutput(ctx, tokenId, change, 'Mandala token change'),
 				)
-				outputs.push({
-					lockingScript: Mandala.value(idBytes, change, {
-						lock: self.lockingScript,
-					})
-						.lock()
-						.toHex(),
-					satoshis: 1,
-					outputDescription: 'Mandala token change',
-					basket,
-					// Derivation only: the amount is read from the script.
-					customInstructions: JSON.stringify(self.customInstructions),
-				})
 			}
 
-			const inputBEEF = Array.from(listed.BEEF)
-			const result = await executeTrackedAction(
-				ctx.wallet,
-				{
-					description: `Send ${amount} Mandala tokens`,
-					// Token index labels: listActions({ labels: ['mandala'] }) and
-					// mandala:<txid> show this send under the token.
-					labels: [
-						'mandala',
-						mandalaTokenLabel(tokenId),
-						...(peer
-							? [noSendExpiryLabel(input.expiry ?? DEFAULT_MANDALA_SEND_EXPIRY)]
-							: []),
-					],
-					inputBEEF,
-					inputs: selected.map((o) => ({
-						outpoint: o.outpoint,
-						inputDescription: 'Mandala token input',
-						unlockingScriptLength: 108,
-					})),
-					outputs,
-					options:
-						peer || overlay
-							? { noSend: true, randomizeOutputs: false }
-							: { randomizeOutputs: false },
-				},
-				undefined,
+			const result = await spendTokens(ctx, {
+				description: `Send ${amount} Mandala tokens`,
+				labels: peer
+					? [
+							...labels,
+							noSendExpiryLabel(input.expiry ?? DEFAULT_MANDALA_SEND_EXPIRY),
+						]
+					: labels,
+				inputs,
 				inputBEEF,
-				undefined,
-				{
-					spends: selected.map((o) => ({
-						outpoint: o.outpoint,
-						customInstructions: o.customInstructions,
-					})),
-				},
-			)
+				outputs,
+				noSend: peer || !!overlay,
+			})
 			if (result.error) return { error: result.error }
 			if (!result.txid || !result.tx) return { error: 'no-transaction' }
 
@@ -441,7 +583,7 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 						customInstructions: {
 							derivationPrefix,
 							derivationSuffix,
-							protocol: MANDALA_PROTOCOL[1],
+							protocol: mandalaProtocol(tokenId)[1],
 						},
 						transaction: result.tx,
 						outputIndex: 0,
