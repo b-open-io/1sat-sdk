@@ -21,6 +21,7 @@ export {
 	type MneeTransferStatus,
 	type MneeSyncEntry,
 	OneSatServices,
+	type OneSatServicesSdk,
 	OpnsClient,
 	type OpnsOriginResult,
 	type OpnsMineResult,

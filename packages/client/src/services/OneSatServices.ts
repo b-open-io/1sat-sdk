@@ -64,6 +64,16 @@ export type { SyncOutput }
  * - /1sat/opns/* - OpNS domain names
  * - /overlay/* - Overlay services (topic managers, lookups)
  */
+/**
+ * The `@bsv/sdk` classes OneSatServices builds results from. Pass the SDK
+ * module the wallet-toolbox in use loads: `@bsv/wallet-toolbox` is CommonJS,
+ * so in Node it validates proofs against the SDK's CommonJS `MerklePath`, and
+ * a `MerklePath` from the ESM build is rejected.
+ */
+export interface OneSatServicesSdk {
+	MerklePath: typeof MerklePath
+}
+
 export class OneSatServices implements WalletServices {
 	chain: Chain
 	readonly baseUrl: string
@@ -86,6 +96,8 @@ export class OneSatServices implements WalletServices {
 	// Optional fallback to wallet-toolbox Services for methods we don't implement
 	private fallbackServices?: WalletServices
 
+	private readonly sdk: OneSatServicesSdk
+
 	/**
 	 * URL for wallet storage sync endpoint (BRC-100 JSON-RPC).
 	 * Used by StorageClient for remote wallet backup/sync.
@@ -98,8 +110,10 @@ export class OneSatServices implements WalletServices {
 		chain: Chain,
 		baseUrl?: string,
 		fallbackServices?: WalletServices,
+		sdk: OneSatServicesSdk = { MerklePath },
 	) {
 		this.fallbackServices = fallbackServices
+		this.sdk = sdk
 		this.chain = chain
 		this.baseUrl =
 			baseUrl || (chain === 'main' ? ONESAT_MAINNET_URL : ONESAT_TESTNET_URL)
@@ -179,7 +193,7 @@ export class OneSatServices implements WalletServices {
 		console.log('[OneSatServices] getMerklePath called for txid:', txid)
 		try {
 			const proofBytes = await this.beef.getProof(txid)
-			const merklePath = MerklePath.fromBinary([...proofBytes])
+			const merklePath = this.sdk.MerklePath.fromBinary([...proofBytes])
 			console.log(
 				'[OneSatServices] getMerklePath got proof, blockHeight:',
 				merklePath.blockHeight,
