@@ -1,3 +1,4 @@
+import { parseOutpoint } from '@1sat/utils'
 import {
 	Beef,
 	type CreateActionArgs,
@@ -5,6 +6,7 @@ import {
 	LivePolicy,
 	LockingScript,
 	Transaction,
+	type TransactionInput,
 	UnlockingScript,
 	type WalletProtocol,
 } from '@bsv/sdk'
@@ -44,15 +46,20 @@ export interface WalletFundingProviderOptions {
  * 1. `createAction` one P2PKH funding UTXO to a wallet-derived key, sized to
  *    the target's outputs plus its fee (normal broadcast), filed in
  *    {@link FUNDING_BASKET} with the derivation in customInstructions.
- * 2. Build the target transaction: that UTXO as its only input, the caller's
- *    outputs in the caller's order, signed with `getPublicKey` /
- *    `createSignature` for the stored derivation. The UTXO is sized exactly,
- *    so there is no change output.
+ * 2. Build the target transaction: the caller's inputs in the caller's order,
+ *    each with its unlocking script verbatim and its source transaction from
+ *    `args.inputBEEF`, then that UTXO appended as the last input, signed with
+ *    `getPublicKey` / `createSignature` for the stored derivation; the
+ *    caller's outputs in the caller's order. The UTXO is sized exactly, so
+ *    there is no change output.
  * 3. Broadcast it through `ctx.services.postBeef`.
  * 4. Return `{ txid, tx: AtomicBEEF }`.
  *
- * Caller-supplied inputs are not supported: they could not be signed over a
- * transaction this provider builds.
+ * Caller inputs must already carry their unlocking script, signed so the
+ * appended funding input does not invalidate it (`SIGHASH_ALL |
+ * ANYONECANPAY`); scripts are not re-signed or checked. An input with only
+ * `unlockingScriptLength` throws `wallet-funding-input-unsigned`: this
+ * provider cannot sign for the caller.
  */
 export function createWalletFundingProvider(
 	ctx: OneSatContext,
@@ -63,9 +70,7 @@ export function createWalletFundingProvider(
 
 	return {
 		async fund(args: CreateActionArgs): Promise<FundingResult> {
-			if (args.inputs?.length) {
-				throw new Error('wallet-funding-inputs-unsupported')
-			}
+			const callerInputs = callerTransactionInputs(args)
 			const services = ctx.services
 			if (!services) throw new Error('services-required')
 			const outputs = args.outputs ?? []
@@ -83,7 +88,7 @@ export function createWalletFundingProvider(
 			)
 
 			// Size the fee on the target's final shape, before the input exists.
-			const draft = targetTransaction(outputs, unlock, {
+			const draft = targetTransaction(callerInputs, outputs, unlock, {
 				sourceTXID: '00'.repeat(32),
 				sourceOutputIndex: 0,
 			})
@@ -107,7 +112,7 @@ export function createWalletFundingProvider(
 			if (!funded.tx) throw new Error('funding-no-tx')
 			const fundingTx = Transaction.fromAtomicBEEF(funded.tx)
 
-			const tx = targetTransaction(outputs, unlock, {
+			const tx = targetTransaction(callerInputs, outputs, unlock, {
 				sourceTransaction: fundingTx,
 				sourceOutputIndex: 0,
 			})
@@ -126,7 +131,30 @@ export function createWalletFundingProvider(
 	}
 }
 
+/** The caller's signed inputs, in order, sourced from `args.inputBEEF`. */
+function callerTransactionInputs(args: CreateActionArgs): TransactionInput[] {
+	const inputs = args.inputs ?? []
+	const beef =
+		inputs.length && args.inputBEEF
+			? Beef.fromBinary(args.inputBEEF)
+			: undefined
+	return inputs.map((input) => {
+		if (input.unlockingScript === undefined) {
+			throw new Error('wallet-funding-input-unsigned')
+		}
+		const { txid, vout } = parseOutpoint(input.outpoint)
+		const sourceTransaction = beef?.findTxid(txid)?.tx
+		return {
+			...(sourceTransaction ? { sourceTransaction } : { sourceTXID: txid }),
+			sourceOutputIndex: vout,
+			unlockingScript: UnlockingScript.fromHex(input.unlockingScript),
+			sequence: input.sequenceNumber ?? 0xffffffff,
+		}
+	})
+}
+
 function targetTransaction(
+	callerInputs: TransactionInput[],
 	outputs: CreateActionOutput[],
 	unlock: ReturnType<typeof walletP2PKHUnlock>,
 	source:
@@ -134,6 +162,7 @@ function targetTransaction(
 		| { sourceTransaction: Transaction; sourceOutputIndex: number },
 ): Transaction {
 	const tx = new Transaction()
+	for (const input of callerInputs) tx.addInput({ ...input })
 	tx.addInput({
 		...source,
 		unlockingScriptTemplate: unlock,

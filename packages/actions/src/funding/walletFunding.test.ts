@@ -27,7 +27,7 @@ const lockB = new P2PKH().lock(
 )
 
 /** A mined parent so AtomicBEEF can terminate in a proof. */
-function minedParent(): Transaction {
+function minedParent(lock: LockingScript = lockA): Transaction {
 	const parent = new Transaction()
 	parent.addInput({
 		sourceTXID: '11'.repeat(32),
@@ -35,7 +35,7 @@ function minedParent(): Transaction {
 		unlockingScript: new UnlockingScript(),
 		sequence: 0xffffffff,
 	})
-	parent.addOutput({ lockingScript: lockA, satoshis: 1_000_000 })
+	parent.addOutput({ lockingScript: lock, satoshis: 1_000_000 })
 	parent.merklePath = new MerklePath(100, [
 		[{ offset: 0, hash: parent.id('hex'), txid: true }],
 	])
@@ -177,15 +177,104 @@ describe('createWalletFundingProvider', () => {
 		)
 	})
 
-	test('refuses caller inputs it could not sign', async () => {
+	test('includes signed caller inputs first, verbatim, funding input last', async () => {
+		const { ctx } = fakeContext()
+		const provider = createWalletFundingProvider(ctx, { feeModel })
+		const callerKey = PrivateKey.fromHex('04'.repeat(32))
+		const callerSource = minedParent(
+			new P2PKH().lock(callerKey.toPublicKey().toAddress()),
+		)
+		const args = targetArgs()
+
+		// The caller signs ALL|ANYONECANPAY over its own input and the outputs.
+		const signed = new Transaction()
+		signed.addInput({
+			sourceTransaction: callerSource,
+			sourceOutputIndex: 0,
+			unlockingScriptTemplate: new P2PKH().unlock(callerKey, 'all', true),
+			sequence: 0xffffffff,
+		})
+		for (const o of args.outputs ?? []) {
+			signed.addOutput({
+				lockingScript: LockingScript.fromHex(o.lockingScript),
+				satoshis: o.satoshis,
+			})
+		}
+		await signed.sign()
+		const callerScript = signed.inputs[0].unlockingScript?.toHex() as string
+
+		const { tx: beef } = await provider.fund({
+			...args,
+			inputBEEF: callerSource.toBEEF(),
+			inputs: [
+				{
+					outpoint: `${callerSource.id('hex')}.0`,
+					unlockingScript: callerScript,
+					inputDescription: 'caller',
+				},
+			],
+		})
+
+		const tx = Transaction.fromAtomicBEEF(beef)
+		expect(tx.inputs).toHaveLength(2)
+		expect(
+			tx.inputs[0].sourceTXID ?? tx.inputs[0].sourceTransaction?.id('hex'),
+		).toBe(callerSource.id('hex'))
+		expect(tx.inputs[0].unlockingScript?.toHex()).toBe(callerScript)
+		const fundingTx = tx.inputs[1].sourceTransaction as Transaction
+		expect(fundingTx.outputs[0].lockingScript.toHex()).toStartWith('76a914')
+
+		// both inputs still validate in the final transaction
+		for (const [i, src] of [callerSource, fundingTx].entries()) {
+			const input = tx.inputs[i]
+			const spend = new Spend({
+				sourceTXID: src.id('hex'),
+				sourceOutputIndex: 0,
+				sourceSatoshis: src.outputs[0].satoshis as number,
+				lockingScript: src.outputs[0].lockingScript,
+				transactionVersion: tx.version,
+				otherInputs: tx.inputs
+					.filter((_, j) => j !== i)
+					.map((inp) => ({
+						sourceTXID:
+							inp.sourceTXID ?? (inp.sourceTransaction?.id('hex') as string),
+						sourceOutputIndex: inp.sourceOutputIndex,
+						sequence: inp.sequence as number,
+					})),
+				outputs: tx.outputs,
+				inputIndex: i,
+				unlockingScript: input.unlockingScript as UnlockingScript,
+				inputSequence: input.sequence as number,
+				lockTime: tx.lockTime,
+			})
+			expect(spend.validate()).toBe(true)
+		}
+
+		// fee covers both inputs: input value - outputs >= the signed tx's fee
+		const inSats =
+			(callerSource.outputs[0].satoshis as number) +
+			(fundingTx.outputs[0].satoshis as number)
+		const outSats = tx.outputs.reduce((n, o) => n + (o.satoshis as number), 0)
+		expect(inSats - outSats).toBeGreaterThanOrEqual(
+			await feeModel.computeFee(tx),
+		)
+	})
+
+	test('rejects a caller input with no unlocking script', async () => {
 		const { ctx, created } = fakeContext()
 		const provider = createWalletFundingProvider(ctx, { feeModel })
 		await expect(
 			provider.fund({
 				...targetArgs(),
-				inputs: [{ outpoint: `${'ab'.repeat(32)}.0`, inputDescription: 'x' }],
+				inputs: [
+					{
+						outpoint: `${'ab'.repeat(32)}.0`,
+						unlockingScriptLength: 108,
+						inputDescription: 'x',
+					},
+				],
 			}),
-		).rejects.toThrow('wallet-funding-inputs-unsupported')
+		).rejects.toThrow('wallet-funding-input-unsigned')
 		expect(created).toHaveLength(0)
 	})
 })
