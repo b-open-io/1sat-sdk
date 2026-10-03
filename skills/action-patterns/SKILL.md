@@ -168,7 +168,7 @@ _54 actions, generated from the registry — do not edit by hand._
 | `opns` | `deregisterOpns` |  | Remove identity bind from an OpNS name (self-transfer to P2PKH) |
 | `opns` | `internalizeOpns` |  | Internalize a foreign-created OpNS mint (AtomicBEEF) into the OPNS basket |
 | `opns` | `listOpns` |  | List OpNS names from the wallet (metadata by default; optional BEEF) |
-| `opns` | `registerOpns` |  | Bind BRC-100 identity key to an OpNS name via signed PushDrop |
+| `opns` | `registerOpns` |  | Bind BRC-100 identity key to an OpNS name via signed PushDrop record (identity + profile), optionally with an inscription |
 | `opns` | `sellOpns` |  | List an OpNS name for sale |
 | `opns` | `sendOpns` |  | Transfer an OpNS name to a new owner |
 | `ordinals` | `burnOrdinals` |  | Burn one or more ordinals by sending to OP_RETURN |
