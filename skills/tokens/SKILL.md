@@ -20,6 +20,7 @@ CLI group is **`bsv21`** (was `tokens`).
 | `deployBsv21Mint` | Fixed-supply deploy+mint |
 | `deployBsv21Auth` | Mintable deploy+auth |
 | `mintBsv21` | Spend auth to mint / re-issue / end |
+| `deployMandala` | Mandala (BRC-162) deploy: fixed supply or authority |
 
 
 Fungible API stays **value-based** (not spend-by-id). Basket UTXOs still carry `id:` internally. **Self destinations must be basketed/tagged.**
@@ -105,6 +106,32 @@ await mintBsv21.execute(ctx, {
   mint: { amount: '1000000', destination: { address: recipient } },
 })
 ```
+
+## Mandala (BRC-162) deploy
+
+```typescript
+import { deployMandala } from '@1sat/actions'
+
+// amount > 0: fixed supply; amount 0: authority (first minting authority)
+const dep = await deployMandala.execute(ctx, {
+  amount: '21000000',
+  symbol: 'GOLD',
+  decimals: 8,
+})
+// dep.tokenId === dep.txid
+```
+
+- The deploy output is always vout 0. **The token id is the deploy txid alone**
+  (the 32-byte wire id) — never `txid_0`.
+- Funded through a side door: `createWalletFundingProvider(ctx)` (default; pass
+  `fundingProvider` to override) creates one funding UTXO in the `funding`
+  basket, builds and broadcasts the deploy spending it, and the wallet then
+  internalizes vout 0.
+- Filed in the `mandala` basket with tags `mandala:<txid>` and `mandala:deploy`
+  (+ `mandala:auth` for an authority deploy). customInstructions carry the key
+  derivation plus `amt`/`dec`/`sym`/`icon`.
+- If broadcast succeeds and internalize fails, the wallet never learns of the
+  output (known gap).
 
 ## Requirements
 

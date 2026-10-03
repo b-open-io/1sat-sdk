@@ -41,6 +41,18 @@ export const BSV21_AUTH_BASKET = BSV21_BASKET
 export const BSV21_AUTH_TAG = 'bsv21:auth'
 /** Tag on a single-CA deploy output; tokenId is the outpoint (`txid_vout`). */
 export const BSV21_DEPLOY_TAG = 'bsv21:deploy'
+/** Mandala (BRC-162) token inventory. */
+export const MANDALA_BASKET = 'mandala'
+/** Tag prefix carrying a Mandala token id: `mandala:<deploy txid>`. */
+export const MANDALA_TAG_PREFIX = 'mandala:'
+/** Tag on a Mandala deploy output; its txid is the token id. */
+export const MANDALA_DEPLOY_TAG = 'mandala:deploy'
+/** Tag on a Mandala authority (minting capability) output. */
+export const MANDALA_AUTH_TAG = 'mandala:auth'
+/** Token tag `mandala:<txid>` — the id is the deploy txid alone, never `txid_0`. */
+export function mandalaTokenTag(tokenId: string): string {
+	return `${MANDALA_TAG_PREFIX}${tokenId}`
+}
 export const OPNS_BASKET = 'opns'
 export const LOCK_BASKET = 'lock'
 export const SIGMA_BASKET = 'sigma'

@@ -96,6 +96,11 @@ export type {
 	FundingProvider,
 	FundingResult,
 } from './funding/index.js'
+export {
+	createWalletFundingProvider,
+	FUNDING_BASKET,
+	type WalletFundingProviderOptions,
+} from './funding/index.js'
 export { getDisplayValue } from './utils/displayValue.js'
 export { ordinalSeedTags } from './utils/ordinalSeedTags.js'
 export {
@@ -149,6 +154,7 @@ export * from './collections/index.js'
 export * from './payments/index.js'
 export * from './ordinals/index.js'
 export * from './tokens/index.js'
+export * from './mandala/index.js'
 export * from './inscriptions/index.js'
 export * from './locks/index.js'
 export * from './signing/index.js'
@@ -184,6 +190,7 @@ import { identityActions } from './identity/index.js'
 import { inscriptionsActions } from './inscriptions/index.js'
 import { cancelOwnedListings } from './listings/cancelOwnedListings.js'
 import { locksActions } from './locks/index.js'
+import { mandalaActions } from './mandala/index.js'
 import { mneeActions } from './mnee/index.js'
 import { opnsActions } from './opns/index.js'
 import { ordfsActions } from './ordfs/index.js'
@@ -202,6 +209,7 @@ actionRegistry.registerAll([
 	...paymentsActions,
 	...ordinalsActions,
 	...tokensActions,
+	...mandalaActions,
 	...inscriptionsActions,
 	...locksActions,
 	...signingActions,
