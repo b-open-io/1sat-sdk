@@ -32,36 +32,19 @@ export type DagCborValue =
 	| { [key: string]: DagCborValue }
 
 /**
- * Strictly decode a complete DAG-CBOR document with `@ipld/dag-cbor`. Returns
- * `undefined` (not `null`, which is a valid value) when the bytes are not
- * canonical DAG-CBOR.
- *
- * `@ipld/dag-cbor` rejects indefinite lengths, non-minimal integers and
- * lengths, duplicate or non-text map keys, tags other than 42, NaN, the
- * infinities and trailing bytes, but it does not check map key order, float
- * width or UTF-8 validity, and it reads `undefined` as `null`. Canonical
- * DAG-CBOR has exactly one encoding per value, so the decoded value is
- * re-encoded and must reproduce the input bytes. One consequence: JavaScript
- * cannot tell an integral 64-bit float from an integer, so a document holding
- * one (e.g. `1.0`) does not reproduce and is rejected.
+ * Decode a DAG-CBOR document with `@ipld/dag-cbor`, as-is. Returns `undefined`
+ * (not `null`, which is a valid value) when the library rejects the bytes.
+ * Tag 42 links come back as {@link DagCborLink}.
  */
 export function decodeDagCbor(
 	bytes: Uint8Array | number[],
 ): DagCborValue | undefined {
 	const buf = bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes)
-	let again: Uint8Array
-	let value: unknown
 	try {
-		value = dagCborDecode(buf)
-		again = dagCborEncode(value)
+		return fromIpld(dagCborDecode(buf))
 	} catch {
 		return undefined
 	}
-	if (again.length !== buf.length) return undefined
-	for (let i = 0; i < buf.length; i++) {
-		if (again[i] !== buf[i]) return undefined
-	}
-	return fromIpld(value)
 }
 
 /** Replace the CIDs `@ipld/dag-cbor` decodes tag 42 into with {@link DagCborLink}s */

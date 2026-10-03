@@ -337,18 +337,16 @@ describe('Mandala payload', () => {
 		expect(d?.metadata).toBeUndefined()
 	})
 
-	it('a non-map or non-strict payload has no payloadMap or metadata', () => {
+	it('a payload the library rejects, or a non-map, has no payloadMap or metadata', () => {
 		for (const p of [
 			'83010203', // array, not a map
 			'6158', // text, not a map
 			'a26373796d6158', // truncated
-			'a26373796d61586364656308', // keys out of order
 			'bf6373796d6158ff', // indefinite-length map
 			'a1636465631808', // non-minimal integer
 			'b8016373796d6158', // non-minimal map length
 			'a16373796dc16158', // tag 1
 			'c1a16373796d6158', // tagged map, tag 1
-			'a16373796df7', // undefined
 		]) {
 			const s = Mandala.deployAuthority({
 				lock: P2PKH_LOCK,
@@ -360,6 +358,19 @@ describe('Mandala payload', () => {
 			expect(d?.payloadMap).toBeUndefined()
 			expect(d?.metadata).toBeUndefined()
 		}
+	})
+
+	it('dec as a 64-bit float still decodes as a map; sym and icon read', () => {
+		const payload = `a363646563fb3ff00000000000006373796d6147${'6469636f6e4401000000'}`
+		const d = Mandala.decode(
+			Mandala.deployAuthority({
+				lock: P2PKH_LOCK,
+				payload: Utils.toArray(payload, 'hex'),
+			}).lock(),
+		)
+		expect(d?.payloadMap).toBeDefined()
+		expect(d?.metadata?.sym).toBe('G')
+		expect(d?.metadata?.icon).toBe(1)
 	})
 
 	it('malformed display fields are dropped, the deploy stays valid', () => {
@@ -429,7 +440,7 @@ describe('Mandala payload', () => {
 	})
 })
 
-describe('strict DAG-CBOR', () => {
+describe('DAG-CBOR (@ipld/dag-cbor as-is)', () => {
 	it('accepts the canonical forms', () => {
 		expect(decodeDagCbor(Utils.toArray('a0', 'hex'))).toEqual({})
 		expect(decodeDagCbor(Utils.toArray('a2616101616202', 'hex'))).toEqual({
@@ -460,23 +471,17 @@ describe('strict DAG-CBOR', () => {
 		)
 	})
 	const bad: [string, string][] = [
-		['unsorted keys', 'a2616201616101'],
-		['length-first violated', 'a2626161f6616101'],
 		['duplicate keys', 'a2616101616102'],
 		['non-text key', 'a10101'],
 		['non-minimal int', '1801'],
 		['non-minimal length', '7801' + '61'],
 		['indefinite map', 'bf616101ff'],
-		['undefined', 'f7'],
-		['f16 float', 'f93e00'],
-		['f32 float', 'fa3fc00000'],
 		['NaN', 'fb7ff8000000000000'],
+		['Infinity', 'fb7ff0000000000000'],
 		['tag other than 42', 'c11a00000000'],
 		['tag 42 without 0x00 prefix', `d82a5825${'01711220'}${'ab'.repeat(33)}`],
 		['tag 42 holding a malformed CID', 'd82a4400017112'],
-		['integral 64-bit float (JS cannot keep it a float)', 'fb3ff0000000000000'],
 		['trailing bytes', 'a000'],
-		['invalid UTF-8', '62c328'],
 		['truncated', 'a161'],
 	]
 	for (const [name, h] of bad) {
