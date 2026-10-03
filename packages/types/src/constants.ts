@@ -41,8 +41,6 @@ export const BSV21_AUTH_BASKET = BSV21_BASKET
 export const BSV21_AUTH_TAG = 'bsv21:auth'
 /** Tag on a single-CA deploy output; tokenId is the outpoint (`txid_vout`). */
 export const BSV21_DEPLOY_TAG = 'bsv21:deploy'
-/** Mandala (BRC-162) token inventory. */
-export const MANDALA_BASKET = 'mandala'
 /** Tag prefix carrying a Mandala token id: `mandala:<deploy txid>`. */
 export const MANDALA_TAG_PREFIX = 'mandala:'
 /** Tag on a Mandala deploy output; its txid is the token id. */
@@ -722,3 +720,19 @@ export const DEFAULT_STREAM_CHUNK_SIZE = 1024 * 1024
 export const ORDFS_STREAM_CONTENT_TYPE = 'ordfs/stream'
 /** Media-type parameter on the origin chunk (e.g. `video/mp4; stream=ordfs`) */
 export const ORDFS_STREAM_PARAM = 'stream=ordfs'
+
+// ============================================================================
+// Mandala (BRC-162)
+// ============================================================================
+
+/** Basket holding the wallet's Mandala token outputs, tagged `mandala:<tokenId>`. */
+export const MANDALA_BASKET = 'mandala'
+
+/**
+ * BRC-42/43 protocol for Mandala transfer keys. Level 2 (per-counterparty
+ * permission) mirrors BRC-29's `[2, '3241645161d8']`. The recipient derives
+ * the key with keyID `<derivationPrefix> <derivationSuffix>` and counterparty
+ * = the sender's identity key, and routes `payment_inbox` messages on the
+ * protocol name.
+ */
+export const MANDALA_PROTOCOL: WalletProtocol = [2, 'mandala']

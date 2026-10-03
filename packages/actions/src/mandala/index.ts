@@ -9,11 +9,11 @@ import {
 	MANDALA_AUTH_TAG,
 	MANDALA_BASKET,
 	MANDALA_DEPLOY_TAG,
+	MANDALA_PROTOCOL,
 	MANDALA_TOPIC,
 	mandalaTokenTag,
 } from '@1sat/types'
 import type { CreateActionArgs } from '@bsv/sdk'
-import { P1SAT_PROTOCOL } from '../constants.js'
 import type { FundingProvider } from '../funding/index.js'
 import { createWalletFundingProvider } from '../funding/walletFunding.js'
 import type { Action } from '../types.js'
@@ -107,7 +107,7 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 				const authority = amount === 0n
 
 				const resolved = await resolveDestination(ctx, input.destination, {
-					protocolID: P1SAT_PROTOCOL,
+					protocolID: MANDALA_PROTOCOL,
 					keyIDPrefix: 'mandala-deploy',
 				})
 

@@ -4,6 +4,7 @@ import {
 	MANDALA_AUTH_TAG,
 	MANDALA_BASKET,
 	MANDALA_DEPLOY_TAG,
+	MANDALA_PROTOCOL,
 	MANDALA_TOPIC,
 	mandalaTokenTag,
 } from '@1sat/types'
@@ -65,9 +66,10 @@ function setup() {
 	return { ctx, fundingProvider, internalized, funded }
 }
 
-async function derivedLock(ci: { protocolID: never; keyID: string }) {
+/** The P2PKH the wallet derives under MANDALA_PROTOCOL for this keyID. */
+async function derivedLock(ci: { keyID: string }) {
 	const { publicKey } = await proto.getPublicKey({
-		protocolID: ci.protocolID,
+		protocolID: MANDALA_PROTOCOL,
 		keyID: ci.keyID,
 		counterparty: 'self',
 		forSelf: true,
@@ -109,6 +111,7 @@ describe('deployMandala', () => {
 
 		const ci = JSON.parse(remit?.customInstructions ?? '{}')
 		expect(ci).toMatchObject({ amt: '21000000', dec: 8, sym: 'GOLD' })
+		expect(ci.protocolID).toEqual(MANDALA_PROTOCOL)
 		expect(ci.keyID).toStartWith('mandala-deploy-')
 
 		const tx = Transaction.fromAtomicBEEF(internalized[0].tx)
@@ -148,6 +151,7 @@ describe('deployMandala', () => {
 		)
 		const ci = JSON.parse(remit?.customInstructions ?? '{}')
 		expect(ci).toMatchObject({ amt: '0', dec: 2, sym: 'STABLE', icon: 1 })
+		expect(ci.protocolID).toEqual(MANDALA_PROTOCOL)
 
 		const tx = Transaction.fromAtomicBEEF(internalized[0].tx)
 		const expected = Mandala.deployAuthority({
