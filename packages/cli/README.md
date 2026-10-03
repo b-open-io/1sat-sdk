@@ -224,7 +224,7 @@ OpNS (Ordinals Name System) binds your BAP identity to an on-chain name inscript
 
 ```bash
 1sat opns lookup                               # List OpNS names in your wallet
-1sat opns register --outpoint <txid.vout>      # Bind your identity to a name
+1sat opns register --id <id> --domain <host>   # Bind your identity to a name
 1sat opns deregister --outpoint <txid.vout>    # Remove the identity binding
 ```
 

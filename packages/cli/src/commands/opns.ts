@@ -62,10 +62,12 @@ function requireId(args: string[]): string {
 
 async function opnsRegister(args: string[], opts: GlobalFlags): Promise<void> {
 	const id = requireId(args)
+	const domain = extractFlag(args, '--domain')
+	if (!domain) fatal('Missing --domain <hostname> (e.g. 1sat.name)')
 
 	if (!opts.yes) {
 		const ok = await confirm({
-			message: `Register identity on OpNS id ${id}?`,
+			message: `Register identity on OpNS id ${id} at ${domain}?`,
 		})
 		if (isCancel(ok) || !ok) fatal('Registration cancelled.')
 	}
@@ -74,7 +76,7 @@ async function opnsRegister(args: string[], opts: GlobalFlags): Promise<void> {
 	const { ctx, destroy } = await loadContext(privateKey, { chain: opts.chain })
 
 	try {
-		const result = await registerOpns.execute(ctx, { id })
+		const result = await registerOpns.execute(ctx, { id, domain })
 		if (result.error) fatal(result.error)
 		output(opts.json ? result : { txid: result.txid }, opts)
 	} finally {

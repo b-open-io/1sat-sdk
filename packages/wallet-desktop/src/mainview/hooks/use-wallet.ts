@@ -17,6 +17,7 @@ import type {
 	OpnsNameInfo,
 	OpnsOperationParams,
 	OpnsOperationResult,
+	OpnsRegisterParams,
 	OrdinalInfo,
 	PublishIdentityResult,
 	ReceiveInfo,
@@ -91,7 +92,7 @@ interface UseWalletReturn {
 	) => Promise<SocialPostResult>
 	getIdentity: () => Promise<IdentityInfo>
 	publishIdentity: () => Promise<PublishIdentityResult>
-	opnsRegister: (params: OpnsOperationParams) => Promise<OpnsOperationResult>
+	opnsRegister: (params: OpnsRegisterParams) => Promise<OpnsOperationResult>
 	opnsDeregister: (params: OpnsOperationParams) => Promise<OpnsOperationResult>
 	mintCollection: (
 		params: MintCollectionParams,
@@ -277,7 +278,7 @@ export function useWallet(): UseWalletReturn {
 		return rpc.request.publishIdentity()
 	}, [])
 
-	const opnsRegister = useCallback(async (params: OpnsOperationParams) => {
+	const opnsRegister = useCallback(async (params: OpnsRegisterParams) => {
 		return rpc.request.opnsRegister(params)
 	}, [])
 

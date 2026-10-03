@@ -31,6 +31,7 @@ export function OpnsPanel() {
 	const { log } = useLog()
 	const [list, setList] = useState<ListOpnsResult | null>(null)
 	const [id, setId] = useState('')
+	const [domain, setDomain] = useState('1sat.name')
 	const [profileName, setProfileName] = useState('')
 	const [avatar, setAvatar] = useState('')
 	const [buyOutpoint, setBuyOutpoint] = useState('')
@@ -63,11 +64,12 @@ export function OpnsPanel() {
 		setError(null)
 		log(
 			'info',
-			`registerOpns: id=${id}${profileName ? ` profileName=${profileName}` : ''}${avatar ? ` avatar=${avatar}` : ''}`,
+			`registerOpns: id=${id} domain=${domain}${profileName ? ` profileName=${profileName}` : ''}${avatar ? ` avatar=${avatar}` : ''}`,
 		)
 		try {
 			const res = await registerOpns.execute(ctx, {
 				id,
+				domain,
 				...(profileName && { profileName }),
 				...(avatar && { avatar }),
 				...flags,
@@ -161,6 +163,16 @@ export function OpnsPanel() {
 				placeholder="from list below"
 				value={id}
 				onChange={(e) => setId(e.target.value)}
+			/>
+			<label style={label} htmlFor="opns-domain">
+				Domain (required)
+			</label>
+			<input
+				id="opns-domain"
+				style={input}
+				placeholder="BRC-169 domain, e.g. 1sat.name"
+				value={domain}
+				onChange={(e) => setDomain(e.target.value)}
 			/>
 			<label style={label}>Profile name (optional)</label>
 			<input
