@@ -1,5 +1,10 @@
 import { OneSatServices } from '@1sat/client'
-import { KeyDeriver, type PrivateKey, type WalletInterface } from '@bsv/sdk'
+import {
+	KeyDeriver,
+	MerklePath,
+	PrivateKey,
+	type WalletInterface,
+} from '@bsv/sdk'
 import { parsePrivateKey } from './parsePrivateKey.js'
 import {
 	type StoragePaymentHook,
@@ -19,6 +24,13 @@ export interface WalletStorageProviderLike {
 }
 
 export type Chain = 'main' | 'test'
+
+/** The `@bsv/sdk` classes `createWalletCore` builds toolbox inputs from. */
+export interface WalletCoreSdk {
+	KeyDeriver: typeof KeyDeriver
+	MerklePath: typeof MerklePath
+	PrivateKey: typeof PrivateKey
+}
 
 export const DEFAULT_FEE_MODEL = { model: 'sat/kb' as const, value: 100 }
 export const DEFAULT_CONNECTION_TIMEOUT = 5000
@@ -144,15 +156,24 @@ export async function createWalletCore(
 		 * the server runs its own monitor) should omit this.
 		 */
 		Monitor?: any
+		/**
+		 * The `@bsv/sdk` module this toolbox loads. Objects the factory hands
+		 * the toolbox (key deriver, root key, services' Merkle paths) are built
+		 * from it so they share the toolbox's class identity. Defaults to the
+		 * SDK's ESM build, which `@bsv/wallet-toolbox-client` uses; the
+		 * CommonJS `@bsv/wallet-toolbox` needs the SDK's CommonJS build.
+		 */
+		sdk?: WalletCoreSdk
 	},
 ): Promise<WalletCoreResult> {
 	const { chain } = config
 	const feeModel = config.feeModel ?? DEFAULT_FEE_MODEL
 	const timeout = config.connectionTimeout ?? DEFAULT_CONNECTION_TIMEOUT
 
-	const privateKey = parsePrivateKey(config.privateKey)
+	const sdk = toolbox.sdk ?? { KeyDeriver, MerklePath, PrivateKey }
+	const privateKey = parsePrivateKey(config.privateKey, sdk.PrivateKey)
 	const identityPubKey = privateKey.toPublicKey().toString()
-	const keyDeriver = new KeyDeriver(privateKey)
+	const keyDeriver = new sdk.KeyDeriver(privateKey)
 
 	// 1. Create services
 	const fallbackServices = new toolbox.Services(chain)
@@ -160,6 +181,7 @@ export async function createWalletCore(
 		chain,
 		config.servicesBaseUrl,
 		fallbackServices,
+		sdk,
 	)
 
 	// 2. Create storage manager — empty initially

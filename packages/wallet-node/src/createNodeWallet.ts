@@ -16,6 +16,7 @@ import {
 } from '@bsv/wallet-toolbox'
 import { createFsTaskStateStore } from './fsTaskStateStore.js'
 import { StorageBunSqlite } from './storage-bun-sqlite.js'
+import { toolboxSdk } from './toolboxSdk.js'
 
 const DEFAULT_STORAGE_NAME = 'wallet'
 const DEFAULT_SQLITE_FILENAME = './wallet.db'
@@ -126,6 +127,7 @@ export async function createNodeWallet(
 			Wallet,
 			WalletStorageManager,
 			Monitor,
+			sdk: toolboxSdk,
 		},
 	)
 

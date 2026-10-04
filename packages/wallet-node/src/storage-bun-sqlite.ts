@@ -11,7 +11,6 @@ import { type SqliteDb, openSqlite } from './sqlite-driver.js'
 
 /** Driver handle; see ./sqlite-driver.ts. */
 type Database = SqliteDb
-import { Beef, Transaction as BsvTransaction } from '@bsv/sdk'
 import type { ListActionsResult, ListOutputsResult, Validation } from '@bsv/sdk'
 import {
 	type AdminStatsResult,
@@ -76,6 +75,11 @@ import {
 	WERR_UNAUTHORIZED,
 	isListActionsSpecOp,
 } from '@bsv/wallet-toolbox/out/src/sdk'
+import { toolboxSdk } from './toolboxSdk.js'
+
+// Beef and Transaction come from the toolbox's SDK build: a Beef passed as
+// mergeToBeef must pass the toolbox's `instanceof Beef`.
+const { Beef, Transaction: BsvTransaction } = toolboxSdk
 
 // ---------------------------------------------------------------------------
 // Types
@@ -3284,7 +3288,8 @@ export class StorageBunSqlite extends StorageProvider {
 							const rawTx = await this.getRawTxOfKnownValidTransaction(
 								tx.txid as string,
 							)
-							let bsvTx: BsvTransaction | undefined = undefined
+							let bsvTx: InstanceType<typeof BsvTransaction> | undefined =
+								undefined
 							if (rawTx) bsvTx = BsvTransaction.fromBinary(rawTx)
 							for (const o of inputs) {
 								await this.extendOutput(o, true, true)

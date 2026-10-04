@@ -30,4 +30,4 @@ export {
 	type MneeSyncEntry,
 	type MneeFeeTier,
 } from './MneeClient.js'
-export { OneSatServices } from './OneSatServices.js'
+export { OneSatServices, type OneSatServicesSdk } from './OneSatServices.js'
