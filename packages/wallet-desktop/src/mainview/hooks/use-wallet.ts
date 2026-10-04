@@ -23,6 +23,7 @@ import type {
 	ReceiveInfo,
 	SendBsv21Params,
 	SendBsv21Result,
+	SendRecipientResolution,
 	SocialPostResult,
 	SweepResultInfo,
 	SweepScanResult,
@@ -62,7 +63,11 @@ interface UseWalletReturn {
 	) => Promise<{ success: boolean; error?: string }>
 	// Wallet lifecycle
 	lockWallet: () => Promise<{ success: boolean }>
-	sendBsv: (address: string, amount: number) => Promise<{ txid: string }>
+	sendBsv: (
+		recipient: { address: string } | { handle: string },
+		amount: number,
+	) => Promise<{ txid: string }>
+	resolveSendRecipient: (handle: string) => Promise<SendRecipientResolution>
 	getReceiveInfo: () => Promise<ReceiveInfo>
 	generateMnemonic: () => Promise<string>
 	getOrdinals: (
@@ -196,8 +201,18 @@ export function useWallet(): UseWalletReturn {
 		return rpc.request.deleteAccount({ accountId })
 	}, [])
 
-	const sendBsv = useCallback(async (address: string, amount: number) => {
-		return rpc.request.sendBsv({ address, amount })
+	const sendBsv = useCallback(
+		async (
+			recipient: { address: string } | { handle: string },
+			amount: number,
+		) => {
+			return rpc.request.sendBsv({ ...recipient, amount })
+		},
+		[],
+	)
+
+	const resolveSendRecipient = useCallback(async (handle: string) => {
+		return rpc.request.resolveSendRecipient({ handle })
 	}, [])
 
 	const getReceiveInfo = useCallback(async () => {
@@ -312,6 +327,7 @@ export function useWallet(): UseWalletReturn {
 		deleteAccount,
 		lockWallet,
 		sendBsv,
+		resolveSendRecipient,
 		getReceiveInfo,
 		generateMnemonic,
 		getOrdinals,

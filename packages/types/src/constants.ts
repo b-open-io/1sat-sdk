@@ -799,7 +799,18 @@ export const MANDALA_DEPLOY_PROTOCOL: WalletProtocol = [2, 'mandala deploy']
 export const MANDALA_INBOX = 'mandala_inbox'
 
 /**
- * Default `nosend expiry` for a protected Mandala send: one year, in seconds.
- * Carried as the action label `p nosend expiry seconds <n>`.
+ * Messagebox box for BRC-169 payments to a handle (envelopes with `payment`
+ * set). Token deliveries use {@link MANDALA_INBOX}; legacy PeerPay
+ * payments arrive in `payment_inbox`.
  */
-export const MANDALA_SEND_EXPIRY_SECONDS = 31536000
+export const METANET_INBOX = 'metanet_inbox'
+
+/**
+ * Default `nosend expiry` for a protected send to a BRC-169 handle (a BSV
+ * payment or a Mandala token send): one year, in seconds. Carried as the
+ * action label `p nosend expiry seconds <n>` (BRC-177).
+ */
+export const METANET_SEND_EXPIRY_SECONDS = 31536000
+
+/** @deprecated Use {@link METANET_SEND_EXPIRY_SECONDS}. */
+export const MANDALA_SEND_EXPIRY_SECONDS = METANET_SEND_EXPIRY_SECONDS

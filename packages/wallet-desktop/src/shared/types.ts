@@ -40,8 +40,19 @@ export interface SyncEvent {
 
 // Send BSV params
 export interface SendBsvParams {
-	address: string
+	/** Base58 P2PKH address */
+	address?: string
+	/** BRC-169 handle (`@handle@domain`) or `handle@domain` (BRC-169 first, else paymail) */
+	handle?: string
 	amount: number
+}
+
+// A send recipient resolved as a BRC-169 handle (empty when it is paymail)
+export interface SendRecipientResolution {
+	/** `handle@domain` */
+	handle?: string
+	/** Recipient identity key, hex */
+	identityKey?: string
 }
 
 // Send BSV result
@@ -370,6 +381,10 @@ type BunRequests = {
 	sendBsv: {
 		params: SendBsvParams
 		response: SendBsvResult
+	}
+	resolveSendRecipient: {
+		params: { handle: string }
+		response: SendRecipientResolution
 	}
 	getWalletStatus: {
 		params: undefined

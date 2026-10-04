@@ -30,7 +30,7 @@ import { Mandala } from '@1sat/templates'
 import {
 	MANDALA_INBOX,
 	MANDALA_LABEL,
-	MANDALA_SEND_EXPIRY_SECONDS,
+	METANET_SEND_EXPIRY_SECONDS,
 	mandalaProtocol,
 	mandalaTokenBasket,
 	mandalaTokenLabel,
@@ -39,7 +39,6 @@ import { TRANSACTION_CBOR_CONTENT_TYPE, encodeMimeEntity } from '@1sat/utils'
 import {
 	Beef,
 	type CreateActionOutput,
-	Hash,
 	P2PKH,
 	PublicKey,
 	Utils,
@@ -47,12 +46,10 @@ import {
 	type WalletProtocol,
 } from '@bsv/sdk'
 import { encode as dagCborEncode } from '@ipld/dag-cbor'
+import { randomBase64, sendEnvelope } from '../metanet/deliver.js'
 import type { Action, OneSatContext } from '../types.js'
 import { executeTrackedAction } from '../utils/createTrackedAction.js'
 import { resolveDestination } from '../utils/resolveDestination.js'
-import { encryptBrc78 } from './brc78.js'
-import { signEnvelope } from './envelope.js'
-import { messageRelay } from './relay.js'
 import {
 	mandalaTokenOf,
 	mandalaTokenOutpoint,
@@ -68,7 +65,7 @@ export interface SendMandalaInput {
 	destination: { handle: string }
 	/**
 	 * BRC-177 `nosend expiry seconds` for the protected send (default
-	 * {@link MANDALA_SEND_EXPIRY_SECONDS}, one year).
+	 * {@link METANET_SEND_EXPIRY_SECONDS}, one year).
 	 */
 	expirySeconds?: number
 	/** Optional free text carried as the BRC-232 `memo` */
@@ -103,10 +100,6 @@ export interface MandalaDeliveryBody {
 	txid: Uint8Array
 	beef: Uint8Array
 	outputs: MandalaDeliveryOutput[]
-}
-
-function randomBase64(): string {
-	return Utils.toBase64(Array.from(crypto.getRandomValues(new Uint8Array(16))))
 }
 
 /** Token amount a wallet output carries for `tokenId`, read from its locking script. */
@@ -267,35 +260,12 @@ async function deliverEnvelope(
 	const plaintext = Array.from(
 		encodeMimeEntity(TRANSACTION_CBOR_CONTENT_TYPE, dagCborEncode(body)),
 	)
-	const content = await encryptBrc78(
-		ctx.wallet,
+	return sendEnvelope(ctx.wallet, resolution, {
+		senderIdentityKey: p.senderIdentityKey,
 		plaintext,
-		resolution.identityKey,
-	)
-	const bytes = (a: number[]) => Uint8Array.from(a)
-	const { envelope } = await signEnvelope(
-		ctx.wallet,
-		{
-			metanetHandles: '1.0',
-			recipient: {
-				handle: resolution.handle,
-				tag: resolution.tag,
-				domain: resolution.domain,
-			},
-			sender: { identityKey: bytes(Utils.toArray(p.senderIdentityKey, 'hex')) },
-			created: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
-			payment: null,
-			contentHash: bytes(Hash.sha256(plaintext)),
-		},
-		bytes(content),
-	)
-	return messageRelay.sendCborMessage(
-		ctx.wallet,
-		resolution.messagebox,
-		resolution.identityKey,
-		MANDALA_INBOX,
-		envelope,
-	)
+		payment: null,
+		messageBox: MANDALA_INBOX,
+	})
 }
 
 export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
@@ -416,7 +386,7 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 				outputDescription: 'Mandala tokens',
 			}
 
-			const expiry = input.expirySeconds ?? MANDALA_SEND_EXPIRY_SECONDS
+			const expiry = input.expirySeconds ?? METANET_SEND_EXPIRY_SECONDS
 			const result = await spendTokens(ctx, {
 				description: `Send ${amount} Mandala tokens`,
 				labels: [...labels, `p nosend expiry seconds ${expiry}`],

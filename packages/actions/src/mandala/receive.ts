@@ -28,23 +28,21 @@ import {
 	mandalaTokenLabel,
 	parseMandalaName,
 } from '@1sat/types'
-import {
-	TRANSACTION_CBOR_CONTENT_TYPE,
-	mediaType,
-	parseMimeEntity,
-} from '@1sat/utils'
+import { TRANSACTION_CBOR_CONTENT_TYPE, mediaType } from '@1sat/utils'
 import {
 	Beef,
-	Hash,
 	type InternalizeOutput,
-	Utils,
+	type WalletInterface,
 	type WalletProtocol,
 } from '@bsv/sdk'
 import { decode as dagCborDecode } from '@ipld/dag-cbor'
+import {
+	type InboxSkip,
+	InboxSkipError as Skip,
+	bytesHex,
+	processInbox,
+} from '../metanet/inbox.js'
 import type { Action } from '../types.js'
-import { decryptBrc78 } from './brc78.js'
-import { decodeEnvelope, verifyEnvelope } from './envelope.js'
-import { type CborMessage, messageRelay } from './relay.js'
 import { mandalaTokenOf } from './tokenId.js'
 
 export interface SyncMandalaInboxInput {
@@ -53,10 +51,7 @@ export interface SyncMandalaInboxInput {
 }
 
 /** A message left in the box, and why. */
-export interface MandalaInboxSkip {
-	messageId: string
-	reason: string
-}
+export type MandalaInboxSkip = InboxSkip
 
 /** A message internalized and acknowledged. */
 export interface MandalaInboxReceipt {
@@ -82,15 +77,6 @@ interface DeliveryBody {
 }
 
 const MANDALA_PREFIX = 'mandala '
-
-class Skip extends Error {}
-
-function bytesHex(b: unknown, length: number, what: string): string {
-	if (!(b instanceof Uint8Array) || b.length !== length) {
-		throw new Skip(`${what} must be ${length} bytes`)
-	}
-	return Utils.toHex(Array.from(b))
-}
 
 /** Build the internalize outputs and labels for one delivery, or throw Skip. */
 function planInternalize(body: DeliveryBody): {
@@ -201,6 +187,31 @@ function planInternalize(body: DeliveryBody): {
 	return { txid, tx: beef.toBinaryAtomic(txid), outputs, labels, tokenIds }
 }
 
+/**
+ * Internalize one BRC-232 delivery (the DAG-CBOR body of an
+ * `application/vnd.metanet.transaction+cbor` MIME entity), whole or not at
+ * all.
+ *
+ * @throws InboxSkipError when the body is malformed, names an unknown
+ * protocol or protocolID, or a token protocolID does not match the script;
+ * the internalize error when the wallet refuses it
+ */
+export async function internalizeTransactionDelivery(
+	wallet: Pick<WalletInterface, 'internalizeAction'>,
+	body: Uint8Array,
+): Promise<{ txid: string; tokenIds: string[] }> {
+	const plan = planInternalize(dagCborDecode(body) as DeliveryBody)
+	await wallet.internalizeAction({
+		tx: plan.tx,
+		outputs: plan.outputs,
+		...(plan.labels.length && { labels: plan.labels }),
+		description: plan.tokenIds.length
+			? 'Receive Mandala tokens'
+			: 'Receive delivered outputs',
+	})
+	return { txid: plan.txid, tokenIds: plan.tokenIds }
+}
+
 export const syncMandalaInbox: Action<
 	SyncMandalaInboxInput,
 	SyncMandalaInboxResult
@@ -224,89 +235,20 @@ export const syncMandalaInbox: Action<
 	},
 
 	async execute(ctx, input) {
-		const messagebox =
-			input.messageboxUrl?.replace(/\/+$/, '') || 'https://messagebox.1sat.app'
-		const received: MandalaInboxReceipt[] = []
-		const skipped: MandalaInboxSkip[] = []
-		const acknowledged: string[] = []
-
-		let messages: CborMessage[]
-		try {
-			messages = await messageRelay.listCborMessages(
-				ctx.wallet,
-				messagebox,
-				MANDALA_INBOX,
-			)
-		} catch (error) {
-			return {
-				received,
-				skipped,
-				error: error instanceof Error ? error.message : String(error),
-			}
-		}
-
-		for (const msg of messages) {
-			try {
-				let env: ReturnType<typeof decodeEnvelope>
-				try {
-					env = decodeEnvelope(msg.body)
-				} catch {
-					throw new Skip('not a DAG-CBOR BRC-169 envelope')
-				}
-				if (!(await verifyEnvelope(env))) {
-					throw new Skip('envelope signature does not verify')
-				}
-				const sender = bytesHex(env.sender.identityKey, 33, 'sender')
-				const plaintext = await decryptBrc78(ctx.wallet, env.content, sender)
-				if (
-					env.contentHash !== undefined &&
-					Utils.toHex(Hash.sha256(plaintext)) !==
-						Utils.toHex(Array.from(env.contentHash))
-				) {
-					throw new Skip('contentHash does not match the content')
-				}
-				const entity = parseMimeEntity(plaintext)
+		return processInbox(
+			ctx.wallet,
+			input.messageboxUrl,
+			MANDALA_INBOX,
+			async ({ entity }, msg) => {
 				if (mediaType(entity.contentType) !== TRANSACTION_CBOR_CONTENT_TYPE) {
 					throw new Skip(`unsupported content type ${entity.contentType}`)
 				}
-				const plan = planInternalize(dagCborDecode(entity.body) as DeliveryBody)
-				await ctx.wallet.internalizeAction({
-					tx: plan.tx,
-					outputs: plan.outputs,
-					...(plan.labels.length && { labels: plan.labels }),
-					description: plan.tokenIds.length
-						? 'Receive Mandala tokens'
-						: 'Receive delivered outputs',
-				})
-				acknowledged.push(msg.messageId)
-				received.push({
-					messageId: msg.messageId,
-					txid: plan.txid,
-					tokenIds: plan.tokenIds,
-				})
-			} catch (error) {
-				skipped.push({
-					messageId: msg.messageId,
-					reason: error instanceof Error ? error.message : String(error),
-				})
-			}
-		}
-
-		if (acknowledged.length > 0) {
-			try {
-				await messageRelay.acknowledgeCborMessages(
+				const { txid, tokenIds } = await internalizeTransactionDelivery(
 					ctx.wallet,
-					messagebox,
-					acknowledged,
+					entity.body,
 				)
-			} catch (error) {
-				return {
-					received,
-					skipped,
-					error: `acknowledge-failed: ${error instanceof Error ? error.message : String(error)}`,
-				}
-			}
-		}
-		return { received, skipped }
+				return { messageId: msg.messageId, txid, tokenIds }
+			},
+		)
 	},
 }

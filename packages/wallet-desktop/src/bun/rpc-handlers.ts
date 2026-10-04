@@ -22,6 +22,7 @@ import {
 	publishIdentity,
 	registerOpns,
 	resolveBapId,
+	resolvePaymentHandle,
 	sellOrdinal,
 	sendBsv,
 	sendBsv21,
@@ -425,20 +426,33 @@ export function createRpcHandlers(scopedAccountId?: string) {
 
 		sendBsv: async ({
 			address,
+			handle,
 			amount,
-		}: { address: string; amount: number }) => {
+		}: { address?: string; handle?: string; amount: number }) => {
 			const w = requireWallet()
 			const ctx = createContext(w.wallet, {
 				services: w.services,
 				chain: 'main',
 			})
 			const result = await sendBsv.execute(ctx, {
-				requests: [{ address, satoshis: amount }],
+				requests: [
+					handle ? { handle, satoshis: amount } : { address, satoshis: amount },
+				],
 			})
 			if (result.error) {
 				throw new Error(result.error)
 			}
 			return { txid: result.txid! }
+		},
+
+		resolveSendRecipient: async ({ handle }: { handle: string }) => {
+			const resolution = await resolvePaymentHandle(handle)
+			return resolution
+				? {
+						handle: `${resolution.handle}@${resolution.domain}`,
+						identityKey: resolution.identityKey,
+					}
+				: {}
 		},
 
 		getOrdinals: async ({

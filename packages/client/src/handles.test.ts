@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { parseHandle, resolveHandle } from './handles.js'
+import { domainOffersHandles, parseHandle, resolveHandle } from './handles.js'
 
 const IDENTITY =
 	'0359c5f3bfe249f6c0ca99d0e9cc1517da51a511f3d04f18e47a5d7ae55f04008c'
@@ -133,5 +133,43 @@ describe('resolveHandle', () => {
 		await expect(
 			resolveHandle('nobody@lkup.net', { fetch: fn }),
 		).rejects.toThrow('404 handle-not-found')
+	})
+})
+
+describe('domainOffersHandles', () => {
+	test('true when the manifest carries metanet.handles', async () => {
+		const { fn } = fakeFetch({
+			'https://lkup.net/manifest.json': () =>
+				json({ metanet: { handles: { version: '1.0' } } }),
+		})
+		expect(await domainOffersHandles('lkup.net', { fetch: fn })).toBe(true)
+	})
+
+	test('false when the manifest is absent, not JSON, or has no metanet.handles', async () => {
+		const missing = fakeFetch({})
+		expect(
+			await domainOffersHandles('example.com', { fetch: missing.fn }),
+		).toBe(false)
+		const plain = fakeFetch({
+			'https://example.com/manifest.json': () => json({ name: 'x' }),
+		})
+		expect(await domainOffersHandles('example.com', { fetch: plain.fn })).toBe(
+			false,
+		)
+		const html = fakeFetch({
+			'https://example.com/manifest.json': () => new Response('<html></html>'),
+		})
+		expect(await domainOffersHandles('example.com', { fetch: html.fn })).toBe(
+			false,
+		)
+	})
+
+	test('throws on any other error status', async () => {
+		const { fn } = fakeFetch({
+			'https://lkup.net/manifest.json': () => json({}, 500),
+		})
+		await expect(
+			domainOffersHandles('lkup.net', { fetch: fn }),
+		).rejects.toThrow('500')
 	})
 })

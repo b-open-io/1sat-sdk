@@ -5,6 +5,7 @@
 export { HttpError } from './errors.js'
 export {
 	DEFAULT_HANDLE_RESOLVE_PATH,
+	domainOffersHandles,
 	type HandleCertificate,
 	type HandleResolution,
 	parseHandle,

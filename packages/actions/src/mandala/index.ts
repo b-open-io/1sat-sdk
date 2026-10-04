@@ -10,7 +10,6 @@ import { sendMandala } from './send.js'
 export * from './deploy.js'
 export * from './send.js'
 export * from './receive.js'
-export * from './envelope.js'
 
 export const mandalaActions = [
 	deployMandala,

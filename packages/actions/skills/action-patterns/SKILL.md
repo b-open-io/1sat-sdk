@@ -146,7 +146,7 @@ const tools = actionRegistry.toMcpTools()
 The complete, generated list of all actions:
 
 <!-- ACTION-INDEX -->
-_60 actions, generated from the registry — do not edit by hand._
+_61 actions, generated from the registry — do not edit by hand._
 
 | Category | Action | Services | Purpose |
 |----------|--------|:--------:|---------|
@@ -200,6 +200,7 @@ _60 actions, generated from the registry — do not edit by hand._
 | `sync` | `syncCosignDeliveries` | ✓ | Pull cosign-wrapped BSV21 deliveries from a MessageBox and internalize them into the wallet |
 | `sync` | `syncMandalaInbox` |  | Collect BRC-232 transaction deliveries (Mandala tokens, BRC-29 payments) from the mandala_inbox message box and internalize them |
 | `sync` | `syncMessages` |  | Sync incoming paymail payments from the message box into the wallet |
+| `sync` | `syncMetanetInbox` |  | Collect BRC-169 handle payments (and BRC-232 deliveries) from the metanet_inbox message box and internalize them |
 | `tokens` | `buyBsv21` | ✓ | Purchase BSV21 tokens from the marketplace |
 | `tokens` | `deployBsv21Auth` |  | Deploy a new BSV21 token with mintable supply via auth UTXOs (deploy+auth) |
 | `tokens` | `deployBsv21Mint` |  | Deploy a new BSV21 token with fixed supply (deploy+mint) |

@@ -671,12 +671,12 @@ export const COMMANDS: CommandSpec[] = [
 		group: 'Wallet',
 		name: 'messagebox',
 		description:
-			'MessageBox inbox (paymail remittances). Not the same as `wallet sync` (address/owner scan).',
+			'MessageBox inboxes (paymail remittances, BRC-169 handle payments). Not the same as `wallet sync` (address/owner scan).',
 		subcommands: [
 			{
 				name: 'sync',
 				description:
-					'Pull payment_inbox (default) and internalize paymail payments',
+					'Pull payment_inbox (default) and internalize paymail payments, then metanet_inbox (BRC-169 handle payments)',
 				args: [
 					{
 						flag: '--url',
@@ -687,7 +687,8 @@ export const COMMANDS: CommandSpec[] = [
 					{
 						flag: '--box',
 						values: '<name>',
-						description: 'Inbox name (default payment_inbox)',
+						description:
+							'Paymail inbox name (default payment_inbox); metanet_inbox is always pulled',
 					},
 				],
 			},
