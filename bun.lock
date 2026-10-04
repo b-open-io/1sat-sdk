@@ -30,7 +30,7 @@
     },
     "packages/actions": {
       "name": "@1sat/actions",
-      "version": "0.0.230",
+      "version": "0.0.231",
       "dependencies": {
         "@1sat/client": "workspace:*",
         "@1sat/templates": "workspace:*",
@@ -52,7 +52,7 @@
     },
     "packages/cli": {
       "name": "@1sat/cli",
-      "version": "0.0.128",
+      "version": "0.0.129",
       "bin": {
         "1sat": "./dist/cli.js",
       },
@@ -65,8 +65,8 @@
         "@1sat/wallet-server": "workspace:*",
         "@bopen-io/messagebox-server": "^1.3.2",
         "@bsv/sdk": "^2.6.0",
-        "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.14.5",
-        "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.14.5",
+        "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.14.6",
+        "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.14.6",
         "@clack/prompts": "^0.8.0",
         "bitcoin-backup": "^0.0.11",
         "chalk": "^5.0.0",
@@ -83,10 +83,10 @@
     },
     "packages/client": {
       "name": "@1sat/client",
-      "version": "0.0.59",
+      "version": "0.0.60",
       "dependencies": {
         "@1sat/types": "workspace:*",
-        "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.14.5",
+        "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.14.6",
       },
       "devDependencies": {
         "@bsv/sdk": "^2.6.0",
@@ -98,7 +98,7 @@
     },
     "packages/connect": {
       "name": "@1sat/connect",
-      "version": "0.0.101",
+      "version": "0.0.102",
       "dependencies": {
         "@1sat/wallet": "workspace:*",
         "@sigma-auth/better-auth-plugin": "^0.0.92",
@@ -157,7 +157,7 @@
     },
     "packages/permission-module": {
       "name": "@1sat/permission-module",
-      "version": "0.0.73",
+      "version": "0.0.74",
       "dependencies": {
         "@1sat/actions": "workspace:*",
         "@1sat/templates": "workspace:*",
@@ -175,7 +175,7 @@
     },
     "packages/permission-module-ui": {
       "name": "@1sat/permission-module-ui",
-      "version": "0.0.68",
+      "version": "0.0.69",
       "dependencies": {
         "@1sat/permission-module": "workspace:*",
         "@1sat/types": "workspace:*",
@@ -191,7 +191,7 @@
     },
     "packages/react": {
       "name": "@1sat/react",
-      "version": "0.0.99",
+      "version": "0.0.100",
       "dependencies": {
         "@1sat/connect": "workspace:*",
       },
@@ -220,7 +220,7 @@
     },
     "packages/sweep-ui": {
       "name": "@1sat/sweep-ui",
-      "version": "0.0.108",
+      "version": "0.0.109",
       "dependencies": {
         "@1sat/actions": "workspace:*",
         "@1sat/client": "workspace:*",
@@ -247,7 +247,7 @@
     },
     "packages/templates": {
       "name": "@1sat/templates",
-      "version": "0.0.41",
+      "version": "0.0.42",
       "dependencies": {
         "@1sat/types": "workspace:*",
         "@ipld/dag-cbor": "^10.0.2",
@@ -264,7 +264,7 @@
     },
     "packages/types": {
       "name": "@1sat/types",
-      "version": "0.0.50",
+      "version": "0.0.51",
       "devDependencies": {
         "@bsv/sdk": "^2.6.0",
         "typescript": "^5.9.3",
@@ -275,7 +275,7 @@
     },
     "packages/utils": {
       "name": "@1sat/utils",
-      "version": "0.0.40",
+      "version": "0.0.41",
       "dependencies": {
         "@1sat/types": "workspace:*",
         "@ipld/dag-cbor": "^10.0.2",
@@ -298,7 +298,7 @@
     },
     "packages/wallet": {
       "name": "@1sat/wallet",
-      "version": "0.0.116",
+      "version": "0.0.117",
       "dependencies": {
         "@1sat/client": "workspace:*",
         "@1sat/templates": "workspace:*",
@@ -319,13 +319,13 @@
     },
     "packages/wallet-browser": {
       "name": "@1sat/wallet-browser",
-      "version": "0.0.102",
+      "version": "0.0.103",
       "dependencies": {
         "@1sat/wallet": "workspace:*",
       },
       "devDependencies": {
         "@bsv/sdk": "^2.6.0",
-        "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.14.5",
+        "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.14.6",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
@@ -400,7 +400,7 @@
       },
       "devDependencies": {
         "@bsv/sdk": "^2.6.0",
-        "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.14.5",
+        "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.14.6",
         "@tailwindcss/vite": "^4.1.4",
         "@types/bun": "latest",
         "@types/qrcode": "^1.5.5",
@@ -432,7 +432,7 @@
     },
     "packages/wallet-node": {
       "name": "@1sat/wallet-node",
-      "version": "0.0.83",
+      "version": "0.0.84",
       "dependencies": {
         "@1sat/wallet": "workspace:*",
         "knex": "^3.3.0",
@@ -440,7 +440,7 @@
       "devDependencies": {
         "@1sat/client": "workspace:*",
         "@bsv/sdk": "^2.6.0",
-        "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.14.5",
+        "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.14.6",
         "@types/pg": "^8.11.0",
         "pg": "^8.11.0",
         "typescript": "^5.9.3",
@@ -458,13 +458,13 @@
     },
     "packages/wallet-remote": {
       "name": "@1sat/wallet-remote",
-      "version": "0.0.73",
+      "version": "0.0.74",
       "dependencies": {
         "@1sat/wallet": "workspace:*",
       },
       "devDependencies": {
         "@bsv/sdk": "^2.6.0",
-        "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.14.5",
+        "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.14.6",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
@@ -475,7 +475,7 @@
     },
     "packages/wallet-server": {
       "name": "@1sat/wallet-server",
-      "version": "0.0.61",
+      "version": "0.0.62",
       "dependencies": {
         "@1sat/client": "workspace:*",
         "@1sat/templates": "workspace:*",
@@ -491,7 +491,7 @@
       "devDependencies": {
         "@bsv/paymail": "^2.4.0",
         "@bsv/sdk": "^2.6.0",
-        "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.14.5",
+        "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.14.6",
         "@types/bun": "^1.3.10",
         "@types/express": "^4.17.21",
         "knex": "^3.1.0",
@@ -523,7 +523,7 @@
         "@1sat/wallet": "workspace:*",
         "@1sat/wallet-browser": "workspace:*",
         "@bsv/sdk": "^2.6.0",
-        "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.14.5",
+        "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.14.6",
         "react": "^19.2.5",
         "react-dom": "^19.2.5",
       },
@@ -538,8 +538,8 @@
     },
   },
   "overrides": {
-    "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.14.5",
-    "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.14.5",
+    "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.14.6",
+    "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.14.6",
   },
   "packages": {
     "@1sat/actions": ["@1sat/actions@workspace:packages/actions"],
@@ -698,23 +698,23 @@
 
     "@braintree/sanitize-url": ["@braintree/sanitize-url@7.1.2", "", {}, "sha512-jigsZK+sMF/cuiB7sERuo9V7N9jx+dhmHHnQyDSVdpZwVutaBu7WvNYqMDLSgFgfB30n452TP3vjDAvFC973mA=="],
 
-    "@bsv/auth-express-middleware": ["@bsv/auth-express-middleware@2.2.8", "", { "dependencies": { "mime-types": "^3.0.2" }, "peerDependencies": { "@bsv/sdk": "^2.8.5", "@types/express": ">=4.17.0 <6", "express": ">=4.18.0 <6" } }, "sha512-RvfMX+A8MEKYswowB2ktuqus5bBmzacJ9o+Icc6rfWtmzLFBd61McrJiSLmeGaUW/+sdSdGIBm5MlWmsL5oLuw=="],
+    "@bsv/auth-express-middleware": ["@bsv/auth-express-middleware@2.2.9", "", { "dependencies": { "mime-types": "^3.0.2" }, "peerDependencies": { "@bsv/sdk": "^2.8.5 || ^3.0.0", "@types/express": ">=4.17.0 <6", "express": ">=4.18.0 <6" } }, "sha512-7Le6Kv3NmUmYTbF50t9Pr/TSM4jOSvidLdcfjoKTL5lvbVg6JR5Mds5jwEJR7uQWS3cCd+yDnNFsEWKPQjByKg=="],
 
-    "@bsv/authsocket": ["@bsv/authsocket@2.1.8", "", { "dependencies": { "socket.io": "^4.8.3" }, "peerDependencies": { "@bsv/sdk": "^2.4.1" } }, "sha512-vgBUCWsYMAcqK88L3D0CUIS4T2CDIgiQkXZK/fOpd+VjsfAH5KmF7/D/RlQt4wpieW7/tHhNCIFRJis6PAN0jQ=="],
+    "@bsv/authsocket": ["@bsv/authsocket@2.1.9", "", { "dependencies": { "socket.io": "^4.8.3" }, "peerDependencies": { "@bsv/sdk": "^2.4.1 || ^3.0.0" } }, "sha512-jwC7lO5WjrHTIXAmF/xeTmJ/HvCkWCEE4SOyPrOIAOyUZ7U2r8iDmNgn3pPR1cqaw9/h+0BByM2BDI4YigkuBw=="],
 
-    "@bsv/authsocket-client": ["@bsv/authsocket-client@2.1.7", "", { "dependencies": { "socket.io-client": "^4.8.3" }, "peerDependencies": { "@bsv/sdk": "^2.4.1" } }, "sha512-Fb4Hm3yQ9juxbm1fSZQZTtlwAYgyd/iuF0kY5f64HVpCZp8RwECwXe7L/RzoukycSpukPqW0Laz3az/3piZPDA=="],
+    "@bsv/authsocket-client": ["@bsv/authsocket-client@2.1.8", "", { "dependencies": { "socket.io-client": "^4.8.3" }, "peerDependencies": { "@bsv/sdk": "^2.4.1 || ^3.0.0" } }, "sha512-EZ8ZfmsejkPZLY2rIB5nzVfog4rptgceRmdTNA5qxjd5N/9jax8OCUrtUyA2dhe4wTC+UAqujaBKwamiulEnsA=="],
 
-    "@bsv/message-box-client": ["@bsv/message-box-client@2.5.4", "", { "dependencies": { "@bsv/authsocket-client": "^2.1.7" }, "peerDependencies": { "@bsv/sdk": "^2.8.6" } }, "sha512-O+E7+RiZQmeryveDNztP1MKgtJebZ71Ab6kwFbVPCTMb42DEkvGnCJBewbacRZsQ+T89YkjQE3zFg2aSrGSvFA=="],
+    "@bsv/message-box-client": ["@bsv/message-box-client@2.6.0", "", { "dependencies": { "@bsv/authsocket-client": "^2.1.8" }, "peerDependencies": { "@bsv/sdk": "^2.8.6 || ^3.0.0" } }, "sha512-1owChMl4eRIkjC61U55bzgia5S+aXFIjKM3Lz8xktD+UH9ejVPbDMpMg6bGdw5t2QWPd8twAJvFv4k3ket6Klw=="],
 
     "@bsv/paymail": ["@bsv/paymail@2.4.10", "", { "dependencies": { "cross-fetch": "^4.1.0", "joi": "^18.2.5" }, "peerDependencies": { "@bsv/sdk": "^2.1.6", "@types/express": ">=4.17.0 <6", "express": ">=4.18.0 <6" } }, "sha512-edyukzxtx1p826eNa3b6OqMherO8Yq9HLcRrMPciWmCY+OUgVOyAv1CZUF2f5E40udHdmA1ZUk0a3E0Wl7uB1Q=="],
 
-    "@bsv/payment-express-middleware": ["@bsv/payment-express-middleware@2.1.8", "", { "peerDependencies": { "@bsv/sdk": "^2.1.6", "@types/express": ">=4.17.0 <6", "express": ">=4.18.0 <6" } }, "sha512-YqFDuQnGle6SqPvfKkduCV6vhssEIHeM0dozWHqjLuSu9phgmzTCwdMxNkHfmGOlnuckSWB7avScV32pF3sLFg=="],
+    "@bsv/payment-express-middleware": ["@bsv/payment-express-middleware@2.1.9", "", { "peerDependencies": { "@bsv/sdk": "^2.1.6 || ^3.0.0", "@types/express": ">=4.17.0 <6", "express": ">=4.18.0 <6" } }, "sha512-MqHNwcryLNL3OuUW9O2SrYnroOtde6RLkdHSucrh+wlJ1dOFW/c9ZlZN5Zfn7QuJ/nHBvLBXC9lor+ah5vtEjA=="],
 
     "@bsv/sdk": ["@bsv/sdk@2.8.11", "", {}, "sha512-Kt70E52bGTCayebmKQJCmEKCFwwS1MOUJ4Q4mKLCadsktVpZMv4NoWjvEbO7VDIw3g5zo8RMJsTuRy5zFI77og=="],
 
-    "@bsv/wallet-toolbox": ["@bopen-io/wallet-toolbox@2.14.5", "", { "dependencies": { "@bsv/auth-express-middleware": "^2.2.8", "@bsv/payment-express-middleware": "^2.1.8", "@noble/hashes": "2.4.0", "@types/express": "^5.0.6", "better-sqlite3": "^13.0.2", "body-parser": "^2.3.0", "dotenv": "^17.4.2", "express": "^5.2.1", "express-rate-limit": "^8.6.1", "hash-wasm": "^4.12.0", "idb": "^8.0.3", "knex": "^3.3.0", "mysql2": "^3.23.2", "ws": "^8.21.1" }, "peerDependencies": { "@bsv/sdk": "^2.8.0 || ^3.0.0" } }, "sha512-/JJnHV7QkxUyw/PMLLAJl1w2wnIuMIRpwAMrSqXY9VuANayyRdlLC0Fkhqpk7mhOfgOGoEPn6uLRZdevdI6COg=="],
+    "@bsv/wallet-toolbox": ["@bopen-io/wallet-toolbox@2.14.6", "", { "dependencies": { "@bsv/auth-express-middleware": "^2.2.9", "@bsv/payment-express-middleware": "^2.1.9", "@noble/hashes": "2.4.0", "@types/express": "^5.0.6", "better-sqlite3": "^13.0.3", "body-parser": "^2.3.0", "dotenv": "^17.4.2", "express": "^5.2.1", "express-rate-limit": "^8.7.0", "hash-wasm": "^4.12.0", "idb": "^8.0.3", "knex": "^3.3.0", "mysql2": "^3.24.4", "ws": "^8.21.3" }, "peerDependencies": { "@bsv/sdk": "^2.8.0 || ^3.0.0" } }, "sha512-NCDjhxULFzuCporh71CVeln+djICXUGfRNQQ1oNts8oVbPatWuDrU1FfYDQ6L30gpZEl9JMIqRpO1AbXOcmvHA=="],
 
-    "@bsv/wallet-toolbox-client": ["@bopen-io/wallet-toolbox-client@2.14.5", "", { "dependencies": { "@noble/hashes": "2.4.0", "hash-wasm": "^4.12.0", "idb": "^8.0.3" }, "peerDependencies": { "@bsv/sdk": "^2.8.0 || ^3.0.0" } }, "sha512-4xK1Zp2zTc34675t4okwwmzOcW9U5XmRBc6Hl0Aqp/xMh4WewF+M99Xpli0qzMVYj4RikNFtb4pR4PiuPpgdPg=="],
+    "@bsv/wallet-toolbox-client": ["@bopen-io/wallet-toolbox-client@2.14.6", "", { "dependencies": { "@noble/hashes": "2.4.0", "hash-wasm": "^4.12.0", "idb": "^8.0.3" }, "peerDependencies": { "@bsv/sdk": "^2.8.0 || ^3.0.0" } }, "sha512-r/UkC+tg4XFMd34sHxY0On0BrjqFOIAx8+BFcYXoypB/a+Mtu5I9yh3HdqqAimKebBS/GX5ztthMoKz9ntl22w=="],
 
     "@chevrotain/types": ["@chevrotain/types@11.1.2", "", {}, "sha512-U+HFai5+zmJCkK86QsaJtoITlboZHBqrVketcO2ROv865xfCMSFpELQoz1GkX5GzME8pTa+3kbKrZHQtI0gdbw=="],
 
@@ -2022,7 +2022,7 @@
 
     "eventsource-parser": ["eventsource-parser@3.1.1", "", {}, "sha512-EKN1vKAMcZ8MlYMpaNuxN6R9yakzH6uajHcHVTqWJzvu5pWw9DyhbP35HH8MVBQ+dZjAfDxk+A8NiR9KWaXiyQ=="],
 
-    "evlog": ["evlog@2.29.0", "", { "peerDependencies": { "@nestjs/common": ">=11.2.3", "@nuxt/kit": "^4.4.2", "@orpc/server": ">=1.15.0", "@tanstack/start-client-core": "^1.170.28", "ai": ">=6.0.168 <8.0.0", "elysia": ">=1.4.30", "eve": ">=0.30.0", "express": ">=5.2.1", "fastify": ">=5.12.3", "h3": "^1.15.11", "hono": ">=4.13.7", "next": ">=16.3.4", "nitro": "^3.0.260311-beta", "nitropack": "^2.13.4", "ofetch": "^1.5.1", "react": ">=19.2.8", "react-router": ">=7.18.3", "vite": "^7.0.0 || ^8.0.0" }, "optionalPeers": ["@nestjs/common", "@nuxt/kit", "@orpc/server", "@tanstack/start-client-core", "ai", "elysia", "eve", "express", "fastify", "h3", "hono", "next", "nitro", "nitropack", "ofetch", "react", "react-router", "vite"] }, "sha512-1qk5W3lttyAUz326ptqRbasPyc19u/ECa8UULjtRihUUyKV8W2ihsr4kB2qkxfqaMY4dFNhH9iShrYy93jxt5A=="],
+    "evlog": ["evlog@2.30.0", "", { "peerDependencies": { "@nestjs/common": ">=11.2.3", "@nuxt/kit": "^4.4.2", "@orpc/server": ">=1.15.0", "@tanstack/start-client-core": "^1.170.29", "ai": ">=6.0.168 <8.0.0", "elysia": ">=1.4.30", "eve": ">=0.30.0", "express": ">=5.2.1", "fastify": ">=5.12.4", "h3": "^1.15.11", "hono": ">=4.13.7", "next": ">=16.3.4", "nitro": "^3.0.260311-beta", "nitropack": "^2.13.4", "ofetch": "^1.5.1", "react": ">=19.3.0", "react-router": ">=7.18.3", "vite": "^7.0.0 || ^8.0.0" }, "optionalPeers": ["@nestjs/common", "@nuxt/kit", "@orpc/server", "@tanstack/start-client-core", "ai", "elysia", "eve", "express", "fastify", "h3", "hono", "next", "nitro", "nitropack", "ofetch", "react", "react-router", "vite"], "bin": { "evlog": "./bin/evlog.mjs" } }, "sha512-5rfADenoi5YFDjEpljSxpPgqfJl0XAP5pPOCeJqCXA8BCN2gzeecqCXZB5uDJyB/4nvD52z4lCKfOCCXHh947A=="],
 
     "expand-template": ["expand-template@2.0.3", "", {}, "sha512-XYfuKMvj4O35f/pOXLObndIRvyQ+/+6AhODh+OKWj9S9498pHHn/IMszH+gt0fBCRWMNfk1ZSp5x3AifmnI2vg=="],
 
@@ -2370,7 +2370,7 @@
 
     "mdast-util-find-and-replace": ["mdast-util-find-and-replace@3.0.2", "", { "dependencies": { "@types/mdast": "^4.0.0", "escape-string-regexp": "^5.0.0", "unist-util-is": "^6.0.0", "unist-util-visit-parents": "^6.0.0" } }, "sha512-Tmd1Vg/m3Xz43afeNxDIhWRtFZgM2VLyaf4vSTYwudTyeuTneoL3qtWMA5jeLyz/O1vDJmmV4QuScFCA2tBPwg=="],
 
-    "mdast-util-from-markdown": ["mdast-util-from-markdown@2.0.3", "", { "dependencies": { "@types/mdast": "^4.0.0", "@types/unist": "^3.0.0", "decode-named-character-reference": "^1.0.0", "devlop": "^1.0.0", "mdast-util-to-string": "^4.0.0", "micromark": "^4.0.0", "micromark-util-decode-numeric-character-reference": "^2.0.0", "micromark-util-decode-string": "^2.0.0", "micromark-util-normalize-identifier": "^2.0.0", "micromark-util-symbol": "^2.0.0", "micromark-util-types": "^2.0.0", "unist-util-stringify-position": "^4.0.0" } }, "sha512-W4mAWTvSlKvf8L6J+VN9yLSqQ9AOAAvHuoDAmPkz4dHf553m5gVj2ejadHJhoJmcmxEnOv6Pa8XJhpxE93kb8Q=="],
+    "mdast-util-from-markdown": ["mdast-util-from-markdown@2.1.0", "", { "dependencies": { "@types/mdast": "^4.0.0", "@types/unist": "^3.0.0", "decode-named-character-reference": "^1.0.0", "devlop": "^1.0.0", "mdast-util-to-string": "^4.0.0", "micromark": "^4.0.0", "micromark-util-decode-numeric-character-reference": "^2.0.0", "micromark-util-decode-string": "^2.0.0", "micromark-util-normalize-identifier": "^2.0.0", "micromark-util-symbol": "^2.0.0", "micromark-util-types": "^2.0.0", "unist-util-stringify-position": "^4.0.0" } }, "sha512-KRLgmPaP2H1ul2bpoJkOS+9pAcDAAj9Nu1mqLnh8NLeJG5tlvj42TH80PIGBpROWlRXLk0lDrWNuZCFy/tsB4A=="],
 
     "mdast-util-gfm": ["mdast-util-gfm@3.1.0", "", { "dependencies": { "mdast-util-from-markdown": "^2.0.0", "mdast-util-gfm-autolink-literal": "^2.0.0", "mdast-util-gfm-footnote": "^2.0.0", "mdast-util-gfm-strikethrough": "^2.0.0", "mdast-util-gfm-table": "^2.0.0", "mdast-util-gfm-task-list-item": "^2.0.0", "mdast-util-to-markdown": "^2.0.0" } }, "sha512-0ulfdQOM3ysHhCJ1p06l0b0VKlhU0wuQs3thxZQagjcjPrlFRqY215uZGHHJan9GEAXd9MbfPjFJz+qMkVR6zQ=="],
 
@@ -2396,7 +2396,7 @@
 
     "mdast-util-to-hast": ["mdast-util-to-hast@13.2.1", "", { "dependencies": { "@types/hast": "^3.0.0", "@types/mdast": "^4.0.0", "@ungap/structured-clone": "^1.0.0", "devlop": "^1.0.0", "micromark-util-sanitize-uri": "^2.0.0", "trim-lines": "^3.0.0", "unist-util-position": "^5.0.0", "unist-util-visit": "^5.0.0", "vfile": "^6.0.0" } }, "sha512-cctsq2wp5vTsLIcaymblUriiTcZd0CwWtCbLvrOzYCDZoWyMNV8sZ7krj09FSnsiJi3WVsHLM4k6Dq/yaPyCXA=="],
 
-    "mdast-util-to-markdown": ["mdast-util-to-markdown@2.1.3", "", { "dependencies": { "@types/mdast": "^4.0.0", "@types/unist": "^3.0.0", "longest-streak": "^3.0.0", "mdast-util-phrasing": "^4.0.0", "mdast-util-to-string": "^4.0.0", "micromark-util-character": "^2.0.0", "micromark-util-classify-character": "^2.0.0", "micromark-util-decode-string": "^2.0.0", "micromark-util-html-tag-name": "^2.0.0", "unist-util-visit": "^5.0.0", "zwitch": "^2.0.0" } }, "sha512-wgyJtgUkUcdU7zci7uuwc/tzoAhm0TswWhaXuvnWolqug+8jY7bgNkBBL0dYBnHgc/tHL7lCzRdPsdUxUKKBqw=="],
+    "mdast-util-to-markdown": ["mdast-util-to-markdown@2.2.0", "", { "dependencies": { "@types/mdast": "^4.0.0", "@types/unist": "^3.0.0", "longest-streak": "^3.0.0", "mdast-util-phrasing": "^4.0.0", "mdast-util-to-string": "^4.0.0", "micromark-util-character": "^2.0.0", "micromark-util-classify-character": "^2.0.0", "micromark-util-decode-string": "^2.0.0", "micromark-util-html-tag-name": "^2.0.0", "unist-util-visit": "^5.0.0", "zwitch": "^2.0.0" } }, "sha512-2Jn/ADrHFFyyniBMi0bncTbJqU78K3/TEYvzvwrWWzD9MYPUa/Gm4r3nOeKFQg/PDM5BsbDYdc8ackW4NTY6NA=="],
 
     "mdast-util-to-markdown-cjk-friendly": ["mdast-util-to-markdown-cjk-friendly@1.0.0", "", { "dependencies": { "mdast-util-to-markdown": "^2.1.2", "micromark-extension-cjk-friendly-util": "3.0.1", "micromark-util-symbol": "^2.0.1" }, "peerDependencies": { "@types/mdast": "*" }, "optionalPeers": ["@types/mdast"] }, "sha512-BoaAm8mlJ+LAYz0Qs532Y3ciTuQYgBUPZcSFbvC/ZKmEMAKgulw84YvQK1gI34t/vL2euSfuaWlqczkTBgamkw=="],
 
@@ -3106,7 +3106,7 @@
 
     "@1sat/wallet-desktop/@types/react": ["@types/react@18.3.31", "", { "dependencies": { "@types/prop-types": "*", "csstype": "^3.2.2" } }, "sha512-vfEqpXTvwT91yhmwdfouStN2hSKwTvyRs8qpLfADyrq/kxDw0hZM7Wk9Ug1FELj8hIby+S/+kQCSRFF32nv2Qw=="],
 
-    "@1sat/wallet-desktop/lucide-react": ["lucide-react@1.50.0", "", { "peerDependencies": { "@types/react": "*", "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" }, "optionalPeers": ["@types/react"] }, "sha512-RqHPQtKX6S9IE1xOL4oTHHsVQbcwJWTnmlxI6AdI9IpOwKiy7q+COPCQyMepI/Qu1x3h7sunpyEMvqtgFbgNiQ=="],
+    "@1sat/wallet-desktop/lucide-react": ["lucide-react@1.51.0", "", { "peerDependencies": { "@types/react": "*", "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" }, "optionalPeers": ["@types/react"] }, "sha512-9929jimol5y7VbXUlVKcgURMSeIxFJB7dtWCkRAaNnF7KiCRkSkhmqWPUmAmUFYPezNawFk6qvz3Mu0gEnfI4g=="],
 
     "@1sat/wallet-desktop/react": ["react@18.3.1", "", { "dependencies": { "loose-envify": "^1.1.0" } }, "sha512-wS+hAgJShR0KhEvPJArfuPVN1+Hz1t0Y6n5jLrGQbkb4urgPE/0Rve+1kMB1v/oWgHgm4WIcV+i7F2pTVj+2iQ=="],
 
@@ -3199,6 +3199,8 @@
     "@opentelemetry/instrumentation-http/@opentelemetry/core": ["@opentelemetry/core@2.8.0", "", { "dependencies": { "@opentelemetry/semantic-conventions": "^1.29.0" }, "peerDependencies": { "@opentelemetry/api": ">=1.0.0 <1.10.0" } }, "sha512-hd1Lfh8p545nNz+jq1Ejfz+Mn1hyLuxYn1YzTfFNrxr8urEWMNQLPf1Th8kjOH+HxwawCrtgBp8JpBUR4ZSgww=="],
 
     "@opentelemetry/instrumentation-pg/@types/pg": ["@types/pg@8.15.6", "", { "dependencies": { "@types/node": "*", "pg-protocol": "*", "pg-types": "^2.2.0" } }, "sha512-NoaMtzhxOrubeL/7UZuNTrejB4MPAJ0RpxZqXQf2qXuVlTPuG6Y8p4u9dKRaue4yjmC7ZhzVO2/Yyyn25znrPQ=="],
+
+    "@opentelemetry/instrumentation-runtime-node/@opentelemetry/core": ["@opentelemetry/core@2.8.0", "", { "dependencies": { "@opentelemetry/semantic-conventions": "^1.29.0" }, "peerDependencies": { "@opentelemetry/api": ">=1.0.0 <1.10.0" } }, "sha512-hd1Lfh8p545nNz+jq1Ejfz+Mn1hyLuxYn1YzTfFNrxr8urEWMNQLPf1Th8kjOH+HxwawCrtgBp8JpBUR4ZSgww=="],
 
     "@opentelemetry/otlp-exporter-base/@opentelemetry/core": ["@opentelemetry/core@2.8.0", "", { "dependencies": { "@opentelemetry/semantic-conventions": "^1.29.0" }, "peerDependencies": { "@opentelemetry/api": ">=1.0.0 <1.10.0" } }, "sha512-hd1Lfh8p545nNz+jq1Ejfz+Mn1hyLuxYn1YzTfFNrxr8urEWMNQLPf1Th8kjOH+HxwawCrtgBp8JpBUR4ZSgww=="],
 

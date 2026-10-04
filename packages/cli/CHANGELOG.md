@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.129
+
+### Changed
+- `@bsv/wallet-toolbox` and `@bsv/wallet-toolbox-client` aliases: `@bopen-io/*@2.14.6`. Storage RPC sends and returns BEEF as bytes over negotiated binary JSON, so large BEEF no longer exceeds the auth middleware request limit (`ERR_AUTH_MALFORMED`).
+- The monitor completes merkle proofs again (`@1sat/wallet-node`).
+
 ## 0.0.127
 
 ### Fixed

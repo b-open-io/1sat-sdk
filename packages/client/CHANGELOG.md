@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.60
+
+### Changed
+- `OneSatServices` takes an optional `sdk` (`OneSatServicesSdk`) and builds `getMerklePath` results from its `MerklePath`. Pass the `@bsv/sdk` module the wallet-toolbox in use loads; the CommonJS toolbox rejects a `MerklePath` from the ESM build.
+- `@bsv/wallet-toolbox-client` alias: `@bopen-io/wallet-toolbox-client@2.14.6`.
+
 ## 0.0.59
 
 ### Added

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.117
+
+### Changed
+- `createWalletCore` takes an optional `toolbox.sdk` (`WalletCoreSdk`) and builds the `KeyDeriver`, `PrivateKey` and `OneSatServices` proofs from it.
+- `parsePrivateKey` takes the `PrivateKey` class to build with.
+
 ## 0.0.115
 
 ### Changed

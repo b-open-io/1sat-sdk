@@ -78,7 +78,7 @@
   },
   "devDependencies": {
     "@bsv/sdk": "^2.6.0",
-    "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.14.5",
+    "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.14.6",
     "@tailwindcss/vite": "^4.1.4",
     "@types/bun": "latest",
     "@types/qrcode": "^1.5.5",

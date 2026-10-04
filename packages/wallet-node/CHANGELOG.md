@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.84
+
+### Fixed
+- The monitor never completed a merkle proof: `OneSatServices` returned an ESM `MerklePath`, which the CommonJS wallet-toolbox rejects. `createNodeWallet` now passes the toolbox's CommonJS `@bsv/sdk` (`toolboxSdk`) to `createWalletCore`.
+- `StorageBunSqlite.purgeData` (`purgeSpent`) builds its `Beef` from the toolbox's SDK, so it passes the toolbox's `instanceof Beef` check.
+
+### Changed
+- `@bsv/wallet-toolbox` alias: `@bopen-io/wallet-toolbox@2.14.6` (binary BEEF over negotiated binary JSON; BRC-177 anchor surplus as fee).
+
 ## 0.0.82
 
 ### Changed
