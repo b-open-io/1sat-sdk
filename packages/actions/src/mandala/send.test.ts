@@ -28,16 +28,16 @@ import {
 	decode as dagCborDecode,
 	encode as dagCborEncode,
 } from '@ipld/dag-cbor'
-import { createContext } from '../types.js'
-import { encryptBrc78 } from './brc78.js'
+import { encryptBrc78 } from '../metanet/brc78.js'
 import {
 	ENVELOPE_SIGNATURE_KEY_ID,
 	ENVELOPE_SIGNATURE_PROTOCOL,
 	envelopeSigningPreimage,
 	signEnvelope,
-} from './envelope.js'
+} from '../metanet/envelope.js'
+import { messageRelay } from '../metanet/relay.js'
+import { createContext } from '../types.js'
 import { syncMandalaInbox } from './receive.js'
-import { messageRelay } from './relay.js'
 import { sendMandala } from './send.js'
 
 // BRC-231 relay fake (substituted on messageRelay): one in-memory messagebox.

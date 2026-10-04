@@ -287,6 +287,10 @@ const { wallet, services } = await createNodeWallet({
 
 # Run any registered action by name
 1sat action sendBsv '{"requests":[{"address":"1A1z...","satoshis":1000}]}'
+1sat action sendBsv '{"requests":[{"handle":"@alice@example.com","satoshis":1000,"memo":"hi"}]}'
+
+# Pull payment_inbox (PeerPay) and metanet_inbox (BRC-169 handle payments)
+1sat messagebox sync
 ```
 
 The CLI resolves your key from `PRIVATE_KEY_WIF` (env var, good for CI) or `~/.1sat/keys.bep` (encrypted keyfile created by `1sat init`). Pass `--json` for machine-readable output on any command.
@@ -483,6 +487,8 @@ if (
 | **BSV20** | Fungible tokens (tick-based, similar to BRC-20) |
 | **BSV21** | Fungible tokens (origin-based, contract-like) |
 | **Mandala Tokens (BRC-162)** | Binary encoding of the BSV21 token model, a script prefix in front of any lock (`Mandala` template). Actions: `deployMandala`, `sendMandala` (to a BRC-169 handle, delivered per BRC-232 in a signed envelope to the `mandala_inbox` box), `syncMandalaInbox` (receive) |
+| **BRC-169 handle payments** | `sendBsv` with `handle: '@alice@example.com'`: resolve the handle, a BRC-29 output in a protected `noSend` action (BRC-177, the recipient broadcasts), delivered in a signed envelope to the handle's `metanet_inbox`. `@handle@domain` is BRC-169 only; a bare `handle@domain` (also in the `paymail` field, which is to be deprecated) is tried as BRC-169 first (`https://<domain>/manifest.json` with `metanet.handles`) and falls back to paymail. Receive with `syncMetanetInbox` (run by `1sat messagebox sync`) |
+| **Message boxes** | `metanet_inbox`: BRC-169 payments (`syncMetanetInbox`). `mandala_inbox`: BRC-232 token deliveries (`syncMandalaInbox`). `payment_inbox`: legacy PeerPay / paymail remittances (`syncMessages`) |
 | **MAP** | Magic Attribute Protocol — on-chain metadata |
 | **Sigma** | Transaction data signing and attestation |
 | **OrdLock** | Trustless marketplace listing contract |

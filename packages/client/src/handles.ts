@@ -76,6 +76,36 @@ export function parseHandle(recipient: string): {
 }
 
 /**
+ * Whether `domain` offers BRC-169 handle resolution (§5.1): its
+ * `https://<domain>/manifest.json` carries `metanet.handles`. False when the
+ * manifest is absent (404), is not JSON, or has no `metanet.handles`.
+ *
+ * @throws HttpError when the manifest fetch answers any other error status
+ */
+export async function domainOffersHandles(
+	domain: string,
+	options: ResolveHandleOptions = {},
+): Promise<boolean> {
+	const doFetch = options.fetch ?? fetch
+	const res = await doFetch(`https://${domain}/manifest.json`)
+	if (res.status === 404) return false
+	if (!res.ok) {
+		throw new HttpError(
+			res.status,
+			`manifest fetch failed for ${domain}: ${res.status}`,
+		)
+	}
+	let manifest: { metanet?: { handles?: unknown } } | null
+	try {
+		manifest = (await res.json()) as typeof manifest
+	} catch {
+		// Not JSON (e.g. a site's HTML fallback page): no manifest entry.
+		return false
+	}
+	return !!manifest?.metanet?.handles
+}
+
+/**
  * Resolve a BRC-169 handle to its identity key, certificate and messagebox.
  *
  * @throws when the domain does not offer handle resolution, an endpoint

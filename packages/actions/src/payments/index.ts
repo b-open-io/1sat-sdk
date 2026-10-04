@@ -4,8 +4,21 @@
  * Actions for sending BSV payments.
  */
 
+import {
+	type HandleResolution,
+	domainOffersHandles,
+	parseHandle,
+	resolveHandle,
+} from '@1sat/client'
 import { Inscription } from '@1sat/templates'
-import { HANDLE_CERT_TYPE, MESSAGE_SIGNING_PROTOCOL } from '@1sat/types'
+import {
+	BRC29_PROTOCOL_ID,
+	HANDLE_CERT_TYPE,
+	MESSAGE_SIGNING_PROTOCOL,
+	METANET_INBOX,
+	METANET_SEND_EXPIRY_SECONDS,
+} from '@1sat/types'
+import { encodeMimeEntity } from '@1sat/utils'
 import {
 	BSM,
 	BigNumber,
@@ -21,6 +34,7 @@ import {
 	type WalletInterface,
 } from '@bsv/sdk'
 import type { FundingProvider } from '../funding/index.js'
+import { randomBase64, sendEnvelope } from '../metanet/deliver.js'
 import {
 	type P2pMetadata,
 	getP2pPaymentDestination,
@@ -62,8 +76,26 @@ const maxPossibleSatoshis = 2099999999999999
 export interface SendBsvRequest extends ActionOptions {
 	/** Destination address (P2PKH) */
 	address?: string
-	/** Destination paymail */
+	/**
+	 * Destination paymail. Tried as a BRC-169 handle first: when the domain's
+	 * `manifest.json` carries `metanet.handles` the payment goes to the handle
+	 * (see {@link SendBsvRequest.handle}), otherwise by paymail as before.
+	 *
+	 * @deprecated Paymail is to be deprecated; use `handle`.
+	 */
 	paymail?: string
+	/**
+	 * Destination BRC-169 handle. `@handle@domain` (optional `+tag`) is
+	 * BRC-169 only. A bare `handle@domain` is BRC-169 when
+	 * `https://<domain>/manifest.json` carries `metanet.handles`, and paymail
+	 * otherwise. A handle payment is a BRC-29 output in a protected `noSend`
+	 * action (BRC-177), delivered in a signed envelope to the handle's
+	 * `metanet_inbox`; the recipient broadcasts it. It must be the only
+	 * request.
+	 */
+	handle?: string
+	/** Memo for a handle payment, sent as the envelope's `text/plain` content */
+	memo?: string
 	/** Amount in satoshis */
 	satoshis: number
 	/** Custom locking script (hex) */
@@ -81,6 +113,10 @@ export interface SendBsvRequest extends ActionOptions {
 export interface SendBsvResponse {
 	txid?: string
 	tx?: number[]
+	/** `envelope`: a handle payment, delivered to the handle's messagebox, not broadcast */
+	delivered?: 'envelope'
+	/** Messagebox message id of a handle payment's envelope */
+	messageId?: string
 	error?: string
 }
 
@@ -95,6 +131,105 @@ interface PaymailRef {
 
 function isPaymail(address: string): boolean {
 	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)
+}
+
+/**
+ * Resolve a payment recipient as a BRC-169 handle, or return undefined when
+ * it is paymail. `@handle@domain` is always a handle (resolution errors
+ * throw, no fallback); a bare `handle@domain` is a handle when
+ * `https://<domain>/manifest.json` carries `metanet.handles`, and paymail
+ * otherwise.
+ */
+export async function resolvePaymentHandle(
+	recipient: string,
+): Promise<HandleResolution | undefined> {
+	const target = recipient.trim()
+	if (target.startsWith('@')) return resolveHandle(target)
+	let domain: string
+	try {
+		domain = parseHandle(target).domain
+	} catch {
+		// Not handle-shaped (e.g. a dotless domain): paymail as before.
+		return undefined
+	}
+	return (await domainOffersHandles(domain)) ? resolveHandle(target) : undefined
+}
+
+/**
+ * BRC-169 §6.1 payment to a handle: resolve it, build a BRC-29 output in a
+ * protected `noSend` action (BRC-177, funded by the wallet), and deliver the
+ * Atomic BEEF in a signed envelope to the handle's `metanet_inbox`. The
+ * action is not broadcast; the recipient broadcasts it on internalization.
+ */
+async function sendToHandle(
+	wallet: WalletInterface,
+	resolution: HandleResolution,
+	satoshis: number,
+	memo = '',
+): Promise<SendBsvResponse> {
+	const derivationPrefix = randomBase64()
+	const derivationSuffix = randomBase64()
+	const { publicKey } = await wallet.getPublicKey({
+		protocolID: BRC29_PROTOCOL_ID,
+		keyID: `${derivationPrefix} ${derivationSuffix}`,
+		counterparty: resolution.identityKey,
+	})
+	const name = `${resolution.handle}@${resolution.domain}`
+	const result = await wallet.createAction({
+		description: `Payment to ${name}`.slice(0, 50),
+		outputs: [
+			{
+				lockingScript: new P2PKH()
+					.lock(PublicKey.fromString(publicKey).toAddress())
+					.toHex(),
+				satoshis,
+				outputDescription: 'Payment to handle',
+			},
+		],
+		labels: [`p nosend expiry seconds ${METANET_SEND_EXPIRY_SECONDS}`],
+		options: { noSend: true, randomizeOutputs: false },
+	})
+	if (!result.txid || !result.tx) return { error: 'no-transaction' }
+	const tx = Array.from(result.tx)
+
+	const { publicKey: senderIdentityKey } = await wallet.getPublicKey({
+		identityKey: true,
+	})
+	const plaintext = Array.from(
+		encodeMimeEntity('text/plain; charset=utf-8', Utils.toArray(memo, 'utf8')),
+	)
+	try {
+		const sent = await sendEnvelope(wallet, resolution, {
+			senderIdentityKey,
+			plaintext,
+			payment: {
+				derivationPrefix: Uint8Array.from(
+					Utils.toArray(derivationPrefix, 'base64'),
+				),
+				derivationSuffix: Uint8Array.from(
+					Utils.toArray(derivationSuffix, 'base64'),
+				),
+				protocol: Uint8Array.from(Utils.toArray(BRC29_PROTOCOL_ID[1], 'utf8')),
+				satoshis,
+				beef: Uint8Array.from(tx),
+			},
+			messageBox: METANET_INBOX,
+		})
+		return {
+			txid: result.txid,
+			tx,
+			delivered: 'envelope',
+			messageId: sent.messageId,
+		}
+	} catch (error) {
+		// The payment exists as a noSend action: return it so the caller can
+		// retry delivery or abortAction it.
+		return {
+			txid: result.txid,
+			tx,
+			error: `delivery-failed: ${error instanceof Error ? error.message : String(error)}`,
+		}
+	}
 }
 
 async function deliverP2P(
@@ -213,7 +348,17 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 							},
 							paymail: {
 								type: 'string',
-								description: 'Destination paymail address',
+								description:
+									'Destination paymail address (deprecated; tried as a BRC-169 handle first)',
+							},
+							handle: {
+								type: 'string',
+								description:
+									'Destination BRC-169 handle: @handle@domain (BRC-169 only) or handle@domain (BRC-169 if the domain offers handles, else paymail). Must be the only request.',
+							},
+							memo: {
+								type: 'string',
+								description: 'Memo carried with a handle payment',
 							},
 							satoshis: { type: 'integer', description: 'Amount in satoshis' },
 							script: {
@@ -244,18 +389,36 @@ export const sendBsv: Action<SendBsvInput, SendBsvResponse> = {
 				return { error: 'no-requests' }
 			}
 
+			for (const req of requests) {
+				const recipient = req.handle ?? req.paymail
+				if (!recipient) continue
+				const resolution = await resolvePaymentHandle(recipient)
+				if (resolution === undefined) continue
+				if (requests.length !== 1) {
+					return { error: 'handle-payment-must-be-the-only-request' }
+				}
+				return await sendToHandle(
+					ctx.wallet,
+					resolution,
+					req.satoshis,
+					req.memo,
+				)
+			}
+
 			const outputs: CreateActionOutput[] = []
 			const paymailRefs: PaymailRef[] = []
 
 			for (const req of requests) {
-				if (req.paymail) {
-					const dest = await getP2pPaymentDestination(req.paymail, req.satoshis)
-					paymailRefs.push({ paymail: req.paymail, reference: dest.reference })
+				// A bare handle@domain whose domain offers no handles is paymail.
+				const paymail = req.paymail ?? req.handle
+				if (paymail) {
+					const dest = await getP2pPaymentDestination(paymail, req.satoshis)
+					paymailRefs.push({ paymail, reference: dest.reference })
 					for (const output of dest.outputs) {
 						outputs.push({
 							lockingScript: output.script,
 							satoshis: output.satoshis,
-							outputDescription: `Paymail payment to ${req.paymail}`,
+							outputDescription: `Paymail payment to ${paymail}`,
 							tags: [],
 						})
 					}

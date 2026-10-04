@@ -1,10 +1,11 @@
 /**
- * MessageBox commands — pull paymail / P2P inbox into the wallet.
+ * MessageBox commands — pull paymail / P2P inbox and BRC-169 handle
+ * payments (`metanet_inbox`) into the wallet.
  *
  *   1sat messagebox sync [--url <host>] [--box <name>]
  */
 
-import { syncMessages } from '@1sat/actions'
+import { syncMessages, syncMetanetInbox } from '@1sat/actions'
 import type { GlobalFlags } from '../args.js'
 import { extractFlag } from '../args.js'
 import { loadContext } from '../context.js'
@@ -46,13 +47,23 @@ async function messageboxSync(
 			...(url ? { messageboxUrl: url } : {}),
 			...(box ? { messageBox: box } : {}),
 		})
+		const metanet = await syncMetanetInbox.execute(ctx, {
+			...(url ? { messageboxUrl: url } : {}),
+		})
 
 		if (opts.json) {
-			output(result, opts)
+			output({ ...result, metanet }, opts)
 			return
 		}
 
-		console.log(`\nprocessed: ${result.processed}  failed: ${result.failed}\n`)
+		console.log(`\nprocessed: ${result.processed}  failed: ${result.failed}`)
+		console.log(
+			`metanet_inbox: received ${metanet.received.length}  skipped ${metanet.skipped.length}${metanet.error ? `  error: ${metanet.error}` : ''}`,
+		)
+		for (const s of metanet.skipped) {
+			console.log(`  skipped ${s.messageId}: ${s.reason}`)
+		}
+		console.log()
 	} finally {
 		await destroy()
 	}
