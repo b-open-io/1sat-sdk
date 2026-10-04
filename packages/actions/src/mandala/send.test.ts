@@ -89,7 +89,7 @@ Object.assign(messageRelay, {
 })
 
 const TOKEN_TXID = 'ab'.repeat(32)
-const TOKEN_ID = `${TOKEN_TXID}_0`
+const TOKEN_ID = `${TOKEN_TXID}.0`
 const SENDER = PrivateKey.fromHex('11'.repeat(32))
 const SENDER_ID = SENDER.toPublicKey().toString()
 const RECIPIENT = PrivateKey.fromHex('22'.repeat(32))
@@ -121,7 +121,7 @@ async function walletHolding(proto: ProtoWallet, amounts: bigint[]) {
 	})
 	for (const amount of amounts) {
 		holding.addOutput({
-			lockingScript: Mandala.value(TOKEN_ID, amount, {
+			lockingScript: Mandala.value(`${TOKEN_TXID}_0`, amount, {
 				lock: new P2PKH().lock(PublicKey.fromString(publicKey).toAddress()),
 			}).lock(),
 			satoshis: 1,
@@ -375,7 +375,7 @@ describe('sendMandala', () => {
 		expect(out.satoshis).toBe(1)
 		const token = Mandala.decode(LockingScript.fromHex(out.lockingScript))
 		expect(token?.role).toBe('value')
-		expect(token?.tokenId).toBe(TOKEN_ID)
+		expect(token?.tokenId).toBe(`${TOKEN_TXID}_0`)
 		expect(token?.amount).toBe(60n)
 		// Token inputs were unlocked by the pipeline (caller-signed spends).
 		expect(rec.signArgs[0].spends[0].unlockingScript.length).toBeGreaterThan(0)
@@ -496,6 +496,19 @@ describe('sendMandala', () => {
 		)
 	})
 
+	test('a txid_vout token is accepted and normalized to BRC-36 txid.vout', async () => {
+		const { wallet, rec } = await fakeWallet()
+		const res = await withResolver(() =>
+			sendMandala.execute(createContext(wallet), {
+				tokenId: `${TOKEN_TXID.toUpperCase()}_0`,
+				amount: '100',
+				destination: { handle: HANDLE },
+			}),
+		)
+		expect(res.error).toBeUndefined()
+		expect(rec.listBaskets).toEqual([`mandala ${TOKEN_TXID} 0`])
+	})
+
 	test('the token is named by its deploy outpoint', async () => {
 		const { wallet, rec } = await fakeWallet()
 		const res = await sendMandala.execute(createContext(wallet), {
@@ -503,7 +516,7 @@ describe('sendMandala', () => {
 			amount: '1',
 			destination: { handle: HANDLE },
 		})
-		expect(res.error).toBe('invalid-token: expected <txid>_<vout>')
+		expect(res.error).toBe('invalid-token: expected <txid>.<vout>')
 		expect(rec.listBaskets).toEqual([])
 	})
 
@@ -598,7 +611,7 @@ describe('syncMandalaInbox', () => {
 		)
 		const { body } = openLast()
 		relayed.length = 0
-		const other = `${'cd'.repeat(32)}_0`
+		const other = `${'cd'.repeat(32)}.0`
 		body.outputs[0].protocolID = [2, `mandala ${'cd'.repeat(32)} 0`]
 		const id = await postEnvelope(
 			encodeMimeEntity(TRANSACTION_CBOR_CONTENT_TYPE, dagCborEncode(body)),

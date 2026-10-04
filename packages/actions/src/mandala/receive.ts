@@ -62,7 +62,7 @@ export interface MandalaInboxSkip {
 export interface MandalaInboxReceipt {
 	messageId: string
 	txid: string
-	/** Tokens (deploy outpoints `<txid>_<vout>`) of the Mandala outputs received */
+	/** Tokens (BRC-36 deploy outpoints `<txid>.<vout>`) of the Mandala outputs received */
 	tokenIds: string[]
 }
 
@@ -170,7 +170,7 @@ function planInternalize(body: DeliveryBody): {
 				`output ${outputIndex}: malformed Mandala protocol ${name}`,
 			)
 		}
-		const tokenId = `${named.txid}_${named.vout}`
+		const tokenId = `${named.txid}.${named.vout}`
 		const token = Mandala.decode(subject.outputs[outputIndex].lockingScript)
 		const scriptTokenId = token
 			? mandalaTokenOf(token, txid, outputIndex)

@@ -733,8 +733,9 @@ export interface MandalaOutpoint {
 }
 
 /**
- * A token reference: `{ txid, vout }`, or an outpoint string in `txid_vout`
- * (1Sat / template form) or `txid.vout` (BRC-100 form).
+ * A token reference: `{ txid, vout }`, or an outpoint string: BRC-36
+ * `txid.vout` (the Mandala API form; BRC-162 defers to BRC-36), or
+ * `txid_vout` (1Sat / template form), accepted and normalized.
  */
 export type MandalaTokenRef = MandalaOutpoint | string
 
@@ -745,7 +746,7 @@ export function mandalaOutpoint(token: MandalaTokenRef): MandalaOutpoint {
 	}
 	const m = /^([0-9a-fA-F]{64})[_.](\d+)$/.exec(token)
 	if (!m) {
-		throw new Error(`not a token outpoint (txid_vout or txid.vout): ${token}`)
+		throw new Error(`not a token outpoint (txid.vout or txid_vout): ${token}`)
 	}
 	return { txid: m[1].toLowerCase(), vout: Number(m[2]) }
 }

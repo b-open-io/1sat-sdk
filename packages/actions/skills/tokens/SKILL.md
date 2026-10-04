@@ -131,11 +131,15 @@ digits and spaces:
 | Key protocol | `[2, 'mandala <txid> <vout>']` | `mandalaProtocol(token)` |
 | Action labels | `mandala` and `mandala <txid> <vout>` | `MANDALA_LABEL`, `mandalaTokenLabel(token)` |
 
-`token` is `{ txid, vout }` or an outpoint string, `txid_vout` or `txid.vout`;
+`token` is `{ txid, vout }` or an outpoint string, `txid.vout` or `txid_vout`;
 the txid is lowercased. `parseMandalaName(name)` recovers `{ txid, vout }`
-from any of the three names. The action API passes tokens as the `txid_vout`
-string (`deployMandala` returns `tokenId: '<txid>_0'`). On chain the id is
-BRC-162's: the 32-byte txid for vout 0.
+from any of the three names.
+
+**Outpoints are BRC-36** (`<txid>.<vout>`; BRC-162 defers to BRC-36). The
+Mandala actions return tokens in that form (`deployMandala` returns
+`tokenId: '<txid>.0'`, `syncMandalaInbox` reports `tokenIds` the same way),
+and their inputs also accept the `txid_vout` form the rest of 1Sat emits,
+normalizing it. On chain the id is BRC-162's: the 32-byte txid for vout 0.
 
 Labels index tokens (`listActions({ labels: ['mandala'] })` lists what the
 wallet tracks; labels survive outputs being spent). The per-token basket
@@ -150,7 +154,7 @@ import { deployMandala, fileMandalaDeploy } from '@1sat/actions'
 
 // amount > 0: fixed supply; amount 0: authority (first minting authority)
 const dep = await deployMandala.execute(ctx, { amount: '21000000', symbol: 'GOLD', decimals: 8 })
-// dep.txid, dep.tokenId === `${dep.txid}_0`
+// dep.txid, dep.tokenId === `${dep.txid}.0`
 
 // If the filing step failed (dep.error starts with 'file-failed'), retry it:
 await fileMandalaDeploy.execute(ctx, { txid: dep.txid!, tx: dep.tx })
@@ -177,7 +181,7 @@ await fileMandalaDeploy.execute(ctx, { txid: dep.txid!, tx: dep.tx })
 import { sendMandala } from '@1sat/actions'
 
 const res = await sendMandala.execute(ctx, {
-  tokenId: '<txid>_0',
+  tokenId: '<txid>.0', // BRC-36; '<txid>_0' also accepted
   amount: '1000',
   destination: { handle: '@alice@example.com' },
   // expirySeconds: 86400, // default MANDALA_SEND_EXPIRY_SECONDS (one year)
@@ -231,7 +235,7 @@ content types or protocolIDs, a token mismatch, a bad signature, JSON
 envelopes) stays in the box and is reported in `skipped`. SPV is
 `internalizeAction`'s.
 
-References: BRC-162 (Mandala), BRC-169 (handles, envelope), BRC-232
+References: BRC-162 (Mandala), BRC-36 (outpoints), BRC-169 (handles, envelope), BRC-232
 (transaction delivery, draft: bsv-blockchain/BRCs#300), BRC-177 (`noSend`
 expiry), BRC-231 (binary message relay), BRC-78 (encrypted messages).
 

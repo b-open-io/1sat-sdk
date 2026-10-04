@@ -48,7 +48,7 @@ export interface DeployMandalaResponse {
 	txid?: string
 	/** AtomicBEEF of the deploy transaction */
 	tx?: number[]
-	/** The token's deploy outpoint `<txid>_0`; its basket, label and protocol name are `mandala <txid> 0` */
+	/** The token's BRC-36 deploy outpoint `<txid>.0`; its basket, label and protocol name are `mandala <txid> 0` */
 	tokenId?: string
 	/**
 	 * Set with `txid`/`tx` when the deploy was created but not filed: re-run
@@ -106,7 +106,7 @@ async function fileDeploy(
  * deploy']`, keyID `mandala-deploy-<hex>`: the token id is this
  * transaction's txid, unknown while the key is derived.
  *
- * The token is named by the deploy outpoint `<txid>_0`; on chain its BRC-162
+ * The token is named by its BRC-36 deploy outpoint `<txid>.0`; on chain its BRC-162
  * id is the 32-byte txid. Amount and id are read from the script,
  * `sym`/`dec`/`icon` from the deploy payload — none are copied into
  * customInstructions.
@@ -116,7 +116,7 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 		meta: {
 			name: 'deployMandala',
 			description:
-				'Deploy a Mandala (BRC-162) token: amount > 0 is fixed supply, 0 is an authority deploy. The token is named by the deploy outpoint <txid>_0.',
+				'Deploy a Mandala (BRC-162) token: amount > 0 is fixed supply, 0 is an authority deploy. The token is the BRC-36 deploy outpoint <txid>.0.',
 			category: 'tokens',
 			inputSchema: {
 				type: 'object',
@@ -219,12 +219,12 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 					return {
 						txid,
 						tx,
-						tokenId: `${txid}_0`,
+						tokenId: `${txid}.0`,
 						error: `file-failed: ${error instanceof Error ? error.message : String(error)}`,
 					}
 				}
 
-				return { txid, tx, tokenId: `${txid}_0` }
+				return { txid, tx, tokenId: `${txid}.0` }
 			} catch (error) {
 				return {
 					error: error instanceof Error ? error.message : 'unknown-error',
@@ -234,7 +234,7 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 	}
 
 export interface FileMandalaDeployInput {
-	/** The deploy txid (the token is `<txid>_0`) */
+	/** The deploy txid (the token is `<txid>.0`) */
 	txid: string
 	/**
 	 * Atomic BEEF of the deploy (the `tx` {@link deployMandala} returned).
@@ -293,7 +293,7 @@ export const fileMandalaDeploy: Action<
 				tx = (await ctx.services.getBeefForTxid(txid)).toBinaryAtomic(txid)
 			}
 			await fileDeploy(ctx, txid, tx, out?.customInstructions)
-			return { txid, tokenId: `${txid}_0` }
+			return { txid, tokenId: `${txid}.0` }
 		} catch (error) {
 			return {
 				error: error instanceof Error ? error.message : String(error),

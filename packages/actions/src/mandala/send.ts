@@ -31,7 +31,6 @@ import {
 	MANDALA_INBOX,
 	MANDALA_LABEL,
 	MANDALA_SEND_EXPIRY_SECONDS,
-	mandalaOutpoint,
 	mandalaProtocol,
 	mandalaTokenBasket,
 	mandalaTokenLabel,
@@ -54,10 +53,14 @@ import { resolveDestination } from '../utils/resolveDestination.js'
 import { encryptBrc78 } from './brc78.js'
 import { signEnvelope } from './envelope.js'
 import { messageRelay } from './relay.js'
-import { mandalaTokenOf } from './tokenId.js'
+import {
+	mandalaTokenOf,
+	mandalaTokenOutpoint,
+	mandalaWireId,
+} from './tokenId.js'
 
 export interface SendMandalaInput {
-	/** Token: the deploy outpoint, `<txid>_<vout>` or `<txid>.<vout>` */
+	/** Token: the deploy outpoint, BRC-36 `<txid>.<vout>` (`<txid>_<vout>` accepted) */
 	tokenId: string
 	/** Amount in raw units */
 	amount: bigint | string
@@ -146,7 +149,7 @@ async function selfTokenOutput(
 		{ protocolID: mandalaProtocol(tokenId), keyIDPrefix: 'mandala' },
 	)
 	return {
-		lockingScript: Mandala.value(tokenId, amount, {
+		lockingScript: Mandala.value(mandalaWireId(tokenId), amount, {
 			lock: self.lockingScript,
 		})
 			.lock()
@@ -307,7 +310,7 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 				tokenId: {
 					type: 'string',
 					description:
-						'Token: the deploy outpoint, <txid>_<vout> or <txid>.<vout>',
+						'Token: the deploy outpoint, BRC-36 <txid>.<vout> (<txid>_<vout> accepted)',
 				},
 				amount: {
 					type: 'string',
@@ -335,10 +338,9 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 		try {
 			let tokenId: string
 			try {
-				const { txid, vout } = mandalaOutpoint(input.tokenId)
-				tokenId = `${txid}_${vout}`
+				tokenId = mandalaTokenOutpoint(input.tokenId)
 			} catch {
-				return { error: 'invalid-token: expected <txid>_<vout>' }
+				return { error: 'invalid-token: expected <txid>.<vout>' }
 			}
 			const amount = BigInt(input.amount)
 			if (amount <= 0n) return { error: 'amount-must-be-positive' }
@@ -405,7 +407,7 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 				counterparty: resolution.identityKey,
 			})
 			const recipientOutput: CreateActionOutput = {
-				lockingScript: Mandala.value(tokenId, amount, {
+				lockingScript: Mandala.value(mandalaWireId(tokenId), amount, {
 					lock: new P2PKH().lock(PublicKey.fromString(publicKey).toAddress()),
 				})
 					.lock()

@@ -138,7 +138,7 @@ describe('deployMandala', () => {
 
 		expect(res.error).toBeUndefined()
 		expect(res.txid).toMatch(/^[0-9a-f]{64}$/)
-		expect(res.tokenId).toBe(`${res.txid}_0`)
+		expect(res.tokenId).toBe(`${res.txid}.0`)
 		expect(res.tx).toBeDefined()
 		expect(created[0].options?.noSend).toBeUndefined()
 
@@ -164,7 +164,7 @@ describe('deployMandala', () => {
 		})
 
 		expect(res.error).toBeUndefined()
-		expect(res.tokenId).toBe(`${res.txid}_0`)
+		expect(res.tokenId).toBe(`${res.txid}.0`)
 
 		const { ci, tx } = expectFiling(created, internalized, res.txid as string)
 		const expected = Mandala.deployAuthority({
@@ -228,7 +228,7 @@ describe('deployMandala filing retry', () => {
 		const res = await deployMandala.execute(ctx, { amount: '7' })
 		expect(res.error).toBe('file-failed: storage busy')
 		expect(res.txid).toMatch(/^[0-9a-f]{64}$/)
-		expect(res.tokenId).toBe(`${res.txid}_0`)
+		expect(res.tokenId).toBe(`${res.txid}.0`)
 		expect(internalized).toHaveLength(0)
 
 		const ciString = created[0].outputs?.[0].customInstructions
@@ -268,7 +268,7 @@ describe('deployMandala filing retry', () => {
 			tx: res.tx,
 		})
 		expect(filed.error).toBeUndefined()
-		expect(filed.tokenId).toBe(`${res.txid}_0`)
+		expect(filed.tokenId).toBe(`${res.txid}.0`)
 		expect(listCalls).toEqual([
 			{ labels: [MANDALA_LABEL], includeOutputs: true, limit: 10000 },
 		])
@@ -325,7 +325,7 @@ describe('deployMandala overlay', () => {
 		})
 
 		expect(res.error).toBeUndefined()
-		expect(res.tokenId).toBe(`${res.txid}_0`)
+		expect(res.tokenId).toBe(`${res.txid}.0`)
 		expect(created[0].options?.noSend).toBe(true)
 		expect(submits).toEqual([
 			{

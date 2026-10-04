@@ -203,7 +203,7 @@ _60 actions, generated from the registry — do not edit by hand._
 | `tokens` | `buyBsv21` | ✓ | Purchase BSV21 tokens from the marketplace |
 | `tokens` | `deployBsv21Auth` |  | Deploy a new BSV21 token with mintable supply via auth UTXOs (deploy+auth) |
 | `tokens` | `deployBsv21Mint` |  | Deploy a new BSV21 token with fixed supply (deploy+mint) |
-| `tokens` | `deployMandala` |  | Deploy a Mandala (BRC-162) token: amount > 0 is fixed supply, 0 is an authority deploy. The token is named by the deploy outpoint <txid>_0. |
+| `tokens` | `deployMandala` |  | Deploy a Mandala (BRC-162) token: amount > 0 is fixed supply, 0 is an authority deploy. The token is the BRC-36 deploy outpoint <txid>.0. |
 | `tokens` | `fileMandalaDeploy` |  | File a created Mandala deploy output into its token basket (retry of the deploy internalize) |
 | `tokens` | `getBsv21Balances` |  | Get aggregated BSV21 token balances grouped by token ID |
 | `tokens` | `listBsv21` |  | List BSV21 token outputs from the wallet |
