@@ -482,7 +482,7 @@ if (
 | **1Sat Ordinals** | NFT inscriptions on BSV |
 | **BSV20** | Fungible tokens (tick-based, similar to BRC-20) |
 | **BSV21** | Fungible tokens (origin-based, contract-like) |
-| **Mandala Tokens (BRC-162)** | Binary encoding of the BSV21 token model, a script prefix in front of any lock (`Mandala` template) |
+| **Mandala Tokens (BRC-162)** | Binary encoding of the BSV21 token model, a script prefix in front of any lock (`Mandala` template). Actions: `deployMandala`, `sendMandala` (to a BRC-169 handle, delivered per BRC-232 in a signed envelope to the `mandala_inbox` box), `syncMandalaInbox` (receive) |
 | **MAP** | Magic Attribute Protocol — on-chain metadata |
 | **Sigma** | Transaction data signing and attestation |
 | **OrdLock** | Trustless marketplace listing contract |

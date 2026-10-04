@@ -1,157 +1,105 @@
 /**
- * Mandala (BRC-162) send.
+ * Mandala (BRC-162) send to a BRC-169 handle, delivered per BRC-232.
  *
- * Destinations:
- * - `{ handle }` — a BRC-169 handle (`@handle@domain` / `handle@domain`),
- *   resolved with `resolveHandle`. A peer send like the next one, delivered
- *   as a §7.3 DAG-CBOR envelope (payment + BRC-78 encrypted note, signed per
- *   §7.2) to the resolved messagebox's `payment_inbox`, in the BRC-231
- *   binary encoding over BRC-104.
- * - `{ identityKey, messagebox }` — a peer send. The recipient key is derived
- *   BRC-42 under `mandalaProtocol(tokenId)`; the transaction is NOT broadcast
- *   (BRC-169 §6.1: the recipient broadcasts on internalization). It travels
- *   as Atomic BEEF in a BRC-33 message to the recipient's `payment_inbox`,
- *   in the PeerPay body shape (BRC-29) extended with `protocol`,
- *   `outputIndex` and `senderIdentityKey`.
- * - `{ address }` — P2PKH lock, broadcast by the wallet, or, when `overlay`
- *   is set, submitted to that BRC-22 overlay instead (`POST <overlay>/submit`,
- *   `X-Topics: tm_<tokenId>`); the wallet then holds it as a `noSend` action.
- *   `overlay` applies only to this path: peer sends never broadcast.
+ * 1. Resolve the handle (`resolveHandle`): identity key + messagebox.
+ * 2. When no single token output in `mandala <txid> <vout>` holds exactly `amount`,
+ *    split first: an ordinary, broadcast action spending token outputs into
+ *    an exact-`amount` output and a remainder, both back to the wallet under
+ *    `mandalaProtocol(tokenId)` in the token's basket.
+ * 3. The protected send: one `createAction` spending only the exact output,
+ *    with one output, the recipient's token output, locked to the key
+ *    derived under `mandalaProtocol(tokenId)` with keyID
+ *    `<derivationPrefix> <derivationSuffix>` (fresh random base64) and
+ *    counterparty = the recipient. `noSend`, labels `mandala`,
+ *    `mandala <txid> <vout>` and `p nosend expiry seconds <n>` (BRC-177; the wallet
+ *    funds it). It is not broadcast: the recipient broadcasts by
+ *    internalizing (BRC-169 §6.1, BRC-232 rule 4).
+ * 4. Delivery: a signed BRC-169 §7.3 envelope (DAG-CBOR, BRC-231 body over
+ *    BRC-104) to the resolved messagebox, box `mandala_inbox`, `payment:
+ *    null`. `content` is BRC-78 encryption (via `wallet.encrypt`) of a MIME
+ *    entity of type `application/vnd.metanet.transaction+cbor` whose DAG-CBOR
+ *    body is the BRC-232 delivery `{ txid, beef, outputs: [ basket insertion
+ *    ] }`; `contentHash` is the SHA-256 of the MIME bytes.
  *
- * Peer sends are BRC-177 protected `noSend` actions: the wallet broadcasts a
- * funding transaction with one dedicated anchor output sized to fund the
- * send exactly, and builds the send with the anchor as its only wallet input
- * and no change. BRC-100 `createAction` has no option to forbid change; the
- * `p nosend expiry …` label is how the wallet is asked for it. If the
- * recipient has not broadcast by the deadline, the wallet reclaims the anchor
- * (invalidating the send); `abortAction` reclaims early.
- *
- * The anchor funding is wallet-internal and cannot carry token outputs, so
- * token change inside the protected send would reserve the whole token UTXO
- * until broadcast or expiry. A peer send is therefore up to three
- * transactions:
- *   1. split (only when no token output holds exactly `amount` and the
- *      selected inputs do not sum to it): an ordinary, broadcast action that
- *      spends the token inputs into an exact-`amount` output and a remainder,
- *      both back to the wallet in the token's basket;
- *   2. the BRC-177 anchor funding, made and broadcast by the wallet;
- *   3. the protected `noSend` send, spending only the exact output plus the
- *      anchor, with no token change and no satoshi change. When delivery to
- * the messagebox fails, the result carries the error together with `txid`
- * and `tx` so the caller can retry delivery or abort.
+ * When delivery fails the result carries the error with `txid` and `tx`, so
+ * the caller can retry delivery or `abortAction` the send.
  */
 
-import {
-	type HandleResolution,
-	OverlayClient,
-	resolveHandle,
-} from '@1sat/client'
+import { type HandleResolution, resolveHandle } from '@1sat/client'
 import { Mandala } from '@1sat/templates'
 import {
-	PAYMENT_INBOX,
+	MANDALA_INBOX,
+	MANDALA_LABEL,
+	MANDALA_SEND_EXPIRY_SECONDS,
+	mandalaOutpoint,
 	mandalaProtocol,
 	mandalaTokenBasket,
 	mandalaTokenLabel,
 } from '@1sat/types'
-import { MessageBoxClient } from '@bsv/message-box-client'
+import { TRANSACTION_CBOR_CONTENT_TYPE, encodeMimeEntity } from '@1sat/utils'
 import {
 	Beef,
 	type CreateActionOutput,
 	Hash,
-	type LockingScript,
 	P2PKH,
 	PublicKey,
 	Utils,
 	type WalletOutput,
+	type WalletProtocol,
 } from '@bsv/sdk'
+import { encode as dagCborEncode } from '@ipld/dag-cbor'
 import type { Action, OneSatContext } from '../types.js'
 import { executeTrackedAction } from '../utils/createTrackedAction.js'
 import { resolveDestination } from '../utils/resolveDestination.js'
 import { encryptBrc78 } from './brc78.js'
 import { signEnvelope } from './envelope.js'
-import { sendCborMessage } from './relay.js'
-
-/** Where a Mandala send goes: exactly one of these shapes. */
-export type MandalaDestination =
-	| {
-			/** BRC-169 handle: `@handle@domain` or `handle@domain` */
-			handle: string
-	  }
-	| {
-			/** Recipient identity key (66-char compressed hex) */
-			identityKey: string
-			/** Recipient messagebox URL (BRC-33) */
-			messagebox: string
-	  }
-	| {
-			/** P2PKH address */
-			address: string
-	  }
-
-/** BRC-177 expiry of a peer send: relative seconds, Unix time, or block height */
-export type MandalaSendExpiry =
-	| { seconds: number }
-	| { timestamp: number }
-	| { blockheight: number }
-
-/** Default peer-send expiry: 7 days after the wallet commits the send. */
-export const DEFAULT_MANDALA_SEND_EXPIRY: MandalaSendExpiry = {
-	seconds: 7 * 24 * 60 * 60,
-}
+import { messageRelay } from './relay.js'
+import { mandalaTokenOf } from './tokenId.js'
 
 export interface SendMandalaInput {
-	/** Token id: the deploy txid (hex); also the name of the token's basket */
+	/** Token: the deploy outpoint, `<txid>_<vout>` or `<txid>.<vout>` */
 	tokenId: string
 	/** Amount in raw units */
 	amount: bigint | string
-	destination: MandalaDestination
-	/** Peer sends only: BRC-177 expiry (default {@link DEFAULT_MANDALA_SEND_EXPIRY}) */
-	expiry?: MandalaSendExpiry
+	/** BRC-169 handle: `@handle@domain` or `handle@domain` */
+	destination: { handle: string }
 	/**
-	 * Address destinations only: overlay base URL. The transaction is submitted
-	 * there (BRC-22, topic `tm_<tokenId>`) instead of the wallet's broadcast.
-	 * Ignored for peer sends, which do not broadcast.
+	 * BRC-177 `nosend expiry seconds` for the protected send (default
+	 * {@link MANDALA_SEND_EXPIRY_SECONDS}, one year).
 	 */
-	overlay?: string
+	expirySeconds?: number
+	/** Optional free text carried as the BRC-232 `memo` */
+	memo?: string
 }
 
 export interface SendMandalaResult {
 	txid?: string
 	/** Atomic BEEF of the send */
 	tx?: number[]
-	/**
-	 * `envelope`: BRC-169 envelope to the handle's messagebox, not broadcast;
-	 * `message`: BRC-33 to the messagebox, not broadcast; `broadcast`: by the
-	 * wallet; `overlay`: submitted to the given overlay, not broadcast by the wallet
-	 */
-	delivered?: 'envelope' | 'message' | 'broadcast' | 'overlay'
-	/** Messagebox message id (peer sends) */
+	/** `envelope`: BRC-169 envelope to the handle's messagebox, not broadcast */
+	delivered?: 'envelope'
+	/** Messagebox message id */
 	messageId?: string
 	error?: string
 }
 
-/** Body sent to `payment_inbox` for an identityKey + messagebox destination */
-export interface MandalaPaymentMessage {
-	customInstructions: {
-		derivationPrefix: string
-		derivationSuffix: string
-		/** BRC-43 protocol name of `mandalaProtocol(tokenId)`: `mandala <txid>` */
-		protocol: string
-	}
-	/** Atomic BEEF bytes */
-	transaction: number[]
+/** A BRC-232 `basket insertion` output entry. */
+export interface MandalaDeliveryOutput {
 	outputIndex: number
-	/** Satoshis on the token output */
-	amount: number
-	senderIdentityKey: string
+	protocol: 'basket insertion'
+	protocolID: WalletProtocol
+	keyID: string
+	/** bstr(33): the key the recipient derives against (the sender's identity) */
+	counterparty: Uint8Array
 }
 
-/** BRC-177 action label for an expiry. */
-export function noSendExpiryLabel(expiry: MandalaSendExpiry): string {
-	if ('seconds' in expiry) return `p nosend expiry seconds ${expiry.seconds}`
-	if ('timestamp' in expiry)
-		return `p nosend expiry timestamp ${expiry.timestamp}`
-	return `p nosend expiry blockheight ${expiry.blockheight}`
+/** The BRC-232 DAG-CBOR body a Mandala send delivers. */
+export interface MandalaDeliveryBody {
+	memo?: string
+	/** bstr(32), display byte order (as in the BRC-95 Atomic BEEF header) */
+	txid: Uint8Array
+	beef: Uint8Array
+	outputs: MandalaDeliveryOutput[]
 }
 
 function randomBase64(): string {
@@ -168,43 +116,11 @@ function tokenAmount(
 	const script = beef.findTxid(txid)?.tx?.outputs[Number(vout)]?.lockingScript
 	if (!script) return undefined
 	const token = Mandala.decode(script)
+	// Authority outputs (amount 0) are not spent by a send.
 	if (!token || token.amount === 0n) return undefined
-	if (token.role === 'value' && token.tokenId === `${tokenId}_0`) {
-		return token.amount
-	}
-	// A fixed-supply deploy output is the token's first value output.
-	if (token.role === 'deploy' && txid === tokenId) return token.amount
-	return undefined
-}
-
-async function recipientLock(
-	ctx: OneSatContext,
-	destination: MandalaDestination,
-	recipientKey: string | undefined,
-	tokenId: string,
-): Promise<{
-	lockingScript: LockingScript
-	derivationPrefix?: string
-	derivationSuffix?: string
-}> {
-	if ('address' in destination) {
-		return { lockingScript: new P2PKH().lock(destination.address) }
-	}
-	if (!recipientKey) throw new Error('no recipient identity key')
-	const derivationPrefix = randomBase64()
-	const derivationSuffix = randomBase64()
-	const { publicKey } = await ctx.wallet.getPublicKey({
-		protocolID: mandalaProtocol(tokenId),
-		keyID: `${derivationPrefix} ${derivationSuffix}`,
-		counterparty: recipientKey,
-	})
-	return {
-		lockingScript: new P2PKH().lock(
-			PublicKey.fromString(publicKey).toAddress(),
-		),
-		derivationPrefix,
-		derivationSuffix,
-	}
+	return mandalaTokenOf(token, txid, Number(vout)) === tokenId
+		? token.amount
+		: undefined
 }
 
 /** A wallet token output to spend: outpoint, its derivation CI, its amount */
@@ -227,10 +143,10 @@ async function selfTokenOutput(
 	const self = await resolveDestination(
 		ctx,
 		{ counterparty: 'self' },
-		{ protocolID: mandalaProtocol(tokenId), keyIDPrefix: tokenId },
+		{ protocolID: mandalaProtocol(tokenId), keyIDPrefix: 'mandala' },
 	)
 	return {
-		lockingScript: Mandala.value(`${tokenId}_0`, amount, {
+		lockingScript: Mandala.value(tokenId, amount, {
 			lock: self.lockingScript,
 		})
 			.lock()
@@ -304,18 +220,18 @@ async function splitExact(
 		p.amount,
 		'Mandala exact amount',
 	)
-	const rest = await selfTokenOutput(
-		ctx,
-		p.tokenId,
-		p.change,
-		'Mandala remainder',
-	)
+	// No remainder when the inputs sum to `amount` (an amount-0 Mandala
+	// output would be an authority).
+	const rest =
+		p.change > 0n
+			? [await selfTokenOutput(ctx, p.tokenId, p.change, 'Mandala remainder')]
+			: []
 	const result = await spendTokens(ctx, {
 		description: `Split ${p.amount} Mandala tokens`,
 		labels: p.labels,
 		inputs: p.inputs,
 		inputBEEF: p.inputBEEF,
-		outputs: [exactOut, rest],
+		outputs: [exactOut, ...rest],
 		noSend: false,
 	})
 	if (result.error) return { error: `split-failed: ${result.error}` }
@@ -332,25 +248,21 @@ async function splitExact(
 }
 
 /**
- * Build, sign and send the BRC-169 §7.3 envelope for a handle send. `content`
- * is a BRC-78 encrypted JSON note `{ tokenId, amount }`; `contentHash` is the
- * SHA-256 of that plaintext.
+ * Build, sign and send the BRC-169 §7.3 envelope carrying a BRC-232 delivery
+ * in its encrypted `content`.
  */
 async function deliverEnvelope(
 	ctx: OneSatContext,
 	resolution: HandleResolution,
 	p: {
 		senderIdentityKey: string
-		derivationPrefix: string
-		derivationSuffix: string
-		tx: number[]
-		tokenId: string
-		amount: bigint
+		body: MandalaDeliveryBody
 	},
 ): Promise<{ messageId: string }> {
-	const plaintext = Utils.toArray(
-		JSON.stringify({ tokenId: p.tokenId, amount: p.amount.toString() }),
-		'utf8',
+	const { memo, ...rest } = p.body
+	const body = memo === undefined ? rest : { memo, ...rest }
+	const plaintext = Array.from(
+		encodeMimeEntity(TRANSACTION_CBOR_CONTENT_TYPE, dagCborEncode(body)),
 	)
 	const content = await encryptBrc78(
 		ctx.wallet,
@@ -369,22 +281,16 @@ async function deliverEnvelope(
 			},
 			sender: { identityKey: bytes(Utils.toArray(p.senderIdentityKey, 'hex')) },
 			created: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
-			payment: {
-				derivationPrefix: bytes(Utils.toArray(p.derivationPrefix, 'base64')),
-				derivationSuffix: bytes(Utils.toArray(p.derivationSuffix, 'base64')),
-				protocol: bytes(Utils.toArray(mandalaProtocol(p.tokenId)[1], 'utf8')),
-				satoshis: 1,
-				beef: bytes(p.tx),
-			},
+			payment: null,
 			contentHash: bytes(Hash.sha256(plaintext)),
 		},
 		bytes(content),
 	)
-	return sendCborMessage(
+	return messageRelay.sendCborMessage(
 		ctx.wallet,
 		resolution.messagebox,
 		resolution.identityKey,
-		PAYMENT_INBOX,
+		MANDALA_INBOX,
 		envelope,
 	)
 }
@@ -393,14 +299,15 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 	meta: {
 		name: 'sendMandala',
 		description:
-			'Send Mandala (BRC-162) tokens to an identity key + messagebox (not broadcast; delivered as BEEF) or to an address (broadcast)',
+			"Send Mandala (BRC-162) tokens to a BRC-169 handle: a protected noSend transaction delivered (BRC-232) in a signed envelope to the handle's mandala_inbox; the recipient broadcasts",
 		category: 'tokens',
 		inputSchema: {
 			type: 'object',
 			properties: {
 				tokenId: {
 					type: 'string',
-					description: 'Token id: the deploy txid',
+					description:
+						'Token: the deploy outpoint, <txid>_<vout> or <txid>.<vout>',
 				},
 				amount: {
 					type: 'string',
@@ -408,18 +315,16 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 				},
 				destination: {
 					type: 'object',
-					description:
-						'Exactly one of { handle } (BRC-169), { identityKey, messagebox } or { address }',
+					description: '{ handle } — a BRC-169 handle (@handle@domain)',
 				},
-				overlay: {
+				expirySeconds: {
+					type: 'integer',
+					description:
+						'BRC-177 nosend expiry in seconds (default 31536000, one year)',
+				},
+				memo: {
 					type: 'string',
-					description:
-						'Address destinations only: overlay base URL to submit to (topic tm_<tokenId>) instead of the wallet broadcast. Ignored for peer sends.',
-				},
-				expiry: {
-					type: 'object',
-					description:
-						'Peer sends only: BRC-177 expiry, one of { seconds }, { timestamp }, { blockheight }. Default 7 days.',
+					description: 'Optional memo carried in the delivery',
 				},
 			},
 			required: ['tokenId', 'amount', 'destination'],
@@ -428,21 +333,19 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 
 	async execute(ctx, input) {
 		try {
-			const { destination } = input
-			const tokenId = input.tokenId.toLowerCase()
+			let tokenId: string
+			try {
+				const { txid, vout } = mandalaOutpoint(input.tokenId)
+				tokenId = `${txid}_${vout}`
+			} catch {
+				return { error: 'invalid-token: expected <txid>_<vout>' }
+			}
 			const amount = BigInt(input.amount)
-			const peer = !('address' in destination)
-			const overlay = peer ? undefined : input.overlay
+			if (amount <= 0n) return { error: 'amount-must-be-positive' }
 			const basket = mandalaTokenBasket(tokenId)
 
-			// Handle: resolve first; the recipient key is derived from it.
-			const resolution =
-				'handle' in destination
-					? await resolveHandle(destination.handle)
-					: undefined
-			const recipientKey =
-				resolution?.identityKey ??
-				('identityKey' in destination ? destination.identityKey : undefined)
+			// 1. Resolve the handle; the recipient key is derived from it.
+			const resolution = await resolveHandle(input.destination.handle)
 
 			const listed = await ctx.wallet.listOutputs({
 				basket,
@@ -466,18 +369,13 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 				})
 			}
 
-			// Token index labels: listActions({ labels: ['mandala'] }) and
-			// mandala:<txid> show these actions under the token.
-			const labels = ['mandala', mandalaTokenLabel(tokenId)]
+			const labels = [MANDALA_LABEL, mandalaTokenLabel(tokenId)]
+
+			// 2. The protected send spends exactly one output of exactly `amount`.
+			let exact = candidates.find((c) => c.amount === amount)
 			let inputBEEF = Array.from(listed.BEEF)
-			let inputs: TokenInput[] = []
-			let change = 0n
-			const exact = peer
-				? candidates.find((c) => c.amount === amount)
-				: undefined
-			if (exact) {
-				inputs = [exact]
-			} else {
+			if (!exact) {
+				const inputs: TokenInput[] = []
 				let totalIn = 0n
 				for (const c of candidates) {
 					if (totalIn >= amount) break
@@ -485,126 +383,74 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 					totalIn += c.amount
 				}
 				if (totalIn < amount) return { error: 'insufficient-tokens' }
-				change = totalIn - amount
-				if (peer && change > 0n) {
-					// A protected send must not hold token change: split off an
-					// exact-amount output first (ordinary broadcast).
-					const split = await splitExact(ctx, {
-						tokenId,
-						labels,
-						inputs,
-						inputBEEF,
-						amount,
-						change,
-					})
-					if ('error' in split) return { error: split.error }
-					inputs = [split.input]
-					inputBEEF = split.beef
-					change = 0n
-				}
+				const split = await splitExact(ctx, {
+					tokenId,
+					labels,
+					inputs,
+					inputBEEF,
+					amount,
+					change: totalIn - amount,
+				})
+				if ('error' in split) return { error: split.error }
+				exact = split.input
+				inputBEEF = split.beef
 			}
 
-			const idBytes = Mandala.idFromString(`${tokenId}_0`)
-			const recipient = await recipientLock(
-				ctx,
-				destination,
-				recipientKey,
-				tokenId,
-			)
-			const outputs: CreateActionOutput[] = [
-				{
-					lockingScript: Mandala.value(idBytes, amount, {
-						lock: recipient.lockingScript,
-					})
-						.lock()
-						.toHex(),
-					satoshis: 1,
-					outputDescription: 'Mandala tokens',
-				},
-			]
-			if (change > 0n) {
-				outputs.push(
-					await selfTokenOutput(ctx, tokenId, change, 'Mandala token change'),
-				)
+			// 3. The recipient's output, BRC-29-style derivation under the token's protocol.
+			const protocolID = mandalaProtocol(tokenId)
+			const keyID = `${randomBase64()} ${randomBase64()}`
+			const { publicKey } = await ctx.wallet.getPublicKey({
+				protocolID,
+				keyID,
+				counterparty: resolution.identityKey,
+			})
+			const recipientOutput: CreateActionOutput = {
+				lockingScript: Mandala.value(tokenId, amount, {
+					lock: new P2PKH().lock(PublicKey.fromString(publicKey).toAddress()),
+				})
+					.lock()
+					.toHex(),
+				satoshis: 1,
+				outputDescription: 'Mandala tokens',
 			}
 
+			const expiry = input.expirySeconds ?? MANDALA_SEND_EXPIRY_SECONDS
 			const result = await spendTokens(ctx, {
 				description: `Send ${amount} Mandala tokens`,
-				labels: peer
-					? [
-							...labels,
-							noSendExpiryLabel(input.expiry ?? DEFAULT_MANDALA_SEND_EXPIRY),
-						]
-					: labels,
-				inputs,
+				labels: [...labels, `p nosend expiry seconds ${expiry}`],
+				inputs: [exact],
 				inputBEEF,
-				outputs,
-				noSend: peer || !!overlay,
+				outputs: [recipientOutput],
+				noSend: true,
 			})
 			if (result.error) return { error: result.error }
 			if (!result.txid || !result.tx) return { error: 'no-transaction' }
 
-			if ('address' in destination) {
-				if (!overlay) {
-					return { txid: result.txid, tx: result.tx, delivered: 'broadcast' }
-				}
-				try {
-					await new OverlayClient(overlay).submitMandala(result.tx, tokenId)
-				} catch (error) {
-					// The send exists as a noSend action: return it so the caller can
-					// retry the submit or abortAction it.
-					return {
-						txid: result.txid,
-						tx: result.tx,
-						error: `overlay-submit-failed: ${error instanceof Error ? error.message : String(error)}`,
-					}
-				}
-				return { txid: result.txid, tx: result.tx, delivered: 'overlay' }
-			}
-
+			// 4. Deliver.
 			const { publicKey: senderIdentityKey } = await ctx.wallet.getPublicKey({
 				identityKey: true,
 			})
-			const derivationPrefix = recipient.derivationPrefix!
-			const derivationSuffix = recipient.derivationSuffix!
 			let sent: { messageId: string }
 			try {
-				if (resolution) {
-					sent = await deliverEnvelope(ctx, resolution, {
-						senderIdentityKey,
-						derivationPrefix,
-						derivationSuffix,
-						tx: result.tx,
-						tokenId,
-						amount,
-					})
-				} else if ('identityKey' in destination) {
-					const body: MandalaPaymentMessage = {
-						customInstructions: {
-							derivationPrefix,
-							derivationSuffix,
-							protocol: mandalaProtocol(tokenId)[1],
-						},
-						transaction: result.tx,
-						outputIndex: 0,
-						amount: 1,
-						senderIdentityKey,
-					}
-					const client = new MessageBoxClient({
-						walletClient: ctx.wallet,
-						host: destination.messagebox,
-					})
-					sent = await client.sendMessage(
-						{
-							recipient: destination.identityKey,
-							messageBox: PAYMENT_INBOX,
-							body,
-						},
-						destination.messagebox,
-					)
-				} else {
-					return { error: 'unsupported-destination' }
-				}
+				sent = await deliverEnvelope(ctx, resolution, {
+					senderIdentityKey,
+					body: {
+						memo: input.memo,
+						txid: Uint8Array.from(Utils.toArray(result.txid, 'hex')),
+						beef: Uint8Array.from(result.tx),
+						outputs: [
+							{
+								outputIndex: 0,
+								protocol: 'basket insertion',
+								protocolID,
+								keyID,
+								counterparty: Uint8Array.from(
+									Utils.toArray(senderIdentityKey, 'hex'),
+								),
+							},
+						],
+					},
+				})
 			} catch (error) {
 				// The send exists as a noSend action: return it so the caller can
 				// retry delivery or abortAction it.
@@ -617,7 +463,7 @@ export const sendMandala: Action<SendMandalaInput, SendMandalaResult> = {
 			return {
 				txid: result.txid,
 				tx: result.tx,
-				delivered: resolution ? 'envelope' : 'message',
+				delivered: 'envelope',
 				messageId: sent.messageId,
 			}
 		} catch (error) {

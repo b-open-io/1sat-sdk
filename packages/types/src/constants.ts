@@ -719,37 +719,82 @@ export const ORDFS_STREAM_PARAM = 'stream=ordfs'
 // ============================================================================
 // Mandala (BRC-162)
 // ============================================================================
+//
+// Wallet-side names carry the token's deploy outpoint as two space-separated
+// words, `mandala <txid> <vout>` (lowercase txid): BRC-43 protocol names allow
+// only letters, digits and spaces, and the basket and label use the same
+// form. The on-chain id in the script is BRC-162's (32 bytes when vout is 0,
+// 36 bytes for a legacy vout > 0).
+
+/** A Mandala token's deploy outpoint. */
+export interface MandalaOutpoint {
+	txid: string
+	vout: number
+}
 
 /**
- * Per-token basket `mandala <txid>`: the word, a space, the token id (deploy
- * txid hex, lowercase).
+ * A token reference: `{ txid, vout }`, or an outpoint string in `txid_vout`
+ * (1Sat / template form) or `txid.vout` (BRC-100 form).
  */
-export function mandalaTokenBasket(tokenId: string): string {
-	return `mandala ${tokenId.toLowerCase()}`
+export type MandalaTokenRef = MandalaOutpoint | string
+
+/** Normalize a {@link MandalaTokenRef} to `{ txid (lowercase), vout }`. */
+export function mandalaOutpoint(token: MandalaTokenRef): MandalaOutpoint {
+	if (typeof token !== 'string') {
+		return { txid: token.txid.toLowerCase(), vout: token.vout }
+	}
+	const m = /^([0-9a-fA-F]{64})[_.](\d+)$/.exec(token)
+	if (!m) {
+		throw new Error(`not a token outpoint (txid_vout or txid.vout): ${token}`)
+	}
+	return { txid: m[1].toLowerCase(), vout: Number(m[2]) }
 }
 
-/** Per-token action label `mandala:<txid>`, alongside the `mandala` label. */
-export function mandalaTokenLabel(txid: string): string {
-	return `mandala:${txid.toLowerCase()}`
+function mandalaName(token: MandalaTokenRef): string {
+	const { txid, vout } = mandalaOutpoint(token)
+	return `mandala ${txid} ${vout}`
+}
+
+/** Per-token basket `mandala <txid> <vout>`. */
+export function mandalaTokenBasket(token: MandalaTokenRef): string {
+	return mandalaName(token)
+}
+
+/** Per-token action label `mandala <txid> <vout>`, alongside the `mandala` label. */
+export function mandalaTokenLabel(token: MandalaTokenRef): string {
+	return mandalaName(token)
 }
 
 /**
- * BRC-42/43 protocol for a Mandala token's keys: `[2, 'mandala <txid>']`, one
- * protocol per token, so a BRC-43 grant covers only that token. Level 2
+ * BRC-42/43 protocol for a Mandala token's keys: `[2, 'mandala <txid> <vout>']`,
+ * one protocol per token, so a BRC-43 grant covers only that token. Level 2
  * (per-counterparty permission) mirrors BRC-29's `[2, '3241645161d8']`.
  */
-export function mandalaProtocol(tokenId: string): WalletProtocol {
-	return [2, `mandala ${tokenId.toLowerCase()}`]
+export function mandalaProtocol(token: MandalaTokenRef): WalletProtocol {
+	return [2, mandalaName(token)]
 }
 
 /**
- * BRC-42/43 protocol for a deploy output's key. The token id is the deploy
- * txid, unknown while the deploy is built, so the deploy key cannot use
- * {@link mandalaProtocol}.
+ * Recover `{ txid, vout }` from a Mandala basket, label or protocol name
+ * (`mandala <txid> <vout>`), or from a protocol ID tuple. Undefined for
+ * anything else (including the bare `mandala` label).
+ */
+export function parseMandalaName(
+	name: string | WalletProtocol,
+): MandalaOutpoint | undefined {
+	const s = typeof name === 'string' ? name : name[1]
+	const m = /^mandala ([0-9a-f]{64}) (0|[1-9]\d*)$/.exec(s)
+	return m ? { txid: m[1], vout: Number(m[2]) } : undefined
+}
+
+/**
+ * BRC-42/43 protocol for a deploy output's key. The token is named by the
+ * deploy outpoint, unknown while the deploy is built, so the deploy key
+ * cannot use {@link mandalaProtocol}.
  */
 export const MANDALA_DEPLOY_PROTOCOL: WalletProtocol = [2, 'mandala deploy']
 
-/** Messagebox box for Mandala token deliveries (BRC-169 envelopes). */
+/** Messagebox box for Mandala token deliveries (BRC-169 envelopes, BRC-232 content). */
 export const MANDALA_INBOX = 'mandala_inbox'
 
 /**

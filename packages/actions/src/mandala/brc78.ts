@@ -45,3 +45,27 @@ export async function encryptBrc78(
 		...ciphertext,
 	]
 }
+
+/**
+ * Decrypt a BRC-78 serialization addressed to this wallet: the inverse of
+ * {@link encryptBrc78}. The key ID is read from the BRC-78 header; the
+ * counterparty is the sender's identity key.
+ */
+export async function decryptBrc78(
+	wallet: Pick<WalletInterface, 'decrypt'>,
+	message: number[] | Uint8Array,
+	sender: string,
+): Promise<number[]> {
+	const bytes = Array.from(message)
+	if (Utils.toHex(bytes.slice(0, 4)) !== BRC78_VERSION) {
+		throw new Error('BRC-78: unsupported version')
+	}
+	const keyID = bytes.slice(4 + 33 + 33, 4 + 33 + 33 + 32)
+	const { plaintext } = await wallet.decrypt({
+		ciphertext: bytes.slice(4 + 33 + 33 + 32),
+		protocolID: BRC78_PROTOCOL,
+		keyID: Utils.toBase64(keyID),
+		counterparty: sender,
+	})
+	return plaintext
+}

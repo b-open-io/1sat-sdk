@@ -356,3 +356,15 @@ export {
 	isValidMnemonic,
 	deriveIdentityKey,
 } from './keys.js'
+
+// ============================================================================
+// MIME entity framing (BRC-169 content)
+// ============================================================================
+
+export {
+	type MimeEntity,
+	TRANSACTION_CBOR_CONTENT_TYPE,
+	encodeMimeEntity,
+	mediaType,
+	parseMimeEntity,
+} from './mime.js'

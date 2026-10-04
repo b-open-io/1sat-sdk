@@ -155,8 +155,6 @@ export * from './payments/index.js'
 export * from './ordinals/index.js'
 export * from './tokens/index.js'
 export * from './mandala/index.js'
-export * from './mandala/send.js'
-export * from './mandala/envelope.js'
 export * from './inscriptions/index.js'
 export * from './locks/index.js'
 export * from './signing/index.js'
@@ -193,7 +191,6 @@ import { inscriptionsActions } from './inscriptions/index.js'
 import { cancelOwnedListings } from './listings/cancelOwnedListings.js'
 import { locksActions } from './locks/index.js'
 import { mandalaActions } from './mandala/index.js'
-import { sendMandala } from './mandala/send.js'
 import { mneeActions } from './mnee/index.js'
 import { opnsActions } from './opns/index.js'
 import { ordfsActions } from './ordfs/index.js'
@@ -213,7 +210,6 @@ actionRegistry.registerAll([
 	...ordinalsActions,
 	...tokensActions,
 	...mandalaActions,
-	sendMandala,
 	...inscriptionsActions,
 	...locksActions,
 	...signingActions,

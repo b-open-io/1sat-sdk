@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { Mandala } from '@1sat/templates'
 import {
+	MANDALA_DEPLOY_PROTOCOL,
 	MANDALA_LABEL,
 	MANDALA_TOPIC,
-	P1SAT_PROTOCOL,
 	mandalaProtocol,
 	mandalaTokenBasket,
 	mandalaTokenLabel,
+	parseMandalaName,
 } from '@1sat/types'
 import {
 	type CreateActionArgs,
@@ -23,7 +24,7 @@ import {
 	type WalletInterface,
 } from '@bsv/sdk'
 import type { OneSatContext } from '../types.js'
-import { deployMandala } from './index.js'
+import { deployMandala, fileMandalaDeploy } from './deploy.js'
 
 const proto = new ProtoWallet(PrivateKey.fromHex('01'.repeat(32)))
 
@@ -79,10 +80,10 @@ function setup() {
 	return { ctx, created, internalized }
 }
 
-/** The P2PKH the wallet derives under P1SAT_PROTOCOL for this keyID. */
+/** The P2PKH the wallet derives under MANDALA_DEPLOY_PROTOCOL for this keyID. */
 async function derivedLock(ci: { keyID: string }) {
 	const { publicKey } = await proto.getPublicKey({
-		protocolID: P1SAT_PROTOCOL,
+		protocolID: MANDALA_DEPLOY_PROTOCOL,
 		keyID: ci.keyID,
 		counterparty: 'self',
 		forSelf: true,
@@ -100,24 +101,26 @@ function expectFiling(
 	expect(created[0].options?.randomizeOutputs).toBe(false)
 	expect(created[0].labels).toEqual([MANDALA_LABEL])
 	expect(created[0].outputs).toHaveLength(1)
+	// untracked: an output cannot later be moved out of a basket
+	expect(created[0].outputs?.[0].basket).toBeUndefined()
 	const ci = JSON.parse(created[0].outputs?.[0].customInstructions ?? '{}')
 	expect(Object.keys(ci).sort()).toEqual(['keyID', 'protocolID'])
-	// deploy key: P1SAT_PROTOCOL (txid unknown at derivation time)
-	expect(ci.protocolID).toEqual(P1SAT_PROTOCOL)
+	// deploy key: [2, 'mandala deploy'] (txid unknown at derivation time)
+	expect(ci.protocolID).toEqual([2, 'mandala deploy'])
 	expect(ci.keyID).toStartWith('mandala-deploy-')
 
 	// one internalizeAction on the same tx: vout 0 into the per-token basket
 	expect(internalized).toHaveLength(1)
 	const int = internalized[0]
 	expect(Transaction.fromAtomicBEEF(int.tx).id('hex')).toBe(txid)
-	expect(int.labels).toEqual([MANDALA_LABEL, `mandala:${txid}`])
-	expect(int.labels).toContain(mandalaTokenLabel(txid))
+	expect(int.labels).toEqual([MANDALA_LABEL, `mandala ${txid} 0`])
+	expect(int.labels).toContain(mandalaTokenLabel({ txid, vout: 0 }))
 	expect(int.outputs).toHaveLength(1)
 	expect(int.outputs[0].outputIndex).toBe(0)
 	expect(int.outputs[0].protocol).toBe('basket insertion')
 	const remit = int.outputs[0].insertionRemittance
-	expect(remit?.basket).toBe(txid)
-	expect(remit?.basket).toBe(mandalaTokenBasket(txid))
+	expect(remit?.basket).toBe(`mandala ${txid} 0`)
+	expect(remit?.basket).toBe(mandalaTokenBasket(`${txid}_0`))
 	expect(remit?.customInstructions).toBe(
 		created[0].outputs?.[0].customInstructions,
 	)
@@ -135,7 +138,7 @@ describe('deployMandala', () => {
 
 		expect(res.error).toBeUndefined()
 		expect(res.txid).toMatch(/^[0-9a-f]{64}$/)
-		expect(res.tokenId).toBe(res.txid as string)
+		expect(res.tokenId).toBe(`${res.txid}_0`)
 		expect(res.tx).toBeDefined()
 		expect(created[0].options?.noSend).toBeUndefined()
 
@@ -161,7 +164,7 @@ describe('deployMandala', () => {
 		})
 
 		expect(res.error).toBeUndefined()
-		expect(res.tokenId).toBe(res.txid as string)
+		expect(res.tokenId).toBe(`${res.txid}_0`)
 
 		const { ci, tx } = expectFiling(created, internalized, res.txid as string)
 		const expected = Mandala.deployAuthority({
@@ -189,18 +192,96 @@ describe('deployMandala', () => {
 		).toBeUndefined()
 	})
 
-	test('mandalaProtocol is per token', () => {
-		expect(mandalaProtocol('AB'.repeat(32))).toEqual([
-			2,
-			`mandala ${'ab'.repeat(32)}`,
-		])
+	test('names: `mandala <txid> <vout>` from {txid, vout}, txid_vout or txid.vout', () => {
+		const txid = 'AB'.repeat(32)
+		const name = `mandala ${'ab'.repeat(32)} 3`
+		for (const ref of [{ txid, vout: 3 }, `${txid}_3`, `${txid}.3`]) {
+			expect(mandalaTokenBasket(ref)).toBe(name)
+			expect(mandalaTokenLabel(ref)).toBe(name)
+			expect(mandalaProtocol(ref)).toEqual([2, name])
+		}
+		expect(() => mandalaProtocol(txid)).toThrow()
 	})
 
-	test('mandalaTokenBasket / mandalaTokenLabel use the bare lowercase token id', () => {
-		expect(mandalaTokenBasket('AB'.repeat(32))).toBe('ab'.repeat(32))
-		expect(mandalaTokenLabel('AB'.repeat(32))).toBe(
-			`mandala:${'ab'.repeat(32)}`,
-		)
+	test('parseMandalaName recovers {txid, vout} from basket, label or protocol', () => {
+		const txid = 'ab'.repeat(32)
+		expect(parseMandalaName(`mandala ${txid} 7`)).toEqual({ txid, vout: 7 })
+		expect(parseMandalaName([2, `mandala ${txid} 0`])).toEqual({
+			txid,
+			vout: 0,
+		})
+		expect(parseMandalaName('mandala')).toBeUndefined()
+		expect(parseMandalaName('mandala deploy')).toBeUndefined()
+		expect(parseMandalaName(`mandala ${txid}_0`)).toBeUndefined()
+	})
+})
+
+describe('deployMandala filing retry', () => {
+	test('a failed internalize returns txid/tx/error; fileMandalaDeploy re-files from listActions', async () => {
+		const { ctx, created, internalized } = setup()
+		const internalize = ctx.wallet.internalizeAction
+		let fail = true
+		ctx.wallet.internalizeAction = async (args) => {
+			if (fail) throw new Error('storage busy')
+			return internalize(args)
+		}
+		const res = await deployMandala.execute(ctx, { amount: '7' })
+		expect(res.error).toBe('file-failed: storage busy')
+		expect(res.txid).toMatch(/^[0-9a-f]{64}$/)
+		expect(res.tokenId).toBe(`${res.txid}_0`)
+		expect(internalized).toHaveLength(0)
+
+		const ciString = created[0].outputs?.[0].customInstructions
+		const listCalls: unknown[] = []
+		ctx.wallet.listActions = async (args) => {
+			listCalls.push(args)
+			return {
+				totalActions: 1,
+				actions: [
+					{
+						txid: res.txid as string,
+						satoshis: 0,
+						status: 'completed',
+						isOutgoing: true,
+						description: 'Deploy Mandala token (fixed supply)',
+						labels: [MANDALA_LABEL],
+						version: 1,
+						lockTime: 0,
+						outputs: [
+							{
+								outputIndex: 0,
+								satoshis: 1,
+								spendable: true,
+								tags: [],
+								outputDescription: 'Mandala deploy',
+								basket: '',
+								customInstructions: ciString,
+							},
+						],
+					},
+				],
+			}
+		}
+		fail = false
+		const filed = await fileMandalaDeploy.execute(ctx, {
+			txid: res.txid as string,
+			tx: res.tx,
+		})
+		expect(filed.error).toBeUndefined()
+		expect(filed.tokenId).toBe(`${res.txid}_0`)
+		expect(listCalls).toEqual([
+			{ labels: [MANDALA_LABEL], includeOutputs: true, limit: 10000 },
+		])
+		expectFiling(created, internalized, res.txid as string)
+	})
+
+	test('fileMandalaDeploy: unknown txid', async () => {
+		const { ctx } = setup()
+		ctx.wallet.listActions = async () => ({ totalActions: 0, actions: [] })
+		const filed = await fileMandalaDeploy.execute(ctx, {
+			txid: 'cd'.repeat(32),
+		})
+		expect(filed.error).toBe('deploy-not-found')
 	})
 })
 
@@ -244,7 +325,7 @@ describe('deployMandala overlay', () => {
 		})
 
 		expect(res.error).toBeUndefined()
-		expect(res.tokenId).toBe(res.txid as string)
+		expect(res.tokenId).toBe(`${res.txid}_0`)
 		expect(created[0].options?.noSend).toBe(true)
 		expect(submits).toEqual([
 			{

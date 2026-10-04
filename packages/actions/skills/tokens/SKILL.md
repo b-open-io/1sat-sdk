@@ -21,6 +21,9 @@ CLI group is **`bsv21`** (was `tokens`).
 | `deployBsv21Auth` | Mintable deploy+auth |
 | `mintBsv21` | Spend auth to mint / re-issue / end |
 | `deployMandala` | Mandala (BRC-162) deploy: fixed supply or authority |
+| `fileMandalaDeploy` | Retry a Mandala deploy's filing into its token basket |
+| `sendMandala` | Mandala send to a BRC-169 handle (protected noSend, BRC-232 delivery) |
+| `syncMandalaInbox` | Receive BRC-232 deliveries from `mandala_inbox` |
 
 
 Fungible API stays **value-based** (not spend-by-id). Basket UTXOs still carry `id:` internally. **Self destinations must be basketed/tagged.**
@@ -110,127 +113,127 @@ await mintBsv21.execute(ctx, {
 })
 ```
 
-## Mandala (BRC-162) deploy
+## Mandala (BRC-162)
+
+Mandala tokens are the BSV-21 token model in a binary script prefix
+(`Mandala` template in `@1sat/templates`). Four actions cover the wallet
+side: `deployMandala`, `fileMandalaDeploy`, `sendMandala`, `syncMandalaInbox`.
+
+### Names
+
+A token is named by its deploy outpoint. Wallet-side names write it as two
+space-separated words, because BRC-43 protocol names allow only letters,
+digits and spaces:
+
+| Name | Value | Helper (`@1sat/types`) |
+|------|-------|------------------------|
+| Basket | `mandala <txid> <vout>` | `mandalaTokenBasket(token)` |
+| Key protocol | `[2, 'mandala <txid> <vout>']` | `mandalaProtocol(token)` |
+| Action labels | `mandala` and `mandala <txid> <vout>` | `MANDALA_LABEL`, `mandalaTokenLabel(token)` |
+
+`token` is `{ txid, vout }` or an outpoint string, `txid_vout` or `txid.vout`;
+the txid is lowercased. `parseMandalaName(name)` recovers `{ txid, vout }`
+from any of the three names. The action API passes tokens as the `txid_vout`
+string (`deployMandala` returns `tokenId: '<txid>_0'`). On chain the id is
+BRC-162's: the 32-byte txid for vout 0.
+
+Labels index tokens (`listActions({ labels: ['mandala'] })` lists what the
+wallet tracks; labels survive outputs being spent). The per-token basket
+holds the token's outputs. customInstructions carry only the key derivation
+(`protocolID`, `keyID`, `counterparty`): amount and id are read from the
+script, `sym`/`dec`/`icon` from the deploy payload.
+
+### Deploy
 
 ```typescript
-import { deployMandala } from '@1sat/actions'
+import { deployMandala, fileMandalaDeploy } from '@1sat/actions'
 
 // amount > 0: fixed supply; amount 0: authority (first minting authority)
-const dep = await deployMandala.execute(ctx, {
-  amount: '21000000',
-  symbol: 'GOLD',
-  decimals: 8,
-})
-// dep.tokenId === dep.txid
+const dep = await deployMandala.execute(ctx, { amount: '21000000', symbol: 'GOLD', decimals: 8 })
+// dep.txid, dep.tokenId === `${dep.txid}_0`
+
+// If the filing step failed (dep.error starts with 'file-failed'), retry it:
+await fileMandalaDeploy.execute(ctx, { txid: dep.txid!, tx: dep.tx })
 ```
 
-- The deploy output is always vout 0. **The token id is the deploy txid alone**
-  (the 32-byte wire id) — never `txid_0`.
-- **Labels index tokens, per-token baskets hold outputs.** Every Mandala
-  transaction carries the action label `mandala`, plus `mandala:<txid>` for
-  its token: `listActions({ labels: ['mandala'] })` lists the tokens the wallet
-  tracks, and labels survive outputs being spent. Every output of a token —
-  the deploy output included, fixed-supply or authority — lives in the
-  per-token basket named by the bare token id (`mandalaTokenBasket(txid)`,
-  lowercase).
-- Deploy is one `createAction` (deploy at vout 0, label `mandala`, placeholder
-  basket `mandala`) and one `internalizeAction` on the same transaction, which
-  moves vout 0 into `mandalaTokenBasket(txid)` and adds the labels `mandala`
-  and `mandala:<txid>`. No tags are used.
-- customInstructions carry only the key derivation (`protocolID`, `keyID`,
-  `counterparty` when not self): amount and id are read from the script,
-  `sym`/`dec`/`icon` from the deploy payload.
-- Keys: a token's outputs derive under its own protocol
-  `mandalaProtocol(tokenId)` = `[2, 'mandala <txid>']` (a BRC-43 grant is per
-  protocol, so one token's grant does not cover another). The deploy output is
-  the one exception: its txid is unknown when its key is derived, so it uses
-  `P1SAT_PROTOCOL` (keyID `mandala-deploy-<hex>`), as BSV-21 deploys do.
-- `overlay` (optional, an overlay base URL): the wallet creates the deploy with
-  `noSend`, and it is broadcast as a BRC-22 submit to `<overlay>/submit` with
-  `X-Topics: tm_mandala,tm_<txid>` (bare comma-separated string); a STEAK
-  response is success, then the internalize advances the wallet's `nosend`
-  record. This `overlay` input is the pattern other broadcasting actions will
-  adopt.
-- BSV-21 will move to the same scheme later, and a BRC will be written for it.
+- One `createAction`: the deploy output at vout 0 (`randomizeOutputs: false`),
+  **no basket** (a wallet cannot later move an output out of a basket),
+  label `mandala`, broadcast normally. Its key derives under
+  `MANDALA_DEPLOY_PROTOCOL` = `[2, 'mandala deploy']`, keyID
+  `mandala-deploy-<hex>`, because the outpoint is unknown while it is built.
+- Then `internalizeAction` on the same transaction: vout 0 by `basket
+  insertion` into `mandala <txid> 0`, same customInstructions, labels
+  `mandala` and `mandala <txid> 0`. If it fails, the result carries `txid`,
+  `tx` and the error; `fileMandalaDeploy({ txid, tx? })` re-runs it (BEEF from
+  `tx`, else `ctx.services.getBeefForTxid`; customInstructions read back with
+  `listActions`).
+- `overlay` (optional base URL): the deploy is created with `noSend`,
+  submitted BRC-22 to `<overlay>/submit` with `X-Topics: tm_mandala,tm_<txid>`,
+  then internalized.
 
-## Mandala send (BRC-162)
-
-`sendMandala` spends the wallet's Mandala outputs for a token. Every output of a
-token, deploy included, lives in its own basket named by the bare token id
-(the deploy txid, lowercase hex; `mandalaTokenBasket(tokenId)` in
-`@1sat/types`). Tokens are indexed by transaction label, not by basket:
-`listActions({ labels: ['mandala'] })` lists tracked tokens, and each token's
-actions also carry `mandala:<txid>` (`mandalaTokenLabel`). `sendMandala` adds
-both labels, and a future recipient-side flow will internalize received
-tokens with the same two labels. Token
-change goes back to a wallet-derived key in the token's basket. Its
-customInstructions hold only the derivation (`protocolID`, `keyID`); amounts
-are read from the script.
+### Send (to a BRC-169 handle)
 
 ```typescript
 import { sendMandala } from '@1sat/actions'
 
-// Peer send: not broadcast. Delivered as Atomic BEEF to the recipient's
-// payment_inbox; the recipient broadcasts when it internalizes.
-const peer = await sendMandala.execute(ctx, {
-  tokenId: '<deploy txid>',
-  amount: '1000',
-  destination: { identityKey: '02abc...', messagebox: 'https://messagebox.example' },
-  // expiry: { seconds: 86400 }, // BRC-177; default 7 days
-})
-// peer.delivered === 'message', peer.messageId, peer.tx (Atomic BEEF)
-
-// BRC-169 handle: resolved via https://<domain>/manifest.json, then the
-// same peer send delivered as a signed BRC-169 envelope (DAG-CBOR).
-await sendMandala.execute(ctx, {
-  tokenId: '<deploy txid>',
+const res = await sendMandala.execute(ctx, {
+  tokenId: '<txid>_0',
   amount: '1000',
   destination: { handle: '@alice@example.com' },
+  // expirySeconds: 86400, // default MANDALA_SEND_EXPIRY_SECONDS (one year)
+  // memo: 'thanks',
 })
-// delivered === 'envelope'
-
-// Address: broadcast by the wallet.
-await sendMandala.execute(ctx, {
-  tokenId: '<deploy txid>',
-  amount: '1000',
-  destination: { address: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' },
-})
-
-// Address via an overlay: submitted (BRC-22) to <overlay>/submit with
-// X-Topics: tm_<tokenId> instead of the wallet's broadcast.
-await sendMandala.execute(ctx, {
-  tokenId: '<deploy txid>',
-  amount: '1000',
-  destination: { address: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' },
-  overlay: 'https://overlay.example',
-})
-// delivered === 'overlay'
+// res.delivered === 'envelope', res.messageId, res.txid, res.tx (Atomic BEEF)
 ```
 
-- `overlay` applies only to address destinations. Peer sends never broadcast
-  (the recipient does), so `overlay` is ignored there.
+1. Resolve the handle (BRC-169 §5): identity key and messagebox.
+2. If no single output in the token's basket holds exactly `amount`, split
+   first: an ordinary broadcast action into an exact output and a remainder,
+   both back to the wallet under `mandalaProtocol(token)`.
+3. The protected send: one `createAction` with exactly one input (the exact
+   output) and one output, locked to the key derived under
+   `mandalaProtocol(token)` with keyID `<derivationPrefix> <derivationSuffix>`
+   (fresh random base64, BRC-29 style) and counterparty = the recipient.
+   `noSend`, labels `mandala`, `mandala <txid> <vout>` and
+   `p nosend expiry seconds <n>` (BRC-177; the wallet funds it). Not
+   broadcast: the recipient broadcasts by internalizing.
+4. Deliver a signed BRC-169 §7.3 envelope (DAG-CBOR, BRC-231 over BRC-104) to
+   the resolved messagebox, box **`mandala_inbox`** (`MANDALA_INBOX`), with
+   `payment: null`. `content` is BRC-78 encryption of a MIME entity,
+   `Content-Type: application/vnd.metanet.transaction+cbor`, whose DAG-CBOR
+   body is the BRC-232 delivery
+   `{ memo?, txid: bstr(32), beef, outputs: [{ outputIndex, protocol: 'basket insertion', protocolID, keyID, counterparty: <sender identity key> }] }`.
+   `contentHash` is the SHA-256 of the MIME bytes.
 
-- Keys are BRC-42 under the per-token protocol `mandalaProtocol(tokenId)` =
-  `[2, 'mandala <txid>']`, so a BRC-43 grant covers one token. The recipient
-  key uses keyID `<derivationPrefix> <derivationSuffix>`, counterparty =
-  recipient.
-- Peer sends are BRC-177 protected `noSend` actions (`p nosend expiry …`
-  label): the wallet funds them from one exact anchor output, with no change.
-  If the recipient does not broadcast before the expiry, the wallet reclaims
-  the anchor; `abortAction` reclaims early.
-- A peer send is up to three transactions: (1) a split, broadcast normally,
-  when no token output holds exactly `amount` (the inputs go to an exact
-  output plus a remainder, both back to the token's basket); (2) the BRC-177
-  anchor funding, made by the wallet; (3) the protected send, spending only
-  the exact output, with no token or satoshi change.
-- The message body is the PeerPay shape plus `protocol`, `outputIndex` and
-  `senderIdentityKey`:
-  `{ customInstructions: { derivationPrefix, derivationSuffix, protocol: 'mandala <txid>' }, transaction, outputIndex, amount: 1, senderIdentityKey }`.
-- Handle sends post a BRC-169 §7.3 envelope (DAG-CBOR, BRC-231 body over
-  BRC-104) to the resolved messagebox's `payment_inbox`. It carries
-  `payment: { derivationPrefix, derivationSuffix, protocol: 'mandala <txid>' (bytes), satoshis: 1, beef }`,
-  a BRC-78 encrypted note `{ tokenId, amount }` as `content` (encrypted by
-  `wallet.encrypt`), its SHA-256 as `contentHash`, and a §7.2 signature.
+If delivery fails, the result carries `txid` and `tx` with the error, so the
+caller can retry delivery or `abortAction` the send.
+
+### Receive
+
+```typescript
+import { syncMandalaInbox } from '@1sat/actions'
+
+const { received, skipped } = await syncMandalaInbox.execute(ctx, {
+  messageboxUrl: 'https://messagebox.example', // default https://messagebox.1sat.app
+})
+```
+
+Lists `mandala_inbox` (BRC-231), and for each message: decodes the DAG-CBOR
+envelope, verifies its signature against `sender.identityKey`, decrypts
+`content`, checks `contentHash`, parses the MIME entity, requires the
+BRC-232 content type, and internalizes the body's outputs: `wallet payment`
+with its `paymentRemittance`; `basket insertion` under a `mandala <txid>
+<vout>` protocol into that basket with the triple as customInstructions and
+labels `mandala` + `mandala <txid> <vout>`, after checking the output's
+script names the same token. A message is internalized whole or not at all
+and acknowledged only after its internalize succeeds; anything else (other
+content types or protocolIDs, a token mismatch, a bad signature, JSON
+envelopes) stays in the box and is reported in `skipped`. SPV is
+`internalizeAction`'s.
+
+References: BRC-162 (Mandala), BRC-169 (handles, envelope), BRC-232
+(transaction delivery, draft: bsv-blockchain/BRCs#300), BRC-177 (`noSend`
+expiry), BRC-231 (binary message relay), BRC-78 (encrypted messages).
 
 ## Requirements
 
