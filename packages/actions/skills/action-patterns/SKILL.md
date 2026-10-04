@@ -146,7 +146,7 @@ const tools = actionRegistry.toMcpTools()
 The complete, generated list of all actions:
 
 <!-- ACTION-INDEX -->
-_56 actions, generated from the registry — do not edit by hand._
+_60 actions, generated from the registry — do not edit by hand._
 
 | Category | Action | Services | Purpose |
 |----------|--------|:--------:|---------|
@@ -198,14 +198,18 @@ _56 actions, generated from the registry — do not edit by hand._
 | `sweep` | `sweepOrdinals` | ✓ | Sweep ordinals from external wallet (via WIF) into the connected wallet |
 | `sync` | `syncAddresses` | ✓ | Sync external payments to P1SAT deposit addresses into the wallet |
 | `sync` | `syncCosignDeliveries` | ✓ | Pull cosign-wrapped BSV21 deliveries from a MessageBox and internalize them into the wallet |
+| `sync` | `syncMandalaInbox` |  | Collect BRC-232 transaction deliveries (Mandala tokens, BRC-29 payments) from the mandala_inbox message box and internalize them |
 | `sync` | `syncMessages` |  | Sync incoming paymail payments from the message box into the wallet |
 | `tokens` | `buyBsv21` | ✓ | Purchase BSV21 tokens from the marketplace |
 | `tokens` | `deployBsv21Auth` |  | Deploy a new BSV21 token with mintable supply via auth UTXOs (deploy+auth) |
 | `tokens` | `deployBsv21Mint` |  | Deploy a new BSV21 token with fixed supply (deploy+mint) |
+| `tokens` | `deployMandala` |  | Deploy a Mandala (BRC-162) token: amount > 0 is fixed supply, 0 is an authority deploy. The token is the BRC-36 deploy outpoint <txid>.0. |
+| `tokens` | `fileMandalaDeploy` |  | File a created Mandala deploy output into its token basket (retry of the deploy internalize) |
 | `tokens` | `getBsv21Balances` |  | Get aggregated BSV21 token balances grouped by token ID |
 | `tokens` | `listBsv21` |  | List BSV21 token outputs from the wallet |
 | `tokens` | `mintBsv21` | ✓ | Spend an auth UTXO to mint supply, re-issue authority, or permanently end minting |
 | `tokens` | `sendBsv21` |  | Send BSV21 tokens to one or more recipients |
+| `tokens` | `sendMandala` |  | Send Mandala (BRC-162) tokens to a BRC-169 handle: a protected noSend transaction delivered (BRC-232) in a signed envelope to the handle's mandala_inbox; the recipient broadcasts |
 <!-- /ACTION-INDEX -->
 
 ## Baskets and Tags
@@ -216,6 +220,7 @@ The wallet organizes outputs into baskets:
 |--------|----------|
 | `1sat` | Ordinal inscriptions (NFTs) |
 | `bsv21` | BSV-21 fungible tokens |
+| `mandala <txid> <vout>` | One Mandala (BRC-162) token's outputs, named by its deploy outpoint (see the tokens skill) |
 | `opns` | OpNS names |
 | `lock` | Time-locked BSV |
 | `sigma` | Temporary Sigma inscribe anchors |

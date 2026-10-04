@@ -41,6 +41,13 @@ export const BSV21_AUTH_BASKET = BSV21_BASKET
 export const BSV21_AUTH_TAG = 'bsv21:auth'
 /** Tag on a single-CA deploy output; tokenId is the outpoint (`txid_vout`). */
 export const BSV21_DEPLOY_TAG = 'bsv21:deploy'
+/**
+ * Action label on every Mandala transaction: `listActions({ labels:
+ * ['mandala'] })` indexes the tokens this wallet tracks.
+ */
+export const MANDALA_LABEL = 'mandala'
+/** Overlay discovery topic for Mandala deploys (BRC-22). */
+export const MANDALA_TOPIC = 'tm_mandala'
 export const OPNS_BASKET = 'opns'
 export const LOCK_BASKET = 'lock'
 export const SIGMA_BASKET = 'sigma'
@@ -708,3 +715,91 @@ export const DEFAULT_STREAM_CHUNK_SIZE = 1024 * 1024
 export const ORDFS_STREAM_CONTENT_TYPE = 'ordfs/stream'
 /** Media-type parameter on the origin chunk (e.g. `video/mp4; stream=ordfs`) */
 export const ORDFS_STREAM_PARAM = 'stream=ordfs'
+
+// ============================================================================
+// Mandala (BRC-162)
+// ============================================================================
+//
+// Wallet-side names carry the token's deploy outpoint as two space-separated
+// words, `mandala <txid> <vout>` (lowercase txid): BRC-43 protocol names allow
+// only letters, digits and spaces, and the basket and label use the same
+// form. The on-chain id in the script is BRC-162's (32 bytes when vout is 0,
+// 36 bytes for a legacy vout > 0).
+
+/** A Mandala token's deploy outpoint. */
+export interface MandalaOutpoint {
+	txid: string
+	vout: number
+}
+
+/**
+ * A token reference: `{ txid, vout }`, or an outpoint string: BRC-36
+ * `txid.vout` (the Mandala API form; BRC-162 defers to BRC-36), or
+ * `txid_vout` (1Sat / template form), accepted and normalized.
+ */
+export type MandalaTokenRef = MandalaOutpoint | string
+
+/** Normalize a {@link MandalaTokenRef} to `{ txid (lowercase), vout }`. */
+export function mandalaOutpoint(token: MandalaTokenRef): MandalaOutpoint {
+	if (typeof token !== 'string') {
+		return { txid: token.txid.toLowerCase(), vout: token.vout }
+	}
+	const m = /^([0-9a-fA-F]{64})[_.](\d+)$/.exec(token)
+	if (!m) {
+		throw new Error(`not a token outpoint (txid.vout or txid_vout): ${token}`)
+	}
+	return { txid: m[1].toLowerCase(), vout: Number(m[2]) }
+}
+
+function mandalaName(token: MandalaTokenRef): string {
+	const { txid, vout } = mandalaOutpoint(token)
+	return `mandala ${txid} ${vout}`
+}
+
+/** Per-token basket `mandala <txid> <vout>`. */
+export function mandalaTokenBasket(token: MandalaTokenRef): string {
+	return mandalaName(token)
+}
+
+/** Per-token action label `mandala <txid> <vout>`, alongside the `mandala` label. */
+export function mandalaTokenLabel(token: MandalaTokenRef): string {
+	return mandalaName(token)
+}
+
+/**
+ * BRC-42/43 protocol for a Mandala token's keys: `[2, 'mandala <txid> <vout>']`,
+ * one protocol per token, so a BRC-43 grant covers only that token. Level 2
+ * (per-counterparty permission) mirrors BRC-29's `[2, '3241645161d8']`.
+ */
+export function mandalaProtocol(token: MandalaTokenRef): WalletProtocol {
+	return [2, mandalaName(token)]
+}
+
+/**
+ * Recover `{ txid, vout }` from a Mandala basket, label or protocol name
+ * (`mandala <txid> <vout>`), or from a protocol ID tuple. Undefined for
+ * anything else (including the bare `mandala` label).
+ */
+export function parseMandalaName(
+	name: string | WalletProtocol,
+): MandalaOutpoint | undefined {
+	const s = typeof name === 'string' ? name : name[1]
+	const m = /^mandala ([0-9a-f]{64}) (0|[1-9]\d*)$/.exec(s)
+	return m ? { txid: m[1], vout: Number(m[2]) } : undefined
+}
+
+/**
+ * BRC-42/43 protocol for a deploy output's key. The token is named by the
+ * deploy outpoint, unknown while the deploy is built, so the deploy key
+ * cannot use {@link mandalaProtocol}.
+ */
+export const MANDALA_DEPLOY_PROTOCOL: WalletProtocol = [2, 'mandala deploy']
+
+/** Messagebox box for Mandala token deliveries (BRC-169 envelopes, BRC-232 content). */
+export const MANDALA_INBOX = 'mandala_inbox'
+
+/**
+ * Default `nosend expiry` for a protected Mandala send: one year, in seconds.
+ * Carried as the action label `p nosend expiry seconds <n>`.
+ */
+export const MANDALA_SEND_EXPIRY_SECONDS = 31536000
