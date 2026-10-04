@@ -153,6 +153,85 @@ const dep = await deployMandala.execute(ctx, {
   adopt.
 - BSV-21 will move to the same scheme later, and a BRC will be written for it.
 
+## Mandala send (BRC-162)
+
+`sendMandala` spends the wallet's Mandala outputs for a token. Every output of a
+token, deploy included, lives in its own basket named by the bare token id
+(the deploy txid, lowercase hex; `mandalaTokenBasket(tokenId)` in
+`@1sat/types`). Tokens are indexed by transaction label, not by basket:
+`listActions({ labels: ['mandala'] })` lists tracked tokens, and each token's
+actions also carry `mandala:<txid>` (`mandalaTokenLabel`). `sendMandala` adds
+both labels, and a future recipient-side flow will internalize received
+tokens with the same two labels. Token
+change goes back to a wallet-derived key in the token's basket. Its
+customInstructions hold only the derivation (`protocolID`, `keyID`); amounts
+are read from the script.
+
+```typescript
+import { sendMandala } from '@1sat/actions'
+
+// Peer send: not broadcast. Delivered as Atomic BEEF to the recipient's
+// payment_inbox; the recipient broadcasts when it internalizes.
+const peer = await sendMandala.execute(ctx, {
+  tokenId: '<deploy txid>',
+  amount: '1000',
+  destination: { identityKey: '02abc...', messagebox: 'https://messagebox.example' },
+  // expiry: { seconds: 86400 }, // BRC-177; default 7 days
+})
+// peer.delivered === 'message', peer.messageId, peer.tx (Atomic BEEF)
+
+// BRC-169 handle: resolved via https://<domain>/manifest.json, then the
+// same peer send delivered as a signed BRC-169 envelope (DAG-CBOR).
+await sendMandala.execute(ctx, {
+  tokenId: '<deploy txid>',
+  amount: '1000',
+  destination: { handle: '@alice@example.com' },
+})
+// delivered === 'envelope'
+
+// Address: broadcast by the wallet.
+await sendMandala.execute(ctx, {
+  tokenId: '<deploy txid>',
+  amount: '1000',
+  destination: { address: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' },
+})
+
+// Address via an overlay: submitted (BRC-22) to <overlay>/submit with
+// X-Topics: tm_<tokenId> instead of the wallet's broadcast.
+await sendMandala.execute(ctx, {
+  tokenId: '<deploy txid>',
+  amount: '1000',
+  destination: { address: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' },
+  overlay: 'https://overlay.example',
+})
+// delivered === 'overlay'
+```
+
+- `overlay` applies only to address destinations. Peer sends never broadcast
+  (the recipient does), so `overlay` is ignored there.
+
+- Keys are BRC-42 under the per-token protocol `mandalaProtocol(tokenId)` =
+  `[2, 'mandala <txid>']`, so a BRC-43 grant covers one token. The recipient
+  key uses keyID `<derivationPrefix> <derivationSuffix>`, counterparty =
+  recipient.
+- Peer sends are BRC-177 protected `noSend` actions (`p nosend expiry …`
+  label): the wallet funds them from one exact anchor output, with no change.
+  If the recipient does not broadcast before the expiry, the wallet reclaims
+  the anchor; `abortAction` reclaims early.
+- A peer send is up to three transactions: (1) a split, broadcast normally,
+  when no token output holds exactly `amount` (the inputs go to an exact
+  output plus a remainder, both back to the token's basket); (2) the BRC-177
+  anchor funding, made by the wallet; (3) the protected send, spending only
+  the exact output, with no token or satoshi change.
+- The message body is the PeerPay shape plus `protocol`, `outputIndex` and
+  `senderIdentityKey`:
+  `{ customInstructions: { derivationPrefix, derivationSuffix, protocol: 'mandala <txid>' }, transaction, outputIndex, amount: 1, senderIdentityKey }`.
+- Handle sends post a BRC-169 §7.3 envelope (DAG-CBOR, BRC-231 body over
+  BRC-104) to the resolved messagebox's `payment_inbox`. It carries
+  `payment: { derivationPrefix, derivationSuffix, protocol: 'mandala <txid>' (bytes), satoshis: 1, beef }`,
+  a BRC-78 encrypted note `{ tokenId, amount }` as `content` (encrypted by
+  `wallet.encrypt`), its SHA-256 as `contentHash`, and a §7.2 signature.
+
 ## Requirements
 
 ```bash

@@ -721,15 +721,11 @@ export const ORDFS_STREAM_PARAM = 'stream=ordfs'
 // ============================================================================
 
 /**
- * Reserved/unused: outputs live in per-token baskets
- * ({@link mandalaTokenBasket}), tokens are indexed by label
- * (`mandala` + {@link mandalaTokenLabel}).
+ * Per-token basket `mandala <txid>`: the word, a space, the token id (deploy
+ * txid hex, lowercase).
  */
-export const MANDALA_BASKET = 'mandala'
-
-/** Per-token basket: the bare token id (deploy txid hex, lowercase). */
 export function mandalaTokenBasket(tokenId: string): string {
-	return tokenId.toLowerCase()
+	return `mandala ${tokenId.toLowerCase()}`
 }
 
 /** Per-token action label `mandala:<txid>`, alongside the `mandala` label. */
@@ -738,11 +734,26 @@ export function mandalaTokenLabel(txid: string): string {
 }
 
 /**
- * BRC-42/43 protocol for a Mandala token's keys, one per token: a BRC-43
- * grant is per protocol, so a flat `[2, 'mandala']` would let an app sign for
- * every token. Level 2 (per-counterparty permission) mirrors BRC-29.
+ * BRC-42/43 protocol for a Mandala token's keys: `[2, 'mandala <txid>']`, one
+ * protocol per token, so a BRC-43 grant covers only that token. Level 2
+ * (per-counterparty permission) mirrors BRC-29's `[2, '3241645161d8']`.
  */
-export const mandalaProtocol = (tokenId: string): WalletProtocol => [
-	2,
-	`mandala ${tokenId.toLowerCase()}`,
-]
+export function mandalaProtocol(tokenId: string): WalletProtocol {
+	return [2, `mandala ${tokenId.toLowerCase()}`]
+}
+
+/**
+ * BRC-42/43 protocol for a deploy output's key. The token id is the deploy
+ * txid, unknown while the deploy is built, so the deploy key cannot use
+ * {@link mandalaProtocol}.
+ */
+export const MANDALA_DEPLOY_PROTOCOL: WalletProtocol = [2, 'mandala deploy']
+
+/** Messagebox box for Mandala token deliveries (BRC-169 envelopes). */
+export const MANDALA_INBOX = 'mandala_inbox'
+
+/**
+ * Default `nosend expiry` for a protected Mandala send: one year, in seconds.
+ * Carried as the action label `p nosend expiry seconds <n>`.
+ */
+export const MANDALA_SEND_EXPIRY_SECONDS = 31536000
