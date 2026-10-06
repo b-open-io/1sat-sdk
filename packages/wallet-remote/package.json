@@ -1,6 +1,6 @@
 {
   "name": "@1sat/wallet-remote",
-  "version": "0.0.76",
+  "version": "0.0.77",
   "description": "Remote-only wallet factory for 1Sat Ordinals SDK",
   "type": "module",
   "main": "./dist/index.js",
@@ -37,7 +37,7 @@
   },
   "devDependencies": {
     "@bsv/sdk": "^2.6.0",
-    "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.14.7",
+    "@bsv/wallet-toolbox-client": "npm:@bopen-io/wallet-toolbox-client@2.14.8",
     "typescript": "^5.9.3"
   }
 }

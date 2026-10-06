@@ -1,6 +1,6 @@
 {
   "name": "@1sat/wallet-desktop",
-  "version": "0.0.32",
+  "version": "0.0.33",
   "description": "1Sat desktop app built with Electrobun",
   "private": true,
   "scripts": {
@@ -78,7 +78,7 @@
   },
   "devDependencies": {
     "@bsv/sdk": "^2.6.0",
-    "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.14.7",
+    "@bsv/wallet-toolbox": "npm:@bopen-io/wallet-toolbox@2.14.8",
     "@tailwindcss/vite": "^4.1.4",
     "@types/bun": "latest",
     "@types/qrcode": "^1.5.5",
