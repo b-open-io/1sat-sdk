@@ -37,6 +37,8 @@ export {
 	OrdfsClient,
 	OwnerClient,
 	OverlayClient,
+	type Brc22Submission,
+	isBrc22Submission,
 	TxoClient,
 	type OutputQueryOptions,
 } from './services/index.js'

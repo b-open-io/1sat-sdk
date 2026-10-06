@@ -16,6 +16,25 @@ export interface LookupServiceInfo {
 }
 
 /**
+ * An asynchronous overlay's answer to a BRC-22 submit: `200 {id}`, the
+ * transaction was delivered and the outcome comes later.
+ */
+export interface Brc22Submission {
+	id: string
+}
+
+/** True when a submit response body is a {@link Brc22Submission} `{id}`. */
+export function isBrc22Submission(body: unknown): body is Brc22Submission {
+	if (!body || typeof body !== 'object' || Array.isArray(body)) return false
+	const keys = Object.keys(body)
+	return (
+		keys.length === 1 &&
+		keys[0] === 'id' &&
+		typeof (body as { id: unknown }).id === 'string'
+	)
+}
+
+/**
  * Client for overlay service routes.
  * Handles topic manager queries and overlay lookups.
  */
@@ -100,15 +119,37 @@ export class OverlayClient extends BaseClient {
 	 * BRC-22 submit to `<baseUrl>/submit` on an overlay given by its base URL.
 	 * Topics go in `X-Topics` as a comma-separated bare string (the stack
 	 * rejects a JSON array).
+	 *
+	 * With `acceptSubmission`, an asynchronous overlay's `200 {id}` answer
+	 * (the transaction was delivered; the outcome comes later) is returned as
+	 * {@link Brc22Submission} `{id}` beside a STEAK.
 	 * @param beef - BEEF data
 	 * @param topics - Topic names (e.g. ["tm_mandala"])
-	 * @returns the overlay's STEAK
+	 * @returns the overlay's STEAK, or `{id}` when `acceptSubmission` is set
 	 */
 	async submitBrc22(
 		beef: Uint8Array | number[],
 		topics: string[],
-	): Promise<STEAK> {
-		return this.submitToPath<STEAK>('/submit', beef, topics)
+	): Promise<STEAK>
+	async submitBrc22(
+		beef: Uint8Array | number[],
+		topics: string[],
+		options: { acceptSubmission: true },
+	): Promise<STEAK | Brc22Submission>
+	async submitBrc22(
+		beef: Uint8Array | number[],
+		topics: string[],
+		options?: { acceptSubmission?: boolean },
+	): Promise<STEAK | Brc22Submission> {
+		const body = await this.submitToPath<STEAK | Brc22Submission>(
+			'/submit',
+			beef,
+			topics,
+		)
+		if (options?.acceptSubmission && isBrc22Submission(body)) {
+			return { id: body.id }
+		}
+		return body
 	}
 
 	/**

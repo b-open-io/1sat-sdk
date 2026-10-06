@@ -291,8 +291,8 @@ describe('deployMandala overlay', () => {
 		globalThis.fetch = realFetch
 	})
 
-	test('creates with noSend and submits to tm_mandala and tm_<txid> before internalizing', async () => {
-		const order: string[] = []
+	/** Fake overlay answering every submit with `body`; records url + X-Topics. */
+	function fakeOverlay(body: unknown, order: string[] = []) {
 		const submits: { url: string; topics: string | null }[] = []
 		globalThis.fetch = (async (
 			url: string | URL | Request,
@@ -303,13 +303,17 @@ describe('deployMandala overlay', () => {
 				url: String(url),
 				topics: new Headers(init?.headers).get('x-topics'),
 			})
-			return new Response(
-				JSON.stringify({
-					[MANDALA_TOPIC]: { outputsToAdmit: [0], coinsToRetain: [] },
-				}),
-				{ status: 200 },
-			)
+			return new Response(JSON.stringify(body), { status: 200 })
 		}) as typeof fetch
+		return submits
+	}
+
+	test('STEAK answer: creates with noSend, submits to the default tm_mandala before internalizing', async () => {
+		const order: string[] = []
+		const submits = fakeOverlay(
+			{ [MANDALA_TOPIC]: { outputsToAdmit: [0], coinsToRetain: [] } },
+			order,
+		)
 
 		const { ctx, created, internalized } = setup()
 		const internalize = ctx.wallet.internalizeAction
@@ -326,14 +330,59 @@ describe('deployMandala overlay', () => {
 
 		expect(res.error).toBeUndefined()
 		expect(res.tokenId).toBe(`${res.txid}.0`)
+		expect(res.submission).toBeUndefined()
 		expect(created[0].options?.noSend).toBe(true)
+		// default topics: the discovery topic only, no tm_<txid>
 		expect(submits).toEqual([
-			{
-				url: 'https://overlay.example/submit',
-				topics: `${MANDALA_TOPIC},tm_${res.txid}`,
-			},
+			{ url: 'https://overlay.example/submit', topics: MANDALA_TOPIC },
 		])
 		expect(order).toEqual(['submit', 'internalize'])
 		expectFiling(created, internalized, res.txid as string)
+	})
+
+	test('{id} answer: delivery is success, returned as submission, and the deploy is filed', async () => {
+		fakeOverlay({ id: 'sub-42' })
+		const { ctx, created, internalized } = setup()
+		const res = await deployMandala.execute(ctx, {
+			amount: '0',
+			overlay: 'https://overlay.example',
+		})
+
+		expect(res.error).toBeUndefined()
+		expect(res.tokenId).toBe(`${res.txid}.0`)
+		expect(res.submission).toEqual({ id: 'sub-42' })
+		expectFiling(created, internalized, res.txid as string)
+	})
+
+	test('explicit topics replace the default', async () => {
+		const submits = fakeOverlay({
+			tm_custom: { outputsToAdmit: [0], coinsToRetain: [] },
+		})
+		const { ctx } = setup()
+		const res = await deployMandala.execute(ctx, {
+			amount: '5',
+			overlay: 'https://overlay.example',
+			topics: ['tm_custom', MANDALA_TOPIC],
+		})
+
+		expect(res.error).toBeUndefined()
+		expect(submits).toEqual([
+			{
+				url: 'https://overlay.example/submit',
+				topics: `tm_custom,${MANDALA_TOPIC}`,
+			},
+		])
+	})
+
+	test('a non-object answer is overlay-no-steak and nothing is filed', async () => {
+		fakeOverlay([])
+		const { ctx, internalized } = setup()
+		const res = await deployMandala.execute(ctx, {
+			amount: '5',
+			overlay: 'https://overlay.example',
+		})
+		expect(res.error).toBe('overlay-no-steak')
+		expect(res.txid).toMatch(/^[0-9a-f]{64}$/)
+		expect(internalized).toHaveLength(0)
 	})
 })

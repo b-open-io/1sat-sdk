@@ -19,7 +19,11 @@ export {
 	type OpnsOriginResult,
 	type OpnsMineResult,
 } from './OpnsClient.js'
-export { OverlayClient } from './OverlayClient.js'
+export {
+	type Brc22Submission,
+	isBrc22Submission,
+	OverlayClient,
+} from './OverlayClient.js'
 export {
 	MneeClient,
 	type MneeConfig,

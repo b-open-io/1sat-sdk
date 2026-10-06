@@ -8,7 +8,11 @@
  * value/authority output of a token, the deploy output included.
  */
 
-import { OverlayClient } from '@1sat/client'
+import {
+	type Brc22Submission,
+	OverlayClient,
+	isBrc22Submission,
+} from '@1sat/client'
 import { Mandala, type MandalaMetadata } from '@1sat/templates'
 import {
 	type Destination,
@@ -37,11 +41,20 @@ export interface DeployMandalaInput {
 	/**
 	 * Overlay base URL. When set, the wallet creates the deploy with
 	 * `noSend` and it is broadcast as a BRC-22 submit to `<overlay>/submit`
-	 * with `X-Topics: tm_mandala,tm_<txid>` instead of the wallet's broadcast;
-	 * a STEAK response is success. This `overlay` input is the pattern other
-	 * broadcasting actions adopt.
+	 * with `X-Topics` = {@link DeployMandalaInput.topics} instead of the
+	 * wallet's broadcast. Success is a STEAK, or an asynchronous overlay's
+	 * `200 {id}` (delivered; the outcome comes later), returned as
+	 * `submission`. This `overlay` input is the pattern other broadcasting
+	 * actions adopt.
 	 */
 	overlay?: string
+	/**
+	 * Topics for the `overlay` submit. Default `["tm_mandala"]`, the
+	 * discovery topic. The per-token topic `tm_<txid>` is not in the default:
+	 * at deploy time it did not exist, so nobody can be listening on it; pass
+	 * it explicitly if an overlay wants it.
+	 */
+	topics?: string[]
 }
 
 export interface DeployMandalaResponse {
@@ -50,6 +63,11 @@ export interface DeployMandalaResponse {
 	tx?: number[]
 	/** The token's BRC-36 deploy outpoint `<txid>.0`; its basket, label and protocol name are `mandala <txid> 0` */
 	tokenId?: string
+	/**
+	 * Set when the `overlay` answered `200 {id}` instead of a STEAK: the
+	 * transaction was delivered and the outcome comes later.
+	 */
+	submission?: Brc22Submission
 	/**
 	 * Set with `txid`/`tx` when the deploy was created but not filed: re-run
 	 * the filing with {@link fileMandalaDeploy}.
@@ -144,7 +162,13 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 					overlay: {
 						type: 'string',
 						description:
-							'Overlay base URL: broadcast as a BRC-22 submit (tm_mandala, tm_<txid>) instead of the wallet broadcast',
+							'Overlay base URL: broadcast as a BRC-22 submit to the topics instead of the wallet broadcast; a STEAK or a 200 {id} answer is success',
+					},
+					topics: {
+						type: 'array',
+						items: { type: 'string' },
+						description:
+							'Topics for the overlay submit (default ["tm_mandala"])',
 					},
 				},
 				required: ['amount'],
@@ -203,14 +227,17 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 				const txid = created.txid
 				const tx = created.tx
 
+				let submission: Brc22Submission | undefined
 				if (input.overlay) {
-					const steak = await new OverlayClient(input.overlay).submitBrc22(tx, [
-						MANDALA_TOPIC,
-						`tm_${txid}`,
-					])
-					if (!steak || typeof steak !== 'object' || Array.isArray(steak)) {
+					const answer = await new OverlayClient(input.overlay).submitBrc22(
+						tx,
+						input.topics ?? [MANDALA_TOPIC],
+						{ acceptSubmission: true },
+					)
+					if (!answer || typeof answer !== 'object' || Array.isArray(answer)) {
 						return { txid, tx, error: 'overlay-no-steak' }
 					}
+					if (isBrc22Submission(answer)) submission = answer
 				}
 
 				try {
@@ -220,11 +247,17 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 						txid,
 						tx,
 						tokenId: `${txid}.0`,
+						...(submission && { submission }),
 						error: `file-failed: ${error instanceof Error ? error.message : String(error)}`,
 					}
 				}
 
-				return { txid, tx, tokenId: `${txid}.0` }
+				return {
+					txid,
+					tx,
+					tokenId: `${txid}.0`,
+					...(submission && { submission }),
+				}
 			} catch (error) {
 				return {
 					error: error instanceof Error ? error.message : 'unknown-error',
