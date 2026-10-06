@@ -509,7 +509,11 @@ export class OneSatServices implements WalletServices {
 	}
 
 	/**
-	 * Helper to get tx status from Beef storage (fallback when Arcade doesn't know the tx)
+	 * Fallback status from Beef storage when Arcade doesn't know the tx.
+	 * Reports `mined` only when the stored BEEF carries a merkle path for the tx;
+	 * otherwise `unknown`. The Beef store holds every tx from any submitted BEEF,
+	 * including unbroadcast ancestors, so presence alone does not mean the network
+	 * has the tx.
 	 */
 	private async getStatusFromBeef(txid: string): Promise<StatusForTxidResult> {
 		try {
@@ -522,8 +526,7 @@ export class OneSatServices implements WalletServices {
 				const depth = currentHeight - tx.merklePath.blockHeight + 1
 				return { txid, status: 'mined', depth }
 			}
-			// No merkle path = known but not yet mined
-			return { txid, status: 'known', depth: 0 }
+			return { txid, status: 'unknown', depth: undefined }
 		} catch {
 			// 404 or error from Beef = unknown
 			return { txid, status: 'unknown', depth: undefined }
