@@ -87,7 +87,9 @@ export interface DeployMandalaInput {
 	/**
 	 * Overlay base URL (required). The wallet creates the deploy with
 	 * `noSend` and it is broadcast as a BRC-22 submit to `<overlay>/submit`
-	 * with `X-Topics: tm_mandala`; a STEAK response is success. The body is
+	 * with `X-Topics: tm_mandala`. Success is only a STEAK for `tm_mandala`
+	 * (admittance instructions keyed by topic); any other answer, `{id}`
+	 * included, is `overlay-no-steak` and nothing is filed. The body is
 	 * the deploy's Atomic BEEF, or a Subject BEEF (BRC-233) about the deploy
 	 * carrying an external icon's transaction.
 	 */
@@ -135,6 +137,36 @@ async function fileDeploy(
 		labels: [MANDALA_LABEL, mandalaTokenLabel(token)],
 		description: 'File Mandala deploy',
 	})
+}
+
+/** A list of output/input indices, as in BRC-22 admittance instructions. */
+function isIndexList(value: unknown): boolean {
+	return Array.isArray(value) && value.every((i) => Number.isInteger(i))
+}
+
+/**
+ * Whether an overlay's answer is a STEAK (`@bsv/sdk` `STEAK`) for `topics`:
+ * an object keyed by topic whose values are admittance instructions
+ * (`outputsToAdmit`, `coinsToRetain`, optional `coinsRemoved`), with every
+ * submitted topic present. Anything else (e.g. `{id}`) is not.
+ */
+function isSteakFor(answer: unknown, topics: string[]): boolean {
+	if (!answer || typeof answer !== 'object' || Array.isArray(answer)) {
+		return false
+	}
+	const entries = Object.entries(answer)
+	return (
+		topics.every((topic) => Object.hasOwn(answer, topic)) &&
+		entries.every(([, value]) => {
+			if (!value || typeof value !== 'object') return false
+			const v = value as Record<string, unknown>
+			return (
+				isIndexList(v.outputsToAdmit) &&
+				isIndexList(v.coinsToRetain) &&
+				(v.coinsRemoved === undefined || isIndexList(v.coinsRemoved))
+			)
+		})
+	)
 }
 
 /** The deploy's icon, resolved before anything is created. */
@@ -377,10 +409,11 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 					body = toSubjectBeef(bag, txid)
 				}
 
-				const steak = await new OverlayClient(input.overlay).submitBrc22(body, [
-					MANDALA_TOPIC,
-				])
-				if (!steak || typeof steak !== 'object' || Array.isArray(steak)) {
+				const topics = [MANDALA_TOPIC]
+				const answer: unknown = await new OverlayClient(
+					input.overlay,
+				).submitBrc22(body, topics)
+				if (!isSteakFor(answer, topics)) {
 					return { txid, tx, error: 'overlay-no-steak' }
 				}
 

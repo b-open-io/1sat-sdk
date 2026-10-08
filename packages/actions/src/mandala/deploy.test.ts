@@ -392,6 +392,40 @@ describe('deployMandala overlay', () => {
 		expectFiling(created, internalized, res.txid as string)
 	})
 
+	test('a {id} answer is not a STEAK: overlay-no-steak and nothing is filed', async () => {
+		fakeOverlay({ id: 'sub-42' })
+		const { ctx, internalized } = setup()
+		const res = await deployMandala.execute(ctx, {
+			amount: '5',
+			overlay: 'https://overlay.example',
+		})
+		expect(res.error).toBe('overlay-no-steak')
+		expect(res.txid).toMatch(/^[0-9a-f]{64}$/)
+		expect(res.tokenId).toBeUndefined()
+		expect(internalized).toHaveLength(0)
+	})
+
+	test('a STEAK without tm_mandala, or with a malformed entry, is overlay-no-steak', async () => {
+		for (const answer of [
+			{ tm_other: { outputsToAdmit: [0], coinsToRetain: [] } },
+			{ [MANDALA_TOPIC]: { outputsToAdmit: [0] } },
+			{ [MANDALA_TOPIC]: { outputsToAdmit: ['0'], coinsToRetain: [] } },
+			{
+				[MANDALA_TOPIC]: { outputsToAdmit: [0], coinsToRetain: [] },
+				id: 'sub-42',
+			},
+		]) {
+			fakeOverlay(answer)
+			const { ctx, internalized } = setup()
+			const res = await deployMandala.execute(ctx, {
+				amount: '5',
+				overlay: 'https://overlay.example',
+			})
+			expect(res.error).toBe('overlay-no-steak')
+			expect(internalized).toHaveLength(0)
+		}
+	})
+
 	test('a non-object answer is overlay-no-steak and nothing is filed', async () => {
 		fakeOverlay([])
 		const { ctx, internalized } = setup()
