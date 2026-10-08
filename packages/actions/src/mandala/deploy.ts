@@ -9,19 +9,58 @@
  */
 
 import { OverlayClient } from '@1sat/client'
-import { Mandala, type MandalaMetadata } from '@1sat/templates'
+import {
+	Mandala,
+	type MandalaMetadata,
+	buildInscriptionScript,
+} from '@1sat/templates'
 import {
 	type Destination,
 	MANDALA_DEPLOY_PROTOCOL,
 	MANDALA_LABEL,
 	MANDALA_TOPIC,
+	P1SAT_PROTOCOL,
+	mandalaOutpoint,
 	mandalaTokenBasket,
 	mandalaTokenLabel,
 } from '@1sat/types'
-import type { AtomicBEEF, CreateActionArgs } from '@bsv/sdk'
+import {
+	type AtomicBEEF,
+	Beef,
+	type CreateActionArgs,
+	type CreateActionOutput,
+	Hash,
+	Utils,
+} from '@bsv/sdk'
+import { MAX_INSCRIPTION_BYTES, ORDINALS_BASKET } from '../constants.js'
 import type { Action, OneSatContext } from '../types.js'
 import { executeTrackedAction } from '../utils/createTrackedAction.js'
+import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance.js'
 import { resolveDestination } from '../utils/resolveDestination.js'
+import { toSubjectBeef } from '../utils/subjectBeef.js'
+
+/**
+ * An icon that already exists on chain: its outpoint, and optionally a BEEF
+ * holding that outpoint's transaction. Without `beef` the transaction is
+ * fetched with `ctx.services.getBeefForTxid`.
+ */
+export interface DeployMandalaExternalIcon {
+	/** Icon outpoint, `txid_vout` or `txid.vout` */
+	outpoint: string
+	/** BEEF (plain or Atomic) containing the outpoint's transaction */
+	beef?: number[]
+}
+
+/**
+ * An icon inscribed in the deploy transaction itself, on its own 1-sat
+ * output at vout 1, filed into basket `1sat` like a fresh `inscribe`.
+ */
+export interface DeployMandalaInlineIcon {
+	/** Base64 encoded icon content */
+	base64Content: string
+	/** Content type (MIME type) */
+	contentType: string
+}
 
 export interface DeployMandalaInput {
 	/** Supply: > 0 is a fixed-supply deploy, 0 an authority deploy */
@@ -30,18 +69,29 @@ export interface DeployMandalaInput {
 	decimals?: number
 	/** Ticker (`sym`); not unique */
 	symbol?: string
-	/** Icon pointer: `txid_vout` outpoint, or an output index in this transaction */
-	icon?: string | number
+	/**
+	 * Icon:
+	 * - an outpoint string (`txid_vout` or `txid.vout`), or
+	 *   {@link DeployMandalaExternalIcon} `{outpoint, beef?}`: an icon already
+	 *   on chain. Its transaction is checked before the deploy is created
+	 *   (from `beef` when given, else fetched from services) and travels with
+	 *   the deploy in a Subject BEEF submission;
+	 * - {@link DeployMandalaInlineIcon} `{base64Content, contentType}`: the
+	 *   icon is inscribed in the deploy transaction at vout 1 and the payload
+	 *   points at it (`icon` = 1);
+	 * - a number: an output index in the deploy transaction, encoded as is.
+	 */
+	icon?: string | number | DeployMandalaExternalIcon | DeployMandalaInlineIcon
 	/** Holder of the deploy output. Defaults to self */
 	destination?: Destination
 	/**
-	 * Overlay base URL. When set, the wallet creates the deploy with
+	 * Overlay base URL (required). The wallet creates the deploy with
 	 * `noSend` and it is broadcast as a BRC-22 submit to `<overlay>/submit`
-	 * with `X-Topics: tm_mandala,tm_<txid>` instead of the wallet's broadcast;
-	 * a STEAK response is success. This `overlay` input is the pattern other
-	 * broadcasting actions adopt.
+	 * with `X-Topics: tm_mandala`; a STEAK response is success. The body is
+	 * the deploy's Atomic BEEF, or a Subject BEEF (BRC-233) about the deploy
+	 * carrying an external icon's transaction.
 	 */
-	overlay?: string
+	overlay: string
 }
 
 export interface DeployMandalaResponse {
@@ -87,20 +137,110 @@ async function fileDeploy(
 	})
 }
 
+/** The deploy's icon, resolved before anything is created. */
+interface ResolvedIcon {
+	/** The payload's `icon` */
+	payload?: string | number
+	/** External icon: a BEEF holding the icon's transaction */
+	beef?: Beef
+	/** Inline icon: the inscription output at vout 1 */
+	output?: CreateActionOutput
+	error?: string
+}
+
 /**
- * Deploy a Mandala token: one `createAction` and one `internalizeAction` on
- * the same transaction.
+ * Resolve {@link DeployMandalaInput.icon}. An external icon's transaction
+ * must be in the given BEEF (never fetched instead), or — when no BEEF is
+ * given — fetched from services; the outpoint's vout must exist in it.
+ */
+async function resolveIcon(
+	ctx: OneSatContext,
+	icon: DeployMandalaInput['icon'],
+): Promise<ResolvedIcon> {
+	if (icon === undefined) return {}
+	if (typeof icon === 'number') return { payload: icon }
+	if (typeof icon === 'string' || 'outpoint' in icon) {
+		const external = typeof icon === 'string' ? { outpoint: icon } : icon
+		const { txid, vout } = mandalaOutpoint(external.outpoint)
+		let beef: Beef
+		if (external.beef) {
+			beef = Beef.fromBinary(external.beef)
+		} else {
+			if (!ctx.services) return { error: 'icon-services-required' }
+			beef = await ctx.services.getBeefForTxid(txid)
+		}
+		const tx = beef.findTxid(txid)?.tx
+		if (!tx) return { error: 'icon-beef-missing-tx' }
+		if (!tx.outputs[vout]) return { error: 'icon-beef-missing-vout' }
+		return { payload: `${txid}_${vout}`, beef }
+	}
+
+	// Inline: a fresh inscription, as the inscribe action files one.
+	const content = Utils.toArray(icon.base64Content, 'base64')
+	if (content.length > MAX_INSCRIPTION_BYTES) {
+		return {
+			error: `Inscription data too large: ${content.length} bytes (max ${MAX_INSCRIPTION_BYTES})`,
+		}
+	}
+	const resolved = await resolveDestination(ctx, undefined, {
+		protocolID: P1SAT_PROTOCOL,
+		keyIDPrefix: 'inscribe',
+	})
+	const typeBase = icon.contentType.split(';')[0]?.trim() || icon.contentType
+	const tags = [
+		`type:${typeBase}`,
+		'origin',
+		`sha256:${Utils.toHex(Hash.sha256(content))}`,
+	]
+	const customInstructions = resolved.customInstructions
+		? buildOrdinalCustomInstructions({
+				protocolID: resolved.customInstructions.protocolID,
+				keyID: resolved.customInstructions.keyID,
+				counterparty: resolved.customInstructions.counterparty as
+					| string
+					| undefined,
+				tags,
+			})
+		: undefined
+	const lockingScript = buildInscriptionScript(
+		resolved.lockingScript,
+		new Uint8Array(content),
+		icon.contentType,
+	)
+	return {
+		payload: 1,
+		output: {
+			lockingScript: lockingScript.toHex(),
+			satoshis: 1,
+			outputDescription: 'Mandala icon inscription',
+			basket: ORDINALS_BASKET,
+			tags,
+			customInstructions,
+		},
+	}
+}
+
+/**
+ * Deploy a Mandala token: one `createAction`, one overlay submit and one
+ * `internalizeAction` on the same transaction.
  *
- * 1. `createAction` with the deploy output at vout 0 (`randomizeOutputs:
- *    false`) and no basket (an output cannot later be moved out of a basket),
- *    customInstructions = the key derivation only, label `mandala`.
- *    Broadcast by the wallet, or via `overlay` (see
- *    {@link DeployMandalaInput.overlay}).
- * 2. `internalizeAction` on that transaction: vout 0 is inserted into the
- *    per-token basket `mandala <txid> 0` with the same customInstructions, and
- *    the labels `mandala` and `mandala <txid> 0` are added. When this step
- *    fails the result carries `txid`, `tx` and the error; the action is still
- *    labelled `mandala`, and {@link fileMandalaDeploy} re-runs the filing.
+ * 0. The icon is resolved first (see {@link DeployMandalaInput.icon}); when
+ *    it fails nothing is created.
+ * 1. `createAction` with `noSend`, the deploy output at vout 0
+ *    (`randomizeOutputs: false`) and no basket (an output cannot later be
+ *    moved out of a basket), customInstructions = the key derivation only,
+ *    label `mandala`. An inline icon is the inscription output at vout 1,
+ *    in basket `1sat`.
+ * 2. BRC-22 submit to `overlay` (see {@link DeployMandalaInput.overlay}):
+ *    the deploy's Atomic BEEF, or with an external icon a Subject BEEF
+ *    (BRC-233) about the deploy whose BEEF V2 also holds the icon's
+ *    transaction.
+ * 3. `internalizeAction` on that transaction (which promotes the noSend
+ *    transaction): vout 0 is inserted into the per-token basket
+ *    `mandala <txid> 0` with the same customInstructions, and the labels
+ *    `mandala` and `mandala <txid> 0` are added. When this step fails the
+ *    result carries `txid`, `tx` and the error; the action is still labelled
+ *    `mandala`, and {@link fileMandalaDeploy} re-runs the filing.
  *
  * The deploy key derives under `MANDALA_DEPLOY_PROTOCOL` = `[2, 'mandala
  * deploy']`, keyID `mandala-deploy-<hex>`: the token id is this
@@ -132,9 +272,28 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 					},
 					symbol: { type: 'string', description: 'Token symbol/ticker' },
 					icon: {
-						type: 'string',
+						type: 'object',
 						description:
-							'Icon outpoint (txid_vout), or an output index in the deploy transaction',
+							'Icon. {outpoint, beef?}: an icon on chain (txid_vout or txid.vout; beef = BEEF of its transaction, fetched from services when omitted); a bare outpoint string is the same without beef. {base64Content, contentType}: inscribe the icon in the deploy transaction at vout 1. A number: an output index in the deploy transaction.',
+						properties: {
+							outpoint: {
+								type: 'string',
+								description: 'Icon outpoint (txid_vout or txid.vout)',
+							},
+							beef: {
+								type: 'array',
+								description:
+									'BEEF containing the outpoint transaction; fetched from services when omitted',
+							},
+							base64Content: {
+								type: 'string',
+								description: 'Base64 encoded icon to inscribe at vout 1',
+							},
+							contentType: {
+								type: 'string',
+								description: 'Content type (MIME type) of base64Content',
+							},
+						},
 					},
 					destination: {
 						type: 'object',
@@ -144,14 +303,18 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 					overlay: {
 						type: 'string',
 						description:
-							'Overlay base URL: broadcast as a BRC-22 submit (tm_mandala, tm_<txid>) instead of the wallet broadcast',
+							'Overlay base URL: the deploy is created noSend and broadcast as a BRC-22 submit (tm_mandala); a STEAK answer is success',
 					},
 				},
-				required: ['amount'],
+				required: ['amount', 'overlay'],
 			},
 		},
 		async execute(ctx, input) {
 			try {
+				if (!input.overlay) return { error: 'overlay-required' }
+				const icon = await resolveIcon(ctx, input.icon)
+				if (icon.error) return { error: icon.error }
+
 				const amount =
 					typeof input.amount === 'string' ? BigInt(input.amount) : input.amount
 				const authority = amount === 0n
@@ -164,7 +327,7 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 				const payload: MandalaMetadata = {}
 				if (input.symbol !== undefined) payload.sym = input.symbol
 				if (input.decimals !== undefined) payload.dec = input.decimals
-				if (input.icon !== undefined) payload.icon = input.icon
+				if (icon.payload !== undefined) payload.icon = icon.payload
 				const deploy = authority
 					? Mandala.deployAuthority({ lock: resolved.lockingScript, payload })
 					: Mandala.deployValue(amount, {
@@ -189,11 +352,12 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 							outputDescription: 'Mandala deploy',
 							customInstructions,
 						},
+						...(icon.output ? [icon.output] : []),
 					],
 					labels: [MANDALA_LABEL],
 					options: {
 						randomizeOutputs: false,
-						...(input.overlay && { noSend: true }),
+						noSend: true,
 					},
 				}
 
@@ -203,14 +367,21 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 				const txid = created.txid
 				const tx = created.tx
 
-				if (input.overlay) {
-					const steak = await new OverlayClient(input.overlay).submitBrc22(tx, [
-						MANDALA_TOPIC,
-						`tm_${txid}`,
-					])
-					if (!steak || typeof steak !== 'object' || Array.isArray(steak)) {
-						return { txid, tx, error: 'overlay-no-steak' }
-					}
+				// External icon: Subject BEEF about the deploy, its BEEF V2 holding
+				// the deploy (with ancestry) and the icon's transaction.
+				let body: number[] = tx
+				if (icon.beef) {
+					const bag = new Beef()
+					bag.mergeBeef(tx)
+					bag.mergeBeef(icon.beef)
+					body = toSubjectBeef(bag, txid)
+				}
+
+				const steak = await new OverlayClient(input.overlay).submitBrc22(body, [
+					MANDALA_TOPIC,
+				])
+				if (!steak || typeof steak !== 'object' || Array.isArray(steak)) {
+					return { txid, tx, error: 'overlay-no-steak' }
 				}
 
 				try {

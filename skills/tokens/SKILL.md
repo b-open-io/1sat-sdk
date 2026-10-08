@@ -169,7 +169,7 @@ await fileMandalaDeploy.execute(ctx, { txid: dep.txid!, tx: dep.tx })
   `tx`, else `ctx.services.getBeefForTxid`; customInstructions read back with
   `listActions`).
 - `overlay` (optional base URL): the deploy is created with `noSend`,
-  submitted BRC-22 to `<overlay>/submit` with `X-Topics: tm_mandala,tm_<txid>`,
+  submitted BRC-22 to `<overlay>/submit` with `X-Topics: tm_mandala`,
   then internalized.
 
 ### Send (to a BRC-169 handle)
