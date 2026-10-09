@@ -17,6 +17,7 @@ import Mandala, {
 	type DagCborValue,
 	decodeDagCbor,
 	MANDALA_MAX_AMOUNT,
+	type MandalaIcon,
 } from './mandala.js'
 
 // Transactions from amm-poc programs/amm-topic/src/fixtures/vectors.zig (2a9ea90)
@@ -249,17 +250,20 @@ describe('Mandala.decode rejects', () => {
 
 describe('Mandala payload', () => {
 	it('round-trips display fields as DAG-CBOR on a deploy', () => {
-		const icon = `${'11'.repeat(32)}_1`
+		const icon = {
+			mediaType: 'image/png',
+			bytes: Uint8Array.of(0x89, 0x50, 0x4e, 0x47),
+		}
 		const t = Mandala.deployValue(21_000_000n, {
 			lock: P2PKH_LOCK,
 			payload: { sym: 'GOLD', dec: 8, icon },
 		})
-		// length-first key order: dec, sym, icon
-		const cbor = `a36364656308${'6373796d64474f4c44'}6469636f6e5824${'11'.repeat(32)}01000000`
+		// length-first key order: dec, sym, icon; icon = ["image/png", h'89504e47']
+		const cbor = `a36364656308${'6373796d64474f4c44'}6469636f6e8269${'696d6167652f706e67'}4489504e47`
 		expect(hex(t.payload ?? [])).toBe(cbor)
 		const script = t.lock()
-		expect(cbor.length / 2).toBe(0x3a)
-		expect(script.toHex()).toBe(`0004406f40016d3a${cbor}75${P2PKH_HEX}`)
+		expect(cbor.length / 2).toBe(0x24)
+		expect(script.toHex()).toBe(`0004406f40016d24${cbor}75${P2PKH_HEX}`)
 		const d = Mandala.decode(script)
 		expect(d?.role).toBe('deploy')
 		expect(d?.amount).toBe(21_000_000n)
@@ -269,14 +273,26 @@ describe('Mandala payload', () => {
 		expect(d?.lock.toHex()).toBe(P2PKH_HEX)
 	})
 
-	it('spec example: {"sym":"STABLE","dec":2} on an authority deploy, 4-byte icon', () => {
+	it('spec example: {"dec":8,"sym":"GOLD","icon":["image/png",h\'89504e470d0a1a0a…\']} on an authority deploy', () => {
+		const png = Uint8Array.from([
+			0x89,
+			0x50,
+			0x4e,
+			0x47,
+			0x0d,
+			0x0a,
+			0x1a,
+			0x0a,
+			...Array(200).fill(7),
+		])
+		const icon = { mediaType: 'image/png', bytes: png }
 		const t = Mandala.deployAuthority({
 			lock: P2PKH_LOCK,
-			payload: { sym: 'STABLE', dec: 2, icon: 1 },
+			payload: { sym: 'GOLD', dec: 8, icon },
 		})
 		const d = Mandala.decode(t.lock())
-		expect(d?.metadata).toEqual({ sym: 'STABLE', dec: 2, icon: 1 })
-		expect(hex(d?.payloadMap?.icon as Uint8Array)).toBe('01000000')
+		expect(d?.metadata).toEqual({ sym: 'GOLD', dec: 8, icon })
+		expect(d?.payloadMap?.icon).toEqual(['image/png', png])
 	})
 
 	it('short payloads use a direct push, not PUSHDATA', () => {
@@ -297,9 +313,19 @@ describe('Mandala payload', () => {
 		expect(() =>
 			Mandala.deploy(1n, { lock: P2PKH_LOCK, payload: { dec: 19 } }),
 		).toThrow()
-		expect(() =>
-			Mandala.deploy(1n, { lock: P2PKH_LOCK, payload: { icon: 'nope' } }),
-		).toThrow()
+		for (const icon of [
+			'nope',
+			1,
+			{ mediaType: 1, bytes: Uint8Array.of(1) },
+			{ mediaType: 'image/png', bytes: [1] },
+		]) {
+			expect(() =>
+				Mandala.deploy(1n, {
+					lock: P2PKH_LOCK,
+					payload: { icon: icon as unknown as MandalaIcon },
+				}),
+			).toThrow()
+		}
 	})
 
 	it('raw payload on a value output: minimal pushes for every size', () => {
@@ -362,35 +388,51 @@ describe('Mandala payload', () => {
 
 	it('attribute types are checked per BRC-162; a malformed one is absent', () => {
 		const SYM_G = '6373796d6147' // "sym": "G"
-		const ICON_1 = '6469636f6e4401000000' // "icon": h'01000000'
+		const ICON = '6469636f6e' // "icon"
+		const PNG = '69696d6167652f706e67' // "image/png"
+		const ICON_1 = `${ICON}82${PNG}4101` // "icon": ["image/png", h'01']
+		const icon = { mediaType: 'image/png', bytes: Uint8Array.of(1) }
+		const noIcon = (
+			name: string,
+			value: string,
+		): [string, string, Record<string, unknown>] => [
+			name,
+			`a36364656302${SYM_G}${ICON}${value}`,
+			{ sym: 'G', dec: 2 },
+		]
 		const cases: [string, string, Record<string, unknown>][] = [
 			[
 				'dec as f64 1.0',
 				`a363646563fb3ff0000000000000${SYM_G}${ICON_1}`,
-				{ sym: 'G', icon: 1 },
+				{ sym: 'G', icon },
 			],
-			['dec negative', `a36364656320${SYM_G}${ICON_1}`, { sym: 'G', icon: 1 }],
-			['dec as text', `a3636465636131${SYM_G}${ICON_1}`, { sym: 'G', icon: 1 }],
-			['dec above 18', `a36364656313${SYM_G}${ICON_1}`, { sym: 'G', icon: 1 }],
-			[
-				'icon of 5 bytes',
-				`a36364656302${SYM_G}6469636f6e450100000000`,
-				{ sym: 'G', dec: 2 },
-			],
-			[
-				'icon as text',
-				`a36364656302${SYM_G}6469636f6e6461626364`,
-				{ sym: 'G', dec: 2 },
-			],
-			[
-				'sym as bytes',
-				`a363646563026373796d4147${ICON_1}`,
-				{ dec: 2, icon: 1 },
-			],
+			['dec negative', `a36364656320${SYM_G}${ICON_1}`, { sym: 'G', icon }],
+			['dec as text', `a3636465636131${SYM_G}${ICON_1}`, { sym: 'G', icon }],
+			['dec above 18', `a36364656313${SYM_G}${ICON_1}`, { sym: 'G', icon }],
+			noIcon('icon as a 4-byte vout pointer (removed form)', '4401000000'),
+			noIcon(
+				'icon as a 36-byte outpoint pointer (removed form)',
+				`5824${'11'.repeat(32)}01000000`,
+			),
+			noIcon('icon as bytes', '4101'),
+			noIcon('icon as text', '6461626364'),
+			noIcon('icon as an empty array', '80'),
+			noIcon('icon as a one-item array', `81${PNG}`),
+			noIcon('icon as a three-item array', `83${PNG}410101`),
+			noIcon('icon items reversed', `824101${PNG}`),
+			noIcon('icon as two text strings', `82${PNG}6178`),
+			noIcon('icon as two byte strings', '8241014101'),
+			noIcon('icon as a map', `a1${'696d6564696154797065'}${PNG}`),
+			['sym as bytes', `a363646563026373796d4147${ICON_1}`, { dec: 2, icon }],
 			[
 				'every attribute well-typed',
 				`a36364656302${SYM_G}${ICON_1}`,
-				{ sym: 'G', dec: 2, icon: 1 },
+				{ sym: 'G', dec: 2, icon },
+			],
+			[
+				'icon with an empty media type and no bytes is still the shape',
+				`a36364656302${SYM_G}${ICON}826040`,
+				{ sym: 'G', dec: 2, icon: { mediaType: '', bytes: new Uint8Array(0) } },
 			],
 		]
 		for (const [name, payload, metadata] of cases) {

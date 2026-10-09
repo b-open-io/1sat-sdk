@@ -171,6 +171,8 @@ await fileMandalaDeploy.execute(ctx, { txid: dep.txid!, tx: dep.tx })
   `tx` and the error; `fileMandalaDeploy({ txid, tx? })` re-runs it (BEEF from
   `tx`, else `ctx.services.getBeefForTxid`; customInstructions read back with
   `listActions`).
+- `icon` (optional): `{ mediaType, bytes }`, embedded in the deploy payload
+  as BRC-162's `icon`, the DAG-CBOR array `[mediaType, bytes]`.
 - `overlay` (optional base URL): the deploy is created with `noSend`,
   submitted BRC-22 to `<overlay>/submit` with `X-Topics: tm_mandala,tm_<txid>`,
   then internalized.

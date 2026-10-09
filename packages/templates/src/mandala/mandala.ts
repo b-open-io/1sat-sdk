@@ -81,6 +81,17 @@ function fromIpld(value: unknown): DagCborValue {
 export type MandalaRole = 'deploy' | 'value' | 'authority'
 
 /**
+ * A token's display image, embedded in the deploy: on the wire the DAG-CBOR
+ * array `[mediaType, bytes]` (a text string and a byte string).
+ */
+export interface MandalaIcon {
+	/** Media type (RFC 6838), e.g. `image/png` */
+	mediaType: string
+	/** The image content */
+	bytes: Uint8Array
+}
+
+/**
  * Deploy display fields, carried as a DAG-CBOR map payload on the deploy output.
  */
 export interface MandalaMetadata {
@@ -88,11 +99,8 @@ export interface MandalaMetadata {
 	sym?: string
 	/** Decimal places, 0-18 (default 0) */
 	dec?: number
-	/**
-	 * Icon pointer. A `txid_vout` string is an absolute outpoint (36 bytes on
-	 * the wire); a number is an output index in the deploy transaction (4 bytes).
-	 */
-	icon?: string | number
+	/** The token's display image, embedded in the deploy */
+	icon?: MandalaIcon
 }
 
 /** Where an output's inner lock comes from: a script, or an address / pubkey hash for P2PKH */
@@ -245,7 +253,7 @@ function resolveLock(lock: MandalaLock): LockingScript {
 }
 
 function encodeMetadata(meta: MandalaMetadata): Uint8Array | undefined {
-	const wire: Record<string, string | number | Uint8Array> = {}
+	const wire: Record<string, string | number | [string, Uint8Array]> = {}
 	if (meta.sym !== undefined) wire.sym = meta.sym
 	if (meta.dec !== undefined) {
 		if (!Number.isInteger(meta.dec) || meta.dec < 0 || meta.dec > 18) {
@@ -254,18 +262,11 @@ function encodeMetadata(meta: MandalaMetadata): Uint8Array | undefined {
 		wire.dec = meta.dec
 	}
 	if (meta.icon !== undefined) {
-		if (typeof meta.icon === 'number') {
-			if (
-				!Number.isInteger(meta.icon) ||
-				meta.icon < 0 ||
-				meta.icon > 0xffffffff
-			) {
-				throw new Error('icon vout must be a uint32')
-			}
-			wire.icon = Uint8Array.from(u32le(meta.icon))
-		} else {
-			wire.icon = outpointBytes(meta.icon)
+		const { mediaType, bytes } = meta.icon
+		if (typeof mediaType !== 'string' || !(bytes instanceof Uint8Array)) {
+			throw new Error('icon must be { mediaType: string, bytes: Uint8Array }')
 		}
+		wire.icon = [mediaType, bytes]
 	}
 	if (Object.keys(wire).length === 0) return undefined
 	return dagCborEncode(wire)
@@ -321,8 +322,9 @@ function mapValueTypes(payload: Uint8Array): Map<string, number> {
 /**
  * The BRC-162 display fields of a deploy payload map. Each attribute must have
  * its BRC-162 CBOR type, checked at the token level: `sym` a text string,
- * `dec` an unsigned integer (major type 0) 0-18, `icon` a byte string of 4 or
- * 36 bytes. A malformed attribute is absent; the others are unaffected.
+ * `dec` an unsigned integer (major type 0) 0-18, `icon` an array of exactly
+ * two items, a text string (media type) and a byte string (the image). A
+ * malformed attribute is absent; the others are unaffected.
  */
 function metadataOf(
 	map: Record<string, DagCborValue>,
@@ -337,9 +339,14 @@ function metadataOf(
 		meta.dec = map.dec
 	}
 	const icon = map.icon
-	if (types.get('icon') === 2 && icon instanceof Uint8Array) {
-		if (icon.length === 36) meta.icon = outpointString(icon)
-		else if (icon.length === 4) meta.icon = readU32le(icon, 0)
+	if (
+		types.get('icon') === 4 &&
+		Array.isArray(icon) &&
+		icon.length === 2 &&
+		typeof icon[0] === 'string' &&
+		icon[1] instanceof Uint8Array
+	) {
+		meta.icon = { mediaType: icon[0], bytes: icon[1] }
 	}
 	return meta
 }
@@ -365,8 +372,8 @@ function metadataOf(
  *   DAG-CBOR map may carry `sym`, `dec` and `icon`. The payload is decoded
  *   with `@ipld/dag-cbor` as-is; each attribute's type is checked per BRC-162
  *   at the CBOR token level (`sym` text, `dec` unsigned integer 0-18, `icon`
- *   4 or 36 bytes), and a malformed attribute is absent without affecting the
- *   others. The payload never affects balance or authority admission.
+ *   the array `[mediaType text, bytes]`), and a malformed attribute is absent
+ *   without affecting the others. The payload never affects balance or authority admission.
  * - **Empty payload rule**: when no payload is given and the inner lock itself
  *   begins with a push operation (`OP_0`, `OP_1NEGATE`, `OP_1`..`OP_16` or any
  *   data push) followed by `OP_DROP`, the prefix carries an explicit empty

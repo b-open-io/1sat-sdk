@@ -30,8 +30,8 @@ export interface DeployMandalaInput {
 	decimals?: number
 	/** Ticker (`sym`); not unique */
 	symbol?: string
-	/** Icon pointer: `txid_vout` outpoint, or an output index in this transaction */
-	icon?: string | number
+	/** Icon (`icon`): the image embedded in the deploy, as its media type and bytes */
+	icon?: { mediaType: string; bytes: number[] | Uint8Array }
 	/** Holder of the deploy output. Defaults to self */
 	destination?: Destination
 	/**
@@ -132,9 +132,14 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 					},
 					symbol: { type: 'string', description: 'Token symbol/ticker' },
 					icon: {
-						type: 'string',
+						type: 'object',
 						description:
-							'Icon outpoint (txid_vout), or an output index in the deploy transaction',
+							'Icon embedded in the deploy: { mediaType (e.g. image/png), bytes (array of byte values) }',
+						properties: {
+							mediaType: { type: 'string' },
+							bytes: { type: 'array', items: { type: 'integer' } },
+						},
+						required: ['mediaType', 'bytes'],
 					},
 					destination: {
 						type: 'object',
@@ -164,7 +169,12 @@ export const deployMandala: Action<DeployMandalaInput, DeployMandalaResponse> =
 				const payload: MandalaMetadata = {}
 				if (input.symbol !== undefined) payload.sym = input.symbol
 				if (input.decimals !== undefined) payload.dec = input.decimals
-				if (input.icon !== undefined) payload.icon = input.icon
+				if (input.icon !== undefined) {
+					payload.icon = {
+						mediaType: input.icon.mediaType,
+						bytes: Uint8Array.from(input.icon.bytes),
+					}
+				}
 				const deploy = authority
 					? Mandala.deployAuthority({ lock: resolved.lockingScript, payload })
 					: Mandala.deployValue(amount, {

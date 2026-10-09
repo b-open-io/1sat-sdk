@@ -15,6 +15,7 @@ export {
 } from './mandala/mandala.js'
 export type {
 	DagCborValue,
+	MandalaIcon,
 	MandalaLock,
 	MandalaMetadata,
 	MandalaOptions,
