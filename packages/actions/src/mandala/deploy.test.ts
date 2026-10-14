@@ -160,7 +160,7 @@ describe('deployMandala', () => {
 			amount: 0n,
 			symbol: 'STABLE',
 			decimals: 2,
-			icon: 1,
+			icon: { mediaType: 'image/png', bytes: [0x89, 0x50, 0x4e, 0x47] },
 		})
 
 		expect(res.error).toBeUndefined()
@@ -169,12 +169,23 @@ describe('deployMandala', () => {
 		const { ci, tx } = expectFiling(created, internalized, res.txid as string)
 		const expected = Mandala.deployAuthority({
 			lock: await derivedLock(ci),
-			payload: { sym: 'STABLE', dec: 2, icon: 1 },
+			payload: {
+				sym: 'STABLE',
+				dec: 2,
+				icon: {
+					mediaType: 'image/png',
+					bytes: Uint8Array.of(0x89, 0x50, 0x4e, 0x47),
+				},
+			},
 		})
 		expect(created[0].outputs?.[0].lockingScript).toBe(expected.lock().toHex())
 		const decoded = Mandala.decode(tx.outputs[0].lockingScript as Script)
 		expect(decoded?.role).toBe('deploy')
 		expect(decoded?.amount).toBe(0n)
+		expect(decoded?.metadata?.icon).toEqual({
+			mediaType: 'image/png',
+			bytes: Uint8Array.of(0x89, 0x50, 0x4e, 0x47),
+		})
 	})
 
 	test('an address destination carries no customInstructions', async () => {
