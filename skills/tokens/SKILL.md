@@ -150,27 +150,48 @@ script, `sym`/`dec`/`icon` from the deploy payload.
 import { deployMandala, fileMandalaDeploy } from '@1sat/actions'
 
 // amount > 0: fixed supply; amount 0: authority (first minting authority)
-const dep = await deployMandala.execute(ctx, { amount: '21000000', symbol: 'GOLD', decimals: 8 })
+const dep = await deployMandala.execute(ctx, {
+  amount: '21000000',
+  symbol: 'GOLD',
+  decimals: 8,
+  overlay: 'https://overlay.example', // required, no default
+  // icon: '<txid>_<vout>' | { outpoint, beef? } | { base64Content, contentType } | <vout>
+})
 // dep.txid, dep.tokenId === `${dep.txid}.0`
 
 // If the filing step failed (dep.error starts with 'file-failed'), retry it:
 await fileMandalaDeploy.execute(ctx, { txid: dep.txid!, tx: dep.tx })
 ```
 
-- One `createAction`: the deploy output at vout 0 (`randomizeOutputs: false`),
-  **no basket** (a wallet cannot later move an output out of a basket),
-  label `mandala`, broadcast normally. Its key derives under
+- One `createAction` with `noSend`: the deploy output at vout 0
+  (`randomizeOutputs: false`), **no basket** (a wallet cannot later move an
+  output out of a basket), label `mandala`. Its key derives under
   `MANDALA_DEPLOY_PROTOCOL` = `[2, 'mandala deploy']`, keyID
   `mandala-deploy-<hex>`, because the outpoint is unknown while it is built.
-- Then `internalizeAction` on the same transaction: vout 0 by `basket
-  insertion` into `mandala <txid> 0`, same customInstructions, labels
-  `mandala` and `mandala <txid> 0`. If it fails, the result carries `txid`,
+- `overlay` (required, no default): the deploy is submitted BRC-22 to
+  `<overlay>/submit` with `X-Topics: tm_mandala`. Only a STEAK for
+  `tm_mandala` is success; any other answer (`{id}` included) is
+  `overlay-no-steak` and nothing is filed. The wallet does not broadcast it.
+- Then `internalizeAction` on the same transaction (promoting the noSend
+  transaction): vout 0 by `basket insertion` into `mandala <txid> 0`, same
+  customInstructions, labels `mandala` and `mandala <txid> 0`. If it fails, the result carries `txid`,
   `tx` and the error; `fileMandalaDeploy({ txid, tx? })` re-runs it (BEEF from
   `tx`, else `ctx.services.getBeefForTxid`; customInstructions read back with
   `listActions`).
-- `overlay` (optional base URL): the deploy is created with `noSend`,
-  submitted BRC-22 to `<overlay>/submit` with `X-Topics: tm_mandala,tm_<txid>`,
-  then internalized.
+- `icon`, resolved before anything is created:
+  - an outpoint (`'<txid>_<vout>'`, `'<txid>.<vout>'` or `{ outpoint, beef? }`):
+    an icon already on chain. Its transaction must be in `beef` when given,
+    else it is fetched with `ctx.services.getBeefForTxid`. No services
+    (`icon-services-required`) or a BEEF without the transaction/vout
+    (`icon-beef-missing-tx` / `icon-beef-missing-vout`) is an error and
+    nothing is created. The payload `icon` is `<txid>_<vout>`.
+  - `{ base64Content, contentType }`: inscribed in the deploy transaction at
+    vout 1 (1 sat, basket `1sat`, filed like a fresh `inscribe`); the
+    payload `icon` is `1`.
+  - a number: an output index in the deploy transaction, encoded as is.
+- Submit body: with an outpoint icon, a Subject BEEF (BRC-233, `57 09 be ef`
+  ‖ deploy txid ‖ BEEF V2 holding the deploy and the icon's transaction);
+  otherwise the deploy's Atomic BEEF.
 
 ### Send (to a BRC-169 handle)
 
