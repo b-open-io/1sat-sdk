@@ -10,17 +10,18 @@ export { default as BSV21 } from './bsv21/bsv21.js'
 export {
 	DagCborLink,
 	decodeDagCbor,
-	default as Mandala,
-	MANDALA_MAX_AMOUNT,
-} from './mandala/mandala.js'
+	default as OneColor,
+	ONE_COLOR_MAX_AMOUNT,
+} from './1color/OneColor.js'
 export type {
 	DagCborValue,
-	MandalaLock,
-	MandalaMetadata,
-	MandalaOptions,
-	MandalaRole,
-	MandalaToken,
-} from './mandala/mandala.js'
+	OneColorIcon,
+	OneColorLock,
+	OneColorMetadata,
+	OneColorOptions,
+	OneColorRole,
+	OneColorToken,
+} from './1color/OneColor.js'
 export { default as OrdLock } from './ordlock/ordlock.js'
 export { default as OrdLockV2 } from './ordlock/ordlockV2.js'
 export {

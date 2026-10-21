@@ -34,16 +34,17 @@
     "@1sat/types": "workspace:*",
     "@1sat/utils": "workspace:*",
     "@1sat/wallet": "workspace:*",
+    "@bsv/color-permission-module": "npm:@bopen-io/color-permission-module@0.1.0",
     "@bsv/message-box-client": "^2.5.0",
     "@ipld/dag-cbor": "^10.0.2",
     "xdelta3-wasm": "^1.0.0"
   },
   "peerDependencies": {
-    "@bsv/sdk": "^2.6.0"
+    "@bsv/sdk": "^4.0.0"
   },
   "devDependencies": {
     "@1sat/wallet-remote": "workspace:*",
-    "@bsv/sdk": "^2.6.0",
+    "@bsv/sdk": "npm:@bopen-io/sdk@4.0.0",
     "typescript": "^5.9.3"
   }
 }

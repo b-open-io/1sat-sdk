@@ -154,7 +154,7 @@ export * from './collections/index.js'
 export * from './payments/index.js'
 export * from './ordinals/index.js'
 export * from './tokens/index.js'
-export * from './mandala/index.js'
+export * from './1color/index.js'
 export * from './metanet/index.js'
 export * from './inscriptions/index.js'
 export * from './locks/index.js'
@@ -184,6 +184,7 @@ export * from './registry/index.js'
 // Export ordfs module (ord-fs/json directory writing)
 export * from './ordfs/index.js'
 
+import { oneColorActions } from './1color/index.js'
 import { actionRegistry } from './action-registry.js'
 import { addressesActions } from './addresses/index.js'
 import { collectionsActions } from './collections/index.js'
@@ -191,7 +192,6 @@ import { identityActions } from './identity/index.js'
 import { inscriptionsActions } from './inscriptions/index.js'
 import { cancelOwnedListings } from './listings/cancelOwnedListings.js'
 import { locksActions } from './locks/index.js'
-import { mandalaActions } from './mandala/index.js'
 import { metanetActions } from './metanet/index.js'
 import { mneeActions } from './mnee/index.js'
 import { opnsActions } from './opns/index.js'
@@ -211,7 +211,7 @@ actionRegistry.registerAll([
 	...paymentsActions,
 	...ordinalsActions,
 	...tokensActions,
-	...mandalaActions,
+	...oneColorActions,
 	...metanetActions,
 	...inscriptionsActions,
 	...locksActions,

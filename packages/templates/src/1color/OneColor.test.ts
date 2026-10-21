@@ -12,12 +12,13 @@ import {
 } from '@bsv/sdk'
 import { encode as dagCborEncode } from '@ipld/dag-cbor'
 import BSV21 from '../bsv21/bsv21.js'
-import Mandala, {
+import OneColor, {
 	DagCborLink,
 	type DagCborValue,
 	decodeDagCbor,
-	MANDALA_MAX_AMOUNT,
-} from './mandala.js'
+	ONE_COLOR_MAX_AMOUNT,
+	type OneColorIcon,
+} from './OneColor.js'
 
 // Transactions from amm-poc programs/amm-topic/src/fixtures/vectors.zig (2a9ea90)
 function fixture(name: string): Transaction {
@@ -37,81 +38,94 @@ const ID3 = `${TXID}_3`
 const ID0_BYTES = Utils.toArray(TXID, 'hex').reverse()
 const ID3_BYTES = [...ID0_BYTES, 3, 0, 0, 0]
 
-describe('Mandala token ids', () => {
+describe('OneColor token ids', () => {
 	it('vout 0 is 32 bytes, natural-order txid', () => {
-		expect(hex(Mandala.idFromString(ID0))).toBe(hex(ID0_BYTES))
-		expect(Mandala.idToString(Uint8Array.from(ID0_BYTES))).toBe(ID0)
+		expect(hex(OneColor.idFromString(ID0))).toBe(hex(ID0_BYTES))
+		expect(OneColor.idToString(Uint8Array.from(ID0_BYTES))).toBe(ID0)
 	})
 
 	it('non-zero vout is 36 bytes with a LE vout', () => {
-		expect(hex(Mandala.idFromString(ID3))).toBe(hex(ID3_BYTES))
-		expect(Mandala.idToString(ID3_BYTES)).toBe(ID3)
+		expect(hex(OneColor.idFromString(ID3))).toBe(hex(ID3_BYTES))
+		expect(OneColor.idToString(ID3_BYTES)).toBe(ID3)
 		const big = `${TXID}_4294967295`
-		expect(Mandala.idToString(Mandala.idFromString(big))).toBe(big)
+		expect(OneColor.idToString(OneColor.idFromString(big))).toBe(big)
 	})
 
 	it('rejects a 36-byte id with vout 0 and bad lengths / strings', () => {
-		expect(() => Mandala.idToString([...ID0_BYTES, 0, 0, 0, 0])).toThrow()
-		expect(() => Mandala.idToString(ID0_BYTES.slice(1))).toThrow()
-		expect(() => Mandala.idFromString(TXID)).toThrow()
-		expect(() => Mandala.idFromString(`${TXID}_4294967296`)).toThrow()
+		expect(() => OneColor.idToString([...ID0_BYTES, 0, 0, 0, 0])).toThrow()
+		expect(() => OneColor.idToString(ID0_BYTES.slice(1))).toThrow()
+		expect(() => OneColor.idFromString(TXID)).toThrow()
+		expect(() => OneColor.idFromString(`${TXID}_4294967296`)).toThrow()
+	})
+
+	it('accepts only the canonical BRC-207 asset id string', () => {
+		for (const id of [
+			`${TXID}.0`,
+			`${TXID}.3`,
+			`${TXID.toUpperCase()}_0`,
+			`${TXID}_03`,
+			`${TXID}_`,
+			`${TXID}v0`,
+		]) {
+			expect(() => OneColor.idFromString(id)).toThrow()
+		}
 	})
 })
 
-describe('Mandala lock / decode round-trips', () => {
-	const cases: [string, Mandala, string, string | undefined, bigint][] = [
+describe('OneColor lock / decode round-trips', () => {
+	const cases: [string, OneColor, string, string | undefined, bigint][] = [
 		[
 			'deploy value',
-			Mandala.deployValue(21_000_000n, { lock: P2PKH_LOCK }),
+			OneColor.deployValue(21_000_000n, { lock: P2PKH_LOCK }),
 			'deploy',
 			undefined,
 			21_000_000n,
 		],
 		[
 			'deploy authority',
-			Mandala.deployAuthority({ lock: P2PKH_LOCK }),
+			OneColor.deployAuthority({ lock: P2PKH_LOCK }),
 			'deploy',
 			undefined,
 			0n,
 		],
 		[
 			'deploy(undefined)',
-			Mandala.deploy(undefined, { lock: P2PKH_LOCK }),
+			OneColor.deploy(undefined, { lock: P2PKH_LOCK }),
 			'deploy',
 			undefined,
 			0n,
 		],
 		[
 			'value 32-byte id',
-			Mandala.value(ID0, 5000n, { lock: P2PKH_LOCK }),
+			OneColor.value(ID0, 5000n, { lock: P2PKH_LOCK }),
 			'value',
 			ID0,
 			5000n,
 		],
 		[
 			'value 36-byte id',
-			Mandala.value(ID3, 5000n, { lock: P2PKH_LOCK }),
+			OneColor.value(ID3, 5000n, { lock: P2PKH_LOCK }),
 			'value',
 			ID3,
 			5000n,
 		],
 		[
 			'authority 32-byte id',
-			Mandala.authority(ID0, { lock: P2PKH_LOCK }),
+			OneColor.authority(ID0, { lock: P2PKH_LOCK }),
 			'authority',
 			ID0,
 			0n,
 		],
 		[
 			'authority 36-byte id',
-			Mandala.authority(ID3, { lock: P2PKH_LOCK }),
+			OneColor.authority(ID3, { lock: P2PKH_LOCK }),
 			'authority',
 			ID3,
 			0n,
 		],
 		[
 			'value from id bytes',
-			Mandala.value(Uint8Array.from(ID3_BYTES), 7n, { lock: P2PKH_LOCK }),
+			OneColor.value(Uint8Array.from(ID3_BYTES), 7n, { lock: P2PKH_LOCK }),
 			'value',
 			ID3,
 			7n,
@@ -121,7 +135,7 @@ describe('Mandala lock / decode round-trips', () => {
 		it(name, () => {
 			expect(t.role).toBe(role as typeof t.role)
 			expect(t.tokenId).toBe(id)
-			const d = Mandala.decode(t.lock())
+			const d = OneColor.decode(t.lock())
 			expect(d).not.toBeNull()
 			expect(d?.role).toBe(role as typeof t.role)
 			expect(d?.tokenId).toBe(id)
@@ -133,13 +147,13 @@ describe('Mandala lock / decode round-trips', () => {
 	}
 
 	it('writes the exact prefix bytes', () => {
-		expect(Mandala.deployAuthority({ lock: P2PKH_LOCK }).lock().toHex()).toBe(
+		expect(OneColor.deployAuthority({ lock: P2PKH_LOCK }).lock().toHex()).toBe(
 			`00006d${P2PKH_HEX}`,
 		)
-		expect(Mandala.value(ID0, 5000n, { lock: P2PKH_LOCK }).lock().toHex()).toBe(
-			`20${hex(ID0_BYTES)}0288136d${P2PKH_HEX}`,
-		)
-		expect(Mandala.authority(ID3, { lock: P2PKH_LOCK }).lock().toHex()).toBe(
+		expect(
+			OneColor.value(ID0, 5000n, { lock: P2PKH_LOCK }).lock().toHex(),
+		).toBe(`20${hex(ID0_BYTES)}0288136d${P2PKH_HEX}`)
+		expect(OneColor.authority(ID3, { lock: P2PKH_LOCK }).lock().toHex()).toBe(
 			`24${hex(ID3_BYTES)}006d${P2PKH_HEX}`,
 		)
 	})
@@ -148,42 +162,42 @@ describe('Mandala lock / decode round-trips', () => {
 		const key = PrivateKey.fromRandom()
 		const address = key.toAddress()
 		const expected = new P2PKH().lock(address).toHex()
-		expect(Mandala.value(ID0, 1n, { lock: address }).inner.toHex()).toBe(
+		expect(OneColor.value(ID0, 1n, { lock: address }).inner.toHex()).toBe(
 			expected,
 		)
 		const pkh = key.toPublicKey().toHash() as number[]
-		expect(Mandala.value(ID0, 1n, { lock: pkh }).inner.toHex()).toBe(expected)
+		expect(OneColor.value(ID0, 1n, { lock: pkh }).inner.toHex()).toBe(expected)
 	})
 
 	it('accepts any inner script, including an empty one', () => {
 		const inner = Script.fromASM('OP_TRUE')
 		expect(
-			Mandala.decode(
-				Mandala.value(ID0, 2n, { lock: inner }).lock(),
+			OneColor.decode(
+				OneColor.value(ID0, 2n, { lock: inner }).lock(),
 			)?.lock.toHex(),
 		).toBe('51')
-		const empty = Mandala.decode(
-			Mandala.value(ID0, 2n, { lock: new LockingScript() }).lock(),
+		const empty = OneColor.decode(
+			OneColor.value(ID0, 2n, { lock: new LockingScript() }).lock(),
 		)
 		expect(empty?.lock.toHex()).toBe('')
 	})
 
 	it('builder rejects invalid amounts and ids', () => {
-		expect(() => Mandala.value(ID0, 0n, { lock: P2PKH_LOCK })).toThrow()
-		expect(() => Mandala.value(ID0, -1n, { lock: P2PKH_LOCK })).toThrow()
+		expect(() => OneColor.value(ID0, 0n, { lock: P2PKH_LOCK })).toThrow()
+		expect(() => OneColor.value(ID0, -1n, { lock: P2PKH_LOCK })).toThrow()
 		expect(() =>
-			Mandala.value(ID0, MANDALA_MAX_AMOUNT + 1n, { lock: P2PKH_LOCK }),
+			OneColor.value(ID0, ONE_COLOR_MAX_AMOUNT + 1n, { lock: P2PKH_LOCK }),
 		).toThrow()
-		expect(() => Mandala.deployValue(0n, { lock: P2PKH_LOCK })).toThrow()
+		expect(() => OneColor.deployValue(0n, { lock: P2PKH_LOCK })).toThrow()
 		expect(() =>
-			Mandala.authority(Uint8Array.from([...ID0_BYTES, 0, 0, 0, 0]), {
+			OneColor.authority(Uint8Array.from([...ID0_BYTES, 0, 0, 0, 0]), {
 				lock: P2PKH_LOCK,
 			}),
 		).toThrow()
 	})
 })
 
-describe('Mandala amounts: minimal pushes', () => {
+describe('OneColor amounts: minimal pushes', () => {
 	const cases: [bigint, string][] = [
 		[1n, '51'],
 		[16n, '60'],
@@ -195,24 +209,24 @@ describe('Mandala amounts: minimal pushes', () => {
 		[2n ** 31n, '050000008000'],
 		[2n ** 63n - 1n, '08ffffffffffffff7f'],
 		[2n ** 63n, '09000000000000008000'],
-		[MANDALA_MAX_AMOUNT, '09ffffffffffffffff00'],
+		[ONE_COLOR_MAX_AMOUNT, '09ffffffffffffffff00'],
 	]
 	for (const [amount, push] of cases) {
 		it(`${amount}`, () => {
-			const script = Mandala.value(ID0, amount, { lock: P2PKH_LOCK }).lock()
+			const script = OneColor.value(ID0, amount, { lock: P2PKH_LOCK }).lock()
 			expect(script.toHex()).toBe(`20${hex(ID0_BYTES)}${push}6d${P2PKH_HEX}`)
-			expect(Mandala.decode(script)?.amount).toBe(amount)
+			expect(OneColor.decode(script)?.amount).toBe(amount)
 		})
 	}
 
 	it('authority amount is OP_0', () => {
-		expect(Mandala.authority(ID0, { lock: P2PKH_LOCK }).lock().toHex()).toBe(
+		expect(OneColor.authority(ID0, { lock: P2PKH_LOCK }).lock().toHex()).toBe(
 			`20${hex(ID0_BYTES)}006d${P2PKH_HEX}`,
 		)
 	})
 })
 
-describe('Mandala.decode rejects', () => {
+describe('OneColor.decode rejects', () => {
 	const id = `20${hex(ID0_BYTES)}`
 	const bad: [string, string][] = [
 		['empty script', ''],
@@ -241,25 +255,28 @@ describe('Mandala.decode rejects', () => {
 	]
 	for (const [name, script] of bad) {
 		it(name, () => {
-			expect(Mandala.decode(Script.fromHex(script))).toBeNull()
+			expect(OneColor.decode(Script.fromHex(script))).toBeNull()
 		})
 	}
 })
 
-describe('Mandala payload', () => {
+describe('OneColor payload', () => {
 	it('round-trips display fields as DAG-CBOR on a deploy', () => {
-		const icon = `${'11'.repeat(32)}_1`
-		const t = Mandala.deployValue(21_000_000n, {
+		const icon = {
+			mediaType: 'image/png',
+			bytes: Uint8Array.of(0x89, 0x50, 0x4e, 0x47),
+		}
+		const t = OneColor.deployValue(21_000_000n, {
 			lock: P2PKH_LOCK,
 			payload: { sym: 'GOLD', dec: 8, icon },
 		})
-		// length-first key order: dec, sym, icon
-		const cbor = `a36364656308${'6373796d64474f4c44'}6469636f6e5824${'11'.repeat(32)}01000000`
+		// length-first key order: dec, sym, icon; icon = ["image/png", h'89504e47']
+		const cbor = `a36364656308${'6373796d64474f4c44'}6469636f6e8269${'696d6167652f706e67'}4489504e47`
 		expect(hex(t.payload ?? [])).toBe(cbor)
 		const script = t.lock()
-		expect(cbor.length / 2).toBe(0x3a)
-		expect(script.toHex()).toBe(`0004406f40016d3a${cbor}75${P2PKH_HEX}`)
-		const d = Mandala.decode(script)
+		expect(cbor.length / 2).toBe(0x24)
+		expect(script.toHex()).toBe(`0004406f40016d24${cbor}75${P2PKH_HEX}`)
+		const d = OneColor.decode(script)
 		expect(d?.role).toBe('deploy')
 		expect(d?.amount).toBe(21_000_000n)
 		expect(hex(d?.payload ?? [])).toBe(cbor)
@@ -268,18 +285,30 @@ describe('Mandala payload', () => {
 		expect(d?.lock.toHex()).toBe(P2PKH_HEX)
 	})
 
-	it('spec example: {"sym":"STABLE","dec":2} on an authority deploy, 4-byte icon', () => {
-		const t = Mandala.deployAuthority({
+	it('spec example: {"dec":8,"sym":"GOLD","icon":["image/png",h\'89504e470d0a1a0a…\']} on an authority deploy', () => {
+		const png = Uint8Array.from([
+			0x89,
+			0x50,
+			0x4e,
+			0x47,
+			0x0d,
+			0x0a,
+			0x1a,
+			0x0a,
+			...Array(200).fill(7),
+		])
+		const icon = { mediaType: 'image/png', bytes: png }
+		const t = OneColor.deployAuthority({
 			lock: P2PKH_LOCK,
-			payload: { sym: 'STABLE', dec: 2, icon: 1 },
+			payload: { sym: 'GOLD', dec: 8, icon },
 		})
-		const d = Mandala.decode(t.lock())
-		expect(d?.metadata).toEqual({ sym: 'STABLE', dec: 2, icon: 1 })
-		expect(hex(d?.payloadMap?.icon as Uint8Array)).toBe('01000000')
+		const d = OneColor.decode(t.lock())
+		expect(d?.metadata).toEqual({ sym: 'GOLD', dec: 8, icon })
+		expect(d?.payloadMap?.icon).toEqual(['image/png', png])
 	})
 
 	it('short payloads use a direct push, not PUSHDATA', () => {
-		const t = Mandala.deployAuthority({
+		const t = OneColor.deployAuthority({
 			lock: P2PKH_LOCK,
 			payload: { sym: 'X' },
 		})
@@ -288,17 +317,27 @@ describe('Mandala payload', () => {
 
 	it('empty display fields omit the payload', () => {
 		expect(
-			Mandala.deployAuthority({ lock: P2PKH_LOCK, payload: {} }).payload,
+			OneColor.deployAuthority({ lock: P2PKH_LOCK, payload: {} }).payload,
 		).toBeUndefined()
 	})
 
 	it('rejects invalid display fields when building', () => {
 		expect(() =>
-			Mandala.deploy(1n, { lock: P2PKH_LOCK, payload: { dec: 19 } }),
+			OneColor.deploy(1n, { lock: P2PKH_LOCK, payload: { dec: 19 } }),
 		).toThrow()
-		expect(() =>
-			Mandala.deploy(1n, { lock: P2PKH_LOCK, payload: { icon: 'nope' } }),
-		).toThrow()
+		for (const icon of [
+			'nope',
+			1,
+			{ mediaType: 1, bytes: Uint8Array.of(1) },
+			{ mediaType: 'image/png', bytes: [1] },
+		]) {
+			expect(() =>
+				OneColor.deploy(1n, {
+					lock: P2PKH_LOCK,
+					payload: { icon: icon as unknown as OneColorIcon },
+				}),
+			).toThrow()
+		}
 	})
 
 	it('raw payload on a value output: minimal pushes for every size', () => {
@@ -314,12 +353,12 @@ describe('Mandala payload', () => {
 			[Array(256).fill(7), `4d0001${'07'.repeat(256)}`],
 		]
 		for (const [bytes, push] of sizes) {
-			const s = Mandala.value(ID0, 17n, {
+			const s = OneColor.value(ID0, 17n, {
 				lock: P2PKH_LOCK,
 				payload: Uint8Array.from(bytes),
 			}).lock()
 			expect(s.toHex()).toBe(`20${hex(ID0_BYTES)}01116d${push}75${P2PKH_HEX}`)
-			const d = Mandala.decode(s)
+			const d = OneColor.decode(s)
 			expect(hex(d?.payload ?? [9])).toBe(hex(bytes))
 			expect(d?.metadata).toBeUndefined()
 			expect(d?.lock.toHex()).toBe(P2PKH_HEX)
@@ -327,11 +366,11 @@ describe('Mandala payload', () => {
 	})
 
 	it('a value output with a DAG-CBOR payload exposes payloadMap but no metadata', () => {
-		const s = Mandala.value(ID0, 17n, {
+		const s = OneColor.value(ID0, 17n, {
 			lock: P2PKH_LOCK,
 			payload: { sym: 'X' },
 		}).lock()
-		const d = Mandala.decode(s)
+		const d = OneColor.decode(s)
 		expect(d?.payloadMap).toEqual({ sym: 'X' })
 		expect(d?.metadata).toBeUndefined()
 	})
@@ -347,11 +386,11 @@ describe('Mandala payload', () => {
 			'a16373796dc16158', // tag 1
 			'c1a16373796d6158', // tagged map, tag 1
 		]) {
-			const s = Mandala.deployAuthority({
+			const s = OneColor.deployAuthority({
 				lock: P2PKH_LOCK,
 				payload: Utils.toArray(p, 'hex'),
 			}).lock()
-			const d = Mandala.decode(s)
+			const d = OneColor.decode(s)
 			expect(d?.role).toBe('deploy')
 			expect(d?.payload).toBeDefined()
 			expect(d?.payloadMap).toBeUndefined()
@@ -361,40 +400,56 @@ describe('Mandala payload', () => {
 
 	it('attribute types are checked per BRC-162; a malformed one is absent', () => {
 		const SYM_G = '6373796d6147' // "sym": "G"
-		const ICON_1 = '6469636f6e4401000000' // "icon": h'01000000'
+		const ICON = '6469636f6e' // "icon"
+		const PNG = '69696d6167652f706e67' // "image/png"
+		const ICON_1 = `${ICON}82${PNG}4101` // "icon": ["image/png", h'01']
+		const icon = { mediaType: 'image/png', bytes: Uint8Array.of(1) }
+		const noIcon = (
+			name: string,
+			value: string,
+		): [string, string, Record<string, unknown>] => [
+			name,
+			`a36364656302${SYM_G}${ICON}${value}`,
+			{ sym: 'G', dec: 2 },
+		]
 		const cases: [string, string, Record<string, unknown>][] = [
 			[
 				'dec as f64 1.0',
 				`a363646563fb3ff0000000000000${SYM_G}${ICON_1}`,
-				{ sym: 'G', icon: 1 },
+				{ sym: 'G', icon },
 			],
-			['dec negative', `a36364656320${SYM_G}${ICON_1}`, { sym: 'G', icon: 1 }],
-			['dec as text', `a3636465636131${SYM_G}${ICON_1}`, { sym: 'G', icon: 1 }],
-			['dec above 18', `a36364656313${SYM_G}${ICON_1}`, { sym: 'G', icon: 1 }],
-			[
-				'icon of 5 bytes',
-				`a36364656302${SYM_G}6469636f6e450100000000`,
-				{ sym: 'G', dec: 2 },
-			],
-			[
-				'icon as text',
-				`a36364656302${SYM_G}6469636f6e6461626364`,
-				{ sym: 'G', dec: 2 },
-			],
-			[
-				'sym as bytes',
-				`a363646563026373796d4147${ICON_1}`,
-				{ dec: 2, icon: 1 },
-			],
+			['dec negative', `a36364656320${SYM_G}${ICON_1}`, { sym: 'G', icon }],
+			['dec as text', `a3636465636131${SYM_G}${ICON_1}`, { sym: 'G', icon }],
+			['dec above 18', `a36364656313${SYM_G}${ICON_1}`, { sym: 'G', icon }],
+			noIcon('icon as a 4-byte vout pointer (removed form)', '4401000000'),
+			noIcon(
+				'icon as a 36-byte outpoint pointer (removed form)',
+				`5824${'11'.repeat(32)}01000000`,
+			),
+			noIcon('icon as bytes', '4101'),
+			noIcon('icon as text', '6461626364'),
+			noIcon('icon as an empty array', '80'),
+			noIcon('icon as a one-item array', `81${PNG}`),
+			noIcon('icon as a three-item array', `83${PNG}410101`),
+			noIcon('icon items reversed', `824101${PNG}`),
+			noIcon('icon as two text strings', `82${PNG}6178`),
+			noIcon('icon as two byte strings', '8241014101'),
+			noIcon('icon as a map', `a1${'696d6564696154797065'}${PNG}`),
+			['sym as bytes', `a363646563026373796d4147${ICON_1}`, { dec: 2, icon }],
 			[
 				'every attribute well-typed',
 				`a36364656302${SYM_G}${ICON_1}`,
-				{ sym: 'G', dec: 2, icon: 1 },
+				{ sym: 'G', dec: 2, icon },
+			],
+			[
+				'icon with an empty media type and no bytes is still the shape',
+				`a36364656302${SYM_G}${ICON}826040`,
+				{ sym: 'G', dec: 2, icon: { mediaType: '', bytes: new Uint8Array(0) } },
 			],
 		]
 		for (const [name, payload, metadata] of cases) {
-			const d = Mandala.decode(
-				Mandala.deployAuthority({
+			const d = OneColor.decode(
+				OneColor.deployAuthority({
 					lock: P2PKH_LOCK,
 					payload: Utils.toArray(payload, 'hex'),
 				}).lock(),
@@ -411,8 +466,8 @@ describe('Mandala payload', () => {
 			dec: 19,
 			icon: Uint8Array.of(1, 2, 3),
 		})
-		const d = Mandala.decode(
-			Mandala.deployAuthority({ lock: P2PKH_LOCK, payload }).lock(),
+		const d = OneColor.decode(
+			OneColor.deployAuthority({ lock: P2PKH_LOCK, payload }).lock(),
 		)
 		expect(d?.role).toBe('deploy')
 		expect(d?.metadata).toEqual({ sym: 'OK' })
@@ -420,7 +475,7 @@ describe('Mandala payload', () => {
 
 	it('a <push> OP_DROP at the start of the lock is read as the payload', () => {
 		const s = Script.fromHex(`00516d010275${P2PKH_HEX}`)
-		const d = Mandala.decode(s)
+		const d = OneColor.decode(s)
 		expect(hex(d?.payload ?? [])).toBe('02')
 		expect(d?.lock.toHex()).toBe(P2PKH_HEX)
 	})
@@ -428,9 +483,9 @@ describe('Mandala payload', () => {
 	it('no payload and an inner lock starting with <push> OP_DROP: explicit empty payload', () => {
 		// inner: <02> OP_DROP, then P2PKH
 		const inner = LockingScript.fromHex(`010275${P2PKH_HEX}`)
-		const t = Mandala.value(ID0, 17n, { lock: inner })
+		const t = OneColor.value(ID0, 17n, { lock: inner })
 		expect(t.prefix().toHex()).toBe(`20${hex(ID0_BYTES)}01116d0075`)
-		const d = Mandala.decode(t.lock())
+		const d = OneColor.decode(t.lock())
 		expect(d?.payload).toEqual(new Uint8Array(0))
 		expect(t.payload).toEqual(new Uint8Array(0))
 		expect(t.payload).toEqual(d?.payload as Uint8Array)
@@ -442,9 +497,9 @@ describe('Mandala payload', () => {
 	it('explicit empty payload for every push form before OP_DROP', () => {
 		for (const push of ['00', '4f', '51', '60', '0102', '4c01ff']) {
 			const inner = LockingScript.fromHex(`${push}75${P2PKH_HEX}`)
-			const t = Mandala.deployAuthority({ lock: inner })
+			const t = OneColor.deployAuthority({ lock: inner })
 			expect(t.prefix().toHex()).toBe('00006d0075')
-			const d = Mandala.decode(t.lock())
+			const d = OneColor.decode(t.lock())
 			expect(d?.payload).toEqual(new Uint8Array(0))
 			expect(t.payload).toEqual(d?.payload as Uint8Array)
 			expect(d?.payloadMap).toBeUndefined()
@@ -455,27 +510,27 @@ describe('Mandala payload', () => {
 
 	it('a given payload is written as-is before an inner <push> OP_DROP', () => {
 		const inner = LockingScript.fromHex(`010275${P2PKH_HEX}`)
-		const t = Mandala.value(ID0, 17n, {
+		const t = OneColor.value(ID0, 17n, {
 			lock: inner,
 			payload: Uint8Array.of(0xaa),
 		})
 		expect(t.prefix().toHex()).toBe(`20${hex(ID0_BYTES)}01116d01aa75`)
-		const d = Mandala.decode(t.lock())
+		const d = OneColor.decode(t.lock())
 		expect(hex(d?.payload ?? [])).toBe('aa')
 		expect(d?.lock.toHex()).toBe(inner.toHex())
 	})
 
 	it('no payload and a P2PKH inner lock: no payload written', () => {
-		const t = Mandala.value(ID0, 17n, { lock: P2PKH_LOCK })
+		const t = OneColor.value(ID0, 17n, { lock: P2PKH_LOCK })
 		expect(t.prefix().toHex()).toBe(`20${hex(ID0_BYTES)}01116d`)
-		const d = Mandala.decode(t.lock())
+		const d = OneColor.decode(t.lock())
 		expect(d?.payload).toBeUndefined()
 		expect(t.payload).toBeUndefined()
 		expect(d?.lock.toHex()).toBe(P2PKH_HEX)
 	})
 
 	it('accepts a non-minimal payload push (matches the reference decoder)', () => {
-		const d = Mandala.decode(Script.fromHex(`00516d4c010275${P2PKH_HEX}`))
+		const d = OneColor.decode(Script.fromHex(`00516d4c010275${P2PKH_HEX}`))
 		expect(hex(d?.payload ?? [])).toBe('02')
 	})
 })
@@ -535,7 +590,7 @@ describe('amm-poc fixtures', () => {
 	it('token_deploy output 0: fixed-supply deploy of 10,000,000', () => {
 		const tx = fixture('token_deploy')
 		const out = tx.outputs[0].lockingScript
-		const d = Mandala.decode(out)
+		const d = OneColor.decode(out)
 		expect(d?.role).toBe('deploy')
 		expect(d?.amount).toBe(10_000_000n)
 		expect(d?.tokenId).toBeUndefined()
@@ -545,7 +600,7 @@ describe('amm-poc fixtures', () => {
 		)
 		// byte-exact rebuild
 		expect(
-			Mandala.deployValue(10_000_000n, { lock: d!.lock }).lock().toHex(),
+			OneColor.deployValue(10_000_000n, { lock: d!.lock }).lock().toHex(),
 		).toBe(out.toHex())
 	})
 
@@ -560,7 +615,7 @@ describe('amm-poc fixtures', () => {
 		]
 		for (const [vout, amount] of expected) {
 			const out = tx.outputs[vout].lockingScript
-			const d = Mandala.decode(out)
+			const d = OneColor.decode(out)
 			expect(d?.role).toBe('value')
 			expect(d?.tokenId).toBe(tokenId)
 			expect(hex(d?.idBytes ?? [])).toBe(
@@ -569,54 +624,54 @@ describe('amm-poc fixtures', () => {
 			expect(d?.amount).toBe(amount)
 			expect(d?.payload).toBeUndefined()
 			expect(
-				Mandala.value(tokenId, amount, { lock: d!.lock }).lock().toHex(),
+				OneColor.value(tokenId, amount, { lock: d!.lock }).lock().toHex(),
 			).toBe(out.toHex())
 		}
 		// the pool contract follows the prefix unchanged (OP_NOP OP_CODESEPARATOR ...)
 		expect(
-			Mandala.decode(tx.outputs[0].lockingScript)?.lock.toHex().slice(0, 4),
+			OneColor.decode(tx.outputs[0].lockingScript)?.lock.toHex().slice(0, 4),
 		).toBe('61ab')
-		expect(Mandala.decode(tx.outputs[3].lockingScript)).toBeNull()
+		expect(OneColor.decode(tx.outputs[3].lockingScript)).toBeNull()
 	})
 
 	it('swap_tokens_in: amounts 150 (two-byte push) and 25', () => {
 		const tokenId = `${fixture('token_deploy').id('hex')}_0`
 		const tx = fixture('swap_tokens_in')
-		const a = Mandala.decode(tx.outputs[2].lockingScript)
-		const b = Mandala.decode(tx.outputs[3].lockingScript)
+		const a = OneColor.decode(tx.outputs[2].lockingScript)
+		const b = OneColor.decode(tx.outputs[3].lockingScript)
 		expect([a?.tokenId, a?.amount]).toEqual([tokenId, 150n])
 		expect([b?.tokenId, b?.amount]).toEqual([tokenId, 25n])
-		expect(Mandala.decode(tx.outputs[0].lockingScript)?.role).toBe('value')
-		expect(Mandala.decode(tx.outputs[1].lockingScript)).toBeNull()
+		expect(OneColor.decode(tx.outputs[0].lockingScript)?.role).toBe('value')
+		expect(OneColor.decode(tx.outputs[1].lockingScript)).toBeNull()
 	})
 
 	it('legacy_migrate1: 36-byte id for a BRC-161 token deployed at output 1', () => {
 		const deploy = fixture('legacy_deploy1')
 		const tx = fixture('legacy_migrate1')
 		const out = tx.outputs[0].lockingScript
-		const d = Mandala.decode(out)
+		const d = OneColor.decode(out)
 		const tokenId = `${deploy.id('hex')}_1`
 		expect(d?.role).toBe('value')
 		expect(d?.tokenId).toBe(tokenId)
 		expect(d?.idBytes?.length).toBe(36)
 		expect(d?.amount).toBe(500_000n)
 		expect(
-			Mandala.value(tokenId, 500_000n, { lock: d!.lock }).lock().toHex(),
+			OneColor.value(tokenId, 500_000n, { lock: d!.lock }).lock().toHex(),
 		).toBe(out.toHex())
 	})
 
-	it('BRC-161 JSON inscriptions alone are not Mandala outputs', () => {
+	it('BRC-161 JSON inscriptions alone are not 1Color outputs', () => {
 		for (const o of fixture('legacy_transfer').outputs) {
-			expect(Mandala.decode(o.lockingScript)).toBeNull()
+			expect(OneColor.decode(o.lockingScript)).toBeNull()
 		}
 	})
 })
 
 describe('binary wins over a BRC-161 inscription', () => {
-	it('a Mandala prefix before a BSV-21 inscription decodes as Mandala', () => {
+	it('a 1Color prefix before a BSV-21 inscription decodes as 1Color', () => {
 		const json = BSV21.transfer(`${'aa'.repeat(32)}_0`, 999n).lock(P2PKH_LOCK)
-		const s = Mandala.value(ID0, 5000n, { lock: json }).lock()
-		const d = Mandala.decode(s)
+		const s = OneColor.value(ID0, 5000n, { lock: json }).lock()
+		const d = OneColor.decode(s)
 		expect(d?.role).toBe('value')
 		expect(d?.tokenId).toBe(ID0)
 		expect(d?.amount).toBe(5000n)
@@ -626,10 +681,10 @@ describe('binary wins over a BRC-161 inscription', () => {
 	})
 })
 
-describe('Mandala.unlock', () => {
+describe('OneColor.unlock', () => {
 	it('signs a P2PKH inner lock and the spend verifies', async () => {
 		const key = PrivateKey.fromRandom()
-		const token = Mandala.value(ID0, 5000n, { lock: key.toAddress() })
+		const token = OneColor.value(ID0, 5000n, { lock: key.toAddress() })
 		const source = new Transaction()
 		source.addOutput({ satoshis: 1, lockingScript: token.lock() })
 		const spend = new Transaction()
@@ -640,7 +695,7 @@ describe('Mandala.unlock', () => {
 		})
 		spend.addOutput({
 			satoshis: 1,
-			lockingScript: Mandala.value(ID0, 5000n, {
+			lockingScript: OneColor.value(ID0, 5000n, {
 				lock: key.toAddress(),
 			}).lock(),
 		})

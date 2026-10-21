@@ -20,10 +20,9 @@ CLI group is **`bsv21`** (was `tokens`).
 | `deployBsv21Mint` | Fixed-supply deploy+mint |
 | `deployBsv21Auth` | Mintable deploy+auth |
 | `mintBsv21` | Spend auth to mint / re-issue / end |
-| `deployMandala` | Mandala (BRC-162) deploy: fixed supply or authority |
-| `fileMandalaDeploy` | Retry a Mandala deploy's filing into its token basket |
-| `sendMandala` | Mandala send to a BRC-169 handle (protected noSend, BRC-232 delivery) |
-| `syncMandalaInbox` | Receive BRC-232 deliveries from `mandala_inbox` |
+| `deploy1Color` | 1Color (BRC-162) deploy through the wallet's BRC-207 module: fixed supply or authority |
+| `send1Color` | 1Color send to a BRC-169 handle (BRC-177 handoff, BRC-232 delivery) |
+| `syncTransactionInbox` | Receive BRC-232 deliveries (and handle payments) from `transaction-delivery` |
 
 
 Fungible API stays **value-based** (not spend-by-id). Basket UTXOs still carry `id:` internally. **Self destinations must be basketed/tagged.**
@@ -110,100 +109,92 @@ await mintBsv21.execute(ctx, {
 })
 ```
 
-## Mandala (BRC-162)
+## 1Color (BRC-162)
 
-Mandala tokens are the BSV-21 token model in a binary script prefix
-(`Mandala` template in `@1sat/templates`). Four actions cover the wallet
-side: `deployMandala`, `fileMandalaDeploy`, `sendMandala`, `syncMandalaInbox`.
+1Color tokens are the BSV-21 token model in a binary script prefix
+(`OneColor` template in `@1sat/templates`). The wallet's BRC-207 `color`
+module (`@bsv/color-permission-module`, registered on the wallet's
+permissions manager) keeps custody: it derives the keys, files outputs into
+their baskets, selects and signs token inputs, asks for consent and submits
+to the overlay. The actions are thin BRC-100 calls: `deploy1Color`,
+`send1Color`, and `syncTransactionInbox` to receive.
 
 ### Names
 
-A token is named by its deploy outpoint. Wallet-side names write it as two
-space-separated words, because BRC-43 protocol names allow only letters,
-digits and spaces:
+An asset is named by its deploy outpoint as the canonical BRC-207 asset id
+`<txid>_<vout>` (64 lowercase hex, display order; `_0` included). The wire
+names come from `@bsv/color-permission-module`:
 
-| Name | Value | Helper (`@1sat/types`) |
-|------|-------|------------------------|
-| Basket | `mandala <txid> <vout>` | `mandalaTokenBasket(token)` |
-| Key protocol | `[2, 'mandala <txid> <vout>']` | `mandalaProtocol(token)` |
-| Action labels | `mandala` and `mandala <txid> <vout>` | `MANDALA_LABEL`, `mandalaTokenLabel(token)` |
+| Name | Value | Helper |
+|------|-------|--------|
+| Value basket | `p color <txid>v<vout>` | `assetBasket(assetId, 'value')` |
+| Authority basket | `p color <txid>v<vout> authority` | `assetBasket(assetId, 'authority')` |
+| Key protocol | `[2, 'p color <assetTag> <prefixHex> <suffixHex>']`, keyID `color` | `colorProtocolID(assetId, prefix, suffix)`, `COLOR_KEY_ID` |
+| Action plan | `p color plan <i> <n> <hex>` labels | `ColorPlan.toLabels(plan)` |
+| Overlay topics | `tm_color` (deploys), `tm_color_<assetId>` | `colorTopic(assetId)` |
 
-`token` is `{ txid, vout }` or an outpoint string, `txid.vout` or `txid_vout`;
-the txid is lowercased. `parseMandalaName(name)` recovers `{ txid, vout }`
-from any of the three names.
-
-**Outpoints are BRC-36** (`<txid>.<vout>`; BRC-162 defers to BRC-36). The
-Mandala actions return tokens in that form (`deployMandala` returns
-`tokenId: '<txid>.0'`, `syncMandalaInbox` reports `tokenIds` the same way),
-and their inputs also accept the `txid_vout` form the rest of 1Sat emits,
-normalizing it. On chain the id is BRC-162's: the 32-byte txid for vout 0.
-
-Labels index tokens (`listActions({ labels: ['mandala'] })` lists what the
-wallet tracks; labels survive outputs being spent). The per-token basket
-holds the token's outputs. customInstructions carry only the key derivation
-(`protocolID`, `keyID`, `counterparty`): amount and id are read from the
-script, `sym`/`dec`/`icon` from the deploy payload.
+`assetTag` is `<txid>v<vout>`, or `issue` for a deploy's own key (`ISSUE`),
+which it keeps after the asset id exists. `prefixHex`/`suffixHex` are the hex
+of the UTF-8 remittance strings (fresh random base64 per output). On chain
+the id is BRC-162's: the 32-byte txid for vout 0. Outpoints of UTXOs stay
+BRC-36 `<txid>.<vout>`; token ids never use the dot form.
 
 ### Deploy
 
 ```typescript
-import { deployMandala, fileMandalaDeploy } from '@1sat/actions'
+import { deploy1Color } from '@1sat/actions'
 
 // amount > 0: fixed supply; amount 0: authority (first minting authority)
-const dep = await deployMandala.execute(ctx, { amount: '21000000', symbol: 'GOLD', decimals: 8 })
-// dep.txid, dep.tokenId === `${dep.txid}.0`
-
-// If the filing step failed (dep.error starts with 'file-failed'), retry it:
-await fileMandalaDeploy.execute(ctx, { txid: dep.txid!, tx: dep.tx })
+const dep = await deploy1Color.execute(ctx, {
+  amount: '21000000',
+  symbol: 'GOLD',
+  decimals: 8,
+  // icon: { mediaType: 'image/png', bytes: [...] }, // embedded: ["image/png", bytes]
+})
+// dep.txid, dep.tx (Atomic BEEF), dep.assetId === `${dep.txid}_0`
 ```
 
-- One `createAction`: the deploy output at vout 0 (`randomizeOutputs: false`),
-  **no basket** (a wallet cannot later move an output out of a basket),
-  label `mandala`, broadcast normally. Its key derives under
-  `MANDALA_DEPLOY_PROTOCOL` = `[2, 'mandala deploy']`, keyID
-  `mandala-deploy-<hex>`, because the outpoint is unknown while it is built.
-- Then `internalizeAction` on the same transaction: vout 0 by `basket
-  insertion` into `mandala <txid> 0`, same customInstructions, labels
-  `mandala` and `mandala <txid> 0`. If it fails, the result carries `txid`,
-  `tx` and the error; `fileMandalaDeploy({ txid, tx? })` re-runs it (BEEF from
-  `tx`, else `ctx.services.getBeefForTxid`; customInstructions read back with
-  `listActions`).
-- `overlay` (optional base URL): the deploy is created with `noSend`,
-  submitted BRC-22 to `<overlay>/submit` with `X-Topics: tm_mandala,tm_<txid>`,
-  then internalized.
+One `createAction`: output 0 is the deploy, locked to the key derived under
+`colorProtocolID(ISSUE, prefix, suffix)`, keyID `color`, counterparty self;
+the labels are the plan (`assets: [ISSUE]`, the deploy in `ownedOutputs`,
+one `deploy-fixed` or `deploy-authority` operation); `randomizeOutputs:
+false`. No basket, no customInstructions on the output. The module files the
+signed deploy into its asset basket and submits it to `tm_color` and the
+asset topic. The deploy holder is always this wallet.
 
 ### Send (to a BRC-169 handle)
 
 ```typescript
-import { sendMandala } from '@1sat/actions'
+import { send1Color } from '@1sat/actions'
 
-const res = await sendMandala.execute(ctx, {
-  tokenId: '<txid>.0', // BRC-36; '<txid>_0' also accepted
+const res = await send1Color.execute(ctx, {
+  assetId: '<txid>_0',
   amount: '1000',
   destination: { handle: '@alice@example.com' },
-  // expirySeconds: 86400, // default MANDALA_SEND_EXPIRY_SECONDS (one year)
+  // expirySeconds: 86400, // default COLOR_SEND_EXPIRY_SECONDS (one year)
   // memo: 'thanks',
 })
 // res.delivered === 'envelope', res.messageId, res.txid, res.tx (Atomic BEEF)
 ```
 
 1. Resolve the handle (BRC-169 §5): identity key and messagebox.
-2. If no single output in the token's basket holds exactly `amount`, split
-   first: an ordinary broadcast action into an exact output and a remainder,
-   both back to the wallet under `mandalaProtocol(token)`.
-3. The protected send: one `createAction` with exactly one input (the exact
-   output) and one output, locked to the key derived under
-   `mandalaProtocol(token)` with keyID `<derivationPrefix> <derivationSuffix>`
-   (fresh random base64, BRC-29 style) and counterparty = the recipient.
-   `noSend`, labels `mandala`, `mandala <txid> <vout>` and
-   `p nosend expiry seconds <n>` (BRC-177; the wallet funds it). Not
-   broadcast: the recipient broadcasts by internalizing.
+2. Derive the recipient's key under `colorProtocolID(assetId, prefix,
+   suffix)`, keyID `color`, counterparty = the recipient, and build the
+   value output.
+3. One `createAction` with that single output; labels = the plan (`assets:
+   [assetId]`, no owned outputs, one `transfer`) plus `p nosend expiry
+   seconds <n>` (BRC-177); `noSend`, `randomizeOutputs: false`. The module
+   selects the token inputs, splits to the exact amount when needed, signs
+   and asks for consent. Not broadcast: the recipient submits it.
 4. Deliver a signed BRC-169 §7.3 envelope (DAG-CBOR, BRC-231 over BRC-104) to
-   the resolved messagebox, box **`mandala_inbox`** (`MANDALA_INBOX`), with
-   `payment: null`. `content` is BRC-78 encryption of a MIME entity,
-   `Content-Type: application/vnd.metanet.transaction+cbor`, whose DAG-CBOR
-   body is the BRC-232 delivery
-   `{ memo?, txid: bstr(32), beef, outputs: [{ outputIndex, protocol: 'basket insertion', protocolID, keyID, counterparty: <sender identity key> }] }`.
+   the resolved messagebox, box **`transaction-delivery`**
+   (`TRANSACTION_DELIVERY_BOX`), `payment: null`. `content` is BRC-78
+   encryption of the BRC-232 MIME entity
+   (`Content-Type: application/vnd.metanet.transaction+cbor`,
+   `Content-Transfer-Encoding: binary`), whose DAG-CBOR body is
+   `{ version: 1, txid, beef, outputs: [{ outputIndex: 0, protocol: 'basket insertion', insertionRemittance: { basket: 'p color <assetTag>', customInstructions } }], lifecycles: [], memo? }`.
+   `customInstructions` is exactly
+   `{"version":1,"assetId":…,"derivationPrefix":…,"derivationSuffix":…,"senderIdentityKey":…}`.
    `contentHash` is the SHA-256 of the MIME bytes.
 
 If delivery fails, the result carries `txid` and `tx` with the error, so the
@@ -212,29 +203,33 @@ caller can retry delivery or `abortAction` the send.
 ### Receive
 
 ```typescript
-import { syncMandalaInbox } from '@1sat/actions'
+import { syncTransactionInbox } from '@1sat/actions'
 
-const { received, skipped } = await syncMandalaInbox.execute(ctx, {
+const { received, skipped } = await syncTransactionInbox.execute(ctx, {
+  overlay: 'https://overlay.example', // the BRC-22 overlay; no default
   messageboxUrl: 'https://messagebox.example', // default https://messagebox.1sat.app
 })
 ```
 
-Lists `mandala_inbox` (BRC-231), and for each message: decodes the DAG-CBOR
-envelope, verifies its signature against `sender.identityKey`, decrypts
-`content`, checks `contentHash`, parses the MIME entity, requires the
-BRC-232 content type, and internalizes the body's outputs: `wallet payment`
-with its `paymentRemittance`; `basket insertion` under a `mandala <txid>
-<vout>` protocol into that basket with the triple as customInstructions and
-labels `mandala` + `mandala <txid> <vout>`, after checking the output's
-script names the same token. A message is internalized whole or not at all
-and acknowledged only after its internalize succeeds; anything else (other
-content types or protocolIDs, a token mismatch, a bad signature, JSON
-envelopes) stays in the box and is reported in `skipped`. SPV is
-`internalizeAction`'s.
+Lists `transaction-delivery` (BRC-231). For each message: decodes the
+DAG-CBOR envelope, verifies its signature against `sender.identityKey`,
+decrypts `content`, checks `contentHash` (required for a delivery), and
+decodes the BRC-232 body strictly. A `basket insertion` entry must name a
+`p color` basket with the exact receipt instructions above and a 1Color
+output of that asset; the transaction is first submitted to
+`tm_color_<assetId>` at `overlay`, and the STEAK must admit the received
+output (without `overlay`, such a message stays in the box with reason
+`overlay-required`). Then one `internalizeAction` with every entry copied verbatim (the
+module checks ownership and admission). `wallet payment` entries and
+BRC-169 handle payments (`payment` set) are internalized as BRC-29 payments.
+A message is internalized whole or not at all and acknowledged only after
+its internalize succeeds; anything else stays in the box and is reported in
+`skipped`.
 
-References: BRC-162 (Mandala), BRC-36 (outpoints), BRC-169 (handles, envelope), BRC-232
-(transaction delivery, draft: bsv-blockchain/BRCs#300), BRC-177 (`noSend`
-expiry), BRC-231 (binary message relay), BRC-78 (encrypted messages).
+References: BRC-162 (tokens), BRC-207 (`color` wallet module), BRC-36
+(outpoints), BRC-169 (handles, envelope), BRC-232 (transaction delivery,
+revised in bsv-blockchain/BRCs#300), BRC-177 (`noSend` expiry), BRC-231
+(binary message relay), BRC-78 (encrypted messages).
 
 ## Requirements
 

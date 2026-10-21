@@ -764,7 +764,8 @@ export const listOrdinals: Action<ListOrdinalsInput, ListOrdinalsResult> = {
 		return {
 			outputs: result.outputs,
 			BEEF: result.BEEF,
-			totalOutputs: result.totalOutputs,
+			// A decimal string only for `p <module> balance` selectors (@bsv/sdk 4).
+			totalOutputs: Number(result.totalOutputs),
 		}
 	},
 }

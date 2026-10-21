@@ -113,7 +113,7 @@ describe('BRC-169 envelope (DAG-CBOR)', () => {
 			payment: {
 				derivationPrefix: new Uint8Array(16).fill(1),
 				derivationSuffix: new Uint8Array(16).fill(2),
-				protocol: utf8('mandala'),
+				protocol: utf8('3241645161d8'),
 				satoshis: 1,
 				beef: new Uint8Array([1, 2, 3]),
 			},
