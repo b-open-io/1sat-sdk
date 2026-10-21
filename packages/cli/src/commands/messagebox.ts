@@ -1,13 +1,15 @@
 /**
- * MessageBox commands — pull paymail / P2P inbox and BRC-169 handle
- * payments (`metanet_inbox`) into the wallet.
+ * MessageBox commands — pull the paymail / P2P inbox and the
+ * `transaction-delivery` box (BRC-232 deliveries, 1Color tokens, BRC-169
+ * handle payments) into the wallet.
  *
- *   1sat messagebox sync [--url <host>] [--box <name>]
+ *   1sat messagebox sync [--url <host>] [--box <name>] [--overlay <url>]
  */
 
-import { syncMessages, syncMetanetInbox } from '@1sat/actions'
+import { syncMessages, syncTransactionInbox } from '@1sat/actions'
 import type { GlobalFlags } from '../args.js'
 import { extractFlag } from '../args.js'
+import { loadConfig } from '../config.js'
 import { loadContext } from '../context.js'
 import { printCommandHelp } from '../help.js'
 import { loadKey } from '../keys.js'
@@ -36,6 +38,7 @@ async function messageboxSync(
 ): Promise<void> {
 	const url = extractFlag(args, '--url')
 	const box = extractFlag(args, '--box')
+	const overlay = extractFlag(args, '--overlay') ?? loadConfig().colorOverlayUrl
 
 	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
@@ -47,21 +50,32 @@ async function messageboxSync(
 			...(url ? { messageboxUrl: url } : {}),
 			...(box ? { messageBox: box } : {}),
 		})
-		const metanet = await syncMetanetInbox.execute(ctx, {
-			...(url ? { messageboxUrl: url } : {}),
-		})
+		// 1Color receipts are submitted to an overlay before they are
+		// internalized; there is no default overlay.
+		const delivery = overlay
+			? await syncTransactionInbox.execute(ctx, {
+					...(url ? { messageboxUrl: url } : {}),
+					overlay,
+				})
+			: undefined
 
 		if (opts.json) {
-			output({ ...result, metanet }, opts)
+			output({ ...result, transactionDelivery: delivery ?? null }, opts)
 			return
 		}
 
 		console.log(`\nprocessed: ${result.processed}  failed: ${result.failed}`)
-		console.log(
-			`metanet_inbox: received ${metanet.received.length}  skipped ${metanet.skipped.length}${metanet.error ? `  error: ${metanet.error}` : ''}`,
-		)
-		for (const s of metanet.skipped) {
-			console.log(`  skipped ${s.messageId}: ${s.reason}`)
+		if (delivery) {
+			console.log(
+				`transaction-delivery: received ${delivery.received.length}  skipped ${delivery.skipped.length}${delivery.error ? `  error: ${delivery.error}` : ''}`,
+			)
+			for (const s of delivery.skipped) {
+				console.log(`  skipped ${s.messageId}: ${s.reason}`)
+			}
+		} else {
+			console.log(
+				'transaction-delivery: not pulled (no overlay: pass --overlay <url> or run `1sat config set colorOverlayUrl <url>`)',
+			)
 		}
 		console.log()
 	} finally {

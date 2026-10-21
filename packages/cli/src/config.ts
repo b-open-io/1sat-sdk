@@ -209,6 +209,13 @@ export interface OneSatCliConfig {
 	 * when the stack runs on the same host to avoid a public round trip.
 	 */
 	stackUrl?: string
+	/**
+	 * Base URL of the BRC-22/BRC-24 overlay for 1Color (BRC-207): the wallet's
+	 * `color` module queries `ls_color_<assetId>` and submits to `tm_color` /
+	 * `tm_color_<assetId>` there, and `1sat messagebox sync` submits received
+	 * tokens there before internalizing them. No default.
+	 */
+	colorOverlayUrl?: string
 	/** Settings read by `1sat serve` subcommands. Absent for client-only installs. */
 	server?: ServerConfig
 }

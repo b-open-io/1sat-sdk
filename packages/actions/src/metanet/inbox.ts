@@ -1,6 +1,6 @@
 /**
- * The messagebox steps shared by the BRC-169 inbox syncs (`mandala_inbox`,
- * `metanet_inbox`): list a box (BRC-231 over BRC-104), decode each §7.3
+ * The messagebox steps of the `transaction-delivery` box sync: list a box
+ * (BRC-231 over BRC-104), decode each §7.3
  * DAG-CBOR envelope, verify its §7.2 signature against `sender.identityKey`,
  * decrypt the BRC-78 `content` with `wallet.decrypt`, check `contentHash`,
  * parse the MIME entity, hand it to the box's handler, and acknowledge only

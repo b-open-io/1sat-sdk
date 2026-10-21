@@ -8,8 +8,8 @@ import type { WalletInterface } from '@bsv/sdk'
 import { cancelOpnsListing } from '../opns/index.js'
 import { cancelOrdinalListing } from '../ordinals/index.js'
 import { cancelTokenListing } from '../tokens/index.js'
-import { isTokenListing } from '../utils/listingToken.js'
 import type { Action, ActionOptions, OneSatContext } from '../types.js'
+import { isTokenListing } from '../utils/listingToken.js'
 
 export interface CancelOwnedListingsInput extends ActionOptions {
 	/** Stop discovery and further cancellations when the caller closes or changes wallets. */
@@ -51,13 +51,19 @@ async function discoverBasketListings(
 			offset: listings.length,
 		})
 		await assertActive()
-		if (!Number.isSafeInteger(page.totalOutputs) || page.totalOutputs < 0) {
+		const pageTotal = page.totalOutputs
+		// A number here: a decimal string only answers `p <module> balance` selectors.
+		if (
+			typeof pageTotal !== 'number' ||
+			!Number.isSafeInteger(pageTotal) ||
+			pageTotal < 0
+		) {
 			throw new Error(`${basket}: invalid-listing-total`)
 		}
-		if (total !== undefined && total !== page.totalOutputs) {
+		if (total !== undefined && total !== pageTotal) {
 			throw new Error(`${basket}: listing-total-changed; retry discovery`)
 		}
-		total = page.totalOutputs
+		total = pageTotal
 		if (!page.outputs.length && listings.length < total) {
 			throw new Error(`${basket}: listing-discovery-made-no-progress`)
 		}

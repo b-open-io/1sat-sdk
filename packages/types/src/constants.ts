@@ -42,13 +42,6 @@ export const BSV21_AUTH_BASKET = BSV21_BASKET
 export const BSV21_AUTH_TAG = 'bsv21:auth'
 /** Tag on a single-CA deploy output; tokenId is the outpoint (`txid_vout`). */
 export const BSV21_DEPLOY_TAG = 'bsv21:deploy'
-/**
- * Action label on every Mandala transaction: `listActions({ labels:
- * ['mandala'] })` indexes the tokens this wallet tracks.
- */
-export const MANDALA_LABEL = 'mandala'
-/** Overlay discovery topic for Mandala deploys (BRC-22). */
-export const MANDALA_TOPIC = 'tm_mandala'
 export const OPNS_BASKET = 'opns'
 export const LOCK_BASKET = 'lock'
 export const SIGMA_BASKET = 'sigma'
@@ -704,100 +697,28 @@ export const ORDFS_STREAM_CONTENT_TYPE = 'ordfs/stream'
 export const ORDFS_STREAM_PARAM = 'stream=ordfs'
 
 // ============================================================================
-// Mandala (BRC-162)
+// BRC-232 transaction delivery and 1Color (BRC-162 tokens, BRC-207 wallet module)
 // ============================================================================
 //
-// Wallet-side names carry the token's deploy outpoint as two space-separated
-// words, `mandala <txid> <vout>` (lowercase txid): BRC-43 protocol names allow
-// only letters, digits and spaces, and the basket and label use the same
-// form. The on-chain id in the script is BRC-162's (32 bytes when vout is 0,
-// 36 bytes for a legacy vout > 0).
-
-/** A Mandala token's deploy outpoint. */
-export interface MandalaOutpoint {
-	txid: string
-	vout: number
-}
+// 1Color wire names (`p color` protocols, baskets and plan labels, topics
+// `tm_color` / `tm_color_<assetId>`) come from `@bsv/color-permission-module`.
 
 /**
- * A token reference: `{ txid, vout }`, or an outpoint string: BRC-36
- * `txid.vout` (the Mandala API form; BRC-162 defers to BRC-36), or
- * `txid_vout` (1Sat / template form), accepted and normalized.
+ * BRC-33 box for BRC-232 transaction deliveries (1Color tokens, BRC-29
+ * outputs) and BRC-169 payments to a handle (envelopes with `payment` set).
+ * Legacy PeerPay payments arrive in `payment_inbox`.
  */
-export type MandalaTokenRef = MandalaOutpoint | string
-
-/** Normalize a {@link MandalaTokenRef} to `{ txid (lowercase), vout }`. */
-export function mandalaOutpoint(token: MandalaTokenRef): MandalaOutpoint {
-	if (typeof token !== 'string') {
-		return { txid: token.txid.toLowerCase(), vout: token.vout }
-	}
-	const m = /^([0-9a-fA-F]{64})[_.](\d+)$/.exec(token)
-	if (!m) {
-		throw new Error(`not a token outpoint (txid.vout or txid_vout): ${token}`)
-	}
-	return { txid: m[1].toLowerCase(), vout: Number(m[2]) }
-}
-
-function mandalaName(token: MandalaTokenRef): string {
-	const { txid, vout } = mandalaOutpoint(token)
-	return `mandala ${txid} ${vout}`
-}
-
-/** Per-token basket `mandala <txid> <vout>`. */
-export function mandalaTokenBasket(token: MandalaTokenRef): string {
-	return mandalaName(token)
-}
-
-/** Per-token action label `mandala <txid> <vout>`, alongside the `mandala` label. */
-export function mandalaTokenLabel(token: MandalaTokenRef): string {
-	return mandalaName(token)
-}
+export const TRANSACTION_DELIVERY_BOX = 'transaction-delivery'
 
 /**
- * BRC-42/43 protocol for a Mandala token's keys: `[2, 'mandala <txid> <vout>']`,
- * one protocol per token, so a BRC-43 grant covers only that token. Level 2
- * (per-counterparty permission) mirrors BRC-29's `[2, '3241645161d8']`.
- */
-export function mandalaProtocol(token: MandalaTokenRef): WalletProtocol {
-	return [2, mandalaName(token)]
-}
-
-/**
- * Recover `{ txid, vout }` from a Mandala basket, label or protocol name
- * (`mandala <txid> <vout>`), or from a protocol ID tuple. Undefined for
- * anything else (including the bare `mandala` label).
- */
-export function parseMandalaName(
-	name: string | WalletProtocol,
-): MandalaOutpoint | undefined {
-	const s = typeof name === 'string' ? name : name[1]
-	const m = /^mandala ([0-9a-f]{64}) (0|[1-9]\d*)$/.exec(s)
-	return m ? { txid: m[1], vout: Number(m[2]) } : undefined
-}
-
-/**
- * BRC-42/43 protocol for a deploy output's key. The token is named by the
- * deploy outpoint, unknown while the deploy is built, so the deploy key
- * cannot use {@link mandalaProtocol}.
- */
-export const MANDALA_DEPLOY_PROTOCOL: WalletProtocol = [2, 'mandala deploy']
-
-/** Messagebox box for Mandala token deliveries (BRC-169 envelopes, BRC-232 content). */
-export const MANDALA_INBOX = 'mandala_inbox'
-
-/**
- * Messagebox box for BRC-169 payments to a handle (envelopes with `payment`
- * set). Token deliveries use {@link MANDALA_INBOX}; legacy PeerPay
- * payments arrive in `payment_inbox`.
- */
-export const METANET_INBOX = 'metanet_inbox'
-
-/**
- * Default `nosend expiry` for a protected send to a BRC-169 handle (a BSV
- * payment or a Mandala token send): one year, in seconds. Carried as the
- * action label `p nosend expiry seconds <n>` (BRC-177).
+ * Default `nosend expiry` for a protected BSV payment to a BRC-169 handle:
+ * one year, in seconds. Carried as the action label
+ * `p nosend expiry seconds <n>` (BRC-177).
  */
 export const METANET_SEND_EXPIRY_SECONDS = 31536000
 
-/** @deprecated Use {@link METANET_SEND_EXPIRY_SECONDS}. */
-export const MANDALA_SEND_EXPIRY_SECONDS = METANET_SEND_EXPIRY_SECONDS
+/**
+ * Default `nosend expiry` for a 1Color send to a BRC-169 handle (the BRC-177
+ * handoff): one year, in seconds.
+ */
+export const COLOR_SEND_EXPIRY_SECONDS = 31536000

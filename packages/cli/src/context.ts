@@ -70,6 +70,7 @@ export async function loadContext(
 	const wallet = adminWallet(
 		walletResult.wallet,
 		new FilePermissionStore(permissionStorePath(dataDir, opts.chain)),
+		{ colorOverlayUrl: config.colorOverlayUrl },
 	)
 
 	const ctx = createContext(wallet, {

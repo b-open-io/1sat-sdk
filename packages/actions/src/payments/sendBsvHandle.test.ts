@@ -1,11 +1,8 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { BRC29_PROTOCOL_ID } from '@1sat/types'
+import { encodeMimeEntity, parseMimeEntity } from '@1sat/utils'
 import {
-	TRANSACTION_CBOR_CONTENT_TYPE,
-	encodeMimeEntity,
-	parseMimeEntity,
-} from '@1sat/utils'
-import {
+	Beef,
 	type CreateActionArgs,
 	EncryptedMessage,
 	Hash,
@@ -26,6 +23,7 @@ import {
 	encode as dagCborEncode,
 } from '@ipld/dag-cbor'
 import { encryptBrc78 } from '../metanet/brc78.js'
+import { encodeTransactionDeliveryMime } from '../metanet/delivery.js'
 import {
 	ENVELOPE_SIGNATURE_KEY_ID,
 	ENVELOPE_SIGNATURE_PROTOCOL,
@@ -33,7 +31,7 @@ import {
 	envelopeSigningPreimage,
 	signEnvelope,
 } from '../metanet/envelope.js'
-import { syncMetanetInbox } from '../metanet/receive.js'
+import { syncTransactionInbox } from '../metanet/receive.js'
 import { messageRelay } from '../metanet/relay.js'
 import { createContext } from '../types.js'
 import { sendBsv } from './index.js'
@@ -56,6 +54,7 @@ const RECIPIENT = PrivateKey.fromHex('22'.repeat(32))
 const RECIPIENT_ID = RECIPIENT.toPublicKey().toString()
 const RESOLVED_BOX = 'https://messagebox.lkup.net'
 const DEFAULT_BOX = 'https://messagebox.1sat.app'
+const OVERLAY = 'https://overlay.example'
 
 beforeEach(() => {
 	relayed.length = 0
@@ -222,7 +221,7 @@ interface Envelope {
 	signature: Uint8Array
 }
 
-/** Post a signed envelope from SENDER to the recipient's metanet_inbox. */
+/** Post a signed envelope from SENDER to the recipient's transaction-delivery box. */
 async function postEnvelope(
 	mime: Uint8Array,
 	payment: EnvelopePayment | null,
@@ -246,7 +245,7 @@ async function postEnvelope(
 	relayed.push({
 		messagebox: RESOLVED_BOX,
 		recipient: RECIPIENT_ID,
-		messageBox: 'metanet_inbox',
+		messageBox: 'transaction-delivery',
 		body: envelope,
 		messageId,
 	})
@@ -322,7 +321,7 @@ describe('sendBsv destination rules', () => {
 })
 
 describe('sendBsv to a BRC-169 handle', () => {
-	test('protected noSend BRC-29 output, envelope to the resolved metanet_inbox', async () => {
+	test('protected noSend BRC-29 output, envelope to the resolved transaction-delivery box', async () => {
 		const { wallet, createArgs } = senderWallet()
 		const res = await withNetwork(() =>
 			sendBsv.execute(createContext(wallet), {
@@ -347,11 +346,11 @@ describe('sendBsv to a BRC-169 handle', () => {
 		expect(args.outputs).toHaveLength(1)
 		expect(args.outputs![0].satoshis).toBe(21545)
 
-		// Delivered to the resolved messagebox, box metanet_inbox.
+		// Delivered to the resolved messagebox, box transaction-delivery.
 		expect(relayed).toHaveLength(1)
 		expect(relayed[0].messagebox).toBe(RESOLVED_BOX)
 		expect(relayed[0].recipient).toBe(RECIPIENT_ID)
-		expect(relayed[0].messageBox).toBe('metanet_inbox')
+		expect(relayed[0].messageBox).toBe('transaction-delivery')
 
 		const env = dagCborDecode(relayed[0].body) as Envelope
 		expect(env.metanetHandles).toBe('1.0')
@@ -446,7 +445,7 @@ describe('sendBsv to a BRC-169 handle', () => {
 	})
 })
 
-describe('syncMetanetInbox', () => {
+describe('syncTransactionInbox: handle payments', () => {
 	async function sendPayment(memo?: string) {
 		const { wallet } = senderWallet()
 		const res = await withNetwork(() =>
@@ -463,10 +462,12 @@ describe('syncMetanetInbox', () => {
 		const env = dagCborDecode(relayed[0].body) as Envelope
 
 		const { wallet, internalized } = recipientWallet()
-		const res = await syncMetanetInbox.execute(createContext(wallet), {})
+		const res = await syncTransactionInbox.execute(createContext(wallet), {
+			overlay: OVERLAY,
+		})
 		expect(res.error).toBeUndefined()
 		expect(listed).toEqual([
-			{ messagebox: DEFAULT_BOX, messageBox: 'metanet_inbox' },
+			{ messagebox: DEFAULT_BOX, messageBox: 'transaction-delivery' },
 		])
 		expect(res.skipped).toEqual([])
 		expect(res.received).toEqual([
@@ -476,7 +477,7 @@ describe('syncMetanetInbox', () => {
 				sender: SENDER_ID,
 				satoshis: 21545,
 				memo: 'lunch',
-				tokenIds: [],
+				assetIds: [],
 			},
 		])
 
@@ -506,7 +507,9 @@ describe('syncMetanetInbox', () => {
 	test('a failed internalize is not acknowledged', async () => {
 		await sendPayment()
 		const { wallet } = recipientWallet(true)
-		const res = await syncMetanetInbox.execute(createContext(wallet), {})
+		const res = await syncTransactionInbox.execute(createContext(wallet), {
+			overlay: OVERLAY,
+		})
 		expect(res.skipped).toEqual([
 			{ messageId: 'env-1', reason: 'internalize refused' },
 		])
@@ -519,7 +522,9 @@ describe('syncMetanetInbox', () => {
 		;(env.payment as { satoshis: number }).satoshis = 1
 		relayed[0].body = dagCborEncode(env)
 		const { wallet, internalized } = recipientWallet()
-		const res = await syncMetanetInbox.execute(createContext(wallet), {})
+		const res = await syncTransactionInbox.execute(createContext(wallet), {
+			overlay: OVERLAY,
+		})
 		expect(res.skipped).toEqual([
 			{ messageId: 'env-1', reason: 'envelope signature does not verify' },
 		])
@@ -534,7 +539,9 @@ describe('syncMetanetInbox', () => {
 			encodeMimeEntity('text/plain', Utils.toArray('b', 'utf8')),
 		)
 		const { wallet, internalized } = recipientWallet()
-		const res = await syncMetanetInbox.execute(createContext(wallet), {})
+		const res = await syncTransactionInbox.execute(createContext(wallet), {
+			overlay: OVERLAY,
+		})
 		expect(res.skipped).toEqual([
 			{ messageId: id, reason: 'contentHash does not match the content' },
 		])
@@ -546,49 +553,56 @@ describe('syncMetanetInbox', () => {
 		relayed.push({
 			messagebox: RESOLVED_BOX,
 			recipient: RECIPIENT_ID,
-			messageBox: 'metanet_inbox',
+			messageBox: 'transaction-delivery',
 			body: Uint8Array.from(Utils.toArray('{"metanetHandles":"1.0"}', 'utf8')),
 			messageId: 'json-1',
 		})
 		const { wallet } = recipientWallet()
-		const res = await syncMetanetInbox.execute(createContext(wallet), {})
+		const res = await syncTransactionInbox.execute(createContext(wallet), {
+			overlay: OVERLAY,
+		})
 		expect(res.skipped).toEqual([
 			{ messageId: 'json-1', reason: 'not a DAG-CBOR BRC-169 envelope' },
 		])
 		expect(acknowledged).toEqual([])
 	})
 
-	test('BRC-232 transaction content is processed as the Mandala inbox processes it', async () => {
-		// A BRC-232 delivery carrying a BRC-29 wallet-payment output.
+	test('a BRC-232 delivery with a wallet payment entry is internalized as given', async () => {
 		const sent = await sendPayment()
 		const env = dagCborDecode(relayed[0].body) as Envelope
 		relayed.length = 0
-		const body = {
+		const paymentRemittance = {
+			derivationPrefix: Utils.toBase64(
+				Array.from(env.payment.derivationPrefix),
+			),
+			derivationSuffix: Utils.toBase64(
+				Array.from(env.payment.derivationSuffix),
+			),
+		}
+		const mime = encodeTransactionDeliveryMime({
+			version: 1,
 			txid: Uint8Array.from(Utils.toArray(sent.txid!, 'hex')),
-			beef: Uint8Array.from(sent.tx!),
+			beef: Uint8Array.from(Beef.fromBinary(sent.tx!).toBinary()),
 			outputs: [
 				{
 					outputIndex: 0,
 					protocol: 'wallet payment',
-					derivationPrefix: Utils.toBase64(
-						Array.from(env.payment.derivationPrefix),
-					),
-					derivationSuffix: Utils.toBase64(
-						Array.from(env.payment.derivationSuffix),
-					),
-					senderIdentityKey: Uint8Array.from(Utils.toArray(SENDER_ID, 'hex')),
+					paymentRemittance: {
+						...paymentRemittance,
+						senderIdentityKey: Uint8Array.from(Utils.toArray(SENDER_ID, 'hex')),
+					},
 				},
 			],
-		}
-		const id = await postEnvelope(
-			encodeMimeEntity(TRANSACTION_CBOR_CONTENT_TYPE, dagCborEncode(body)),
-			null,
-		)
+			lifecycles: [],
+		})
+		const id = await postEnvelope(mime, null)
 		const { wallet, internalized } = recipientWallet()
-		const res = await syncMetanetInbox.execute(createContext(wallet), {})
+		const res = await syncTransactionInbox.execute(createContext(wallet), {
+			overlay: OVERLAY,
+		})
 		expect(res.skipped).toEqual([])
 		expect(res.received).toEqual([
-			{ messageId: id, txid: sent.txid!, sender: SENDER_ID, tokenIds: [] },
+			{ messageId: id, txid: sent.txid!, sender: SENDER_ID, assetIds: [] },
 		])
 		expect(internalized).toHaveLength(1)
 		expect(internalized[0].description).toBe('Receive delivered outputs')
@@ -596,11 +610,7 @@ describe('syncMetanetInbox', () => {
 		expect(internalized[0].outputs[0]).toEqual({
 			outputIndex: 0,
 			protocol: 'wallet payment',
-			paymentRemittance: {
-				derivationPrefix: body.outputs[0].derivationPrefix,
-				derivationSuffix: body.outputs[0].derivationSuffix,
-				senderIdentityKey: SENDER_ID,
-			},
+			paymentRemittance: { ...paymentRemittance, senderIdentityKey: SENDER_ID },
 		})
 		expect(acknowledged).toEqual([[id]])
 	})
@@ -611,7 +621,9 @@ describe('syncMetanetInbox', () => {
 			null,
 		)
 		const { wallet, internalized } = recipientWallet()
-		const res = await syncMetanetInbox.execute(createContext(wallet), {})
+		const res = await syncTransactionInbox.execute(createContext(wallet), {
+			overlay: OVERLAY,
+		})
 		expect(res.skipped).toEqual([
 			{
 				messageId: id,

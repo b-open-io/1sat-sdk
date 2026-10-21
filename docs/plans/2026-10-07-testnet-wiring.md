@@ -56,7 +56,7 @@ Owner routes look up `own:` + the address string the client sent (`pkg/owner/rou
 
 `createContext` defaults `chain` to `'main'`. Production paths call `.toAddress()` with no prefix, so even a test context prints mainnet:
 
-- actions: `deriveDepositAddresses`, payments change, tokens, ordinals, collections, sync, locks, opns, cosign destinations, sweep, `resolveDestination`, identity, signing (BAP/Sigma), mandala, registry
+- actions: `deriveDepositAddresses`, payments change, tokens, ordinals, collections, sync, locks, opns, cosign destinations, sweep, `resolveDestination`, identity, signing (BAP/Sigma), 1Color, registry
 - wallet: `Bsv21Indexer.deriveFundAddress`, `storagePaymentAutoRetry`
 - `packages/utils/src/keys.ts`, `packages/extension/src/keys.ts`
 - CLI `init` / `sweep` display

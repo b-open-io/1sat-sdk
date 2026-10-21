@@ -1,5 +1,5 @@
 import type { ClientOptions } from '@1sat/types'
-import type { STEAK } from '@bsv/sdk'
+import type { LookupAnswer, STEAK } from '@bsv/sdk'
 import { BaseClient } from './BaseClient.js'
 
 /** Topic manager metadata returned by listTopicManagers */
@@ -101,7 +101,7 @@ export class OverlayClient extends BaseClient {
 	 * Topics go in `X-Topics` as a comma-separated bare string (the stack
 	 * rejects a JSON array).
 	 * @param beef - BEEF data
-	 * @param topics - Topic names (e.g. ["tm_mandala"])
+	 * @param topics - Topic names (e.g. ["tm_color"])
 	 * @returns the overlay's STEAK
 	 */
 	async submitBrc22(
@@ -112,16 +112,17 @@ export class OverlayClient extends BaseClient {
 	}
 
 	/**
-	 * Submit a Mandala (BRC-162) token transaction to its per-token topic at a
-	 * BRC-22 overlay: `POST <baseUrl>/submit` with `X-Topics: tm_<tokenId>`.
-	 * @param beef - BEEF data
-	 * @param tokenId - Token id: the deploy txid (hex)
+	 * BRC-24 lookup at `<baseUrl>/lookup` on an overlay given by its base URL:
+	 * `POST { service, query }` as JSON, answered with a JSON lookup answer.
+	 * @param service - Lookup service name (e.g. "ls_color_<assetId>")
+	 * @param query - The service's query object
 	 */
-	async submitMandala(
-		beef: Uint8Array | number[],
-		tokenId: string,
-	): Promise<STEAK> {
-		return this.submitBrc22(beef, [`tm_${tokenId.toLowerCase()}`])
+	async lookupBrc24(service: string, query: unknown): Promise<LookupAnswer> {
+		return this.request<LookupAnswer>('/lookup', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ service, query }),
+		})
 	}
 
 	private async submitToPath<
