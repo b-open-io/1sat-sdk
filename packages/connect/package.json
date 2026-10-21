@@ -37,7 +37,7 @@
     "@bsv/sdk": "^4.0.0"
   },
   "devDependencies": {
-    "@bsv/sdk": "^4.0.0",
+    "@bsv/sdk": "npm:@bopen-io/sdk@4.0.0",
     "typescript": "^5.9.3"
   }
 }

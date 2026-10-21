@@ -41,7 +41,7 @@
     "@bsv/wallet-toolbox-client": "^2.15.0"
   },
   "devDependencies": {
-    "@bsv/sdk": "^4.0.0",
+    "@bsv/sdk": "npm:@bopen-io/sdk@4.0.0",
     "@types/chrome": "^0.1.32",
     "typescript": "^5.9.3"
   }
