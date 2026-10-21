@@ -9,7 +9,6 @@
 import { syncMessages, syncTransactionInbox } from '@1sat/actions'
 import type { GlobalFlags } from '../args.js'
 import { extractFlag } from '../args.js'
-import { loadConfig } from '../config.js'
 import { loadContext } from '../context.js'
 import { printCommandHelp } from '../help.js'
 import { loadKey } from '../keys.js'
@@ -38,7 +37,7 @@ async function messageboxSync(
 ): Promise<void> {
 	const url = extractFlag(args, '--url')
 	const box = extractFlag(args, '--box')
-	const overlay = extractFlag(args, '--overlay') ?? loadConfig().colorOverlayUrl
+	const overlay = extractFlag(args, '--overlay')
 
 	const privateKey = await loadKey()
 	const { ctx, destroy } = await loadContext(privateKey, {
@@ -50,32 +49,24 @@ async function messageboxSync(
 			...(url ? { messageboxUrl: url } : {}),
 			...(box ? { messageBox: box } : {}),
 		})
-		// 1Color receipts are submitted to an overlay before they are
-		// internalized; there is no default overlay.
-		const delivery = overlay
-			? await syncTransactionInbox.execute(ctx, {
-					...(url ? { messageboxUrl: url } : {}),
-					overlay,
-				})
-			: undefined
+		// 1Color receipts need an overlay to submit to; without one they stay
+		// in the box (overlay-required) and everything else is processed.
+		const metanet = await syncTransactionInbox.execute(ctx, {
+			...(url ? { messageboxUrl: url } : {}),
+			...(overlay ? { overlay } : {}),
+		})
 
 		if (opts.json) {
-			output({ ...result, transactionDelivery: delivery ?? null }, opts)
+			output({ ...result, metanet }, opts)
 			return
 		}
 
 		console.log(`\nprocessed: ${result.processed}  failed: ${result.failed}`)
-		if (delivery) {
-			console.log(
-				`transaction-delivery: received ${delivery.received.length}  skipped ${delivery.skipped.length}${delivery.error ? `  error: ${delivery.error}` : ''}`,
-			)
-			for (const s of delivery.skipped) {
-				console.log(`  skipped ${s.messageId}: ${s.reason}`)
-			}
-		} else {
-			console.log(
-				'transaction-delivery: not pulled (no overlay: pass --overlay <url> or run `1sat config set colorOverlayUrl <url>`)',
-			)
+		console.log(
+			`transaction-delivery: received ${metanet.received.length}  skipped ${metanet.skipped.length}${metanet.error ? `  error: ${metanet.error}` : ''}`,
+		)
+		for (const s of metanet.skipped) {
+			console.log(`  skipped ${s.messageId}: ${s.reason}`)
 		}
 		console.log()
 	} finally {

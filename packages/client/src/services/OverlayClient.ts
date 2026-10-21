@@ -1,5 +1,5 @@
 import type { ClientOptions } from '@1sat/types'
-import type { LookupAnswer, STEAK } from '@bsv/sdk'
+import type { STEAK } from '@bsv/sdk'
 import { BaseClient } from './BaseClient.js'
 
 /** Topic manager metadata returned by listTopicManagers */
@@ -109,20 +109,6 @@ export class OverlayClient extends BaseClient {
 		topics: string[],
 	): Promise<STEAK> {
 		return this.submitToPath<STEAK>('/submit', beef, topics)
-	}
-
-	/**
-	 * BRC-24 lookup at `<baseUrl>/lookup` on an overlay given by its base URL:
-	 * `POST { service, query }` as JSON, answered with a JSON lookup answer.
-	 * @param service - Lookup service name (e.g. "ls_color_<assetId>")
-	 * @param query - The service's query object
-	 */
-	async lookupBrc24(service: string, query: unknown): Promise<LookupAnswer> {
-		return this.request<LookupAnswer>('/lookup', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ service, query }),
-		})
 	}
 
 	private async submitToPath<

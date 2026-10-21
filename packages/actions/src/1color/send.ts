@@ -136,6 +136,37 @@ export const send1Color: Action<Send1ColorInput, Send1ColorResult> = {
 				.lock()
 				.toHex()
 
+			// The delivery body, checked (memo bound, receipt) before the handoff
+			// exists, so a bad memo leaves no noSend action behind.
+			const { publicKey: senderIdentityKey } = await ctx.wallet.getPublicKey({
+				identityKey: true,
+			})
+			const delivery = (txid: number[], beef: number[]) =>
+				encodeTransactionDeliveryMime({
+					version: 1,
+					txid: Uint8Array.from(txid),
+					beef: Uint8Array.from(beef),
+					outputs: [
+						{
+							outputIndex: 0,
+							protocol: 'basket insertion',
+							insertionRemittance: {
+								basket,
+								customInstructions: colorReceiptInstructions({
+									assetId,
+									derivationPrefix,
+									derivationSuffix,
+									senderIdentityKey,
+								}),
+							},
+						},
+					],
+					// wallet-toolbox cannot issue BRC-177 lifecycle statements yet.
+					lifecycles: [],
+					...(input.memo !== undefined && { memo: input.memo }),
+				})
+			delivery(new Array(32).fill(0), [])
+
 			// 3. The handoff; the module funds, splits and signs.
 			const expiry = input.expirySeconds ?? COLOR_SEND_EXPIRY_SECONDS
 			const result = await ctx.wallet.createAction({
@@ -162,33 +193,11 @@ export const send1Color: Action<Send1ColorInput, Send1ColorResult> = {
 			const tx = Array.from(result.tx)
 
 			// 4. Deliver.
-			const { publicKey: senderIdentityKey } = await ctx.wallet.getPublicKey({
-				identityKey: true,
-			})
 			try {
-				const plaintext = encodeTransactionDeliveryMime({
-					version: 1,
-					txid: Uint8Array.from(Utils.toArray(txid, 'hex')),
-					beef: Uint8Array.from(Beef.fromBinary(tx).toBinary()),
-					outputs: [
-						{
-							outputIndex: 0,
-							protocol: 'basket insertion',
-							insertionRemittance: {
-								basket,
-								customInstructions: colorReceiptInstructions({
-									assetId,
-									derivationPrefix,
-									derivationSuffix,
-									senderIdentityKey,
-								}),
-							},
-						},
-					],
-					// wallet-toolbox cannot issue BRC-177 lifecycle statements yet.
-					lifecycles: [],
-					...(input.memo !== undefined && { memo: input.memo }),
-				})
+				const plaintext = delivery(
+					Utils.toArray(txid, 'hex'),
+					Beef.fromBinary(tx).toBinary(),
+				)
 				const sent = await sendEnvelope(ctx.wallet, resolution, {
 					senderIdentityKey,
 					plaintext: Array.from(plaintext),

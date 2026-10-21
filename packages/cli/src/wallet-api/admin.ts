@@ -17,17 +17,11 @@
  * skips every grant check.
  */
 
-import { OverlayClient } from '@1sat/client'
 import { PERMISSION_SCHEME_IDS } from '@1sat/types'
 import {
 	type IPermissionStore,
 	LocalWalletPermissionsManager,
 } from '@1sat/wallet'
-import {
-	type ColorOverlayProvider,
-	colorTopic,
-	createColorModule,
-} from '@bsv/color-permission-module'
 import type { WalletInterface } from '@bsv/sdk'
 
 export const CLI_ADMIN_ORIGINATOR = '1sat-cli.internal'
@@ -59,46 +53,6 @@ const adminPermissionModules = Object.fromEntries(
 )
 
 /**
- * The BRC-207 overlay queries and submissions of the wallet's `color`
- * module, against one configured overlay (`colorOverlayUrl`): BRC-24
- * `color-spendability` / `color-admission` lookups on `ls_color_<assetId>` and
- * BRC-22 submits. Without a configured overlay every call fails, so a `p color`
- * action fails rather than falling back to a default.
- */
-export function colorOverlayProvider(
-	overlayUrl: string | undefined,
-): ColorOverlayProvider {
-	const client = (): OverlayClient => {
-		if (!overlayUrl) {
-			throw new Error(
-				'1Color needs an overlay: run `1sat config set colorOverlayUrl <url>`',
-			)
-		}
-		return new OverlayClient(overlayUrl.replace(/\/+$/, ''))
-	}
-	const query =
-		(type: 'color-spendability' | 'color-admission') =>
-		async (assetId: string, outpoints: string[]) =>
-			client().lookupBrc24(`ls_color_${assetId}`, {
-				type,
-				version: 1,
-				assetId,
-				topic: colorTopic(assetId),
-				outpoints,
-			})
-	return {
-		spendability: query('color-spendability'),
-		admission: query('color-admission'),
-		submit: async (topics, beef) => client().submitBrc22(beef, topics),
-	}
-}
-
-export interface AdminWalletOptions {
-	/** Overlay for the `color` module (see {@link colorOverlayProvider}) */
-	colorOverlayUrl?: string
-}
-
-/**
  * Wrap the toolbox wallet in a permissions manager the CLI calls as the
  * admin originator.
  *
@@ -121,21 +75,11 @@ export interface AdminWalletOptions {
 export function adminWallet(
 	wallet: WalletInterface,
 	store: IPermissionStore,
-	options: AdminWalletOptions = {},
 ): WalletInterface {
-	// `p color` is the wallet's BRC-207 module, not a pass-through: it plans,
-	// selects, signs, files and submits 1Color actions. Its consent prompts
-	// approve the admin originator, which only in-process code can use.
-	const color = createColorModule({
-		wallet,
-		provider: colorOverlayProvider(options.colorOverlayUrl),
-		requestTokenAccess: async (originator) =>
-			originator === CLI_ADMIN_ORIGINATOR,
-	})
 	const manager = new LocalWalletPermissionsManager(
 		wallet,
 		CLI_ADMIN_ORIGINATOR,
-		{ permissionModules: { ...adminPermissionModules, color } },
+		{ permissionModules: adminPermissionModules },
 		{ store },
 	)
 	return withAdminOriginator(manager)

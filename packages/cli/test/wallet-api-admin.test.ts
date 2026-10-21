@@ -1,12 +1,8 @@
-import { afterEach, describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import { InMemoryPermissionStore } from '@1sat/wallet'
 import type { WalletInterface } from '@bsv/sdk'
 import { Utils } from '@bsv/sdk'
-import {
-	CLI_ADMIN_ORIGINATOR,
-	adminWallet,
-	colorOverlayProvider,
-} from '../src/wallet-api/admin'
+import { CLI_ADMIN_ORIGINATOR, adminWallet } from '../src/wallet-api/admin'
 
 /**
  * Reversible stand-in for the metadata key. The 0x01 marker stands in for
@@ -115,92 +111,5 @@ describe('adminWallet', () => {
 		// this manager reads back as text (see the decryption test above).
 		expect(created[0].description).not.toBe('sweep')
 		expect(created[0].description).toBe(encrypted('sweep'))
-	})
-})
-
-describe('adminWallet: 1Color', () => {
-	const realFetch = globalThis.fetch
-	afterEach(() => {
-		globalThis.fetch = realFetch
-	})
-
-	test('a p color plan label reaches the color module, not the pass-through', async () => {
-		const { wallet, created } = mockWallet()
-		const cli = adminWallet(wallet, new InMemoryPermissionStore(), {
-			colorOverlayUrl: 'https://overlay.example',
-		})
-		// A malformed plan: only the BRC-207 module rejects it this way; an
-		// unregistered scheme would throw "Unsupported P-module scheme".
-		await expect(
-			cli.createAction({
-				description: 'send tokens',
-				outputs: [],
-				labels: ['p color plan 0 1 zz'],
-			}),
-		).rejects.toThrow('BRC-207: invalid p color plan label')
-		expect(created).toHaveLength(0)
-	})
-
-	test('the overlay provider queries ls_color_<assetId> and submits BRC-22', async () => {
-		const requests: Array<{ url: string; body: unknown; topics?: string }> = []
-		globalThis.fetch = (async (url: RequestInfo | URL, init?: RequestInit) => {
-			const headers = new Headers(init?.headers)
-			requests.push({
-				url: String(url),
-				body:
-					typeof init?.body === 'string' ? JSON.parse(init.body) : undefined,
-				topics: headers.get('X-Topics') ?? undefined,
-			})
-			return new Response(
-				JSON.stringify(
-					String(url).endsWith('/lookup')
-						? { type: 'output-list', outputs: [] }
-						: { tm_color: { outputsToAdmit: [0], coinsToRetain: [] } },
-				),
-			)
-		}) as typeof fetch
-		const assetId = `${'ab'.repeat(32)}_0`
-		const provider = colorOverlayProvider('https://overlay.example/')
-		const outpoints = [`${'cd'.repeat(32)}.1`]
-		expect(await provider.spendability(assetId, outpoints)).toEqual({
-			type: 'output-list',
-			outputs: [],
-		})
-		await provider.admission(assetId, outpoints)
-		await provider.submit(['tm_color'], [1, 2, 3])
-		const query = (type: string) => ({
-			service: `ls_color_${assetId}`,
-			query: {
-				type,
-				version: 1,
-				assetId,
-				topic: `tm_color_${assetId}`,
-				outpoints,
-			},
-		})
-		expect(requests).toEqual([
-			{
-				url: 'https://overlay.example/lookup',
-				body: query('color-spendability'),
-				topics: undefined,
-			},
-			{
-				url: 'https://overlay.example/lookup',
-				body: query('color-admission'),
-				topics: undefined,
-			},
-			{
-				url: 'https://overlay.example/submit',
-				body: undefined,
-				topics: 'tm_color',
-			},
-		])
-	})
-
-	test('without a configured overlay, color operations fail', async () => {
-		const provider = colorOverlayProvider(undefined)
-		await expect(provider.submit(['tm_color'], [])).rejects.toThrow(
-			'1Color needs an overlay',
-		)
 	})
 })

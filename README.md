@@ -290,8 +290,7 @@ const { wallet, services } = await createNodeWallet({
 1sat action sendBsv '{"requests":[{"handle":"@alice@example.com","satoshis":1000,"memo":"hi"}]}'
 
 # Pull payment_inbox (PeerPay) and transaction-delivery (1Color tokens, BRC-169 handle payments)
-1sat config set colorOverlayUrl https://overlay.example   # the BRC-22 overlay for 1Color; no default
-1sat messagebox sync
+1sat messagebox sync   # add --overlay <url> to receive 1Color tokens (submitted there first)
 ```
 
 The CLI resolves your key from `PRIVATE_KEY_WIF` (env var, good for CI) or `~/.1sat/keys.bep` (encrypted keyfile created by `1sat init`). Pass `--json` for machine-readable output on any command.

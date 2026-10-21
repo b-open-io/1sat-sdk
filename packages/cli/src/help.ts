@@ -676,7 +676,7 @@ export const COMMANDS: CommandSpec[] = [
 			{
 				name: 'sync',
 				description:
-					'Pull payment_inbox (default) and internalize paymail payments, then the transaction-delivery box (1Color tokens, submitted to the overlay first; BRC-169 handle payments) when an overlay is set',
+					'Pull payment_inbox (default) and internalize paymail payments, then the transaction-delivery box (BRC-169 handle payments; 1Color tokens, submitted to --overlay first)',
 				args: [
 					{
 						flag: '--url',
@@ -693,7 +693,7 @@ export const COMMANDS: CommandSpec[] = [
 						flag: '--overlay',
 						values: '<url>',
 						description:
-							'BRC-22 overlay that received 1Color tokens are submitted to (default: config colorOverlayUrl; without one the transaction-delivery box is not pulled)',
+							'BRC-22 overlay that received 1Color tokens are submitted to before internalizing (no default; without it, 1Color deliveries stay in the box)',
 					},
 				],
 			},

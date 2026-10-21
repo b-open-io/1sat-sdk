@@ -137,12 +137,12 @@ A handle payment must be the only request (`{ error: 'handle-payment-must-be-the
 import { createContext, syncTransactionInbox } from '@1sat/actions'
 
 const { received, skipped, error } = await syncTransactionInbox.execute(ctx, {
-  overlay: 'https://overlay.example', // required (1Color receipts are submitted there first)
+  overlay: 'https://overlay.example', // optional; needed for 1Color receipts (submitted there first)
   messageboxUrl: 'https://messagebox.1sat.app', // default
 })
 ```
 
-Lists `transaction-delivery`, verifies each envelope's signature against `sender.identityKey`, decrypts `content`, checks `contentHash`, then internalizes `payment` as a `wallet payment` of output 0 with `paymentRemittance { derivationPrefix, derivationSuffix, senderIdentityKey }`, label `metanet payment`, the memo in the description. BRC-232 transaction deliveries in the same box (1Color tokens, BRC-29 outputs) are processed as the tokens skill describes. A message is acknowledged only after its internalize succeeds; anything else (JSON envelope, bad signature or hash, nothing to internalize) stays in the box and is listed in `skipped` with the reason. `1sat messagebox sync` runs it after the PeerPay sync when an overlay is set (`--overlay` or config `colorOverlayUrl`).
+Lists `transaction-delivery`, verifies each envelope's signature against `sender.identityKey`, decrypts `content`, checks `contentHash`, then internalizes `payment` as a `wallet payment` of output 0 with `paymentRemittance { derivationPrefix, derivationSuffix, senderIdentityKey }`, label `metanet payment`, the memo in the description. BRC-232 transaction deliveries in the same box (1Color tokens, BRC-29 outputs) are processed as the tokens skill describes. A message is acknowledged only after its internalize succeeds; anything else (JSON envelope, bad signature or hash, nothing to internalize) stays in the box and is listed in `skipped` with the reason. `1sat messagebox sync` runs it after the PeerPay sync (pass `--overlay <url>` to receive 1Color tokens; without an overlay, messages with 1Color receipts stay in the box with reason `overlay-required`).
 
 ### Message boxes
 

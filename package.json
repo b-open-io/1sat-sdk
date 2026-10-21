@@ -28,7 +28,6 @@
   },
   "overrides": {
     "@bsv/sdk": "link:@bsv/sdk",
-    "@bsv/templates": "link:@bsv/templates",
     "@bsv/wallet-toolbox": "link:@bsv/wallet-toolbox",
     "@bsv/wallet-toolbox-client": "link:@bsv/wallet-toolbox-client",
     "@bsv/color-permission-module": "link:@bsv/color-permission-module"

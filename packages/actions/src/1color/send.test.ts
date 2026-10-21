@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { OneColor } from '@1sat/templates'
+import { encodeMimeEntity } from '@1sat/utils'
 import {
 	COLOR_KEY_ID,
 	ColorPlan,
@@ -437,6 +438,20 @@ describe('send1Color', () => {
 		}
 	})
 
+	test('a memo over 2000 UTF-8 bytes fails before createAction', async () => {
+		const { wallet, created } = senderWallet()
+		network([])
+		const res = await send1Color.execute(createContext(wallet), {
+			assetId: ASSET_ID,
+			amount: '1',
+			destination: { handle: HANDLE },
+			memo: 'é'.repeat(1001),
+		})
+		expect(res).toEqual({ error: 'BRC-232: memo exceeds 2000 UTF-8 bytes' })
+		expect(created).toHaveLength(0)
+		expect(relayed).toHaveLength(0)
+	})
+
 	test('a failed delivery returns the noSend send for retry or abort', async () => {
 		const { wallet } = senderWallet()
 		network([])
@@ -650,16 +665,109 @@ describe('syncTransactionInbox: 1Color', () => {
 		await expectSkipped(id, 'BRC-232: the body lacks version')
 	})
 
-	test('the overlay is required', async () => {
-		const { wallet } = recipientWallet()
+	test('without an overlay: 1Color messages stay (overlay-required), payment deliveries are internalized', async () => {
+		const { body } = await sendSixty()
+		const tokenMessage = relayed[0].messageId
+		const paymentMessage = await postEnvelope(
+			encodeTransactionDeliveryMime({
+				...body,
+				outputs: [
+					{
+						outputIndex: 0,
+						protocol: 'wallet payment',
+						paymentRemittance: {
+							derivationPrefix: 'AQ==',
+							derivationSuffix: 'Ag==',
+							senderIdentityKey: Uint8Array.from(
+								Utils.toArray(SENDER_ID, 'hex'),
+							),
+						},
+					},
+				],
+			}),
+		)
+		const log: string[] = []
+		network(log)
+		const { wallet, internalized } = recipientWallet(log)
+		const res = await syncTransactionInbox.execute(createContext(wallet), {})
+		expect(res.error).toBeUndefined()
+		expect(listed).toEqual([
+			{
+				messagebox: 'https://messagebox.1sat.app',
+				messageBox: 'transaction-delivery',
+			},
+		])
+		expect(res.skipped).toEqual([
+			{ messageId: tokenMessage, reason: 'overlay-required' },
+		])
+		expect(res.received).toEqual([
+			{
+				messageId: paymentMessage,
+				txid: Utils.toHex(Array.from(body.txid)),
+				sender: SENDER_ID,
+				assetIds: [],
+			},
+		])
+		// No overlay submit; only the payment is internalized and acknowledged.
+		expect(log).toEqual(['internalize'])
+		expect(internalized[0].outputs).toEqual([
+			{
+				outputIndex: 0,
+				protocol: 'wallet payment',
+				paymentRemittance: {
+					derivationPrefix: 'AQ==',
+					derivationSuffix: 'Ag==',
+					senderIdentityKey: SENDER_ID,
+				},
+			},
+		])
+		expect(acknowledged).toEqual([[paymentMessage]])
+	})
+
+	test('an unknown content type is left unacknowledged and reported', async () => {
+		const id = await postEnvelope(
+			encodeMimeEntity(
+				'text/plain; charset=utf-8',
+				Utils.toArray('hello', 'utf8'),
+			),
+		)
+		const log: string[] = []
+		network(log)
+		const { wallet, internalized } = recipientWallet(log)
 		const res = await syncTransactionInbox.execute(createContext(wallet), {
-			overlay: '',
+			overlay: OVERLAY,
 		})
-		expect(res).toEqual({
-			received: [],
-			skipped: [],
-			error: 'overlay-required',
+		expect(listed[0].messageBox).toBe('transaction-delivery')
+		expect(res.received).toEqual([])
+		expect(res.skipped).toEqual([
+			{
+				messageId: id,
+				reason:
+					'nothing to internalize: no payment, content type text/plain; charset=utf-8',
+			},
+		])
+		expect(log).toEqual([])
+		expect(internalized).toHaveLength(0)
+		expect(acknowledged).toEqual([])
+	})
+
+	test('a tampered envelope fails signature verification', async () => {
+		await sendSixty()
+		const env = dagCborDecode(relayed[0].body) as Record<string, unknown>
+		env.created = '2000-01-01T00:00:00Z'
+		relayed[0].body = dagCborEncode(env)
+		const log: string[] = []
+		network(log)
+		const { wallet, internalized } = recipientWallet(log)
+		const res = await syncTransactionInbox.execute(createContext(wallet), {
+			overlay: OVERLAY,
 		})
-		expect(listed).toEqual([])
+		expect(listed[0].messageBox).toBe('transaction-delivery')
+		expect(res.skipped).toEqual([
+			{ messageId: 'env-1', reason: 'envelope signature does not verify' },
+		])
+		expect(log).toEqual([])
+		expect(internalized).toHaveLength(0)
+		expect(acknowledged).toEqual([])
 	})
 })

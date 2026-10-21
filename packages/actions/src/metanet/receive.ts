@@ -56,9 +56,11 @@ export interface SyncTransactionInboxInput {
 	/**
 	 * Base URL of the BRC-22 overlay that 1Color receipts are submitted to
 	 * (`<overlay>/submit`, topic `tm_color_<assetId>`) before they are
-	 * internalized. Required; there is no default.
+	 * internalized. No default: without it, a message with a `p color` entry
+	 * is left unacknowledged with reason `overlay-required`; everything else
+	 * is processed.
 	 */
-	overlay: string
+	overlay?: string
 }
 
 /** A message internalized and acknowledged. */
@@ -145,7 +147,7 @@ async function internalizeEnvelopePayment(
  */
 export async function internalizeTransactionDelivery(
 	wallet: Pick<WalletInterface, 'internalizeAction'>,
-	overlay: string,
+	overlay: string | undefined,
 	body: Uint8Array,
 ): Promise<{ txid: string; assetIds: string[] }> {
 	const delivery = decodeTransactionDelivery(body)
@@ -188,6 +190,8 @@ export async function internalizeTransactionDelivery(
 				`output ${outputIndex}: unsupported basket ${basket}`,
 			)
 		}
+		// 1Color receipts are submitted to the overlay before internalizing.
+		if (!overlay) throw new InboxSkipError('overlay-required')
 		const { assetId } = checkColorReceipt(
 			subject,
 			outputIndex,
@@ -209,7 +213,7 @@ export async function internalizeTransactionDelivery(
 	// BRC-207: the received output must be admitted before the wallet accepts
 	// it, and internalizeAction never submits.
 	if (received.size > 0) {
-		const client = new OverlayClient(overlay.replace(/\/+$/, ''))
+		const client = new OverlayClient((overlay as string).replace(/\/+$/, ''))
 		for (const [assetId, indexes] of received) {
 			const topic = colorTopic(assetId)
 			const steak = await client.submitBrc22(Array.from(delivery.beef), [topic])
@@ -251,18 +255,14 @@ export const syncTransactionInbox: Action<
 				overlay: {
 					type: 'string',
 					description:
-						'Base URL of the BRC-22 overlay that 1Color receipts are submitted to before internalizing (required)',
+						'Base URL of the BRC-22 overlay that 1Color receipts are submitted to before internalizing; without it, messages with 1Color receipts stay in the box (overlay-required)',
 				},
 			},
-			required: ['overlay'],
 		},
 		requiresServices: false,
 	},
 
 	async execute(ctx, input) {
-		if (!input.overlay) {
-			return { received: [], skipped: [], error: 'overlay-required' }
-		}
 		return processInbox(
 			ctx.wallet,
 			input.messageboxUrl,
