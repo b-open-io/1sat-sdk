@@ -54,7 +54,8 @@ function sourceFunction(
 		`(${code.replace("await import('@1sat/actions')", 'actions')})`,
 		{ compilerOptions: { target: ts.ScriptTarget.ES2022 } },
 	).outputText
-	return runInNewContext(compiled, { ...bindings, AbortController })
+	// One Error across the harness contexts, so `instanceof Error` holds between them.
+	return runInNewContext(compiled, { ...bindings, AbortController, Error })
 }
 
 function rpcFixture(
@@ -292,6 +293,7 @@ test('unchecked BSV selection sweeps nothing and surfaces the rescan error', asy
 		},
 		'SweepView',
 	)
+	const errors: string[] = []
 	const sweepSelection = sourceFunction(
 		'../mainview/views/sweep/index.tsx',
 		'handleSweep',
@@ -299,13 +301,14 @@ test('unchecked BSV selection sweeps nothing and surfaces the rescan error', asy
 			sweepBsv: false,
 			onSweep: sweepView,
 			setError: (error: string) => {
-				expect(error).toContain('No sweepable outputs remain')
+				errors.push(error)
 			},
 			setSweeping: () => {},
 		},
 		'StepResults',
 	)
 	await sweepSelection()
+	expect(errors.at(-1)).toContain('No sweepable outputs remain')
 	expect(f.observed).toEqual({ scans: 1, funding: 0 })
 	expect(step).toBe(0)
 })
