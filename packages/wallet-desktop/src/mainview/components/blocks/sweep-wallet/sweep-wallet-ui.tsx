@@ -136,7 +136,7 @@ function AssetPreview({ scanResult }: { scanResult: ScanResult }) {
 						<span className="text-sm">OrdLock listings</span>
 					</div>
 					<Badge variant="secondary" className="text-xs">
-						{listingCount} cancelled on sweep
+						{listingCount} listed, not swept
 					</Badge>
 				</div>
 			)}

@@ -27,12 +27,11 @@ import {
 	sendBsv,
 	sendBsv21,
 	sweepBsv,
-	sweepOrdinals,
 	unlockBsv,
 	updateProfile,
 } from '@1sat/actions'
 import { OPNS_BASKET } from '@1sat/actions'
-import { BRC29_PROTOCOL_ID, ORDINALS_BASKET, readAssetIdTag } from '@1sat/types'
+import { BRC29_PROTOCOL_ID, ORDLOCK_V2_TAG, ORDINALS_BASKET, readAssetIdTag } from '@1sat/types'
 import { generateMnemonic, isValidMnemonic } from '@1sat/utils'
 import { PrivateKey, PublicKey, Utils as SdkUtils } from '@bsv/sdk'
 import { Utils } from 'electrobun/bun'
@@ -703,30 +702,6 @@ export function createRpcHandlers(scopedAccountId?: string) {
 						w.services,
 						pk.toPublicKey().toAddress(),
 					)
-					const listings = assets.listings ?? []
-					let listingTxid: string | undefined
-					if (listings.length > 0) {
-						assertCurrent()
-						const listingResult = await sweepOrdinals.execute(ctx, {
-							inputs: listings.map((l) => ({
-								outpoint: l.outpoint,
-								satoshis: l.satoshis,
-								lockingScript: l.lockingScript,
-							})),
-							keys: listings.map(() => pk),
-						})
-						const cancelledTxid = listingResult.txid?.trim()
-						if (cancelledTxid) txids.push(cancelledTxid)
-						if (listingResult.error || !cancelledTxid) {
-							return {
-								txids,
-								error:
-									listingResult.error ||
-									'Listing cancellation did not complete. Retry before sweeping funds.',
-							}
-						}
-						listingTxid = cancelledTxid
-					}
 					const inputs = (includeFunding ? assets.funding : []).map((f) => ({
 						outpoint: f.outpoint,
 						satoshis: f.satoshis,
@@ -734,11 +709,8 @@ export function createRpcHandlers(scopedAccountId?: string) {
 					}))
 					if (inputs.length === 0) {
 						return {
-							txid: listingTxid,
 							txids,
-							error: listingTxid
-								? undefined
-								: 'No sweepable outputs remain. Rescan.',
+							error: 'No sweepable outputs remain. Rescan.',
 						}
 					}
 					assertCurrent()
@@ -1015,7 +987,7 @@ export function createRpcHandlers(scopedAccountId?: string) {
 					chain: 'main',
 				})
 				const found = await findOwnedOrdinal(wallet, outpoint)
-				if (!found || !found.output.tags?.includes('ordlock'))
+				if (!found || !found.output.tags?.includes(ORDLOCK_V2_TAG))
 					return { error: 'Listing not found in wallet' }
 				const id = readAssetIdTag(found.output.tags)
 				if (!id) return { error: 'Listing has no wallet tracking id' }

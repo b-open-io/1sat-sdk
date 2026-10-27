@@ -36,7 +36,7 @@ export interface ScanResult {
 	ordinals: SweepOrdinalUtxo[]
 	/** BSV-21 token groups */
 	tokens: SweepTokenGroup[]
-	/** OrdLock marketplace listings cancelled into BRC-100 on sweep */
+	/** OrdLock v2 marketplace listings, left listed by the sweep */
 	listings?: SweepOrdinalUtxo[]
 	/** Total satoshis across all funding UTXOs */
 	totalSats: number

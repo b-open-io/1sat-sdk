@@ -6,7 +6,7 @@
  */
 
 import type { OneSatServices } from '@1sat/client'
-import type { IndexedOutput } from '@1sat/types'
+import { ORDLOCK_V2_TAG, type IndexedOutput } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
 import type {
 	Bsv20Balance,
@@ -75,22 +75,22 @@ function isTokenMime(out: IndexedOutput): boolean {
 	return (out.events ?? []).includes('type:application/bsv-20')
 }
 
-/** True when an indexed output is an OrdLock v1 or v2 marketplace listing. */
+/**
+ * True when an indexed output is an OrdLock v2 marketplace listing.
+ *
+ * OrdLock v1 detection is gone on purpose: the v1 listing inventory was swept
+ * off chain, so a v1-tagged row cannot be spent again and badging it as listed
+ * would only mislead the sweep UI.
+ */
 export function isListedOutput(out: IndexedOutput): boolean {
 	const events = out.events ?? []
 	if (
-		events.includes('ordlock') ||
-		events.includes('ordlock2') ||
+		events.includes(ORDLOCK_V2_TAG) ||
 		events.some((e) => e.startsWith('list:'))
-	) {
-		return true
-	}
-	const data = out.data
-	return Boolean(
-		data &&
-			typeof data === 'object' &&
-			(data.ordlock != null || data.ordlock2 != null),
 	)
+		return true
+	const data = out.data
+	return Boolean(data && typeof data === 'object' && data[ORDLOCK_V2_TAG] != null)
 }
 
 /**
@@ -130,7 +130,7 @@ export async function scanAddress(
 		(await services.txo.search(`own:${address}`, {
 			unspent: true,
 			events: true,
-			tags: ['ordlock', 'insc', 'bsv20', 'bsv21'],
+			tags: [ORDLOCK_V2_TAG, 'insc', 'bsv20', 'bsv21'],
 			sats: true,
 			limit: 0,
 		})) ?? []

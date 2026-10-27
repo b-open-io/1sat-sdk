@@ -1,3 +1,4 @@
+import { ORDLOCK_V2_TAG } from '@1sat/types'
 import type { OrdinalInfo } from '../../../shared/types.js'
 
 export interface OrdLockListing {
@@ -39,7 +40,7 @@ export function parseListing(raw: unknown): OrdLockListing | null {
 
 /** Wallet tags determine owner cancellation availability, independently of price or indexer availability. */
 export function ownedListing(output: OrdinalInfo): OrdLockListing | null {
-	if (!output.tags.includes('ordlock')) return null
+	if (!output.tags.includes(ORDLOCK_V2_TAG)) return null
 	const price = output.tags.find((tag) => tag.startsWith('price:'))?.slice(6)
 	const value = price === undefined ? undefined : Number(price)
 	return {

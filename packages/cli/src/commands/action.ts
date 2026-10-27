@@ -73,16 +73,6 @@ export async function handleActionCommand(
 	try {
 		const result = await action.execute(ctx, input)
 		output(result, opts)
-		if (
-			actionName === 'cancelOwnedListings' &&
-			result !== null &&
-			typeof result === 'object' &&
-			'errors' in result &&
-			Array.isArray(result.errors) &&
-			result.errors.length > 0
-		) {
-			process.exitCode = 1
-		}
 	} finally {
 		await destroy()
 	}

@@ -69,7 +69,7 @@ function row(index: number): WalletOutput {
 		outpoint: `${index.toString(16).padStart(64, '0')}.0`,
 		satoshis: 1,
 		spendable: true,
-		tags: ['ordlock', `id:${index}`],
+		tags: ['ordlock2', `id:${index}`],
 	}
 }
 
@@ -164,7 +164,7 @@ describe('desktop owner delisting discovery', () => {
 		const fixture = servicesFor(tx, [
 			{
 				type: 'txo',
-				data: { outpoint: `${tx.id('hex')}.0`, score: 0, events: ['ordlock'] },
+				data: { outpoint: `${tx.id('hex')}.0`, score: 0, events: ['ordlock2'] },
 			},
 			{ type: 'done' },
 		])
@@ -180,7 +180,7 @@ describe('desktop owner delisting discovery', () => {
 			}),
 		).toEqual({ outpoint: 'listing.0', origin: 'origin.0', priceSats: 0 })
 		expect(parseListing([{ outpoint: 'obsolete-array' }])).toBeNull()
-		expect(ownedListing({ ...row(1), tags: ['ordlock'] })).not.toBeNull()
+		expect(ownedListing({ ...row(1), tags: ['ordlock2'] })).not.toBeNull()
 		expect(ownedListing({ ...row(1), tags: ['price:1'] })).toBeNull()
 	})
 })

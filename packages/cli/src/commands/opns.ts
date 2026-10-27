@@ -13,7 +13,7 @@ import {
 	sellOpns,
 	sendOpns,
 } from '@1sat/actions'
-import { P1SAT_PROTOCOL } from '@1sat/types'
+import { ORDLOCK_V2_TAG, P1SAT_PROTOCOL } from '@1sat/types'
 import { confirm, isCancel } from '@clack/prompts'
 import type { GlobalFlags } from '../args.js'
 import { extractFlag } from '../args.js'
@@ -160,7 +160,7 @@ async function opnsLookup(args: string[], opts: GlobalFlags): Promise<void> {
 			const nameTag = getDisplayValue(o, 'name', 'name') ?? ''
 			const publishedTag = o.tags?.find((t) => t === 'opns:published')
 			const status = publishedTag ? 'registered' : 'unregistered'
-			const price = o.tags?.some((t) => t === 'ordlock')
+			const price = o.tags?.some((t) => t === ORDLOCK_V2_TAG)
 				? (o.tags
 						?.find((t) => t.startsWith('price:'))
 						?.slice('price:'.length) ?? '?')

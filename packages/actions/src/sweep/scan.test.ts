@@ -19,11 +19,11 @@ function out(
 	return { score: 0, ...partial }
 }
 
-describe('isListedOutput (OPL-4696)', () => {
-	it('detects ordlock event', () => {
+describe('isListedOutput', () => {
+	it('ignores the retired ordlock (v1) event', () => {
 		expect(
 			isListedOutput(out({ outpoint: 'a.0', events: ['ordlock', 'own:1x'] })),
-		).toBe(true)
+		).toBe(false)
 	})
 
 	it('detects list: event', () => {
@@ -32,12 +32,12 @@ describe('isListedOutput (OPL-4696)', () => {
 		)
 	})
 
-	it('detects data.ordlock', () => {
+	it('ignores retired v1 listing data', () => {
 		expect(
 			isListedOutput(
 				out({ outpoint: 'a.0', data: { ordlock: { price: 1000 } } }),
 			),
-		).toBe(true)
+		).toBe(false)
 	})
 
 	it('detects OrdLock v2 listings (ordlock2)', () => {
@@ -72,7 +72,7 @@ describe('legacy owner scan', () => {
 			outpoint: 'a.0',
 			satoshis: 1,
 			events: ['own:owner', 'type:application/op-ns'],
-			data: { ordlock: { price: 1000 } },
+			data: { ordlock2: { price: 1000 } },
 		})
 		const server = Bun.serve({
 			port: 0,
@@ -83,7 +83,7 @@ describe('legacy owner scan', () => {
 					return new Response('event: done\ndata: {}\n\n')
 				}
 				return Response.json([
-					url.searchParams.get('tags')?.split(',').includes('ordlock')
+					url.searchParams.get('tags')?.split(',').includes('ordlock2')
 						? listing
 						: { ...listing, data: undefined },
 				])
@@ -277,7 +277,7 @@ describe('listed BSV-21 batches', () => {
 	it('puts each listed output in its own batch', () => {
 		const listed = out({
 			outpoint: 'aa.0',
-			events: ['ordlock'],
+			events: ['ordlock2'],
 			data: { bsv21: { amt: '1' } },
 		})
 		const unlisted = out({
@@ -296,7 +296,7 @@ describe('listed BSV-20 batches', () => {
 	it('puts each listed output in its own batch', () => {
 		const listed = out({
 			outpoint: 'aa.0',
-			events: ['ordlock', 'tick:SHUA', 'amt:1'],
+			events: ['ordlock2', 'tick:SHUA', 'amt:1'],
 		})
 		const unlisted = out({
 			outpoint: 'bb.0',

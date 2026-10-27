@@ -175,7 +175,6 @@ _61 actions, generated from the registry — do not edit by hand._
 | `ordinals` | `burnOrdinals` |  | Burn one or more ordinals by sending to OP_RETURN |
 | `ordinals` | `buyOrdinal` | ✓ | Purchase an ordinal from the global orderbook |
 | `ordinals` | `cancelOrdinalListing` |  | Cancel an ordinal listing and return the ordinal to the wallet |
-| `ordinals` | `cancelOwnedListings` |  | Cancel all wallet-owned OrdLock listings back into the 1sat/opns baskets |
 | `ordinals` | `listOrdinals` |  | List ordinals/inscriptions (metadata by default; optional BEEF) |
 | `ordinals` | `sellOrdinal` |  | DISABLED: OrdLock listing create is off. Buy and cancel of existing listings remain available. |
 | `ordinals` | `sendOrdinals` |  | Transfer one or more ordinals to new owners, optionally reinscribing new content onto the output (versioning: the origin chain tracks revision history) |

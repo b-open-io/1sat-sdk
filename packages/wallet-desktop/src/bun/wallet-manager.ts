@@ -15,10 +15,6 @@ import { BAP } from 'bsv-bap'
 import { Utils } from 'electrobun/bun'
 import type { BalanceInfo, SyncEvent, WalletStatus } from '../shared/types'
 import {
-	guardListingWallet,
-	serializeListingOperation,
-} from './owner-delisting.js'
-import {
 	createDesktopVault,
 	hasStoredKey,
 	protectRootKey,
@@ -40,7 +36,6 @@ interface WalletInstance {
 	accountId: string
 	wallet: NodeWalletResult
 	callbacks: WalletCallbacks
-	cancelController?: AbortController
 }
 
 // ============================================================================
@@ -115,62 +110,6 @@ export function computeAccountId(identityKey: string): string {
 		.slice(0, 4)
 		.map((b) => b.toString(16).padStart(2, '0'))
 		.join('')
-}
-
-/** OPL-4696: cancel wallet-owned OrdLock listings into the 1sat/opns baskets. */
-async function cancelListedOnLoad(instance: WalletInstance): Promise<void> {
-	if (instance.cancelController && !instance.cancelController.signal.aborted)
-		return
-	const controller = new AbortController()
-	instance.cancelController = controller
-	try {
-		const { cancelOwnedListings, createContext } = await import('@1sat/actions')
-		const ctx = createContext(
-			guardListingWallet(instance.wallet.wallet, () =>
-				controller.signal.throwIfAborted(),
-			),
-			{
-				services: instance.wallet.services,
-				chain: 'main',
-			},
-		)
-		const input = { signal: controller.signal }
-		const result = await serializeListingOperation(
-			instance.wallet.wallet,
-			async () => {
-				controller.signal.throwIfAborted()
-				return cancelOwnedListings.execute(ctx, input)
-			},
-		)
-		if (controller.signal.aborted) return
-		if (result.cancelled > 0) {
-			instance.callbacks.onSyncEvent?.({
-				timestamp: Date.now(),
-				source: 'wallet',
-				level: 'success',
-				message: `Cancelled ${result.cancelled} OrdLock listing(s)`,
-			})
-		}
-		for (const err of result.errors) {
-			instance.callbacks.onSyncEvent?.({
-				timestamp: Date.now(),
-				source: 'wallet',
-				level: 'warn',
-				message: `OrdLock cancel-on-load: ${err}`,
-			})
-		}
-	} catch (err) {
-		if (controller.signal.aborted) return
-		instance.callbacks.onSyncEvent?.({
-			timestamp: Date.now(),
-			source: 'wallet',
-			level: 'error',
-			message: `OrdLock cancel-on-load failed: ${err instanceof Error ? err.message : String(err)}`,
-		})
-	} finally {
-		if (instance.cancelController === controller)
-			instance.cancelController = undefined
-	}
 }
 
 /** Push balance for a specific account's wallet. */
@@ -322,7 +261,6 @@ export async function create(
 	})
 
 	await pushBalance(instance)
-	void cancelListedOnLoad(instance)
 	return { identityKey, bapId }
 }
 
@@ -341,7 +279,6 @@ export async function unlock(
 		existing.callbacks = callbacks
 		callbacks.onStatusChanged?.('unlocked')
 		await pushBalance(existing)
-		void cancelListedOnLoad(existing)
 		return
 	}
 
@@ -384,7 +321,6 @@ export async function unlock(
 	})
 
 	await pushBalance(instance)
-	void cancelListedOnLoad(instance)
 }
 
 /**
@@ -399,7 +335,6 @@ export async function lockAccount(accountId: string): Promise<void> {
 			level: 'log',
 			message: 'Wallet locked',
 		})
-		instance.cancelController?.abort()
 		wallets.delete(accountId)
 		await instance.wallet.destroy()
 	}
@@ -410,7 +345,6 @@ export async function lockAccount(accountId: string): Promise<void> {
  */
 export async function lockAll(): Promise<void> {
 	for (const [accountId, instance] of wallets) {
-		instance.cancelController?.abort()
 		wallets.delete(accountId)
 		await instance.wallet.destroy()
 	}

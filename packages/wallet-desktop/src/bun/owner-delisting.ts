@@ -1,6 +1,6 @@
 import { isListedOutput } from '@1sat/actions'
 import type { OneSatServices } from '@1sat/client'
-import { OrdLock } from '@1sat/templates'
+import { OrdLockV2 } from '@1sat/templates'
 import { type IndexedOutput, OPNS_BASKET, ORDINALS_BASKET } from '@1sat/types'
 import { parseOutpoint } from '@1sat/utils'
 import {
@@ -129,11 +129,11 @@ export async function scanSweepAssets(
 		if (!source?.lockingScript || source.satoshis === undefined)
 			throw new Error(`Missing output ${output.outpoint}.`)
 		const lockingScript = source.lockingScript.toHex()
-		const listing = OrdLock.decode(source.lockingScript)
+		const listing = OrdLockV2.decode(source.lockingScript)
 		if (listing) {
 			if (listing.seller !== address || source.satoshis !== 1)
 				throw new Error(
-					`Unable to cancel listing ${output.outpoint} with this key.`,
+					`Listing ${output.outpoint} is not owned by this key.`,
 				)
 			result.listings.push({
 				outpoint: output.outpoint,

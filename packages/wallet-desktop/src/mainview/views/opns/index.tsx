@@ -12,6 +12,7 @@ import { Empty } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Globe, Loader2, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { ORDLOCK_V2_TAG } from '@1sat/types'
 import { STACK_URL } from '../../../shared/constants'
 import { rpc } from '../../rpc'
 
@@ -214,7 +215,7 @@ export function OpnsView({ onNavigate }: OpnsViewProps = {}) {
 				outpoint: n.outpoint,
 				name: n.name,
 				registered: n.tags.includes('opns:published'),
-				listed: n.tags.includes('ordlock'),
+				listed: n.tags.includes(ORDLOCK_V2_TAG),
 			}))
 			setNames(mapped)
 			setError(null)

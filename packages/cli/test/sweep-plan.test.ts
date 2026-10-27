@@ -24,7 +24,7 @@ describe('buildSweepPlan', () => {
 			outpoint: 'a.0',
 			satoshis: 1,
 			score: 0,
-			events: ['ordlock', 'type:application/op-ns'],
+			events: ['ordlock2', 'type:application/op-ns'],
 		}
 		const plan = buildSweepPlan(
 			scan({
@@ -43,7 +43,7 @@ describe('buildSweepPlan', () => {
 			outpoint: 'a.0',
 			satoshis: 1,
 			score: 0,
-			events: ['ordlock', 'type:application/op-ns'],
+			events: ['ordlock2', 'type:application/op-ns'],
 		}
 		const plan = buildSweepPlan(
 			scan({ opnsNames: [listedOpns], listings: [listedOpns] }),

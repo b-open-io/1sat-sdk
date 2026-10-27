@@ -169,11 +169,6 @@ export * from './cosign/index.js'
 
 // Export sweep module (uses external signing, not action-based)
 export * from './sweep/index.js'
-export {
-	cancelOwnedListings,
-	type CancelOwnedListingsInput,
-	type CancelOwnedListingsResult,
-} from './listings/cancelOwnedListings.js'
 
 // Export sync module
 export * from './sync/index.js'
@@ -189,7 +184,6 @@ import { addressesActions } from './addresses/index.js'
 import { collectionsActions } from './collections/index.js'
 import { identityActions } from './identity/index.js'
 import { inscriptionsActions } from './inscriptions/index.js'
-import { cancelOwnedListings } from './listings/cancelOwnedListings.js'
 import { locksActions } from './locks/index.js'
 import { mandalaActions } from './mandala/index.js'
 import { metanetActions } from './metanet/index.js'
@@ -218,7 +212,6 @@ actionRegistry.registerAll([
 	...signingActions,
 	...socialActions,
 	...sweepActions,
-	cancelOwnedListings,
 	...opnsActions,
 	...syncActions,
 	...mneeActions,

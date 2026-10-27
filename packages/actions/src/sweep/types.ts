@@ -165,7 +165,7 @@ export interface ScanResult {
 	bsv20Tokens: IndexedOutput[]
 	locked: IndexedOutput[]
 	run: IndexedOutput[]
-	/** OrdLock marketplace listings (cancel into BRC-100 on sweep / load). */
+	/** OrdLock v2 marketplace listings (a sweep cancels them to import them). */
 	listings: IndexedOutput[]
 	totalFundingSats: number
 }

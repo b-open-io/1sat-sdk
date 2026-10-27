@@ -4,7 +4,7 @@
  * Functions for sweeping assets from external wallets into a BRC-100 wallet.
  */
 
-import { BSV20, BSV21, OrdLock, OrdLockV2 } from '@1sat/templates'
+import { BSV20, BSV21, OrdLockV2 } from '@1sat/templates'
 import type { IndexedOutput } from '@1sat/types'
 import type { OrdfsMetadata } from '@1sat/types'
 import { formatOutpoint, parseOutpoint } from '@1sat/utils'
@@ -126,15 +126,9 @@ function assignLegacyUnlock(
 	source: { script: Script; satoshis: number } | undefined,
 ): void {
 	if (source?.script && OrdLockV2.isOrdLockV2(source.script)) {
+		// A listed output has no spend path other than the seller's cancel branch,
+		// so importing one necessarily cancels the listing.
 		txInput.unlockingScriptTemplate = OrdLockV2.cancelListing(
-			key,
-			'all',
-			true,
-			source.satoshis,
-			source.script,
-		)
-	} else if (source?.script && OrdLock.isOrdLock(source.script)) {
-		txInput.unlockingScriptTemplate = OrdLock.cancelListing(
 			key,
 			'all',
 			true,

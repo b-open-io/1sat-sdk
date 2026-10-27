@@ -251,7 +251,7 @@ function StepResults({
 		scanResult.ordinals.length > 0 ||
 		scanResult.tokens.length > 0 ||
 		listings.length > 0
-	const canSweep = listings.length > 0 || (sweepBsv && scanResult.totalSats > 0)
+	const canSweep = sweepBsv && scanResult.totalSats > 0
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -306,8 +306,8 @@ function StepResults({
 									</p>
 									<p className="text-xs text-muted-foreground">
 										{listings.length} listing
-										{listings.length !== 1 ? 's' : ''} cancelled into wallet on
-										sweep
+										{listings.length !== 1 ? 's' : ''} left listed — cancel
+										them to import
 									</p>
 								</div>
 							</div>

@@ -1,3 +1,4 @@
+import { ORDLOCK_V2_TAG } from '@1sat/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 // ---------------------------------------------------------------------------
@@ -126,7 +127,7 @@ export function useMarketGrid({
 	const fetchPage = useCallback(
 		async (offset: number, signal: AbortSignal): Promise<MarketListing[]> => {
 			const params = new URLSearchParams({
-				tags: 'ordlock',
+				tags: ORDLOCK_V2_TAG,
 				unspent: 'true',
 				limit: String(pageSize),
 				offset: String(offset),

@@ -59,9 +59,7 @@ function sourceFunction(
 
 function rpcFixture(
 	options: {
-		listing?: { txid?: string; error?: string }
 		funding?: { txid?: string; error?: string }
-		afterListing?: () => void
 	} = {},
 ) {
 	let walletCalls = 0
@@ -73,7 +71,7 @@ function rpcFixture(
 	} as unknown as WalletInterface
 	const original = { wallet, services: {} }
 	let current = original
-	const observed = { scans: 0, listing: 0, funding: 0 }
+	const observed = { scans: 0, funding: 0 }
 	const snapshot = {
 		listings: [
 			{ outpoint: 'fresh-listing.0', satoshis: 1, lockingScript: 'listing' },
@@ -95,18 +93,6 @@ function rpcFixture(
 		scanSweepAssets: async () => {
 			observed.scans++
 			return snapshot
-		},
-		sweepOrdinals: {
-			execute: async (
-				ctx: { wallet: WalletInterface },
-				input: { inputs: unknown[] },
-			) => {
-				observed.listing++
-				expect(input.inputs).toEqual(snapshot.listings)
-				await ctx.wallet.createAction({ description: 'offline fixture' })
-				options.afterListing?.()
-				return options.listing ?? { txid: 'listing-receipt' }
-			},
 		},
 		sweepBsv: {
 			execute: async (
@@ -132,40 +118,14 @@ function rpcFixture(
 }
 
 describe('desktop delisting execution boundaries', () => {
-	test('actual sweep RPC refreshes discovery and uses native cancellation before funding', async () => {
+	test('actual sweep RPC refreshes discovery and sweeps funding only', async () => {
 		const f = rpcFixture()
 		const result = await f.handler({
 			wif: 'fixture',
 			assets: { funding: [{ outpoint: 'stale' }], listings: [] },
 		})
-		expect(f.observed).toEqual({ scans: 1, listing: 1, funding: 1 })
-		expect(result.txids).toEqual(['listing-receipt', 'funding-receipt'])
-	})
-	test('failed cancellation and missing cancellation txid both block funding', async () => {
-		for (const listing of [
-			{ error: 'retry cancellation' },
-			{},
-			{ txid: '  ' },
-		]) {
-			const f = rpcFixture({ listing })
-			const result = await f.handler({ wif: 'fixture' })
-			expect(result.error).toBeTruthy()
-			expect(f.observed.funding).toBe(0)
-		}
-	})
-	test('funding failure retains the completed listing receipt', async () => {
-		const f = rpcFixture({ funding: { error: 'funding unavailable' } })
-		const result = await f.handler({ wif: 'fixture' })
-		expect(result.error).toBe('funding unavailable')
-		expect(result.txids).toEqual(['listing-receipt'])
-	})
-	test('account change after accepted cancellation stops funding and retains its receipt', async () => {
-		const f = rpcFixture({ afterListing: () => f.switchWallet() })
-		const result = await f.handler({ wif: 'fixture' })
-		expect(result.error).toContain('Wallet changed')
-		expect(result.txids).toEqual(['listing-receipt'])
-		expect(f.observed.funding).toBe(0)
-		expect(f.walletCalls()).toBe(1)
+		expect(f.observed).toEqual({ scans: 1, funding: 1 })
+		expect(result.txids).toEqual(['funding-receipt'])
 	})
 	test('actual manual cancellation RPC routes OpNS and ordinals to their native action', async () => {
 		for (const basket of [ORDINALS_BASKET, OPNS_BASKET]) {
@@ -178,8 +138,9 @@ describe('desktop delisting execution boundaries', () => {
 				createContext: (captured: WalletInterface) => ({ wallet: captured }),
 				findOwnedOrdinal: async () => ({
 					basket,
-					output: { tags: ['ordlock', 'id:asset'] },
+					output: { tags: ['ordlock2', 'id:asset'] },
 				}),
+				ORDLOCK_V2_TAG: 'ordlock2',
 				readAssetIdTag: () => 'asset',
 				OPNS_BASKET,
 				cancelOpnsListing: {
@@ -243,15 +204,12 @@ describe('desktop delisting execution boundaries', () => {
 		expect(await second).toBe('receipt')
 		expect(calls).toEqual(['auto', 'manual'])
 	})
-	test('actual lock handler aborts and removes account before asynchronous destruction', async () => {
-		const controller = new AbortController()
+	test('actual lock handler removes the account before asynchronous destruction', async () => {
 		const wallets = new Map<string, unknown>()
 		wallets.set('account', {
-			cancelController: controller,
 			callbacks: {},
 			wallet: {
 				destroy: async () => {
-					expect(controller.signal.aborted).toBe(true)
 					expect(wallets.has('account')).toBe(false)
 				},
 			},
@@ -260,43 +218,6 @@ describe('desktop delisting execution boundaries', () => {
 			wallets,
 		})
 		await lock('account')
-	})
-	test('actual auto-on-load trigger coalesces overlap, passes signal and stops after lock', async () => {
-		let release!: () => void
-		const held = new Promise<void>((resolve) => {
-			release = resolve
-		})
-		let executions = 0
-		const events: unknown[] = []
-		const instance = {
-			wallet: { wallet: {} as WalletInterface, services: {} },
-			callbacks: { onSyncEvent: (event: unknown) => events.push(event) },
-			cancelController: undefined as AbortController | undefined,
-		}
-		const auto = sourceFunction('./wallet-manager.ts', 'cancelListedOnLoad', {
-			guardListingWallet,
-			serializeListingOperation,
-			actions: {
-				createContext: (wallet: WalletInterface) => ({ wallet }),
-				cancelOwnedListings: {
-					execute: async (_ctx: unknown, input: { signal: AbortSignal }) => {
-						executions++
-						expect(instance.cancelController?.signal).toBe(input.signal)
-						await held
-						return { cancelled: 1, errors: [], txids: ['receipt'] }
-					},
-				},
-			},
-		})
-		const first = auto(instance)
-		await auto(instance)
-		await Promise.resolve()
-		expect(executions).toBe(1)
-		instance.cancelController?.abort()
-		release()
-		await first
-		expect(events).toEqual([])
-		expect(instance.cancelController).toBeUndefined()
 	})
 })
 
@@ -346,7 +267,7 @@ test('Settings sweep callback retains partial receipts, rejects missing txid and
 	expect(successes).toBe(1)
 })
 
-test('unchecked BSV selection passes through both UI callbacks and cancels only listings', async () => {
+test('unchecked BSV selection sweeps nothing and surfaces the rescan error', async () => {
 	const f = rpcFixture()
 	let step = 0
 	const sweepView = sourceFunction(
@@ -378,29 +299,29 @@ test('unchecked BSV selection passes through both UI callbacks and cancels only 
 			sweepBsv: false,
 			onSweep: sweepView,
 			setError: (error: string) => {
-				expect(error).toBe('')
+				expect(error).toContain('No sweepable outputs remain')
 			},
 			setSweeping: () => {},
 		},
 		'StepResults',
 	)
 	await sweepSelection()
-	expect(f.observed).toEqual({ scans: 1, listing: 1, funding: 0 })
-	expect(step).toBe(4)
+	expect(f.observed).toEqual({ scans: 1, funding: 0 })
+	expect(step).toBe(0)
 })
 
-test('missing funding txid cannot complete a sweep or erase cancellation receipts', async () => {
+test('missing funding txid cannot complete a sweep', async () => {
 	const f = rpcFixture({ funding: { txid: '  ' } })
 	const result = await f.handler({ wif: 'fixture' })
 	expect(result.error).toBeTruthy()
-	expect(result.txids).toEqual(['listing-receipt'])
+	expect(result.txids).toEqual([])
 })
 
 test('OpNS inventory reads native name metadata when its name tag is absent', async () => {
 	const outputs = [
 		{
 			outpoint: 'a.0',
-			tags: ['ordlock'],
+			tags: ['ordlock2'],
 			customInstructions: JSON.stringify({ name: 'alice' }),
 		},
 		{
@@ -408,7 +329,7 @@ test('OpNS inventory reads native name metadata when its name tag is absent', as
 			tags: ['name:preferred'],
 			customInstructions: JSON.stringify({ name: 'fallback' }),
 		},
-		{ outpoint: 'c.0', tags: ['ordlock'], customInstructions: '{' },
+		{ outpoint: 'c.0', tags: ['ordlock2'], customInstructions: '{' },
 	]
 	const handler = sourceFunction('./rpc-handlers.ts', 'getOpnsNames', {
 		requireWallet: () => ({ wallet: {} }),

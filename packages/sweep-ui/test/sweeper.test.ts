@@ -108,7 +108,7 @@ describe('classed sweep matches CLI import order', () => {
 	it('sweeps BSV before ordinals, including listed OrdLocks in the ordinal class', async () => {
 		const funding = outputs(1, 1000)
 		const listed = outputs(1)
-		listed[0].events = [...(listed[0].events ?? []), 'ordlock']
+		listed[0].events = [...(listed[0].events ?? []), 'ordlock2']
 		const ordinals = [...listed, ...outputs(26)]
 		const order: string[] = []
 		const progress: string[] = []
@@ -293,7 +293,7 @@ function tokenOutput(
 		...row,
 		events: [
 			...(row.events ?? []),
-			...(listed ? ['ordlock'] : []),
+			...(listed ? ['ordlock2'] : []),
 			`tick:${tick}`,
 			`amt:${amt}`,
 		],
@@ -471,7 +471,7 @@ describe('sweepAllClasses selection, retry, and abort', () => {
 
 	it('reports swept listings canceled into the wallet', async () => {
 		const [listed, plain] = outputs(2)
-		listed.events = [...(listed.events ?? []), 'ordlock']
+		listed.events = [...(listed.events ?? []), 'ordlock2']
 		const tick = tokenOutput(
 			outputs(1, 1, [ownerKeys[1]])[0],
 			'SHUA',
