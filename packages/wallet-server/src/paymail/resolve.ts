@@ -3,12 +3,14 @@
  */
 
 import type { OneSatServices } from '@1sat/client'
-import { outpointFromBytes } from '@1sat/templates'
 import {
 	IDENTITY_FIELD,
 	P1SAT_PROTOCOL,
 	PROFILE_FIELD,
+	formatOutpoint,
 	opnsRegisterKeyId,
+	outpointFromWire,
+	parseOutpoint,
 } from '@1sat/types'
 import {
 	type Profile,
@@ -24,16 +26,6 @@ import {
 	Utils,
 } from '@bsv/sdk'
 import type { ResolvedBind } from './types.js'
-
-function parseOutpoint(outpoint: string): { txid: string; vout: number } {
-	const normalized = outpoint.replace('_', '.')
-	const [txid, voutStr] = normalized.split('.')
-	const vout = Number(voutStr)
-	if (!txid || !Number.isFinite(vout)) {
-		throw new Error(`invalid outpoint: ${outpoint}`)
-	}
-	return { txid, vout }
-}
 
 /**
  * Load tip locking script for alias, verify PushDrop bind, return identity key.
@@ -154,8 +146,11 @@ export async function verifyPushDropBind(
 		identityKey,
 		...(profile?.domain ? { domain: profile.domain } : {}),
 		...(profile?.name ? { profileName: profile.name } : {}),
-		...(profile?.avatar
-			? { avatarOrigin: outpointFromBytes(profile.avatar) ?? undefined }
-			: {}),
+		...(profile?.avatar ? { avatarOrigin: avatarOrigin(profile.avatar) } : {}),
 	}
+}
+
+function avatarOrigin(avatar: number[]): string {
+	const { txid, vout } = outpointFromWire(avatar)
+	return formatOutpoint(txid, vout)
 }

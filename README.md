@@ -289,8 +289,8 @@ const { wallet, services } = await createNodeWallet({
 1sat action sendBsv '{"requests":[{"address":"1A1z...","satoshis":1000}]}'
 1sat action sendBsv '{"requests":[{"handle":"@alice@example.com","satoshis":1000,"memo":"hi"}]}'
 
-# Pull payment_inbox (PeerPay) and metanet_inbox (BRC-169 handle payments)
-1sat messagebox sync
+# Pull payment_inbox (PeerPay) and transaction-delivery (1Color tokens, BRC-169 handle payments)
+1sat messagebox sync   # add --overlay <url> to receive 1Color tokens (submitted there first)
 ```
 
 The CLI resolves your key from `PRIVATE_KEY_WIF` (env var, good for CI) or `~/.1sat/keys.bep` (encrypted keyfile created by `1sat init`). Pass `--json` for machine-readable output on any command.
@@ -466,7 +466,7 @@ if (
 | `@1sat/react` | 0.0.7 | React hooks and ConnectButton component |
 | `@1sat/extension` | 0.0.4 | Build browser wallet extensions that implement `window.onesat` |
 | `@1sat/client` | 0.0.16 | API clients for indexer, broadcast (Arcade), and ORDFS |
-| `@1sat/templates` | 0.0.2 | Bitcoin script templates: Inscription, OrdLock, Lock, BSV20, BSV21, Mandala, AIP, BAP, MAP, Sigma, BSocial |
+| `@1sat/templates` | 0.0.2 | Bitcoin script templates: Inscription, OrdLock, Lock, BSV20, BSV21, OneColor, AIP, BAP, MAP, Sigma, BSocial |
 | `@1sat/types` | 0.0.13 | TypeScript type definitions and protocol constants |
 | `@1sat/utils` | 0.0.11 | Encoding, validation, and key derivation utilities |
 | `@1sat/wallet` | 0.0.24 | BRC-100 wallet engine with indexers, sync, backup, and CWI |
@@ -486,9 +486,9 @@ if (
 | **1Sat Ordinals** | NFT inscriptions on BSV |
 | **BSV20** | Fungible tokens (tick-based, similar to BRC-20) |
 | **BSV21** | Fungible tokens (origin-based, contract-like) |
-| **Mandala Tokens (BRC-162)** | Binary encoding of the BSV21 token model, a script prefix in front of any lock (`Mandala` template). Actions: `deployMandala`, `sendMandala` (to a BRC-169 handle, delivered per BRC-232 in a signed envelope to the `mandala_inbox` box), `syncMandalaInbox` (receive) |
-| **BRC-169 handle payments** | `sendBsv` with `handle: '@alice@example.com'`: resolve the handle, a BRC-29 output in a protected `noSend` action (BRC-177, the recipient broadcasts), delivered in a signed envelope to the handle's `metanet_inbox`. `@handle@domain` is BRC-169 only; a bare `handle@domain` (also in the `paymail` field, which is to be deprecated) is tried as BRC-169 first (`https://<domain>/manifest.json` with `metanet.handles`) and falls back to paymail. Receive with `syncMetanetInbox` (run by `1sat messagebox sync`) |
-| **Message boxes** | `metanet_inbox`: BRC-169 payments (`syncMetanetInbox`). `mandala_inbox`: BRC-232 token deliveries (`syncMandalaInbox`). `payment_inbox`: legacy PeerPay / paymail remittances (`syncMessages`) |
+| **1Color Tokens (BRC-162)** | Binary encoding of the BSV21 token model, a script prefix in front of any lock (`OneColor` template), held by the wallet's BRC-207 `color` module (`@bsv/color-permission-module`). Actions: `deploy1Color`, `send1Color` (to a BRC-169 handle, delivered per BRC-232 in a signed envelope to the `transaction-delivery` box), `syncTransactionInbox` (receive) |
+| **BRC-169 handle payments** | `sendBsv` with `handle: '@alice@example.com'`: resolve the handle, a BRC-29 output in a protected `noSend` action (BRC-177, the recipient broadcasts), delivered in a signed envelope to the handle's `transaction-delivery` box. `@handle@domain` is BRC-169 only; a bare `handle@domain` (also in the `paymail` field, which is to be deprecated) is tried as BRC-169 first (`https://<domain>/manifest.json` with `metanet.handles`) and falls back to paymail. Receive with `syncTransactionInbox` (run by `1sat messagebox sync`) |
+| **Message boxes** | `transaction-delivery` (BRC-232): 1Color token deliveries and BRC-169 payments (`syncTransactionInbox`). `payment_inbox`: legacy PeerPay / paymail remittances (`syncMessages`) |
 | **MAP** | Magic Attribute Protocol — on-chain metadata |
 | **Sigma** | Transaction data signing and attestation |
 | **OrdLock** | Trustless marketplace listing contract |

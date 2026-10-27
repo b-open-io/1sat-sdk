@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.121
+
+### Changed
+- `deriveFundAddress` takes the indexer network.
+
 ## 0.0.117
 
 ### Changed

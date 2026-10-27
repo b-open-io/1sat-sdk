@@ -23,7 +23,7 @@ import type {
 	Royalty,
 } from '@1sat/types'
 import { P1SAT_PROTOCOL } from '@1sat/types'
-import { parseOutpoint } from '@1sat/utils'
+import { parseOutpoint } from '@1sat/types'
 import { P2PKH, PublicKey, Script, Utils } from '@bsv/sdk'
 import { prepareP1SatArgs } from '../apply/index.js'
 import { MAX_INSCRIPTION_BYTES, ORDINALS_BASKET } from '../constants.js'
@@ -338,7 +338,7 @@ export const mintCollection: Action<MintCollectionInput, MintCollectionOutput> =
 					counterparty: 'self',
 					forSelf: true,
 				})
-				const address = PublicKey.fromString(publicKey).toAddress()
+				const address = PublicKey.fromString(publicKey).toAddress(ctx.chain)
 
 				const map = buildCollectionMap(input)
 				const lockingScript = buildInscriptionScript(
@@ -501,7 +501,7 @@ export const mintCollectionItem: Action<
 				counterparty: 'self',
 				forSelf: true,
 			})
-			const address = PublicKey.fromString(publicKey).toAddress()
+			const address = PublicKey.fromString(publicKey).toAddress(ctx.chain)
 
 			const map = buildCollectionItemMap(input)
 			const lockingScript = buildInscriptionScript(

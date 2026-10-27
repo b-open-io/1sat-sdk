@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.235
+
+### Changed
+- Address strings follow `ctx.chain` (mainnet stays the default).
+- Outpoint helpers come from `@1sat/types`; ordfs no longer re-exports wire helpers.
+
 ## 0.0.230
 
 ### Added

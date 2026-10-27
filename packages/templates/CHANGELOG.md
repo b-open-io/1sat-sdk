@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.44
+
+### Changed
+- `AIP.sign` and `Sigma` signing take an optional `chain` for the address prefix; verification accepts either prefix.
+- Mandala token ids parse through `@1sat/types` and accept either delimiter.
+
+### Removed
+- Shrug template and metadata codec (replaced by BRC-162), and the `cbor2` dependency.
+- `outpointToBytes` / `outpointFromBytes`: use `outpointToWire` / `outpointFromWire` from `@1sat/types`.
+
 ## 0.0.40
 
 ### Fixed

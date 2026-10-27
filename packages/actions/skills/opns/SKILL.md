@@ -150,24 +150,30 @@ The fields live in the locking script of the name's **current** UTXO: origin
 ```typescript
 import { BeefClient, OpnsClient, OrdfsClient } from '@1sat/client'
 import { pushDropDecode } from '@1sat/actions'
-import { outpointFromBytes } from '@1sat/templates'
-import { IDENTITY_FIELD, PROFILE_FIELD } from '@1sat/types'
+import {
+  IDENTITY_FIELD,
+  PROFILE_FIELD,
+  formatOutpoint,
+  outpointFromWire,
+  parseOutpoint,
+} from '@1sat/types'
 import { decodeProfile, fieldPairs, isIdentityKey } from '@1sat/utils'
 import { Transaction, Utils } from '@bsv/sdk'
 
 const base = 'https://api.1sat.app'
 const { outpoint: origin } = await new OpnsClient(base).getOrigin('alice')
 const tip = await new OrdfsClient(base).getMetadata(origin, -1)
-const [txid, vout] = tip.outpoint.replace('_', '.').split('.')
+const { txid, vout } = parseOutpoint(tip.outpoint)
 const tx = Transaction.fromBEEF(Array.from(await new BeefClient(base).getBeef(txid)))
-const { fields } = pushDropDecode(tx.outputs[Number(vout)].lockingScript)
+const { fields } = pushDropDecode(tx.outputs[vout].lockingScript)
 let identityKey: string | undefined
 let profile
 for (const [key, value] of fieldPairs(fields.slice(0, -1))) { // drop signature
   if (key === IDENTITY_FIELD && isIdentityKey(value)) identityKey = Utils.toHex(value)
   else if (key === PROFILE_FIELD) profile = decodeProfile(value) // unknown keys skipped
 }
-const avatarOrigin = profile?.avatar && outpointFromBytes(profile.avatar)
+const avatar = profile?.avatar && outpointFromWire(profile.avatar)
+const avatarOrigin = avatar && formatOutpoint(avatar.txid, avatar.vout)
 ```
 
 Decoding does not verify the signature. To trust the result, re-derive the

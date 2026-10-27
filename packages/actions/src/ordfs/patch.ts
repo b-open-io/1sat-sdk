@@ -1,4 +1,4 @@
-import { outpointFromWire, outpointToWire } from './outpoint.js'
+import { outpointFromWire, outpointToWire } from '@1sat/types'
 import {
 	VcdiffError,
 	assertPlainRfc,

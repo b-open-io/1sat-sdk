@@ -3,6 +3,7 @@ import {
 	type PermissionSchemeId,
 	buildExternalInputLabel,
 	buildInputAssetLabel,
+	normalizeOutpoint,
 	parseOneInputLabel,
 	schemeForBasket,
 } from '@1sat/types'
@@ -95,7 +96,7 @@ export function mergeResolvedSpends(
 	const map = new Map<string, ResolvedSpend>()
 	for (const list of lists) {
 		for (const r of list) {
-			const op = normalizeOutpointDot(r.outpoint)
+			const op = normalizeOutpoint(r.outpoint)
 			const prev = map.get(op)
 			if (!prev || (!prev.customInstructions && r.customInstructions)) {
 				map.set(op, { ...r, outpoint: op })
@@ -103,11 +104,6 @@ export function mergeResolvedSpends(
 		}
 	}
 	return [...map.values()]
-}
-
-function normalizeOutpointDot(s: string): string {
-	if (s.length >= 66 && s[64] === '_') return `${s.slice(0, 64)}.${s.slice(65)}`
-	return s
 }
 
 /**

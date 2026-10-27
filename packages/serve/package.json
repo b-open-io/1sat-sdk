@@ -1,6 +1,6 @@
 {
   "name": "@1sat/serve",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "description": "Bun-native BRC-103/104 mutual-auth transport and BRC-105 payment for HTTP servers, wire-compatible with the BSV Express middleware",
   "type": "module",
   "main": "./dist/index.js",
@@ -32,10 +32,10 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@bsv/sdk": "^2.6.0"
+    "@bsv/sdk": "^4.0.0"
   },
   "devDependencies": {
-    "@bsv/sdk": "^2.6.0",
+    "@bsv/sdk": "npm:@bopen-io/sdk@4.0.0",
     "@types/bun": "latest",
     "typescript": "^5.9.3"
   }

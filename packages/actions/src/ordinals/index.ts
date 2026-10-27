@@ -15,7 +15,7 @@ import {
 	ordinalTagsFromMetadata,
 	readAssetIdTag,
 } from '@1sat/types'
-import { parseOutpoint } from '@1sat/utils'
+import { parseOutpoint } from '@1sat/types'
 import {
 	type BEEF,
 	Beef,
@@ -307,7 +307,7 @@ export async function deriveCancelAddressInternal(
 		keyID: outpoint,
 		forSelf: true,
 	})
-	return PublicKey.fromString(result.publicKey).toAddress()
+	return PublicKey.fromString(result.publicKey).toAddress(ctx.chain)
 }
 
 /** Default OrdLock payment address: P1SAT keyID `1sat 0`, self. */
@@ -318,7 +318,7 @@ export async function defaultPayAddress(ctx: OneSatContext): Promise<string> {
 		counterparty: 'self',
 		forSelf: true,
 	})
-	return PublicKey.fromString(result.publicKey).toAddress()
+	return PublicKey.fromString(result.publicKey).toAddress(ctx.chain)
 }
 
 export function buildOrdLockScript(
@@ -435,7 +435,7 @@ export async function buildTransferOrdinals(
 				counterparty,
 				forSelf: isSelf,
 			})
-			recipientAddress = PublicKey.fromString(publicKey).toAddress()
+			recipientAddress = PublicKey.fromString(publicKey).toAddress(ctx.chain)
 		} else if (address) {
 			recipientAddress = address
 		} else {
@@ -764,7 +764,8 @@ export const listOrdinals: Action<ListOrdinalsInput, ListOrdinalsResult> = {
 		return {
 			outputs: result.outputs,
 			BEEF: result.BEEF,
-			totalOutputs: result.totalOutputs,
+			// A decimal string only for `p <module> balance` selectors (@bsv/sdk 4).
+			totalOutputs: Number(result.totalOutputs),
 		}
 	},
 }
@@ -1324,7 +1325,7 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 				counterparty: 'self',
 				forSelf: true,
 			})
-			const ourOrdAddress = PublicKey.fromString(publicKey).toAddress()
+			const ourOrdAddress = PublicKey.fromString(publicKey).toAddress(ctx.chain)
 
 			if (isTokenListing({ tags })) {
 				return {

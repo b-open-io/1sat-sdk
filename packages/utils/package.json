@@ -1,6 +1,6 @@
 {
   "name": "@1sat/utils",
-  "version": "0.0.42",
+  "version": "0.1.0",
   "description": "Utility functions for 1Sat Ordinals SDK",
   "type": "module",
   "main": "./dist/index.js",
@@ -32,10 +32,10 @@
     "image-meta": "^0.2.2"
   },
   "peerDependencies": {
-    "@bsv/sdk": "^2.6.0"
+    "@bsv/sdk": "^4.0.0"
   },
   "devDependencies": {
-    "@bsv/sdk": "^2.6.0",
+    "@bsv/sdk": "npm:@bopen-io/sdk@4.0.0",
     "typescript": "^5.9.3"
   }
 }

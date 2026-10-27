@@ -18,12 +18,16 @@ export interface GlobalFlags {
 
 /**
  * Parse global flags from raw argv, returning structured flags and remaining args.
+ * `chain` is `--chain` when given, otherwise `defaultChain` (the configured chain).
  */
-export function parseGlobalFlags(args: string[]): GlobalFlags {
+export function parseGlobalFlags(
+	args: string[],
+	defaultChain: 'main' | 'test' = 'main',
+): GlobalFlags {
 	let json = false
 	let quiet = false
 	let yes = false
-	let chain: 'main' | 'test' = 'main'
+	let chain = defaultChain
 	let help = false
 	let version = false
 	const envFiles: string[] = []

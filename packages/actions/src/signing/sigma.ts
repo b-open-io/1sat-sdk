@@ -47,7 +47,7 @@ export async function resolveSigmaAddress(
 		forSelf: true,
 	})
 	const pub = PublicKey.fromString(publicKey)
-	return { keyID, publicKey: pub, address: pub.toAddress() }
+	return { keyID, publicKey: pub, address: pub.toAddress(ctx.chain) }
 }
 
 /**

@@ -15,8 +15,8 @@ import {
 	BRC29_PROTOCOL_ID,
 	HANDLE_CERT_TYPE,
 	MESSAGE_SIGNING_PROTOCOL,
-	METANET_INBOX,
 	METANET_SEND_EXPIRY_SECONDS,
+	TRANSACTION_DELIVERY_BOX,
 } from '@1sat/types'
 import { encodeMimeEntity } from '@1sat/utils'
 import {
@@ -90,7 +90,7 @@ export interface SendBsvRequest extends ActionOptions {
 	 * `https://<domain>/manifest.json` carries `metanet.handles`, and paymail
 	 * otherwise. A handle payment is a BRC-29 output in a protected `noSend`
 	 * action (BRC-177), delivered in a signed envelope to the handle's
-	 * `metanet_inbox`; the recipient broadcasts it. It must be the only
+	 * `transaction-delivery` box; the recipient broadcasts it. It must be the only
 	 * request.
 	 */
 	handle?: string
@@ -158,7 +158,7 @@ export async function resolvePaymentHandle(
 /**
  * BRC-169 §6.1 payment to a handle: resolve it, build a BRC-29 output in a
  * protected `noSend` action (BRC-177, funded by the wallet), and deliver the
- * Atomic BEEF in a signed envelope to the handle's `metanet_inbox`. The
+ * Atomic BEEF in a signed envelope to the handle's `transaction-delivery` box. The
  * action is not broadcast; the recipient broadcasts it on internalization.
  */
 async function sendToHandle(
@@ -213,7 +213,7 @@ async function sendToHandle(
 				satoshis,
 				beef: Uint8Array.from(tx),
 			},
-			messageBox: METANET_INBOX,
+			messageBox: TRANSACTION_DELIVERY_BOX,
 		})
 		return {
 			txid: result.txid,

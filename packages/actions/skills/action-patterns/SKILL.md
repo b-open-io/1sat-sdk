@@ -146,7 +146,7 @@ const tools = actionRegistry.toMcpTools()
 The complete, generated list of all actions:
 
 <!-- ACTION-INDEX -->
-_61 actions, generated from the registry — do not edit by hand._
+_62 actions, generated from the registry — do not edit by hand._
 
 | Category | Action | Services | Purpose |
 |----------|--------|:--------:|---------|
@@ -170,13 +170,13 @@ _61 actions, generated from the registry — do not edit by hand._
 | `opns` | `internalizeOpns` |  | Internalize a foreign-created OpNS mint (AtomicBEEF) into the OPNS basket |
 | `opns` | `listOpns` |  | List OpNS names from the wallet (metadata by default; optional BEEF) |
 | `opns` | `registerOpns` |  | Bind BRC-100 identity key to an OpNS name via signed PushDrop identity + profile fields, optionally with an inscription |
-| `opns` | `sellOpns` |  | DISABLED: OrdLock listing create is off. Buy and cancel of existing listings remain available. |
+| `opns` | `sellOpns` |  | List an OpNS name for sale |
 | `opns` | `sendOpns` |  | Transfer an OpNS name to a new owner |
 | `ordinals` | `burnOrdinals` |  | Burn one or more ordinals by sending to OP_RETURN |
 | `ordinals` | `buyOrdinal` | ✓ | Purchase an ordinal from the global orderbook |
 | `ordinals` | `cancelOrdinalListing` |  | Cancel an ordinal listing and return the ordinal to the wallet |
 | `ordinals` | `listOrdinals` |  | List ordinals/inscriptions (metadata by default; optional BEEF) |
-| `ordinals` | `sellOrdinal` |  | DISABLED: OrdLock listing create is off. Buy and cancel of existing listings remain available. |
+| `ordinals` | `sellOrdinal` |  | List an ordinal for sale on the global orderbook |
 | `ordinals` | `sendOrdinals` |  | Transfer one or more ordinals to new owners, optionally reinscribing new content onto the output (versioning: the origin chain tracks revision history) |
 | `payments` | `getMneeBalance` | ✓ | Get MNEE stablecoin balance by addresses or by self-key derivations |
 | `payments` | `getMneeConfig` | ✓ | Get MNEE service configuration including cosigner and fee structure |
@@ -193,23 +193,24 @@ _61 actions, generated from the registry — do not edit by hand._
 | `signing` | `signBsm` |  | Sign a message using BSM (Bitcoin Signed Message) format |
 | `social` | `createSocialPost` |  | Create an on-chain social post signed with BAP identity |
 | `sweep` | `sweepBsv` | ✓ | Sweep BSV from external wallet (via WIF) into the connected wallet |
+| `sweep` | `sweepBsv20` | ✓ | Sweep BSV-20 tokens from external wallet (via WIF) into the connected wallet |
 | `sweep` | `sweepBsv21` | ✓ | Sweep BSV-21 tokens from external wallet (via WIF) into the connected wallet |
 | `sweep` | `sweepOrdinals` | ✓ | Sweep ordinals from external wallet (via WIF) into the connected wallet |
 | `sync` | `syncAddresses` | ✓ | Sync external payments to P1SAT deposit addresses into the wallet |
 | `sync` | `syncCosignDeliveries` | ✓ | Pull cosign-wrapped BSV21 deliveries from a MessageBox and internalize them into the wallet |
-| `sync` | `syncMandalaInbox` |  | Collect BRC-232 transaction deliveries (Mandala tokens, BRC-29 payments) from the mandala_inbox message box and internalize them |
 | `sync` | `syncMessages` |  | Sync incoming paymail payments from the message box into the wallet |
-| `sync` | `syncMetanetInbox` |  | Collect BRC-169 handle payments (and BRC-232 deliveries) from the metanet_inbox message box and internalize them |
+| `sync` | `syncTransactionInbox` |  | Collect the transaction-delivery message box: BRC-232 deliveries (1Color tokens, submitted to their overlay topic first; BRC-29 outputs) and BRC-169 handle payments, internalized into the wallet |
 | `tokens` | `buyBsv21` | ✓ | Purchase BSV21 tokens from the marketplace |
+| `tokens` | `cancelTokenListing` |  | Cancel a token listing and return a transfer inscription to the wallet |
+| `tokens` | `deploy1Color` |  | Deploy a 1Color (BRC-162) token through the wallet's BRC-207 color module: amount > 0 is fixed supply, 0 is an authority deploy. The asset id is <txid>_0. |
 | `tokens` | `deployBsv21Auth` |  | Deploy a new BSV21 token with mintable supply via auth UTXOs (deploy+auth) |
 | `tokens` | `deployBsv21Mint` |  | Deploy a new BSV21 token with fixed supply (deploy+mint) |
-| `tokens` | `deployMandala` |  | Deploy a Mandala (BRC-162) token: amount > 0 is fixed supply, 0 is an authority deploy. The token is the BRC-36 deploy outpoint <txid>.0. |
-| `tokens` | `fileMandalaDeploy` |  | File a created Mandala deploy output into its token basket (retry of the deploy internalize) |
+| `tokens` | `fundBsv21Overlay` |  | Fund the token overlay so it indexes and validates a BSV21 token |
 | `tokens` | `getBsv21Balances` |  | Get aggregated BSV21 token balances grouped by token ID |
 | `tokens` | `listBsv21` |  | List BSV21 token outputs from the wallet |
 | `tokens` | `mintBsv21` | ✓ | Spend an auth UTXO to mint supply, re-issue authority, or permanently end minting |
+| `tokens` | `send1Color` |  | Send 1Color (BRC-162) tokens to a BRC-169 handle: a BRC-177 handoff built by the wallet's BRC-207 color module, delivered (BRC-232) in a signed envelope to the handle's transaction-delivery box; the recipient submits it |
 | `tokens` | `sendBsv21` |  | Send BSV21 tokens to one or more recipients |
-| `tokens` | `sendMandala` |  | Send Mandala (BRC-162) tokens to a BRC-169 handle: a protected noSend transaction delivered (BRC-232) in a signed envelope to the handle's mandala_inbox; the recipient broadcasts |
 <!-- /ACTION-INDEX -->
 
 ## Baskets and Tags
@@ -220,7 +221,7 @@ The wallet organizes outputs into baskets:
 |--------|----------|
 | `1sat` | Ordinal inscriptions (NFTs) |
 | `bsv21` | BSV-21 fungible tokens |
-| `mandala <txid> <vout>` | One Mandala (BRC-162) token's outputs, named by its deploy outpoint (see the tokens skill) |
+| `p color <txid>v<vout>` (`… authority`) | One 1Color (BRC-162) asset's value (authority) outputs, kept by the wallet's BRC-207 `color` module (see the tokens skill) |
 | `opns` | OpNS names |
 | `lock` | Time-locked BSV |
 | `sigma` | Temporary Sigma inscribe anchors |

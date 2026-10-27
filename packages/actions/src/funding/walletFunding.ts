@@ -1,4 +1,4 @@
-import { parseOutpoint } from '@1sat/utils'
+import { parseOutpoint } from '@1sat/types'
 import {
 	type AtomicBEEF,
 	Beef,
@@ -61,8 +61,7 @@ export interface WalletFundingProviderOptions {
  * 3. Broadcast it with `options.broadcast` (default `ctx.services.postBeef`).
  * 4. Return `{ txid, tx: AtomicBEEF }`.
  *
- * Not used by `deployMandala` (which is one createAction + one
- * internalizeAction); kept as a reusable provider.
+ * A reusable provider; no built-in action uses it.
  *
  * Caller inputs must already carry their unlocking script, signed so the
  * appended funding input does not invalidate it (`SIGHASH_ALL |

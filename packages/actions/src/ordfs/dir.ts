@@ -31,7 +31,7 @@
  * canonical form; readers MUST reject anything else.
  */
 
-import { outpointFromWire, outpointToWire } from './outpoint.js'
+import { outpointFromWire, outpointToWire } from '@1sat/types'
 
 /** Content type written on `ordfs/dir` inscription outputs. */
 export const DIR_CONTENT_TYPE = 'ordfs/dir'

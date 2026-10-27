@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { Inscription, outpointFromBytes } from '@1sat/templates'
+import { Inscription } from '@1sat/templates'
+import { outpointFromWire, parseOutpoint } from '@1sat/types'
 import {
 	IDENTITY_FIELD,
 	OPNS_BASKET,
@@ -115,7 +116,9 @@ describe('registerOpns record', () => {
 		const profile = decodeProfile(fields[3])
 		expect(profile.domain).toBe('1sat.name')
 		expect(profile.name).toBe('Alice')
-		expect(outpointFromBytes(profile.avatar ?? [])).toBe(AVATAR)
+		expect(outpointFromWire(profile.avatar ?? [])).toEqual(
+			parseOutpoint(AVATAR),
+		)
 		expect(Inscription.decode(LockingScript.fromHex(out.lockingScript))).toBe(
 			null,
 		)

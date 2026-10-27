@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.64
+
+### Fixed
+- `getUtxoStatus` parses dot-form outpoints; `vout` was `NaN` for `txid.vout`.
+
 ## 0.0.60
 
 ### Changed

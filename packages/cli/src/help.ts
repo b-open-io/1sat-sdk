@@ -671,12 +671,12 @@ export const COMMANDS: CommandSpec[] = [
 		group: 'Wallet',
 		name: 'messagebox',
 		description:
-			'MessageBox inboxes (paymail remittances, BRC-169 handle payments). Not the same as `wallet sync` (address/owner scan).',
+			'MessageBox inboxes (paymail remittances; BRC-232 deliveries: 1Color tokens and BRC-169 handle payments). Not the same as `wallet sync` (address/owner scan).',
 		subcommands: [
 			{
 				name: 'sync',
 				description:
-					'Pull payment_inbox (default) and internalize paymail payments, then metanet_inbox (BRC-169 handle payments)',
+					'Pull payment_inbox (default) and internalize paymail payments, then the transaction-delivery box (BRC-169 handle payments; 1Color tokens, submitted to --overlay first)',
 				args: [
 					{
 						flag: '--url',
@@ -687,8 +687,13 @@ export const COMMANDS: CommandSpec[] = [
 					{
 						flag: '--box',
 						values: '<name>',
+						description: 'Paymail inbox name (default payment_inbox)',
+					},
+					{
+						flag: '--overlay',
+						values: '<url>',
 						description:
-							'Paymail inbox name (default payment_inbox); metanet_inbox is always pulled',
+							'BRC-22 overlay that received 1Color tokens are submitted to before internalizing (no default; without it, 1Color deliveries stay in the box)',
 					},
 				],
 			},

@@ -163,7 +163,7 @@ async function resolveServe(opts: GlobalFlags): Promise<ResolvedServe> {
 	}
 
 	const dataDir = ensureDataDir()
-	const chain = opts.chain ?? config.chain ?? 'main'
+	const chain = opts.chain
 
 	let privateKey: PrivateKey
 	try {

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.78
+
+### Changed
+- OpNS avatar origin decodes through `@1sat/types` as `txid.vout`.
+
 ## 0.0.73
 
 ### Changed

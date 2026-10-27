@@ -161,7 +161,7 @@ export const syncAddresses: Action<SyncAddressesInput, SyncAddressesResult> = {
 				})
 
 				derivations.push({
-					address: PublicKey.fromString(publicKey).toAddress(),
+					address: PublicKey.fromString(publicKey).toAddress(ctx.chain),
 					index: i,
 					derivationPrefix: prefix,
 					derivationSuffix,

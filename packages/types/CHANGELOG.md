@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.53
+
+### Added
+- `outpoint` module: `parseOutpoint`, `formatOutpoint`, `normalizeOutpoint`, `isValidOutpoint`, `formatOrdinalOutpoint`, and 36-byte wire encoding (`outpointToWire`, `outpointFromWire`, `txidToWire`, `txidFromWire`). The single home for outpoint helpers.
+
+### Removed
+- Deprecated `formatOriginOutpoint`.
+
 ## 0.0.50
 
 ### Added

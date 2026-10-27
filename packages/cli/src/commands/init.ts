@@ -85,7 +85,9 @@ export async function handleInitCommand(
 	if (keySource === 'generate') {
 		const pk = PrivateKey.fromRandom()
 		wif = pk.toWif()
-		const address = pk.toPublicKey().toAddress()
+		const address = pk
+			.toPublicKey()
+			.toAddress(chain === 'test' ? 'test' : 'main')
 
 		console.log()
 		console.log(formatWarning('  IMPORTANT: Back up your private key!'))
@@ -159,7 +161,7 @@ export async function handleInitCommand(
 	})
 
 	const pk = PrivateKey.fromWif(wif)
-	const address = pk.toPublicKey().toAddress()
+	const address = pk.toPublicKey().toAddress(chain === 'test' ? 'test' : 'main')
 
 	outro(formatSuccess(`Wallet configured! Address: ${address}`))
 

@@ -82,7 +82,7 @@ export async function acknowledgeCborMessages(
 }
 
 /**
- * The relay calls the BRC-169 envelope actions make (Mandala sends, handle
+ * The relay calls the BRC-169 envelope actions make (1Color sends, handle
  * payments, inbox syncs), gathered in one object so a host or a test can
  * substitute the transport.
  */

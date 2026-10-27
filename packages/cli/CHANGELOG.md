@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.133
+
+### Fixed
+- The configured `chain` applies when `--chain` is not given; it was ignored by every command, including `serve`.
+- `init` and `sweep` print and scan addresses for the configured chain.
+
 ## 0.0.129
 
 ### Changed

@@ -1,6 +1,6 @@
 import type { IndexedOutput } from '@1sat/types'
 import { MAP_PREFIX } from '@1sat/types'
-import { parseOutpoint } from '@1sat/utils'
+import { parseOutpoint } from '@1sat/types'
 import { OP, P2PKH, PrivateKey, Script, Transaction, Utils } from '@bsv/sdk'
 import type { LegacyKeys } from '../types'
 import { deriveAddress } from './scanner'

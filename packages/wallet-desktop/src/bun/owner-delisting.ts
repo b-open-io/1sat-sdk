@@ -2,7 +2,7 @@ import { isListedOutput } from '@1sat/actions'
 import type { OneSatServices } from '@1sat/client'
 import { OrdLockV2 } from '@1sat/templates'
 import { type IndexedOutput, OPNS_BASKET, ORDINALS_BASKET } from '@1sat/types'
-import { parseOutpoint } from '@1sat/utils'
+import { parseOutpoint } from '@1sat/types'
 import {
 	P2PKH,
 	Transaction,
@@ -27,17 +27,23 @@ export async function listOwnedOutputs(
 			limit: total === undefined ? 100 : Math.min(100, total - offset),
 			offset,
 		})
-		if (!Number.isSafeInteger(page.totalOutputs) || page.totalOutputs < 0)
+		const pageTotal = page.totalOutputs
+		// A number here: a decimal string only answers `p <module> balance` selectors.
+		if (
+			typeof pageTotal !== 'number' ||
+			!Number.isSafeInteger(pageTotal) ||
+			pageTotal < 0
+		)
 			throw new Error(
 				'Wallet output inventory returned an invalid total. Retry.',
 			)
-		if (offset + page.outputs.length > page.totalOutputs)
+		if (offset + page.outputs.length > pageTotal)
 			throw new Error('Wallet output inventory exceeded its total. Retry.')
-		if (total === undefined) total = page.totalOutputs
-		if (page.totalOutputs !== total)
+		if (total === undefined) total = pageTotal
+		if (pageTotal !== total)
 			throw new Error('Wallet output inventory changed. Retry.')
 		if (page.outputs.length === 0) {
-			if (offset < page.totalOutputs)
+			if (offset < pageTotal)
 				throw new Error('Wallet output discovery was incomplete. Retry.')
 			return [...outputs.values()]
 		}
@@ -46,8 +52,8 @@ export async function listOwnedOutputs(
 		if (outputs.size === previous)
 			throw new Error('Wallet output discovery did not advance. Retry.')
 		offset += page.outputs.length
-		if (offset >= page.totalOutputs) {
-			if (outputs.size < page.totalOutputs)
+		if (offset >= pageTotal) {
+			if (outputs.size < pageTotal)
 				throw new Error(
 					'Wallet output discovery returned duplicate rows. Retry.',
 				)

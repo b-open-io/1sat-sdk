@@ -115,7 +115,7 @@ export async function applyAip(
 ): Promise<Script> {
 	const message = getAipMessageBuffer(lockingScript)
 	const signer = new WalletSigner(ctx.wallet, protocolID, keyID, counterparty)
-	const aip = await AIP.sign(message, signer)
+	const aip = await AIP.sign(message, signer, { chain: ctx.chain })
 
 	const out = new Script(lockingScript.chunks.slice())
 	out.writeBin(toArray('|'))
@@ -140,7 +140,7 @@ export async function applyBapAip(
 ): Promise<Script> {
 	const { signer } = await resolveBapSigner(ctx, keyID)
 	const message = getAipMessageBuffer(lockingScript)
-	const aip = await AIP.sign(message, signer)
+	const aip = await AIP.sign(message, signer, { chain: ctx.chain })
 
 	const out = new Script(lockingScript.chunks.slice())
 	out.writeBin(toArray('|'))

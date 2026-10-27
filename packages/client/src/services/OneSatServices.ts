@@ -1,5 +1,6 @@
 import { ONESAT_MAINNET_URL, ONESAT_TESTNET_URL } from '@1sat/types'
 import type { Capability, ClientOptions, SyncOutput } from '@1sat/types'
+import { parseOutpoint } from '@1sat/types'
 import {
 	Beef,
 	Hash,
@@ -566,8 +567,7 @@ export class OneSatServices implements WalletServices {
 			})
 
 			const isUtxo = !txo.spend
-			const [txid, voutStr] = txo.outpoint.split('_')
-			const vout = Number.parseInt(voutStr, 10)
+			const { txid, vout } = parseOutpoint(txo.outpoint)
 
 			return {
 				name: '1sat-api',

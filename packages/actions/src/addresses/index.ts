@@ -111,7 +111,7 @@ export const deriveDepositAddresses: Action<
 			})
 
 			derivations.push({
-				address: PublicKey.fromString(publicKey).toAddress(),
+				address: PublicKey.fromString(publicKey).toAddress(ctx.chain),
 				index: i,
 				derivationPrefix: prefix,
 				derivationSuffix,

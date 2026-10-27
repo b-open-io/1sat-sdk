@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.66
+
+### Changed
+- Outpoint parsing and normalization come from `@1sat/types`. OpNS avatar origins resolve as `txid.vout`.
+
 ## 0.0.60
 
 ### Changed

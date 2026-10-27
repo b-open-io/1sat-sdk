@@ -14,81 +14,11 @@ import type {
 	MAP,
 	PreMAP,
 } from '@1sat/types'
+import { isValidOutpoint } from '@1sat/types'
 import { Utils } from '@bsv/sdk'
 import { imageMeta } from 'image-meta'
 
 const { toArray, toUTF8 } = Utils
-
-// ============================================================================
-// Outpoint Utilities
-// ============================================================================
-
-/**
- * Parse an outpoint string into its components.
- * Accepts both period (txid.vout) and underscore (txid_vout) delimiters.
- */
-export function parseOutpoint(outpoint: string): {
-	txid: string
-	vout: number
-} {
-	if (outpoint.length < 66) {
-		throw new Error(`Invalid outpoint format: ${outpoint}`)
-	}
-	const txid = outpoint.substring(0, 64)
-	const separator = outpoint[64]
-	if (separator !== '.' && separator !== '_') {
-		throw new Error(
-			`Invalid outpoint separator: expected '.' or '_', got '${separator}'`,
-		)
-	}
-	const vout = Number.parseInt(outpoint.substring(65), 10)
-	if (Number.isNaN(vout)) {
-		throw new Error(`Invalid vout in outpoint: ${outpoint}`)
-	}
-	return { txid, vout }
-}
-
-/**
- * Format txid and vout into an outpoint string (period-delimited, BRC-100 wire)
- */
-export function formatOutpoint(txid: string, vout: number): string {
-	return `${txid}.${vout}`
-}
-
-/**
- * Ordinals / indexer form `txid_vout`. Re-export — canonical impl in @1sat/types.
- * @see formatOrdinalOutpoint
- */
-export { formatOrdinalOutpoint } from '@1sat/types'
-
-/**
- * Validate that a string is a valid outpoint format.
- * Accepts both period (txid.vout) and underscore (txid_vout) delimiters.
- */
-export function isValidOutpoint(outpoint: string): boolean {
-	if (outpoint.length < 66) {
-		return false
-	}
-
-	const separator = outpoint[64]
-	if (separator !== '.' && separator !== '_') {
-		return false
-	}
-
-	const txid = outpoint.substring(0, 64)
-	const voutStr = outpoint.substring(65)
-	const vout = Number.parseInt(voutStr, 10)
-
-	if (Number.isNaN(vout) || vout < 0) {
-		return false
-	}
-
-	if (!/^[0-9a-fA-F]{64}$/.test(txid)) {
-		return false
-	}
-
-	return true
-}
 
 // ============================================================================
 // Metadata Utilities

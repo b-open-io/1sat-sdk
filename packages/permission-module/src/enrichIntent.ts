@@ -30,6 +30,8 @@ import {
 	PROFILE_FIELD,
 	SIGMA_BASKET,
 	formatOrdinalOutpoint,
+	formatOutpoint,
+	outpointFromWire,
 	parseInputAssetLabels,
 } from '@1sat/types'
 import { pushDropDecode } from '@1sat/actions'
@@ -39,7 +41,6 @@ import {
 	Lock,
 	OrdLock,
 	Sigma,
-	outpointFromBytes,
 } from '@1sat/templates'
 import { decodeProfile, fieldPairs } from '@1sat/utils'
 import { parseAddress } from '@1sat/wallet'
@@ -77,7 +78,12 @@ function decodeOpnsProfile(script: Script): {
 		)
 		if (!pair) return {}
 		const profile = decodeProfile(pair[1])
-		const avatar = profile.avatar ? outpointFromBytes(profile.avatar) : null
+		const avatarOutpoint = profile.avatar
+			? outpointFromWire(profile.avatar)
+			: null
+		const avatar = avatarOutpoint
+			? formatOutpoint(avatarOutpoint.txid, avatarOutpoint.vout)
+			: null
 		return {
 			opnsDomain: profile.domain,
 			...(profile.name ? { opnsName: profile.name } : {}),

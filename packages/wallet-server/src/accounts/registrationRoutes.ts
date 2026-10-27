@@ -10,6 +10,7 @@
  */
 
 import { OneSatServices } from '@1sat/client'
+import { isValidOutpoint, normalizeOutpoint } from '@1sat/types'
 import type { PrivateKey } from '@bsv/sdk'
 import type { Express, Request, Response } from 'express'
 import { resolvePaymailBind } from '../paymail/resolve.js'
@@ -209,7 +210,7 @@ export function mountRegistrationRoutes(
 			const body = req.body as Record<string, unknown> | undefined
 			const name = normalizeAlias(body?.name)
 			const domain = normalizeDomain(body?.domain)
-			const outpoint = normalizeOutpoint(body?.outpoint)
+			const outpoint = outpointFromBody(body?.outpoint)
 			if (!name || !domain || !outpoint) {
 				return res.status(400).json({
 					error: 'name, domain, and outpoint are required',
@@ -287,12 +288,7 @@ function normalizeDomain(input: unknown): string | null {
 	return domain
 }
 
-export function normalizeOutpoint(input: unknown): string | null {
-	if (typeof input !== 'string') return null
-	const normalized = input.trim().toLowerCase().replace('_', '.')
-	const [txid, voutStr] = normalized.split('.')
-	const vout = Number(voutStr)
-	if (!txid || txid.length !== 64 || !/^[0-9a-f]+$/.test(txid)) return null
-	if (!Number.isInteger(vout) || vout < 0) return null
-	return `${txid}.${vout}`
+function outpointFromBody(input: unknown): string | null {
+	if (typeof input !== 'string' || !isValidOutpoint(input.trim())) return null
+	return normalizeOutpoint(input)
 }

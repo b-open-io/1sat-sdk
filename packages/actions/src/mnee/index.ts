@@ -65,7 +65,7 @@ async function resolveDerivations(
 			forSelf: true,
 		})
 		out.push({
-			address: PublicKey.fromString(publicKey).toAddress(),
+			address: PublicKey.fromString(publicKey).toAddress(ctx.chain),
 			protocolID: d.protocolID,
 			keyID: d.keyID,
 			counterparty,

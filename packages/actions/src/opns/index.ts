@@ -6,7 +6,7 @@
  * Ingress (internalizeOpns / buyOpns) stamps full tags including id:.
  */
 
-import { Inscription, OpNS, OrdLockV2, outpointToBytes } from '@1sat/templates'
+import { Inscription, OpNS, OrdLockV2 } from '@1sat/templates'
 import {
 	IDENTITY_FIELD,
 	OPNS_BASKET,
@@ -19,6 +19,8 @@ import {
 	buildInputAssetLabel,
 	formatOrdinalOutpoint,
 	opnsRegisterKeyId,
+	outpointToWire,
+	parseOutpoint,
 	readAssetIdTag,
 } from '@1sat/types'
 import { encodeProfile } from '@1sat/utils'
@@ -267,7 +269,8 @@ export const listOpns: Action<ListOpnsInput, ListOpnsResult> = {
 		return {
 			outputs: result.outputs,
 			BEEF: result.BEEF,
-			totalOutputs: result.totalOutputs,
+			// A decimal string only for `p <module> balance` selectors (@bsv/sdk 4).
+			totalOutputs: Number(result.totalOutputs),
 		}
 	},
 }
@@ -452,10 +455,8 @@ export const registerOpns: Action<RegisterOpnsRequest, OpnsOperationResponse> =
 				const avatarOutpoint = input.profile?.avatar
 				let avatar: number[] | undefined
 				if (avatarOutpoint?.trim()) {
-					const bytes = outpointToBytes(formatOrdinalOutpoint(avatarOutpoint))
-					if (!bytes)
-						throw new Error(`invalid avatar outpoint: ${avatarOutpoint}`)
-					avatar = bytes
+					const { txid, vout } = parseOutpoint(avatarOutpoint.trim())
+					avatar = Array.from(outpointToWire(txid, vout))
 				}
 				// Key/value fields on the plain PushDrop template; this action owns
 				// the layout.
@@ -587,7 +588,7 @@ export const deregisterOpns: Action<
 				counterparty: 'self',
 				forSelf: true,
 			})
-			const address = PublicKey.fromString(publicKey).toAddress()
+			const address = PublicKey.fromString(publicKey).toAddress(ctx.chain)
 			const tags = opnsFileTags(output)
 			const name = nameFromOutput(output)
 			const inputId = readAssetIdTag(output.tags)
@@ -803,7 +804,7 @@ export const sendOpns: Action<SendOpnsRequest, OpnsOperationResponse> = {
 					counterparty: input.counterparty,
 					forSelf: isSelf,
 				})
-				recipientAddress = PublicKey.fromString(publicKey).toAddress()
+				recipientAddress = PublicKey.fromString(publicKey).toAddress(ctx.chain)
 			} else {
 				recipientAddress = input.address as string
 			}

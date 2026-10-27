@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { outpointToBytes } from '@1sat/templates'
 import {
 	IDENTITY_FIELD,
 	OPNS_REGISTER_COUNTERPARTY,
 	P1SAT_PROTOCOL,
 	PROFILE_FIELD,
+	normalizeOutpoint,
 	opnsRegisterKeyId,
+	outpointToWire,
 } from '@1sat/types'
 import { type Profile, encodeProfile } from '@1sat/utils'
 import {
@@ -68,14 +69,14 @@ describe('verifyPushDropBind (key/value fields)', () => {
 			publishFields(identityKey, {
 				domain: '1sat.name',
 				name: 'Alice',
-				avatar: outpointToBytes(AVATAR) ?? undefined,
+				avatar: Array.from(outpointToWire('ef'.repeat(32), 2)),
 			}),
 		)
 		expect(await verifyPushDropBind(tx, 0, lock)).toEqual({
 			identityKey,
 			domain: '1sat.name',
 			profileName: 'Alice',
-			avatarOrigin: AVATAR,
+			avatarOrigin: normalizeOutpoint(AVATAR),
 		})
 	})
 

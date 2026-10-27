@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { parseOutpoint } from '@1sat/types'
 import {
 	AlertCircle,
 	ArrowLeft,
@@ -83,12 +84,6 @@ function formatBytes(bytes: number): string {
 function truncateOutpoint(outpoint: string, visibleChars = 10): string {
 	if (outpoint.length <= visibleChars * 2 + 3) return outpoint
 	return `${outpoint.slice(0, visibleChars)}…${outpoint.slice(-visibleChars)}`
-}
-
-/** Extract the txid from an outpoint string (`txid_vout`). */
-function txidFromOutpoint(outpoint: string): string {
-	const idx = outpoint.lastIndexOf('_')
-	return idx === -1 ? outpoint : outpoint.slice(0, idx)
 }
 
 /** Fetch listing data for an outpoint from the local OrdLock index. */
@@ -338,7 +333,7 @@ function MetadataPanel({
 	}, [outpoint])
 
 	const handleViewOnExplorer = useCallback(() => {
-		const txid = txidFromOutpoint(outpoint)
+		const { txid } = parseOutpoint(outpoint)
 		const url = `https://whatsonchain.com/tx/${txid}`
 		if (onNavigate) {
 			onNavigate(url)

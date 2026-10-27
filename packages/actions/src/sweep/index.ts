@@ -7,7 +7,7 @@
 import { BSV20, BSV21, OrdLockV2 } from '@1sat/templates'
 import type { IndexedOutput } from '@1sat/types'
 import type { OrdfsMetadata } from '@1sat/types'
-import { formatOutpoint, parseOutpoint } from '@1sat/utils'
+import { formatOutpoint, parseOutpoint } from '@1sat/types'
 import {
 	type CreateActionOutput,
 	P2PKH,
@@ -281,7 +281,7 @@ export const sweepBsv: Action<SweepBsvRequest, SweepBsvResponse> = {
 			// amount - fee into the default basket.
 			const outputs: CreateActionOutput[] = []
 			if (isPartial) {
-				const sourceAddress = keys[0].toPublicKey().toAddress()
+				const sourceAddress = keys[0].toPublicKey().toAddress(ctx.chain)
 				outputs.push({
 					lockingScript: new P2PKH().lock(sourceAddress).toHex(),
 					satoshis: inputTotal - amount,
@@ -492,7 +492,7 @@ export const sweepOrdinals: Action<
 
 				const derivedAddress = PublicKey.fromString(
 					pubKeyResult.publicKey,
-				).toAddress()
+				).toAddress(ctx.chain)
 
 				const ordName =
 					resolvedName ??
@@ -735,7 +735,7 @@ export const sweepBsv21: Action<SweepBsv21Request, SweepBsv21Response> = {
 
 			const derivedAddress = PublicKey.fromString(
 				pubKeyResult.publicKey,
-			).toAddress()
+			).toAddress(ctx.chain)
 			const p2pkh = new P2PKH()
 			const destinationLockingScript = p2pkh.lock(derivedAddress)
 			const transferScript = BSV21.transfer(tokenId, totalAmount).lock(
@@ -915,7 +915,7 @@ export const sweepBsv20: Action<SweepBsv20Request, SweepBsv20Response> = {
 
 			const derivedAddress = PublicKey.fromString(
 				pubKeyResult.publicKey,
-			).toAddress()
+			).toAddress(ctx.chain)
 			const destinationLockingScript = new P2PKH().lock(derivedAddress)
 			const transferScript = BSV20.transfer(tick, totalAmount).lock(
 				destinationLockingScript,

@@ -13,7 +13,7 @@ import {
 	sweepOrdinals,
 } from '@1sat/actions'
 import type { IndexedOutput } from '@1sat/types'
-import { formatOutpoint, parseOutpoint } from '@1sat/utils'
+import { normalizeOutpoint } from '@1sat/types'
 import type { PrivateKey, WalletInterface } from '@bsv/sdk'
 import type { ScannedAssets, TokenBalance } from './scanner'
 import { getServices } from './services'
@@ -103,11 +103,6 @@ export interface SweepResult {
  * Canonical `txid.vout` form. Indexer, overlay, and SDK inputs mix `.` and
  * `_` separators; amount maps and retry sets must compare canonically.
  */
-function normalizeOutpoint(outpoint: string): string {
-	const { txid, vout } = parseOutpoint(outpoint)
-	return formatOutpoint(txid, vout)
-}
-
 function buildKeys(
 	outputs: IndexedOutput[],
 	keyMap: Map<string, PrivateKey>,

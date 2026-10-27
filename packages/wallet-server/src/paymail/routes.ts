@@ -4,6 +4,7 @@
  */
 
 import { OneSatServices } from '@1sat/client'
+import { normalizeOutpoint } from '@1sat/types'
 import {
 	P2pPaymentDestinationRoute,
 	PaymailClient,
@@ -421,10 +422,6 @@ function isRejected(txStatus: string | undefined): boolean {
 	return ['REJECTED', 'INVALID', 'DOUBLE_SPEND_ATTEMPTED'].includes(
 		txStatus?.toUpperCase?.() ?? '',
 	)
-}
-
-function normalizeOutpoint(outpoint: string): string {
-	return outpoint.trim().toLowerCase().replace('_', '.')
 }
 
 async function isOutpointSpent(

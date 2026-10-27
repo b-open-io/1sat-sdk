@@ -1,11 +1,13 @@
 /**
- * BRC-169 envelope plumbing shared by the handle-addressed actions (Mandala
- * sends, `sendBsv` to a handle) and the `metanet_inbox` sync.
+ * BRC-169 envelope plumbing shared by the handle-addressed actions (1Color
+ * sends, `sendBsv` to a handle), the BRC-232 delivery codec, and the
+ * `transaction-delivery` box sync.
  */
 
-import { syncMetanetInbox } from './receive.js'
+import { syncTransactionInbox } from './receive.js'
 
+export * from './delivery.js'
 export * from './envelope.js'
 export * from './receive.js'
 
-export const metanetActions = [syncMetanetInbox]
+export const metanetActions = [syncTransactionInbox]

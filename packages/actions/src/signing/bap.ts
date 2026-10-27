@@ -51,7 +51,7 @@ export async function signWithBap(
 
 	return {
 		bapId,
-		address: publicKey.toAddress(),
+		address: publicKey.toAddress(ctx.chain),
 		signature: signature.toCompact(recovery, true, 'base64') as string,
 		publicKey: pubKeyResult.publicKey,
 		message,

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.113
+
+### Changed
+- Outpoint normalization comes from `@1sat/types`.
+
 ## 0.0.108
 
 ### Fixed

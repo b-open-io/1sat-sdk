@@ -1,3 +1,4 @@
+import { outpointToWire, txidFromWire } from '@1sat/types'
 import {
 	LockingScript,
 	OP,
@@ -7,7 +8,6 @@ import {
 	type ScriptTemplate,
 	type Transaction,
 	type UnlockingScript,
-	Utils,
 } from '@bsv/sdk'
 import {
 	decode as dagCborDecode,
@@ -69,7 +69,7 @@ function fromIpld(value: unknown): DagCborValue {
 }
 
 /**
- * Role of a Mandala output, determined only by the id and amount fields:
+ * Role of a 1Color output, determined only by the id and amount fields:
  *
  * | id    | amount | role                                     |
  * |-------|--------|------------------------------------------|
@@ -78,41 +78,49 @@ function fromIpld(value: unknown): DagCborValue {
  * | push  | 0      | `authority` (minting capability)         |
  * | push  | > 0    | `value` (spendable balance)              |
  */
-export type MandalaRole = 'deploy' | 'value' | 'authority'
+export type OneColorRole = 'deploy' | 'value' | 'authority'
+
+/**
+ * A token's display image, embedded in the deploy: on the wire the DAG-CBOR
+ * array `[mediaType, bytes]` (a text string and a byte string).
+ */
+export interface OneColorIcon {
+	/** Media type (RFC 6838), e.g. `image/png` */
+	mediaType: string
+	/** The image content */
+	bytes: Uint8Array
+}
 
 /**
  * Deploy display fields, carried as a DAG-CBOR map payload on the deploy output.
  */
-export interface MandalaMetadata {
+export interface OneColorMetadata {
 	/** Ticker / name for UI. Not unique: key tokens by id */
 	sym?: string
 	/** Decimal places, 0-18 (default 0) */
 	dec?: number
-	/**
-	 * Icon pointer. A `txid_vout` string is an absolute outpoint (36 bytes on
-	 * the wire); a number is an output index in the deploy transaction (4 bytes).
-	 */
-	icon?: string | number
+	/** The token's display image, embedded in the deploy */
+	icon?: OneColorIcon
 }
 
 /** Where an output's inner lock comes from: a script, or an address / pubkey hash for P2PKH */
-export type MandalaLock = LockingScript | Script | string | number[]
+export type OneColorLock = LockingScript | Script | string | number[]
 
-/** Options shared by every Mandala constructor */
-export interface MandalaOptions {
+/** Options shared by every OneColor constructor */
+export interface OneColorOptions {
 	/** The locking script after the prefix; an address or pubkey hash makes a P2PKH */
-	lock: MandalaLock
+	lock: OneColorLock
 	/**
 	 * Optional payload: display fields (encoded as DAG-CBOR) or raw bytes pushed
 	 * as-is. Display fields only carry protocol meaning on deploys.
 	 */
-	payload?: MandalaMetadata | Uint8Array | number[]
+	payload?: OneColorMetadata | Uint8Array | number[]
 }
 
-/** A decoded Mandala output */
-export interface MandalaToken {
-	role: MandalaRole
-	/** Token id `txid_vout` (display-order txid); absent on deploys */
+/** A decoded OneColor output */
+export interface OneColorToken {
+	role: OneColorRole
+	/** Asset id `<txid>_<vout>` (display-order txid); absent on deploys */
 	tokenId?: string
 	/** The id as written: 32 bytes (vout 0) or 36 bytes (legacy BRC-161, vout > 0); absent on deploys */
 	idBytes?: Uint8Array
@@ -126,13 +134,13 @@ export interface MandalaToken {
 	 * Display fields read from `payloadMap`; deploys only. Attribute types are
 	 * checked per BRC-162 at the CBOR token level; malformed fields are omitted.
 	 */
-	metadata?: MandalaMetadata
+	metadata?: OneColorMetadata
 	/** The rest of the script after the prefix (and payload) */
 	lock: LockingScript
 }
 
 /** Largest amount: 2^64 - 1 */
-export const MANDALA_MAX_AMOUNT = 0xffffffffffffffffn
+export const ONE_COLOR_MAX_AMOUNT = 0xffffffffffffffffn
 
 const OP_2DROP = 0x6d
 const OP_DROP = 0x75
@@ -238,14 +246,14 @@ function amountOf(p: Push): bigint | null {
 	return null
 }
 
-function resolveLock(lock: MandalaLock): LockingScript {
+function resolveLock(lock: OneColorLock): LockingScript {
 	if (lock instanceof LockingScript) return lock
 	if (lock instanceof Script) return LockingScript.fromBinary(lock.toBinary())
 	return new P2PKH().lock(lock)
 }
 
-function encodeMetadata(meta: MandalaMetadata): Uint8Array | undefined {
-	const wire: Record<string, string | number | Uint8Array> = {}
+function encodeMetadata(meta: OneColorMetadata): Uint8Array | undefined {
+	const wire: Record<string, string | number | [string, Uint8Array]> = {}
 	if (meta.sym !== undefined) wire.sym = meta.sym
 	if (meta.dec !== undefined) {
 		if (!Number.isInteger(meta.dec) || meta.dec < 0 || meta.dec > 18) {
@@ -254,25 +262,14 @@ function encodeMetadata(meta: MandalaMetadata): Uint8Array | undefined {
 		wire.dec = meta.dec
 	}
 	if (meta.icon !== undefined) {
-		if (typeof meta.icon === 'number') {
-			if (
-				!Number.isInteger(meta.icon) ||
-				meta.icon < 0 ||
-				meta.icon > 0xffffffff
-			) {
-				throw new Error('icon vout must be a uint32')
-			}
-			wire.icon = Uint8Array.from(u32le(meta.icon))
-		} else {
-			wire.icon = outpointBytes(meta.icon)
+		const { mediaType, bytes } = meta.icon
+		if (typeof mediaType !== 'string' || !(bytes instanceof Uint8Array)) {
+			throw new Error('icon must be { mediaType: string, bytes: Uint8Array }')
 		}
+		wire.icon = [mediaType, bytes]
 	}
 	if (Object.keys(wire).length === 0) return undefined
 	return dagCborEncode(wire)
-}
-
-function u32le(v: number): number[] {
-	return [v & 0xff, (v >>> 8) & 0xff, (v >>> 16) & 0xff, (v >>> 24) & 0xff]
 }
 
 function readU32le(b: Uint8Array, at: number): number {
@@ -281,20 +278,23 @@ function readU32le(b: Uint8Array, at: number): number {
 	)
 }
 
-/** `txid_vout` → 36 bytes (natural-order txid ‖ uint32 LE vout) */
-function outpointBytes(outpoint: string): Uint8Array {
-	const m = /^([0-9a-fA-F]{64})_(\d+)$/.exec(outpoint)
-	if (!m) throw new Error(`invalid outpoint: ${outpoint}`)
-	const vout = Number(m[2])
-	if (vout > 0xffffffff) throw new Error(`invalid outpoint: ${outpoint}`)
-	return Uint8Array.from([
-		...Utils.toArray(m[1].toLowerCase(), 'hex').reverse(),
-		...u32le(vout),
-	])
+/** The canonical BRC-207 asset id: 64 lowercase hex (display order), `_`, canonical vout */
+const ASSET_ID = /^([0-9a-f]{64})_(0|[1-9]\d{0,9})$/
+
+/** `<txid>_<vout>` (canonical form only) → 36 bytes (natural-order txid ‖ uint32 LE vout) */
+function assetIdBytes(assetId: string): Uint8Array {
+	const m = ASSET_ID.exec(assetId)
+	const vout = m ? Number(m[2]) : Number.NaN
+	if (!m || vout > 0xffffffff) {
+		throw new Error(
+			`token id must be <64 lowercase hex txid>_<vout>: ${assetId}`,
+		)
+	}
+	return outpointToWire(m[1], vout)
 }
 
 function outpointString(bytes: Uint8Array): string {
-	const txid = Utils.toHex(Array.from(bytes.subarray(0, 32)).reverse())
+	const txid = txidFromWire(bytes.subarray(0, 32))
 	return `${txid}_${bytes.length === 36 ? readU32le(bytes, 32) : 0}`
 }
 
@@ -321,15 +321,16 @@ function mapValueTypes(payload: Uint8Array): Map<string, number> {
 /**
  * The BRC-162 display fields of a deploy payload map. Each attribute must have
  * its BRC-162 CBOR type, checked at the token level: `sym` a text string,
- * `dec` an unsigned integer (major type 0) 0-18, `icon` a byte string of 4 or
- * 36 bytes. A malformed attribute is absent; the others are unaffected.
+ * `dec` an unsigned integer (major type 0) 0-18, `icon` an array of exactly
+ * two items, a text string (media type) and a byte string (the image). A
+ * malformed attribute is absent; the others are unaffected.
  */
 function metadataOf(
 	map: Record<string, DagCborValue>,
 	payload: Uint8Array,
-): MandalaMetadata {
+): OneColorMetadata {
 	const types = mapValueTypes(payload)
-	const meta: MandalaMetadata = {}
+	const meta: OneColorMetadata = {}
 	if (types.get('sym') === 3 && typeof map.sym === 'string') {
 		meta.sym = map.sym
 	}
@@ -337,15 +338,20 @@ function metadataOf(
 		meta.dec = map.dec
 	}
 	const icon = map.icon
-	if (types.get('icon') === 2 && icon instanceof Uint8Array) {
-		if (icon.length === 36) meta.icon = outpointString(icon)
-		else if (icon.length === 4) meta.icon = readU32le(icon, 0)
+	if (
+		types.get('icon') === 4 &&
+		Array.isArray(icon) &&
+		icon.length === 2 &&
+		typeof icon[0] === 'string' &&
+		icon[1] instanceof Uint8Array
+	) {
+		meta.icon = { mediaType: icon[0], bytes: icon[1] }
 	}
 	return meta
 }
 
 /**
- * Mandala (BRC-162) token template: the binary encoding of the BSV-21 token
+ * 1Color (BRC-162) token template: the binary encoding of the BSV-21 token
  * model, a stack-neutral prefix of pushes in front of any locking script:
  *
  * ```
@@ -353,11 +359,11 @@ function metadataOf(
  * ```
  *
  * There is no tag and no op field: id and amount alone set the role (see
- * {@link MandalaRole}). Minting is not an output type: a mint is a `value`
+ * {@link OneColorRole}). Minting is not an output type: a mint is a `value`
  * output in a transaction that spends an `authority` of the same token.
  *
  * - **Token id**: the deploy's txid in natural byte order (32 bytes), since
- *   Mandala deploys are always output 0. Tokens first deployed under BRC-161 at a
+ *   1Color deploys are always output 0. Tokens first deployed under BRC-161 at a
  *   non-zero output use 36 bytes (txid ‖ uint32 LE vout); a 36-byte id with
  *   vout 0 is invalid. The string form is `<display txid>_<vout>`.
  * - **Amount**: minimal script number, 1 .. 2^64-1 for value; `OP_0` for authority.
@@ -365,8 +371,8 @@ function metadataOf(
  *   DAG-CBOR map may carry `sym`, `dec` and `icon`. The payload is decoded
  *   with `@ipld/dag-cbor` as-is; each attribute's type is checked per BRC-162
  *   at the CBOR token level (`sym` text, `dec` unsigned integer 0-18, `icon`
- *   4 or 36 bytes), and a malformed attribute is absent without affecting the
- *   others. The payload never affects balance or authority admission.
+ *   the array `[mediaType text, bytes]`), and a malformed attribute is absent
+ *   without affecting the others. The payload never affects balance or authority admission.
  * - **Empty payload rule**: when no payload is given and the inner lock itself
  *   begins with a push operation (`OP_0`, `OP_1NEGATE`, `OP_1`..`OP_16` or any
  *   data push) followed by `OP_DROP`, the prefix carries an explicit empty
@@ -378,7 +384,7 @@ function metadataOf(
  * Everything built here uses minimal pushes (MINIMALDATA): 0 → `OP_0`,
  * 1..16 → `OP_1`..`OP_16`, otherwise the shortest direct push.
  *
- * {@link Mandala.decode} follows the amm-poc reference decoder (brc162.zig):
+ * {@link OneColor.decode} follows the amm-poc reference decoder (brc162.zig):
  * the id must be `OP_0` or a direct push of exactly 32 or 36 bytes (a PUSHDATA
  * form is not a token); the amount must be `OP_0`, `OP_1`..`OP_16`, or a
  * direct push of a minimal, non-negative script number above 16 and at most
@@ -387,14 +393,14 @@ function metadataOf(
  * `OP_1`..`OP_16` payload the reference records empty bytes, while this
  * decoder records the byte the opcode pushes (`0x81`, `0x01`..`0x10`).
  *
- * Binary wins: a script with a valid prefix is a Mandala output even when the
+ * Binary wins: a script with a valid prefix is a 1Color output even when the
  * rest carries a BRC-161 JSON inscription; that inscription is just part of
  * `lock`.
  *
  * @example
  * ```typescript
  * // Fixed-supply deploy (must be output 0) with display fields
- * const deploy = Mandala.deployValue(21_000_000n, {
+ * const deploy = OneColor.deployValue(21_000_000n, {
  *   lock: address,
  *   payload: { sym: 'GOLD', dec: 8 },
  * })
@@ -402,14 +408,14 @@ function metadataOf(
  *
  * // Later: send value of that token
  * const tokenId = `${deployTx.id('hex')}_0`
- * const out = Mandala.value(tokenId, 5000n, { lock: recipient })
+ * const out = OneColor.value(tokenId, 5000n, { lock: recipient })
  *
  * // Read any output
- * const token = Mandala.decode(lockingScript)
+ * const token = OneColor.decode(lockingScript)
  * if (token?.role === 'value') console.log(token.tokenId, token.amount)
  * ```
  */
-export default class Mandala implements ScriptTemplate {
+export default class OneColor implements ScriptTemplate {
 	/** Wire id: 32 or 36 bytes; undefined on a deploy */
 	public readonly idBytes?: Uint8Array
 	/** 0n = authority, otherwise value */
@@ -432,15 +438,15 @@ export default class Mandala implements ScriptTemplate {
 		idBytes?: Uint8Array | number[]
 		amount?: bigint
 		payload?: Uint8Array | number[]
-		lock: MandalaLock
+		lock: OneColorLock
 	}) {
 		const amount = fields.amount ?? 0n
-		if (amount < 0n || amount > MANDALA_MAX_AMOUNT) {
+		if (amount < 0n || amount > ONE_COLOR_MAX_AMOUNT) {
 			throw new Error('amount must be between 0 and 2^64-1')
 		}
 		if (fields.idBytes !== undefined) {
 			const id = Uint8Array.from(fields.idBytes)
-			Mandala.idToString(id) // validates length and canonical form
+			OneColor.idToString(id) // validates length and canonical form
 			this.idBytes = id
 		}
 		this.amount = amount
@@ -459,8 +465,11 @@ export default class Mandala implements ScriptTemplate {
 	 *
 	 * @param amount - the fixed supply, or undefined / 0n for an authority deploy
 	 */
-	static deploy(amount: bigint | undefined, options: MandalaOptions): Mandala {
-		return new Mandala({
+	static deploy(
+		amount: bigint | undefined,
+		options: OneColorOptions,
+	): OneColor {
+		return new OneColor({
 			amount: amount ?? 0n,
 			payload: payloadBytes(options.payload),
 			lock: options.lock,
@@ -468,29 +477,29 @@ export default class Mandala implements ScriptTemplate {
 	}
 
 	/** A fixed-supply deploy: the whole supply in this output (output 0) */
-	static deployValue(amount: bigint, options: MandalaOptions): Mandala {
+	static deployValue(amount: bigint, options: OneColorOptions): OneColor {
 		if (amount <= 0n) throw new Error('Amount must be positive')
-		return Mandala.deploy(amount, options)
+		return OneColor.deploy(amount, options)
 	}
 
 	/** An authority deploy: the token's first minting authority (output 0) */
-	static deployAuthority(options: MandalaOptions): Mandala {
-		return Mandala.deploy(0n, options)
+	static deployAuthority(options: OneColorOptions): OneColor {
+		return OneColor.deploy(0n, options)
 	}
 
 	/**
 	 * A value output: a transfer, or a mint when the transaction also spends an
 	 * authority of the token.
 	 *
-	 * @param tokenId - `txid_vout` string or wire id bytes
+	 * @param tokenId - asset id `<txid>_<vout>` or wire id bytes
 	 */
 	static value(
 		tokenId: string | Uint8Array,
 		amount: bigint,
-		options: MandalaOptions,
-	): Mandala {
+		options: OneColorOptions,
+	): OneColor {
 		if (amount <= 0n) throw new Error('Amount must be positive')
-		return new Mandala({
+		return new OneColor({
 			idBytes: idArg(tokenId),
 			amount,
 			payload: payloadBytes(options.payload),
@@ -502,13 +511,13 @@ export default class Mandala implements ScriptTemplate {
 	 * An authority output (minting capability). Valid only in a transaction that
 	 * spends an authority of the same token.
 	 *
-	 * @param tokenId - `txid_vout` string or wire id bytes
+	 * @param tokenId - asset id `<txid>_<vout>` or wire id bytes
 	 */
 	static authority(
 		tokenId: string | Uint8Array,
-		options: MandalaOptions,
-	): Mandala {
-		return new Mandala({
+		options: OneColorOptions,
+	): OneColor {
+		return new OneColor({
 			idBytes: idArg(tokenId),
 			amount: 0n,
 			payload: payloadBytes(options.payload),
@@ -517,8 +526,9 @@ export default class Mandala implements ScriptTemplate {
 	}
 
 	/**
-	 * Wire id → `txid_vout` (display-order txid). Throws on a length other than
-	 * 32 or 36, or a 36-byte id with vout 0 (non-canonical).
+	 * Wire id → the canonical BRC-207 asset id `<txid>_<vout>` (64 lowercase hex,
+	 * display order; `_0` included). Throws on a length other than 32 or 36, or
+	 * a 36-byte id with vout 0 (non-canonical).
 	 */
 	static idToString(bytes: Uint8Array | number[]): string {
 		const b = Uint8Array.from(bytes)
@@ -532,24 +542,26 @@ export default class Mandala implements ScriptTemplate {
 	}
 
 	/**
-	 * `txid_vout` → canonical wire id: 32 bytes (natural-order txid) when vout
-	 * is 0, otherwise 36 bytes (txid ‖ uint32 LE vout).
+	 * Canonical asset id `<txid>_<vout>` → canonical wire id: 32 bytes
+	 * (natural-order txid) when vout is 0, otherwise 36 bytes (txid ‖ uint32 LE
+	 * vout). Accepts exactly the form {@link OneColor.idToString} produces:
+	 * no `txid.vout`, no uppercase hex, no bare txid.
 	 */
 	static idFromString(str: string): Uint8Array {
-		const b = outpointBytes(str)
+		const b = assetIdBytes(str)
 		return readU32le(b, 32) === 0 ? b.slice(0, 32) : b
 	}
 
 	/** Encode display fields as a DAG-CBOR map payload; undefined when there are none */
-	static encodeMetadata(meta: MandalaMetadata): Uint8Array | undefined {
+	static encodeMetadata(meta: OneColorMetadata): Uint8Array | undefined {
 		return encodeMetadata(meta)
 	}
 
 	/**
-	 * Decode a Mandala output. Returns null when the script does not begin with
-	 * a valid Mandala prefix (see the class doc for the exact rules).
+	 * Decode a 1Color output. Returns null when the script does not begin with
+	 * a valid 1Color prefix (see the class doc for the exact rules).
 	 */
-	static decode(script: Script): MandalaToken | null {
+	static decode(script: Script): OneColorToken | null {
 		const s = Uint8Array.from(script.toBinary())
 
 		const idPush = readPush(s, 0)
@@ -579,9 +591,9 @@ export default class Mandala implements ScriptTemplate {
 			pos = p.next + 1
 		}
 
-		const role: MandalaRole =
+		const role: OneColorRole =
 			idBytes === undefined ? 'deploy' : amount === 0n ? 'authority' : 'value'
-		const token: MandalaToken = {
+		const token: OneColorToken = {
 			role,
 			amount,
 			lock: LockingScript.fromBinary(Array.from(s.subarray(pos))),
@@ -610,12 +622,12 @@ export default class Mandala implements ScriptTemplate {
 	}
 
 	/** The output's role */
-	get role(): MandalaRole {
+	get role(): OneColorRole {
 		if (this.idBytes === undefined) return 'deploy'
 		return this.amount === 0n ? 'authority' : 'value'
 	}
 
-	/** Token id `txid_vout`; undefined on a deploy (the id is that output's outpoint) */
+	/** Asset id `<txid>_<vout>`; undefined on a deploy (the id is that output's outpoint) */
 	get tokenId(): string | undefined {
 		return this.idBytes ? outpointString(this.idBytes) : undefined
 	}
@@ -674,11 +686,11 @@ export default class Mandala implements ScriptTemplate {
 }
 
 function idArg(tokenId: string | Uint8Array): Uint8Array {
-	return typeof tokenId === 'string' ? Mandala.idFromString(tokenId) : tokenId
+	return typeof tokenId === 'string' ? OneColor.idFromString(tokenId) : tokenId
 }
 
 function payloadBytes(
-	payload: MandalaOptions['payload'],
+	payload: OneColorOptions['payload'],
 ): Uint8Array | undefined {
 	if (payload === undefined) return undefined
 	if (payload instanceof Uint8Array) return payload

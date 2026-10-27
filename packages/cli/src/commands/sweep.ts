@@ -56,12 +56,15 @@ export async function handleSweepCommand(
 	}
 }
 
-function loadSweepKey(args: string[]): { wif: string; address: string } {
+function loadSweepKey(
+	args: string[],
+	chain: 'main' | 'test',
+): { wif: string; address: string } {
 	const wif = extractFlag(args, '--wif')
 	if (!wif) fatal('Missing --wif <private-key>')
 	try {
 		const pk = PrivateKey.fromWif(wif)
-		return { wif, address: pk.toPublicKey().toAddress() }
+		return { wif, address: pk.toPublicKey().toAddress(chain) }
 	} catch {
 		fatal('Invalid WIF private key')
 	}
@@ -174,7 +177,7 @@ function printInventory(
 }
 
 async function sweepScan(args: string[], opts: GlobalFlags): Promise<void> {
-	const { address } = loadSweepKey(args)
+	const { address } = loadSweepKey(args, opts.chain)
 	const classes = loadClasses(args)
 
 	const privateKey = await loadKey()
@@ -192,7 +195,7 @@ async function sweepScan(args: string[], opts: GlobalFlags): Promise<void> {
 }
 
 async function sweepImport(args: string[], opts: GlobalFlags): Promise<void> {
-	const { wif, address } = loadSweepKey(args)
+	const { wif, address } = loadSweepKey(args, opts.chain)
 	const classes = loadClasses(args)
 	const dryRun = hasFlag(args, '--dry-run')
 	const sweepKey = PrivateKey.fromWif(wif)

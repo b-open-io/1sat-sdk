@@ -30,6 +30,7 @@ import { handleSweepCommand } from './commands/sweep.js'
 import { handleTokensCommand } from './commands/tokens.js'
 import { handleTxCommand } from './commands/tx.js'
 import { handleWalletCommand } from './commands/wallet.js'
+import { loadConfig } from './config.js'
 import {
 	getCommand,
 	printCommandHelp,
@@ -56,7 +57,7 @@ function applyEnvFiles(paths: string[]): void {
 }
 
 async function main(): Promise<void> {
-	const flags = parseGlobalFlags(rawArgs)
+	const flags = parseGlobalFlags(rawArgs, loadConfig().chain)
 	if (flags.envFiles.length > 0) {
 		applyEnvFiles(flags.envFiles)
 	}

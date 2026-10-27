@@ -1,28 +1,25 @@
 import { describe, expect, it } from 'bun:test'
-import { outpointFromBytes, outpointToBytes } from '@1sat/templates'
-import { DIR_VERSION, dirDecode, dirEncode, dirName } from '../src/ordfs/dir'
 import {
 	outpointFromWire,
 	outpointToWire,
 	txidFromWire,
 	txidToWire,
-} from '../src/ordfs/outpoint'
+} from '@1sat/types'
+import { DIR_VERSION, dirDecode, dirEncode, dirName } from '../src/ordfs/dir'
 import { PATCH_VERSION, patchDecode, patchEncode } from '../src/ordfs/patch'
 
 const TXID = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
 
 describe('outpoint wire order', () => {
-	it('matches @1sat/templates internal-order encoding', () => {
+	it('encodes txid in internal order and vout little-endian', () => {
 		const vout = 3
-		const ours = outpointToWire(TXID, vout)
-		const theirs = outpointToBytes(`${TXID}_${vout}`)
-		expect(theirs).not.toBeNull()
-		expect(Array.from(ours)).toEqual(theirs as number[])
+		const wire = outpointToWire(TXID, vout)
 		expect(txidToWire(TXID)[0]).toBe(0xef)
 		expect(txidToWire(TXID)[31]).toBe(0x01)
-		expect(txidFromWire(ours.subarray(0, 32))).toBe(TXID)
-		expect(outpointFromWire(ours)).toEqual({ txid: TXID, vout })
-		expect(outpointFromBytes(Array.from(ours))).toBe(`${TXID}_${vout}`)
+		expect(wire[32]).toBe(3)
+		expect(txidFromWire(wire.subarray(0, 32))).toBe(TXID)
+		expect(outpointFromWire(wire)).toEqual({ txid: TXID, vout })
+		expect(outpointFromWire(Array.from(wire))).toEqual({ txid: TXID, vout })
 	})
 
 	it('dir encode/decode round-trips a non-palindromic txid', () => {

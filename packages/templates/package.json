@@ -1,6 +1,6 @@
 {
   "name": "@1sat/templates",
-  "version": "0.0.43",
+  "version": "0.1.0",
   "description": "Bitcoin script templates for 1Sat Ordinals SDK",
   "type": "module",
   "main": "./dist/index.js",
@@ -34,14 +34,13 @@
   "dependencies": {
     "@1sat/types": "workspace:*",
     "@ipld/dag-cbor": "^10.0.2",
-    "cbor2": "^2.3.0",
     "cborg": "^6.1.1"
   },
   "peerDependencies": {
-    "@bsv/sdk": "^2.6.0"
+    "@bsv/sdk": "^4.0.0"
   },
   "devDependencies": {
-    "@bsv/sdk": "^2.6.0",
+    "@bsv/sdk": "npm:@bopen-io/sdk@4.0.0",
     "typescript": "^5.9.3"
   }
 }

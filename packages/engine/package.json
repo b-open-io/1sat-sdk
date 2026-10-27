@@ -1,6 +1,6 @@
 {
   "name": "@1sat/engine",
-  "version": "0.0.6",
+  "version": "0.1.0",
   "description": "WASM parser engine for 1Sat transactions",
   "type": "module",
   "main": "./dist/index.js",
@@ -29,10 +29,10 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@bsv/sdk": "^2.6.0"
+    "@bsv/sdk": "^4.0.0"
   },
   "devDependencies": {
-    "@bsv/sdk": "^2.6.0",
+    "@bsv/sdk": "npm:@bopen-io/sdk@4.0.0",
     "@types/node": "^22.0.0",
     "protobufjs-cli": "^2.0.0",
     "typescript": "^5.9.3"

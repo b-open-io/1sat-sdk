@@ -3,7 +3,7 @@ import {
 	ORDLOCK_V2_CANCEL_UNLOCK_LENGTH,
 	OrdLockV2,
 } from '@1sat/templates'
-import { parseOutpoint } from '@1sat/utils'
+import { parseOutpoint } from '@1sat/types'
 import { Beef } from '@bsv/sdk'
 
 /**

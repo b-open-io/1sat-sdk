@@ -7,7 +7,7 @@
 
 import type { OneSatServices } from '@1sat/client'
 import { ORDLOCK_V2_TAG, type IndexedOutput } from '@1sat/types'
-import { parseOutpoint } from '@1sat/utils'
+import { isValidOutpoint, parseOutpoint } from '@1sat/types'
 import type {
 	Bsv20Balance,
 	ScanProgress,
@@ -42,11 +42,6 @@ function inscriptionJson(
 }
 
 /** BSV-21 token ids are the deploy outpoint (`txid_vout` or `txid.vout`). */
-function isOutpointId(value: string): boolean {
-	const parts = value.split(/[._]/)
-	return parts.length === 2 && parts[0].length === 64 && /^\d+$/.test(parts[1])
-}
-
 /**
  * BSV-21 vs BSV-20 share MIME `application/bsv-20`.
  * BSV-21 identity is `id` (deploy outpoint) / indexer `bsv21:`.
@@ -58,7 +53,7 @@ export function isBsv21Output(out: IndexedOutput): boolean {
 	if (asRecord(asRecord(out.data)?.bsv21)) return true
 	const json = inscriptionJson(out)
 	const id = asString(json?.id)
-	if (id && isOutpointId(id)) return true
+	if (id && isValidOutpoint(id)) return true
 	const op = asString(json?.op)?.toLowerCase()
 	return op === 'auth' || (op?.startsWith('deploy+') ?? false)
 }
