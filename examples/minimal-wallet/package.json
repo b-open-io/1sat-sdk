@@ -17,7 +17,7 @@
 	},
 	"dependencies": {
 		"@1sat/extension": "workspace:*",
-		"@bsv/sdk": "npm:@bopen-io/sdk@4.0.0",
+		"@bsv/sdk": "^4.0.0",
 		"webextension-polyfill": "^0.12.0"
 	},
 	"devDependencies": {

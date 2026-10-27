@@ -32,7 +32,7 @@
     "@bsv/sdk": "^4.0.0"
   },
   "devDependencies": {
-    "@bsv/sdk": "npm:@bopen-io/sdk@4.0.0",
+    "@bsv/sdk": "^4.0.0",
     "@types/node": "^22.0.0",
     "protobufjs-cli": "^2.0.0",
     "typescript": "^5.9.3"
