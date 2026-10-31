@@ -38,7 +38,7 @@ describe('normalizeOriginator', () => {
 		expect(normalizeOriginator(undefined)).toBe('')
 	})
 
-	it("matches WalletPermissionsManager#normalizeOriginator on every case (the key a grant is stored under is the key it is looked up by)", () => {
+	it('matches WalletPermissionsManager#normalizeOriginator on every case (the key a grant is stored under is the key it is looked up by)', () => {
 		for (const c of CASES) expect(normalizeOriginator(c)).toBe(wpm(c))
 	})
 })
