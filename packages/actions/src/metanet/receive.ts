@@ -17,9 +17,10 @@
  *   required): decode the body strictly. `wallet payment` entries map to
  *   BRC-100 `paymentRemittance`. A `basket insertion` entry must name a
  *   `p color` basket with BRC-207 receipt instructions; its transaction is
- *   first submitted to the asset's topic `tm_color_<assetId>` at `overlay`
- *   (BRC-22), and the STEAK must admit the received output. Then one
- *   `internalizeAction` with every entry copied verbatim.
+ *   first submitted to the asset's topic `tm_color_<assetId>` at the
+ *   asset's overlay (`overlayFor(assetId)`, else `overlay`) (BRC-22), and
+ *   the STEAK must admit the received output. Then one `internalizeAction`
+ *   with every entry copied verbatim.
  *
  * A message is internalized whole or not at all, and acknowledged only after
  * its internalize succeeds. Anything else (a JSON envelope, a bad signature
@@ -56,12 +57,22 @@ export interface SyncTransactionInboxInput {
 	/**
 	 * Base URL of the BRC-22 overlay that 1Color receipts are submitted to
 	 * (`<overlay>/submit`, topic `tm_color_<assetId>`) before they are
-	 * internalized. No default: without it, a message with a `p color` entry
-	 * is left unacknowledged with reason `overlay-required`; everything else
-	 * is processed.
+	 * internalized, for every asset. No default: without it (and without
+	 * `overlayFor`), a message with a `p color` entry is left unacknowledged
+	 * with reason `overlay-required`; everything else is processed.
 	 */
 	overlay?: string
+	/**
+	 * The overlay base URL for one asset (`<txid>_<vout>`), resolved per
+	 * asset received. Wins over `overlay` when both are given. Resolving to
+	 * undefined leaves the message unacknowledged with reason
+	 * `overlay-required`; a thrown error leaves it with the error's message.
+	 */
+	overlayFor?: OverlayFor
 }
+
+/** Resolves the BRC-22 overlay base URL for a 1Color asset id. */
+export type OverlayFor = (assetId: string) => Promise<string | undefined>
 
 /** A message internalized and acknowledged. */
 export interface TransactionInboxReceipt {
@@ -139,15 +150,16 @@ async function internalizeEnvelopePayment(
 /**
  * Internalize one BRC-232 delivery body, whole or not at all: map its
  * entries, submit each 1Color asset's transaction to `tm_color_<assetId>` at
- * `overlay` and require admission of the received outputs, then one
- * `internalizeAction`.
+ * that asset's overlay and require admission of the received outputs, then
+ * one `internalizeAction`. `overlay` is one base URL for every asset, or a
+ * resolver called once per asset.
  *
  * @throws when the body is malformed, names an unsupported entry or basket,
  * the overlay does not admit a received output, or the wallet refuses it
  */
 export async function internalizeTransactionDelivery(
 	wallet: Pick<WalletInterface, 'internalizeAction'>,
-	overlay: string | undefined,
+	overlay: string | OverlayFor | undefined,
 	body: Uint8Array,
 ): Promise<{ txid: string; assetIds: string[] }> {
 	const delivery = decodeTransactionDelivery(body)
@@ -190,8 +202,6 @@ export async function internalizeTransactionDelivery(
 				`output ${outputIndex}: unsupported basket ${basket}`,
 			)
 		}
-		// 1Color receipts are submitted to the overlay before internalizing.
-		if (!overlay) throw new InboxSkipError('overlay-required')
 		const { assetId } = checkColorReceipt(
 			subject,
 			outputIndex,
@@ -213,8 +223,28 @@ export async function internalizeTransactionDelivery(
 	// BRC-207: the received output must be admitted before the wallet accepts
 	// it, and internalizeAction never submits.
 	if (received.size > 0) {
-		const client = new OverlayClient((overlay as string).replace(/\/+$/, ''))
+		// 1Color receipts are submitted to the asset's overlay before
+		// internalizing; every asset's overlay is resolved before any submit.
+		const origins = new Map<string, string>()
+		for (const assetId of received.keys()) {
+			let origin: string | undefined
+			try {
+				origin =
+					typeof overlay === 'function' ? await overlay(assetId) : overlay
+			} catch (e) {
+				throw new InboxSkipError(e instanceof Error ? e.message : String(e))
+			}
+			if (!origin) throw new InboxSkipError('overlay-required')
+			origins.set(assetId, origin.replace(/\/+$/, ''))
+		}
+		const clients = new Map<string, OverlayClient>()
 		for (const [assetId, indexes] of received) {
+			const origin = origins.get(assetId) as string
+			let client = clients.get(origin)
+			if (!client) {
+				client = new OverlayClient(origin)
+				clients.set(origin, client)
+			}
 			const topic = colorTopic(assetId)
 			const steak = await client.submitBrc22(Array.from(delivery.beef), [topic])
 			const admitted = steak?.[topic]?.outputsToAdmit ?? []
@@ -255,7 +285,7 @@ export const syncTransactionInbox: Action<
 				overlay: {
 					type: 'string',
 					description:
-						'Base URL of the BRC-22 overlay that 1Color receipts are submitted to before internalizing; without it, messages with 1Color receipts stay in the box (overlay-required)',
+						'Base URL of the BRC-22 overlay that 1Color receipts are submitted to before internalizing, for every asset; without it (or overlayFor, the per-asset resolver programmatic callers may pass, which wins), messages with 1Color receipts stay in the box (overlay-required)',
 				},
 			},
 		},
@@ -302,7 +332,7 @@ export const syncTransactionInbox: Action<
 					}
 					const { txid, assetIds } = await internalizeTransactionDelivery(
 						ctx.wallet,
-						input.overlay,
+						input.overlayFor ?? input.overlay,
 						transactionDeliveryBody(plaintext),
 					)
 					return { messageId: msg.messageId, txid, sender, assetIds }

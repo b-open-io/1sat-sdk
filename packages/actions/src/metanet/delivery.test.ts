@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { OneColor } from '@1sat/templates'
+import { assetBasket } from '@bsv/color-permission-module'
 import {
+	Beef,
 	type InternalizeActionArgs,
 	Transaction,
 	Utils,
@@ -8,6 +10,11 @@ import {
 } from '@bsv/sdk'
 import { encode as dagCborEncode } from '@ipld/dag-cbor'
 import {
+	colorReceiptInstructions,
+	parseColorReceipt,
+} from '../1color/receipt.js'
+import {
+	type DeliveryBasketOutput,
 	decodeTransactionDelivery,
 	encodeTransactionDelivery,
 	encodeTransactionDeliveryMime,
@@ -137,6 +144,142 @@ describe('BRC-232 vectors', () => {
 				transactionDeliveryBody(hexBytes(v.mimeHex)),
 			),
 		).rejects.toThrow('BRC-207: malformed receipt customInstructions')
+		expect(log).toEqual([])
+	})
+})
+
+describe('per-asset overlay (overlayFor)', () => {
+	const ORIGINS: Record<string, string> = {}
+
+	/** A delivery of one value output each of two assets, at outputs 0 and 1. */
+	function twoAssetDelivery() {
+		const v = vector('token-value')
+		const base = decodeTransactionDelivery(hexBytes(v.bodyCborHex))
+		const entry = base.outputs[0] as DeliveryBasketOutput
+		const receipt = parseColorReceipt(
+			entry.insertionRemittance.customInstructions,
+		)
+		const subject = Transaction.fromAtomicBEEF(
+			Array.from(hexBytes(v.internalize.txHex)),
+		)
+		const lock = OneColor.decode(subject.outputs[0].lockingScript)!.lock
+		const assetA = receipt.assetId
+		const assetB = `${'ab'.repeat(32)}_0`
+		const tx = new Transaction()
+		for (const assetId of [assetA, assetB]) {
+			tx.addOutput({
+				lockingScript: OneColor.value(assetId, 5n, { lock }).lock(),
+				satoshis: 1,
+			})
+		}
+		const beef = new Beef()
+		beef.mergeRawTx(tx.toBinary())
+		const outputs = [assetA, assetB].map(
+			(assetId, outputIndex): DeliveryBasketOutput => ({
+				outputIndex,
+				protocol: 'basket insertion',
+				insertionRemittance: {
+					basket: assetBasket(assetId, 'value'),
+					customInstructions: colorReceiptInstructions({ ...receipt, assetId }),
+				},
+			}),
+		)
+		const body = encodeTransactionDelivery({
+			...base,
+			txid: hexBytes(tx.id('hex')),
+			beef: Uint8Array.from(beef.toBinary()),
+			outputs,
+		})
+		ORIGINS[assetA] = 'https://a.example'
+		ORIGINS[assetB] = 'https://b.example/'
+		return { body, assetA, assetB, txid: tx.id('hex') }
+	}
+
+	/** Overlay fake for any origin, admitting every output; records url + topics. */
+	function anyOverlay(log: string[]) {
+		globalThis.fetch = (async (url: RequestInfo | URL, init?: RequestInit) => {
+			const topics = new Headers(init?.headers).get('X-Topics') ?? ''
+			log.push(`${String(url)} ${topics}`)
+			return new Response(
+				JSON.stringify(
+					Object.fromEntries(
+						topics
+							.split(',')
+							.map((t) => [t, { outputsToAdmit: [0, 1], coinsToRetain: [] }]),
+					),
+				),
+			)
+		}) as typeof fetch
+	}
+
+	test('two assets in one delivery: each submitted at its own overlay', async () => {
+		const { body, assetA, assetB, txid } = twoAssetDelivery()
+		const log: string[] = []
+		anyOverlay(log)
+		const asked: string[] = []
+		const { wallet: w, internalized } = wallet(log)
+		const res = await internalizeTransactionDelivery(
+			w,
+			async (assetId) => {
+				asked.push(assetId)
+				return ORIGINS[assetId]
+			},
+			body,
+		)
+		expect(res).toEqual({ txid, assetIds: [assetA, assetB] })
+		expect(asked).toEqual([assetA, assetB])
+		expect(log).toEqual([
+			`https://a.example/submit tm_color_${assetA}`,
+			`https://b.example/submit tm_color_${assetB}`,
+			'internalize',
+		])
+		expect(internalized[0].outputs).toHaveLength(2)
+	})
+
+	test('an asset with no overlay: overlay-required, nothing submitted or internalized', async () => {
+		const { body, assetB } = twoAssetDelivery()
+		const log: string[] = []
+		anyOverlay(log)
+		const { wallet: w } = wallet(log)
+		await expect(
+			internalizeTransactionDelivery(
+				w,
+				async (assetId) => (assetId === assetB ? undefined : ORIGINS[assetId]),
+				body,
+			),
+		).rejects.toThrow('overlay-required')
+		expect(log).toEqual([])
+	})
+
+	test("a resolver that throws: skipped with the resolver's message", async () => {
+		const { body } = twoAssetDelivery()
+		const log: string[] = []
+		anyOverlay(log)
+		const { wallet: w } = wallet(log)
+		await expect(
+			internalizeTransactionDelivery(
+				w,
+				async (assetId) => {
+					throw new Error(`no overlay for ${assetId}`)
+				},
+				body,
+			),
+		).rejects.toThrow('no overlay for ')
+		expect(log).toEqual([])
+	})
+
+	test('no overlay at all: overlay-required (string form unchanged)', async () => {
+		const v = vector('token-value')
+		const log: string[] = []
+		overlay(log)
+		const { wallet: w } = wallet(log)
+		await expect(
+			internalizeTransactionDelivery(
+				w,
+				undefined,
+				transactionDeliveryBody(hexBytes(v.mimeHex)),
+			),
+		).rejects.toThrow('overlay-required')
 		expect(log).toEqual([])
 	})
 })

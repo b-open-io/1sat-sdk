@@ -209,7 +209,9 @@ caller can retry delivery or `abortAction` the send.
 import { syncTransactionInbox } from '@1sat/actions'
 
 const { received, skipped } = await syncTransactionInbox.execute(ctx, {
-  overlay: 'https://overlay.example', // the BRC-22 overlay; no default
+  overlay: 'https://overlay.example', // the BRC-22 overlay for every asset; no default
+  // or, per asset (wins over `overlay`):
+  // overlayFor: async (assetId) => originFor(assetId), // undefined → overlay-required
   messageboxUrl: 'https://messagebox.example', // default https://messagebox.1sat.app
 })
 ```
@@ -220,9 +222,11 @@ decrypts `content`, checks `contentHash` (required for a delivery), and
 decodes the BRC-232 body strictly. A `basket insertion` entry must name a
 `p color` basket with the exact receipt instructions above and a 1Color
 output of that asset; the transaction is first submitted to
-`tm_color_<assetId>` at `overlay`, and the STEAK must admit the received
-output (without `overlay`, such a message stays in the box with reason
-`overlay-required`). Then one `internalizeAction` with every entry copied verbatim (the
+`tm_color_<assetId>` at the asset's overlay (`overlayFor(assetId)` when
+given, else `overlay`), and the STEAK must admit the received output (with no
+overlay for the asset, such a message stays in the box with reason
+`overlay-required`; a resolver that throws leaves it with the error's
+message). Then one `internalizeAction` with every entry copied verbatim (the
 module checks ownership and admission). `wallet payment` entries and
 BRC-169 handle payments (`payment` set) are internalized as BRC-29 payments.
 A message is internalized whole or not at all and acknowledged only after

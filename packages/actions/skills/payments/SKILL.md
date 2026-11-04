@@ -138,6 +138,7 @@ import { createContext, syncTransactionInbox } from '@1sat/actions'
 
 const { received, skipped, error } = await syncTransactionInbox.execute(ctx, {
   overlay: 'https://overlay.example', // optional; needed for 1Color receipts (submitted there first)
+  // overlayFor: async (assetId) => origin, // optional; per-asset overlay, wins over `overlay`
   messageboxUrl: 'https://messagebox.1sat.app', // default
 })
 ```
