@@ -30,7 +30,7 @@
     },
     "packages/actions": {
       "name": "@1sat/actions",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "dependencies": {
         "@1sat/client": "workspace:*",
         "@1sat/templates": "workspace:*",

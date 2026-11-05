@@ -321,15 +321,20 @@ describe('send1Color', () => {
 
 		expect(created).toHaveLength(1)
 		const args = created[0]
+		const derivation = args.labels?.at(-2) ?? ''
+		expect(derivation).toMatch(/^1color send [0-9a-f]{32} [0-9a-f]{32}$/)
 		expect(args.labels).toEqual([
 			...ColorPlan.toLabels(SEND_PLAN as ColorPlan),
+			derivation,
 			'p nosend expiry seconds 31536000',
 		])
 		expect(ColorPlan.fromLabels(args.labels)).toEqual(SEND_PLAN as ColorPlan)
 		expect(args.options).toEqual({ noSend: true, randomizeOutputs: false })
 		expect(args.inputs).toBeUndefined()
 		expect(args.inputBEEF).toBeUndefined()
-		expect(args.description).toBe('Send 60 1Color tokens')
+		expect(args.description).toBe(
+			'Send 60 1Color tokens to @deggen+conf@lkup.net',
+		)
 		expect(args.outputs).toHaveLength(1)
 		const out = args.outputs![0]
 		expect(out).toEqual({
@@ -400,6 +405,12 @@ describe('send1Color', () => {
 			},
 		})
 		expect(receipt.derivationPrefix).toMatch(/^[A-Za-z0-9+/]{22}==$/)
+
+		// The action's label holds the same derivation the receipt delivers.
+		const hex = (b64: string) => Utils.toHex(Utils.toArray(b64, 'base64'))
+		expect(created[0].labels).toContain(
+			`1color send ${hex(receipt.derivationPrefix)} ${hex(receipt.derivationSuffix)}`,
+		)
 
 		// The recipient derives the output's key from the receipt alone.
 		const { publicKey } = await new ProtoWallet(RECIPIENT).getPublicKey({

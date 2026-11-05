@@ -11,7 +11,10 @@
  *    `p nosend expiry seconds <n>`, `noSend` and `randomizeOutputs: false`:
  *    the handoff. The module selects the token inputs, splits to the exact
  *    amount when it has to, signs and asks for consent. The action is not
- *    broadcast; the recipient submits it.
+ *    broadcast; the recipient submits it. The action keeps what the delivery
+ *    is made from: its description names the handle, and the label
+ *    `1color send <prefix hex> <suffix hex>` carries the key derivation, so
+ *    a send whose delivery never happened can be rebuilt from the wallet.
  * 4. Delivery: a signed BRC-169 envelope to the resolved messagebox, box
  *    `transaction-delivery`, `payment: null`, whose encrypted content is the
  *    BRC-232 MIME entity with one `basket insertion` receipt into
@@ -39,6 +42,15 @@ import { randomBase64, sendEnvelope } from '../metanet/deliver.js'
 import { encodeTransactionDeliveryMime } from '../metanet/delivery.js'
 import type { Action } from '../types.js'
 import { colorReceiptInstructions } from './receipt.js'
+
+/**
+ * Label prefix of the send's key derivation: `1color send <prefix hex>
+ * <suffix hex>`, the bytes of the base64 derivation prefix and suffix.
+ */
+export const COLOR_SEND_LABEL_PREFIX = '1color send '
+
+const base64ToHex = (value: string): string =>
+	Utils.toHex(Utils.toArray(value, 'base64'))
 
 export interface Send1ColorInput {
 	/** The asset id, `<txid>_<vout>` */
@@ -117,6 +129,7 @@ export const send1Color: Action<Send1ColorInput, Send1ColorResult> = {
 
 			// 1. Resolve the handle; the recipient key is derived from it.
 			const resolution = await resolveHandle(input.destination.handle)
+			const recipient = `@${resolution.handle}${resolution.tag ? `+${resolution.tag}` : ''}@${resolution.domain}`
 
 			// 2. The recipient's output.
 			const derivationPrefix = randomBase64()
@@ -170,7 +183,7 @@ export const send1Color: Action<Send1ColorInput, Send1ColorResult> = {
 			// 3. The handoff; the module funds, splits and signs.
 			const expiry = input.expirySeconds ?? COLOR_SEND_EXPIRY_SECONDS
 			const result = await ctx.wallet.createAction({
-				description: `Send ${amount} 1Color tokens`.slice(0, 50),
+				description: `Send ${amount} 1Color tokens to ${recipient}`,
 				outputs: [
 					{ lockingScript, satoshis: 1, outputDescription: '1Color tokens' },
 				],
@@ -184,6 +197,7 @@ export const send1Color: Action<Send1ColorInput, Send1ColorResult> = {
 						changePositions: [],
 						sighashTypes: [],
 					}),
+					`${COLOR_SEND_LABEL_PREFIX}${base64ToHex(derivationPrefix)} ${base64ToHex(derivationSuffix)}`,
 					`p nosend expiry seconds ${expiry}`,
 				],
 				options: { noSend: true, randomizeOutputs: false },
