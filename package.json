@@ -31,6 +31,6 @@
     "@bsv/templates": "^2.1.0",
     "@bsv/wallet-toolbox": "^2.15.0",
     "@bsv/wallet-toolbox-client": "^2.15.0",
-    "@bsv/color-permission-module": "^0.1.0"
+    "@bsv/color-permission-module": "npm:@bopen-io/color-permission-module@0.2.2"
   }
 }
