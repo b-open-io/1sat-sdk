@@ -78,6 +78,8 @@ with `bun run scripts/gen-action-index.ts`).
 | desktop-mcp | `packages/wallet-desktop/skills/desktop-mcp` | wallet-desktop MCP browser-automation tools |
 | sdk-publish | `.claude/skills/sdk-publish` | Internal maintainer workflow; not distributed by the public plugin |
 | test-app | `skills/test-app` | Driving the test-app harness to exercise actions, tags and permission prompts against a real gated wallet |
+| open-exchange | `skills/open-exchange` | Building against, operating or testing an Open Exchange (the 1Color AMM host): market reads, swaps, pools, listing, running and administering a local exchange, headless wallets, stuck-swap recovery |
+| open-exchange | `skills/open-exchange` | Building against, operating or testing an Open Exchange (the 1Color AMM host): market reads, swaps, pools, listing, running and administering a local exchange, headless wallets, stuck-swap recovery |
 
 ## Coding Conventions
 - Use Bun for all scripts and package operations.
