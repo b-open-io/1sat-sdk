@@ -37,7 +37,7 @@ class MaterializeSkillsTests(unittest.TestCase):
         }
         self.assertEqual(
             root_names,
-            package_names | {"codex-agent-setup", "mintflow", "test-app"},
+            package_names | {"codex-agent-setup", "mintflow", "open-exchange", "test-app"},
         )
         self.assertNotIn("sdk-publish", root_names)
         for name in root_names:

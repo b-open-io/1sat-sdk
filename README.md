@@ -74,6 +74,9 @@ npx skills add b-open-io/1sat-sdk --skill opns
 
 # Extract inscribed media from blockchain
 npx skills add b-open-io/1sat-sdk --skill blockchain-media
+
+# Open Exchange (1Color AMM): market data, swaps, pools, listing, running an exchange
+npx skills add b-open-io/1sat-sdk --skill open-exchange
 ```
 
 </details>
