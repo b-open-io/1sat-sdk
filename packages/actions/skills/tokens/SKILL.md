@@ -208,8 +208,9 @@ await mint1Color.execute(ctx, {
 // lists the basket and takes the largest until they cover the amount.
 await burn1Color.execute(ctx, { assetId, amount: '60' })
 
-// Lock supply: with `all`, every authority this wallet holds is spent in one
-// transaction, which is the claim a token page can advertise.
+// Lock supply: with `all`, every authority this wallet holds goes in one
+// transaction. That ends *this wallet's* minting; an authority transferred or
+// split to someone else still mints, and no wallet can see other holders.
 const ended = await endAuthority1Color.execute(ctx, { assetId, all: true })
 // ended.authorityOutputs 1 of ended.authorityOutputsHeld 1
 
@@ -231,7 +232,9 @@ What the module does, and what these builders therefore do:
   the caller, so these two also pass `inputBEEF` with the sources they named.
 - **`authority-end` takes any number of inputs**, so `all` is one transaction,
   not several: BRC-207 derives one `authority-end` however many authorities
-  it spends.
+  it spends. Only this wallet's authorities can go in — they are the outputs it
+  can sign for — so the action ends its minting, not the token's, unless it
+  held the last one.
 - **The deploy output is in the basket it belongs to** — an authority deploy
   makes output 0 the token's first authority, a fixed deploy its first value
   output. It carries no token id (its own outpoint is the asset id) and its

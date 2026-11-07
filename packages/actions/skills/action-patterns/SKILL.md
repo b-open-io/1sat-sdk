@@ -207,7 +207,7 @@ _66 actions, generated from the registry — do not edit by hand._
 | `tokens` | `deploy1Color` |  | Deploy a 1Color (BRC-162) token through the wallet's BRC-207 color module: amount > 0 is fixed supply, 0 is an authority deploy. The asset id is <txid>_0. |
 | `tokens` | `deployBsv21Auth` |  | Deploy a new BSV21 token with mintable supply via auth UTXOs (deploy+auth) |
 | `tokens` | `deployBsv21Mint` |  | Deploy a new BSV21 token with fixed supply (deploy+mint) |
-| `tokens` | `endAuthority1Color` |  | End a 1Color (BRC-162) token's minting authority through the wallet's BRC-207 color module: the authority inputs are spent with no authority output, so no supply can ever be minted again |
+| `tokens` | `endAuthority1Color` |  | End a 1Color (BRC-162) token's minting authority through the wallet's BRC-207 color module: this wallet's authority outputs are spent with no authority output, so it can never mint again |
 | `tokens` | `fundBsv21Overlay` |  | Fund the token overlay so it indexes and validates a BSV21 token |
 | `tokens` | `getBsv21Balances` |  | Get aggregated BSV21 token balances grouped by token ID |
 | `tokens` | `listBsv21` |  | List BSV21 token outputs from the wallet |

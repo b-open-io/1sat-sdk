@@ -18,12 +18,17 @@
  * failed delivery would need.
  *
  * `endAuthority1Color` builds the second: the authority inputs are spent with no
- * authority output, so no authority exists anywhere after it. That is the
- * lock-supply commitment — BRC-162 minting ends only when no authority output
- * remains — so `all` spends every authority this wallet holds in one
- * transaction, which is the only version of the claim a token page can advertise.
- * The wallet holding more than one authority is unusual (it comes from a split);
- * without `all`, the module ends one of them.
+ * authority output, so no authority this wallet can sign for survives it. That
+ * is the lock-supply commitment — BRC-162 minting ends only when no authority
+ * output remains — but it is a claim about *this wallet*, not about the token:
+ * an authority that was transferred or split to someone else is still mintable
+ * by them, and a wallet cannot see the authorities other holders have.
+ * `authorityOutputsHeld` is how many this wallet held, so a page can say what
+ * this transaction proved rather than what it hopes.
+ * Holding more than one authority is unusual (it comes from a split); with
+ * `all`, every one this wallet holds is spent in a single transaction — the
+ * module derives one `authority-end` however many authorities it spends — and
+ * without it the module ends one of them, leaving the rest mintable.
  */
 
 import { OneColor } from '@1sat/templates'
@@ -76,7 +81,7 @@ export const endAuthority1Color: Action<
 	meta: {
 		name: 'endAuthority1Color',
 		description:
-			"End a 1Color (BRC-162) token's minting authority through the wallet's BRC-207 color module: the authority inputs are spent with no authority output, so no supply can ever be minted again",
+			"End a 1Color (BRC-162) token's minting authority through the wallet's BRC-207 color module: this wallet's authority outputs are spent with no authority output, so it can never mint again",
 		category: 'tokens',
 		inputSchema: {
 			type: 'object',
