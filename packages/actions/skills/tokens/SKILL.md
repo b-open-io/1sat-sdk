@@ -22,6 +22,11 @@ CLI group is **`bsv21`** (was `tokens`).
 | `mintBsv21` | Spend auth to mint / re-issue / end |
 | `deploy1Color` | 1Color (BRC-162) deploy through the wallet's BRC-207 module: fixed supply or authority |
 | `send1Color` | 1Color send to a BRC-169 handle (BRC-177 handoff, BRC-232 delivery) |
+| `mint1Color` | 1Color mint: spends an authority, creates supply, re-locks the authority |
+| `burn1Color` | 1Color burn: spends value outputs with no output for the difference |
+| `endAuthority1Color` | 1Color: spend the authority outputs with no authority output (lock supply) |
+| `transferAuthority1Color` | 1Color: hand the minting authority to a BRC-169 handle (BRC-232 delivery) |
+| `authorities1Color` | 1Color: this wallet's authority outputs for an asset, and its value balance |
 | `syncTransactionInbox` | Receive BRC-232 deliveries (and handle payments) from `transaction-delivery` |
 
 
@@ -120,7 +125,9 @@ module (`@bsv/color-permission-module`, registered on the wallet's
 permissions manager) keeps custody: it derives the keys, files outputs into
 their baskets, selects and signs token inputs, asks for consent and submits
 to the overlay. The actions are thin BRC-100 calls: `deploy1Color`,
-`send1Color`, and `syncTransactionInbox` to receive.
+`send1Color`, `mint1Color`, `burn1Color`, `endAuthority1Color`,
+`transferAuthority1Color`, `authorities1Color` (a read), and
+`syncTransactionInbox` to receive.
 
 ### Names
 
@@ -164,6 +171,91 @@ one `deploy-fixed` or `deploy-authority` operation); `randomizeOutputs:
 false`. No basket, no customInstructions on the output. The module files the
 signed deploy into its asset basket and submits it to `tm_color` and the
 asset topic. The deploy holder is always this wallet.
+
+### Mint, burn and the authority
+
+BRC-162 has no mint or burn output. A **mint** is a value output in a
+transaction that spends an authority; a **burn** is what is left when value
+inputs exceed value outputs; **minting ends** when no authority output
+remains. The module enforces the operations BRC-207 derives from such a
+transaction, so these builders only have to declare what they are about to
+build:
+
+| Action | Outputs | Plan operations for the asset |
+|--------|---------|-------------------------------|
+| `mint1Color` | value `amount` (self, or a handle) + the authority re-locked to a fresh key | `mint`, `authority-transfer` |
+| `burn1Color` | the remainder of the named inputs, if any | `burn` (+ `transfer` with a remainder) |
+| `endAuthority1Color` | none | `authority-end` |
+| `transferAuthority1Color` | one authority output to the recipient | `authority-transfer` |
+
+```typescript
+import {
+  authorities1Color, mint1Color, burn1Color,
+  endAuthority1Color, transferAuthority1Color,
+} from '@1sat/actions'
+
+// What can this wallet do with the token? (also returns valueBalance)
+const auth = await authorities1Color.execute(ctx, { assetId })
+// auth.count === 0 → the wallet holds no authority: no manager to show.
+
+// Mint to this wallet (default) or to a handle, which is delivered BRC-232.
+await mint1Color.execute(ctx, { assetId, amount: '1000' })
+await mint1Color.execute(ctx, {
+  assetId, amount: '1000', destination: { handle: '@alice@example.com' },
+})
+
+// Burn: the action names its own value inputs (a burn gets no change), so it
+// lists the basket and takes the largest until they cover the amount.
+await burn1Color.execute(ctx, { assetId, amount: '60' })
+
+// Lock supply: with `all`, every authority this wallet holds is spent in one
+// transaction, which is the claim a token page can advertise.
+const ended = await endAuthority1Color.execute(ctx, { assetId, all: true })
+// ended.authorityOutputs 1 of ended.authorityOutputsHeld 1
+
+// Give the authority to someone else (delivered to their messagebox).
+await transferAuthority1Color.execute(ctx, {
+  assetId, destination: { handle: '@alice@example.com' },
+})
+```
+
+What the module does, and what these builders therefore do:
+
+- **Authority selection is the module's.** For `mint` and
+  `authority-transfer` it selects the authority inputs from the asset's
+  authority basket itself (`authority-transfer` needs one out, so it takes
+  one in); the builders name none.
+- **Mints and burns get no change**, so a burn names its value inputs
+  explicitly and gives the overshoot back as one owned output; a mint creates
+  units and needs no value input at all. An explicit input must be funded by
+  the caller, so these two also pass `inputBEEF` with the sources they named.
+- **`authority-end` takes any number of inputs**, so `all` is one transaction,
+  not several: BRC-207 derives one `authority-end` however many authorities
+  it spends.
+- **The deploy output is in the basket it belongs to** — an authority deploy
+  makes output 0 the token's first authority, a fixed deploy its first value
+  output. It carries no token id (its own outpoint is the asset id) and its
+  key stays derived under `ISSUE`; it lists and spends like any other output
+  of that basket, which is why `authorities1Color` counts it.
+- **An output filed without its derivation suffix tag cannot be spent**
+  through the module. `authorities1Color` reports that per output;
+  `burn1Color` skips such outputs (and says how much was spendable when it
+  cannot cover the amount), and `endAuthority1Color` refuses one rather than
+  leave it minting behind.
+- **No authority, no action.** `mint1Color`, `endAuthority1Color` and
+  `transferAuthority1Color` read the authority basket first and return
+  `no-authority-for-asset: …` before anything is signed; the module refuses
+  again when it selects the input. `burn1Color` answers
+  `insufficient-value-balance: <spendable> spendable of <amount>`.
+- With a `destination` handle, the action is broadcast (the module submits it
+  to `tm_color_<assetId>` as it signs) and then *delivered*, not handed off:
+  the recipient receives a settled transaction plus the receipt that lets
+  their module derive the output. The derivation is also kept as a label
+  (`1color mint …`, `1color authority …`) so a failed delivery can be retried.
+
+`authority-split` and `authority-combine` (deliberately making more or fewer
+authority outputs) are not built here: the module accepts them, but nothing
+asks for them yet.
 
 ### Send (to a BRC-169 handle)
 

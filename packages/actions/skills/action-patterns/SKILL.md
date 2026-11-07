@@ -146,7 +146,7 @@ const tools = actionRegistry.toMcpTools()
 The complete, generated list of all actions:
 
 <!-- ACTION-INDEX -->
-_61 actions, generated from the registry — do not edit by hand._
+_66 actions, generated from the registry — do not edit by hand._
 
 | Category | Action | Services | Purpose |
 |----------|--------|:--------:|---------|
@@ -200,17 +200,22 @@ _61 actions, generated from the registry — do not edit by hand._
 | `sync` | `syncCosignDeliveries` | ✓ | Pull cosign-wrapped BSV21 deliveries from a MessageBox and internalize them into the wallet |
 | `sync` | `syncMessages` |  | Sync incoming paymail payments from the message box into the wallet |
 | `sync` | `syncTransactionInbox` |  | Collect the transaction-delivery message box: BRC-232 deliveries (1Color tokens, submitted to their overlay topic first; BRC-29 outputs) and BRC-169 handle payments, internalized into the wallet |
+| `tokens` | `authorities1Color` |  | This wallet's unspent 1Color (BRC-162) authority outputs for an asset, read through the wallet's BRC-207 color module, with its value balance: what `mint1Color` and `endAuthority1Color` can act on |
+| `tokens` | `burn1Color` |  | Burn 1Color (BRC-162) tokens through the wallet's BRC-207 color module: spends this wallet's value outputs covering `amount` with no output for the difference, which is what destroys them |
 | `tokens` | `buyBsv21` | ✓ | Purchase BSV21 tokens from the marketplace |
 | `tokens` | `cancelTokenListing` |  | Cancel a token listing and return a transfer inscription to the wallet |
 | `tokens` | `deploy1Color` |  | Deploy a 1Color (BRC-162) token through the wallet's BRC-207 color module: amount > 0 is fixed supply, 0 is an authority deploy. The asset id is <txid>_0. |
 | `tokens` | `deployBsv21Auth` |  | Deploy a new BSV21 token with mintable supply via auth UTXOs (deploy+auth) |
 | `tokens` | `deployBsv21Mint` |  | Deploy a new BSV21 token with fixed supply (deploy+mint) |
+| `tokens` | `endAuthority1Color` |  | End a 1Color (BRC-162) token's minting authority through the wallet's BRC-207 color module: the authority inputs are spent with no authority output, so no supply can ever be minted again |
 | `tokens` | `fundBsv21Overlay` |  | Fund the token overlay so it indexes and validates a BSV21 token |
 | `tokens` | `getBsv21Balances` |  | Get aggregated BSV21 token balances grouped by token ID |
 | `tokens` | `listBsv21` |  | List BSV21 token outputs from the wallet |
+| `tokens` | `mint1Color` |  | Mint new 1Color (BRC-162) supply with the wallet's BRC-207 color module: spends one of the asset's authority outputs, creates `amount` units, and re-locks the authority to a fresh key |
 | `tokens` | `mintBsv21` | ✓ | Spend an auth UTXO to mint supply, re-issue authority, or permanently end minting |
 | `tokens` | `send1Color` |  | Send 1Color (BRC-162) tokens to a BRC-169 handle: a BRC-177 handoff built by the wallet's BRC-207 color module, delivered (BRC-232) in a signed envelope to the handle's transaction-delivery box; the recipient submits it |
 | `tokens` | `sendBsv21` |  | Send BSV21 tokens to one or more recipients |
+| `tokens` | `transferAuthority1Color` |  | Hand a 1Color (BRC-162) token's minting authority to a BRC-169 handle through the wallet's BRC-207 color module, delivered (BRC-232) in a signed envelope to the handle's transaction-delivery box |
 <!-- /ACTION-INDEX -->
 
 ## Baskets and Tags
