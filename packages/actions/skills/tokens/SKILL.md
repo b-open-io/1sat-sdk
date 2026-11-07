@@ -255,6 +255,9 @@ What the module does, and what these builders therefore do:
   the recipient receives a settled transaction plus the receipt that lets
   their module derive the output. The derivation is also kept as a label
   (`1color mint …`, `1color authority …`) so a failed delivery can be retried.
+  These actions are broadcast, not handed off: an unsubmitted BRC-177 handoff
+  would leave the authority or the split still ours to abort and re-spend, and a
+  `p nosend expiry` on a capability would revert minting by the clock.
 
 `authority-split` and `authority-combine` (deliberately making more or fewer
 authority outputs) are not built here: the module accepts them, but nothing

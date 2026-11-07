@@ -17,6 +17,12 @@
  * label `1color authority <prefix hex> <suffix hex>` keeps the derivation a
  * failed delivery would need.
  *
+ * It is broadcast rather than a BRC-177 handoff, deliberately: an unsubmitted
+ * handoff leaves the authority unspent and still ours to abort and mint with,
+ * which the recipient cannot see. So this is final when it signs. A BRC-177
+ * expiry is the wrong instrument for a capability anyway — a year on, minting
+ * would quietly revert without anyone having decided it should.
+ *
  * `endAuthority1Color` builds the second: the authority inputs are spent with no
  * authority output, so no authority this wallet can sign for survives it. That
  * is the lock-supply commitment — BRC-162 minting ends only when no authority
