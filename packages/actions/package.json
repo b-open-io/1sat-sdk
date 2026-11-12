@@ -1,6 +1,6 @@
 {
   "name": "@1sat/actions",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Action definitions for the 1Sat SDK",
   "type": "module",
   "main": "./dist/index.js",
@@ -34,7 +34,7 @@
     "@1sat/types": "workspace:*",
     "@1sat/utils": "workspace:*",
     "@1sat/wallet": "workspace:*",
-    "@bsv/color-permission-module": "npm:@bopen-io/color-permission-module@0.2.2",
+    "@bsv/color-permission-module": "npm:@bopen-io/color-permission-module@0.2.3",
     "@bsv/message-box-client": "^2.5.0",
     "@ipld/dag-cbor": "^10.0.2",
     "xdelta3-wasm": "^1.0.0"
