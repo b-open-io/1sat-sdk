@@ -34,6 +34,18 @@ export interface StorageServerConfig {
 	trustProxy?: WalletStorageServerOptions['trustProxy']
 }
 
+/**
+ * Largest reply the storage server sends; also the BRC-104 transport's
+ * response limit. Over it the server answers 413 even when the request was
+ * small: createAction replies with the input BEEF (the client's, plus any
+ * funding change ancestry) and each supplied input's locking script as hex,
+ * so spending inscriptions makes a reply much larger than its request.
+ * Upstream default is 8 MiB. @bsv/sdk's fetch transport reads replies up to
+ * 16 MiB by default, so stay under that or a client would fail on a reply
+ * the server sent.
+ */
+export const STORAGE_MAX_RESPONSE_BYTES = 15 * 1024 * 1024
+
 export function createStorageServer(
 	config: StorageServerConfig,
 ): StorageServer {
@@ -51,5 +63,10 @@ export function createStorageServer(
 		// 8 MiB JSON body holds at most ~4M array items, so no request the body
 		// limit admits is rejected for array length (upstream default: 1M).
 		maxRpcArrayItems: 4 * 1024 * 1024,
+		// An operator's WALLET_STORAGE_RPC_MAX_RESPONSE_BYTES still wins: the
+		// toolbox reads it when this option is unset.
+		maxRpcResponseBytes: process.env.WALLET_STORAGE_RPC_MAX_RESPONSE_BYTES
+			? undefined
+			: STORAGE_MAX_RESPONSE_BYTES,
 	})
 }
