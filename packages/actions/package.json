@@ -1,6 +1,6 @@
 {
   "name": "@1sat/actions",
-  "version": "0.0.207",
+  "version": "0.1.5",
   "description": "Action definitions for the 1Sat SDK",
   "type": "module",
   "main": "./dist/index.js",
@@ -30,18 +30,21 @@
   "license": "MIT",
   "dependencies": {
     "@1sat/client": "workspace:*",
+    "@1sat/templates": "workspace:*",
     "@1sat/types": "workspace:*",
     "@1sat/utils": "workspace:*",
     "@1sat/wallet": "workspace:*",
-    "@1sat/templates": "workspace:*",
-    "@bsv/message-box-client": "^2.2.1"
+    "@bsv/color-permission-module": "npm:@bopen-io/color-permission-module@0.2.2",
+    "@bsv/message-box-client": "^2.5.0",
+    "@ipld/dag-cbor": "^10.0.2",
+    "xdelta3-wasm": "^1.0.0"
   },
   "peerDependencies": {
-    "@bsv/sdk": "^2.1.9"
+    "@bsv/sdk": "^4.0.0"
   },
   "devDependencies": {
-    "@bsv/sdk": "^2.1.9",
-    "typescript": "^5.9.3",
-    "@1sat/wallet-remote": "workspace:*"
+    "@1sat/wallet-remote": "workspace:*",
+    "@bsv/sdk": "^4.0.0",
+    "typescript": "^5.9.3"
   }
 }

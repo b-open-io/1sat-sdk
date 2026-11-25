@@ -1,6 +1,12 @@
+import { ORD_LOCK_V2_ARTIFACT } from './ordlockV2Artifact.js'
+import { isValidOutpoint, normalizeOutpoint } from './outpoint.js'
+import type { RunarConstructorSlot } from './runar.js'
+
 /**
  * Shared constants for 1Sat Ordinals SDK
  */
+
+import type { WalletCounterparty, WalletProtocol } from '@bsv/sdk'
 
 // ============================================================================
 // Protocol Identifiers
@@ -22,15 +28,14 @@ export const FUNDING_BASKET = 'default'
  * not P-baskets. Permission routing for createAction stays on `p 1sat …`
  * **labels**; basket list/internalize uses the known-set check in the module
  * when registered, else generic WPM basket access.
- *
- * Legacy `p 1sat …` baskets are not dual-read — migrate once via
- * {@link LEGACY_P1SAT_BASKET_MIGRATIONS} / `moveBasketOutputs`.
  */
 /** Collectables / ordinals inventory (BRC-147). */
 export const ONESAT_BASKET = '1sat'
 /** @deprecated Prefer {@link ONESAT_BASKET}; same string. */
 export const ORDINALS_BASKET = ONESAT_BASKET
 export const BSV21_BASKET = 'bsv21'
+/** Ticker-based BSV-20 inventory. */
+export const BSV20_BASKET = 'bsv20'
 /** @deprecated Auth UTXOs live in {@link BSV21_BASKET} with {@link BSV21_AUTH_TAG}. */
 export const BSV21_AUTH_BASKET = BSV21_BASKET
 /** Tag on mint-authority BSV21 outputs (no amt). */
@@ -47,6 +52,7 @@ export const BAP_BASKET = 'bap'
 export const ONESAT_ASSET_BASKETS: readonly string[] = [
 	ONESAT_BASKET,
 	BSV21_BASKET,
+	BSV20_BASKET,
 	OPNS_BASKET,
 	LOCK_BASKET,
 	SIGMA_BASKET,
@@ -54,31 +60,55 @@ export const ONESAT_ASSET_BASKETS: readonly string[] = [
 	BAP_BASKET,
 ]
 
-/** Legacy P-basket → preferred basket. Migrate only; no dual-read. */
-export const LEGACY_P1SAT_BASKET_MIGRATIONS: ReadonlyArray<{
-	from: string
-	to: string
-}> = [
-	{ from: 'p 1sat ordinals', to: ONESAT_BASKET },
-	{ from: 'p 1sat bsv21', to: BSV21_BASKET },
-	{ from: 'p 1sat opns', to: OPNS_BASKET },
-	{ from: 'p 1sat lock', to: LOCK_BASKET },
-	{ from: 'p 1sat sigma', to: SIGMA_BASKET },
-	{ from: 'p 1sat bsocial', to: BSOCIAL_BASKET },
-]
-
 export function isOneSatAssetBasket(basket: string): boolean {
 	return ONESAT_ASSET_BASKETS.includes(basket)
 }
 
 /**
- * Holding basket for plain BSV received at the user's P1SAT-derived
- * deposit address. UTXOs land here via `internalizeBeef` and stay until
- * `sweepDeposit` rotates them into a fresh P1SAT-derived funding output
- * in {@link FUNDING_BASKET}. The basket name itself is the queue marker
- * — no separate tag is needed.
+ * Holding basket for wallet-owned P2PKH outputs (P1SAT-derived, CI-signed)
+ * waiting to be swept into a fresh BRC-29 funding output in
+ * {@link FUNDING_BASKET}. Plain BSV received at the deposit address lands
+ * here via `internalizeBeef`; actions that need a short-lived prepared
+ * output (OrdLock v2 purchase front funding) park it here too, tagged
+ * with a hold (see {@link depositHoldTag}) so `sweepDeposit` leaves it
+ * alone until the hold passes. The basket name itself is the queue marker.
  */
 export const DEPOSIT_BASKET = '1sat-deposit'
+
+/**
+ * Tag prefix on deposit-basket outputs that must not be swept yet:
+ * `hold:<absolute unix ms>`. The sweep compares it against the wallet's
+ * own clock; there is no on-chain or block timestamp involved.
+ */
+export const DEPOSIT_HOLD_TAG_PREFIX = 'hold:'
+
+/** Tag that keeps a deposit-basket output out of `sweepDeposit` until `untilMs`. */
+export function depositHoldTag(untilMs: number): string {
+	return `${DEPOSIT_HOLD_TAG_PREFIX}${Math.floor(untilMs)}`
+}
+
+/** Hold expiry (unix ms) carried by `hold:` tags, or undefined when none. */
+export function depositHoldUntil(
+	tags: string[] | undefined,
+): number | undefined {
+	if (!tags) return undefined
+	let until: number | undefined
+	for (const t of tags) {
+		if (!t.startsWith(DEPOSIT_HOLD_TAG_PREFIX)) continue
+		const n = Number(t.slice(DEPOSIT_HOLD_TAG_PREFIX.length))
+		if (Number.isFinite(n) && (until === undefined || n > until)) until = n
+	}
+	return until
+}
+
+/** True when a deposit-basket output is still under hold at `nowMs`. */
+export function isDepositHeld(
+	tags: string[] | undefined,
+	nowMs = Date.now(),
+): boolean {
+	const until = depositHoldUntil(tags)
+	return until !== undefined && until > nowMs
+}
 
 // ============================================================================
 // Fee Configuration
@@ -149,6 +179,15 @@ export const P1SAT_MODULE_PROTOCOL: [0 | 1 | 2, string] = [0, 'p 1sat probe']
  */
 export const P1SAT_PROTOCOL: [0 | 1 | 2, string] = ONESAT_PROTOCOL
 
+/**
+ * Legacy key-derivation protocol `[0, 'p 1sat']`. Addresses derived under this
+ * protocol before the rename to {@link ONESAT_PROTOCOL} are unreachable by the
+ * current constant (protocol is a BRC-42 derivation input, so the same keyID
+ * yields a different address). Callers that hold funds on old addresses must
+ * derive/sign under this protocol in addition to {@link ONESAT_PROTOCOL}.
+ */
+export const LEGACY_ONESAT_PROTOCOL: [0 | 1 | 2, string] = [0, 'p 1sat']
+
 // ============================================================================
 // OpNS identity bind (PushDrop on name UTXO)
 // ============================================================================
@@ -164,6 +203,32 @@ export const OPNS_REGISTER_COUNTERPARTY = 'anyone' as const
 
 /** Wallet tag on a published (bound) OpNS name */
 export const OPNS_PUBLISHED_TAG = 'opns:published'
+
+/**
+ * Key/value PushDrop field keys. A PushDrop whose fields are pairs
+ * (`key, value, key, value, …, signature`) uses UTF-8 text keys; the key
+ * names the value's encoding (codecs in `@1sat/utils`). Readers skip keys
+ * they do not know. The OpNS publish (`registerOpns`) is one use.
+ */
+/** Value: 33-byte compressed identity public key (raw bytes). */
+export const IDENTITY_FIELD = 'identity'
+/** Value: DAG-CBOR map — see {@link PROFILE_FIELDS}. */
+export const PROFILE_FIELD = 'profile'
+
+/**
+ * Field names inside the `profile` DAG-CBOR map. PROVISIONAL — the names are
+ * not final (issue #83); change them here, nowhere else.
+ *
+ * - `domain` (required): BRC-169 ecosystem domain, non-empty, as entered.
+ * - `name` (optional): presentation name; absent when unset.
+ * - `avatar` (optional): 36-byte outpoint of an image ordinal origin; absent
+ *   when unset.
+ */
+export const PROFILE_FIELDS = {
+	domain: 'domain',
+	name: 'name',
+	avatar: 'avatar',
+} as const
 
 /** PushDrop keyID from spent input outpoint (`txid.vout` → `opns:{txid}_{vout}`) */
 export function opnsRegisterKeyId(outpoint: string): string {
@@ -304,7 +369,7 @@ export function buildExternalInputLabel(
 	if (!op || /\s/.test(op)) {
 		throw new Error('External input outpoint must be a single token')
 	}
-	if (!isOutpointToken(op)) {
+	if (!isValidOutpoint(op)) {
 		throw new Error('External input label requires an outpoint-shaped token')
 	}
 	return `p ${scheme} input ${op}`
@@ -363,7 +428,7 @@ export function parseOneInputLabel(
 	// Held: `input id <key>`
 	if (payload.startsWith('id ')) {
 		const key = payload.slice(3).trim()
-		if (!key || /\s/.test(key) || isOutpointToken(key)) return undefined
+		if (!key || /\s/.test(key) || isValidOutpoint(key)) return undefined
 		return {
 			kind: 'id',
 			scheme: schemeTok,
@@ -373,29 +438,15 @@ export function parseOneInputLabel(
 	}
 
 	// External: single outpoint-shaped token only
-	if (!payload.includes(' ') && isOutpointToken(payload)) {
+	if (!payload.includes(' ') && isValidOutpoint(payload)) {
 		return {
 			kind: 'outpoint',
 			scheme: schemeTok,
-			outpoint: normalizeOutpointDot(payload),
+			outpoint: normalizeOutpoint(payload),
 		}
 	}
 
 	return undefined
-}
-
-function isOutpointToken(s: string): boolean {
-	if (s.length < 66) return false
-	const sep = s[64]
-	if (sep !== '.' && sep !== '_') return false
-	const txid = s.slice(0, 64)
-	const vout = s.slice(65)
-	return /^[0-9a-fA-F]{64}$/.test(txid) && /^\d+$/.test(vout)
-}
-
-function normalizeOutpointDot(s: string): string {
-	if (s.length >= 66 && s[64] === '_') return `${s.slice(0, 64)}.${s.slice(65)}`
-	return s
 }
 
 /**
@@ -432,6 +483,12 @@ export const MESSAGE_SIGNING_PROTOCOL: [0 | 1 | 2, string] = [
 	'message signing',
 ]
 
+/** BRC-169 handle certificate type (base64 SHA-256 of the derivation string). */
+export const HANDLE_CERT_TYPE = 'XgCFdUfxEcI+3xtDjsIuSAjMl5EwzCUjsQc45ds1lC8='
+
+/** BRC-52 disabled revocation sentinel (`txid.vout`). */
+export const DISABLED_REVOCATION_OUTPOINT = `${'00'.repeat(32)}.0`
+
 export const BAP_PROTOCOL_ID: [0 | 1 | 2, string] = [1, 'sigma']
 export const BAP_KEY_ID = 'identity'
 export const BAP_BITCOM_ADDRESS = '1BAPSuaPnfGnSBM3GLV9yhxUdYe4vGbdMT'
@@ -444,9 +501,71 @@ export const BAP_BITCOM_ADDRESS = '1BAPSuaPnfGnSBM3GLV9yhxUdYe4vGbdMT'
 export const ORD_LOCK_PREFIX =
 	'2097dfd76851bf465e8f715593b217714858bbe9570ff3bd5e33840a34e20ff0262102ba79df5f8ae7604a9830f03c7933028186aede0675a16f025dc4f8be8eec0382201008ce7480da41702918d1ec8e6849ba32b4d65b1e40dc669c31a1e6306b266c0000'
 
+/** Thrown / returned when a v1 OrdLock listing-create path is invoked. List via OrdLock v2 (`sellOrdinal`); buy and cancel stay on. */
+export const ORDLOCK_LISTING_CREATE_DISABLED =
+	'OrdLock v1 listing create is deprecated. List via OrdLock v2 (`sellOrdinal`). Buy and cancel of existing listings remain available.'
+
 /** OrdLock locking script suffix (hex) */
 export const ORD_LOCK_SUFFIX =
 	'615179547a75537a537a537a0079537a75527a527a7575615579008763567901c161517957795779210ac407f0e4bd44bfc207355a778b046225a7068fc59ee7eda43ad905aadbffc800206c266b30e6a1319c66dc401e5bd6b432ba49688eecd118297041da8074ce081059795679615679aa0079610079517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e01007e81517a75615779567956795679567961537956795479577995939521414136d08c5ed2bf3ba048afe6dcaebafeffffffffffffffffffffffffffffff00517951796151795179970079009f63007952799367007968517a75517a75517a7561527a75517a517951795296a0630079527994527a75517a6853798277527982775379012080517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e01205279947f7754537993527993013051797e527e54797e58797e527e53797e52797e57797e0079517a75517a75517a75517a75517a75517a75517a75517a75517a75517a75517a75517a75517a756100795779ac517a75517a75517a75517a75517a75517a75517a75517a75517a7561517a75517a756169587951797e58797eaa577961007982775179517958947f7551790128947f77517a75517a75618777777777777777777767557951876351795779a9876957795779ac777777777777777767006868'
+
+// ============================================================================
+// OrdLock v2 (Rúnar `OrdLockV2Batch`, SIGHASH_SINGLE payout binding)
+// ============================================================================
+//
+// Everything script-shaped below is DERIVED from the vendored compiled artifact
+// (./ordlockV2Artifact.ts). Only the contract-level literal that is not part
+// of the ABI (the cancel marker) is stated here.
+
+/** OrdLock v2 compiled template (hex) with OP_0 placeholders at the constructor slots. */
+export const ORD_LOCK_V2_TEMPLATE: string = ORD_LOCK_V2_ARTIFACT.script
+
+/**
+ * OrdLock v2 constructor slots. Params (per `abi.constructor.params`):
+ * 0 = seller (Addr, 20-B PKH), 1 = payOutput (serialized payout output).
+ */
+export const ORD_LOCK_V2_SLOTS: ReadonlyArray<RunarConstructorSlot> =
+	ORD_LOCK_V2_ARTIFACT.constructorSlots ?? []
+
+/** Byte offset of OP_CODESEPARATOR in the v2 script (inside the purchase branch, before both slots). */
+export const ORD_LOCK_V2_CODESEP_INDEX: number =
+	ORD_LOCK_V2_ARTIFACT.codeSeparatorIndex ?? -1
+
+if (ORD_LOCK_V2_SLOTS.length === 0 || ORD_LOCK_V2_CODESEP_INDEX < 0) {
+	throw new Error(
+		'OrdLockV2 artifact is missing constructorSlots or codeSeparatorIndex',
+	)
+}
+
+/**
+ * OrdLock v2 recognizer prefix (hex): the template bytes before the first
+ * constructor slot, identical for every v2 listing regardless of args.
+ */
+export const ORD_LOCK_V2_PREFIX: string = ORD_LOCK_V2_TEMPLATE.slice(
+	0,
+	Math.min(...ORD_LOCK_V2_SLOTS.map((s) => s.byteOffset)) * 2,
+)
+
+/**
+ * Basket tag applied to wallet-created OrdLock v2 listing outputs. Distinct
+ * from the v1 `ordlock` tag on purpose: cancel and sweep paths query both
+ * tags (`LISTING_TAGS`-style `['ordlock', 'ordlock2']`) and route each
+ * listing to its own cancel action. Matches the junglebus `ordlock2` output
+ * type name.
+ */
+export const ORDLOCK_V2_TAG = 'ordlock2'
+
+/** Tag on deposit-basket outputs prepared as OrdLock v2 purchase front funding. */
+export const ORDLOCK_FUNDING_TAG = 'ordlock-funding'
+
+/** Key id prefix (P1SAT protocol, counterparty self) for OrdLock funding outputs. */
+export const ORDLOCK_FUNDING_KEY_PREFIX = 'ordlock-funding'
+
+/** Basket tag applied to wallet-created OrdLock v1 listing outputs. */
+export const ORDLOCK_TAG = 'ordlock'
+
+/** Enforced cancel marker pushed first in a v2 cancel unlock: ASCII "ol2:cancel". */
+export const ORD_LOCK_V2_CANCEL_MARKER = '6f6c323a63616e63656c'
 
 // ============================================================================
 // Lock Template Scripts
@@ -502,6 +621,31 @@ export const IMAGE_CONTENT_TYPES = [
 ] as const
 
 // ============================================================================
+// BRC-42 Key Derivation
+// ============================================================================
+
+/**
+ * A single BRC-42 self-key identity: the triple that determines exactly which
+ * key a wallet derives and signs with. This is the spend-side counterpart to
+ * {@link AddressDerivation} (a BRC-29 remittance record) and is what actions
+ * like `sendMnee` need to (a) compute the address to look up and (b) sign with
+ * the matching key under the correct protocol.
+ *
+ * `protocolID` is a BRC-42 derivation input — the same `keyID` under two
+ * protocols yields different keys/addresses. Callers holding funds derived
+ * under a legacy protocol (e.g. {@link LEGACY_ONESAT_PROTOCOL}) must include
+ * those records alongside the current-protocol ones.
+ *
+ * `counterparty` is omitted for self-derived keys and defaults to `'self'`.
+ */
+export interface KeyDerivation {
+	protocolID: WalletProtocol
+	keyID: string
+	/** BRC-43 counterparty. Omit for self-derived keys (defaults to 'self'). */
+	counterparty?: WalletCounterparty
+}
+
+// ============================================================================
 // BRC-29 Address Derivation
 // ============================================================================
 
@@ -551,3 +695,30 @@ export const DEFAULT_STREAM_CHUNK_SIZE = 1024 * 1024
 export const ORDFS_STREAM_CONTENT_TYPE = 'ordfs/stream'
 /** Media-type parameter on the origin chunk (e.g. `video/mp4; stream=ordfs`) */
 export const ORDFS_STREAM_PARAM = 'stream=ordfs'
+
+// ============================================================================
+// BRC-232 transaction delivery and 1Color (BRC-162 tokens, BRC-207 wallet module)
+// ============================================================================
+//
+// 1Color wire names (`p color` protocols, baskets and plan labels, topics
+// `tm_color` / `tm_color_<assetId>`) come from `@bsv/color-permission-module`.
+
+/**
+ * BRC-33 box for BRC-232 transaction deliveries (1Color tokens, BRC-29
+ * outputs) and BRC-169 payments to a handle (envelopes with `payment` set).
+ * Legacy PeerPay payments arrive in `payment_inbox`.
+ */
+export const TRANSACTION_DELIVERY_BOX = 'transaction-delivery'
+
+/**
+ * Default `nosend expiry` for a protected BSV payment to a BRC-169 handle:
+ * one year, in seconds. Carried as the action label
+ * `p nosend expiry seconds <n>` (BRC-177).
+ */
+export const METANET_SEND_EXPIRY_SECONDS = 31536000
+
+/**
+ * Default `nosend expiry` for a 1Color send to a BRC-169 handle (the BRC-177
+ * handoff): one year, in seconds.
+ */
+export const COLOR_SEND_EXPIRY_SECONDS = 31536000

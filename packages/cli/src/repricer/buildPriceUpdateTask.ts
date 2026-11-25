@@ -1,5 +1,5 @@
 import { computeReprice } from './computeReprice.js'
-import type { RateProvider, RepricerBounds } from './types.js'
+import type { BsvUsdQuote, RateProvider, RepricerBounds } from './types.js'
 
 /** One price the repricer maintains from the shared BSV/USD quote. */
 export interface RepriceTarget {
@@ -20,6 +20,8 @@ export interface PriceUpdateTaskOptions {
 	intervalMs: number
 	bounds: RepricerBounds
 	targets: RepriceTarget[]
+	/** Called after a successful rate fetch, even when every target is skipped. */
+	onQuote?: (quote: BsvUsdQuote) => Promise<void>
 }
 
 export interface PriceUpdateTask {
@@ -47,7 +49,7 @@ export function buildPriceUpdateTask(
 		lastRunMsecsSinceEpoch: 0,
 		async asyncSetup() {},
 		trigger(now: number): { run: boolean } {
-			if (targets.length === 0) return { run: false }
+			if (targets.length === 0 && !options.onQuote) return { run: false }
 			if (now - this.lastRunMsecsSinceEpoch < intervalMs) return { run: false }
 			return { run: true }
 		},
@@ -57,6 +59,14 @@ export function buildPriceUpdateTask(
 				quote = await rateProvider.getBsvUsd()
 			} catch (err) {
 				return `rate fetch failed: ${(err as Error).message}`
+			}
+
+			if (options.onQuote) {
+				try {
+					await options.onQuote(quote)
+				} catch (err) {
+					return `quote persist failed: ${(err as Error).message}`
+				}
 			}
 
 			const parts: string[] = []

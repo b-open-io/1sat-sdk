@@ -91,7 +91,7 @@ function parseWindow(raw: string): number | undefined {
 /** Open the serve wallet's storage exactly as `1sat serve` resolves it. */
 async function openServeStorage(opts: GlobalFlags): Promise<StorageProvider> {
 	const config = loadConfig()
-	const chain = opts.chain ?? config.chain ?? 'main'
+	const chain = opts.chain
 	const storageConfig = config.server?.storage ?? { provider: 'bun-sqlite' }
 	const baseOptions = StorageProvider.createStorageBaseOptions(chain)
 
@@ -102,8 +102,8 @@ async function openServeStorage(opts: GlobalFlags): Promise<StorageProvider> {
 				'server.storage.provider is pg but server.storage.dbUrl is not set.',
 			)
 		}
-		const { StoragePg } = await import('@1sat/wallet-node')
-		storage = new StoragePg({ ...baseOptions, dbUrl: storageConfig.dbUrl })
+		const { StorageKnexPg } = await import('@1sat/wallet-node')
+		storage = new StorageKnexPg({ ...baseOptions, dbUrl: storageConfig.dbUrl })
 	} else {
 		storage = new StorageBunSqlite({
 			...baseOptions,

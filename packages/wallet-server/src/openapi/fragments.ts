@@ -18,13 +18,7 @@ export const TAG_DOCS: TagDoc[] = [
 		name: 'auth',
 		'x-displayName': 'Authentication',
 		description:
-			'BRC-103/104 mutual authentication. Complete one handshake here and the resulting peer session authenticates you on every authed endpoint below — storage, account, and messagebox.',
-	},
-	{
-		name: 'storage',
-		'x-displayName': 'Wallet storage',
-		description:
-			'Remote storage for BRC-100 wallets. A wallet-toolbox client connects here to persist and sync its outputs, actions, and certificates.',
+			'BRC-103/104 mutual authentication. Complete one handshake here and the resulting peer session authenticates you on every authed endpoint below — account and messagebox.',
 	},
 	{
 		name: 'account',
@@ -73,6 +67,41 @@ const paymentRequiredResponse = {
 	content: { 'application/json': { schema: errorSchema } },
 }
 
+export function exchangeRatePaths(): PathsFragment {
+	return {
+		'/exchange-rate': {
+			get: {
+				tags: ['auth'],
+				summary: 'BSV/USD exchange rate',
+				description:
+					'Last quote persisted by the host repricer (`server.exchangeRate`). Public. 404 when the repricer has not yet written a quote.',
+				responses: {
+					'200': {
+						description: 'Latest quote.',
+						content: {
+							'application/json': {
+								schema: {
+									type: 'object',
+									required: ['bsvUsd', 'timestamp', 'source'],
+									properties: {
+										bsvUsd: { type: 'number' },
+										timestamp: {
+											type: 'integer',
+											description: 'Unix ms',
+										},
+										source: { type: 'string' },
+									},
+								},
+							},
+						},
+					},
+					'404': { description: 'No quote stored yet.' },
+				},
+			},
+		},
+	}
+}
+
 export function authPaths(): PathsFragment {
 	return {
 		'/.well-known/auth': {
@@ -83,42 +112,6 @@ export function authPaths(): PathsFragment {
 					'Establishes a mutually authenticated peer session (BRC-103/104). One handshake authenticates the client for every authed surface on this server.',
 				responses: {
 					'200': { description: 'Handshake message accepted.' },
-				},
-			},
-		},
-	}
-}
-
-export function storagePaths(): PathsFragment {
-	return {
-		'/': {
-			post: {
-				tags: ['storage'],
-				summary: 'Wallet storage JSON-RPC',
-				description:
-					'JSON-RPC 2.0 endpoint exposing wallet-toolbox storage methods (`createAction`, `listOutputs`, `findOrInsertUser`, …) to remote BRC-100 wallets. When account metering is enabled, requests from over-capacity accounts fail with JSON-RPC error `-32005` (insufficient capacity).',
-				security: brc104,
-				requestBody: {
-					required: true,
-					content: {
-						'application/json': {
-							schema: {
-								type: 'object',
-								required: ['jsonrpc', 'id', 'method'],
-								properties: {
-									jsonrpc: { type: 'string', example: '2.0' },
-									id: { type: 'integer' },
-									method: { type: 'string' },
-									params: { type: 'array', items: {} },
-								},
-							},
-						},
-					},
-				},
-				responses: {
-					'200': {
-						description: 'JSON-RPC response (result or error object).',
-					},
 				},
 			},
 		},
@@ -271,7 +264,11 @@ export function registrationPaths(): PathsFragment {
 					'401': { description: 'Unauthenticated.' },
 					'409': {
 						description:
-							'Username held by another identity, or this identity already holds a different username.',
+							'Username held by another identity, this identity already holds a different username, or the name already carries a certificate for another identity or bind.',
+					},
+					'503': {
+						description:
+							'The host issues handle certificates but has no paymail user domain, so it registers no names.',
 					},
 				},
 			},
@@ -299,6 +296,41 @@ export function registrationPaths(): PathsFragment {
 					'400': { description: 'Invalid profile field.' },
 					'401': { description: 'Unauthenticated.' },
 					'404': { description: 'Identity has no registered account.' },
+				},
+			},
+		},
+		'/account/certify': {
+			post: {
+				tags: ['account'],
+				summary: 'Certify an OpNS name as paymail',
+				description:
+					'Proves the authenticated identity holds the named OpNS bind and issues a BRC-169 handle certificate. Requires a registered account. The bind outpoint becomes the certificate revocation outpoint.',
+				security: brc104,
+				requestBody: {
+					required: true,
+					content: {
+						'application/json': {
+							schema: {
+								type: 'object',
+								required: ['name', 'domain', 'outpoint'],
+								properties: {
+									name: { type: 'string' },
+									domain: { type: 'string' },
+									outpoint: {
+										type: 'string',
+										description:
+											'Current bind outpoint (`txid.vout` or `txid_vout`).',
+									},
+								},
+							},
+						},
+					},
+				},
+				responses: {
+					'200': { description: 'Certificate issued.' },
+					'400': { description: 'Invalid name, domain, or outpoint.' },
+					'401': { description: 'Unauthenticated.' },
+					'403': { description: 'No account, or bind is not this identity.' },
 				},
 			},
 		},

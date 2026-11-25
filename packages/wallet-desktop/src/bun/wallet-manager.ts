@@ -335,8 +335,8 @@ export async function lockAccount(accountId: string): Promise<void> {
 			level: 'log',
 			message: 'Wallet locked',
 		})
-		await instance.wallet.destroy()
 		wallets.delete(accountId)
+		await instance.wallet.destroy()
 	}
 }
 
@@ -345,8 +345,8 @@ export async function lockAccount(accountId: string): Promise<void> {
  */
 export async function lockAll(): Promise<void> {
 	for (const [accountId, instance] of wallets) {
-		await instance.wallet.destroy()
 		wallets.delete(accountId)
+		await instance.wallet.destroy()
 	}
 	setGlobalStatus('account-selection')
 }

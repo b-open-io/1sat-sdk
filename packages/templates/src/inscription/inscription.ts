@@ -423,10 +423,8 @@ export default class Inscription implements ScriptTemplate {
 				}
 			}
 
-			// Must have content to be valid
-			if (content.length === 0) {
-				return null
-			}
+			// Zero-length content is valid: the envelope and content type
+			// identify the inscription (an empty file is still a file).
 
 			// Calculate hash
 			const hash = new Uint8Array(Hash.sha256(Array.from(content)))

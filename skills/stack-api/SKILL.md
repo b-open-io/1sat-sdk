@@ -50,14 +50,14 @@ GET  /beef/{txid}/tx              Raw transaction bytes only
 GET  /beef/{txid}/proof           Merkle proof bytes only
 ```
 
-### Broadcasting (Arcade)
+### Broadcasting (Arcade wrap)
+
+Stack mounts these under `/1sat` (not `/arcade`). SSE and batch `/txs` are not wrapped.
 
 ```
-POST /arcade/tx                   Broadcast single BEEF transaction
-POST /arcade/txs                  Broadcast multiple BEEF transactions
-GET  /arcade/tx/{txid}            Check broadcast status
-GET  /arcade/policy               Fee rates and transaction limits
-GET  /arcade/events/{token}       SSE stream of broadcast status updates
+POST /tx                          Broadcast single tx/BEEF (wait for status)
+GET  /tx/{txid}                   Broadcast status
+GET  /tx/policy                   Arcade mining policy (fee + size limits)
 ```
 
 ### BSV21 Fungible Tokens
@@ -204,7 +204,7 @@ es.addEventListener('error', () => es.close());
 ### Broadcast a Transaction
 
 ```typescript
-const res = await fetch('https://api.1sat.app/1sat/arcade/tx', {
+const res = await fetch('https://api.1sat.app/1sat/tx', {
   method: 'POST',
   headers: { 'Content-Type': 'application/octet-stream' },
   body: beefHex  // BEEF format

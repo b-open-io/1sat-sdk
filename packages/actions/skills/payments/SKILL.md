@@ -1,6 +1,6 @@
 ---
 name: payments
-description: "This skill should be used when sending BSV with the 1sat-sdk — single payments, batch payments to multiple recipients, paymail sends, OP_RETURN data, custom locking scripts, inscriptions attached to a payment, sweeping a wallet's whole balance to one destination, or deriving deposit addresses to receive BSV. Triggers on 'send BSV', 'payment', 'batch payment', 'pay to paymail', 'OP_RETURN', 'send all BSV', 'sweep balance', 'deposit address', 'receive BSV', or 'derive address'. Uses @1sat/actions."
+description: "This skill should be used when sending BSV with the 1sat-sdk — single payments, batch payments to multiple recipients, payments to a BRC-169 handle (@handle@domain), paymail sends, receiving handle payments from the transaction-delivery box, OP_RETURN data, custom locking scripts, inscriptions attached to a payment, sweeping a wallet's whole balance to one destination, or deriving deposit addresses to receive BSV. Triggers on 'send BSV', 'payment', 'batch payment', 'pay a handle', 'BRC-169', 'transaction-delivery', 'pay to paymail', 'OP_RETURN', 'send all BSV', 'sweep balance', 'deposit address', 'receive BSV', or 'derive address'. Uses @1sat/actions."
 ---
 
 # Payments
@@ -20,7 +20,7 @@ const result = await sendBsv.execute(ctx, input)
 
 ## sendBsv
 
-Send BSV to one or more destinations in a single transaction. **Single-phase** — it calls `wallet.createAction` directly and does not use two-phase signing. Plain sends carry no P1Sat semantics (no asset inputs, no basketed outputs).
+Send BSV to one or more destinations in a single transaction. **Single-phase** — it calls `wallet.createAction` directly and does not use two-phase signing. Plain sends carry no P1Sat semantics (no asset inputs, no basketed outputs). A payment to a BRC-169 handle is different: see [Paying a handle](#paying-a-handle-brc-169).
 
 ### Input
 
@@ -32,7 +32,9 @@ interface SendBsvInput {
 
 interface SendBsvRequest {
   address?: string   // destination P2PKH address
-  paymail?: string   // destination paymail
+  handle?: string    // BRC-169 handle: '@handle@domain' or 'handle@domain' (see below)
+  paymail?: string   // destination paymail — deprecated; tried as a handle first
+  memo?: string      // memo for a handle payment (text/plain envelope content)
   satoshis: number   // amount in satoshis (required)
   script?: string    // custom locking script (hex)
   data?: string[]    // OP_RETURN data elements
@@ -45,7 +47,13 @@ interface SendBsvRequest {
 }
 ```
 
-Each request resolves to exactly one output, chosen by which field is set (precedence): `paymail` → `script` → `address` (with optional `inscription`) → `data` (OP_RETURN). A request with none of these returns `{ error: 'invalid-request' }`.
+Each request resolves to exactly one output, chosen by which field is set (precedence): `handle`/`paymail` → `script` → `address` (with optional `inscription`) → `data` (OP_RETURN). A request with none of these returns `{ error: 'invalid-request' }`.
+
+### Destination rules: handle first, then paymail
+
+- `'@handle@domain'` (optional `+tag`: `'@handle+tag@domain'`) is **BRC-169 only** — resolution errors are returned, there is no paymail fallback.
+- A bare `'handle@domain'` — in `handle` or in the existing `paymail` field — is tried as BRC-169 first: `GET https://<domain>/manifest.json`; when it carries `metanet.handles` the payment goes to the handle, otherwise (404, not JSON, or no `metanet.handles`) it is sent by paymail exactly as before.
+- Paymail is to be deprecated. New code should use `handle`.
 
 ### Response
 
@@ -53,6 +61,8 @@ Each request resolves to exactly one output, chosen by which field is set (prece
 interface SendBsvResponse {
   txid?: string
   tx?: number[]   // AtomicBEEF (BRC-95)
+  delivered?: 'envelope' // handle payments: delivered to the handle's messagebox, not broadcast
+  messageId?: string     // handle payments: messagebox message id
   error?: string
 }
 ```
@@ -73,8 +83,16 @@ await sendBsv.execute(ctx, {
   ],
 })
 
-// Paymail (resolves the recipient's outputs via P2P payment destination,
-// then delivers the BEEF P2P after broadcast)
+// BRC-169 handle (protected noSend BRC-29 payment, delivered in a signed
+// envelope to the handle's transaction-delivery box; the recipient broadcasts)
+const paid = await sendBsv.execute(ctx, {
+  requests: [{ handle: '@alice@example.com', satoshis: 25000, memo: 'lunch' }],
+})
+// paid.delivered === 'envelope', paid.messageId
+
+// Paymail (deprecated; tried as a BRC-169 handle first, then resolves the
+// recipient's outputs via P2P payment destination and delivers the BEEF P2P
+// after broadcast)
 await sendBsv.execute(ctx, {
   requests: [{ paymail: 'alice@example.com', satoshis: 25000 }],
 })
@@ -102,6 +120,38 @@ await sendBsv.execute(ctx, {
 })
 ```
 
+### Paying a handle (BRC-169)
+
+BRC-169 §6.1, delivered the same way as `send1Color`:
+
+1. `resolveHandle` → the recipient's identity key and messagebox.
+2. A BRC-29 output: `getPublicKey({ protocolID: [2, '3241645161d8'], keyID: '<derivationPrefix> <derivationSuffix>', counterparty: identityKey })` with fresh random base64 prefix/suffix, P2PKH to that key, `satoshis` as requested.
+3. One `createAction` with that single output, `options: { noSend: true, randomizeOutputs: false }`, label `p nosend expiry seconds 31536000` (`METANET_SEND_EXPIRY_SECONDS`): a BRC-177 protected `noSend` action the wallet funds. The sender never broadcasts it.
+4. A signed §7.3 DAG-CBOR envelope to the resolved messagebox, box **`transaction-delivery`** (`TRANSACTION_DELIVERY_BOX`): `payment: { derivationPrefix, derivationSuffix, protocol: '3241645161d8', satoshis, beef }` (byte strings; `beef` is the action's Atomic BEEF), `content` = BRC-78 encryption of `Content-Type: text/plain; charset=utf-8` + the memo, `contentHash` = SHA-256 of those bytes.
+
+A handle payment must be the only request (`{ error: 'handle-payment-must-be-the-only-request' }` otherwise); `fundingProvider` does not apply to it. When delivery fails the result carries `txid`, `tx` and `error: 'delivery-failed: …'`, so the caller can retry delivery or `abortAction` the send.
+
+### Receiving handle payments: syncTransactionInbox
+
+```typescript
+import { createContext, syncTransactionInbox } from '@1sat/actions'
+
+const { received, skipped, error } = await syncTransactionInbox.execute(ctx, {
+  overlay: 'https://overlay.example', // optional; needed for 1Color receipts (submitted there first)
+  // overlayFor: async (assetId) => origin, // optional; per-asset overlay, wins over `overlay`
+  messageboxUrl: 'https://messagebox.1sat.app', // default
+})
+```
+
+Lists `transaction-delivery`, verifies each envelope's signature against `sender.identityKey`, decrypts `content`, checks `contentHash`, then internalizes `payment` as a `wallet payment` of output 0 with `paymentRemittance { derivationPrefix, derivationSuffix, senderIdentityKey }`, label `metanet payment`, the memo in the description. BRC-232 transaction deliveries in the same box (1Color tokens, BRC-29 outputs) are processed as the tokens skill describes. A message is acknowledged only after its internalize succeeds; anything else (JSON envelope, bad signature or hash, nothing to internalize) stays in the box and is listed in `skipped` with the reason. `1sat messagebox sync` runs it after the PeerPay sync (pass `--overlay <url>` to receive 1Color tokens; without an overlay, messages with 1Color receipts stay in the box with reason `overlay-required`).
+
+### Message boxes
+
+| Box | Carries | Synced by |
+|-----|---------|-----------|
+| `transaction-delivery` | BRC-232 deliveries (1Color tokens, BRC-29 outputs) and BRC-169 payments to a handle | `syncTransactionInbox` |
+| `payment_inbox` | legacy PeerPay / paymail remittances | `syncMessages` |
+
 ### Notes
 
 - **Paymail** sends call `getP2pPaymentDestination` to fetch the recipient's outputs and a reference, then deliver the transaction BEEF P2P (`sendBeefP2P`) after broadcast. The AtomicBEEF returned by `createAction` is converted to plain BEEF (BRC-62) before delivery.
@@ -110,7 +160,7 @@ await sendBsv.execute(ctx, {
 
 ## sendAllBsv
 
-Sweep the wallet's entire spendable balance to a single destination address. **Single-phase** like `sendBsv`. Uses the wallet's max-fundable sentinel so the output is adjusted to all available funds minus fees.
+Sweep the wallet's entire spendable balance to a single destination address. **Single-phase** like `sendBsv`. `createAction`s one output with `satoshis: 2099999999999999`; storage shrinks that to leftover-after-fee. Call this on the underlying Wallet, not WalletPermissionsManager — WPM rejects the rewritten amount.
 
 ### Input
 

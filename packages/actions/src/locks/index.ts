@@ -127,7 +127,8 @@ export const listLocks: Action<ListLocksInput, ListLocksResult> = {
 		return {
 			outputs: result.outputs,
 			BEEF: result.BEEF,
-			totalOutputs: result.totalOutputs,
+			// A decimal string only for `p <module> balance` selectors (@bsv/sdk 4).
+			totalOutputs: Number(result.totalOutputs),
 		}
 	},
 }
@@ -232,7 +233,7 @@ export const lockBsv: Action<LockBsvInput, LockOperationResponse> = {
 				counterparty: 'self',
 				forSelf: true,
 			})
-			const lockAddress = PublicKey.fromString(publicKey).toAddress()
+			const lockAddress = PublicKey.fromString(publicKey).toAddress(ctx.chain)
 
 			const outputs: CreateActionOutput[] = []
 			for (const req of requests) {

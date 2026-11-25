@@ -1,9 +1,21 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import type { Server } from 'node:http'
+import { PrivateKey } from '@bsv/sdk'
 import express, { type Express } from 'express'
 import knexLib from 'knex'
 import type { Knex } from 'knex'
-import { mountRegistrationRoutes } from '../src/accounts/registrationRoutes'
+import { KnexHandleCertStore } from '../src/accounts/certs'
+import {
+	DISABLED_REVOCATION_OUTPOINT,
+	HandleCertConflictError,
+	ensureUserDomainCert,
+	issueHandleCert,
+} from '../src/accounts/issueCert'
+import {
+	NO_USER_DOMAIN_ERROR,
+	mountRegistrationRoutes,
+	registrationStatus,
+} from '../src/accounts/registrationRoutes'
 import {
 	AlreadyRegisteredError,
 	KnexAccountStore,
@@ -20,6 +32,7 @@ import type { PendingStore } from '../src/paymail/types'
 const IDENTITY_A = '02'.padEnd(66, 'a')
 const IDENTITY_B = '03'.padEnd(66, 'b')
 const ORIGIN = `${'ab'.repeat(32)}_0`
+const BIND_OUTPOINT = `${'cd'.repeat(32)}.0`
 
 const pendingStore: PendingStore = {
 	async create() {},
@@ -307,7 +320,13 @@ describe('mountPaymailRoutes domain dispatch', () => {
 		expect(res.status).toBe(200)
 		const body = (await res.json()) as { name: string; avatar: string }
 		expect(body.name).toBe('Alice A.')
-		expect(body.avatar).toBe('')
+		expect(body.avatar).toBe('https://1sat.app/bsvalias/default-avatar.svg')
+	})
+
+	test('default avatar is served as svg', async () => {
+		const res = await fetch(`${base}/bsvalias/default-avatar.svg`)
+		expect(res.status).toBe(200)
+		expect(res.headers.get('content-type')).toContain('image/svg+xml')
 	})
 
 	test('unknown alias on userDomain is 404', async () => {
@@ -337,5 +356,368 @@ describe('mountPaymailRoutes domain dispatch', () => {
 		expect(proxiedDoc.capabilities.pki).toBe(
 			'https://1sat.app/bsvalias/id/{alias}@{domain.tld}',
 		)
+	})
+})
+
+describe('handle certs', () => {
+	let db: Knex
+
+	beforeAll(async () => {
+		db = memoryKnex()
+	})
+
+	afterAll(async () => {
+		await db.destroy()
+	})
+
+	test('issue and store a 1sat.app handle cert', async () => {
+		const store = new KnexHandleCertStore(db)
+		await store.init()
+		const host = PrivateKey.fromRandom()
+		const subject = PrivateKey.fromRandom().toPublicKey().toString()
+		const issued = await issueHandleCert({
+			store,
+			hostPrivateKey: host,
+			subject,
+			handle: 'alice',
+			domain: '1sat.app',
+			revocationOutpoint: DISABLED_REVOCATION_OUTPOINT,
+		})
+		expect(issued.handle).toBe('alice')
+		expect(issued.domain).toBe('1sat.app')
+		expect(issued.subject).toBe(subject)
+		expect(issued.certifier).toBe(host.toPublicKey().toString())
+		expect(issued.signature.length).toBeGreaterThan(0)
+		const again = await issueHandleCert({
+			store,
+			hostPrivateKey: host,
+			subject,
+			handle: 'alice',
+			domain: '1sat.app',
+			revocationOutpoint: DISABLED_REVOCATION_OUTPOINT,
+		})
+		expect(again.serialNumber).toBe(issued.serialNumber)
+	})
+
+	test('register issues a cert when certs deps are set', async () => {
+		const accounts = new KnexAccountStore(db)
+		await accounts.init()
+		const certs = new KnexHandleCertStore(db)
+		await certs.init()
+		const host = PrivateKey.fromRandom()
+		const subject = PrivateKey.fromRandom().toPublicKey().toString()
+
+		const app = express()
+		app.use(express.json())
+		app.use('/account', (req, _res, next) => {
+			;(req as { auth?: { identityKey: string } }).auth = {
+				identityKey: subject,
+			}
+			next()
+		})
+		mountRegistrationRoutes(app, '/', {
+			store: accounts,
+			certs: {
+				store: certs,
+				hostPrivateKey: host,
+				userDomain: '1sat.app',
+				stackUrl: 'http://127.0.0.1:1',
+			},
+		})
+		const { server, base } = await listen(app)
+		try {
+			const res = await fetch(`${base}/account/register`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ username: 'carol' }),
+			})
+			expect(res.status).toBe(200)
+			const body = (await res.json()) as {
+				username: string
+				certificate?: { type: string; subject: string }
+			}
+			expect(body.username).toBe('carol')
+			expect(body.certificate?.subject).toBe(subject)
+			const stored = await certs.get('carol', '1sat.app')
+			expect(stored?.subject).toBe(subject)
+		} finally {
+			await new Promise<void>((resolve) => server.close(() => resolve()))
+		}
+	})
+})
+
+describe('handle certs are never left unissued', () => {
+	let db: Knex
+
+	beforeAll(async () => {
+		db = memoryKnex()
+	})
+
+	afterAll(async () => {
+		await db.destroy()
+	})
+
+	async function stores() {
+		const accounts = new KnexAccountStore(db)
+		await accounts.init()
+		const certs = new KnexHandleCertStore(db)
+		await certs.init()
+		return { accounts, certs }
+	}
+
+	test('register is refused, and the name left free, without a user domain', async () => {
+		const { accounts, certs } = await stores()
+		const subject = PrivateKey.fromRandom().toPublicKey().toString()
+		const app = express()
+		app.use(express.json())
+		app.use('/account', (req, _res, next) => {
+			;(req as { auth?: { identityKey: string } }).auth = {
+				identityKey: subject,
+			}
+			next()
+		})
+		mountRegistrationRoutes(app, '/', {
+			store: accounts,
+			certs: {
+				store: certs,
+				hostPrivateKey: PrivateKey.fromRandom(),
+				stackUrl: 'http://127.0.0.1:1',
+			},
+		})
+		const { server, base } = await listen(app)
+		try {
+			const res = await fetch(`${base}/account/register`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ username: 'dave' }),
+			})
+			expect(res.status).toBe(503)
+			const body = (await res.json()) as { error: string }
+			expect(body.error).toBe(NO_USER_DOMAIN_ERROR)
+			expect(await accounts.getByUsername('dave')).toBeNull()
+			expect(await accounts.getByIdentity(subject)).toBeNull()
+		} finally {
+			await new Promise<void>((resolve) => server.close(() => resolve()))
+		}
+	})
+
+	test('status issues the missing cert of an account registered without one', async () => {
+		const { accounts, certs } = await stores()
+		const host = PrivateKey.fromRandom()
+		const subject = PrivateKey.fromRandom().toPublicKey().toString()
+		await accounts.register(subject, 'erin', {})
+		expect(await certs.get('erin', '1sat.app')).toBeNull()
+
+		const status = await registrationStatus(accounts, subject, certs, {
+			store: certs,
+			hostPrivateKey: host,
+			userDomain: '1sat.app',
+			stackUrl: 'http://127.0.0.1:1',
+		})
+		expect(status.registrationEnabled).toBe(true)
+		expect(status.handles).toEqual([
+			{
+				handle: 'erin',
+				domain: '1sat.app',
+				revocationOutpoint: DISABLED_REVOCATION_OUTPOINT,
+			},
+		])
+		const stored = await certs.get('erin', '1sat.app')
+		expect(stored?.subject).toBe(subject)
+		expect(stored?.certifier).toBe(host.toPublicKey().toString())
+
+		// Registering again returns that same cert.
+		const app = express()
+		app.use(express.json())
+		app.use('/account', (req, _res, next) => {
+			;(req as { auth?: { identityKey: string } }).auth = {
+				identityKey: subject,
+			}
+			next()
+		})
+		mountRegistrationRoutes(app, '/', {
+			store: accounts,
+			certs: {
+				store: certs,
+				hostPrivateKey: host,
+				userDomain: '1sat.app',
+				stackUrl: 'http://127.0.0.1:1',
+			},
+		})
+		const { server, base } = await listen(app)
+		try {
+			const res = await fetch(`${base}/account/register`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ username: 'erin' }),
+			})
+			expect(res.status).toBe(200)
+			const body = (await res.json()) as {
+				certificate?: { serialNumber: string }
+			}
+			expect(body.certificate?.serialNumber).toBe(stored?.serialNumber)
+		} finally {
+			await new Promise<void>((resolve) => server.close(() => resolve()))
+		}
+	})
+
+	test('status still reports the account when certs have no user domain', async () => {
+		const { accounts, certs } = await stores()
+		await accounts.register(IDENTITY_B, 'hank', {})
+		const status = await registrationStatus(accounts, IDENTITY_B, certs, {
+			store: certs,
+			hostPrivateKey: PrivateKey.fromRandom(),
+			stackUrl: 'http://127.0.0.1:1',
+		})
+		expect(status.registrationEnabled).toBe(true)
+		expect(status.account?.username).toBe('hank')
+		expect(status.handles).toEqual([])
+	})
+
+	test('a cert bound to another identity or an on-chain name is never replaced', async () => {
+		const { accounts, certs } = await stores()
+		const host = PrivateKey.fromRandom()
+		const opnsOwner = PrivateKey.fromRandom().toPublicKey().toString()
+		const accountHolder = PrivateKey.fromRandom().toPublicKey().toString()
+		const bound = await issueHandleCert({
+			store: certs,
+			hostPrivateKey: host,
+			subject: opnsOwner,
+			handle: 'ivan',
+			domain: '1sat.app',
+			revocationOutpoint: BIND_OUTPOINT,
+		})
+		const issuer = {
+			store: certs,
+			hostPrivateKey: host,
+			userDomain: '1sat.app',
+			stackUrl: 'http://127.0.0.1:1',
+		}
+
+		// Another identity's account with the same username.
+		await accounts.register(accountHolder, 'ivan', {})
+		await registrationStatus(accounts, accountHolder, certs, issuer)
+		expect((await certs.get('ivan', '1sat.app'))?.serialNumber).toBe(
+			bound.serialNumber,
+		)
+
+		// The owner's own on-chain bound cert is not downgraded either.
+		await expect(
+			ensureUserDomainCert(issuer, '1sat.app', opnsOwner, 'ivan'),
+		).rejects.toBeInstanceOf(HandleCertConflictError)
+		expect((await certs.get('ivan', '1sat.app'))?.revocationOutpoint).toBe(
+			BIND_OUTPOINT,
+		)
+
+		// Registration refuses before claiming the name.
+		const claimant = PrivateKey.fromRandom().toPublicKey().toString()
+		await issueHandleCert({
+			store: certs,
+			hostPrivateKey: host,
+			subject: opnsOwner,
+			handle: 'judy',
+			domain: '1sat.app',
+			revocationOutpoint: BIND_OUTPOINT,
+		})
+		const app = express()
+		app.use(express.json())
+		app.use('/account', (req, _res, next) => {
+			;(req as { auth?: { identityKey: string } }).auth = {
+				identityKey: claimant,
+			}
+			next()
+		})
+		mountRegistrationRoutes(app, '/', { store: accounts, certs: issuer })
+		const { server, base } = await listen(app)
+		try {
+			const res = await fetch(`${base}/account/register`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ username: 'judy' }),
+			})
+			expect(res.status).toBe(409)
+			expect(await accounts.getByUsername('judy')).toBeNull()
+		} finally {
+			await new Promise<void>((resolve) => server.close(() => resolve()))
+		}
+
+		expect(await certs.hasBoundCerts('1sat.app')).toBe(true)
+		expect(await certs.hasBoundCerts('other.app')).toBe(false)
+	})
+
+	test('paymail lookup issues the missing cert and resolves the name', async () => {
+		const { accounts, certs } = await stores()
+		const subject = PrivateKey.fromRandom().toPublicKey().toString()
+		await accounts.register(subject, 'frank', {})
+
+		const app = express()
+		await mountPaymailRoutes(app, {
+			baseUrl: 'https://1sat.app',
+			stackUrl: 'http://127.0.0.1:1',
+			pendingStore,
+			userDomain: '1sat.app',
+			accountStore: accounts,
+			certStore: certs,
+			hostPrivateKey: PrivateKey.fromRandom(),
+		})
+		const { server, base } = await listen(app)
+		try {
+			const res = await fetch(`${base}/bsvalias/id/frank@1sat.app`)
+			expect(res.status).toBe(200)
+			const body = (await res.json()) as { pubkey: string }
+			expect(body.pubkey).toBe(subject)
+			expect((await certs.get('frank', '1sat.app'))?.subject).toBe(subject)
+
+			const unknown = await fetch(`${base}/bsvalias/id/nobody@1sat.app`)
+			expect(unknown.status).toBe(404)
+			expect(await certs.get('nobody', '1sat.app')).toBeNull()
+		} finally {
+			await new Promise<void>((resolve) => server.close(() => resolve()))
+		}
+	})
+
+	test('a racing issue returns the cert that won the store', async () => {
+		const { certs } = await stores()
+		const host = PrivateKey.fromRandom()
+		const subject = PrivateKey.fromRandom().toPublicKey().toString()
+		const winner = await issueHandleCert({
+			store: certs,
+			hostPrivateKey: host,
+			subject,
+			handle: 'gina',
+			domain: '1sat.app',
+			revocationOutpoint: DISABLED_REVOCATION_OUTPOINT,
+		})
+		// A store that saw no cert on the first read, then loses the insert.
+		let reads = 0
+		const racing = {
+			get: async (handle: string, domain: string) =>
+				reads++ === 0 ? null : certs.get(handle, domain),
+			listBySubject: (s: string) => certs.listBySubject(s),
+			put: async () => {
+				throw new Error('UNIQUE constraint failed')
+			},
+		}
+		const issued = await issueHandleCert({
+			store: racing,
+			hostPrivateKey: host,
+			subject,
+			handle: 'gina',
+			domain: '1sat.app',
+			revocationOutpoint: DISABLED_REVOCATION_OUTPOINT,
+		})
+		expect(issued.serialNumber).toBe(winner.serialNumber)
+
+		const other = PrivateKey.fromRandom().toPublicKey().toString()
+		await expect(
+			issueHandleCert({
+				store: racing,
+				hostPrivateKey: host,
+				subject: other,
+				handle: 'gina',
+				domain: '1sat.app',
+				revocationOutpoint: DISABLED_REVOCATION_OUTPOINT,
+			}),
+		).rejects.toThrow('UNIQUE constraint failed')
 	})
 })

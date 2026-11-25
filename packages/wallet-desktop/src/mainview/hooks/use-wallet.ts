@@ -17,11 +17,13 @@ import type {
 	OpnsNameInfo,
 	OpnsOperationParams,
 	OpnsOperationResult,
+	OpnsRegisterParams,
 	OrdinalInfo,
 	PublishIdentityResult,
 	ReceiveInfo,
 	SendBsv21Params,
 	SendBsv21Result,
+	SendRecipientResolution,
 	SocialPostResult,
 	SweepResultInfo,
 	SweepScanResult,
@@ -61,7 +63,11 @@ interface UseWalletReturn {
 	) => Promise<{ success: boolean; error?: string }>
 	// Wallet lifecycle
 	lockWallet: () => Promise<{ success: boolean }>
-	sendBsv: (address: string, amount: number) => Promise<{ txid: string }>
+	sendBsv: (
+		recipient: { address: string } | { handle: string },
+		amount: number,
+	) => Promise<{ txid: string }>
+	resolveSendRecipient: (handle: string) => Promise<SendRecipientResolution>
 	getReceiveInfo: () => Promise<ReceiveInfo>
 	generateMnemonic: () => Promise<string>
 	getOrdinals: (
@@ -91,7 +97,7 @@ interface UseWalletReturn {
 	) => Promise<SocialPostResult>
 	getIdentity: () => Promise<IdentityInfo>
 	publishIdentity: () => Promise<PublishIdentityResult>
-	opnsRegister: (params: OpnsOperationParams) => Promise<OpnsOperationResult>
+	opnsRegister: (params: OpnsRegisterParams) => Promise<OpnsOperationResult>
 	opnsDeregister: (params: OpnsOperationParams) => Promise<OpnsOperationResult>
 	mintCollection: (
 		params: MintCollectionParams,
@@ -195,8 +201,18 @@ export function useWallet(): UseWalletReturn {
 		return rpc.request.deleteAccount({ accountId })
 	}, [])
 
-	const sendBsv = useCallback(async (address: string, amount: number) => {
-		return rpc.request.sendBsv({ address, amount })
+	const sendBsv = useCallback(
+		async (
+			recipient: { address: string } | { handle: string },
+			amount: number,
+		) => {
+			return rpc.request.sendBsv({ ...recipient, amount })
+		},
+		[],
+	)
+
+	const resolveSendRecipient = useCallback(async (handle: string) => {
+		return rpc.request.resolveSendRecipient({ handle })
 	}, [])
 
 	const getReceiveInfo = useCallback(async () => {
@@ -277,7 +293,7 @@ export function useWallet(): UseWalletReturn {
 		return rpc.request.publishIdentity()
 	}, [])
 
-	const opnsRegister = useCallback(async (params: OpnsOperationParams) => {
+	const opnsRegister = useCallback(async (params: OpnsRegisterParams) => {
 		return rpc.request.opnsRegister(params)
 	}, [])
 
@@ -311,6 +327,7 @@ export function useWallet(): UseWalletReturn {
 		deleteAccount,
 		lockWallet,
 		sendBsv,
+		resolveSendRecipient,
 		getReceiveInfo,
 		generateMnemonic,
 		getOrdinals,

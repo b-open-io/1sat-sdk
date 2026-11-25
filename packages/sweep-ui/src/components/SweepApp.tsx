@@ -1,3 +1,4 @@
+import { groupBsv20Tokens } from '@1sat/actions'
 import { PrivateKey, type WalletInterface } from '@bsv/sdk'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Toaster, toast } from 'sonner'
@@ -12,7 +13,16 @@ import {
 	deriveAddress,
 	scanAddresses,
 } from '../lib/scanner'
-import { executeSweep, sweepBsv21Token } from '../lib/sweeper'
+import {
+	type SweepClass,
+	executeSweep,
+	isSweepAllDisabled,
+	selectAllSweepClasses,
+	showClassSkips,
+	sweepAllClasses,
+	sweepBsv20Token,
+	sweepBsv21Token,
+} from '../lib/sweeper'
 import { getWallet } from '../lib/wallet'
 import type { LegacyKeys } from '../types'
 import {
@@ -27,10 +37,11 @@ import { ConnectWallet } from './connect-wallet'
 import { OpnsSection } from './opns-section'
 import { TxHistory, type TxRecord } from './tx-history'
 import { Badge } from './ui/badge'
+import { Button } from './ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
 import { WifInput } from './wif-input'
 
-type TabId = 'ordinals' | 'opns' | 'bsv21' | 'bsv20' | 'locks' | 'run'
+type TabId = 'ordinals' | 'opns' | 'bsv20' | 'bsv21' | 'locks' | 'run'
 
 export interface SweepAppProps {
 	legacyKeys?: LegacyKeys
@@ -51,12 +62,17 @@ export function SweepApp({
 	const [sweeping, setSweeping] = useState(false)
 	const [sweepProgress, setSweepProgress] = useState('')
 	const [txHistory, setTxHistory] = useState<TxRecord[]>([])
+	const [cancelledListings, setCancelledListings] = useState(0)
 	const [selectedOrdinals, setSelectedOrdinals] = useState<Set<string>>(
 		new Set(),
 	)
 	const [selectedOpns, setSelectedOpns] = useState<Set<string>>(new Set())
 	const [sweepAmount, setSweepAmount] = useState<number | null>(null)
 	const [activeTab, setActiveTab] = useState<TabId>('ordinals')
+	/** Classes excluded from Sweep-all (CLI `--skip` equivalent). Empty = all. */
+	const [skippedClasses, setSkippedClasses] = useState<Set<SweepClass>>(
+		new Set(),
+	)
 
 	useEffect(() => {
 		setWalletConnected(!!externalWallet)
@@ -93,6 +109,19 @@ export function SweepApp({
 		])
 	}, [])
 
+	const addCancelled = useCallback((count: number) => {
+		if (count > 0) setCancelledListings((prev) => prev + count)
+	}, [])
+
+	const groupedBsv20 = useMemo(
+		() => (assets ? groupBsv20Tokens(assets.bsv20Tokens) : []),
+		[assets],
+	)
+	const unparsedBsv20 = assets
+		? assets.bsv20Tokens.length -
+			groupedBsv20.reduce((n, t) => n + t.outputs.length, 0)
+		: 0
+
 	const tabs = useMemo(() => {
 		if (!assets) return []
 		const t: { id: TabId; label: string; count: number }[] = []
@@ -104,16 +133,24 @@ export function SweepApp({
 			})
 		if (assets.opnsNames.length > 0)
 			t.push({ id: 'opns', label: 'OpNS', count: assets.opnsNames.length })
+		if (groupedBsv20.length > 0 || unparsedBsv20 > 0)
+			t.push({
+				id: 'bsv20',
+				label: 'BSV-20',
+				count: groupedBsv20.reduce((n, tok) => n + tok.outputs.length, 0),
+			})
 		if (assets.bsv21Tokens.length > 0)
-			t.push({ id: 'bsv21', label: 'BSV-21', count: assets.bsv21Tokens.length })
-		if (assets.bsv20Tokens.length > 0)
-			t.push({ id: 'bsv20', label: 'BSV-20', count: assets.bsv20Tokens.length })
+			t.push({
+				id: 'bsv21',
+				label: 'BSV-21',
+				count: assets.bsv21Tokens.reduce((n, tok) => n + tok.outputs.length, 0),
+			})
 		if (assets.locked.length > 0)
 			t.push({ id: 'locks', label: 'Locks', count: assets.locked.length })
 		if (assets.run.length > 0)
 			t.push({ id: 'run', label: 'RUN', count: assets.run.length })
 		return t
-	}, [assets])
+	}, [assets, groupedBsv20, unparsedBsv20])
 
 	const handleToggleOrdinal = useCallback((outpoint: string) => {
 		setSelectedOrdinals((prev) => {
@@ -170,6 +207,7 @@ export function SweepApp({
 		setAssets(null)
 		setSelectedOrdinals(new Set())
 		setSelectedOpns(new Set())
+		setSkippedClasses(new Set())
 		setSweepAmount(null)
 		setLegacyKeys(keys)
 
@@ -186,20 +224,21 @@ export function SweepApp({
 			)
 			setAssets(result)
 
+			const grouped = groupBsv20Tokens(result.bsv20Tokens)
 			const total =
 				result.funding.length +
 				result.ordinals.length +
 				result.opnsNames.length +
 				result.bsv21Tokens.reduce((n, t) => n + t.outputs.length, 0) +
-				result.bsv20Tokens.length +
+				grouped.reduce((n, t) => n + t.outputs.length, 0) +
 				result.locked.length +
 				result.run.length
 			if (total === 0) toast.info('No assets found at legacy addresses')
 
 			if (result.ordinals.length > 0) setActiveTab('ordinals')
 			else if (result.opnsNames.length > 0) setActiveTab('opns')
+			else if (grouped.length > 0) setActiveTab('bsv20')
 			else if (result.bsv21Tokens.length > 0) setActiveTab('bsv21')
-			else if (result.bsv20Tokens.length > 0) setActiveTab('bsv20')
 			else if (result.locked.length > 0) setActiveTab('locks')
 		} catch (e) {
 			console.error('Scan failed:', e)
@@ -216,10 +255,10 @@ export function SweepApp({
 	const runOperation = useCallback(
 		async (label: string, op: () => Promise<string>) => {
 			setSweeping(true)
-			setSweepProgress(label + '...')
+			setSweepProgress(`${label}...`)
 			try {
 				const txid = await op()
-				addTx(label, txid)
+				if (txid) addTx(label, txid)
 				toast.success(label)
 				await refreshAssets()
 			} catch (e) {
@@ -259,6 +298,7 @@ export function SweepApp({
 				onProgress: setSweepProgress,
 			})
 			if (result.errors.length > 0) throw new Error(result.errors[0])
+			addCancelled(result.cancelledListings.length)
 			return result.bsvTxid ?? ''
 		})
 	}, [
@@ -268,6 +308,8 @@ export function SweepApp({
 		sweepAmount,
 		getSelectedFunding,
 		runOperation,
+		keyMap,
+		addCancelled,
 	])
 
 	const handleSendBsv = useCallback(
@@ -310,13 +352,22 @@ export function SweepApp({
 					if (result.sweptOutpoints.length > 0) await refreshAssets()
 					throw new Error(result.errors[0])
 				}
+				addCancelled(result.cancelledListings.length)
 				for (let i = 0; i < result.ordinalTxids.length - 1; i++) {
 					addTx(label, result.ordinalTxids[i])
 				}
 				return result.ordinalTxids[result.ordinalTxids.length - 1] ?? ''
 			})
 		},
-		[resolveWallet, legacyKeys, keyMap, runOperation, addTx, refreshAssets],
+		[
+			resolveWallet,
+			legacyKeys,
+			keyMap,
+			runOperation,
+			addTx,
+			addCancelled,
+			refreshAssets,
+		],
 	)
 
 	const handleSweepOrdinals = useCallback(async () => {
@@ -405,13 +456,22 @@ export function SweepApp({
 					if (result.sweptOutpoints.length > 0) await refreshAssets()
 					throw new Error(result.errors[0])
 				}
+				addCancelled(result.cancelledListings.length)
 				for (let i = 0; i < result.ordinalTxids.length - 1; i++) {
 					addTx(label, result.ordinalTxids[i])
 				}
 				return result.ordinalTxids[result.ordinalTxids.length - 1] ?? ''
 			})
 		},
-		[resolveWallet, legacyKeys, keyMap, runOperation, addTx, refreshAssets],
+		[
+			resolveWallet,
+			legacyKeys,
+			keyMap,
+			runOperation,
+			addTx,
+			addCancelled,
+			refreshAssets,
+		],
 	)
 
 	const handleSweepOpns = useCallback(async () => {
@@ -491,13 +551,139 @@ export function SweepApp({
 						token,
 						onProgress: setSweepProgress,
 					})
+					for (const txid of result.txids.slice(0, -1)) addTx('BSV-21', txid)
 					if (result.error) throw new Error(result.error)
+					addCancelled(result.cancelledListings.length)
 					return result.txid ?? ''
 				},
 			)
 		},
-		[resolveWallet, assets, keyMap, runOperation],
+		[resolveWallet, assets, keyMap, runOperation, addTx, addCancelled],
 	)
+
+	const handleSweepBsv20Token = useCallback(
+		async (tick: string) => {
+			const wallet = resolveWallet()
+			if (!wallet || !assets) return
+			const token = groupedBsv20.find((t) => t.tick === tick)
+			if (!token) return
+			await runOperation(`Sweep ${token.tick}`, async () => {
+				const result = await sweepBsv20Token({
+					wallet,
+					keys: keyMap,
+					token,
+					onProgress: setSweepProgress,
+				})
+				if (result.error) throw new Error(result.error)
+				addCancelled(result.cancelledListings.length)
+				return result.txid ?? ''
+			})
+		},
+		[resolveWallet, assets, groupedBsv20, keyMap, runOperation, addCancelled],
+	)
+
+	const toggleSweepClass = useCallback((sweepClass: SweepClass) => {
+		setSkippedClasses((prev) => {
+			const next = new Set(prev)
+			if (next.has(sweepClass)) next.delete(sweepClass)
+			else next.add(sweepClass)
+			return next
+		})
+	}, [])
+
+	const sweepClasses = useMemo(() => {
+		if (!assets) return []
+		const classes: { id: SweepClass; label: string; count: number }[] = []
+		if (assets.funding.length > 0)
+			classes.push({ id: 'bsv', label: 'BSV', count: assets.funding.length })
+		if (assets.ordinals.length > 0)
+			classes.push({
+				id: 'ordinals',
+				label: 'Ordinals',
+				count: assets.ordinals.length,
+			})
+		if (assets.opnsNames.length > 0)
+			classes.push({
+				id: 'opns',
+				label: 'OpNS',
+				count: assets.opnsNames.length,
+			})
+		if (groupedBsv20.length > 0)
+			classes.push({
+				id: 'bsv20',
+				label: 'BSV-20',
+				count: groupedBsv20.reduce((n, t) => n + t.outputs.length, 0),
+			})
+		const sweepableBsv21 = assets.bsv21Tokens.filter(
+			(t) => t.isActive && t.outputs.length > 0,
+		)
+		if (sweepableBsv21.length > 0)
+			classes.push({
+				id: 'bsv21',
+				label: 'BSV-21',
+				count: sweepableBsv21.reduce((n, t) => n + t.outputs.length, 0),
+			})
+		return classes
+	}, [assets, groupedBsv20])
+
+	const handleSweepAll = useCallback(async () => {
+		const wallet = resolveWallet()
+		if (!wallet || !legacyKeys || !assets) return
+		await runOperation('Sweep selected', async () => {
+			const all = selectAllSweepClasses(assets)
+			const result = await sweepAllClasses({
+				wallet,
+				keys: keyMap,
+				assets,
+				amount: sweepAmount ?? undefined,
+				onProgress: setSweepProgress,
+				selection: {
+					sweepBsv: !skippedClasses.has('bsv') && all.sweepBsv,
+					ordinalOutpoints: skippedClasses.has('ordinals')
+						? new Set<string>()
+						: selectedOrdinals.size > 0
+							? selectedOrdinals
+							: all.ordinalOutpoints,
+					opnsOutpoints: skippedClasses.has('opns')
+						? new Set<string>()
+						: selectedOpns.size > 0
+							? selectedOpns
+							: all.opnsOutpoints,
+					bsv20Ticks: skippedClasses.has('bsv20')
+						? new Set<string>()
+						: all.bsv20Ticks,
+					bsv21TokenIds: skippedClasses.has('bsv21')
+						? new Set<string>()
+						: all.bsv21TokenIds,
+				},
+			})
+			if (result.bsvTxid) addTx('BSV', result.bsvTxid)
+			for (const txid of result.ordinalTxids) addTx('Ordinals', txid)
+			for (const txid of result.bsv20Txids) addTx('BSV-20', txid)
+			for (const txid of result.bsv21Txids) addTx('BSV-21', txid)
+			addCancelled(result.cancelledListings.length)
+			if (result.errors.length > 0) throw new Error(result.errors[0])
+			return (
+				result.bsvTxid ??
+				result.ordinalTxids.at(-1) ??
+				result.bsv20Txids.at(-1) ??
+				result.bsv21Txids.at(-1) ??
+				''
+			)
+		})
+	}, [
+		resolveWallet,
+		legacyKeys,
+		assets,
+		keyMap,
+		sweepAmount,
+		runOperation,
+		addTx,
+		addCancelled,
+		skippedClasses,
+		selectedOrdinals,
+		selectedOpns,
+	])
 
 	return (
 		<div className="min-h-screen bg-background text-foreground">
@@ -534,6 +720,56 @@ export function SweepApp({
 
 				{assets && !sweeping && (
 					<div className="space-y-3">
+						{showClassSkips(
+							sweepClasses.map((c) => c.id),
+							skippedClasses,
+						) && (
+							<div className="flex flex-wrap gap-1.5">
+								{sweepClasses.map((sweepClass) => {
+									const skipped = skippedClasses.has(sweepClass.id)
+									return (
+										<Button
+											key={sweepClass.id}
+											variant={skipped ? 'outline' : 'secondary'}
+											size="sm"
+											className="gap-1.5"
+											onClick={() => toggleSweepClass(sweepClass.id)}
+											title={
+												skipped
+													? `Include ${sweepClass.label} in Sweep-selected`
+													: `Skip ${sweepClass.label} in Sweep-selected`
+											}
+										>
+											{sweepClass.label}
+											<Badge
+												variant="secondary"
+												className="text-[10px] px-1.5 py-0"
+											>
+												{sweepClass.count}
+											</Badge>
+										</Button>
+									)
+								})}
+							</div>
+						)}
+						<Button
+							className="w-full"
+							disabled={
+								!walletConnected ||
+								isSweepAllDisabled(
+									sweepClasses.map((c) => c.id),
+									skippedClasses,
+								)
+							}
+							onClick={handleSweepAll}
+							title={
+								walletConnected ? undefined : 'Connect BRC-100 wallet to sweep'
+							}
+						>
+							{skippedClasses.size > 0
+								? 'Sweep selected to wallet'
+								: 'Sweep all to wallet'}
+						</Button>
 						<FundingSection
 							funding={assets.funding}
 							totalBsv={assets.totalBsv}
@@ -594,15 +830,20 @@ export function SweepApp({
 										walletConnected={walletConnected}
 									/>
 								</TabsContent>
+								<TabsContent value="bsv20">
+									<Bsv20Section
+										tokens={groupedBsv20}
+										unparsedCount={unparsedBsv20}
+										onSweep={handleSweepBsv20Token}
+										walletConnected={walletConnected}
+									/>
+								</TabsContent>
 								<TabsContent value="bsv21">
 									<Bsv21Section
 										tokens={assets.bsv21Tokens}
 										onSweep={handleSweepBsv21Token}
 										walletConnected={walletConnected}
 									/>
-								</TabsContent>
-								<TabsContent value="bsv20">
-									<Bsv20Section tokens={assets.bsv20Tokens} />
 								</TabsContent>
 								<TabsContent value="locks">
 									<LockedSection locked={assets.locked} />
@@ -619,6 +860,7 @@ export function SweepApp({
 					sweeping={sweeping}
 					progress={sweepProgress}
 					history={txHistory}
+					cancelledListings={cancelledListings}
 				/>
 			</div>
 		</div>

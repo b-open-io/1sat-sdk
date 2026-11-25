@@ -18,7 +18,11 @@ export {
 } from './types.js'
 
 // Export action registry
-export { ActionRegistry, actionRegistry, type McpTool } from './action-registry.js'
+export {
+	ActionRegistry,
+	actionRegistry,
+	type McpTool,
+} from './action-registry.js'
 
 // Export constants
 export * from './constants.js'
@@ -44,6 +48,14 @@ export {
 	type CompleteSignedActionResult,
 	type SigningCallback,
 } from './utils/completeSignedAction.js'
+export {
+	PUSHDROP_SIG_PLACEHOLDER_LEN,
+	pushDropCustomInstructions,
+	pushDropDecode,
+	pushDropLock,
+	pushDropSeal,
+	type PushDropLockParams,
+} from './utils/pushdrop.js'
 export {
 	createTrackedAction,
 	executeTrackedAction,
@@ -83,6 +95,11 @@ export {
 export type {
 	FundingProvider,
 	FundingResult,
+} from './funding/index.js'
+export {
+	createWalletFundingProvider,
+	FUNDING_BASKET,
+	type WalletFundingProviderOptions,
 } from './funding/index.js'
 export { getDisplayValue } from './utils/displayValue.js'
 export { ordinalSeedTags } from './utils/ordinalSeedTags.js'
@@ -130,13 +147,6 @@ export {
 	type TipDerivation,
 	type InternalizeOutpointBeefResult,
 } from './utils/internalizeOutpointBeef.js'
-export {
-	moveBasketOutputs,
-	migrateLegacyP1SatBaskets,
-	type MoveBasketOptions,
-	type MoveBasketResult,
-	type MigrateLegacyBasketsResult,
-} from './utils/moveBasket.js'
 
 // Export module actions and types
 export * from './addresses/index.js'
@@ -144,6 +154,8 @@ export * from './collections/index.js'
 export * from './payments/index.js'
 export * from './ordinals/index.js'
 export * from './tokens/index.js'
+export * from './1color/index.js'
+export * from './metanet/index.js'
 export * from './inscriptions/index.js'
 export * from './locks/index.js'
 export * from './signing/index.js'
@@ -167,12 +179,14 @@ export * from './registry/index.js'
 // Export ordfs module (ord-fs/json directory writing)
 export * from './ordfs/index.js'
 
+import { oneColorActions } from './1color/index.js'
 import { actionRegistry } from './action-registry.js'
 import { addressesActions } from './addresses/index.js'
 import { collectionsActions } from './collections/index.js'
 import { identityActions } from './identity/index.js'
 import { inscriptionsActions } from './inscriptions/index.js'
 import { locksActions } from './locks/index.js'
+import { metanetActions } from './metanet/index.js'
 import { mneeActions } from './mnee/index.js'
 import { opnsActions } from './opns/index.js'
 import { ordfsActions } from './ordfs/index.js'
@@ -191,6 +205,8 @@ actionRegistry.registerAll([
 	...paymentsActions,
 	...ordinalsActions,
 	...tokensActions,
+	...oneColorActions,
+	...metanetActions,
 	...inscriptionsActions,
 	...locksActions,
 	...signingActions,

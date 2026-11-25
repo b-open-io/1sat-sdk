@@ -1,9 +1,10 @@
 /**
  * `1sat serve` command — launch the unified host server and/or monitor.
  *
- *   1sat serve              Host server (storage + accounts + paymail + messagebox) + monitor
- *   1sat serve wallet       Wallet storage server only
+ *   1sat serve              Host server (accounts + paymail + messagebox) + monitor
+ *   1sat serve storage      Wallet storage server only (wallet-toolbox StorageServer)
  *   1sat serve monitor      Monitor daemon only
+ *   1sat serve wallet-api   App-facing BRC-100 endpoint (headless; grants come from `1sat permissions`)
  *
  * The server wraps the same wallet instance the CLI uses. Storage, active
  * remote, and backups all come from `~/.1sat/cli/config.json` via the same
@@ -26,20 +27,25 @@ import {
 } from '@1sat/wallet-node'
 import {
 	KnexAccountStore,
+	KnexHandleCertStore,
 	KnexPendingStore,
+	type WalletServerAccounts,
 	createHostServer,
-	createWalletServer,
+	createStorageServer,
 } from '@1sat/wallet-server'
 import type { PrivateKey } from '@bsv/sdk'
+import { StorageProvider } from '@bsv/wallet-toolbox'
 import { initLogger } from 'evlog'
 import knexLib from 'knex'
 import type { GlobalFlags } from '../args.js'
 import {
+	type OneSatCliConfig,
 	type RepricerConfig,
 	type ServerAccountsConfig,
 	type ServerMessageboxConfig,
 	type ServerStorageConfig,
 	loadConfig,
+	resolvePaymailUserDomain,
 	setConfigPath,
 } from '../config.js'
 import { ensureDataDir } from '../config.js'
@@ -53,6 +59,9 @@ import {
 	createAccountsConfigLoader,
 	resolveRateProvider,
 } from '../repricer/index.js'
+import { startWalletApi } from '../wallet-api/endpoint.js'
+import { GRANT_COMMAND } from '../wallet-api/grants.js'
+import { permissionStorePath } from '../wallet-api/permission-store.js'
 
 const DEFAULT_HOST = '127.0.0.1'
 const DEFAULT_PORT = 8100
@@ -63,7 +72,7 @@ const DEFAULT_SATS_PER_UNIT = 1_000_000
 const DEFAULT_DURATION_BLOCKS = 4383
 const DEFAULT_STORAGE_IDENTITY_KEY = '1sat-cli-default'
 
-type ServeMode = 'all' | 'wallet' | 'monitor'
+type ServeMode = 'all' | 'storage' | 'monitor' | 'wallet-api'
 
 interface ResolvedServe {
 	chain: 'main' | 'test'
@@ -127,8 +136,9 @@ export async function handleServeCommand(
 function resolveMode(subcommand: string | undefined): ServeMode | null {
 	if (!subcommand) return 'all'
 	switch (subcommand) {
-		case 'wallet':
+		case 'storage':
 		case 'monitor':
+		case 'wallet-api':
 			return subcommand
 		default:
 			return null
@@ -154,7 +164,7 @@ async function resolveServe(opts: GlobalFlags): Promise<ResolvedServe> {
 	}
 
 	const dataDir = ensureDataDir()
-	const chain = opts.chain ?? config.chain ?? 'main'
+	const chain = opts.chain
 
 	let privateKey: PrivateKey
 	try {
@@ -268,9 +278,33 @@ async function runWithStorage(
 		skipInitialMonitor: true,
 	})
 
-	// One active monitor per deployment: wallet mode never runs it, monitor
-	// mode always does, all mode runs it unless server.monitor.enabled=false
-	// (set on redundant host instances that share a dedicated serve monitor).
+	// wallet-api serves only the app-facing BRC-100 endpoint: no storage
+	// server, no accounts, no monitor.
+	if (mode === 'wallet-api') {
+		const dapp = await startDappEndpoint(walletResult, resolved)
+		return {
+			stop: async () => {
+				await dapp.close()
+				await walletResult.destroy()
+			},
+		}
+	}
+
+	// storage serves only the wallet-toolbox StorageServer: no accounts, no
+	// monitor.
+	if (mode === 'storage') {
+		const server = startStorageServer(resolved, walletResult)
+		return {
+			stop: async () => {
+				await server.close()
+				await walletResult.destroy()
+			},
+		}
+	}
+
+	// One active monitor per deployment: monitor mode always runs it, all mode
+	// runs it unless server.monitor.enabled=false (set on redundant host
+	// instances that share a dedicated serve monitor).
 	const runMonitor =
 		mode === 'monitor' || (mode === 'all' && resolved.monitorEnabled)
 
@@ -282,7 +316,7 @@ async function runWithStorage(
 	const serverHandle =
 		mode === 'monitor'
 			? undefined
-			: await startWalletServer(resolved, walletResult, accounts, mode)
+			: await startWalletServer(resolved, walletResult, accounts)
 
 	if (runMonitor) {
 		const r = resolved.repricer
@@ -298,7 +332,7 @@ async function runWithStorage(
 				},
 			})
 		}
-		if (r?.enabled && targets.length > 0) {
+		if (r?.enabled) {
 			walletResult.monitor.addTask(
 				buildPriceUpdateTask({
 					monitor: walletResult.monitor,
@@ -311,12 +345,16 @@ async function runWithStorage(
 						minSats: r.minSats ?? 1,
 					},
 					targets,
+					onQuote: async (quote) => {
+						setConfigPath('server.exchangeRate', quote)
+					},
 				}),
 			)
+			const targetNote =
+				targets.map((t) => `${t.name} $${t.targetUsd}`).join(', ') ||
+				'quote only'
 			console.log(
-				`[repricer] enabled — ${targets
-					.map((t) => `${t.name} $${t.targetUsd}`)
-					.join(', ')} every ${Math.round(
+				`[repricer] enabled — ${targetNote} every ${Math.round(
 					(r.intervalMs ?? 900_000) / 1000,
 				)}s via ${r.provider ?? 'whatsonchain'}`,
 			)
@@ -348,44 +386,49 @@ async function runWithStorage(
 	}
 }
 
+/**
+ * BRC-104 sessions in Redis when server.sessionStore.redisUrl is set (several
+ * instances behind one load balancer); in memory otherwise.
+ */
+function resolveSessionStore(
+	config: OneSatCliConfig,
+): { redisUrl: string; ttlSeconds?: number } | undefined {
+	const sessionStore = config.server?.sessionStore
+	return sessionStore?.redisUrl
+		? { redisUrl: sessionStore.redisUrl, ttlSeconds: sessionStore.ttlSeconds }
+		: undefined
+}
+
+/** The wallet's own storage, served to remote wallets by the toolbox StorageServer. */
+function startStorageServer(
+	resolved: ResolvedServe,
+	walletResult: NodeWalletResult,
+): ReturnType<typeof createStorageServer> {
+	const storage = walletResult.getActiveStorage()
+	if (!(storage instanceof StorageProvider)) {
+		fatal('serve storage needs local storage active; activeRemote is set.')
+	}
+	const config = loadConfig()
+	const server = createStorageServer({
+		storage,
+		wallet: walletResult.wallet,
+		listen: { port: resolved.port, host: resolved.host },
+		sessionStore: resolveSessionStore(config),
+		trustProxy: config.server?.trustProxy,
+	})
+	server.start()
+	return server
+}
+
 async function startWalletServer(
 	resolved: ResolvedServe,
 	walletResult: NodeWalletResult,
 	accounts: AccountsRuntime | undefined,
-	mode: ServeMode,
 ): Promise<{ stop(): Promise<void> }> {
 	const config = loadConfig()
+	const sessionStore = resolveSessionStore(config)
 
-	const sessionStoreCfg = config.server?.sessionStore
-	const sessionStore = sessionStoreCfg?.redisUrl
-		? {
-				redisUrl: sessionStoreCfg.redisUrl,
-				ttlSeconds: sessionStoreCfg.ttlSeconds,
-			}
-		: undefined
-
-	if (mode === 'wallet') {
-		const handle = createWalletServer({
-			wallet: walletResult.wallet,
-			storage: walletResult.getActiveStorage(),
-			serverIdentityKey: walletResult.wallet.identityKey,
-			listen: { port: resolved.port, host: resolved.host },
-			publicPath: '/',
-			internalPath: null,
-			accounts: accounts?.walletServerAccounts,
-			sessionStore,
-		})
-		const port = await handle.start()
-		const notes = [resolved.accounts.enabled ? 'accounts: on' : '']
-			.filter(Boolean)
-			.join(', ')
-		console.log(
-			`[wallet] listening on ${resolved.host}:${port}${notes ? ` (${notes})` : ''}`,
-		)
-		return { stop: () => handle.stop() }
-	}
-
-	// Unified host: storage + accounts + paymail + messagebox. The account
+	// Unified host: accounts + paymail + messagebox. The account
 	// registry is always on: it is the paymail user-domain backend and the
 	// entitlement gate for paymail resolution and messagebox delivery.
 	const serverCfg = config.server ?? {}
@@ -401,6 +444,20 @@ async function startWalletServer(
 	await pendingStore.init()
 	const accountStore = new KnexAccountStore(knex)
 	await accountStore.init()
+	const handleCertStore = new KnexHandleCertStore(knex)
+	await handleCertStore.init()
+	let userDomain = resolvePaymailUserDomain(paymailCfg)
+	if (
+		userDomain?.source === 'baseUrl' &&
+		(await handleCertStore.hasBoundCerts(userDomain.domain))
+	) {
+		// The baseUrl's domain already carries OpNS-bound certs: it resolves
+		// through OpNS here, so it can't silently become the accounts domain.
+		console.error(
+			`[host] not using ${userDomain.domain} from server.paymail.baseUrl as the paymail user domain: it has OpNS-bound handle certificates. Set server.paymail.userDomain explicitly.`,
+		)
+		userDomain = undefined
+	}
 
 	const handle = await createHostServer({
 		wallet: walletResult.wallet,
@@ -410,13 +467,17 @@ async function startWalletServer(
 		listen: { port: resolved.port, host: resolved.host },
 		accounts: accounts?.walletServerAccounts,
 		accountStore,
+		handleCertStore,
+		getExchangeRate: () => loadConfig().server?.exchangeRate ?? null,
 		paymail: {
 			baseUrl:
 				paymailCfg?.baseUrl ?? `http://${resolved.host}:${resolved.port}`,
 			stackUrl: paymailCfg?.stackUrl ?? resolved.stackUrl,
 			pendingStore,
 			accountStore,
-			...(paymailCfg?.userDomain && { userDomain: paymailCfg.userDomain }),
+			certStore: handleCertStore,
+			...(userDomain && { userDomain: userDomain.domain }),
+			...(paymailCfg?.verifySignature && { verifySignature: true }),
 			messageboxUrl: `http://127.0.0.1:${resolved.port}/messagebox`,
 			hostPrivateKey: resolved.privateKey,
 		},
@@ -428,7 +489,9 @@ async function startWalletServer(
 	const port = await handle.start()
 	const notes = [
 		resolved.accounts.enabled ? 'accounts: on' : '',
-		paymailCfg?.userDomain ? `paymail users: ${paymailCfg.userDomain}` : '',
+		userDomain
+			? `paymail users: ${userDomain.domain}${userDomain.source === 'baseUrl' ? ' (from server.paymail.baseUrl)' : ''}`
+			: 'paymail users: NONE, handle registration refused',
 	]
 		.filter(Boolean)
 		.join(', ')
@@ -480,9 +543,7 @@ function createMessageboxKnex(
 }
 
 interface AccountsRuntime {
-	walletServerAccounts: NonNullable<
-		Parameters<typeof createWalletServer>[0]['accounts']
-	>
+	walletServerAccounts: WalletServerAccounts
 }
 
 async function buildAccountsForServer(
@@ -526,4 +587,57 @@ function waitForShutdown(): Promise<void> {
 		process.once('SIGINT', () => handler('SIGINT'))
 		process.once('SIGTERM', () => handler('SIGTERM'))
 	})
+}
+
+// ---------------------------------------------------------------------------
+// wallet-api: application-facing BRC-100 endpoint (dApp connectivity)
+// ---------------------------------------------------------------------------
+
+const DEFAULT_DAPP_HOST = '127.0.0.1'
+const DEFAULT_DAPP_PORT = 3321
+
+/**
+ * Start the app-facing BRC-100 HTTP endpoint (the interface dApps like
+ * wallet-desktop's :3321 server speak; see bitplan and other BRC-100
+ * clients). See `../wallet-api/endpoint.ts` for what is served: a
+ * permissions manager around the CLI wallet, grants kept in
+ * `<dataDir>/permissions-<chain>.json`, and every ungranted request denied
+ * on the spot with the `1sat permissions grant` command that would allow
+ * it. Nothing is ever asked on this terminal.
+ */
+async function startDappEndpoint(
+	walletResult: NodeWalletResult,
+	resolved: ResolvedServe,
+): Promise<{ close: () => Promise<void> }> {
+	const config = loadConfig()
+	const dapp = config.server?.dapp ?? {}
+	const host = dapp.host ?? DEFAULT_DAPP_HOST
+	const port =
+		dapp.port ??
+		(process.env.ONESAT_DAPP_PORT
+			? Number(process.env.ONESAT_DAPP_PORT)
+			: DEFAULT_DAPP_PORT)
+
+	const storePath = permissionStorePath(resolved.dataDir, resolved.chain)
+	// Denials print the command that would allow them, so it has to carry
+	// the chain when this is not the default one.
+	const grantCommandPrefix =
+		resolved.chain === 'test'
+			? '1sat --chain test permissions grant'
+			: GRANT_COMMAND
+	const api = await startWalletApi({
+		wallet: walletResult.wallet,
+		storePath,
+		host,
+		port,
+		grantCommandPrefix,
+	})
+
+	console.log(`[wallet-api] BRC-100 app endpoint on http://${host}:${port}`)
+	console.log(`[wallet-api] permission grants: ${storePath}`)
+	console.log(
+		'[wallet-api] ungranted requests are denied; the error names the `1sat permissions grant` command that allows them',
+	)
+
+	return { close: () => api.close() }
 }

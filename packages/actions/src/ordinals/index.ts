@@ -6,28 +6,26 @@
  */
 
 import { MAP as MAPTemplate, buildInscriptionScript } from '@1sat/templates'
-import { OrdLock } from '@1sat/templates'
+import { OrdLock, OrdLockV2 } from '@1sat/templates'
 import {
+	ORDLOCK_V2_TAG,
 	buildInputAssetLabel,
 	displayNameForCi,
 	nameFromMap,
 	ordinalTagsFromMetadata,
 	readAssetIdTag,
 } from '@1sat/types'
-import { parseOutpoint } from '@1sat/utils'
+import { parseOutpoint } from '@1sat/types'
 import {
 	type BEEF,
 	Beef,
-	BigNumber,
 	type CreateActionArgs,
+	type CreateActionOutput,
 	LockingScript,
 	OP,
 	P2PKH,
 	PublicKey,
 	Script,
-	type Transaction,
-	TransactionSignature,
-	UnlockingScript,
 	Utils,
 	type WalletOutput,
 } from '@bsv/sdk'
@@ -36,8 +34,6 @@ import {
 	MAX_INSCRIPTION_BYTES,
 	OPNS_BASKET,
 	ORDINALS_BASKET,
-	ORD_LOCK_PREFIX,
-	ORD_LOCK_SUFFIX,
 	P1SAT_PROTOCOL,
 } from '../constants.js'
 import { appendSigmaPlaceholder } from '../signing/sigma.js'
@@ -48,9 +44,11 @@ import type {
 	OneSatContext,
 } from '../types.js'
 import { executeTrackedAction } from '../utils/createTrackedAction.js'
+import { isTokenListing } from '../utils/listingToken.js'
 import { loadBasketOutputBeef } from '../utils/loadBasketOutput.js'
 import { buildOrdinalCustomInstructions } from '../utils/ordinalRemittance.js'
 import { ordinalSeedTags } from '../utils/ordinalSeedTags.js'
+import { ordLockCancelUnlockLength } from '../utils/ordlockCancelLength.js'
 import { unlockingScriptLengthForInstructions } from '../utils/signOrdinalInput.js'
 
 // ============================================================================
@@ -309,7 +307,7 @@ export async function deriveCancelAddressInternal(
 		keyID: outpoint,
 		forSelf: true,
 	})
-	return PublicKey.fromString(result.publicKey).toAddress()
+	return PublicKey.fromString(result.publicKey).toAddress(ctx.chain)
 }
 
 /** Default OrdLock payment address: P1SAT keyID `1sat 0`, self. */
@@ -320,7 +318,7 @@ export async function defaultPayAddress(ctx: OneSatContext): Promise<string> {
 		counterparty: 'self',
 		forSelf: true,
 	})
-	return PublicKey.fromString(result.publicKey).toAddress()
+	return PublicKey.fromString(result.publicKey).toAddress(ctx.chain)
 }
 
 export function buildOrdLockScript(
@@ -328,87 +326,8 @@ export function buildOrdLockScript(
 	payAddress: string,
 	price: number,
 ): Script {
-	const cancelPkh = Utils.fromBase58Check(ordAddress).data as number[]
-	const payPkh = Utils.fromBase58Check(payAddress).data as number[]
-	const payoutScript = new P2PKH().lock(payPkh).toBinary()
-
-	const writer = new Utils.Writer()
-	writer.writeUInt64LEBn(new BigNumber(price))
-	writer.writeVarIntNum(payoutScript.length)
-	writer.write(payoutScript)
-	const payoutOutput = writer.toArray()
-
-	return new Script()
-		.writeScript(Script.fromHex(ORD_LOCK_PREFIX))
-		.writeBin(cancelPkh)
-		.writeBin(payoutOutput)
-		.writeScript(Script.fromHex(ORD_LOCK_SUFFIX))
-}
-
-function buildSerializedOutput(satoshis: number, script: number[]): number[] {
-	const writer = new Utils.Writer()
-	writer.writeUInt64LEBn(new BigNumber(satoshis))
-	writer.writeVarIntNum(script.length)
-	writer.write(script)
-	return writer.toArray()
-}
-
-async function buildPurchaseUnlockingScript(
-	tx: Transaction,
-	inputIndex: number,
-	sourceSatoshis: number,
-	lockingScript: LockingScript,
-): Promise<UnlockingScript> {
-	if (tx.outputs.length < 2) {
-		throw new Error('Malformed transaction: requires at least 2 outputs')
-	}
-
-	const script = new UnlockingScript().writeBin(
-		buildSerializedOutput(
-			tx.outputs[0].satoshis ?? 0,
-			tx.outputs[0].lockingScript.toBinary(),
-		),
-	)
-
-	if (tx.outputs.length > 2) {
-		const writer = new Utils.Writer()
-		for (const output of tx.outputs.slice(2)) {
-			writer.write(
-				buildSerializedOutput(
-					output.satoshis ?? 0,
-					output.lockingScript.toBinary(),
-				),
-			)
-		}
-		script.writeBin(writer.toArray())
-	} else {
-		script.writeOpCode(OP.OP_0)
-	}
-
-	const input = tx.inputs[inputIndex]
-	const sourceTXID = input.sourceTXID ?? input.sourceTransaction?.id('hex')
-	if (!sourceTXID) {
-		throw new Error('sourceTXID is required')
-	}
-
-	const preimage = TransactionSignature.format({
-		sourceTXID,
-		sourceOutputIndex: input.sourceOutputIndex,
-		sourceSatoshis,
-		transactionVersion: tx.version,
-		otherInputs: [],
-		inputIndex,
-		outputs: tx.outputs,
-		inputSequence: input.sequence ?? 0xffffffff,
-		subscript: lockingScript,
-		lockTime: tx.lockTime,
-		scope:
-			TransactionSignature.SIGHASH_ALL |
-			TransactionSignature.SIGHASH_ANYONECANPAY |
-			TransactionSignature.SIGHASH_FORKID,
-	})
-
-	return script.writeBin(preimage).writeOpCode(OP.OP_0)
+	// New listings are always OrdLock v2 (batch design, SIGHASH_SINGLE payout binding).
+	return OrdLockV2.lock(ordAddress, payAddress, price)
 }
 
 // ============================================================================
@@ -516,7 +435,7 @@ export async function buildTransferOrdinals(
 				counterparty,
 				forSelf: isSelf,
 			})
-			recipientAddress = PublicKey.fromString(publicKey).toAddress()
+			recipientAddress = PublicKey.fromString(publicKey).toAddress(ctx.chain)
 		} else if (address) {
 			recipientAddress = address
 		} else {
@@ -638,7 +557,8 @@ export async function buildListOrdinal(
 	const ordLockScript = buildOrdLockScript(cancelAddress, payAddress, price)
 
 	// Append MAP metadata when provided — OP_RETURN terminates before the
-	// MAP data, so the OrdLock spend paths are unaffected.
+	// MAP data, so the OrdLock spend paths are unaffected. Copy chunks rather
+	// than chaining write* on the parsed script (see @bsv/sdk lazy-parse note).
 	let lockingScript: string
 	if (map && Object.keys(map).length > 0) {
 		const mapScript = MAPTemplate.set(map)
@@ -652,14 +572,14 @@ export async function buildListOrdinal(
 
 	// Read the price back out of the script we just built, so the tag can
 	// never drift from what the chain will actually enforce.
-	const encoded = OrdLock.decode(ordLockScript)
+	const encoded = OrdLockV2.decode(ordLockScript)
 	if (!encoded) {
-		throw new Error('sellOrdinal: built OrdLock script failed to decode')
+		throw new Error('sellOrdinal: built OrdLock v2 script failed to decode')
 	}
 
 	const tags = [
 		...ordinalSeedTags(ordinal),
-		'ordlock',
+		ORDLOCK_V2_TAG,
 		`price:${encoded.price}`,
 	]
 	const basket = ORDINALS_BASKET
@@ -844,7 +764,8 @@ export const listOrdinals: Action<ListOrdinalsInput, ListOrdinalsResult> = {
 		return {
 			outputs: result.outputs,
 			BEEF: result.BEEF,
-			totalOutputs: result.totalOutputs,
+			// A decimal string only for `p <module> balance` selectors (@bsv/sdk 4).
+			totalOutputs: Number(result.totalOutputs),
 		}
 	},
 }
@@ -1188,15 +1109,12 @@ export const cancelOrdinalListing: Action<
 				return { error: 'missing-custom-instructions' }
 			}
 			// listing.customInstructions describes the SIGNING-side derivation
-			// for the OrdLock cancel path. Use those values to sign the unlock,
-			// but DO NOT carry them into the new output's customInstructions —
+			// for the OrdLock cancel path; the pipeline reads it to sign the
+			// unlock (v1 or v2, chosen from the script). Do NOT carry it into
+			// the new output's customInstructions —
 			// the cancelled output is a fresh derivation and must record its
 			// own derivation properties.
-			const {
-				protocolID: signProtocolID,
-				keyID: signKeyID,
-				counterparty: signCounterparty,
-			} = JSON.parse(listing.customInstructions)
+			const { keyID: signKeyID } = JSON.parse(listing.customInstructions)
 
 			// Fresh derivation for the new cancelled-output: tied to the
 			// listing's outpoint (this output's parent), under the current
@@ -1205,16 +1123,16 @@ export const cancelOrdinalListing: Action<
 			const newKeyID = outpoint
 			const cancelAddress = await deriveCancelAddressInternal(ctx, newKeyID)
 
+			if (isTokenListing(listing)) {
+				return {
+					error:
+						'Cannot cancel BSV-20 token listing through ordinal cancel — use cancelTokenListing instead',
+				}
+			}
+
 			const tags = ordinalSeedTags(listing)
 			const basket = ORDINALS_BASKET
 			const sourceName = nameFromOutput(listing, tags)
-
-			const cancelUnlock = OrdLock.cancelWithWallet(
-				ctx.wallet,
-				signProtocolID,
-				signKeyID,
-				signCounterparty,
-			)
 
 			const inputId = readAssetIdTag(listing.tags)
 			const args = await prepareP1SatArgs(ctx, {
@@ -1227,7 +1145,10 @@ export const cancelOrdinalListing: Action<
 					{
 						outpoint,
 						inputDescription: 'Listed ordinal',
-						unlockingScriptLength: 108,
+						unlockingScriptLength: ordLockCancelUnlockLength(
+							inputBEEF,
+							outpoint,
+						),
 					},
 				],
 				outputs: [
@@ -1380,9 +1301,22 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 				return { error: 'listing-output-not-found' }
 			}
 
-			const ordLockData = OrdLock.decode(listingOutput.lockingScript)
+			// v2 first (SIGHASH_SINGLE payout binding), else legacy v1. Both
+			// expose the serialized payout the covenant demands.
+			const v2Listing = OrdLockV2.decode(listingOutput.lockingScript)
+			const ordLockData =
+				v2Listing ?? OrdLock.decode(listingOutput.lockingScript)
 			if (!ordLockData) {
 				return { error: 'not-an-ordlock-listing' }
+			}
+			// A v2 purchase needs front funding placed ahead of the listing; the
+			// apply step sources that from this wallet. A FundingProvider would
+			// have to supply and place it itself, which the provider contract does
+			// not cover yet, so refuse rather than fail part-way through.
+			if (v2Listing && input.fundingProvider) {
+				return {
+					error: 'ordlock-v2-purchase-with-funding-provider-unsupported',
+				}
 			}
 
 			const { publicKey } = await ctx.wallet.getPublicKey({
@@ -1391,18 +1325,16 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 				counterparty: 'self',
 				forSelf: true,
 			})
-			const ourOrdAddress = PublicKey.fromString(publicKey).toAddress()
+			const ourOrdAddress = PublicKey.fromString(publicKey).toAddress(ctx.chain)
 
-			const outputs: Array<{
-				lockingScript: string
-				satoshis: number
-				outputDescription: string
-				basket?: string
-				tags?: string[]
-				customInstructions?: string
-			}> = []
+			if (isTokenListing({ tags })) {
+				return {
+					error:
+						'Cannot buy BSV-20 token listing through ordinal purchase — use buyBsv21 instead',
+				}
+			}
 
-			outputs.push({
+			const receive: CreateActionOutput = {
 				lockingScript: new P2PKH().lock(ourOrdAddress).toHex(),
 				satoshis: 1,
 				outputDescription: 'Purchased ordinal',
@@ -1415,7 +1347,7 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 					tags,
 					name: resolved.name,
 				}),
-			})
+			}
 
 			const payoutReader = new Utils.Reader(ordLockData.payout)
 			const payoutSatoshis = payoutReader.readUInt64LEBn().toNumber()
@@ -1423,17 +1355,11 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 			const payoutScriptBin = payoutReader.read(payoutScriptLen)
 			const payoutLockingScript = LockingScript.fromBinary(payoutScriptBin)
 
-			outputs.push({
-				lockingScript: payoutLockingScript.toHex(),
-				satoshis: payoutSatoshis,
-				outputDescription: 'Payment to seller',
-				tags: [],
-			})
-
+			const marketFeeOutputs: CreateActionOutput[] = []
 			if (marketplaceAddress && marketplaceRate && marketplaceRate > 0) {
 				const marketFee = Math.ceil(payoutSatoshis * marketplaceRate)
 				if (marketFee > 0) {
-					outputs.push({
+					marketFeeOutputs.push({
 						lockingScript: new P2PKH().lock(marketplaceAddress).toHex(),
 						satoshis: marketFee,
 						outputDescription: 'Marketplace fee',
@@ -1442,8 +1368,25 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 				}
 			}
 
-			const beefBinary = beef.toBinary()
+			const usePermissionModule =
+				input.usePermissionModule ?? input.useOneSatModule ?? input.useModule
 
+			// Draft shape: receive, payout, fees. For a v2 listing the apply
+			// step (applyOrdLockV2Purchase) prepends front funding and lays
+			// the outputs out so the payout sits at the listing's input index
+			// and the ordinal routes into the receive output; v1 keeps this
+			// order as-is with its historical unlock reservation.
+			const outputs: CreateActionOutput[] = [
+				receive,
+				{
+					lockingScript: payoutLockingScript.toHex(),
+					satoshis: payoutSatoshis,
+					outputDescription: 'Payment to seller',
+					tags: [],
+				},
+				...marketFeeOutputs,
+			]
+			const beefBinary = beef.toBinary()
 			const args = await prepareP1SatArgs(ctx, {
 				description: `Purchase ordinal for ${payoutSatoshis} sats`,
 				inputBEEF: beefBinary,
@@ -1451,7 +1394,11 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 					{
 						outpoint,
 						inputDescription: 'Listed ordinal',
-						unlockingScriptLength: 1368,
+						unlockingScriptLength: v2Listing
+							? OrdLockV2.estimatePurchaseUnlockLength(
+									listingOutput.lockingScript,
+								)
+							: 1368,
 					},
 				],
 				outputs,
@@ -1465,13 +1412,13 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 				undefined,
 				{
 					spends: [{ outpoint, scheme: '1sat' }],
-					usePermissionModule:
-						input.usePermissionModule ??
-						input.useOneSatModule ??
-						input.useModule,
+					usePermissionModule,
 					permissionScheme: '1sat',
 				},
 			)
+			// v2: the apply step places the receive output after the front
+			// slot(s) and the payout; v1 keeps it at 0.
+			const receiveIndex = v2Listing ? 2 : 0
 
 			if (ctx.debug && ctx.log) {
 				ctx.log({
@@ -1482,7 +1429,7 @@ export const buyOrdinal: Action<BuyOrdinalRequest, OrdinalOperationResponse> = {
 					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 					outputs: [
 						{
-							index: 0,
+							index: receiveIndex,
 							protocolID: P1SAT_PROTOCOL,
 							keyID: outpoint,
 							basket: basket,

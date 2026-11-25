@@ -1,6 +1,6 @@
 ---
 name: cli
-description: "This skill should be used when working with the 1Sat CLI tool for BSV operations from the terminal -- running wallet commands, minting ordinals, managing tokens, creating listings, locking BSV, sweeping assets, managing identity, OR running the wallet-storage RPC server (`1sat serve`) from the same binary. Triggers on '1sat CLI', 'command line wallet', '1sat init', '1sat wallet', '1sat ordinals', '1sat tokens', '1sat lock', '1sat sweep', '1sat action', '1sat serve', '1sat serve wallet', '1sat serve monitor', 'wallet server', 'BRC-100 storage server', 'bunx @1sat/cli', or 'terminal BSV operations'. Uses @1sat/cli and @1sat/wallet-server packages."
+description: "This skill should be used when working with the 1Sat CLI tool for BSV operations from the terminal -- running wallet commands, minting ordinals, managing tokens, creating listings, locking BSV, sweeping assets, managing identity, OR running the wallet-storage RPC server (`1sat serve`) from the same binary. Triggers on '1sat CLI', 'command line wallet', '1sat init', '1sat wallet', '1sat ordinals', '1sat tokens', '1sat lock', '1sat sweep', '1sat action', '1sat serve', '1sat serve storage', '1sat serve monitor', 'wallet server', 'BRC-100 storage server', 'bunx @1sat/cli', or 'terminal BSV operations'. Uses @1sat/cli and @1sat/wallet-server packages."
 ---
 
 # 1Sat CLI
@@ -103,12 +103,12 @@ bunx @1sat/cli wallet balance
 bunx @1sat/cli wallet balance                                     # Show BSV balance
 bunx @1sat/cli wallet address                                     # Show primary deposit address
 bunx @1sat/cli wallet address --count 5 --start-index 0           # Derive multiple addresses
-bunx @1sat/cli wallet address --prefix mcp --count 3               # Custom BRC-29 prefix
+bunx @1sat/cli wallet address --prefix mcp --count 3               # Custom deposit keyID prefix
 bunx @1sat/cli wallet send --to 1A... --sats 5000                 # Send BSV to address
 bunx @1sat/cli wallet send --script <hex> --sats 5000              # Send to custom locking script
 bunx @1sat/cli wallet send --data-asm "deadbeef cafe"              # Publish OP_RETURN (0 sats)
 bunx @1sat/cli wallet send-all --to 1A...                          # Send entire balance
-bunx @1sat/cli wallet sync --prefix mcp --count 5                  # Sync inbound payments at BRC-29 addresses
+bunx @1sat/cli wallet sync --prefix mcp --count 5                  # Sync inbound payments at P1SAT deposit addresses
 bunx @1sat/cli wallet info                                         # Address, identity key, balance, network
 ```
 
@@ -211,7 +211,7 @@ Tags (`--tags a,b,c`) land on the on-chain post's MAP payload and on the wallet 
 
 ```bash
 bunx @1sat/cli opns lookup [--limit] [--offset] [--ids] [--names] [--tags] …
-bunx @1sat/cli opns register --id <id>
+bunx @1sat/cli opns register --id <id> --domain <hostname> [--name <n>] [--avatar <txid_vout>]
 bunx @1sat/cli opns deregister --id <id>
 bunx @1sat/cli opns sell --id <id> --price <sats> [--pay-address <addr>]
 bunx @1sat/cli opns cancel-listing --id <id>
@@ -225,11 +225,14 @@ Print **id**, name, outpoint on lookup. Wallet spends: `--id` only.
 ### Sweep / Import
 
 ```bash
-bunx @1sat/cli sweep scan --wif <key>      # Scan an address for sweepable UTXOs (BSV, ordinals, BSV21)
-bunx @1sat/cli sweep import --wif <key>    # Sweep all UTXOs from a WIF into the wallet
+bunx @1sat/cli sweep scan --wif <key>
+bunx @1sat/cli sweep import --wif <key> --dry-run
+bunx @1sat/cli sweep import --wif <key>
+bunx @1sat/cli sweep import --wif <key> --only opns,bsv20
+bunx @1sat/cli sweep import --wif <key> --skip bsv21
 ```
 
-`sweep import` branches internally by asset type — it sweeps funding (BSV), ordinals, and each active BSV21 token in separate transactions. RUN token outputs are detected and excluded (not sweepable).
+Default import is every class that can move into BRC-100: BSV, ordinals, OpNS, BSV-20, and active BSV-21. Listed OrdLocks cancel into the destination in the same transaction. `--only` / `--skip` take `bsv,ordinals,opns,bsv20,bsv21`. `--dry-run` prints the plan and does not broadcast. Time-locks and RUN outputs stay as leftover.
 
 ### Transaction Utilities
 
@@ -242,10 +245,11 @@ bunx @1sat/cli tx decode <hex>             # Decode a raw transaction hex
 The same binary can run a BRC-100 wallet storage RPC server backed by the **same wallet instance** the CLI commands use.
 
 ```bash
-1sat serve              # Wallet server + monitor daemon (single process)
-1sat serve wallet       # Wallet server only (BRC-100 HTTP, no monitor loop)
+1sat serve              # Host server (accounts, paymail, messagebox) + monitor daemon
+1sat serve storage      # Wallet storage server only (wallet-toolbox StorageServer, no monitor loop)
 1sat serve monitor      # Monitor daemon only (no HTTP)
 1sat serve messagebox   # BSV message-box server (port 8771 default; uses wallet identity)
+1sat serve wallet-api   # App-facing BRC-100 endpoint for dApps (127.0.0.1:3321, headless)
 ```
 
 Key properties:
@@ -253,7 +257,7 @@ Key properties:
 - **Same wallet instance** — `serve` wraps the wallet created by `createNodeWallet` using the exact same config inputs (`chain`, `dataDir`, `storageIdentityKey`, `activeRemote`, `backups`) as `1sat wallet <command>`. There's one wallet on disk at `~/.1sat/data/wallet-${chain}.db`; HTTP and CLI access the same one.
 - **Server identity = CLI identity** — loaded via `loadKey()` (`PRIVATE_KEY_WIF` env or `keys.bep` + `ONESAT_PASSWORD`). No separate server key.
 - **Storage provider** — defaults to `bun-sqlite`. Set `server.storage.provider` to `pg` for Postgres deployments.
-- **Accounts layer (opt-in)** — per-identity capacity metering on billable writes. Reads always free. Over-capacity writes get an HTTP `507 Insufficient Storage` with a JSON body describing deficit + pricing. Top-up via `POST /account/payment` (BRC-29 payment body). Toggle via `1sat config set server.accounts.enabled true`.
+- **Accounts layer (opt-in)** — the host reports per-identity storage usage and capacity at `GET /account/status`; capacity is bought via `POST /account/payment` (BRC-29 payment body). Storage writes are not gated. Toggle via `1sat config set server.accounts.enabled true`.
 
 Server-specific settings live under `server.*` in the config — edit via `1sat config set`:
 
@@ -266,6 +270,12 @@ Server-specific settings live under `server.*` in the config — edit via `1sat 
 1sat config set server.accounts.satsPerUnit 1000000           # price per chunk
 1sat config set server.accounts.durationBlocks 4383           # validity window (~1 month)
 ```
+
+#### wallet-api (dApp connectivity)
+
+`1sat serve wallet-api` exposes the CLI wallet to local BRC-100 apps and agents on `127.0.0.1:3321`. It is deny-by-default: an app is identified by its `Origin` header, gets only what `1sat permissions grant <origin> …` has written to `<dataDir>/permissions-<chain>.json`, and is never prompted — a denial names the grant command that would allow the call.
+
+**See the `wallet-api` skill** (`packages/cli/skills/wallet-api`) for the permission model, the grant-and-retry loop, the full `1sat permissions` reference and troubleshooting.
 
 Pricing model: new payments charge `unitsCharged × satsPerUnit` (rounded up to a whole chunk) for `durationBlocks` from now, minus a prorated refund credit for unused time on the prior payment. One active payment row per account at a time.
 

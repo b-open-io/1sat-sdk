@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import {
 	BYTES_PER_GB,
+	type PaymentForPricing,
 	computeCapacity,
 	quoteRefundedCharge,
 	refundCreditSats,
 } from '../src/accounts/pricing'
-import type { Payment } from '../src/accounts/types'
 
 const CONFIG = {
 	baselineBytes: 1 * BYTES_PER_GB,
@@ -14,15 +14,10 @@ const CONFIG = {
 	durationBlocks: 4383,
 }
 
-function payment(partial: Partial<Payment>): Payment {
+function payment(partial: Partial<PaymentForPricing>): PaymentForPricing {
 	return {
-		id: 1,
-		identityKey: '02'.padEnd(66, 'a'),
-		txid: 'tx',
 		bytesCovered: 0,
-		satsPaid: 0,
 		paidThroughBlock: 0,
-		appliedAt: new Date(),
 		...partial,
 	}
 }

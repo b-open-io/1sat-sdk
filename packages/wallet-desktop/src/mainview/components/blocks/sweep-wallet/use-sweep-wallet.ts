@@ -36,6 +36,8 @@ export interface ScanResult {
 	ordinals: SweepOrdinalUtxo[]
 	/** BSV-21 token groups */
 	tokens: SweepTokenGroup[]
+	/** OrdLock v2 marketplace listings, left listed by the sweep */
+	listings?: SweepOrdinalUtxo[]
 	/** Total satoshis across all funding UTXOs */
 	totalSats: number
 }
@@ -44,6 +46,8 @@ export interface ScanResult {
 export interface SweepResult {
 	/** Transaction ID on success */
 	txid?: string
+	/** Receipts retained when a later transaction fails. */
+	txids?: string[]
 	/** Error message on failure */
 	error?: string
 }
@@ -138,7 +142,6 @@ export function useSweepWallet({
 		setStep('scanning')
 		setError(null)
 		setScanResult(null)
-		setSweepResult(null)
 
 		try {
 			const result = await onScan(trimmed)
@@ -147,7 +150,8 @@ export function useSweepWallet({
 			const hasAssets =
 				result.funding.length > 0 ||
 				result.ordinals.length > 0 ||
-				result.tokens.length > 0
+				result.tokens.length > 0 ||
+				(result.listings?.length ?? 0) > 0
 
 			if (hasAssets) {
 				setStep('preview')
@@ -174,12 +178,25 @@ export function useSweepWallet({
 		try {
 			const result = await onSweep(trimmed, scanResult)
 
-			if (result.error) {
-				setError(result.error)
+			setSweepResult((previous) => ({
+				...result,
+				txid: result.txid?.trim() || undefined,
+				txids: [
+					...new Set([
+						...(previous?.txids ?? []),
+						...(result.txids ?? []).map((txid) => txid.trim()).filter(Boolean),
+						...(result.txid?.trim() ? [result.txid.trim()] : []),
+					]),
+				],
+			}))
+			const failure =
+				result.error ||
+				(!result.txid?.trim() ? 'Sweep did not complete. Retry.' : undefined)
+			if (failure) {
+				setError(failure)
 				setStep('error')
-				onError?.(new Error(result.error))
+				onError?.(new Error(failure))
 			} else {
-				setSweepResult(result)
 				setStep('done')
 				onSuccess?.(result)
 			}

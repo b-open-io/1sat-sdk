@@ -4,18 +4,21 @@
  * Actions for managing BSV21 tokens.
  */
 
-import { BSV21, OrdLock, P2MS } from '@1sat/templates'
+import { BSV21, OrdLock, OrdLockV2, P2MS } from '@1sat/templates'
 import {
 	BSV21_DEPLOY_TAG,
+	type Bsv21OutputState,
 	type Destination,
 	buildInputAssetLabel,
 	buildTokenLabel,
+	type TokenStatus,
 	readAssetIdTag,
 } from '@1sat/types'
-import { parseOutpoint } from '@1sat/utils'
+import { parseOutpoint } from '@1sat/types'
 import {
 	BigNumber,
 	type CreateActionArgs,
+	type CreateActionOutput,
 	LockingScript,
 	OP,
 	P2PKH,
@@ -27,7 +30,14 @@ import {
 	type WalletOutput,
 } from '@bsv/sdk'
 import { prepareP1SatArgs } from '../apply/index.js'
-import { BSV21_AUTH_TAG, BSV21_BASKET, P1SAT_PROTOCOL } from '../constants.js'
+import {
+	BSV21_AUTH_TAG,
+	BSV21_BASKET,
+	ORDINALS_BASKET,
+	P1SAT_PROTOCOL,
+} from '../constants.js'
+import { deriveCancelAddressInternal } from '../ordinals/index.js'
+import { dispatchPlainPayment } from '../payments/index.js'
 import type {
 	Action,
 	ActionLogEntry,
@@ -42,6 +52,13 @@ import {
 } from '../utils/bsv21Remittance.js'
 import { executeTrackedAction } from '../utils/createTrackedAction.js'
 import { getDisplayValue } from '../utils/displayValue.js'
+import {
+	isBsv21Transfer,
+	listedTransfer,
+	tokenReturnOutput,
+} from '../utils/listingToken.js'
+import { loadBasketOutputBeef } from '../utils/loadBasketOutput.js'
+import { ordLockCancelUnlockLength } from '../utils/ordlockCancelLength.js'
 import { resolveDestination } from '../utils/resolveDestination.js'
 import { signP2PKHInput } from '../utils/signP2PKH.js'
 
@@ -496,7 +513,9 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 					return { error: 'services-required' }
 				}
 				try {
-					tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId)
+					tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId, {
+						fresh: true,
+					})
 				} catch (e) {
 					console.error('[sendBsv21] getTokenDetails failed:', e)
 					return { error: 'token-not-found' }
@@ -507,7 +526,9 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 			} else if (ctx.services?.bsv21) {
 				// Best-effort meta/fees only — never gate the send.
 				try {
-					tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId)
+					tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId, {
+						fresh: true,
+					})
 				} catch {
 					tokenDetails = undefined
 				}
@@ -525,18 +546,16 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				matchesTokenId(o, tokenId),
 			)
 
-			// When validateOverlay: only spend tips the overlay still lists unspent.
-			const validOutpoints = new Set<string>()
+			// When validateOverlay: only spend tips the overlay reports valid.
+			const overlayStates = new Map<string, Bsv21OutputState>()
 			if (validateOverlay) {
-				const candidateOutpoints = tokenUtxos.map((o) => o.outpoint)
 				try {
-					const validated = await ctx.services!.bsv21!.validateOutputs(
+					const statuses = await ctx.services!.bsv21!.getOutputStatus(
 						tokenId,
-						candidateOutpoints,
-						{ unspent: true },
+						tokenUtxos.map((o) => o.outpoint),
 					)
-					for (const v of validated) {
-						validOutpoints.add(v.outpoint.replace('_', '.'))
+					for (const s of statuses) {
+						overlayStates.set(s.outpoint, s.state)
 					}
 				} catch (e) {
 					console.error('[sendBsv21] overlay validation error:', e)
@@ -546,6 +565,7 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 
 			const selected: WalletOutput[] = []
 			let totalIn = 0n
+			let queuedIn = 0n
 
 			for (const utxo of tokenUtxos) {
 				if (totalIn >= totalAmount) break
@@ -554,8 +574,10 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 				if (!amtStr) continue
 				const utxoAmount = BigInt(amtStr)
 
-				if (validateOverlay && !validOutpoints.has(utxo.outpoint)) {
-					continue
+				if (validateOverlay) {
+					const state = overlayStates.get(utxo.outpoint)
+					if (state === 'queued') queuedIn += utxoAmount
+					if (state !== 'valid') continue
 				}
 
 				selected.push(utxo)
@@ -563,10 +585,13 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 			}
 
 			if (totalIn < totalAmount) {
+				if (!validateOverlay) return { error: 'insufficient-tokens' }
+				// Enough tokens are waiting in the overlay's queue: not invalid, just not indexed yet.
 				return {
-					error: validateOverlay
-						? 'insufficient-valid-tokens'
-						: 'insufficient-tokens',
+					error:
+						totalIn + queuedIn >= totalAmount
+							? 'tokens-queued'
+							: 'insufficient-valid-tokens',
 				}
 			}
 
@@ -649,7 +674,9 @@ export const sendBsv21: Action<SendBsv21Input, TokenOperationResponse> = {
 					counterparty: 'self',
 					forSelf: true,
 				})
-				const changeAddress = PublicKey.fromString(publicKey).toAddress()
+				const changeAddress = PublicKey.fromString(publicKey).toAddress(
+					ctx.chain,
+				)
 				const changeLockingScript = p2pkh.lock(changeAddress)
 				const changeScript = BSV21.transfer(tokenId, change).lock(
 					changeLockingScript,
@@ -858,13 +885,25 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 			const { txid, vout } = parseOutpoint(outpoint)
 
 			try {
-				await ctx.services.bsv21.validateOutput(tokenId, outpoint)
+				const [listing] = await ctx.services.bsv21.getOutputStatus(tokenId, [
+					outpoint,
+				])
+				if (listing?.state !== 'valid') {
+					console.error(
+						'[buyBsv21] listing not valid on overlay:',
+						outpoint,
+						listing?.state,
+					)
+					return { error: 'listing-not-found-in-overlay' }
+				}
 			} catch (e) {
 				console.error('[buyBsv21] overlay validation error:', e)
 				return { error: 'listing-not-found-in-overlay' }
 			}
 
-			const tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId)
+			const tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId, {
+				fresh: true,
+			})
 
 			const beef = await ctx.services.getBeefForTxid(txid)
 			const listingBeefTx = beef.findTxid(txid)
@@ -877,9 +916,21 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 				return { error: 'listing-output-not-found' }
 			}
 
-			const ordLockData = OrdLock.decode(listingOutput.lockingScript)
+			// v2 first (SIGHASH_SINGLE payout binding), else legacy v1.
+			const v2Listing = OrdLockV2.decode(listingOutput.lockingScript)
+			const ordLockData =
+				v2Listing ?? OrdLock.decode(listingOutput.lockingScript)
 			if (!ordLockData) {
 				return { error: 'not-an-ordlock-listing' }
+			}
+			// A v2 purchase needs front funding placed ahead of the listing; the
+			// apply step sources that from this wallet. A FundingProvider would
+			// have to supply and place it itself, which the provider contract does
+			// not cover yet, so refuse rather than fail part-way through.
+			if (v2Listing && input.fundingProvider) {
+				return {
+					error: 'ordlock-v2-purchase-with-funding-provider-unsupported',
+				}
 			}
 
 			const bsv21KeyID = `${tokenId}-${outpoint}`
@@ -889,23 +940,16 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 				counterparty: 'self',
 				forSelf: true,
 			})
-			const ourTokenAddress = PublicKey.fromString(publicKey).toAddress()
-
-			const outputs: Array<{
-				lockingScript: string
-				satoshis: number
-				outputDescription: string
-				basket?: string
-				tags?: string[]
-				customInstructions?: string
-			}> = []
+			const ourTokenAddress = PublicKey.fromString(publicKey).toAddress(
+				ctx.chain,
+			)
 
 			const p2pkh = new P2PKH()
 			const buyerLockingScript = p2pkh.lock(ourTokenAddress)
 			const transferScript = BSV21.transfer(tokenId, tokenAmount).lock(
 				buyerLockingScript,
 			)
-			outputs.push({
+			const receive: CreateActionOutput = {
 				lockingScript: transferScript.toHex(),
 				satoshis: 1,
 				outputDescription: 'Purchased tokens',
@@ -924,7 +968,7 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 					keyID: bsv21KeyID,
 					counterparty: 'self',
 				}),
-			})
+			}
 
 			const payoutReader = new Utils.Reader(ordLockData.payout)
 			const payoutSatoshis = payoutReader.readUInt64LEBn().toNumber()
@@ -932,17 +976,11 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 			const payoutScriptBin = payoutReader.read(payoutScriptLen)
 			const payoutLockingScript = LockingScript.fromBinary(payoutScriptBin)
 
-			outputs.push({
-				lockingScript: payoutLockingScript.toHex(),
-				satoshis: payoutSatoshis,
-				outputDescription: 'Payment to seller',
-				tags: [],
-			})
-
+			const extraOutputs: CreateActionOutput[] = []
 			if (marketplaceAddress && marketplaceRate && marketplaceRate > 0) {
 				const marketFee = Math.ceil(payoutSatoshis * marketplaceRate)
 				if (marketFee > 0) {
-					outputs.push({
+					extraOutputs.push({
 						lockingScript: p2pkh.lock(marketplaceAddress).toHex(),
 						satoshis: marketFee,
 						outputDescription: 'Marketplace fee',
@@ -953,7 +991,7 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 
 			// Fee output to overlay fund address
 			if (tokenDetails.status.is_active) {
-				outputs.push({
+				extraOutputs.push({
 					lockingScript: p2pkh.lock(tokenDetails.status.fee_address).toHex(),
 					satoshis: tokenDetails.status.fee_per_output,
 					outputDescription: 'Overlay processing fee',
@@ -961,8 +999,23 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 				})
 			}
 
-			const beefBinary = beef.toBinary()
+			const usePermissionModule =
+				input.usePermissionModule ?? input.useOneSatModule ?? input.useModule
 
+			// Draft shape: receive, payout, fees. For a v2 listing the apply
+			// step (applyOrdLockV2Purchase) prepends front funding and lays
+			// the outputs out canonically; v1 keeps this order as-is.
+			const outputs: CreateActionOutput[] = [
+				receive,
+				{
+					lockingScript: payoutLockingScript.toHex(),
+					satoshis: payoutSatoshis,
+					outputDescription: 'Payment to seller',
+					tags: [],
+				},
+				...extraOutputs,
+			]
+			const beefBinary = beef.toBinary()
 			const buyArgs = await prepareP1SatArgs(ctx, {
 				description: `Purchase ${tokenAmount} tokens for ${payoutSatoshis} sats`,
 				labels: [buildTokenLabel(tokenId)],
@@ -971,7 +1024,11 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 					{
 						outpoint,
 						inputDescription: 'Listed token',
-						unlockingScriptLength: 1402,
+						unlockingScriptLength: v2Listing
+							? OrdLockV2.estimatePurchaseUnlockLength(
+									listingOutput.lockingScript,
+								)
+							: 1402,
 					},
 				],
 				outputs,
@@ -985,13 +1042,11 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 				undefined,
 				{
 					spends: [{ outpoint, scheme: 'bsv21' }],
-					usePermissionModule:
-						input.usePermissionModule ??
-						input.useOneSatModule ??
-						input.useModule,
+					usePermissionModule,
 					permissionScheme: 'bsv21',
 				},
 			)
+			const receiveIndex = v2Listing ? 2 : 0
 
 			// Submit to overlay service for indexing
 			if (result.tx && ctx.services) {
@@ -1015,7 +1070,7 @@ export const buyBsv21: Action<PurchaseBsv21Request, TokenOperationResponse> = {
 					rawtx: result.tx ? Utils.toHex(result.tx) : undefined,
 					outputs: [
 						{
-							index: 0,
+							index: receiveIndex,
 							protocolID: P1SAT_PROTOCOL,
 							keyID: bsv21KeyID,
 							basket: BSV21_BASKET,
@@ -1457,7 +1512,9 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 			}
 
 			// Look up the token's metadata for tag enrichment.
-			const tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId)
+			const tokenDetails = await ctx.services.bsv21.getTokenDetails(tokenId, {
+				fresh: true,
+			})
 			if (!tokenDetails.status.is_active) {
 				return { error: 'token-not-active' }
 			}
@@ -1713,6 +1770,208 @@ export const mintBsv21: Action<MintBsv21Input, MintBsv21Response> = {
 	},
 }
 
+export interface CancelTokenListingInput extends ActionOptions {
+	/** Tracking id of the listing in the ordinals basket */
+	id: string
+}
+
+/**
+ * Cancel a listed BSV-20/BSV-21 token. Returns a transfer inscription, never a bare P2PKH.
+ */
+export const cancelTokenListing: Action<
+	CancelTokenListingInput,
+	{ txid?: string; tx?: number[]; error?: string }
+> = {
+	meta: {
+		name: 'cancelTokenListing',
+		description:
+			'Cancel a token listing and return a transfer inscription to the wallet',
+		category: 'tokens',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				id: {
+					type: 'string',
+					description: 'Tracking id of the listing in the ordinals basket',
+				},
+			},
+			required: ['id'],
+		},
+	},
+	async execute(ctx, input) {
+		try {
+			if (!input.id) return { error: 'missing-id' }
+			const loaded = await loadBasketOutputBeef(
+				ctx.wallet,
+				ORDINALS_BASKET,
+				input.id,
+			)
+			if ('error' in loaded) return loaded
+			const { output: listing, beef: inputBEEF } = loaded
+			const token = listedTransfer(listing)
+			if (!token) return { error: 'not-a-token-listing' }
+			if (!listing.customInstructions) {
+				return { error: 'missing-custom-instructions' }
+			}
+
+			const outpoint = listing.outpoint
+			const newKeyID = outpoint
+			const cancelAddress = await deriveCancelAddressInternal(ctx, newKeyID)
+			const outputs: CreateActionOutput[] = [
+				tokenReturnOutput({
+					address: cancelAddress,
+					token,
+					keyID: newKeyID,
+					protocolID: P1SAT_PROTOCOL,
+					description: 'Cancelled token listing',
+				}),
+			]
+			if (isBsv21Transfer(token)) {
+				if (!ctx.services?.bsv21) return { error: 'services-required' }
+				const details = await ctx.services.bsv21.getTokenDetails(token.id, {
+					fresh: true,
+				})
+				if (!details.status.is_active) return { error: 'token-not-active' }
+				const feePerOutput = details.status.fee_per_output
+				const feeAddress = details.status.fee_address
+				if (
+					typeof feePerOutput === 'number' &&
+					feePerOutput > 0 &&
+					feeAddress
+				) {
+					outputs.push({
+						lockingScript: new P2PKH().lock(feeAddress).toHex(),
+						satoshis: feePerOutput,
+						outputDescription: 'Overlay processing fee',
+						tags: ['fee:overlay'],
+					})
+				}
+			}
+
+			const inputId = readAssetIdTag(listing.tags)
+			const args = await prepareP1SatArgs(ctx, {
+				description: 'Cancel token listing',
+				inputBEEF,
+				...(inputId && {
+					labels: [buildInputAssetLabel(ORDINALS_BASKET, inputId)],
+				}),
+				inputs: [
+					{
+						outpoint,
+						inputDescription: 'Listed token',
+						unlockingScriptLength: ordLockCancelUnlockLength(
+							inputBEEF,
+							outpoint,
+						),
+					},
+				],
+				outputs,
+				options: { randomizeOutputs: false },
+			})
+			return await executeTrackedAction(
+				ctx.wallet,
+				args,
+				input.fundingProvider,
+				inputBEEF,
+				undefined,
+				{
+					spends: inputId ? [{ basket: ORDINALS_BASKET, id: inputId }] : [],
+					usePermissionModule:
+						input.usePermissionModule ??
+						input.useOneSatModule ??
+						input.useModule,
+					permissionScheme: '1sat',
+				},
+			)
+		} catch (error) {
+			console.error('[cancelTokenListing]', error)
+			return {
+				error: error instanceof Error ? error.message : 'unknown-error',
+			}
+		}
+	},
+}
+
+/** Input for fundBsv21Overlay action */
+export interface FundBsv21OverlayInput extends ActionOptions {
+	tokenId: string
+}
+
+export interface FundBsv21OverlayResponse extends TokenOperationResponse {
+	/** The token's overlay status after the payment */
+	status?: TokenStatus
+}
+
+/**
+ * Pay the token overlay's funding so it indexes the token. The overlay sets
+ * the amount: its minimum funding plus the queued backlog. The wallet
+ * broadcasts the payment and the overlay starts indexing on receipt.
+ */
+export const fundBsv21Overlay: Action<
+	FundBsv21OverlayInput,
+	FundBsv21OverlayResponse
+> = {
+	meta: {
+		name: 'fundBsv21Overlay',
+		description:
+			'Fund the token overlay so it indexes and validates a BSV21 token',
+		category: 'tokens',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				tokenId: { type: 'string', description: 'Token ID (txid_vout format)' },
+			},
+			required: ['tokenId'],
+		},
+	},
+	async execute(ctx, input) {
+		try {
+			if (!ctx.services?.bsv21) return { error: 'services-required' }
+			const { tokenId } = input
+
+			const template = await ctx.services.bsv21.getFundingTemplate(tokenId)
+			if (template.outputs.length === 0) {
+				return { error: 'funding-not-needed' }
+			}
+
+			const result = await dispatchPlainPayment(
+				ctx.wallet,
+				{
+					description: template.outputs[0].outputDescription,
+					outputs: template.outputs.map((o) => ({ ...o, tags: [] })),
+					options: { acceptDelayedBroadcast: false },
+				},
+				input.fundingProvider,
+			)
+			if (!result.txid || !result.tx) {
+				return { error: 'no-txid-returned' }
+			}
+
+			// The payment is broadcast either way; if the overlay misses this
+			// submission it still finds the payment on its next fee-address check.
+			try {
+				const status = await ctx.services.bsv21.submitFunding(
+					tokenId,
+					result.tx,
+				)
+				return { txid: result.txid, tx: result.tx, status }
+			} catch (e) {
+				console.error('[fundBsv21Overlay] funding submission failed:', e)
+				return {
+					txid: result.txid,
+					tx: result.tx,
+					error: 'funding-submit-failed',
+				}
+			}
+		} catch (error) {
+			console.error('[fundBsv21Overlay]', error)
+			return {
+				error: error instanceof Error ? error.message : 'unknown-error',
+			}
+		}
+	},
+}
+
 // ============================================================================
 // Module exports
 // ============================================================================
@@ -1722,7 +1981,9 @@ export const tokensActions = [
 	listBsv21,
 	getBsv21Balances,
 	sendBsv21,
+	fundBsv21Overlay,
 	buyBsv21,
+	cancelTokenListing,
 	deployBsv21Mint,
 	deployBsv21Auth,
 	mintBsv21,

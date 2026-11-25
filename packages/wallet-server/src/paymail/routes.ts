@@ -4,6 +4,7 @@
  */
 
 import { OneSatServices } from '@1sat/client'
+import { normalizeOutpoint } from '@1sat/types'
 import {
 	P2pPaymentDestinationRoute,
 	PaymailClient,
@@ -14,9 +15,11 @@ import {
 	ReceiveBeefTransactionRoute,
 	ReceiveTransactionRoute,
 	RequestSenderValidationCapability,
+	VerifyPublicKeyOwnerRoute,
 } from '@bsv/paymail'
 import { Transaction, Utils } from '@bsv/sdk'
 import type { Express, Request } from 'express'
+import { ensureUserDomainCert } from '../accounts/issueCert.js'
 import {
 	createPaymentDestination,
 	verifyPaymentOutputs,
@@ -57,6 +60,15 @@ interface ReceiveHexBody {
 	metadata?: PaymailMetadata
 }
 
+const DEFAULT_AVATAR_PATH = '/bsvalias/default-avatar.svg'
+
+const DEFAULT_AVATAR_SVG =
+	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180">' +
+	'<rect width="180" height="180" fill="#d4d4d8"/>' +
+	'<circle cx="90" cy="70" r="34" fill="#a1a1aa"/>' +
+	'<path d="M28 180c0-38 28-62 62-62s62 24 62 62z" fill="#a1a1aa"/>' +
+	'</svg>'
+
 class NotFoundError extends Error {
 	constructor(message = 'paymail not found') {
 		super(message)
@@ -72,6 +84,9 @@ export async function mountPaymailRoutes(
 	// Avatars resolve through the same ORDFS host used for name resolution;
 	// content lives at /content, matching OrdfsClient.
 	const ordfsBaseUrl = `${deps.stackUrl.replace(/\/$/, '')}/content`
+	// The public-profile route requires an https avatar URL, so accounts
+	// without an avatar get this host's generic one.
+	const defaultAvatarUrl = joinUrl(deps.baseUrl, DEFAULT_AVATAR_PATH)
 	const messageBox =
 		deps.messageboxUrl && deps.hostPrivateKey
 			? MessageBoxClient.fromPrivateKey(deps.messageboxUrl, deps.hostPrivateKey)
@@ -99,6 +114,9 @@ export async function mountPaymailRoutes(
 	 */
 	async function resolveAndAuthorize(alias: string, domain: string) {
 		try {
+			if (deps.certStore) {
+				return await resolveCertified(alias, domain)
+			}
 			const viaAccounts =
 				accountResolver != null &&
 				domain.toLowerCase() === deps.userDomain?.toLowerCase()
@@ -109,15 +127,7 @@ export async function mountPaymailRoutes(
 			}
 			const bind = await resolvePaymailBind(services, alias)
 			if (!bind) throw new NotFoundError()
-			if (deps.accountStore) {
-				const account = await deps.accountStore.getByIdentity(bind.identityKey)
-				if (!account) {
-					console.warn(
-						`[paymail] ${alias}@${domain}: identity ${bind.identityKey} has no account on this host`,
-					)
-					throw new NotFoundError()
-				}
-			}
+			await requireAccount(bind.identityKey, alias, domain)
 			return bind
 		} catch (err) {
 			if (err instanceof NotFoundError) throw err
@@ -126,6 +136,80 @@ export async function mountPaymailRoutes(
 			)
 			throw new NotFoundError()
 		}
+	}
+
+	async function requireAccount(
+		identityKey: string,
+		alias: string,
+		domain: string,
+	) {
+		if (!deps.accountStore) return
+		const account = await deps.accountStore.getByIdentity(identityKey)
+		if (!account) {
+			console.warn(
+				`[paymail] ${alias}@${domain}: identity ${identityKey} has no account on this host`,
+			)
+			throw new NotFoundError()
+		}
+	}
+
+	async function resolveCertified(alias: string, domain: string) {
+		const cert =
+			(await deps.certStore?.get(alias, domain)) ??
+			(await backfillUserDomainCert(alias, domain))
+		if (!cert) throw new NotFoundError()
+		await requireAccount(cert.subject, alias, domain)
+
+		const viaAccounts =
+			accountResolver != null &&
+			domain.toLowerCase() === deps.userDomain?.toLowerCase()
+		if (viaAccounts) {
+			const bind = await accountResolver.resolve(alias, domain)
+			if (!bind || bind.identityKey !== cert.subject) throw new NotFoundError()
+			return bind
+		}
+
+		const bind = await resolvePaymailBind(services, alias)
+		if (bind.identityKey !== cert.subject) throw new NotFoundError()
+		if (
+			normalizeOutpoint(bind.outpoint) !==
+			normalizeOutpoint(cert.revocationOutpoint)
+		) {
+			throw new NotFoundError()
+		}
+		const spent = await isOutpointSpent(services, cert.revocationOutpoint)
+		if (spent) throw new NotFoundError()
+		return bind
+	}
+
+	/**
+	 * A username registered on the user domain before the host could issue
+	 * its cert (no user domain configured) has none. Issue it on first
+	 * lookup so the name resolves without the owner registering again.
+	 */
+	async function backfillUserDomainCert(alias: string, domain: string) {
+		const userDomain = deps.userDomain?.toLowerCase()
+		if (
+			!userDomain ||
+			domain.toLowerCase() !== userDomain ||
+			!accountResolver ||
+			!deps.certStore ||
+			!deps.hostPrivateKey
+		) {
+			return null
+		}
+		const bind = await accountResolver.resolve(alias, domain)
+		if (!bind) return null
+		const issued = await ensureUserDomainCert(
+			{ store: deps.certStore, hostPrivateKey: deps.hostPrivateKey },
+			userDomain,
+			bind.identityKey,
+			alias,
+		)
+		console.info(
+			`[paymail] ${alias}@${domain}: issued its missing handle certificate`,
+		)
+		return issued
 	}
 
 	const paymailClient = new PaymailClient()
@@ -142,6 +226,19 @@ export async function mountPaymailRoutes(
 				}
 			},
 		}),
+		new VerifyPublicKeyOwnerRoute({
+			domainLogicHandler: async (params: PaymailRouteParams) => {
+				const { name, domain } =
+					VerifyPublicKeyOwnerRoute.getNameAndDomain(params)
+				const bind = await resolveAndAuthorize(name, domain)
+				const pubkey = String(params.pubkey ?? '')
+				return {
+					handle: `${name}@${domain}`,
+					pubkey,
+					match: pubkey === bind.identityKey,
+				}
+			},
+		}),
 		new PublicProfileRoute({
 			domainLogicHandler: async (params: PaymailRouteParams) => {
 				const { name, domain } = PublicProfileRoute.getNameAndDomain(params)
@@ -152,7 +249,7 @@ export async function mountPaymailRoutes(
 					name: bind.profileName || name,
 					avatar: bind.avatarOrigin
 						? `${ordfsBaseUrl}/${bind.avatarOrigin}`
-						: '',
+						: defaultAvatarUrl,
 				}
 			},
 		}),
@@ -178,9 +275,9 @@ export async function mountPaymailRoutes(
 			},
 		}),
 		new ReceiveBeefTransactionRoute({
-			verifySignature: false,
+			verifySignature: deps.verifySignature === true,
 			paymailClient,
-			domainLogicHandler: async (params, rawBody) => {
+			domainLogicHandler: async (_params, rawBody) => {
 				const body = rawBody as ReceiveBeefBody
 				// Senders post plain BEEF per BRC-70; fromBEEF accepts
 				// V1, V2, and Atomic. Normalize to atomic for downstream
@@ -190,9 +287,9 @@ export async function mountPaymailRoutes(
 			},
 		}),
 		new ReceiveTransactionRoute({
-			verifySignature: false,
+			verifySignature: deps.verifySignature === true,
 			paymailClient,
-			domainLogicHandler: async (params, rawBody) => {
+			domainLogicHandler: async (_params, rawBody) => {
 				const body = rawBody as ReceiveHexBody
 				const tx = Transaction.fromHex(body.hex)
 				await populateAncestors(tx)
@@ -283,11 +380,45 @@ export async function mountPaymailRoutes(
 				.replaceAll(':pubkey', '{pubkey}')
 			capabilities[route.getCode()] = joinUrl(origin, '/bsvalias', endpoint)
 		}
-		capabilities[RequestSenderValidationCapability.getCode()] = false
+		capabilities[RequestSenderValidationCapability.getCode()] =
+			deps.verifySignature === true
 		res.type('application/json').send({ bsvalias: '1.0', capabilities })
 	})
 
+	app.get(DEFAULT_AVATAR_PATH, (_req, res) => {
+		res
+			.type('image/svg+xml')
+			.set('Cache-Control', 'public, max-age=86400')
+			.send(DEFAULT_AVATAR_SVG)
+	})
+
 	app.use(router.getRouter())
+
+	app.get('/manifest.json', (req: Request, res) => {
+		const origin = requestOrigin(req, deps.baseUrl)
+		const publicKey = deps.hostPrivateKey?.toPublicKey().toString()
+		if (!publicKey) {
+			return res.status(404).json({ error: 'no certifier key' })
+		}
+		let host = ''
+		try {
+			host = new URL(origin).hostname
+		} catch {
+			host = 'paymail'
+		}
+		const name = trustName(host)
+		res.type('application/json').send({
+			name,
+			metanet: {
+				trust: {
+					name,
+					note: 'Paymail handle certifier for this domain',
+					icon: `${origin}/icon.png`,
+					publicKey,
+				},
+			},
+		})
+	})
 }
 
 function requestOrigin(req: Request, fallback: string): string {
@@ -313,8 +444,24 @@ function joinUrl(...parts: string[]): string {
 		.join('/')
 }
 
+function trustName(host: string): string {
+	const n = host.replace(/:\d+$/, '')
+	if (n.length >= 5 && n.length <= 30) return n
+	if (n.length < 5) return n.padEnd(5, '-')
+	return n.slice(0, 30)
+}
+
 function isRejected(txStatus: string | undefined): boolean {
 	return ['REJECTED', 'INVALID', 'DOUBLE_SPEND_ATTEMPTED'].includes(
 		txStatus?.toUpperCase?.() ?? '',
 	)
+}
+
+async function isOutpointSpent(
+	services: OneSatServices,
+	outpoint: string,
+): Promise<boolean> {
+	const txoOutpoint = outpoint.replace('.', '_')
+	const spend = await services.txo.getSpend(txoOutpoint)
+	return spend != null
 }

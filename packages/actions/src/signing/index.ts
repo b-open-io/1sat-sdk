@@ -101,7 +101,7 @@ export const signBsm: Action<SignBsmRequest, SignBsmResponse> = {
 			)
 
 			return {
-				address: publicKey.toAddress(),
+				address: publicKey.toAddress(ctx.chain),
 				pubKey: publicKey.toString(),
 				message,
 				sig: signature.toCompact(recovery, true, 'base64') as string,

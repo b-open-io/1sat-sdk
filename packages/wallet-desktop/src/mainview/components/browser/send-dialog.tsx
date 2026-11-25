@@ -9,8 +9,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useWallet } from '@/hooks/use-wallet'
+import { isValidRecipient, sendTarget } from '@/lib/send-recipient'
 import { cn } from '@/lib/utils'
-import { Utils } from '@bsv/sdk'
 import {
 	AlertCircle,
 	ArrowLeft,
@@ -18,7 +18,8 @@ import {
 	Loader2,
 	SendHorizonal,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { SendRecipientResolution } from '../../../shared/types'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -45,27 +46,6 @@ function satsToBsv(sats: number): string {
 
 function formatSats(sats: number): string {
 	return sats.toLocaleString()
-}
-
-/** Validate a BSV address by decoding Base58Check and verifying the checksum. */
-function isValidBsvAddress(address: string): boolean {
-	try {
-		const { prefix } = Utils.fromBase58Check(address)
-		// Mainnet P2PKH = 0x00, P2SH = 0x05
-		const byte = Array.isArray(prefix)
-			? prefix[0]
-			: (prefix as unknown as number)
-		return byte === 0x00 || byte === 0x05
-	} catch {
-		return false
-	}
-}
-
-const PAYMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-function isValidRecipient(value: string): boolean {
-	const trimmed = value.trim()
-	return isValidBsvAddress(trimmed) || PAYMAIL_RE.test(trimmed)
 }
 
 // ---------------------------------------------------------------------------
@@ -121,7 +101,7 @@ export interface SendDialogProps {
 }
 
 export function SendDialog({ open, onOpenChange }: SendDialogProps) {
-	const { sendBsv } = useWallet()
+	const { sendBsv, resolveSendRecipient } = useWallet()
 
 	// Form state
 	const [recipient, setRecipient] = useState('')
@@ -130,6 +110,11 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 	const [step, setStep] = useState<SendStep>('input')
 	const [txid, setTxid] = useState<string | null>(null)
 	const [errorMsg, setErrorMsg] = useState<string | null>(null)
+	// Handle recipients: who the payment goes to, resolved for the review step
+	const [resolved, setResolved] = useState<SendRecipientResolution | null>(null)
+	const [resolveError, setResolveError] = useState<string | null>(null)
+	// Ignores a resolution that finishes after the user left that review
+	const reviewSeq = useRef(0)
 
 	// Reset on open
 	useEffect(() => {
@@ -166,10 +151,27 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 
 	const handleReview = useCallback(() => {
 		if (!canReview) return
+		setResolved(null)
+		setResolveError(null)
 		setStep('review')
-	}, [canReview])
+		const seq = ++reviewSeq.current
+		const target = sendTarget(recipient)
+		if ('handle' in target) {
+			resolveSendRecipient(target.handle)
+				.then((r) => {
+					if (seq === reviewSeq.current) setResolved(r)
+				})
+				.catch((err) => {
+					if (seq !== reviewSeq.current) return
+					setResolveError(
+						err instanceof Error ? err.message : 'Could not resolve recipient',
+					)
+				})
+		}
+	}, [canReview, recipient, resolveSendRecipient])
 
 	const handleBack = useCallback(() => {
+		reviewSeq.current++
 		setStep('input')
 	}, [])
 
@@ -177,7 +179,7 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 		setStep('broadcasting')
 		setErrorMsg(null)
 		try {
-			const result = await sendBsv(recipient.trim(), satoshis)
+			const result = await sendBsv(sendTarget(recipient), satoshis)
 			setTxid(result.txid)
 			setStep('success')
 		} catch (err) {
@@ -214,7 +216,7 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 						<Input
 							id="send-recipient"
 							type="text"
-							placeholder="Address or paymail"
+							placeholder="Address or handle"
 							value={recipient}
 							onChange={(e) => setRecipient(e.target.value)}
 							className="font-mono text-sm"
@@ -224,7 +226,7 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 						/>
 						{recipient.length > 0 && !recipientValid && (
 							<p className="text-xs text-destructive">
-								Enter a valid BSV address or paymail
+								Enter a valid BSV address or handle
 							</p>
 						)}
 					</div>
@@ -302,6 +304,24 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 	}
 
 	function renderReview() {
+		const isHandle = 'handle' in sendTarget(recipient)
+		const resolving = isHandle && !resolved && !resolveError
+		const recipientRows = !isHandle
+			? []
+			: resolveError
+				? [{ label: 'Recipient', value: resolveError }]
+				: !resolved
+					? [{ label: 'Recipient', value: 'Resolving...' }]
+					: resolved.identityKey
+						? [
+								{ label: 'Handle', value: `@${resolved.handle}`, mono: true },
+								{
+									label: 'Identity key',
+									value: resolved.identityKey,
+									mono: true,
+								},
+							]
+						: [{ label: 'Recipient', value: 'Paymail (no BRC-169 handle)' }]
 		const rows: Array<{
 			label: string
 			value: string
@@ -309,6 +329,7 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 			bold?: boolean
 		}> = [
 			{ label: 'To', value: recipient.trim(), mono: true },
+			...recipientRows,
 			{
 				label: 'Amount',
 				value: `${formatSats(satoshis)} sats (BSV)`,
@@ -357,6 +378,7 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 					<Button
 						className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
 						onClick={handleSend}
+						disabled={resolving || !!resolveError}
 					>
 						Send
 						<SendHorizonal className="ml-1 size-4" />
@@ -469,7 +491,7 @@ export function SendDialog({ open, onOpenChange }: SendDialogProps) {
 						{titleMap[step]}
 					</DialogTitle>
 					<DialogDescription className="sr-only">
-						Send BSV to an address or paymail
+						Send BSV to an address or handle
 					</DialogDescription>
 				</DialogHeader>
 

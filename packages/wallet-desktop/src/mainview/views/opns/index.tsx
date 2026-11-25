@@ -12,6 +12,7 @@ import { Empty } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Globe, Loader2, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { ORDLOCK_V2_TAG } from '@1sat/types'
 import { STACK_URL } from '../../../shared/constants'
 import { rpc } from '../../rpc'
 
@@ -31,6 +32,7 @@ interface OpnsName {
 	outpoint: string
 	name: string
 	registered: boolean
+	listed: boolean
 	onChain?: boolean
 }
 
@@ -127,7 +129,11 @@ function NameRow({
 					variant={name.registered ? 'default' : 'secondary'}
 					className="shrink-0 rounded-none px-1.5 py-0 h-5 text-[10px]"
 				>
-					{name.registered ? 'Registered' : 'Unregistered'}
+					{name.listed
+						? 'Listed'
+						: name.registered
+							? 'Registered'
+							: 'Unregistered'}
 				</Badge>
 
 				{/* Action */}
@@ -139,7 +145,11 @@ function NameRow({
 					className="shrink-0 rounded-none h-7 text-xs"
 				>
 					{isOperating ? <Loader2 className="size-3 animate-spin" /> : null}
-					{name.registered ? 'Deregister' : 'Register'}
+					{name.listed
+						? 'Cancel Listing'
+						: name.registered
+							? 'Deregister'
+							: 'Register'}
 				</Button>
 			</div>
 			{!isLast && <div className="h-px bg-border mx-0" />}
@@ -167,7 +177,7 @@ function SkeletonRow({ isLast }: { isLast: boolean }) {
 // Confirmation dialog
 // ---------------------------------------------------------------------------
 
-type ConfirmAction = 'register' | 'deregister'
+type ConfirmAction = 'register' | 'deregister' | 'cancel-listing'
 
 interface ConfirmState {
 	open: boolean
@@ -205,6 +215,7 @@ export function OpnsView({ onNavigate }: OpnsViewProps = {}) {
 				outpoint: n.outpoint,
 				name: n.name,
 				registered: n.tags.includes('opns:published'),
+				listed: n.tags.includes(ORDLOCK_V2_TAG),
 			}))
 			setNames(mapped)
 			setError(null)
@@ -245,7 +256,11 @@ export function OpnsView({ onNavigate }: OpnsViewProps = {}) {
 		setOpResult(null)
 		setConfirm({
 			open: true,
-			action: name.registered ? 'deregister' : 'register',
+			action: name.listed
+				? 'cancel-listing'
+				: name.registered
+					? 'deregister'
+					: 'register',
 			name,
 		})
 	}, [])
@@ -255,13 +270,26 @@ export function OpnsView({ onNavigate }: OpnsViewProps = {}) {
 		setOperating(true)
 		try {
 			const res =
-				confirm.action === 'register'
-					? await rpc.request.opnsRegister({ outpoint: confirm.name.outpoint })
-					: await rpc.request.opnsDeregister({
-							outpoint: confirm.name.outpoint,
-						})
-			setOpResult(res)
-			if (!res.error) await fetchNames()
+				confirm.action === 'cancel-listing'
+					? await rpc.request.cancelListing({ outpoint: confirm.name.outpoint })
+					: confirm.action === 'register'
+						? await rpc.request.opnsRegister({
+								outpoint: confirm.name.outpoint,
+							})
+						: await rpc.request.opnsDeregister({
+								outpoint: confirm.name.outpoint,
+							})
+			setOpResult(
+				res.error || res.txid?.trim()
+					? res
+					: { error: 'Transaction did not complete. Retry.' },
+			)
+			if (!res.error && res.txid?.trim()) await fetchNames()
+		} catch (error) {
+			setOpResult({
+				error:
+					error instanceof Error ? error.message : 'Operation failed. Retry.',
+			})
 		} finally {
 			setOperating(false)
 			setConfirm(INITIAL_CONFIRM)
@@ -376,14 +404,18 @@ export function OpnsView({ onNavigate }: OpnsViewProps = {}) {
 				<DialogContent>
 					<DialogHeader>
 						<DialogTitle>
-							{confirm.action === 'register'
-								? 'Register Identity'
-								: 'Remove Identity Binding'}
+							{confirm.action === 'cancel-listing'
+								? 'Cancel Listing'
+								: confirm.action === 'register'
+									? 'Register Identity'
+									: 'Remove Identity Binding'}
 						</DialogTitle>
 						<DialogDescription>
-							{confirm.action === 'register'
-								? `Bind your wallet's identity key to "${confirm.name?.name ?? ''}". This creates an on-chain transaction.`
-								: `Remove the identity binding from "${confirm.name?.name ?? ''}". This creates an on-chain transaction.`}
+							{confirm.action === 'cancel-listing'
+								? `Cancel the listing for "${confirm.name?.name ?? ''}" and return the name to your wallet.`
+								: confirm.action === 'register'
+									? `Bind your wallet's identity key to "${confirm.name?.name ?? ''}". This creates an on-chain transaction.`
+									: `Remove the identity binding from "${confirm.name?.name ?? ''}". This creates an on-chain transaction.`}
 						</DialogDescription>
 					</DialogHeader>
 					<DialogFooter className="flex gap-2 sm:gap-0">
@@ -404,7 +436,11 @@ export function OpnsView({ onNavigate }: OpnsViewProps = {}) {
 							className="rounded-none"
 						>
 							{operating ? <Loader2 className="size-4 animate-spin" /> : null}
-							{confirm.action === 'register' ? 'Register' : 'Deregister'}
+							{confirm.action === 'cancel-listing'
+								? 'Cancel Listing'
+								: confirm.action === 'register'
+									? 'Register'
+									: 'Deregister'}
 						</Button>
 					</DialogFooter>
 				</DialogContent>

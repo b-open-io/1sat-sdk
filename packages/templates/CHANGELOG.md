@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.0.44
+
+### Changed
+- `AIP.sign` and `Sigma` signing take an optional `chain` for the address prefix; verification accepts either prefix.
+- Mandala token ids parse through `@1sat/types` and accept either delimiter.
+
+### Removed
+- Shrug template and metadata codec (replaced by BRC-162), and the `cbor2` dependency.
+- `outpointToBytes` / `outpointFromBytes`: use `outpointToWire` / `outpointFromWire` from `@1sat/types`.
+
+## 0.0.40
+
+### Fixed
+- `OrdLock`, `OrdLockV2`, `Lock` and `Multisig` pass only `hashToDirectlySign` to `createSignature`. `@bsv/sdk` 2.8.11 rejects calls that also pass `data`. Signatures are unchanged.
+
+## 0.0.37
+
+### Changed
+- `OrdLockV2` targets the canonical contract: the purchase unlock is `<preimage> OP_0` under `SINGLE|ANYONECANPAY|FORKID`, and listing input `i` requires its payout at output `i`. `purchaseListing` refuses to sign unless that holds and the listed satoshi routes (first-sat ordering) to a 1-sat receive output; pass `{ deliveries }` to pin the approved outputs.
+- `estimatePurchaseUnlockLength(lockingScript)` is exact and no longer depends on the other outputs.
+- `isPurchase` recognizes the two-chunk unlock.
+
+### Added
+- `OrdLockV2.planPurchase`, `ordinalOutput`, `assertDelivery`, `ORDLOCK_V2_PURCHASE_SIGHASH`, and the `OrdLockV2DeliveryTarget` / `OrdLockV2PurchaseOptions` / `OrdLockV2PurchasePlan` types.
+- Interpreter vectors (`ORDLOCK_V2_VECTORS_OUT`) now cover single, batch, multi-front-funding, BSV-21 receive, MAP, and cancel cases and are replayed by the ordlock-v2 harness.
+
+### Removed
+- `tagScript` / `tagOutput` / `tagOutputBytes` / `outpointBytes` (draft tag output).
+
+## 0.0.35
+
+### Added
+- OrdLock v2 template (`OrdLockV2.lock` / `cancelListing` / `purchaseListing`).
+
+### Changed
+- `@bsv/sdk` `^2.6.0`. v1 `OrdLock.lock` stays disabled.
+
 ## 0.0.1
 
 Initial release. Migrated Bitcoin script templates from `@bopen-io/templates` into the 1sat-sdk monorepo.

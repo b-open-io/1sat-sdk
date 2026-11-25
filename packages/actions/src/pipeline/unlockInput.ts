@@ -1,4 +1,9 @@
-import { Lock, OrdLock } from '@1sat/templates'
+import {
+	Lock,
+	OrdLock,
+	OrdLockV2,
+	type OrdLockV2DeliveryTarget,
+} from '@1sat/templates'
 import {
 	BigNumber,
 	Hash,
@@ -92,6 +97,7 @@ export async function buildSpendsForResolved(
 	wallet: WalletInterface,
 	tx: Transaction,
 	resolved: ResolvedSpend[],
+	deliveries?: OrdLockV2DeliveryTarget[],
 ): Promise<Record<number, { unlockingScript: string }> | { error: string }> {
 	const spends: Record<number, { unlockingScript: string }> = {}
 
@@ -134,6 +140,7 @@ export async function buildSpendsForResolved(
 			lockingScript,
 			sourceSatoshis,
 			keyCi,
+			deliveries,
 		)
 		if ('error' in unlocked) {
 			if (unlocked.skip) continue
@@ -158,8 +165,14 @@ export async function buildSpendsForTargets(
 
 /**
  * Unlock one input from locking-script shape.
- * - OrdLock + CI → cancel; OrdLock without → purchase unlock
+ * - OrdLock v2 + CI → cancel; without → purchase (payout must sit at the
+ *   listing's input index and the listed sat must reach an approved 1-sat
+ *   receive output — see OrdLockV2.assertDelivery)
+ * - OrdLock v1 + CI → cancel; without → purchase unlock
  * - PushDrop / Lock / P2PKH → need CI
+ *
+ * `deliveries` are the buyer-approved receive outputs of the final
+ * transaction (basketed 1-sat outputs of the createAction args).
  */
 export async function unlockByScript(
 	wallet: WalletInterface,
@@ -168,7 +181,30 @@ export async function unlockByScript(
 	lockingScript: LockingScript,
 	sourceSatoshis: number,
 	keyCi?: KeyCi,
+	deliveries?: OrdLockV2DeliveryTarget[],
 ): Promise<UnlockResult> {
+	if (OrdLockV2.isOrdLockV2(lockingScript)) {
+		const unlocker =
+			keyCi?.protocolID && keyCi.keyID
+				? OrdLockV2.cancelWithWallet(
+						wallet,
+						keyCi.protocolID,
+						keyCi.keyID,
+						keyCi.counterparty ?? 'self',
+					)
+				: OrdLockV2.purchaseListing(sourceSatoshis, lockingScript, {
+						deliveries,
+					})
+		try {
+			const unlockingScript = await unlocker.sign(tx, inputIndex)
+			return { unlockingScript: unlockingScript.toHex() }
+		} catch (e) {
+			return {
+				error: e instanceof Error ? e.message : 'ordlock-v2-unlock-failed',
+			}
+		}
+	}
+
 	if (OrdLock.decode(lockingScript)) {
 		if (keyCi?.protocolID && keyCi.keyID) {
 			try {
@@ -371,7 +407,6 @@ async function signPushDropInput(
 		protocolID,
 		keyID,
 		counterparty,
-		data: Array.from(preimage),
 		hashToDirectlySign: Array.from(sighash),
 	})
 
@@ -430,7 +465,6 @@ async function signP2PKHInputWallet(
 		protocolID,
 		keyID,
 		counterparty,
-		data: Array.from(preimage),
 		hashToDirectlySign: Array.from(sighash),
 	})
 	const { publicKey } = await wallet.getPublicKey({

@@ -103,8 +103,11 @@ export function wifToHex(wif: string): string {
 /**
  * Get the public address from a WIF private key
  */
-export function wifToAddress(wif: string): string {
-	return PrivateKey.fromWif(wif).toAddress()
+export function wifToAddress(
+	wif: string,
+	chain: 'main' | 'test' = 'main',
+): string {
+	return PrivateKey.fromWif(wif).toAddress(chain)
 }
 
 /**

@@ -1,5 +1,89 @@
 # Changelog
 
+## 0.0.133
+
+### Fixed
+- The configured `chain` applies when `--chain` is not given; it was ignored by every command, including `serve`.
+- `init` and `sweep` print and scan addresses for the configured chain.
+
+## 0.0.129
+
+### Changed
+- `@bsv/wallet-toolbox` and `@bsv/wallet-toolbox-client` aliases: `@bopen-io/*@2.14.6`. Storage RPC sends and returns BEEF as bytes over negotiated binary JSON, so large BEEF no longer exceeds the auth middleware request limit (`ERR_AUTH_MALFORMED`).
+- The monitor completes merkle proofs again (`@1sat/wallet-node`).
+
+## 0.0.127
+
+### Fixed
+- Depends on `@bsv/wallet-toolbox-client` (aliased to `@bopen-io/wallet-toolbox-client@2.14.5`) directly. With only `@1sat/client`'s nested alias, npm installed upstream 2.14.4 for the `@1sat/wallet` peer, and remote mode rejected a Postgres storage server.
+
+## 0.0.126
+
+### Changed
+- `1sat serve storage` replaces `1sat serve wallet`: the wallet-toolbox `StorageServer` over the configured storage (`server.storage`), with Redis-shared sessions when `server.sessionStore.redisUrl` is set and `server.trustProxy` for its IP rate limit.
+- `1sat serve` (host) no longer serves storage RPC.
+
+## 0.0.125
+
+### Changed
+- Picks up wallet-server 0.0.59 (binary sync chunks, upstream auth middleware with 413 on oversized responses).
+
+## 0.0.124
+
+### Removed
+- `wallet move-basket` and `wallet migrate-baskets`. Local wallets re-file legacy baskets through the storage migration on start.
+
+### Changed
+- Picks up the wallet-node and wallet-server changes in this release; `serve` applies the new storage migrations on start.
+
+## 0.0.123
+
+### Changed
+- Uses upstream `@bsv/wallet-toolbox` ^2.14.4 instead of the `@bopen-io` fork, via wallet-node and wallet-server releases in this set.
+
+## 0.0.121
+
+### Added
+- `1sat permissions` manages what apps on `1sat serve wallet-api` may do, directly on the grant store — no wallet key, no running server.
+  - `1sat permissions list [<origin>]` shows grants grouped by app origin.
+  - `1sat permissions grant <origin> [--protocol <name> --level <0|1|2> --counterparty <hex|self|anyone>] [--basket <name>] [--label <name>] [--certificate <type> --fields <a,b>] [--spending <satoshis>] [--privileged]` writes them. Selectors can be combined in one call.
+  - `1sat permissions revoke <origin> [same selectors] | --all` removes them.
+  - The endpoint's manager reads the store on every check, so a grant written while `1sat serve wallet-api` is running applies to the app's next call; no restart.
+
+### Changed
+- `1sat serve wallet-api` serves the wallet through a `LocalWalletPermissionsManager` and is headless. Each app origin is limited to the permissions granted to it; anything else is denied immediately. There are no terminal prompts, no interactive mode and no auto-approve.
+- A denial names the command that would allow the call, with every argument that request needs, e.g. ``permission denied for gib: run `1sat permissions grant gib --protocol "gib branch" --level 1` and retry``. A BRC-73 grouped request lists one command per permission it asked for. The message reaches the app unchanged as the 400 `{ error }` body, so the agent driving the app can read the fix out of the app's own output.
+- The previous behaviour, where the endpoint answered every app with the full wallet and approved sensitive methods without a prompt unless `server.dapp.approve` was set, is deprecated and removed. `server.dapp.approve` is gone; there is no setting that approves requests without a grant.
+- The endpoint rejects requests whose origin is the wallet's own admin originator.
+- Transaction metadata is encrypted at rest, at the wallet-toolbox default, for both the served endpoint and the CLI itself. The CLI's own commands now run against the permissions manager as the admin originator, which bypasses every check and decrypts descriptions and custom instructions on the way back, so they still read as text. Records written before this change are unaffected: decryption is attempted unconditionally and a value that was never encrypted is returned unchanged. `1sat serve wallet` is the wallet-toolbox storage interface and moves these records without interpreting them; the wallet at the far end runs its own permissions manager and decrypts.
+
+## 0.0.115
+
+### Added
+- `sweep import` moves OpNS names and BSV-20 tickers (not only BSV, ordinals, and active BSV-21).
+- `--only` / `--skip` select `bsv,ordinals,opns,bsv20,bsv21`. `--dry-run` prints the plan without broadcasting.
+- Listed OrdLock inputs cancel into the destination wallet in the same sweep transaction.
+- BSV-21 listed cancels are one transaction each so one invalid listing cannot sink the rest. Overlay `is_active` does not gate the sweep.
+
+### Changed
+- `sweep scan` reports every class, including OpNS, BSV-20, listings, locks, and RUN leftover.
+
+## 0.0.111
+
+### Changed
+- Picks up `@1sat/actions@0.0.208`.
+
+## 0.0.110
+
+### Fixed
+- Prevent SDK stale-session recovery from replaying signed writes. An explicitly approved payment permits one paid request; ambiguous writes require reconciliation.
+
+## 0.0.109
+
+### Fixed
+- Authenticated HTTP requests preserve response status and do not replay writes after an unsigned response or ambiguous transport failure.
+- Read-only requests can opt into plain HTTP fallback; mutation failures report that their outcome may be unknown.
+
 ## 0.0.108
 
 ### Changed

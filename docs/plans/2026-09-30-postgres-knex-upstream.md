@@ -1,0 +1,270 @@
+# Postgres: StoragePg vs toolbox StorageKnex
+
+Question: does `1sat-sdk/packages/wallet-node` `StoragePg` match the toolbox Knex schema, and should
+Postgres support go upstream into `@bsv/wallet-toolbox` `StorageKnex` so upstream owns schema changes?
+
+Research only. Nothing in any repo or shared DB was changed.
+
+Sources:
+- `1sat-sdk/packages/wallet-node/src/storage-pg.ts` (wallet-node 0.0.80).
+- ts-stack `origin/main` @ `8ce780e1c` (wallet-toolbox 2.14.5; migration list identical to published 2.14.4).
+  Paths below are `ts-stack/packages/wallet/wallet-toolbox/src/...`, shortened to `toolbox/src/...`.
+- Compiled `@bsv/wallet-toolbox` 2.14.4 in `1sat-sdk/node_modules/.bun/@bsv+wallet-toolbox@2.14.4+8b6459bf02b6411d`, knex 3.3.0, pg 8.x.
+- Local Postgres 17 scratch databases (all dropped afterwards).
+
+Evidence labels: **[run]** executed against Postgres 17; **[code]** read in source.
+
+---
+
+## 1. Verdict
+
+The column set of the 13 shared tables matches: same table names, same quoted camelCase column names,
+same PKs, uniques and foreign keys, same migration names in `knex_migrations`. Four differences matter:
+
+1. **Booleans.** StoragePg stores 13 boolean columns as `SMALLINT`. StorageKnex on Postgres creates
+   `boolean`, and its runtime writes and filters with JS `true`/`false`, which Postgres rejects for
+   `smallint` columns [run]. This is the one change prod has to make, and it rewrites the tables involved.
+2. **Missing toolbox tables.** StoragePg has none of the 11 tables added by 8 toolbox migrations
+   (action batches, prepared BEEF, auth sessions, sync transfers, payment replays). They are additive.
+   Knex applied all of them on top of a StoragePg-schema database [run].
+3. **1sat-only migration rows.** Four names in `knex_migrations` are not in the toolbox list. Knex refuses
+   to run while they exist ("migration directory is corrupt") [run].
+4. **Cosmetic differences.** `text` vs `varchar(n)`, `timestamptz` vs `timestamptz(3)`, identity vs serial,
+   and index/constraint names differ. None of these affect runtime behaviour.
+
+Upstream StorageKnex does not run on Postgres today. The failure is not the schema builder: knex quotes
+camelCase identifiers correctly, and every migration applied once 4 small patches were made [run]. The
+failures come from ~25 raw SQL fragments with unquoted camelCase, insert-id handling, `count(*)` result
+keys, the `DBType` union and date switches, and MySQL/SQLite-only error codes (section 3).
+
+---
+
+## 2. Schema comparison (A)
+
+Method: I ran `StoragePg.migrate` on an empty database (all 22 migrations). Separately, I ran
+`StorageKnex.migrate` with toolbox 2.14.4 KnexMigrations under knex client `pg` on another empty database,
+patched as described in 3.1. I then compared the two through `pg_attribute`, `pg_constraint` and
+`pg_indexes`.
+
+### 2.1 Tables
+
+| Table | StoragePg | StorageKnex-on-PG | Created by toolbox migration |
+|---|---|---|---|
+| proven_txs, proven_tx_reqs, users, certificates, certificate_fields, output_baskets, transactions, commissions, outputs, output_tags, output_tags_map, tx_labels, tx_labels_map, monitor_events, settings, sync_states | yes | yes | initial |
+| knex_migrations, knex_migrations_lock | yes (hand-created, `storage-pg.ts#L346-362`) | yes (knex) | — |
+| action_batches, action_batch_outputs, action_batch_blobs | **no** | yes | `2026-07-15-001`, `2026-07-26-001` |
+| prepared_beefs, prepared_beef_metadata | **no** | yes | `2026-08-31-001` |
+| auth_sessions | **no** | yes | `2026-07-14-001` |
+| auth_message_nonces | **no** | yes | `2026-09-16-001` |
+| payment_replays | **no** | yes | `2026-08-04-001` |
+| sync_transfers, sync_transfer_parts | **no** | yes | `2026-09-09-001` |
+| (1sat-only tables) | none | — | — |
+
+### 2.2 Columns in shared tables
+
+Column names and case are identical in all 16 shared tables. Every column exists on both sides, including
+the BRC-177 `noSendExpiry*` columns and `proven_tx_reqs.wasBroadcast` / `rebroadcastAttempts`.
+
+| Difference | StoragePg | StorageKnex-on-PG | Runtime impact |
+|---|---|---|---|
+| Boolean columns (13): `certificates.isDeleted`, `commissions.isRedeemed`, `output_baskets.isDeleted`, `output_tags.isDeleted`, `output_tags_map.isDeleted`, `outputs.spendable`, `outputs.change`, `proven_tx_reqs.notified`, `proven_tx_reqs.wasBroadcast`, `sync_states.init`, `transactions.isOutgoing`, `tx_labels.isDeleted`, `tx_labels_map.isDeleted` | `SMALLINT` default `0` | `boolean` default `false` | **Breaking** for StorageKnex (section 2.5). |
+| String columns | `TEXT` | `varchar(n)` (knex lengths: txid 64, identityKey 130, description 2048, derivation* 200, customInstructions 2500, name/label 300, tag 150, ...) | None. StoragePg has no length caps, so prod may hold values longer than the knex limits. |
+| `created_at` / `updated_at` | `timestamptz` default `now()` | `timestamptz(3)` default `CURRENT_TIMESTAMP` | None. The toolbox writes JS `Date` (ms precision). |
+| Auto-increment keys | `INTEGER GENERATED BY DEFAULT AS IDENTITY` | `serial` (sequence `"<table>_<col>_seq"`) | None. Both accept explicit ids. |
+| `commissions.satoshis` | `BIGINT` | `integer` | None (ours is wider). |
+| `transactions.description` | `NOT NULL` | nullable | None. Knex `.alter()` in `2025-03-03-001` drops NOT NULL (`toolbox/src/storage/schema/KnexMigrations.ts#L561-572`). |
+| `users.activeStorage` | `TEXT` nullable | `varchar(255) NOT NULL` | Low. StoragePg's `2025-02-22-001` only backfills and never sets NOT NULL (`storage-pg.ts#L756-770`). |
+| `output_baskets.numberOfDesiredUTXOs` / `minimumDesiredUTXOValue` defaults | 6 / 10000 | 144 / 5000 | None. Callers pass explicit values (`toolbox/src/storage/StorageReaderWriter.ts#L204`). |
+| `sync_states.status`, `storageName` | `TEXT` | `varchar(255)` | None |
+
+### 2.3 Constraints and indexes
+
+- PK, UNIQUE and FK definitions (columns and referenced tables) are identical in all shared tables [run].
+- Names differ. Postgres auto-names constraints `<table>_<cols>_key`, while knex uses `<table>_<cols>_unique`.
+  StoragePg indexes use short names (`outputs_spendable`), while knex uses `outputs_spendable_index`. This
+  matters only for future upstream migrations that drop an index by its knex default name, and for `down`
+  migrations. Renaming is metadata-only.
+- Extra in StoragePg (1sat-only):
+  - `transactions_userid` and `outputs_userid` (`storage-pg.ts#L892-913`)
+  - `UNIQUE sync_states ("userId","storageIdentityKey")` (`storage-pg.ts#L1025-1059`)
+- Missing in StoragePg: none for shared tables. All toolbox indexes exist under StoragePg names.
+- StoragePg builds several indexes `CONCURRENTLY` (`storage-pg.ts#L914-1001`). Knex runs each migration in
+  a transaction, so it cannot do this.
+
+### 2.4 `knex_migrations`
+
+StoragePg deliberately reuses the toolbox migration names (`storage-pg.ts#L914-915`).
+
+| | Names |
+|---|---|
+| In both | 18 (all toolbox migrations up to `2026-08-30-001`, minus the 8 below) |
+| Toolbox only (pending if StorageKnex takes over) | `2026-07-14-001 add shared auth sessions`, `2026-07-15-001 add action batch reservations and blobs`, `2026-07-26-001 retain prepared action batch manifests`, `2026-08-04-001 add payment replay claims`, `2026-08-10-001 upgrade managed change liquidity defaults`, `2026-08-31-001 add prepared beef artifacts`, `2026-09-09-001 add bounded sync transfers`, `2026-09-16-001 add auth message replay claims` |
+| StoragePg only | `2026-04-20-001 add transactions userId index`, `2026-04-20-002 add outputs userId index`, `2026-09-30-001 unique sync state per storage identity`, `2026-09-30-002 re-file legacy p 1sat baskets` |
+
+[run] With the StoragePg-only rows present, `StorageKnex.migrate` fails with "The migration directory is
+corrupt, the following files are missing: ...". After deleting those 4 rows, the 8 pending toolbox
+migrations applied cleanly on top of the StoragePg schema (FKs to identity PKs work). The managed-change
+data migration touches only baskets with the exact legacy values 144/32, so our baskets are not touched.
+
+### 2.5 Runtime check: StorageKnex against each schema
+
+This was a smoke script against `StorageKnex` 2.14.4 (knex client `pg`), with `settings.dbtype` forced to
+`'MySQL'` to get past the date switch (see 3.2).
+
+| Step | Knex-built schema (boolean) | StoragePg schema (smallint) |
+|---|---|---|
+| `dbtype 'Postgres'` in settings | every write fails: `Invalid dateScheme Postgres` | same |
+| `findOrInsertUser`, `insertMonitorEvent` | `{} is not iterable` (insert id) | same |
+| inserts carrying booleans (`findOrInsertOutputBasket`, `insertTransaction`, `insertOutput`, `findOrInsertTxLabel`, `findOrInsertSyncStateAuth`) | pass the boolean (then fail on the FK, because the user insert failed) | `invalid input syntax for type smallint: "false"` |
+| `findOutputs({spendable:true})`, `updateOutput({spendable})`, label lookup (`isDeleted = false`) | OK | `invalid input syntax for type smallint: "true"` |
+| `getProvenTxsForUser` / `getProvenTxReqsForUser` / `getTxLabelMapsForUser` / `getOutputTagMapsForUser` | `column proven_txs.proventxid does not exist` (unquoted raw) | same |
+| `countChangeInputs`, `allocateChangeInput` | `column abo.outputid does not exist` | same |
+| `reviewStatus`, `purgeData` | `column outputs.spentby does not exist` / `column "outputid" does not exist` | same |
+| `listOutputs`, `listActions` (no label filter) | OK (empty wallet) | OK |
+
+The boolean row is why the prod schema cannot stay SMALLINT under StorageKnex. Knex binds JS booleans as
+`'true'`/`'false'`. Postgres casts those into `boolean` but not into `smallint`, and the toolbox passes
+booleans in `where`/`update` objects in many places (e.g. `toolbox/src/storage/StorageKnex.ts#L2223`,
+`#L2247`).
+
+### 2.6 What a production `account_wallet` would need to become StorageKnex-compatible
+
+| # | Change | Required? | Cost on ~200k outputs / 23k tx / 1.9k users |
+|---|---|---|---|
+| 1 | `ALTER COLUMN ... TYPE boolean USING col <> 0` on the 13 columns (drop and re-set defaults), grouped per table (11 tables) | **Yes** | Table rewrite plus index rebuild under `ACCESS EXCLUSIVE`. Measured on a synthetic DB (outputs 110 MB incl. indexes, proven_txs 30 MB, proven_tx_reqs 24 MB): outputs 0.95 s, transactions 0.20 s, proven_tx_reqs 0.61 s, output_tags_map 0.22 s, the rest < 0.05 s. **~2 s total, one transaction** [run]. Real rows are wider, so expect seconds to low tens of seconds. |
+| 2 | Delete (or upstream) the 4 StoragePg-only `knex_migrations` rows | **Yes** | Instant. The 1sat-only indexes and the unique sync-state index can stay; they don't conflict. |
+| 3 | Let `StorageKnex.migrate` create the 8 missing migrations' tables | Yes (automatic) | < 1 s [run] |
+| 4 | `users.activeStorage SET NOT NULL` | Optional | Full scan, instant at 1.9k rows |
+| 5 | Rename indexes and unique constraints to knex default names | Recommended | Metadata only, instant |
+| 6 | `text` → `varchar(n)`, `timestamptz` → `timestamptz(3)` | No (cosmetic) | outputs alone 1.6 s [run]. Would fail if any existing value exceeds a knex length, so a pre-check is needed. |
+| 7 | `settings.dbtype` value | Depends on upstream | See 3.2. 2.13.2+ clients reject anything but SQLite/MySQL/IndexedDB. |
+| 8 | pg `int8` parser (bigint → number) on the knex pool | Yes (config) | StoragePg does this per pool (`storage-pg.ts#L296-311`). Knex on pg returns `satoshis` and `count(*)` as strings unless configured. |
+
+The cutover must be atomic with the code switch. StoragePg's raw SQL uses integer boolean literals (63
+occurrences, e.g. `storage-pg.ts#L3108` `spendable = 1`), and these fail on `boolean` columns
+(`operator does not exist: boolean = integer`) [run]. The wallet server must be stopped, converted and
+restarted on the StorageKnex build. Downtime is roughly a minute.
+
+---
+
+## 3. Portability of StorageKnex to Postgres (B)
+
+### 3.1 KnexMigrations: 4 fixes were enough [run]
+
+| Where | Failure on pg | Fix |
+|---|---|---|
+| `determineDBType` `KnexMigrations.ts#L890-910` | Probe `(SELECT VERSION() LIKE '%MariaDB%') = 1` fails (`boolean = integer`), so it throws `WERR_NOT_IMPLEMENTED` | Detect from `knex.client.config.client` and return `'Postgres'` |
+| Initial migration non-MySQL branch `#L838-853` | Alters `proven_tx_reqs.beef` and `transactions.beef`, which don't exist (SQLite's table rebuild tolerates this; pg errors). `binary(len)` is meaningless on pg | Skip the branch for Postgres |
+| `2025-02-22-001` `#L612` | Raw `update users set activeStorage = ? where activeStorage is NULL` gets lowercased: `column "activestorage" does not exist` | Use `??` identifier bindings |
+| `2026-09-09-001` `#L125` | `specificType('bytes', 'blob')`: `type "blob" does not exist` | `bytea` on pg |
+
+Everything else (`increments`, `boolean`, `binary`, `timestamp(3)`, `.alter()`, composite PKs,
+`onConflict().ignore()`, `knex.fn.now(3)`) worked unchanged. This contradicts the premise in closed
+upstream PR #42 (below) that knex can't handle camelCase on Postgres. The builder quotes identifiers; only
+hand-written raw strings break.
+
+### 3.2 Runtime changes needed
+
+| Area | Location | Problem on pg | Change |
+|---|---|---|---|
+| `DBType` union | `toolbox/src/storage/StorageReader.ts#L209`, `schema/tables/TableSettings.ts#L15` | No `'Postgres'` | Add it |
+| Date handling | `StorageReader.ts#L133-197` (3 switches) | Throws `Invalid dateScheme` | Treat Postgres like MySQL (Date objects) |
+| Remote client validation | `remoting/StorageClientBase.ts#L230-231` | 2.13.2+ clients reject `dbtype` other than SQLite/MySQL/IndexedDB | Add `'Postgres'`. Older clients still reject it, so prod needs a new client release (yours-wallet etc.) or a server that masks the value. |
+| Insert ids | `StorageKnex.ts#L668,676,827,835,859,881,889,897,905,927,940,953,961` (13× `const [id] = await ...insert(e)`) | pg returns a Result object: `{} is not iterable` | `.returning(pk)` on pg (one helper) |
+| `getCount` | `StorageKnex.ts#L1527-1531` reads `r[0]['count(*)']` | pg key is `count`, and the value is an int8 string | Alias the count and use `Number()` |
+| Unquoted camelCase in raw SQL | `StorageKnex.ts#L360` (`orderByRaw('MIN(o.outputId)')`), `#L516,540,563,585` (get*ForUser), `#L1871,1910,1949,2194` (`abo.outputId = o.outputId`); `methods/listActionsKnex.ts#L180-192` (label CTE); `methods/listOutputsKnex.ts#L128,138`; `methods/purgeData.ts#L32,44,47,188`; `methods/reviewStatus.ts#L75,88,107,128` | Postgres folds identifiers to lowercase | Rewrite with `??` bindings, which knex renders per dialect (backticks, double quotes). Portable, with no dialect branches. ~20 fragments. |
+| Integer literals against booleans in raw SQL | `purgeData.ts#L32,188` (`o.spendable = 1`); `remoting/KnexSessionManager.ts#L408,428` (`case when ?? = 1`) | `boolean = integer` | Bind `true`/`?` instead |
+| Duplicate-key detection | `remoting/KnexSessionManager.ts#L485-492`, `remoting/KnexPaymentReplayStore.ts#L6-13` | Only MySQL/SQLite codes | Add pg `23505` |
+| Row locks gated on MySQL | `StorageKnex.ts#L309` (prepared BEEF epoch), `#L1466` (sync-state checkpoint) | pg is multi-writer like MySQL | Apply `forUpdate()` for Postgres too |
+| int8 as string | pg driver default | `satoshis` etc. become strings | Document or set a per-connection `types` parser (as StoragePg does) |
+| MySQL-only features | `StorageKnex.ts#L2303` `adminStats`; `adminServer/adminServer.ts#L295-311` (`TIMESTAMPDIFF`, `HEX`) | Already MySQL-gated | Leave, or port later |
+| Transaction isolation | knex default | pg READ COMMITTED vs InnoDB REPEATABLE READ | Needs review; the toolbox relies on `forUpdate()` in the hot paths |
+
+These already work on pg:
+- `substr(??,?,?)` and `length(??)` on bytea (`StorageKnex.ts#L254,269,290,443-445`)
+- `onConflict().merge()` upserts
+- `forUpdate()` on inner joins (`allocateChangeInput`)
+- identifier quoting in all builder calls
+
+### 3.3 Effort estimate
+
+- Code: about 12 files in `ts-stack/packages/wallet/wallet-toolbox/src` (KnexMigrations, StorageKnex,
+  StorageReader, TableSettings, StorageClientBase, listActionsKnex, listOutputsKnex, purgeData,
+  reviewStatus, KnexSessionManager, KnexPaymentReplayStore, plus an insert-id helper). Roughly
+  150–300 changed lines, mostly mechanical `??` rewrites.
+- Tests: a Postgres service in CI plus a `runPostgres` switch in the toolbox test env (the maintainer asked
+  for this on PR #42), so existing Knex suites run against pg. Most of the work, and the ongoing value,
+  is here: without pg in CI, every new raw fragment upstream can silently break Postgres again.
+- Client: `validateRemoteStorageSettings` must accept `'Postgres'` in a released client before prod can
+  report it.
+
+### 3.4 Upstream history
+
+- `bsv-blockchain/wallet-toolbox` PR #42 "Postgres" (1deepwaterz, opened 2025-04-25, **closed unmerged
+  2025-06-03**; +1400/−85, 18 files). The maintainer (tonesnotes) objected to dbtype branches and raw-SQL
+  duplication. He concluded knex "does not directly help" with camelCase on pg and proposed a separate
+  `StoragePostgres` class, or helpers that let the pg code collapse back into StorageKnex. Section 3.1
+  shows the premise was wrong for the builder: only raw fragments need `??`.
+- `bsv-blockchain/ts-stack` #324 (closed retired health tracker) had an item "Add database-contract tests
+  for supported SQLite/MySQL/Postgres/cloud adapters" (L434). No Postgres adapter exists upstream.
+- There are no other issues or PRs matching postgres/postgresql in `bsv-blockchain/ts-stack` or
+  `bsv-blockchain/wallet-toolbox`.
+
+---
+
+## 4. What StoragePg does beyond the toolbox (C)
+
+| Behaviour | Location | If we moved to StorageKnex |
+|---|---|---|
+| `measureUsedBytes(userId)` (hosting billing) | `storage-pg.ts#L1749`, used by `1sat-sdk/packages/wallet-server/src/accounts/middleware.ts#L388`, `accounts/paymentRoute.ts#L76,102` | Not in the toolbox. Keep it in a thin 1sat subclass of StorageKnex (4 queries). |
+| 1sat-only migrations: userId indexes, unique `(userId, storageIdentityKey)` sync state with dedupe, legacy `p 1sat …` basket re-filing | `storage-pg.ts#L892-913`, `#L1025-1126` | The indexes stay in the DB. The basket re-file is a one-time data migration, already applied. The sync-state uniqueness fix is an upstream candidate (race in `findOrInsertSyncStateAuth`). Their `knex_migrations` rows must go, or be recreated through a 1sat migration source. |
+| `CONCURRENTLY` index builds | `storage-pg.ts#L914-1001` | Knex migrations run in a transaction, so they block. Fine at our size. |
+| SQL `recentlyActiveUsers` | `storage-pg.ts#L2906` | StorageKnex has its own (`toolbox/src/storage/StorageKnex.ts#L1504`) |
+| `filterToSchema` drops unknown fields on write | `storage-pg.ts#L408-443` | Not needed. The knex schema always matches the toolbox. |
+| `findExpiredActionBatches` returns `[]` | `storage-pg.ts#L4173` | Action batches become real |
+| `adminStats` throws | `storage-pg.ts#L4161` | Same (MySQL-only upstream) |
+| `dbtype 'Postgres'` in settings | `storage-pg.ts#L713-716` | Same client-validation problem either way (3.2) |
+
+What StoragePg lacks that StorageKnex 2.14 has: 74 StorageKnex methods have no StoragePg counterpart. So
+StoragePg runs the base-class fallbacks or `NOT_IMPLEMENTED` for:
+- action batches (`insertActionBatch`, `reserveActionBatchOutputs`, blobs)
+- prepared-BEEF fast path (`lookupPreparedBeefs`, `upsertPreparedBeef`, backfill)
+- bulk paths (`insertOutputs`, `findOrInsert*Bulk`, `findOutputsByOutpoints[ForUpdate]`,
+  `findFundingOutputsForUpdate`, `markChangeInputsSpent`, `getProvenOrRawTxs`)
+- managed-change candidates, `sumSpendableSatoshisInBasket`
+- `compareAndSetNoSendExpiryState` (BRC-177)
+- `getSyncChunkTotals`, `findStaleMerkleRoots`
+- the shared auth-session, payment-replay and sync-transfer stores (these need a knex instance)
+
+Each toolbox release widens this gap. The contract review for 2.14.4
+(`1sat-sdk/docs/plans/2026-09-30-toolbox-2.14-storage-contract.md`) is one example of the cost.
+
+---
+
+## 5. Options (D)
+
+| Option | Upstream work | Prod DDL | Ongoing cost |
+|---|---|---|---|
+| **A. Keep StoragePg** | none | none | Port every toolbox storage change by hand into ~4.2k lines (plus the ~3.9k-line `StorageBunSqlite` twin). Toolbox features stay missing. `dbtype 'Postgres'` still breaks 2.13.2+ clients. |
+| **B. Upstream pg support in StorageKnex (knex's own schema: boolean, varchar), migrate prod** | Section 3.3 (≈12 files + pg CI + client release) | 13 boolean columns (~2 s measured, seconds to tens of seconds in prod, one transaction, server stopped), delete 4 migration rows, rename indexes (instant), toolbox creates 8 migrations' tables. Leave text/timestamptz as-is. | Upstream owns schema and queries. 1sat keeps a small subclass (`measureUsedBytes`, pool type parser). Postgres regressions are caught only if upstream CI runs pg. |
+| **C. Upstream pg support shaped to our current schema (SMALLINT booleans)** | B plus a boolean-to-integer coercion layer for every builder `where`/`update` on pg | Only the 4 migration rows | Unrealistic. Upstream would carry pg-only boolean special-casing across the codebase (the pattern the maintainer rejected in PR #42), and knex has no bind-value hook to hide it. |
+| **D. Private StorageKnex patches in 1sat (fork)** | none upstream | same as B | Same drift problem as A, in a different file |
+
+The only prod change B requires beyond metadata is the boolean conversion. At our size that is a short
+maintenance window, not a data migration. C would save that window but costs upstream acceptance.
+
+### Recommendation
+
+Pursue B, gated on upstream agreement before any prod work:
+
+1. Open a ts-stack issue or draft PR. Scope: the 4 migration fixes and the `??` rewrites (dialect-neutral,
+   and they also help MySQL/SQLite readability), `'Postgres'` in `DBType` and client validation,
+   `.returning()` ids, the `getCount` key, pg `23505`, and a pg job in CI. Cite PR #42 and the finding
+   that the knex builder already quotes camelCase.
+2. Keep StoragePg in prod until a released toolbox passes its Knex suites on pg.
+3. Cutover: stop the wallet server, run the boolean `ALTER`s and the `knex_migrations` cleanup in one
+   transaction, rename indexes, start on a `StorageKnex` subclass (int8 parser, `measureUsedBytes`) that
+   runs the toolbox migrations. Rehearse on a restored prod dump first. Also run a length pre-check if the
+   varchar alignment is ever wanted.
+
+If upstream declines, A is the fallback. D gives no advantage over A.

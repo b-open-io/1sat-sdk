@@ -1,3 +1,4 @@
+import { ORDLOCK_LISTING_CREATE_DISABLED } from '@1sat/types'
 import { useCallback, useMemo, useState } from 'react'
 
 // ---------------------------------------------------------------------------
@@ -88,16 +89,12 @@ const MAX_PRICE_SATS = 2100000000000000
 // ---------------------------------------------------------------------------
 
 export function useCreateListing({
-	ordinal,
-	onList,
-	onListed,
 	onError,
 	defaultPayAddress = '',
 }: UseCreateListingOptions): UseCreateListingReturn {
 	const [open, setOpen] = useState(false)
 	const [priceInput, setPriceInput] = useState('')
 	const [payAddress, setPayAddress] = useState(defaultPayAddress)
-	const [isListing, setIsListing] = useState(false)
 	const [result, setResult] = useState<ListOrdinalResult | null>(null)
 	const [error, setError] = useState<string | null>(null)
 
@@ -108,64 +105,26 @@ export function useCreateListing({
 		return parsed
 	}, [priceInput])
 
-	const validationError = useMemo(() => {
-		if (!priceInput) return null
-		if (priceSats < MIN_PRICE_SATS) return 'Price must be at least 1 satoshi'
-		if (priceSats > MAX_PRICE_SATS) return 'Price exceeds maximum'
-		if (!payAddress.trim()) return 'Payout address is required'
-		return null
-	}, [priceInput, priceSats, payAddress])
-
-	const canSubmit =
-		priceSats >= MIN_PRICE_SATS &&
-		payAddress.trim().length > 0 &&
-		!validationError
+	const validationError = ORDLOCK_LISTING_CREATE_DISABLED
+	const canSubmit = false
+	const isListing = false
 
 	const handleList = useCallback(async () => {
-		if (!canSubmit) return
-
-		setIsListing(true)
-		setError(null)
-		setResult(null)
-
-		try {
-			const listResult = await onList({
-				ordinal,
-				price: priceSats,
-				payAddress: payAddress.trim(),
-			})
-
-			if (listResult.error) {
-				setError(listResult.error)
-				onError?.(new Error(listResult.error))
-			} else {
-				setResult(listResult)
-				onListed?.(listResult)
-			}
-		} catch (err) {
-			const msg =
-				err instanceof Error ? err.message : 'Failed to create listing'
-			setError(msg)
-			onError?.(err instanceof Error ? err : new Error(msg))
-		} finally {
-			setIsListing(false)
-		}
-	}, [canSubmit, ordinal, priceSats, payAddress, onList, onListed, onError])
+		setError(ORDLOCK_LISTING_CREATE_DISABLED)
+		onError?.(new Error(ORDLOCK_LISTING_CREATE_DISABLED))
+	}, [onError])
 
 	const handleOpenChange = useCallback(
 		(nextOpen: boolean) => {
-			if (!isListing) {
-				setOpen(nextOpen)
-				if (!nextOpen) {
-					// Reset form state on close
-					setPriceInput('')
-					setPayAddress(defaultPayAddress)
-					setResult(null)
-					setError(null)
-				}
+			setOpen(nextOpen)
+			if (!nextOpen) {
+				setPriceInput('')
+				setPayAddress(defaultPayAddress)
+				setResult(null)
+				setError(null)
 			}
 		},
-		[isListing, defaultPayAddress],
+		[defaultPayAddress],
 	)
 
 	return {

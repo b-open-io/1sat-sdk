@@ -1,10 +1,11 @@
 /**
- * Unified host server: wallet storage RPC + accounts + paymail + messagebox
- * in one process with one host identity.
+ * Unified host server: accounts + paymail + messagebox in one process with
+ * one host identity. Wallet storage RPC is a separate process
+ * (`createStorageServer`).
  *
  * Auth zoning:
  * - public: paymail bsvalias, OpenAPI docs
- * - BRC-100: storage RPC, /account/*, messagebox
+ * - BRC-100: /account/*, messagebox
  */
 
 import type { Server } from 'node:http'
@@ -19,26 +20,26 @@ import {
 import type { WalletInterface } from '@bsv/sdk'
 import { createLogger } from 'evlog'
 import { evlog } from 'evlog/express'
-import express, { type Express, Router } from 'express'
+import express, {
+	type Express,
+	type NextFunction,
+	type Request,
+	type Response,
+	Router,
+} from 'express'
 import {
-	type AccountsMiddlewareDeps,
-	accountsCapacityGate,
+	type WalletServerAccounts,
 	mountPaymentRoute,
 	mountRegistrationRoutes,
 } from './accounts/index.js'
+import { mountStatusRoute } from './accounts/statusRoute.js'
 import type { AccountStore } from './accounts/store.js'
-import {
-	type WalletServerAccounts,
-	type WalletServerConfig,
-	corsMiddleware,
-	dispatchHandler,
-	mountStatusRoute,
-} from './createWalletServer.js'
 import { mountTerminalErrorHandler } from './errorHandler.js'
 import { mountOpenApiRoutes } from './openapi/index.js'
 import { mountPaymailRoutes } from './paymail/routes.js'
 import type { PaymailDeps } from './paymail/types.js'
 import { buildAuthMiddleware } from './sessions/redisSessionManager.js'
+import type { WalletStorageProvider } from './types.js'
 
 export interface HostServerMessageboxConfig {
 	/** Knex instance for message tables */
@@ -49,7 +50,8 @@ export interface HostServerMessageboxConfig {
 
 export interface HostServerConfig {
 	wallet: WalletInterface
-	storage: WalletServerConfig['storage']
+	/** Wallet storage the account routes meter usage against. */
+	storage: WalletStorageProvider
 	serverIdentityKey: string
 	listen: { port: number; host?: string }
 	accounts?: WalletServerAccounts
@@ -61,6 +63,7 @@ export interface HostServerConfig {
 	 * same way.
 	 */
 	accountStore?: AccountStore
+	handleCertStore?: import('./accounts/certs.js').HandleCertStore
 	paymail?: PaymailDeps
 	messagebox?: HostServerMessageboxConfig
 	/**
@@ -69,6 +72,12 @@ export interface HostServerConfig {
 	 */
 	sessionStore?: { redisUrl: string; ttlSeconds?: number }
 	bodyLimit?: string
+	/** Last BSV/USD quote. Unset = GET /exchange-rate 404s. */
+	getExchangeRate?: () => {
+		bsvUsd: number
+		timestamp: number
+		source: string
+	} | null
 }
 
 export interface HostServerHandle {
@@ -87,20 +96,36 @@ export async function createHostServer(
 	app.use(corsMiddleware)
 
 	const { wallet } = config
-	// One authMiddleware instance for every authed surface (storage, account,
-	// messagebox), so a single /.well-known/auth handshake authenticates
-	// a client everywhere. With a session store, sessions are mirrored to
-	// Redis and hydrated on demand so any instance can validate any session.
+	// One authMiddleware instance for every authed surface (account,
+	// messagebox), so a single /.well-known/auth handshake authenticates a
+	// client everywhere. With a session store, sessions live in Redis, so any
+	// instance — including a storage server sharing the store — can validate
+	// any session.
 	const authMiddleware = buildAuthMiddleware(wallet, config.sessionStore)
 
-	// --- public surface -------------------------------------------------------
-	if (config.paymail) {
-		await mountPaymailRoutes(app, config.paymail)
+	// One spelling of the user domain everywhere (certs are stored lowercase).
+	const userDomain =
+		config.paymail?.userDomain?.trim().toLowerCase().replace(/\.$/, '') ||
+		undefined
+	const paymailCfg = config.paymail && {
+		...config.paymail,
+		userDomain,
 	}
+
+	// --- public surface -------------------------------------------------------
+	if (paymailCfg) {
+		await mountPaymailRoutes(app, paymailCfg)
+	}
+	app.get('/exchange-rate', (_req, res) => {
+		const quote = config.getExchangeRate?.() ?? null
+		if (!quote) {
+			return res.status(404).json({ error: 'no exchange rate' })
+		}
+		res.json(quote)
+	})
 	mountOpenApiRoutes(app, {
 		serverIdentityKey: config.serverIdentityKey,
 		surfaces: {
-			storage: true,
 			accounts: config.accounts != null,
 			registration: config.accountStore != null,
 			paymail: config.paymail != null,
@@ -109,55 +134,58 @@ export async function createHostServer(
 	})
 
 	// --- auth surface ----------------------------------------------------------
-	const accountsDeps: AccountsMiddlewareDeps | undefined = config.accounts
-		? {
-				getConfig: config.accounts.getConfig,
-				walletStorage: config.storage,
-				wallet,
-				serverIdentityKey: config.serverIdentityKey,
-				currentBlock: config.accounts.currentBlock,
-			}
-		: undefined
-
-	// Wallet storage JSON-RPC: auth + optional capacity gate + dispatch
-	const postHandlers: Array<(req: never, res: never, next: never) => unknown> =
-		[]
-	if (accountsDeps) {
-		postHandlers.push(accountsCapacityGate(accountsDeps) as never)
-	}
-	postHandlers.push(
-		dispatchHandler(config as unknown as WalletServerConfig) as never,
-	)
-	app.post('/', authMiddleware as never, ...(postHandlers as never[]))
-
 	// BRC-104 handshake endpoint. The middleware keys on
 	// `req.path === '/.well-known/auth'`, so mount it route-level — an
 	// `app.use('/.well-known/auth', …)` would strip the path and break the
-	// check. Same authMiddleware instance as POST / → shared peer session.
+	// check.
 	app.post('/.well-known/auth', authMiddleware)
+
+	// Handle certs on the user domain: issued at registration, and backfilled
+	// on status for accounts registered before the host could issue them.
+	const handleCerts =
+		paymailCfg?.hostPrivateKey && config.handleCertStore
+			? {
+					store: config.handleCertStore,
+					hostPrivateKey: paymailCfg.hostPrivateKey,
+					userDomain: paymailCfg.userDomain,
+					stackUrl: paymailCfg.stackUrl,
+				}
+			: undefined
+	if (config.accountStore && handleCerts && !handleCerts.userDomain) {
+		console.error(
+			'[host] handle certificates are on but no paymail user domain is set: handle registration is refused until server.paymail.userDomain is configured',
+		)
+	}
 
 	// Account routes need auth; scope it to /account/*
 	app.use('/account', authMiddleware)
-	mountStatusRoute(
-		app,
-		'/',
-		config as unknown as WalletServerConfig,
-		config.serverIdentityKey,
+	mountStatusRoute(app, {
+		storage: config.storage,
+		serverIdentityKey: config.serverIdentityKey,
 		wallet,
-	)
-	if (accountsDeps) {
+		accounts: config.accounts,
+		accountStore: config.accountStore,
+		handleCertStore: config.handleCertStore,
+		...(handleCerts && { handleCerts }),
+	})
+	if (config.accounts) {
 		mountPaymentRoute(app, '/', {
-			getConfig: accountsDeps.getConfig,
-			wallet: accountsDeps.wallet,
-			walletStorage: accountsDeps.walletStorage as never,
-			serverIdentityKey: accountsDeps.serverIdentityKey,
-			currentBlock: accountsDeps.currentBlock,
+			getConfig: config.accounts.getConfig,
+			wallet,
+			walletStorage: config.storage as never,
+			serverIdentityKey: config.serverIdentityKey,
+			currentBlock: config.accounts.currentBlock,
 			accountStore: config.accountStore,
+			handleCertStore: config.handleCertStore,
+			...(handleCerts && { handleCerts }),
 		})
 	}
 
 	if (config.accountStore) {
-		mountRegistrationRoutes(app, '/', { store: config.accountStore })
+		mountRegistrationRoutes(app, '/', {
+			store: config.accountStore,
+			...(handleCerts && { certs: handleCerts }),
+		})
 	}
 
 	// --- messagebox (own router; host owns the auth) --------------------------
@@ -200,9 +228,9 @@ export async function createHostServer(
 			})
 		}
 
-		// Host owns auth: the same authMiddleware as the wallet-storage RPC, so a
-		// client authenticated at /.well-known/auth is recognized here without a
-		// second handshake.
+		// Host owns auth: the same authMiddleware as /.well-known/auth, so a
+		// client authenticated there is recognized here without a second
+		// handshake.
 		mbRouter.use(authMiddleware)
 		registerMessageBoxPostAuthRoutes(mbRouter, ctx)
 		// Canonical mount. The root mount is a deprecated alias kept for
@@ -277,4 +305,16 @@ function listenWithLog(
 			resolve(port)
 		})
 	})
+}
+
+function corsMiddleware(req: Request, res: Response, next: NextFunction): void {
+	res.header('Access-Control-Allow-Origin', '*')
+	res.header('Access-Control-Allow-Headers', '*')
+	res.header('Access-Control-Allow-Methods', '*')
+	res.header('Access-Control-Expose-Headers', '*')
+	if (req.method === 'OPTIONS') {
+		res.sendStatus(200)
+		return
+	}
+	next()
 }

@@ -65,19 +65,21 @@ export class OriginIndexer extends Indexer {
 			origin.map = { ...currentMap }
 		}
 
-		// If current output has inscription, use it
+		// Provisional: only correct if this output turns out to BE the origin.
+		// resolveOrigins() replaces it with the origin's inscription on a
+		// transfer — the current output's inscription is then a reinscription
+		// (a new rev), still available on txo.data.insc.
 		if (insc) {
 			origin.insc = insc
 		}
 
+		// The basket depends on the ORIGIN's type, which is unknown until
+		// resolveOrigins(); it sets the final basket in summarize().
 		return {
 			data: origin,
 			tags: [], // Tags will be added in summarize() once origin is determined
 			owner: address,
-			basket:
-				insc?.file?.type === 'application/op-ns'
-					? OPNS_BASKET
-					: ORDINALS_BASKET,
+			basket: ORDINALS_BASKET,
 		}
 	}
 
@@ -181,11 +183,12 @@ export class OriginIndexer extends Indexer {
 			}
 
 			if (sourceOutpoint) {
-				// Transfer - resolve origin + type via OrdFS (seq -2, not 0)
+				// Transfer - resolve origin + type via OrdFS. Seq 0 is the origin
+				// (the stack keeps -2 only as a legacy alias for old clients).
 				try {
 					const metadata = await this.services.ordfs.getMetadata(
 						sourceOutpoint,
-						-2,
+						0,
 					)
 					origin.outpoint = metadata.origin || sourceOutpoint
 					origin.nonce = metadata.sequence + 1
@@ -195,38 +198,37 @@ export class OriginIndexer extends Indexer {
 						origin.map = { ...metadata.map, ...(origin.map || {}) }
 					}
 
-					// If no inscription on current output, use metadata from source
-					// and potentially fetch text content
-					if (!origin.insc) {
-						origin.insc = {
-							file: {
-								hash: '',
-								size: metadata.contentLength,
-								type: metadata.contentType,
-								content: [],
-							},
-						}
+					// The asset is typed by its ORIGIN's inscription, always — an
+					// inscription on this output is a reinscription (new rev), not the
+					// asset's identity, and stays on txo.data.insc.
+					origin.insc = {
+						file: {
+							hash: '',
+							size: metadata.contentLength,
+							type: metadata.contentType,
+							content: [],
+						},
+					}
 
-						// Fetch small text-like content for later indexers (e.g. OpNS name).
-						const contentType = metadata.contentType
-							.split(';')[0]
-							.trim()
-							.toLowerCase()
-						const isTextContent =
-							contentType.startsWith('text/') ||
-							contentType === 'application/json' ||
-							contentType === 'application/op-ns'
-						if (isTextContent && metadata.contentLength <= 1000) {
-							try {
-								const { data } = await this.services.ordfs.getContent(
-									origin.outpoint || sourceOutpoint,
-								)
-								if (data) {
-									originData.content = new TextDecoder().decode(data)
-								}
-							} catch {
-								// Ignore content fetch errors
+					// Fetch small text-like content for later indexers (e.g. OpNS name).
+					const contentType = metadata.contentType
+						.split(';')[0]
+						.trim()
+						.toLowerCase()
+					const isTextContent =
+						contentType.startsWith('text/') ||
+						contentType === 'application/json' ||
+						contentType === 'application/op-ns'
+					if (isTextContent && metadata.contentLength <= 1000) {
+						try {
+							const { data } = await this.services.ordfs.getContent(
+								origin.outpoint || sourceOutpoint,
+							)
+							if (data) {
+								originData.content = new TextDecoder().decode(data)
 							}
+						} catch {
+							// Ignore content fetch errors
 						}
 					}
 				} catch (e) {
@@ -243,10 +245,18 @@ export class OriginIndexer extends Indexer {
 				origin.outpoint = txo.outpoint.toString()
 			}
 
-			// Transfers reveal their content type only here, after ORDFS
-			// resolution — too late for parse()-time basket routing.
-			if (origin.insc?.file?.type === 'application/op-ns') {
-				txo.basket = OPNS_BASKET
+			// Basket by ORIGIN type, decided here because transfers reveal it only
+			// after ORDFS resolution. Only re-route rows this indexer filed
+			// (or nobody has) — never another indexer's claim.
+			if (
+				txo.basket === undefined ||
+				txo.basket === ORDINALS_BASKET ||
+				txo.basket === OPNS_BASKET
+			) {
+				txo.basket =
+					origin.insc?.file?.type === 'application/op-ns'
+						? OPNS_BASKET
+						: ORDINALS_BASKET
 			}
 
 			// Validate parent if inscription claims one
@@ -255,7 +265,7 @@ export class OriginIndexer extends Indexer {
 				try {
 					const metadata = await this.services.ordfs.getMetadata(
 						txo.outpoint.toString(),
-						-2,
+						0,
 					)
 					if (metadata.parent !== insc.parent) {
 						if (origin.insc) {

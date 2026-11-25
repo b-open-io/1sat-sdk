@@ -43,7 +43,7 @@ export async function buildCosignDestination(
 		counterparty: input.recipientIdentityKey,
 		forSelf: false,
 	})
-	const address = PublicKey.fromString(recipientDerivedPub).toAddress()
+	const address = PublicKey.fromString(recipientDerivedPub).toAddress(ctx.chain)
 	const lockingScript = Cosign.lock(address, input.cosignerIdentityKey)
 	return { lockingScript, address }
 }

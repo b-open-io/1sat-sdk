@@ -1,5 +1,77 @@
 # Changelog
 
+## 0.0.235
+
+### Changed
+- Address strings follow `ctx.chain` (mainnet stays the default).
+- Outpoint helpers come from `@1sat/types`; ordfs no longer re-exports wire helpers.
+
+## 0.0.230
+
+### Added
+- `fundBsv21Overlay`: pays the overlay's funding template for a token and submits the transaction so indexing starts immediately. Returns `funding-not-needed` when the overlay needs no payment, and `funding-submit-failed` with the txid when the payment went out but the submission failed.
+
+### Changed
+- `sendBsv21`, `buyBsv21` and `sweepBsv21` check inputs with `getOutputStatus` and spend only outputs the overlay reports `valid`.
+- `sendBsv21` returns `tokens-queued` when the valid outputs fall short but queued ones would cover the amount.
+- `sweepBsv21` returns `unvalidated-inputs` when no input is valid and `overlay-validation-failed` when the overlay cannot be reached, instead of sweeping unverified inputs. Its response lists `spentOutpoints`.
+- `dispatchPlainPayment` is exported.
+
+## 0.0.229
+
+### Fixed
+- Signing helpers (`signP2PKH`, `signOrdinalInput`, pipeline unlocks) pass only `hashToDirectlySign` to `createSignature`. `@bsv/sdk` 2.8.11 rejects calls that also pass `data`.
+
+## 0.0.228
+
+### Removed
+- `moveBasketOutputs`, `migrateLegacyP1SatBaskets` and the `LEGACY_P1SAT_BASKET_MIGRATIONS` re-export. Toolbox 2.14 rejects a basket insertion for an output that already has a basket, so outputs cannot be moved between baskets through the wallet interface.
+
+## 0.0.226
+
+### Fixed
+- `sweepBsv21` and `sweepBsv20` label their actions `bsv21 <id>` / `bsv20 <tick>` instead of `p …` labels. The `p` labels routed the createAction to a permission module, which finished and signed the transaction without the sweep's legacy-key unlocking scripts.
+
+## 0.0.221
+
+### Changed
+- `buyOrdinal`, `buyOpns` and `buyBsv21` submit the draft shape (listing input; receive, payout, fee outputs) and the new apply step `applyOrdLockV2Purchase` lays OrdLock v2 purchases out canonically after approval: front funding inputs first, then the listing, with the seller payout at the listing's index, the receive output next, and wallet fee inputs / change trailing. One prompt in the permission-module path. Front funding is a wallet-owned P2PKH output in the `1sat-deposit` basket under a `hold:` tag, reused when one covers the payout and otherwise created by a preparation createAction on the base wallet; the cushion returns to the basket under a fresh hold.
+- `sweepDeposit` skips outputs whose `hold:` tag has not lapsed, so a sync tick cannot sweep prepared funding out from under a purchase, and reclaims it once the hold passes.
+- `buyBsv21` accepts OrdLock v2 listings.
+- `buyOrdinal` / `buyOpns` / `buyBsv21` return `ordlock-v2-purchase-with-funding-provider-unsupported` when a v2 listing is bought with a `fundingProvider`: the provider contract does not yet cover placing front funding ahead of the listing.
+- The unlock pipeline passes the createAction's basketed 1-sat outputs to `OrdLockV2.purchaseListing` as approved delivery targets, so a purchase whose listed satoshi would land anywhere else is refused before signing (local pipeline and permission module).
+
+### Added
+- `applyOrdLockV2Purchase`, `hasUnpreparedOrdLockV2Purchase`, `loadHeldFunding`, `selectFrontFunding`, `ORDLOCK_FUNDING_HOLD_MS` (apply); `deliveryTargetsFromArgs` (pipeline).
+
+## 0.0.220
+
+### Added
+- `bsv20SweepBatches`: listed BSV-20 outputs each sweep alone, unlisted share a spend (mirrors `bsv21SweepBatches`).
+
+## 0.0.215
+
+### Added
+- `cancelTokenListing` returns a BSV-20/BSV-21 transfer inscription. `cancelOrdinalListing` and `buyOrdinal` refuse fungible-token listings.
+
+### Changed
+- `@bsv/sdk` `^2.6.0`.
+
+## 0.0.214
+
+### Fixed
+- Improve legacy listing discovery and report incomplete address synchronization before continuing.
+
+## 0.0.210
+
+### Fixed
+- `sendAllBsv` again uses the `maxPossibleSatoshis` sentinel so storage can size the sweep. Do not call it through `WalletPermissionsManager`; use the underlying Wallet.
+
+## 0.0.208
+
+### Fixed
+- `sendAllBsv` lists the default basket and `createAction`s an exact amount from `Transaction.fee()` / `getFee()`, instead of the `maxPossibleSatoshis` sentinel that `WalletPermissionsManager` rejects.
+
 ## 0.0.207
 
 ### Added

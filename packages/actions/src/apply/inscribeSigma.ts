@@ -1,5 +1,5 @@
 import { ORDINALS_BASKET, P1SAT_PROTOCOL, SIGMA_BASKET } from '@1sat/types'
-import { parseOutpoint } from '@1sat/utils'
+import { parseOutpoint } from '@1sat/types'
 import {
 	type CreateActionArgs,
 	P2PKH,
@@ -67,7 +67,7 @@ export async function applyInscribeSigma(
 		counterparty: 'self',
 		forSelf: true,
 	})
-	const anchorAddress = PublicKey.fromString(anchorPubKey).toAddress()
+	const anchorAddress = PublicKey.fromString(anchorPubKey).toAddress(ctx.chain)
 	const anchorLockingScript = new P2PKH().lock(anchorAddress)
 
 	const anchorCi = JSON.stringify({

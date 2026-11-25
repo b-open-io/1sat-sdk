@@ -5,18 +5,15 @@ import type {
 } from '@bsv/wallet-toolbox-client'
 import type { PermissionKey } from './types.js'
 
-/** Default ports stripped from normalized originators (mirrors WPM). */
-const DEFAULT_PORTS: Record<string, string> = {
-	'http:': '80',
-	'https:': '443',
-}
-
 /**
  * Normalize an originator to the same canonical form WPM uses internally.
  *
- *  - Lowercase hostname
- *  - Strip default ports (80 for http, 443 for https)
- *  - Preserve non-default ports
+ *  - Lowercase hostname (IPv6 kept in brackets)
+ *  - The port ALWAYS dropped: BRC-100 permission authority is
+ *    hostname-scoped, as the toolbox WPM's own `normalizeOriginator`
+ *    (2.15.0): every port of a host shares the grants. A grant the base
+ *    class stores under `localhost` must be found by a lookup for
+ *    `localhost:8100`.
  *  - Fall back to lowercase trim on URL-parse failure
  *
  * Kept in sync with `WalletPermissionsManager#normalizeOriginator`. See
@@ -34,12 +31,7 @@ export function normalizeOriginator(
 		const url = new URL(candidate)
 		if (!url.hostname) return trimmed.toLowerCase()
 		const hostname = url.hostname.toLowerCase()
-		const needsBrackets = hostname.includes(':')
-		const baseHost = needsBrackets ? `[${hostname}]` : hostname
-		const port = url.port
-		const defaultPort = DEFAULT_PORTS[url.protocol]
-		if (port && defaultPort && port === defaultPort) return baseHost
-		return port ? `${baseHost}:${port}` : baseHost
+		return hostname.includes(':') ? `[${hostname}]` : hostname
 	} catch {
 		return trimmed.toLowerCase()
 	}

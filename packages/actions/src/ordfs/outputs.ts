@@ -34,7 +34,7 @@ import {
 	MAP_PREFIX,
 } from '@1sat/templates'
 import type { Protocol } from '@1sat/templates'
-import { type LockingScript, P2PKH, Script, Utils } from '@bsv/sdk'
+import { type LockingScript, OP, P2PKH, Script, Utils } from '@bsv/sdk'
 import type { OneSatContext } from '../types.js'
 import { type OrdfsDirManifest, buildOrdfsDirManifest } from './manifest.js'
 
@@ -163,6 +163,23 @@ function toProtocol(prefix: string, locked: LockingScript): Protocol {
 }
 
 /**
+ * Standalone zero-sat B data output: `OP_FALSE OP_RETURN | B | data | type`.
+ *
+ * Post-Genesis only OP_FALSE OP_RETURN is provably unspendable, which a
+ * zero-satoshi output needs to be relayable and minable (otherwise miners
+ * treat it as dust). BitCom emits the bare OP_RETURN fragment because it is
+ * also appended to spendable scripts; standalone callers own the OP_FALSE
+ * prefix — same pattern as BSocial.lock(). Every writer of standalone data
+ * outputs (ordfs leaves and manifests, gib records) goes through here.
+ */
+export function buildDataScript(content: Uint8Array, contentType: string): Script {
+	return new Script([
+		{ op: OP.OP_FALSE },
+		...B.lock(content, contentType, Encoding.Binary).chunks,
+	])
+}
+
+/**
  * Build a single output's content script for the given write mode.
  *
  * `'inscription'` requires `locking` (there's a UTXO to protect); `'b'` never
@@ -176,7 +193,7 @@ function buildLeafScript(
 	vout: number,
 ): Script {
 	if (writeMode === 'b') {
-		return new Script(B.lock(content, contentType, Encoding.Binary).chunks)
+		return buildDataScript(content, contentType)
 	}
 	if (!locking) {
 		throw new Error(
@@ -219,7 +236,11 @@ function buildManifestScript(
 				toProtocol(MAP_PREFIX, MAP.set(map as Record<string, string>)),
 			)
 		}
-		return new Script(new BitCom(protocols).lock().chunks)
+		// Standalone output — same OP_FALSE prefix rule as buildLeafScript.
+		return new Script([
+			{ op: OP.OP_FALSE },
+			...new BitCom(protocols).lock().chunks,
+		])
 	}
 
 	if (!locking) {

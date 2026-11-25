@@ -114,10 +114,17 @@ export interface ServerPaymailConfig {
 	 * Domain served from the host accounts table (e.g. "1sat.app").
 	 * Aliases on this domain resolve username→identity key via registered
 	 * accounts; every other domain (e.g. "1sat.name") keeps resolving through
-	 * on-chain OpNS binds. Unset = OpNS for all domains. Either way an alias
+	 * on-chain OpNS binds. With no user domain, OpNS for all domains. Either way an alias
 	 * only resolves when its identity holds an account on this host.
+	 * Defaults to the host of an https `baseUrl`; with neither set, the host
+	 * refuses handle registration (it could not issue the names' certs).
 	 */
 	userDomain?: string
+	/**
+	 * Require signed P2P metadata on receive-beef / receive-transaction.
+	 * Advertised as Request Sender Validation on well-known. Default false.
+	 */
+	verifySignature?: boolean
 }
 
 export interface ServerSessionStoreConfig {
@@ -149,15 +156,39 @@ export interface ServerConfig {
 	accounts?: ServerAccountsConfig
 	/** Messagebox subcommand settings. */
 	messagebox?: ServerMessageboxConfig
+	/**
+	 * Application-facing BRC-100 endpoint (`1sat serve wallet-api`):
+	 * dApp connectivity for the CLI wallet. Defaults to 127.0.0.1:3321.
+	 * Each app origin is limited to the permissions granted to it with
+	 * `1sat permissions grant`; anything else is denied on the spot. The
+	 * endpoint never prompts and there is no setting that approves
+	 * without a grant.
+	 */
+	dapp?: {
+		host?: string
+		port?: number
+	}
 	/** Paymail settings for the unified host. */
 	paymail?: ServerPaymailConfig
 	/** Shared BSV/USD repricer engine for the accounts storage price. */
 	repricer?: RepricerConfig
+	/** Last successful BSV/USD quote from the repricer. Served at GET /exchange-rate. */
+	exchangeRate?: {
+		bsvUsd: number
+		timestamp: number
+		source: string
+	}
 	/**
 	 * Redis-shared BRC-104 sessions. Required when multiple serve instances
 	 * run behind one load balancer; unset keeps sessions in-memory.
 	 */
 	sessionStore?: ServerSessionStoreConfig
+	/**
+	 * Express `trust proxy` for `serve storage`, whose IP rate limit keys on
+	 * the client address: a hop count, or an address/subnet list such as
+	 * `"loopback"`. Set it behind a reverse proxy. Unset = the socket address.
+	 */
+	trustProxy?: number | string | string[]
 	/** Background monitor task loop. Defaults to enabled. */
 	monitor?: ServerMonitorConfig
 }
@@ -316,4 +347,40 @@ export function ensureDataDir(): string {
 		mkdirSync(dataDir, { recursive: true, mode: 0o700 })
 	}
 	return dataDir
+}
+
+/**
+ * The domain whose usernames come from this host's accounts table, and on
+ * which registration issues handle certs. `server.paymail.userDomain` wins;
+ * otherwise the host of an explicitly configured https `server.paymail.baseUrl`
+ * (the domain the host already serves paymail on). With neither, the host
+ * refuses handle registration rather than claim names it can't certify.
+ */
+export function resolvePaymailUserDomain(
+	paymail: { userDomain?: string; baseUrl?: string } | undefined,
+): { domain: string; source: 'userDomain' | 'baseUrl' } | undefined {
+	const configured = paymail?.userDomain
+		?.trim()
+		.toLowerCase()
+		.replace(/\.$/, '')
+	if (configured) return { domain: configured, source: 'userDomain' }
+	if (!paymail?.baseUrl) return undefined
+	let url: URL
+	try {
+		url = new URL(paymail.baseUrl)
+	} catch {
+		console.error(
+			`[host] server.paymail.baseUrl is not a URL (${paymail.baseUrl}); no paymail user domain`,
+		)
+		return undefined
+	}
+	const host = url.hostname.toLowerCase().replace(/\.$/, '')
+	if (
+		url.protocol !== 'https:' ||
+		!host.includes('.') ||
+		/^[\d.]+$/.test(host)
+	) {
+		return undefined
+	}
+	return { domain: host, source: 'baseUrl' }
 }

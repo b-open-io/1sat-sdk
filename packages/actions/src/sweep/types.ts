@@ -5,6 +5,9 @@
 import type { IndexedOutput } from '@1sat/types'
 import type { PrivateKey } from '@bsv/sdk'
 
+/** Page size for ordinal / OpNS / listing batches in CLI, sweep-ui, and Yours. */
+export const SWEEP_BATCH_SIZE = 25
+
 /** Input for sweep operations - a UTXO to be swept */
 export interface SweepInput {
 	/** Outpoint in format "txid_vout" */
@@ -75,7 +78,32 @@ export interface SweepBsv21Response {
 	txid?: string
 	/** BEEF (transaction with validity proof) */
 	beef?: number[]
+	/** Inputs the transaction spent: those the overlay reported valid */
+	spentOutpoints?: string[]
 	/** Error message if failed */
+	error?: string
+}
+
+/** Input for BSV-20 token sweep */
+export interface SweepBsv20Input extends SweepInput {
+	/** Token ticker */
+	tick: string
+	/** Token amount as string (bigint serialization) */
+	amount: string
+}
+
+/** Request to sweep BSV-20 tokens */
+export interface SweepBsv20Request {
+	/** Token UTXOs to sweep (must all be the same tick) */
+	inputs: SweepBsv20Input[]
+	/** Private keys for signing, parallel to inputs */
+	keys: PrivateKey[]
+}
+
+/** Response from BSV-20 token sweep operation */
+export interface SweepBsv20Response {
+	txid?: string
+	beef?: number[]
 	error?: string
 }
 
@@ -118,6 +146,16 @@ export interface TokenBalance {
 	isActive: boolean
 }
 
+/** A group of BSV-20 token outputs keyed by ticker */
+export interface Bsv20Balance {
+	tick: string
+	decimals: number
+	totalAmount: bigint
+	outputs: IndexedOutput[]
+	/** outpoint → token amount string */
+	amounts: Map<string, string>
+}
+
 /** Categorized UTXOs from scanning an address */
 export interface ScanResult {
 	funding: IndexedOutput[]
@@ -127,5 +165,7 @@ export interface ScanResult {
 	bsv20Tokens: IndexedOutput[]
 	locked: IndexedOutput[]
 	run: IndexedOutput[]
+	/** OrdLock v2 marketplace listings (a sweep cancels them to import them). */
+	listings: IndexedOutput[]
 	totalFundingSats: number
 }

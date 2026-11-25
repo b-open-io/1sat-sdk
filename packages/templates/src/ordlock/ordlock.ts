@@ -1,4 +1,8 @@
-import { ORD_LOCK_PREFIX, ORD_LOCK_SUFFIX } from '@1sat/types'
+import {
+	ORDLOCK_LISTING_CREATE_DISABLED,
+	ORD_LOCK_PREFIX,
+	ORD_LOCK_SUFFIX,
+} from '@1sat/types'
 import {
 	BigNumber,
 	Hash,
@@ -24,6 +28,9 @@ export const ORDLOCK_PREFIX = Utils.toArray(ORD_LOCK_PREFIX, 'hex')
  * OrdLock SUFFIX as number array - contract validation script
  */
 export const ORDLOCK_SUFFIX = Utils.toArray(ORD_LOCK_SUFFIX, 'hex')
+
+/** Upper bound of a v1 cancel unlock: `<sig> <pubkey> OP_1` with a 73-byte DER signature. */
+export const ORDLOCK_CANCEL_UNLOCK_LENGTH = 108
 
 /**
  * OrdLock decoded data structure
@@ -177,18 +184,12 @@ export default class OrdLock {
 	 * @returns The OrdLock locking script
 	 */
 	static lock(
-		cancelAddress: string,
-		payAddress: string,
-		price: number,
+		_cancelAddress: string,
+		_payAddress: string,
+		_price: number,
 	): Script {
-		const cancelPkh = Utils.fromBase58Check(cancelAddress).data as number[]
-		const payPkh = Utils.fromBase58Check(payAddress).data as number[]
-
-		return new Script()
-			.writeScript(Script.fromBinary(ORDLOCK_PREFIX))
-			.writeBin(cancelPkh)
-			.writeBin(OrdLock.buildOutput(price, new P2PKH().lock(payPkh).toBinary()))
-			.writeScript(Script.fromBinary(ORDLOCK_SUFFIX))
+		// OPL-4690: listing create OFF. cancelListing / purchaseListing stay on.
+		throw new Error(ORDLOCK_LISTING_CREATE_DISABLED)
 	}
 
 	/**
@@ -312,15 +313,10 @@ export default class OrdLock {
 
 				const sighash = Hash.sha256(Hash.sha256(preimage))
 
-				// Pass the full BIP-143 preimage as `data` so the 1Sat permission
-				// module can extract hashOutputs + outpoint and auto-grant against
-				// the commitment captured at createAction time. `hashToDirectlySign`
-				// remains the 32-byte input the wallet actually signs.
 				const { signature } = await wallet.createSignature({
 					protocolID,
 					keyID,
 					counterparty,
-					data: Array.from(preimage),
 					hashToDirectlySign: Array.from(sighash),
 				})
 

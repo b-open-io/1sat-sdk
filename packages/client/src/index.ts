@@ -4,6 +4,15 @@
 
 export { HttpError } from './errors.js'
 export {
+	DEFAULT_HANDLE_RESOLVE_PATH,
+	domainOffersHandles,
+	type HandleCertificate,
+	type HandleResolution,
+	parseHandle,
+	resolveHandle,
+	type ResolveHandleOptions,
+} from './handles.js'
+export {
 	AdminClient,
 	ArcadeClient,
 	BapClient,
@@ -29,6 +38,7 @@ export {
 	type MneeTransferStatus,
 	type MneeSyncEntry,
 	OneSatServices,
+	type OneSatServicesSdk,
 	OpnsClient,
 	type OpnsOriginResult,
 	type OpnsMineResult,

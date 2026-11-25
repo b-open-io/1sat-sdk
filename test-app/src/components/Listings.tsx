@@ -1,17 +1,17 @@
-import { sellOrdinal, buyOrdinal, cancelOrdinalListing } from '@1sat/actions'
+import { buyOrdinal, cancelOrdinalListing, sellOrdinal } from '@1sat/actions'
 import { useState } from 'react'
+import { useLog } from './LogContext'
 import {
-	card,
-	heading,
-	input,
 	button,
 	buttonDisabled,
-	successText,
+	card,
 	errorText,
+	heading,
+	input,
 	label,
 	row,
+	successText,
 } from './styles'
-import { useLog } from './LogContext'
 import { useActionFlags } from './useActionFlags'
 import { useOneSatContext } from './useActions'
 
@@ -71,9 +71,8 @@ function CreateListing() {
 			const res = await sellOrdinal.execute(ctx, {
 				id,
 				price: Number(price),
-				...(payAddress && { payAddress,
+				...(payAddress && { payAddress }),
 				...flags,
-			}),
 			})
 
 			if (res.error) throw new Error(res.error)
@@ -127,6 +126,7 @@ function CreateListing() {
 
 function PurchaseListing() {
 	const ctx = useOneSatContext()
+	const flags = useActionFlags()
 	const { log } = useLog()
 	const [listingOutpoint, setListingOutpoint] = useState('')
 	const [loading, setLoading] = useState(false)
@@ -184,6 +184,7 @@ function PurchaseListing() {
 
 function CancelListing() {
 	const ctx = useOneSatContext()
+	const flags = useActionFlags()
 	const { log } = useLog()
 	const [id, setId] = useState('')
 	const [loading, setLoading] = useState(false)
@@ -200,9 +201,7 @@ function CancelListing() {
 		log('info', `cancelOrdinalListing: id=${id}`)
 
 		try {
-			const res = await cancelOrdinalListing.execute(ctx, { id,
-				...flags,
-			})
+			const res = await cancelOrdinalListing.execute(ctx, { id, ...flags })
 
 			if (res.error) throw new Error(res.error)
 			setResult(res.txid ?? 'no txid')

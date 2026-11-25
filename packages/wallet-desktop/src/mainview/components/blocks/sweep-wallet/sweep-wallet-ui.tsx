@@ -97,9 +97,10 @@ function ScanningState() {
 }
 
 function AssetPreview({ scanResult }: { scanResult: ScanResult }) {
-	const { funding, ordinals, tokens, totalSats } = scanResult
+	const { funding, ordinals, tokens, listings = [], totalSats } = scanResult
 	const fundingCount = funding.length
 	const ordinalCount = ordinals.length
+	const listingCount = listings.length
 	const tokenCount = tokens.length
 
 	return (
@@ -122,6 +123,21 @@ function AssetPreview({ scanResult }: { scanResult: ScanResult }) {
 							{fundingCount} UTXO{fundingCount !== 1 ? 's' : ''}
 						</Badge>
 					</div>
+				</div>
+			)}
+
+			{listingCount > 0 && (
+				<div className="flex items-center justify-between rounded-md border bg-muted/50 px-3 py-2">
+					<div className="flex items-center gap-2">
+						<KeyRound
+							className="size-4 text-muted-foreground"
+							aria-hidden="true"
+						/>
+						<span className="text-sm">OrdLock listings</span>
+					</div>
+					<Badge variant="secondary" className="text-xs">
+						{listingCount} listed, not swept
+					</Badge>
 				</div>
 			)}
 
@@ -158,11 +174,14 @@ function AssetPreview({ scanResult }: { scanResult: ScanResult }) {
 				</div>
 			))}
 
-			{fundingCount === 0 && ordinalCount === 0 && tokenCount === 0 && (
-				<p className="text-sm text-muted-foreground text-center py-4">
-					No assets found
-				</p>
-			)}
+			{fundingCount === 0 &&
+				ordinalCount === 0 &&
+				tokenCount === 0 &&
+				listingCount === 0 && (
+					<p className="text-sm text-muted-foreground text-center py-4">
+						No assets found
+					</p>
+				)}
 		</div>
 	)
 }
@@ -215,9 +234,11 @@ function SuccessState({
 function ErrorState({
 	error,
 	onReset,
+	onRetry,
 }: {
 	error: string
 	onReset: () => void
+	onRetry: () => void
 }) {
 	return (
 		<div className="flex flex-col gap-4">
@@ -228,9 +249,12 @@ function ErrorState({
 					<p className="text-xs text-muted-foreground">{error}</p>
 				</div>
 			</div>
-			<Button variant="outline" className="w-full" onClick={onReset}>
+			<Button variant="outline" className="w-full" onClick={onRetry}>
 				<RotateCcw aria-hidden="true" data-icon="inline-start" />
 				Try Again
+			</Button>
+			<Button variant="ghost" onClick={onReset}>
+				Start Over
 			</Button>
 		</div>
 	)
@@ -284,6 +308,16 @@ export function SweepWalletUi({
 			</CardHeader>
 
 			<CardContent className="flex flex-col gap-4">
+				{(sweepResult?.txids?.length ?? 0) > 0 && (
+					<div className="flex flex-col gap-1 text-xs">
+						<p className="font-medium">Completed transactions</p>
+						{sweepResult?.txids?.map((txid) => (
+							<p key={txid} className="break-all font-mono">
+								{txid}
+							</p>
+						))}
+					</div>
+				)}
 				{/* WIF input -- visible in input & preview steps */}
 				{(step === 'input' || step === 'preview') && (
 					<div className="flex flex-col gap-2">
@@ -345,7 +379,7 @@ export function SweepWalletUi({
 
 				{/* Error */}
 				{step === 'error' && error && (
-					<ErrorState error={error} onReset={onReset} />
+					<ErrorState error={error} onReset={onReset} onRetry={onScan} />
 				)}
 			</CardContent>
 

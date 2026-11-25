@@ -1,4 +1,3 @@
-import { formatOrdinalOutpoint } from '@1sat/types'
 import type { EnrichedAsset, EnrichedOutput, TrustState } from './enrichIntent'
 import type { VerificationServices } from './types'
 
@@ -143,7 +142,7 @@ async function verifyBsv21(
 	const bsv21 = services.bsv21
 	if (typeof bsv21?.getTokenDetails !== 'function') return { state: 'unverified' }
 
-	const res = await withTimeout(bsv21.getTokenDetails(tokenId))
+	const res = await withTimeout(bsv21.getTokenDetails(tokenId, { fresh: true }))
 	if (!res) return { state: 'unverified' }
 
 	if (res.status?.is_active === false) {
@@ -163,16 +162,13 @@ async function verifyBsv21(
 	}
 
 	// Validate spent token UTXOs against the overlay (same check sendBsv21 uses).
-	if (inputOutpoints.length > 0 && typeof bsv21.validateOutputs === 'function') {
-		const validated = await withTimeout(
-			bsv21.validateOutputs(tokenId, inputOutpoints, { unspent: true }),
+	if (inputOutpoints.length > 0 && typeof bsv21.getOutputStatus === 'function') {
+		const statuses = await withTimeout(
+			bsv21.getOutputStatus(tokenId, inputOutpoints),
 		)
-		if (!validated) return { state: 'unverified' }
-		const ok = new Set(
-			validated.map((v) => formatOrdinalOutpoint(v.outpoint)),
-		)
-		const missing = inputOutpoints.filter(
-			(op) => !ok.has(formatOrdinalOutpoint(op)),
+		if (!statuses) return { state: 'unverified' }
+		const missing = statuses.filter(
+			(s) => s.state === 'spent' || s.state === 'unknown',
 		)
 		if (missing.length > 0) {
 			return {
@@ -183,6 +179,8 @@ async function verifyBsv21(
 						: `${missing.length} spent token outputs are not valid on the overlay`,
 			}
 		}
+		// Queued outputs are not invalid, just not indexed yet.
+		if (statuses.some((s) => s.state === 'queued')) return { state: 'unverified' }
 	}
 
 	return {

@@ -40,8 +40,19 @@ export interface SyncEvent {
 
 // Send BSV params
 export interface SendBsvParams {
-	address: string
+	/** Base58 P2PKH address */
+	address?: string
+	/** BRC-169 handle (`@handle@domain`) or `handle@domain` (BRC-169 first, else paymail) */
+	handle?: string
 	amount: number
+}
+
+// A send recipient resolved as a BRC-169 handle (empty when it is paymail)
+export interface SendRecipientResolution {
+	/** `handle@domain` */
+	handle?: string
+	/** Recipient identity key, hex */
+	identityKey?: string
 }
 
 // Send BSV result
@@ -151,12 +162,18 @@ export interface SweepScanResult {
 			amount: string
 		}>
 	}>
+	listings: Array<{
+		outpoint: string
+		satoshis: number
+		lockingScript: string
+	}>
 	totalSats: number
 }
 
 // Sweep result
 export interface SweepResultInfo {
 	txid?: string
+	txids?: string[]
 	error?: string
 }
 
@@ -198,6 +215,11 @@ export interface PublishIdentityResult {
 // OpNS register/deregister params
 export interface OpnsOperationParams {
 	outpoint: string
+}
+
+export interface OpnsRegisterParams extends OpnsOperationParams {
+	/** BRC-169 domain written into the name's profile; default `1sat.name`. */
+	domain?: string
 }
 
 // OpNS operation result
@@ -360,6 +382,10 @@ type BunRequests = {
 		params: SendBsvParams
 		response: SendBsvResult
 	}
+	resolveSendRecipient: {
+		params: { handle: string }
+		response: SendRecipientResolution
+	}
 	getWalletStatus: {
 		params: undefined
 		response: { status: WalletStatus }
@@ -367,6 +393,10 @@ type BunRequests = {
 	getOrdinals: {
 		params: { limit?: number; offset?: number }
 		response: { ordinals: OrdinalInfo[] }
+	}
+	getOwnedOrdinal: {
+		params: { outpoint: string }
+		response: { ordinal: OrdinalInfo | null }
 	}
 	getTokenBalances: {
 		params: undefined
@@ -409,7 +439,7 @@ type BunRequests = {
 		response: SweepScanResult
 	}
 	sweepBsv: {
-		params: { wif: string; assets: SweepScanResult }
+		params: { wif: string; assets: SweepScanResult; includeFunding?: boolean }
 		response: SweepResultInfo
 	}
 	resolvePermission: {
@@ -445,7 +475,7 @@ type BunRequests = {
 		response: { success: boolean; txid?: string; error?: string }
 	}
 	opnsRegister: {
-		params: OpnsOperationParams
+		params: OpnsRegisterParams
 		response: OpnsOperationResult
 	}
 	opnsDeregister: {

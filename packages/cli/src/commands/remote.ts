@@ -84,7 +84,9 @@ async function remoteAdd(args: string[], opts: GlobalFlags): Promise<void> {
 	const config = loadConfig()
 
 	try {
-		const client = new StorageClient(walletResult.wallet, url)
+		const client = new StorageClient(walletResult.wallet, url, {
+			binaryRequests: true,
+		})
 		await walletResult.storage.addWalletStorageProvider(client)
 
 		// When adding a backup, the remote may report itself as "active" which

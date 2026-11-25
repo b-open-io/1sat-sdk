@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.0.113
+
+### Changed
+- Outpoint normalization comes from `@1sat/types`.
+
+## 0.0.108
+
+### Fixed
+- Sweep all no longer includes BSV21 tokens whose overlay is inactive; it could spend unvalidated token outputs together.
+- A BSV21 sweep marks only the outpoints the transaction spent as swept.
+
+## 0.0.104
+
+### Changed
+- Picks up `@1sat/actions@0.0.226` (BSV-21/BSV-20 sweeps no longer routed through permission modules).
+
+## 0.0.98
+
+### Added
+- Per-class sweep selection: `sweepAllClasses` accepts `selection` (`SweepClassSelection`, default all via `selectAllSweepClasses`), `completed` retry set, `signal` abort, per-step `onResult` receipts, and `splitListedBsv20`. `sweepBsv20Token`/`sweepBsv21Token` report `sweptOutpoints` and accept `signal`; BSV-20 gains `splitListed`.
+- Sweep-all honors class toggles (CLI `--skip` equivalent), refined by the Ordinals/OpNS tab selections.
+- Sweep results report `cancelledListings` (swept outputs that were marketplace listings); the history header shows the session count.
+
+### Changed
+- Owner key matching fails closed on ambiguous `own:` matches; outpoints compare in canonical `txid.vout` form.
+
+## 0.0.97
+
+### Changed
+- Picks up `@1sat/actions@0.0.218`.
+
+## 0.0.96
+
+### Changed
+- Sweep matches `1sat sweep import`: BSV, ordinals, OpNS, BSV-20, BSV-21. Listed OrdLocks stay in class and cancel in that spend. BSV-20 is sweepable. Sweep all runs that class order. Listed BSV-21 cancels are one per transaction.
+
+## 0.0.94
+
+### Fixed
+- Stop sweeping after incomplete listing cancellation, retain completed transactions for retry, and match signing keys to prepared input order.
+
+## 0.0.92
+
+### Changed
+- Picks up `@1sat/actions@0.0.208`.
+
 ## 0.0.91
 
 ### Changed

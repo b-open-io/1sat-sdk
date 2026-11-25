@@ -121,7 +121,7 @@ export async function resolveDestination(
 		counterparty: isSelf ? 'self' : counterparty,
 		forSelf: isSelf,
 	})
-	const address = PublicKey.fromString(publicKey).toAddress()
+	const address = PublicKey.fromString(publicKey).toAddress(ctx.chain)
 
 	const extra = destination?.customInstructions ?? {}
 	return {

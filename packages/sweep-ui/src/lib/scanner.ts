@@ -18,7 +18,7 @@ export interface EnrichedOrdinal extends IndexedOutput {
 }
 
 export interface ScannedAssets
-	extends Omit<ScanResult, 'ordinals' | 'opnsNames'> {
+	extends Omit<ScanResult, 'ordinals' | 'opnsNames' | 'listings'> {
 	ordinals: EnrichedOrdinal[]
 	opnsNames: EnrichedOrdinal[]
 	bsv21Tokens: TokenBalance[]

@@ -1,7 +1,7 @@
 {
   "name": "@1sat/permission-module",
-  "version": "0.0.59",
-  "description": "1Sat permission module for WalletPermissionsManager \u2014 gates createSignature with hashOutputs commitments captured at createAction time",
+  "version": "0.1.4",
+  "description": "1Sat permission module for WalletPermissionsManager — gates createSignature with hashOutputs commitments captured at createAction time",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -32,13 +32,14 @@
     "@1sat/actions": "workspace:*",
     "@1sat/templates": "workspace:*",
     "@1sat/types": "workspace:*",
+    "@1sat/utils": "workspace:*",
     "@1sat/wallet": "workspace:*"
   },
   "peerDependencies": {
-    "@bsv/sdk": "^2.1.9"
+    "@bsv/sdk": "^4.0.0"
   },
   "devDependencies": {
-    "@bsv/sdk": "^2.1.9",
+    "@bsv/sdk": "^4.0.0",
     "typescript": "^5.9.3"
   }
 }

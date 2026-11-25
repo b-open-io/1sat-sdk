@@ -44,6 +44,11 @@ export interface WebWalletConfig {
 	 * Set this to point a browser build at a non-production 1sat-stack.
 	 */
 	servicesBaseUrl?: string
+	/**
+	 * Skip the initial `monitor.runOnce()` after wallet create. Set when the
+	 * caller will `addTask` then drive `runOnce` itself (e.g. AddressSync).
+	 */
+	skipInitialMonitor?: boolean
 }
 
 export interface WebWalletResult {
@@ -79,7 +84,7 @@ export async function createWebWallet(
 	// One runOnce after create. Tasks self-throttle via per-task intervals
 	// (BackupSync default 5m). Local-active runs full defaults + BackupSync;
 	// remote-active is BackupSync-only (no chain-task duplication with server).
-	if (core.monitor) {
+	if (core.monitor && !config.skipInitialMonitor) {
 		core.monitor.runOnce().catch((err: unknown) => {
 			console.error('[wallet-core] initial monitor run failed:', err)
 		})

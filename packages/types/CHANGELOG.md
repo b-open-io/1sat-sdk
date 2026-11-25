@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.0.53
+
+### Added
+- `outpoint` module: `parseOutpoint`, `formatOutpoint`, `normalizeOutpoint`, `isValidOutpoint`, `formatOrdinalOutpoint`, and 36-byte wire encoding (`outpointToWire`, `outpointFromWire`, `txidToWire`, `txidFromWire`). The single home for outpoint helpers.
+
+### Removed
+- Deprecated `formatOriginOutpoint`.
+
+## 0.0.50
+
+### Added
+- `Bsv21OutputState`, `Bsv21OutputStatus` and `Bsv21FundingTemplate` for the overlay's outpoint status and funding routes.
+- `TokenStatus.min_funding`.
+
+### Removed
+- `TokenQueueResponse`.
+
+## 0.0.49
+
+### Removed
+- `LEGACY_P1SAT_BASKET_MIGRATIONS`. Legacy `p 1sat …` baskets are re-filed by storage migrations (`@1sat/wallet-node`) and by the host wallet on its local store.
+
+## [0.0.48]
+
+### Changed
+- `ORD_LOCK_V2_ARTIFACT` is the canonical `OrdLockV2Batch` build (472-byte template, constructor slots at 436 and 468, SIGHASH_SINGLE purchase). It replaces the earlier v2 draft outright.
+
+### Added
+- `DEPOSIT_HOLD_TAG_PREFIX` (`hold:`), `depositHoldTag`, `depositHoldUntil`, `isDepositHeld`: a `hold:<unix ms>` tag keeps a deposit-basket output out of `sweepDeposit` until the wallet clock passes it.
+- `ORDLOCK_FUNDING_TAG`, `ORDLOCK_FUNDING_KEY_PREFIX` for OrdLock v2 front-funding outputs parked in the deposit basket.
+
+### Removed
+- `ORD_LOCK_V2_TAG_PREFIX` (the draft's tag output no longer exists).
+
+## [0.0.47]
+
+### Added
+- `ORDLOCK_TAG` (`ordlock`) v1 listing tag export.
+
+### Changed
+- `ORDLOCK_LISTING_CREATE_DISABLED` points at OrdLock v2 (`sellOrdinal`): v1 create stays deprecated, buy and cancel stay on.
+
+## [0.0.46] - 2026-09-12
+
+### Added
+- `BSV20_BASKET` (`bsv20`) and the `p 1sat bsv20` legacy migration.
+
 ## [0.0.34] - 2026-07-15
 
 ### Added

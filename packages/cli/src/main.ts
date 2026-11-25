@@ -21,6 +21,7 @@ import { handleMcpProxyCommand } from './commands/mcp-proxy.js'
 import { handleMessageboxCommand } from './commands/messagebox.js'
 import { handleOpnsCommand } from './commands/opns.js'
 import { handleOrdinalsCommand } from './commands/ordinals.js'
+import { handlePermissionsCommand } from './commands/permissions.js'
 import { handleRemoteCommand } from './commands/remote.js'
 import { handleServeCommand } from './commands/serve.js'
 import { handleSocialCommand } from './commands/social.js'
@@ -29,6 +30,7 @@ import { handleSweepCommand } from './commands/sweep.js'
 import { handleTokensCommand } from './commands/tokens.js'
 import { handleTxCommand } from './commands/tx.js'
 import { handleWalletCommand } from './commands/wallet.js'
+import { loadConfig } from './config.js'
 import {
 	getCommand,
 	printCommandHelp,
@@ -55,7 +57,7 @@ function applyEnvFiles(paths: string[]): void {
 }
 
 async function main(): Promise<void> {
-	const flags = parseGlobalFlags(rawArgs)
+	const flags = parseGlobalFlags(rawArgs, loadConfig().chain)
 	if (flags.envFiles.length > 0) {
 		applyEnvFiles(flags.envFiles)
 	}
@@ -149,6 +151,10 @@ async function main(): Promise<void> {
 
 		case 'serve':
 			await handleServeCommand(rest, flags)
+			break
+
+		case 'permissions':
+			await handlePermissionsCommand(rest, flags)
 			break
 
 		case 'storage':

@@ -146,7 +146,7 @@ const tools = actionRegistry.toMcpTools()
 The complete, generated list of all actions:
 
 <!-- ACTION-INDEX -->
-_54 actions, generated from the registry — do not edit by hand._
+_61 actions, generated from the registry — do not edit by hand._
 
 | Category | Action | Services | Purpose |
 |----------|--------|:--------:|---------|
@@ -158,6 +158,7 @@ _54 actions, generated from the registry — do not edit by hand._
 | `identity` | `publishIdentity` |  | Publish initial BAP identity record from wallet |
 | `identity` | `rotateIdentity` |  | Rotate BAP signing key to the next derived key |
 | `identity` | `updateProfile` |  | Update BAP identity profile signed with BAP identity |
+| `inscriptions` | `deployOrdfsDir` |  | Publish an ord-fs/json directory with one ownable root by default, or all-inscription/all-B output layouts |
 | `inscriptions` | `inscribe` |  | Create a new inscription (single tx, or OrdFS multi-tx stream when stream/streamChunkSize is set) |
 | `locks` | `getLockData` |  | Get summary of time-locked BSV (total, unlockable, next unlock height) |
 | `locks` | `listLocks` |  | List time-locked BSV UTXOs (metadata by default) |
@@ -168,7 +169,7 @@ _54 actions, generated from the registry — do not edit by hand._
 | `opns` | `deregisterOpns` |  | Remove identity bind from an OpNS name (self-transfer to P2PKH) |
 | `opns` | `internalizeOpns` |  | Internalize a foreign-created OpNS mint (AtomicBEEF) into the OPNS basket |
 | `opns` | `listOpns` |  | List OpNS names from the wallet (metadata by default; optional BEEF) |
-| `opns` | `registerOpns` |  | Bind BRC-100 identity key to an OpNS name via signed PushDrop |
+| `opns` | `registerOpns` |  | Bind BRC-100 identity key to an OpNS name via signed PushDrop identity + profile fields, optionally with an inscription |
 | `opns` | `sellOpns` |  | List an OpNS name for sale |
 | `opns` | `sendOpns` |  | Transfer an OpNS name to a new owner |
 | `ordinals` | `burnOrdinals` |  | Burn one or more ordinals by sending to OP_RETURN |
@@ -177,11 +178,11 @@ _54 actions, generated from the registry — do not edit by hand._
 | `ordinals` | `listOrdinals` |  | List ordinals/inscriptions (metadata by default; optional BEEF) |
 | `ordinals` | `sellOrdinal` |  | List an ordinal for sale on the global orderbook |
 | `ordinals` | `sendOrdinals` |  | Transfer one or more ordinals to new owners, optionally reinscribing new content onto the output (versioning: the origin chain tracks revision history) |
-| `payments` | `getMneeBalance` | ✓ | Get MNEE stablecoin balance across yours wallet addresses |
+| `payments` | `getMneeBalance` | ✓ | Get MNEE stablecoin balance by addresses or by self-key derivations |
 | `payments` | `getMneeConfig` | ✓ | Get MNEE service configuration including cosigner and fee structure |
 | `payments` | `getMneeHistory` | ✓ | Get MNEE transaction history with parsed amounts and counterparties |
 | `payments` | `getMneeTxStatus` | ✓ | Get the status of an MNEE transfer |
-| `payments` | `getMneeUtxos` | ✓ | Get MNEE UTXOs across yours wallet addresses |
+| `payments` | `getMneeUtxos` | ✓ | Get MNEE UTXOs by addresses or by self-key derivations |
 | `payments` | `sendAllBsv` |  | Send all BSV from wallet to a single destination address |
 | `payments` | `sendBsv` |  | Send BSV to one or more destinations (addresses, scripts, or OP_RETURN) |
 | `payments` | `sendMnee` | ✓ | Send MNEE stablecoin to one or more recipients |
@@ -192,17 +193,23 @@ _54 actions, generated from the registry — do not edit by hand._
 | `signing` | `signBsm` |  | Sign a message using BSM (Bitcoin Signed Message) format |
 | `social` | `createSocialPost` |  | Create an on-chain social post signed with BAP identity |
 | `sweep` | `sweepBsv` | ✓ | Sweep BSV from external wallet (via WIF) into the connected wallet |
+| `sweep` | `sweepBsv20` | ✓ | Sweep BSV-20 tokens from external wallet (via WIF) into the connected wallet |
 | `sweep` | `sweepBsv21` | ✓ | Sweep BSV-21 tokens from external wallet (via WIF) into the connected wallet |
 | `sweep` | `sweepOrdinals` | ✓ | Sweep ordinals from external wallet (via WIF) into the connected wallet |
-| `sync` | `syncAddresses` | ✓ | Sync external payments to BRC-29 deposit addresses into the wallet |
+| `sync` | `syncAddresses` | ✓ | Sync external payments to P1SAT deposit addresses into the wallet |
 | `sync` | `syncCosignDeliveries` | ✓ | Pull cosign-wrapped BSV21 deliveries from a MessageBox and internalize them into the wallet |
 | `sync` | `syncMessages` |  | Sync incoming paymail payments from the message box into the wallet |
+| `sync` | `syncTransactionInbox` |  | Collect the transaction-delivery message box: BRC-232 deliveries (1Color tokens, submitted to their overlay topic first; BRC-29 outputs) and BRC-169 handle payments, internalized into the wallet |
 | `tokens` | `buyBsv21` | ✓ | Purchase BSV21 tokens from the marketplace |
+| `tokens` | `cancelTokenListing` |  | Cancel a token listing and return a transfer inscription to the wallet |
+| `tokens` | `deploy1Color` |  | Deploy a 1Color (BRC-162) token through the wallet's BRC-207 color module: amount > 0 is fixed supply, 0 is an authority deploy. The asset id is <txid>_0. |
 | `tokens` | `deployBsv21Auth` |  | Deploy a new BSV21 token with mintable supply via auth UTXOs (deploy+auth) |
 | `tokens` | `deployBsv21Mint` |  | Deploy a new BSV21 token with fixed supply (deploy+mint) |
+| `tokens` | `fundBsv21Overlay` |  | Fund the token overlay so it indexes and validates a BSV21 token |
 | `tokens` | `getBsv21Balances` |  | Get aggregated BSV21 token balances grouped by token ID |
 | `tokens` | `listBsv21` |  | List BSV21 token outputs from the wallet |
-| `tokens` | `mintBsv21` | ✓ | Spend an auth UTXO to mint new supply and/or re-issue authority |
+| `tokens` | `mintBsv21` | ✓ | Spend an auth UTXO to mint supply, re-issue authority, or permanently end minting |
+| `tokens` | `send1Color` |  | Send 1Color (BRC-162) tokens to a BRC-169 handle: a BRC-177 handoff built by the wallet's BRC-207 color module, delivered (BRC-232) in a signed envelope to the handle's transaction-delivery box; the recipient submits it |
 | `tokens` | `sendBsv21` |  | Send BSV21 tokens to one or more recipients |
 <!-- /ACTION-INDEX -->
 
@@ -214,12 +221,13 @@ The wallet organizes outputs into baskets:
 |--------|----------|
 | `1sat` | Ordinal inscriptions (NFTs) |
 | `bsv21` | BSV-21 fungible tokens |
+| `p color <txid>v<vout>` (`… authority`) | One 1Color (BRC-162) asset's value (authority) outputs, kept by the wallet's BRC-207 `color` module (see the tokens skill) |
 | `opns` | OpNS names |
 | `lock` | Time-locked BSV |
 | `sigma` | Temporary Sigma inscribe anchors |
 | `bsocial` | Social posts |
 | `bap` | BAP identity |
-| `1sat-deposit` | Inbound BSV queue |
+| `1sat-deposit` | Outputs waiting to be swept into BRC-29 funding: inbound BSV, and prepared outputs (OrdLock v2 front funding) held by a `hold:<unix ms>` tag until it lapses |
 
 Storage baskets are plain names. `p 1sat …` is **not** a basket: createAction uses labels (`p <scheme> action`, `p <scheme> input id <key>`); `listOutputs` view grants are `p 1sat all|collection|app|creator|id` (rewritten to `1sat`).
 

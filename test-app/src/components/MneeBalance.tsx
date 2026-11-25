@@ -7,22 +7,22 @@ import { useMneeAddresses } from './useMneeAddresses'
 
 export function MneeBalance() {
   const ctx = useOneSatContext()
-  const { addresses } = useMneeAddresses()
+  const { derivations } = useMneeAddresses()
   const { log } = useLog()
   const [result, setResult] = useState<GetMneeBalanceResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const disabled = !ctx || loading || addresses.length === 0
+  const disabled = !ctx || loading || derivations.length === 0
 
   async function handleFetch() {
     if (!ctx || disabled) return
     setLoading(true)
     setError(null)
-    log('info', `getMneeBalance for ${addresses.length} addresses...`)
+    log('info', `getMneeBalance for ${derivations.length} derivations...`)
 
     try {
-      const res = await getMneeBalance.execute(ctx, { addresses })
+      const res = await getMneeBalance.execute(ctx, { derivations })
       setResult(res)
       log('success', `MNEE balance: $${res.totalDecimal.toFixed(2)} (${res.balances.length} addresses)`)
     } catch (err: unknown) {
@@ -75,7 +75,7 @@ export function MneeBalance() {
 
       {!result && !error && (
         <p style={{ color: '#666', fontSize: '0.8rem' }}>
-          {ctx ? (addresses.length > 0 ? 'Click Refresh' : 'Deriving addresses...') : 'Connect wallet first'}
+          {ctx ? (derivations.length > 0 ? 'Click Refresh' : 'Deriving addresses...') : 'Connect wallet first'}
         </p>
       )}
 

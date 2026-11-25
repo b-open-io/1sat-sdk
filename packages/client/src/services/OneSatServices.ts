@@ -1,5 +1,6 @@
 import { ONESAT_MAINNET_URL, ONESAT_TESTNET_URL } from '@1sat/types'
 import type { Capability, ClientOptions, SyncOutput } from '@1sat/types'
+import { parseOutpoint } from '@1sat/types'
 import {
 	Beef,
 	Hash,
@@ -11,6 +12,7 @@ import {
 import { type TableOutput, sdk as toolboxSdk } from '@bsv/wallet-toolbox-client'
 
 const { WalletError } = toolboxSdk
+import type { ArcadePolicyResponse } from './ArcadeClient.js'
 import {
 	AdminClient,
 	ArcadeClient,
@@ -64,6 +66,16 @@ export type { SyncOutput }
  * - /1sat/opns/* - OpNS domain names
  * - /overlay/* - Overlay services (topic managers, lookups)
  */
+/**
+ * The `@bsv/sdk` classes OneSatServices builds results from. Pass the SDK
+ * module the wallet-toolbox in use loads: `@bsv/wallet-toolbox` is CommonJS,
+ * so in Node it validates proofs against the SDK's CommonJS `MerklePath`, and
+ * a `MerklePath` from the ESM build is rejected.
+ */
+export interface OneSatServicesSdk {
+	MerklePath: typeof MerklePath
+}
+
 export class OneSatServices implements WalletServices {
 	chain: Chain
 	readonly baseUrl: string
@@ -87,6 +99,8 @@ export class OneSatServices implements WalletServices {
 	// Optional fallback to wallet-toolbox Services for methods we don't implement
 	private fallbackServices?: WalletServices
 
+	private readonly sdk: OneSatServicesSdk
+
 	/**
 	 * URL for wallet storage sync endpoint (BRC-100 JSON-RPC).
 	 * Used by StorageClient for remote wallet backup/sync.
@@ -99,8 +113,10 @@ export class OneSatServices implements WalletServices {
 		chain: Chain,
 		baseUrl?: string,
 		fallbackServices?: WalletServices,
+		sdk: OneSatServicesSdk = { MerklePath },
 	) {
 		this.fallbackServices = fallbackServices
+		this.sdk = sdk
 		this.chain = chain
 		this.baseUrl =
 			baseUrl || (chain === 'main' ? ONESAT_MAINNET_URL : ONESAT_TESTNET_URL)
@@ -110,7 +126,7 @@ export class OneSatServices implements WalletServices {
 		this.bap = new BapClient(this.baseUrl, opts)
 		this.chaintracks = new ChaintracksClient(this.baseUrl, opts)
 		this.beef = new BeefClient(this.baseUrl, opts)
-		this.arcade = new ArcadeClient(this.baseUrl, opts)
+		this.arcade = new ArcadeClient(`${this.baseUrl}/1sat/arcade`, opts)
 		this.txo = new TxoClient(this.baseUrl, opts)
 		this.owner = new OwnerClient(this.baseUrl, opts)
 		this.ordfs = new OrdfsClient(this.baseUrl, opts)
@@ -181,7 +197,7 @@ export class OneSatServices implements WalletServices {
 		console.log('[OneSatServices] getMerklePath called for txid:', txid)
 		try {
 			const proofBytes = await this.beef.getProof(txid)
-			const merklePath = MerklePath.fromBinary([...proofBytes])
+			const merklePath = this.sdk.MerklePath.fromBinary([...proofBytes])
 			console.log(
 				'[OneSatServices] getMerklePath got proof, blockHeight:',
 				merklePath.blockHeight,
@@ -237,27 +253,11 @@ export class OneSatServices implements WalletServices {
 		extraInfo?: string
 		competingTxs?: string[]
 	}> {
-		const bytes =
-			payload instanceof Uint8Array ? payload : new Uint8Array(payload)
-		const controller = new AbortController()
-		const timeoutId = setTimeout(() => controller.abort(), 35000)
-		try {
-			const resp = await fetch(`${this.baseUrl}/1sat/tx`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/octet-stream' },
-				body: bytes as unknown as BodyInit,
-				signal: controller.signal,
-			})
-			const text = await resp.text()
-			if (!resp.ok && resp.status !== 202 && resp.status !== 400) {
-				throw new Error(`/1sat/tx returned ${resp.status}: ${text}`)
-			}
-			return text
-				? JSON.parse(text)
-				: { txid: '', txStatus: 'UNKNOWN', timestamp: '' }
-		} finally {
-			clearTimeout(timeoutId)
-		}
+		return this.arcade.submitTransaction(payload)
+	}
+
+	async getPolicy(): Promise<ArcadePolicyResponse> {
+		return this.arcade.getPolicy()
 	}
 
 	/**
@@ -513,7 +513,11 @@ export class OneSatServices implements WalletServices {
 	}
 
 	/**
-	 * Helper to get tx status from Beef storage (fallback when Arcade doesn't know the tx)
+	 * Fallback status from Beef storage when Arcade doesn't know the tx.
+	 * Reports `mined` only when the stored BEEF carries a merkle path for the tx;
+	 * otherwise `unknown`. The Beef store holds every tx from any submitted BEEF,
+	 * including unbroadcast ancestors, so presence alone does not mean the network
+	 * has the tx.
 	 */
 	private async getStatusFromBeef(txid: string): Promise<StatusForTxidResult> {
 		try {
@@ -526,8 +530,7 @@ export class OneSatServices implements WalletServices {
 				const depth = currentHeight - tx.merklePath.blockHeight + 1
 				return { txid, status: 'mined', depth }
 			}
-			// No merkle path = known but not yet mined
-			return { txid, status: 'known', depth: 0 }
+			return { txid, status: 'unknown', depth: undefined }
 		} catch {
 			// 404 or error from Beef = unknown
 			return { txid, status: 'unknown', depth: undefined }
@@ -567,8 +570,7 @@ export class OneSatServices implements WalletServices {
 			})
 
 			const isUtxo = !txo.spend
-			const [txid, voutStr] = txo.outpoint.split('_')
-			const vout = Number.parseInt(voutStr, 10)
+			const { txid, vout } = parseOutpoint(txo.outpoint)
 
 			return {
 				name: '1sat-api',

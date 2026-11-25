@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.89
+
+### Fixed
+- Consume Sigma OAuth state and connect the wallet once when React replays the callback effect.
+
 ## 0.0.88
 
 ### Changed

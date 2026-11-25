@@ -3,7 +3,12 @@ export { BapClient } from './BapClient.js'
 export { BaseClient } from './BaseClient.js'
 export { ChaintracksClient } from './ChaintracksClient.js'
 export { BeefClient } from './BeefClient.js'
-export { ArcadeClient } from './ArcadeClient.js'
+export {
+	ArcadeClient,
+	type ArcadeMiningFee,
+	type ArcadePolicy,
+	type ArcadePolicyResponse,
+} from './ArcadeClient.js'
 export {
 	EcosystemAliasClient,
 	ECOSYSTEM_ALIAS_LOOKUP_SERVICE,
@@ -35,4 +40,4 @@ export {
 	type MneeSyncEntry,
 	type MneeFeeTier,
 } from './MneeClient.js'
-export { OneSatServices } from './OneSatServices.js'
+export { OneSatServices, type OneSatServicesSdk } from './OneSatServices.js'

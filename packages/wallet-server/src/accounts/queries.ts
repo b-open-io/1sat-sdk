@@ -14,8 +14,8 @@
  * alongside `paymentRemittance`.
  */
 
-import type { WalletInterface } from '@bsv/sdk'
-import type { IdentityKey } from './types.js'
+import { Utils, type WalletInterface } from '@bsv/sdk'
+import type { IdentityKey, NextPaymentDerivation } from './types.js'
 
 export const PAYMENT_LABEL = 'wallet-storage-payment'
 
@@ -116,4 +116,30 @@ export async function latestActivePaymentForPayer(
 		if (records[i].paidThroughBlock > currentBlock) return records[i]
 	}
 	return undefined
+}
+
+/** Static derivation prefix tag (before base64 encoding). */
+const PAYMENT_DERIVATION_PREFIX_TAG = 'wallet-storage'
+
+/**
+ * Server-issued next-payment derivation for an identity. Prefix is constant;
+ * suffix is the monotonic count of payments already recorded for the
+ * identity (first payment uses "0").
+ */
+export async function nextPaymentDerivation(
+	identityKey: IdentityKey,
+	wallet: WalletInterface,
+): Promise<NextPaymentDerivation> {
+	const count = await countPaymentsForPayer(wallet, identityKey)
+	return {
+		derivationPrefix: Utils.toBase64(
+			Array.from(new TextEncoder().encode(PAYMENT_DERIVATION_PREFIX_TAG)),
+		),
+		derivationSuffix: Utils.toBase64([
+			(count >>> 24) & 0xff,
+			(count >>> 16) & 0xff,
+			(count >>> 8) & 0xff,
+			count & 0xff,
+		]),
+	}
 }

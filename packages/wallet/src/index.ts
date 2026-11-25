@@ -113,6 +113,7 @@ export {
 	type Chain,
 	type TaskStateStore,
 	type WalletCoreConfig,
+	type WalletCoreSdk,
 	type WalletCoreResult,
 } from './factory.js'
 

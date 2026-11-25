@@ -1,28 +1,8 @@
+import { formatOrdinalOutpoint } from './outpoint.js'
 import type { OrdfsMetadata } from './services.js'
 
 /** Longest display name we put in customInstructions (not tags). */
 export const MAX_NAME_TAG_LENGTH = 64
-
-/**
- * Ordinals / indexer outpoint form: `txid_vout`.
- * Accepts dotted (BRC-100) or underscore input. Used for origin tags, CI
- * origin, BSV21 tokenId-style ids, and OrdFS keys.
- */
-export function formatOrdinalOutpoint(outpoint: string): string {
-	const s = outpoint.trim()
-	if (s.length >= 66) {
-		const sep = s[64]
-		if (sep === '.' || sep === '_') {
-			return `${s.slice(0, 64)}_${s.slice(65)}`
-		}
-	}
-	const dot = s.indexOf('.')
-	if (dot === 64) return `${s.slice(0, 64)}_${s.slice(65)}`
-	return s.replace('.', '_')
-}
-
-/** @deprecated Use {@link formatOrdinalOutpoint} */
-export const formatOriginOutpoint = formatOrdinalOutpoint
 
 /**
  * Canonical identity tags for an ordinal (BRC-147).

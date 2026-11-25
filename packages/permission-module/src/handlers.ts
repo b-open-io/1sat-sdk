@@ -4,6 +4,7 @@ import {
 	finishCreateAction,
 	spendsFromLabels,
 } from '@1sat/actions'
+import type { OrdLockV2DeliveryTarget } from '@1sat/templates'
 import type { PermissionSchemeId } from '@1sat/types'
 import type { IPermissionStore } from '@1sat/wallet'
 import type {
@@ -31,7 +32,12 @@ export {
 /** Pending resolved spends between onRequest embellish and onResponse finish. */
 const pendingByOriginator = new Map<
 	string,
-	{ resolvedSpends: ResolvedSpend[]; inputBEEF?: number[] }
+	{
+		resolvedSpends: ResolvedSpend[]
+		inputBEEF?: number[]
+		/** Buyer-approved OrdLock v2 receive outputs of the approved args. */
+		deliveries?: OrdLockV2DeliveryTarget[]
+	}
 >()
 
 interface HandlerDeps {
@@ -94,16 +100,17 @@ export async function handleCreateActionRequest(
 
 	// Same apply as local pipeline (seals, tags, BSV-21 CI stamp) + spend load.
 	const spends = spendsFromLabels(args.labels)
-	const { args: next, resolvedSpends } = await embellishCreateActionArgs(
-		deps.wallet,
-		args,
-		spends,
-	)
+	const {
+		args: next,
+		resolvedSpends,
+		deliveries,
+	} = await embellishCreateActionArgs(deps.wallet, args, spends)
 	pendingByOriginator.set(originator, {
 		resolvedSpends,
 		inputBEEF: Array.isArray(next.inputBEEF)
 			? (next.inputBEEF as number[])
 			: undefined,
+		deliveries,
 	})
 	return next
 }
@@ -292,6 +299,8 @@ export async function handleCreateActionResponse(
 		res,
 		pending?.resolvedSpends ?? [],
 		pending?.inputBEEF,
+		undefined,
+		pending?.deliveries,
 	)
 	if (finished.error) {
 		throw new Error(`1Sat permission module: finish failed: ${finished.error}`)
@@ -317,11 +326,9 @@ export async function handleCreateSignatureRequest(
 ): Promise<CreateSignatureArgs> {
 	if (isAdmin(deps, originator)) return args
 
-	// `args.data` carries the full BIP-143 preimage when the caller is
-	// signing a tx input (signP2PKHInput passes both `data: preimage` and
-	// `hashToDirectlySign: sha256(sha256(preimage))`). Prefer `data` so we
-	// can parse hashOutputs + outpoint and verify against the commitment;
-	// fall back to `hashToDirectlySign` only when `data` is absent.
+	// A caller that passes a full BIP-143 preimage as `data` can be verified
+	// against the commitment by its hashOutputs + outpoint. A 32-byte
+	// `hashToDirectlySign` is too short to parse and falls through to the prompt.
 	const preimage = args.data ?? args.hashToDirectlySign
 	if (preimage && preimage.length >= MIN_BIP143_PREIMAGE_BYTES) {
 		const parsed = parsePreimage(preimage)

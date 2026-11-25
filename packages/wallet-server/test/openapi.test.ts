@@ -8,10 +8,9 @@ describe('buildOpenApiSpec', () => {
 	test('includes only enabled surfaces', () => {
 		const spec = buildOpenApiSpec({
 			serverIdentityKey: IDENTITY,
-			surfaces: { storage: true, accounts: false, messagebox: true },
+			surfaces: { accounts: false, messagebox: true },
 		}) as { paths: Record<string, unknown> }
 
-		expect(spec.paths['/']).toBeDefined()
 		expect(spec.paths['/.well-known/auth']).toBeDefined()
 		expect(spec.paths['/messagebox/sendMessage']).toBeDefined()
 		expect(spec.paths['/account/status']).toBeUndefined()
@@ -46,7 +45,7 @@ describe('mountOpenApiRoutes', () => {
 		const app = express()
 		mountOpenApiRoutes(app, {
 			serverIdentityKey: IDENTITY,
-			surfaces: { storage: true },
+			surfaces: { messagebox: true },
 		})
 		const server = app.listen(0)
 		const port = (server.address() as { port: number }).port

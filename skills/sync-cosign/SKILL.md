@@ -1,6 +1,6 @@
 ---
 name: sync-cosign
-description: "This skill should be used when coordinating wallet state across devices or running a cosigner backend — syncing external payments to deposit addresses, polling the message box for inbound payments, pulling cosign-wrapped token deliveries, publishing BAP attestations, or building/validating cosigner-signed BSV21 transfers. Triggers on 'sync addresses', 'sync messages', 'message box', 'cosign delivery', 'attest', 'attestation', 'cosigner', 'cosign transfer', 'multi-device sync', or 'BRC-29 deposit'. Uses @1sat/actions sync and cosign modules."
+description: "This skill should be used when coordinating wallet state across devices or running a cosigner backend — syncing external payments to deposit addresses, polling the message box for inbound payments, pulling cosign-wrapped token deliveries, publishing BAP attestations, or building/validating cosigner-signed BSV21 transfers. Triggers on 'sync addresses', 'sync messages', 'message box', 'cosign delivery', 'attest', 'attestation', 'cosigner', 'cosign transfer', 'multi-device sync', or 'P1SAT deposit'. Uses @1sat/actions sync and cosign modules."
 ---
 
 # Sync & Cosign
@@ -27,13 +27,13 @@ Every sync action sets `requiresServices: true` — `services` must be present i
 
 | Action | Description |
 |--------|-------------|
-| `syncAddresses` | Internalize external payments to BRC-29 deposit addresses |
+| `syncAddresses` | Internalize external payments to P1SAT deposit addresses |
 | `syncMessages` | Internalize inbound paymail payments from the message box |
 | `syncCosignDeliveries` | Pull cosign-wrapped BSV21 deliveries from a MessageBox |
 
 ### syncAddresses
 
-Derives BRC-29 deposit addresses (default prefix `"1sat"`), streams new outputs from the 1sat-stack indexer, classifies them, and internalizes them. Tracks a reorg-safe score in a per-identity store (IndexedDB in browsers, `bun:sqlite` in Node/Bun) so repeat calls only process new outputs. After internalizing, it rotates plain-BSV inbounds into a fresh BRC-29 funding output via `sweepDeposit`.
+Derives P1SAT deposit addresses (default prefix `"1sat"`), streams new outputs from the 1sat-stack indexer, classifies them, and internalizes them. Tracks a reorg-safe score in a per-identity store (IndexedDB in browsers, `bun:sqlite` in Node/Bun) so repeat calls only process new outputs. After internalizing, it rotates plain-BSV inbounds into a fresh P1SAT funding output via `sweepDeposit`.
 
 Use this on wallet mount or on a schedule to pick up payments sent to the wallet's deposit addresses from any device.
 

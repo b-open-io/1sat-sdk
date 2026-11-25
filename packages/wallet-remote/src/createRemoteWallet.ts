@@ -7,7 +7,7 @@ import {
 	StorageProvider,
 	Wallet,
 	WalletStorageManager,
-} from '@bsv/wallet-toolbox/out/src/index.client.js'
+} from '@bsv/wallet-toolbox-client'
 
 export interface RemoteWalletConfig {
 	privateKey: PrivateKey | string

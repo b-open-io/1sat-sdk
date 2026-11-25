@@ -146,6 +146,36 @@ describe('buildPriceUpdateTask', () => {
 		expect(task.trigger(Date.now())).toEqual({ run: false })
 	})
 
+	test('onQuote runs even when every target is skipped', async () => {
+		let quoteUsd: number | undefined
+		const task = buildPriceUpdateTask({
+			monitor: {},
+			rateProvider: fakeProvider([Q(50)]),
+			intervalMs: 1000,
+			bounds: { maxMovePct: 10, minSats: 1 },
+			targets: [target({ readCurrentSats: () => 1_000_000 })],
+			onQuote: async (q) => {
+				quoteUsd = q.bsvUsd
+			},
+		})
+		const msg = await task.runTask()
+		expect(quoteUsd).toBe(50)
+		expect(msg).toMatch(/skipped/i)
+	})
+
+	test('trigger runs with no targets when onQuote is set', () => {
+		const task = buildPriceUpdateTask({
+			monitor: {},
+			rateProvider: fakeProvider([Q(50)]),
+			intervalMs: 1000,
+			bounds: { maxMovePct: 100, minSats: 1 },
+			targets: [],
+			onQuote: async () => {},
+		})
+		task.lastRunMsecsSinceEpoch = 0
+		expect(task.trigger(Date.now())).toEqual({ run: true })
+	})
+
 	test('task name is "PriceUpdate"', () => {
 		const task = buildPriceUpdateTask({
 			monitor: {},

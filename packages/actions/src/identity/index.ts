@@ -48,7 +48,7 @@ async function deriveAddress(
 		keyID,
 		counterparty: 'self',
 	})
-	return PublicKey.fromString(publicKey).toAddress()
+	return PublicKey.fromString(publicKey).toAddress(ctx.chain)
 }
 
 // ============================================================================

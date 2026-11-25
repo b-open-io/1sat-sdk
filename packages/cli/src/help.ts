@@ -163,12 +163,12 @@ export const COMMANDS: CommandSpec[] = [
 			{ name: 'balance', description: 'Show wallet balance in satoshis' },
 			{
 				name: 'address',
-				description: 'Show BRC-29 deposit address(es)',
+				description: 'Show P1SAT deposit address(es)',
 				args: [
 					{
 						flag: '--prefix',
 						values: '<p>',
-						description: 'BRC-29 prefix (default: 1sat)',
+						description: 'Deposit keyID prefix (default: 1sat)',
 					},
 					{ flag: '--start-index', values: '<n>' },
 					{ flag: '--count', values: '<n>' },
@@ -196,7 +196,7 @@ export const COMMANDS: CommandSpec[] = [
 			},
 			{
 				name: 'sync',
-				description: 'Sync inbound payments at BRC-29 deposit addresses',
+				description: 'Sync inbound payments at P1SAT deposit addresses',
 				args: [
 					{ flag: '--prefix', values: '<p>' },
 					{ flag: '--start-index', values: '<n>' },
@@ -607,7 +607,12 @@ export const COMMANDS: CommandSpec[] = [
 			{
 				name: 'register',
 				description: 'Register identity on an owned OpNS name',
-				args: [{ flag: '--id', values: '<tracking-id>', required: true }],
+				args: [
+					{ flag: '--id', values: '<tracking-id>', required: true },
+					{ flag: '--domain', values: '<hostname>', required: true },
+					{ flag: '--name', values: '<display name>' },
+					{ flag: '--avatar', values: '<txid_vout>' },
+				],
 			},
 			{
 				name: 'deregister',
@@ -666,12 +671,12 @@ export const COMMANDS: CommandSpec[] = [
 		group: 'Wallet',
 		name: 'messagebox',
 		description:
-			'MessageBox inbox (paymail remittances). Not the same as `wallet sync` (address/owner scan).',
+			'MessageBox inboxes (paymail remittances; BRC-232 deliveries: 1Color tokens and BRC-169 handle payments). Not the same as `wallet sync` (address/owner scan).',
 		subcommands: [
 			{
 				name: 'sync',
 				description:
-					'Pull payment_inbox (default) and internalize paymail payments',
+					'Pull payment_inbox (default) and internalize paymail payments, then the transaction-delivery box (BRC-169 handle payments; 1Color tokens, submitted to --overlay first)',
 				args: [
 					{
 						flag: '--url',
@@ -682,7 +687,13 @@ export const COMMANDS: CommandSpec[] = [
 					{
 						flag: '--box',
 						values: '<name>',
-						description: 'Inbox name (default payment_inbox)',
+						description: 'Paymail inbox name (default payment_inbox)',
+					},
+					{
+						flag: '--overlay',
+						values: '<url>',
+						description:
+							'BRC-22 overlay that received 1Color tokens are submitted to before internalizing (no default; without it, 1Color deliveries stay in the box)',
 					},
 				],
 			},
@@ -698,13 +709,42 @@ export const COMMANDS: CommandSpec[] = [
 			{
 				name: 'scan',
 				description:
-					'Scan an address for sweepable UTXOs (BSV, ordinals, BSV21)',
-				args: [{ flag: '--wif', values: '<key>', required: true }],
+					'Show every UTXO class at an address (BSV, ordinals, OpNS, BSV-20, BSV-21, leftover locks/RUN)',
+				args: [
+					{ flag: '--wif', values: '<key>', required: true },
+					{
+						flag: '--only',
+						values: '<bsv,ordinals,opns,bsv20,bsv21>',
+						description: 'Limit the report to these classes',
+					},
+					{
+						flag: '--skip',
+						values: '<class,...>',
+						description: 'Omit classes from the report',
+					},
+				],
 			},
 			{
 				name: 'import',
-				description: 'Sweep UTXOs from a WIF into the wallet',
-				args: [{ flag: '--wif', values: '<key>', required: true }],
+				description:
+					'Sweep transferable UTXOs from a WIF into the wallet. Default is all classes we can move to BRC-100 (including listed OrdLocks). Locks and RUN stay.',
+				args: [
+					{ flag: '--wif', values: '<key>', required: true },
+					{
+						flag: '--only',
+						values: '<bsv,ordinals,opns,bsv20,bsv21>',
+						description: 'Sweep only these classes',
+					},
+					{
+						flag: '--skip',
+						values: '<class,...>',
+						description: 'Skip these classes',
+					},
+					{
+						flag: '--dry-run',
+						description: 'Print the plan and do not broadcast',
+					},
+				],
 			},
 		],
 	},
@@ -714,17 +754,104 @@ export const COMMANDS: CommandSpec[] = [
 		group: 'Server',
 		name: 'serve',
 		description:
-			'Run unified host server (storage + accounts + paymail + messagebox) and/or monitor (config under server.* in config.json)',
+			'Run unified host server (accounts + paymail + messagebox), wallet storage server and/or monitor (config under server.* in config.json)',
 		subcommands: [
 			{
 				name: '(no subcommand)',
 				description: 'Host server + monitor daemon',
 			},
 			{
-				name: 'wallet',
-				description: 'Wallet storage server only (BRC-100 HTTP)',
+				name: 'storage',
+				description:
+					'Wallet storage server only (wallet-toolbox StorageServer, BRC-100 HTTP)',
 			},
 			{ name: 'monitor', description: 'Monitor daemon only' },
+			{
+				name: 'wallet-api',
+				description:
+					'App-facing BRC-100 wallet endpoint only (headless, default port 3321). Ungranted requests are denied with the `1sat permissions grant` command that would allow them',
+			},
+		],
+	},
+	{
+		group: 'Server',
+		name: 'permissions',
+		description:
+			"What apps on `1sat serve wallet-api` may do. Grants live in <dataDir>/permissions-<chain>.json; the endpoint reads the file on every check, so a grant applies to the app's next call without a restart. Works with the server stopped or running and needs no wallet key.",
+		subcommands: [
+			{
+				name: 'list',
+				description: 'Show grants, grouped by app origin',
+				positional: '[<origin>]',
+			},
+			{
+				name: 'grant',
+				description:
+					'Allow an app one or more permissions. Selectors may be combined in one call.',
+				positional: '<origin>',
+				args: [
+					{
+						flag: '--protocol',
+						values: '<name>',
+						description: 'Protocol name; requires --level',
+					},
+					{
+						flag: '--level',
+						values: '<0|1|2>',
+						description: 'Protocol security level',
+					},
+					{
+						flag: '--counterparty',
+						values: '<hex|self|anyone>',
+						description:
+							"Counterparty for a level 0/2 protocol (default self; ignored at level 1), or a certificate's verifier (also --verifier)",
+					},
+					{
+						flag: '--privileged',
+						description:
+							'Grant the privileged variant of a protocol/certificate',
+					},
+					{ flag: '--basket', values: '<name>', description: 'Basket access' },
+					{
+						flag: '--label',
+						values: '<name>',
+						description:
+							'Action label (a level-1 `action label <name>` protocol)',
+					},
+					{
+						flag: '--certificate',
+						values: '<type>',
+						description: 'Certificate type; requires --fields',
+					},
+					{
+						flag: '--fields',
+						values: '<a,b>',
+						description: 'Certificate fields that may be disclosed',
+					},
+					{
+						flag: '--spending',
+						values: '<satoshis>',
+						description:
+							'Monthly spending cap; month-to-date spend is read from action history on every check',
+					},
+				],
+			},
+			{
+				name: 'revoke',
+				description: 'Remove matching grants, or every grant for an origin',
+				positional: '<origin>',
+				args: [
+					{
+						flag: '--all',
+						description: 'Remove every grant for the origin',
+					},
+					{
+						flag: '--protocol',
+						values: '<name>',
+						description: 'Same selectors as `grant`',
+					},
+				],
+			},
 		],
 	},
 	{
@@ -763,7 +890,7 @@ export const COMMANDS: CommandSpec[] = [
 		group: 'Advanced',
 		name: 'authfetch',
 		description:
-			'HTTP request with BRC-104 AuthFetch using CLI wallet keys. On 402, confirms payment unless --yes.',
+			'HTTP request with BRC-104 AuthFetch using CLI wallet keys. Only GET/HEAD retry public routes without auth. On 402, requires --yes or interactive confirmation; noninteractive calls return approval_required and exit nonzero.',
 		positional: '<method> <url>',
 		args: [
 			{

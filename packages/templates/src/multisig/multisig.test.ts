@@ -4,8 +4,10 @@ import {
 	type CreateSignatureArgs,
 	ECDSA,
 	type GetPublicKeyArgs,
+	KeyDeriver,
 	PrivateKey,
 	type PrivateKey as PrivateKeyType,
+	ProtoWallet,
 	Spend,
 	Transaction,
 	UnlockingScript,
@@ -271,6 +273,57 @@ describe('P2MS template', () => {
 			const portions = new Map<string, UnlockingScript>()
 			portions.set(pkA, portionA)
 			portions.set(pkB, portionB)
+
+			const fullUnlock = await P2MS.unlock(portions).sign(spendTx, 0)
+			expect(evaluate(lock, fullUnlock, sourceTxid, spendTx)).toBe(true)
+		})
+
+		it('ProtoWallet-derived portions validate and match raw-key portions', async () => {
+			const protocolID: [2, string] = [2, 'p2ms test']
+			const keyID = '1'
+			const rootA = PrivateKey.fromRandom()
+			const rootB = PrivateKey.fromRandom()
+			const walletA = new ProtoWallet(rootA)
+			const walletB = new ProtoWallet(rootB)
+			const derivedA = new KeyDeriver(rootA).derivePrivateKey(
+				protocolID,
+				keyID,
+				'self',
+			)
+			const derivedB = new KeyDeriver(rootB).derivePrivateKey(
+				protocolID,
+				keyID,
+				'self',
+			)
+			const pkDA = compressedPubKeyHex(derivedA)
+			const pkDB = compressedPubKeyHex(derivedB)
+			const lock = P2MS.lock([pkDA, pkDB, pkC], 2)
+			const { sourceTxid, spendTx } = buildSpendTx(lock)
+
+			const portionA = await P2MS.unlockSingleWithWallet(
+				spendTx,
+				0,
+				walletA as unknown as WalletInterface,
+				protocolID,
+				keyID,
+			)
+			const portionB = await P2MS.unlockSingleWithWallet(
+				spendTx,
+				0,
+				walletB as unknown as WalletInterface,
+				protocolID,
+				keyID,
+			)
+			expect(portionA.toHex()).toBe(
+				(await P2MS.unlockSingle(spendTx, 0, derivedA)).toHex(),
+			)
+			expect(portionB.toHex()).toBe(
+				(await P2MS.unlockSingle(spendTx, 0, derivedB)).toHex(),
+			)
+
+			const portions = new Map<string, UnlockingScript>()
+			portions.set(pkDA, portionA)
+			portions.set(pkDB, portionB)
 
 			const fullUnlock = await P2MS.unlock(portions).sign(spendTx, 0)
 			expect(evaluate(lock, fullUnlock, sourceTxid, spendTx)).toBe(true)

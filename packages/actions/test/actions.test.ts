@@ -8,6 +8,7 @@ import {
 	listBsv21,
 	listOrdinals,
 	lockBsv,
+	sellOpns,
 	sellOrdinal,
 	sendAllBsv,
 	sendBsv,
@@ -125,9 +126,7 @@ describe('Phase 2 — Create assets', () => {
 		expect(result.txid!.length).toBe(64)
 
 		const listed = await listOrdinals.execute(primary.ctx, {})
-		const row = listed.outputs.find((o) =>
-			o.outpoint.startsWith(result.txid!),
-		)
+		const row = listed.outputs.find((o) => o.outpoint.startsWith(result.txid!))
 		const id = readAssetIdTag(row?.tags)
 		expect(id).toBeDefined()
 		inscribedId = id!
@@ -160,7 +159,7 @@ describe('Phase 2 — Create assets', () => {
 // Phase 3 — Ordinal marketplace (requires funded SELLER + BUYER)
 // ============================================================================
 
-// We'll inscribe a fresh ordinal on seller, list it, then buy with buyer
+// We'll inscribe a fresh ordinal on seller, list it (OrdLock v2), then buy it from buyer
 let sellerId: string
 let listingOutpoint: string
 
@@ -186,7 +185,7 @@ describe('Phase 3 — Ordinal marketplace', () => {
 		sellerId = id!
 	})
 
-	test('sellOrdinal — lists an ordinal for sale', async () => {
+	test('sellOrdinal — lists an ordinal for sale (OrdLock v2)', async () => {
 		const result = await sellOrdinal.execute(seller.ctx, {
 			id: sellerId,
 			price: 1000,
@@ -232,6 +231,14 @@ describe('Phase 3 — Ordinal marketplace', () => {
 		})
 		expect(result.error).toBeUndefined()
 		expect(result.txid).toBeDefined()
+	})
+
+	test('sellOpns — rejects a bad price without touching the wallet', async () => {
+		const result = await sellOpns.execute(seller.ctx, {
+			id: 'unused',
+			price: 0,
+		})
+		expect(result.error).toBe('invalid-price')
 	})
 
 	test('buyOrdinal — buyer purchases a listed ordinal', async () => {

@@ -1,181 +1,178 @@
 import { describe, expect, test } from 'bun:test'
-import type { NextFunction, Request, RequestHandler, Response } from 'express'
 import {
 	RedisSessionManager,
 	type SessionRedis,
-	wrapAuthWithSessionHydration,
 } from '../src/sessions/redisSessionManager'
 
-/** In-memory stand-in for Redis shared between "instances". */
+/** In-memory stand-in for Redis shared between "instances". TTLs are ignored. */
 function fakeRedis(): SessionRedis & {
-	store: Map<string, Map<string, string>>
+	strings: Map<string, string>
+	sets: Map<string, Set<string>>
 } {
-	const store = new Map<string, Map<string, string>>()
+	const strings = new Map<string, string>()
+	const sets = new Map<string, Set<string>>()
+	const set = async (
+		key: string,
+		value: string,
+		_mode: 'EX',
+		_seconds: number,
+		flag?: 'NX',
+	): Promise<'OK' | null> => {
+		if (flag === 'NX' && strings.has(key)) return null
+		strings.set(key, value)
+		return 'OK'
+	}
 	return {
-		store,
-		async hgetall(key) {
-			return Object.fromEntries(store.get(key) ?? new Map())
+		strings,
+		sets,
+		async get(key) {
+			return strings.get(key) ?? null
 		},
-		async hset(key, field, value) {
-			if (!store.has(key)) store.set(key, new Map())
-			store.get(key)!.set(field, value)
+		async mget(...keys) {
+			return keys.map((key) => strings.get(key) ?? null)
 		},
-		async hdel(key, field) {
-			store.get(key)?.delete(field)
+		set,
+		async del(...keys) {
+			let removed = 0
+			for (const key of keys) {
+				if (strings.delete(key) || sets.delete(key)) removed++
+			}
+			return removed
 		},
-		async expire() {},
+		async sadd(key, member) {
+			if (!sets.has(key)) sets.set(key, new Set())
+			const members = sets.get(key) as Set<string>
+			if (members.has(member)) return 0
+			members.add(member)
+			return 1
+		},
+		async srem(key, member) {
+			return sets.get(key)?.delete(member) ? 1 : 0
+		},
+		async smembers(key) {
+			return [...(sets.get(key) ?? [])]
+		},
+		async expire() {
+			return 1
+		},
 	}
 }
 
 const IDENTITY = '02'.padEnd(66, 'b')
-const session = () => ({
+const session = (overrides = {}) => ({
 	isAuthenticated: true,
 	sessionNonce: 'server-nonce-1',
 	peerNonce: 'peer-nonce-1',
 	peerIdentityKey: IDENTITY,
-	lastUpdate: 1700000000000,
+	lastUpdate: Date.now(),
+	...overrides,
 })
-
-/** Let the fire-and-forget Redis writes settle. */
-const tick = () => new Promise((r) => setTimeout(r, 0))
 
 describe('RedisSessionManager', () => {
-	test('session added on instance A is visible on instance B after hydrate', async () => {
+	test('a session added on instance A is found on instance B', async () => {
 		const redis = fakeRedis()
 		const a = new RedisSessionManager(redis)
 		const b = new RedisSessionManager(redis)
 
-		a.addSession(session())
-		await tick()
+		await a.addSession(session())
 
-		// B knows nothing locally — the sync lookup misses.
-		expect(b.hasSession('server-nonce-1')).toBe(false)
-
-		await b.hydrate(IDENTITY)
-		expect(b.hasSession('server-nonce-1')).toBe(true)
-		expect(b.hasSession(IDENTITY)).toBe(true)
-		expect(b.getSession('server-nonce-1')?.isAuthenticated).toBe(true)
+		expect(await b.hasSession('server-nonce-1')).toBe(true)
+		expect(await b.hasSession(IDENTITY)).toBe(true)
+		expect((await b.getSession('server-nonce-1'))?.isAuthenticated).toBe(true)
 	})
 
-	test('removeSession propagates through Redis', async () => {
+	test('updates on one instance are what the other reads', async () => {
 		const redis = fakeRedis()
 		const a = new RedisSessionManager(redis)
 		const b = new RedisSessionManager(redis)
 
-		a.addSession(session())
-		await tick()
-		a.removeSession(session())
-		await tick()
+		await a.addSession(session({ isAuthenticated: false }))
+		await b.updateSession(session({ isAuthenticated: true }))
 
-		await b.hydrate(IDENTITY)
-		expect(b.hasSession('server-nonce-1')).toBe(false)
+		expect((await a.getSession('server-nonce-1'))?.isAuthenticated).toBe(true)
 	})
 
-	test('mid-handshake sessions (no identity key) stay local', async () => {
-		const redis = fakeRedis()
-		const a = new RedisSessionManager(redis)
-		a.addSession({
-			isAuthenticated: false,
-			sessionNonce: 'pending-nonce',
-			lastUpdate: 1700000000000,
-		})
-		await tick()
-		expect(redis.store.size).toBe(0)
-		expect(a.hasSession('pending-nonce')).toBe(true)
-	})
-
-	test('hydrate skips sessions already present locally', async () => {
-		const redis = fakeRedis()
-		const a = new RedisSessionManager(redis)
-		a.addSession(session())
-		await tick()
-		// Hydrating the same instance must not duplicate or throw.
-		await a.hydrate(IDENTITY)
-		expect(a.getSession(IDENTITY)?.sessionNonce).toBe('server-nonce-1')
-	})
-})
-
-describe('wrapAuthWithSessionHydration', () => {
-	function makeReq(headers: Record<string, string>): Request {
-		return { headers } as unknown as Request
-	}
-	const passThrough: RequestHandler = (req, _res, next) => {
-		;(req as Request & { reached?: boolean }).reached = true
-		next()
-	}
-
-	test('hydrates a foreign session before delegating', async () => {
+	test('removeSession clears the session, its index entry and its nonce claims', async () => {
 		const redis = fakeRedis()
 		const a = new RedisSessionManager(redis)
 		const b = new RedisSessionManager(redis)
-		a.addSession(session())
-		await tick()
 
-		const wrapped = wrapAuthWithSessionHydration(passThrough, b)
-		const req = makeReq({
-			'x-bsv-auth-identity-key': IDENTITY,
-			'x-bsv-auth-your-nonce': 'server-nonce-1',
-		})
-		let nexted = false
-		await wrapped(
-			req,
-			{} as Response,
-			(() => {
-				nexted = true
-			}) as NextFunction,
-		)
+		await a.addSession(session())
+		await a.claimMessageNonce('server-nonce-1', 'm1')
+		await a.removeSession(session())
 
-		expect(nexted).toBe(true)
-		expect(b.hasSession('server-nonce-1')).toBe(true)
+		expect(await b.hasSession('server-nonce-1')).toBe(false)
+		expect(await b.hasSession(IDENTITY)).toBe(false)
+		expect(redis.strings.size).toBe(0)
+		expect(redis.sets.get(`authsess:i:${IDENTITY}`)?.size ?? 0).toBe(0)
+		expect(redis.sets.has('authsess:m:server-nonce-1')).toBe(false)
 	})
 
-	test('requests without auth headers skip Redis entirely', async () => {
+	test('lookup by identity prefers authenticated, then most recent', async () => {
 		const redis = fakeRedis()
-		let reads = 0
-		const counting: SessionRedis = {
-			...redis,
-			async hgetall(key) {
-				reads++
-				return redis.hgetall(key)
-			},
-		}
-		const b = new RedisSessionManager(counting)
-		const wrapped = wrapAuthWithSessionHydration(passThrough, b)
-		let nexted = false
-		await wrapped(
-			makeReq({}),
-			{} as Response,
-			(() => {
-				nexted = true
-			}) as NextFunction,
+		const m = new RedisSessionManager(redis)
+		const now = Date.now()
+
+		await m.addSession(
+			session({
+				sessionNonce: 'old',
+				isAuthenticated: true,
+				lastUpdate: now - 10,
+			}),
 		)
-		expect(nexted).toBe(true)
-		expect(reads).toBe(0)
+		await m.addSession(
+			session({
+				sessionNonce: 'pending',
+				isAuthenticated: false,
+				lastUpdate: now,
+			}),
+		)
+		expect((await m.getSession(IDENTITY))?.sessionNonce).toBe('old')
+
+		await m.addSession(
+			session({
+				sessionNonce: 'new',
+				isAuthenticated: true,
+				lastUpdate: now - 5,
+			}),
+		)
+		expect((await m.getSession(IDENTITY))?.sessionNonce).toBe('new')
 	})
 
-	test('hydrate failure still lets the request through', async () => {
-		const failing: SessionRedis = {
-			async hgetall() {
-				throw new Error('redis down')
-			},
-			async hset() {},
-			async hdel() {},
-			async expire() {},
-		}
-		const b = new RedisSessionManager(failing)
-		const errors: Error[] = []
-		const wrapped = wrapAuthWithSessionHydration(passThrough, b, (e) =>
-			errors.push(e),
-		)
-		let nexted = false
-		await wrapped(
-			makeReq({ 'x-bsv-auth-identity-key': IDENTITY }),
-			{} as Response,
-			(() => {
-				nexted = true
-			}) as NextFunction,
-		)
-		expect(nexted).toBe(true)
-		expect(errors.length).toBe(1)
+	test('lookup by identity drops index entries whose session expired', async () => {
+		const redis = fakeRedis()
+		const m = new RedisSessionManager(redis)
+
+		await m.addSession(session())
+		redis.strings.delete('authsess:n:server-nonce-1')
+
+		expect(await m.getSession(IDENTITY)).toBeUndefined()
+		expect(redis.sets.get(`authsess:i:${IDENTITY}`)?.size).toBe(0)
+	})
+
+	test('a message nonce is claimed once across instances', async () => {
+		const redis = fakeRedis()
+		const a = new RedisSessionManager(redis)
+		const b = new RedisSessionManager(redis)
+
+		expect(await a.claimMessageNonce('server-nonce-1', 'm1')).toBe(true)
+		expect(await b.claimMessageNonce('server-nonce-1', 'm1')).toBe(false)
+		expect(await b.claimMessageNonce('server-nonce-1', 'm2')).toBe(true)
+	})
+
+	test('an initial-request nonce is claimed once across instances', async () => {
+		const redis = fakeRedis()
+		const a = new RedisSessionManager(redis)
+		const b = new RedisSessionManager(redis)
+
+		expect(await a.claimInitialRequestNonce(IDENTITY, 'i1')).toBe(true)
+		expect(await b.claimInitialRequestNonce(IDENTITY, 'i1')).toBe(false)
+	})
+
+	test('a session without a nonce is rejected', async () => {
+		const m = new RedisSessionManager(fakeRedis())
+		await expect(
+			m.addSession({ isAuthenticated: false, lastUpdate: Date.now() }),
+		).rejects.toThrow('sessionNonce is required')
 	})
 })

@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.0.78
+
+### Changed
+- OpNS avatar origin decodes through `@1sat/types` as `txid.vout`.
+
+## 0.0.73
+
+### Changed
+- `verifyIntent` checks BSV21 inputs with `getOutputStatus`: spent or unknown inputs are a mismatch, queued inputs are unverified. `VerificationServices.bsv21.validateOutputs` is replaced by `getOutputStatus`.
+
+## 0.0.64
+
+### Changed
+- `createAction` finish passes the approved args' basketed 1-sat outputs to the unlock pipeline as OrdLock v2 delivery targets, so a v2 purchase is refused at signing unless the listed satoshi reaches one of them.
+
+## 0.0.60
+
+### Changed
+- Picks up `@1sat/actions@0.0.208`.
+
 ## 0.0.59
 
 ### Changed

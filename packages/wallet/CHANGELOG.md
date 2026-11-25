@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.0.121
+
+### Changed
+- `deriveFundAddress` takes the indexer network.
+
+## 0.0.117
+
+### Changed
+- `createWalletCore` takes an optional `toolbox.sdk` (`WalletCoreSdk`) and builds the `KeyDeriver`, `PrivateKey` and `OneSatServices` proofs from it.
+- `parsePrivateKey` takes the `PrivateKey` class to build with.
+
+## 0.0.115
+
+### Changed
+- `StorageClient` sends binary request bodies (`binaryRequests: true`), so sync chunks stay under the auth middleware request limits.
+
+## 0.0.114
+
+### Changed
+- `createChromeCWI` sends the bare extension ID as its originator. Toolbox 2.14 permission checks reject originators with a URL scheme; host wallets must use the same value as their admin originator.
+
+## 0.0.113
+
+### Changed
+- Peer dependency is upstream `@bsv/wallet-toolbox-client` ^2.14.4 instead of the `@bopen-io` fork.
+
+### Fixed
+- `createWalletCore` sets `maxRebroadcastAttempts` on the Monitor options; toolbox 2.14 rejects Monitor options without it.
+
+## 0.0.112
+
+### Fixed
+- `LocalWalletPermissionsManager` wraps the parent's `findSpendingToken` so a standing spending allowance held in the injected store is visible to grouped and connect-time checks. Upstream filters those through that method, which reads on-chain DSAP tokens only, so a granted allowance looked missing and was requested again every session. Spend-time checks and the monthly ledger are unchanged.
+
+## 0.0.110
+
+### Changed
+- `OrdLockIndexer` recognizes the canonical OrdLock v2 purchase unlock (`<preimage> OP_0`).
+
 ## 0.0.106
 
 ### Fixed

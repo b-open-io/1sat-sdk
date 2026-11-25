@@ -4,7 +4,9 @@ export type {
 	AccountsConfigProvider,
 	IdentityKey,
 	NextPaymentDerivation,
+	RegisteredHandleView,
 	RegistrationStatus,
+	WalletServerAccounts,
 } from './types.js'
 export {
 	type Account,
@@ -31,9 +33,12 @@ export {
 } from './registrationRoutes.js'
 export {
 	AccountClient,
+	type AccountCertifyInput,
+	type AccountCertifyResult,
 	type AccountProfileInput,
 	type AccountRegisterInput,
 	type AccountRegisterResult,
+	type DirectCertificate,
 } from './client.js'
 
 export {
@@ -47,12 +52,6 @@ export {
 	type RefundedQuoteInput,
 } from './pricing.js'
 export {
-	type AccountsMiddlewareDeps,
-	accountsCapacityGate,
-	ERR_INSUFFICIENT_CAPACITY,
-	nextPaymentDerivation,
-} from './middleware.js'
-export {
 	type PaymentRecord,
 	PAYMENT_LABEL,
 	blockLabel,
@@ -60,6 +59,14 @@ export {
 	countPaymentsForPayer,
 	latestActivePaymentForPayer,
 	listPaymentsForPayer,
+	nextPaymentDerivation,
 	payerLabel,
 } from './queries.js'
 export { mountPaymentRoute, type PaymentRouteDeps } from './paymentRoute.js'
+export {
+	KnexHandleCertStore,
+	toDirectAcquireArgs,
+	type HandleCertStore,
+	type IssuedHandleCert,
+} from './certs.js'
+export { issueHandleCert } from './issueCert.js'

@@ -1,7 +1,7 @@
 ---
 name: sweep
-description: "This skill should be used when importing or sweeping assets from an external wallet into a BRC-100 wallet — such as 'import from WIF', 'sweep wallet', 'migrate from Yours wallet', 'import ordinals', 'sweep tokens', 'transfer from old wallet', or 'import private key'. Covers sweeping BSV, ordinals, and BSV21 tokens using @1sat/actions sweep module."
-disable-model-invocation: false
+description: "This skill should be used when importing or sweeping assets from an external wallet into a BRC-100 wallet — such as 'import from WIF', 'sweep wallet', 'migrate from Yours wallet', 'import ordinals', 'sweep tokens', 'transfer from old wallet', or 'import private key'. Covers sweeping BSV, ordinals, OpNS, BSV-20, and BSV21 tokens using @1sat/actions sweep module."
+disable-model-invocation: true
 ---
 
 # Sweep & Import
@@ -13,12 +13,13 @@ Import BSV, ordinals, and BSV21 tokens from external wallets into a BRC-100 wall
 | Action | Description |
 |--------|-------------|
 | `sweepBsv` | Sweep BSV satoshis from external inputs (via private keys) |
-| `sweepOrdinals` | Sweep ordinal inscriptions from external inputs |
+| `sweepOrdinals` | Sweep ordinal / OpNS inscriptions from external inputs |
+| `sweepBsv20` | Sweep BSV-20 tickers as a transfer inscription |
 | `sweepBsv21` | Sweep BSV21 fungible tokens from external inputs |
 | `sweepDeposit` | Claim the wallet's own deposit-basket UTXOs into a funding output |
 | `prepareSweepInputs` | Helper to build sweep inputs from indexed outputs |
 
-> `sweepBsv` / `sweepOrdinals` / `sweepBsv21` import **external** UTXOs you control via `PrivateKey`s. `sweepDeposit` is different — it claims plain BSV that already landed in *this* wallet's deposit basket (no external keys), see below.
+> `sweepBsv` / `sweepOrdinals` / `sweepBsv20` / `sweepBsv21` import **external** UTXOs you control via `PrivateKey`s. `sweepDeposit` is different — it claims plain BSV that already landed in *this* wallet's deposit basket (no external keys), see below. Listed OrdLock inputs cancel to the destination address in the same transaction.
 
 ## Signing Keys
 
@@ -91,8 +92,32 @@ const result = await sweepOrdinals.execute(ctx, {
 2. Tags are set from resolved metadata: `type:{contentType}`, `origin:{origin}`, `name:{name}`
 3. Custom instructions are stored for future spending
 4. OpNS ordinals go to the `opns` basket; others go to `1sat`
-5. BSV-20 tokens are rejected (use `sweepBsv21` instead)
+5. BSV-20 tokens are rejected here — use `sweepBsv20`
 6. Output order is preserved (`randomizeOutputs: false`) to maintain ordinal positions
+7. OrdLock listings unlock via cancel and land on the destination P1SAT address
+
+## Sweep BSV-20 Tokens
+
+```typescript
+import { sweepBsv20, createContext } from '@1sat/actions'
+
+const result = await sweepBsv20.execute(ctx, {
+  inputs: [
+    {
+      outpoint: 'txid_vout',
+      satoshis: 1,
+      lockingScript: '76a914...88ac',
+      tick: 'SHUA',
+      amount: '1000',
+    },
+  ],
+  keys: [key],
+})
+```
+
+All inputs must share the same `tick`. They consolidate into one `{p:"bsv-20",op:"transfer",tick,amt}` inscription in the `bsv20` basket.
+
+Both BSV-20 and BSV-21 use MIME `application/bsv-20`. Split them by identity, not MIME: BSV-20 is `tick`; BSV-21 is `id` (deploy outpoint) / indexer `bsv21:`.
 
 ## Sweep BSV21 Tokens
 

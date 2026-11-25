@@ -224,7 +224,7 @@ OpNS (Ordinals Name System) binds your BAP identity to an on-chain name inscript
 
 ```bash
 1sat opns lookup                               # List OpNS names in your wallet
-1sat opns register --outpoint <txid.vout>      # Bind your identity to a name
+1sat opns register --id <id> --domain <host>   # Bind your identity to a name
 1sat opns deregister --outpoint <txid.vout>    # Remove the identity binding
 ```
 
@@ -232,14 +232,27 @@ OpNS (Ordinals Name System) binds your BAP identity to an on-chain name inscript
 
 ### Sweep
 
-Import assets from an external private key (e.g., a legacy P2PKH wallet) into your BRC-100 wallet.
+Import assets from an external private key (legacy P2PKH / Yours backup WIF) into the BRC-100 wallet.
 
 ```bash
-1sat sweep scan --wif <key>     # Preview what a key holds (BSV, ordinals, tokens)
-1sat sweep import --wif <key>   # Import everything into your wallet
+1sat sweep scan --wif <key>
+1sat sweep import --wif <key> --dry-run
+1sat sweep import --wif <key>
+1sat sweep import --wif <key> --only opns,bsv20
+1sat sweep import --wif <key> --skip bsv21
 ```
 
-`scan` is non-destructive. `import` broadcasts transactions — confirm when prompted or pass `--yes`.
+`scan` is the full inventory. `import --dry-run` is the same plan after `--only` / `--skip`. `import` with no class flags attempts every class that can move into BRC-100:
+
+| Class | Destination |
+|---|---|
+| `bsv` | Funding |
+| `ordinals` | `1sat` basket |
+| `opns` | `opns` basket |
+| `bsv20` | `bsv20` basket (ticker identity) |
+| `bsv21` | `bsv21` basket (deploy-outpoint identity) |
+
+Listed OrdLocks cancel into the destination in the same transaction. Time-locks and RUN outputs stay as leftover. `--only` and `--skip` take `bsv,ordinals,opns,bsv20,bsv21`. Confirm when prompted, or pass `--yes`.
 
 ---
 
@@ -331,3 +344,20 @@ The CLI is pure Bun with no framework. Arg parsing is manual (`src/args.ts`). Bu
 ## License
 
 MIT
+
+### Authenticated HTTP requests
+
+`1sat authfetch <method> <url> [--body <json|@file>] [--header 'K: V']`
+uses the SDK's BRC-104 AuthFetch with CLI wallet keys. If the SDK reports
+missing response authentication headers, only GET and HEAD may retry using
+plain fetch for public reads. Other methods fail with an unknown-outcome
+warning: verify activity before retrying, since the server may already have
+executed the request.
+
+A 402 response requires interactive payment confirmation or explicit `--yes`.
+Without `--yes` and a terminal on both stdin and stdout, the command returns
+`approval_required` with exit status 1 and makes no payment retry. Use `--json`
+for structured output; `satoshis` is included only when the public payment
+header is a nonnegative safe integer of at most 16 decimal digits. Review the
+payment before rerunning with `--yes`; this authorizes the existing SDK payment
+flow. It does not impose a spending cap. `--quiet` suppresses output as usual.

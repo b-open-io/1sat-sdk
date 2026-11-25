@@ -1,3 +1,4 @@
+import { formatOrdinalOutpoint } from '@1sat/types'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 // ---------------------------------------------------------------------------
@@ -56,11 +57,6 @@ function getTag(tags: string[], prefix: string): string | undefined {
 	return tag ? tag.slice(prefix.length) : undefined
 }
 
-/** Normalize an outpoint to underscore format (txid_vout) */
-function normalizeOutpoint(outpoint: string): string {
-	return outpoint.replace('.', '_')
-}
-
 /**
  * Parse a single SSE line from the 1sat owner API into an OrdinalOutput.
  * Expected JSON shape: { outpoint: string, satoshis: number, tags?: string[] }
@@ -79,10 +75,10 @@ function parseTxoLine(json: string): OrdinalOutput | null {
 		const origin = getTag(tags, 'origin:') ?? data.outpoint
 
 		return {
-			outpoint: normalizeOutpoint(data.outpoint),
+			outpoint: formatOrdinalOutpoint(data.outpoint),
 			contentType,
 			name,
-			origin: normalizeOutpoint(origin),
+			origin: formatOrdinalOutpoint(origin),
 			satoshis: data.satoshis,
 			tags,
 		}

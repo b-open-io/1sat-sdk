@@ -56,6 +56,8 @@ export interface SigmaOptions {
 	algorithm?: SigmaAlgorithm
 	vin?: number
 	verifier?: PublicKey
+	/** Address prefix. Defaults to mainnet. */
+	chain?: 'main' | 'test' | 'mainnet' | 'testnet'
 }
 
 const EMPTY_OUTPOINT = new Array(32).fill(0)
@@ -88,7 +90,8 @@ function deduceRecovery(
 			)
 			if (
 				BSM.verify(message, signature, pubKey) &&
-				pubKey.toAddress() === address
+				(pubKey.toAddress('main') === address ||
+					pubKey.toAddress('test') === address)
 			) {
 				return recovery
 			}
@@ -310,6 +313,7 @@ export default class Sigma implements ScriptTemplate {
 			refVin?: number
 			algorithm?: SigmaAlgorithm
 			verifier?: PublicKey
+			chain?: 'main' | 'test' | 'mainnet' | 'testnet'
 		} = {},
 	): SignResponse {
 		const targetVout = options.targetVout ?? 0
@@ -329,7 +333,11 @@ export default class Sigma implements ScriptTemplate {
 		let sig: Sig
 
 		if (algorithm === SigmaAlgorithm.BRC77) {
-			const address = privateKey.toAddress()
+			const address = privateKey.toAddress(
+				options.chain === 'test' || options.chain === 'testnet'
+					? 'test'
+					: 'main',
+			)
 			const brc77Sig = SignedMessage.sign(
 				messageHash,
 				privateKey,
@@ -345,7 +353,11 @@ export default class Sigma implements ScriptTemplate {
 			}
 		} else {
 			const signature = BSM.sign(messageHash, privateKey, 'raw') as Signature
-			const address = privateKey.toAddress()
+			const address = privateKey.toAddress(
+				options.chain === 'test' || options.chain === 'testnet'
+					? 'test'
+					: 'main',
+			)
 			const recovery = signature.CalculateRecoveryFactor(
 				privateKey.toPublicKey(),
 				new BigNumber(magicHash(messageHash)),
@@ -483,7 +495,13 @@ export default class Sigma implements ScriptTemplate {
 	): Sigma {
 		const algorithm = options.algorithm ?? SigmaAlgorithm.BSM
 		const vin = options.vin ?? 0
-		const address = privateKey.toAddress().toString()
+		const address = privateKey
+			.toAddress(
+				options.chain === 'test' || options.chain === 'testnet'
+					? 'test'
+					: 'main',
+			)
+			.toString()
 		const messageHash = [...inputHash, ...dataHash]
 
 		let signatureArray: number[]

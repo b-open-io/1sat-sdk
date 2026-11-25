@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.55
+
+### Changed
+- Picks up `@1sat/permission-module@0.0.60`.
+
 ## 0.0.54
 
 ### Changed

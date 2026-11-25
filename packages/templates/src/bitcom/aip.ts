@@ -44,6 +44,8 @@ export interface AIPOptions {
 	algorithm?: string
 	/** Specific field indexes to sign (default: sign all fields) */
 	fieldIndexes?: number[]
+	/** Address prefix. Defaults to mainnet. */
+	chain?: 'main' | 'test' | 'mainnet' | 'testnet'
 }
 
 /**
@@ -150,7 +152,11 @@ export default class AIP implements ScriptTemplate {
 
 		return new AIP({
 			algorithm,
-			address: publicKey.toAddress(),
+			address: publicKey.toAddress(
+				options.chain === 'test' || options.chain === 'testnet'
+					? 'test'
+					: 'main',
+			),
 			signature: compactSig,
 			fieldIndexes: options.fieldIndexes,
 			valid: true,
@@ -276,7 +282,8 @@ export default class AIP implements ScriptTemplate {
 					const sigFitsPubkey = BSM.verify(data, sig, publicKey)
 					if (
 						sigFitsPubkey &&
-						publicKey.toAddress().toString() === aip.data.address
+						(publicKey.toAddress('main') === aip.data.address ||
+							publicKey.toAddress('test') === aip.data.address)
 					) {
 						aip.data.valid = true
 						return

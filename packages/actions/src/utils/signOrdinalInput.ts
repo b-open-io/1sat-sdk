@@ -52,10 +52,9 @@ export function unlockingScriptLengthForInstructions(
 /**
  * Unlock a PushDrop CHECKSIG input (OpNS published bind).
  *
- * Same permission-module contract as signP2PKHInput: full BIP-143 preimage
- * in `data` so createAction commitment auto-grants; double-SHA in
- * `hashToDirectlySign` for the actual ECDSA (matches stock PushDrop.unlock
- * which passed sha256(preimage) as data and let the wallet hash once more).
+ * Signs the BIP-143 sighash via `hashToDirectlySign` (matches stock
+ * PushDrop.unlock, which passed sha256(preimage) as data and let the wallet
+ * hash once more).
  */
 async function signPushDropInput(
 	ctx: OneSatContext,
@@ -105,7 +104,6 @@ async function signPushDropInput(
 		protocolID,
 		keyID,
 		counterparty,
-		data: Array.from(preimage),
 		hashToDirectlySign: Array.from(sighash),
 	})
 

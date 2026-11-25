@@ -13,4 +13,4 @@ export {
 	WalletPermissionsManager,
 	WalletStorageManager,
 	type sdk as walletSdk,
-} from '@bsv/wallet-toolbox/out/src/index.client.js'
+} from '@bsv/wallet-toolbox-client'

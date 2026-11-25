@@ -6,20 +6,31 @@ import type {
 import { Utils } from '@bsv/sdk'
 import { BaseClient } from './BaseClient.js'
 
+export interface ArcadeMiningFee {
+	satoshis: number
+	bytes: number
+}
+
+export interface ArcadePolicy {
+	miningFee: ArcadeMiningFee
+	maxtxsizepolicy?: number
+	maxscriptsizepolicy?: number
+	maxtxsigopscountspolicy?: number
+	standardFormatSupported?: boolean
+}
+
+export interface ArcadePolicyResponse {
+	policy: ArcadePolicy
+	timestamp?: string
+}
+
 /**
- * Client for /1sat/arcade/* routes.
- * Provides transaction broadcast and status checking.
- *
- * Routes:
- * - POST /tx - Submit single transaction
- * - POST /txs - Submit multiple transactions
- * - GET /tx/:txid - Get transaction status
- * - GET /policy - Get mining policy
- * - GET /events - SSE stream of transaction events
+ * HTTP client for an Arcade root (POST /tx, GET /tx/:txid, GET /policy).
+ * Pass the Arcade host, or `{stack}/1sat/arcade` for the 1sat-stack wrap.
  */
 export class ArcadeClient extends BaseClient {
 	constructor(baseUrl: string, options: ClientOptions = {}) {
-		super(`${baseUrl}/1sat/arcade`, options)
+		super(baseUrl, options)
 	}
 
 	/**
@@ -30,14 +41,18 @@ export class ArcadeClient extends BaseClient {
 		options?: SubmitOptions,
 	): Promise<TransactionStatus> {
 		const bytes = rawTx instanceof Uint8Array ? rawTx : new Uint8Array(rawTx)
-		return this.request<TransactionStatus>('/tx', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/octet-stream',
-				...this.buildSubmitHeaders(options),
+		return this.request<TransactionStatus>(
+			'/tx',
+			{
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/octet-stream',
+					...this.buildSubmitHeaders(options),
+				},
+				body: bytes as unknown as BodyInit,
 			},
-			body: bytes as unknown as BodyInit,
-		})
+			{ allow: [400] },
+		)
 	}
 
 	/**
@@ -56,18 +71,23 @@ export class ArcadeClient extends BaseClient {
 	async submitTransactions(
 		rawTxs: (number[] | Uint8Array)[],
 		options?: SubmitOptions,
-	): Promise<TransactionStatus[]> {
-		return this.request<TransactionStatus[]>('/txs', {
+	): Promise<{ submitted: number; duplicates: number; total: number }> {
+		const chunks = rawTxs.map((tx) =>
+			tx instanceof Uint8Array ? tx : new Uint8Array(tx),
+		)
+		let offset = 0
+		const body = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0))
+		for (const chunk of chunks) {
+			body.set(chunk, offset)
+			offset += chunk.length
+		}
+		return this.request('/txs', {
 			method: 'POST',
 			headers: {
-				'Content-Type': 'application/json',
+				'Content-Type': 'application/octet-stream',
 				...this.buildSubmitHeaders(options),
 			},
-			body: JSON.stringify(
-				rawTxs.map((tx) => ({
-					rawTx: Utils.toHex(tx instanceof Uint8Array ? Array.from(tx) : tx),
-				})),
-			),
+			body: body as unknown as BodyInit,
 		})
 	}
 
@@ -76,6 +96,10 @@ export class ArcadeClient extends BaseClient {
 	 */
 	async getStatus(txid: string): Promise<TransactionStatus> {
 		return this.request<TransactionStatus>(`/tx/${txid}`)
+	}
+
+	async getPolicy(): Promise<ArcadePolicyResponse> {
+		return this.request<ArcadePolicyResponse>('/policy')
 	}
 
 	/**

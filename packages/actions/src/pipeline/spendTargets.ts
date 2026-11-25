@@ -1,10 +1,13 @@
+import type { OrdLockV2DeliveryTarget } from '@1sat/templates'
 import {
 	type PermissionSchemeId,
 	buildExternalInputLabel,
 	buildInputAssetLabel,
+	normalizeOutpoint,
 	parseOneInputLabel,
 	schemeForBasket,
 } from '@1sat/types'
+import { type CreateActionArgs, LockingScript } from '@bsv/sdk'
 
 /**
  * One input the pipeline must unlock.
@@ -93,7 +96,7 @@ export function mergeResolvedSpends(
 	const map = new Map<string, ResolvedSpend>()
 	for (const list of lists) {
 		for (const r of list) {
-			const op = normalizeOutpointDot(r.outpoint)
+			const op = normalizeOutpoint(r.outpoint)
 			const prev = map.get(op)
 			if (!prev || (!prev.customInstructions && r.customInstructions)) {
 				map.set(op, { ...r, outpoint: op })
@@ -103,9 +106,21 @@ export function mergeResolvedSpends(
 	return [...map.values()]
 }
 
-function normalizeOutpointDot(s: string): string {
-	if (s.length >= 66 && s[64] === '_') return `${s.slice(0, 64)}.${s.slice(65)}`
-	return s
+/**
+ * Buyer-approved delivery targets for OrdLock v2 purchases: every basketed
+ * 1-sat output of the createAction args, at its index (the wallet appends
+ * change after these when randomizeOutputs is false). The purchase unlock
+ * refuses to sign unless each listed satoshi routes to one of them.
+ */
+export function deliveryTargetsFromArgs(
+	args: Pick<CreateActionArgs, 'outputs'>,
+): OrdLockV2DeliveryTarget[] {
+	const out: OrdLockV2DeliveryTarget[] = []
+	args.outputs?.forEach((o, vout) => {
+		if (!o.basket || o.satoshis !== 1) return
+		out.push({ vout, lockingScript: LockingScript.fromHex(o.lockingScript) })
+	})
+	return out
 }
 
 /** Stash key on CreateActionArgs for records created during embellish (Sigma). */
