@@ -72,7 +72,7 @@ function configShow(opts: GlobalFlags): void {
  */
 export function isSecretConfigKey(path: string): boolean {
 	const key = path.split('.').pop() ?? path
-	return /(apikey|token|secret|password|dburl)$/i.test(key)
+	return /(apikey|token|secret|password|dburl|redisurl)$/i.test(key)
 }
 
 /** Copy of `value` with every secret leaf replaced by a mask. */

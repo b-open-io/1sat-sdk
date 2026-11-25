@@ -12,6 +12,7 @@ import {
 import { type TableOutput, sdk as toolboxSdk } from '@bsv/wallet-toolbox-client'
 
 const { WalletError } = toolboxSdk
+import { HttpError } from '../errors.js'
 import type { ArcadePolicyResponse } from './ArcadeClient.js'
 import {
 	AdminClient,
@@ -354,6 +355,12 @@ export class OneSatServices implements WalletServices {
 				if (r.status === 'success') console.log(line)
 				else console.warn(line)
 			}
+			// Failover may only add an acceptance. Its refusals are logged above
+			// and returned as no-verdict results, so they can't fail the tx:
+			// explorers flag double spends loosely ("Missing inputs", orphan
+			// mempool), and 1sat-stack, which the toolbox would ask to confirm
+			// one, is the service that just gave no verdict. The monitor retries.
+			fallback = fallback.map(asNoVerdict)
 			if (!fallback.some((r) => r.status === 'success')) {
 				console.warn(
 					`[OneSatServices] postBeef ${txid}: no broadcaster accepted it; ${fallback.length} failover provider(s) tried`,
@@ -655,12 +662,27 @@ export class OneSatServices implements WalletServices {
 						]
 					: [],
 			}
-		} catch {
-			// TXO not found - treat as not a UTXO
+		} catch (error) {
+			if (error instanceof HttpError && error.status === 404) {
+				// TXO not found - treat as not a UTXO
+				return {
+					name: '1sat-api',
+					status: 'success',
+					isUtxo: false,
+					details: [],
+				}
+			}
+			// Unreachable or erroring service says nothing about the output.
+			// An error result makes the toolbox count it as unknown, never as
+			// spent, so a 1sat-stack outage can't confirm a double spend or
+			// mark wallet outputs spent.
 			return {
 				name: '1sat-api',
-				status: 'success',
-				isUtxo: false,
+				status: 'error',
+				error: new WalletError(
+					error instanceof HttpError ? `HTTP_${error.status}` : 'NETWORK_ERROR',
+					error instanceof Error ? error.message : 'Unknown error',
+				),
 				details: [],
 			}
 		}
@@ -728,6 +750,19 @@ export class OneSatServices implements WalletServices {
  * One line naming a provider's verdict, for logs: provider, status, and the
  * error code and message or per-txid flags when it was not a success.
  */
+/** A failover provider's refusal, kept as a retryable no-verdict result. */
+function asNoVerdict(r: PostBeefResult): PostBeefResult {
+	if (r.status === 'success') return r
+	return {
+		...r,
+		txidResults: r.txidResults.map((t) =>
+			t.status === 'success'
+				? t
+				: { ...t, doubleSpend: false, serviceError: true },
+		),
+	}
+}
+
 export function describePostBeefResult(r: PostBeefResult): string {
 	if (r.status === 'success') return `${r.name} accepted`
 	const flags = r.txidResults

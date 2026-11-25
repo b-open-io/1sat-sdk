@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test'
 import { Beef, P2PKH, PrivateKey, Transaction } from '@bsv/sdk'
 import type { sdk as toolboxSdk } from '@bsv/wallet-toolbox-client'
+import { HttpError } from '../src/errors.js'
 import { OneSatServices, describePostBeefResult } from '../src/index.js'
 
 type PostBeefResult = toolboxSdk.PostBeefResult
@@ -170,6 +171,91 @@ describe('OneSatServices.postBeef failover', () => {
 		expect(results).toHaveLength(1)
 		expect(results[0].txidResults[0].serviceError).toBe(true)
 		expect(console.error).toHaveBeenCalled()
+	})
+})
+
+describe('OneSatServices.postBeef failover refusals', () => {
+	const quiet: Array<ReturnType<typeof spyOn>> = []
+	beforeEach(() => {
+		for (const m of ['log', 'warn', 'error'] as const)
+			quiet.push(spyOn(console, m).mockImplementation(() => {}))
+	})
+	afterEach(() => {
+		for (const s of quiet.splice(0)) s.mockRestore()
+	})
+
+	test('a failover double spend or rejection never fails the tx', async () => {
+		const { beef, txid } = signedBeef()
+		const { svc } = services(
+			async () => {
+				throw new Error('timeout')
+			},
+			async (t) => [
+				{
+					name: 'WhatsOnChain',
+					status: 'error',
+					error: new Error('Missing inputs'),
+					txidResults: [{ txid: t[0], status: 'error', doubleSpend: true }],
+				},
+				{
+					name: 'TaalArcBeef',
+					status: 'error',
+					error: new Error('401 unauthorized'),
+					txidResults: [{ txid: t[0], status: 'error' }],
+				},
+			],
+		)
+		const results = await svc.postBeef(beef, [txid])
+		for (const r of results) {
+			for (const t of r.txidResults) {
+				expect(t.serviceError).toBe(true)
+				expect(t.doubleSpend).not.toBe(true)
+			}
+		}
+	})
+
+	test('a failover acceptance is kept as success', async () => {
+		const { beef, txid } = signedBeef()
+		const { svc } = services(
+			async () => {
+				throw new Error('timeout')
+			},
+			async (t) => [
+				refused('GorillaPoolArcBeef', t[0]),
+				accepted('TaalArcBeef', t[0]),
+			],
+		)
+		const results = await svc.postBeef(beef, [txid])
+		expect(results[2].status).toBe('success')
+		expect(results[2].txidResults[0].status).toBe('success')
+	})
+})
+
+describe('OneSatServices.getUtxoStatus', () => {
+	const outpoint = `${'ab'.repeat(32)}.0`
+	function withTxoGet(get: () => Promise<unknown>): OneSatServices {
+		const svc = new OneSatServices('main', 'https://stack.example')
+		;(svc.txo as unknown as { get: () => Promise<unknown> }).get = get
+		return svc
+	}
+
+	test('404 means not a UTXO', async () => {
+		const svc = withTxoGet(async () => {
+			throw new HttpError(404, 'not found')
+		})
+		const r = await svc.getUtxoStatus('', undefined, outpoint)
+		expect(r.status).toBe('success')
+		expect(r.isUtxo).toBe(false)
+	})
+
+	test('an unreachable stack is unknown, not spent', async () => {
+		for (const err of [new Error('ECONNREFUSED'), new HttpError(503, 'down')]) {
+			const svc = withTxoGet(async () => {
+				throw err
+			})
+			const r = await svc.getUtxoStatus('', undefined, outpoint)
+			expect(r.status).toBe('error')
+		}
 	})
 })
 
