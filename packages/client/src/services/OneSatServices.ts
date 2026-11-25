@@ -21,7 +21,6 @@ import {
 	BeefClient,
 	Bsv21Client,
 	ChaintracksClient,
-	EcosystemAliasClient,
 	MarketClient,
 	MneeClient,
 	OpnsClient,
@@ -95,7 +94,6 @@ export class OneSatServices implements WalletServices {
 	readonly mnee: MneeClient
 	readonly opns: OpnsClient
 	readonly overlay: OverlayClient
-	readonly ecosystemAlias: EcosystemAliasClient
 
 	// Optional fallback to wallet-toolbox Services for methods we don't implement,
 	// and the broadcasters postBeef fails over to when 1sat-stack gives no verdict
@@ -144,7 +142,6 @@ export class OneSatServices implements WalletServices {
 		this.mnee = new MneeClient()
 		this.opns = new OpnsClient(this.baseUrl, opts)
 		this.overlay = new OverlayClient(this.baseUrl, opts)
-		this.ecosystemAlias = new EcosystemAliasClient(this.baseUrl, opts)
 	}
 
 	// ===== Utility Methods =====

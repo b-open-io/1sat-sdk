@@ -9,16 +9,6 @@ export {
 	type ArcadePolicy,
 	type ArcadePolicyResponse,
 } from './ArcadeClient.js'
-export {
-	EcosystemAliasClient,
-	ECOSYSTEM_ALIAS_LOOKUP_SERVICE,
-	type EcosystemAliasByAliasQuery,
-	type EcosystemAliasByDomainQuery,
-	type EcosystemAliasAllQuery,
-	type EcosystemAliasLookupOutput,
-	type EcosystemAliasLookupResult,
-	type EcosystemAliasQuery,
-} from './EcosystemAliasClient.js'
 export { TxoClient } from './TxoClient.js'
 export { OwnerClient, type TxoStreamEvent } from './OwnerClient.js'
 export { OrdfsClient } from './OrdfsClient.js'
