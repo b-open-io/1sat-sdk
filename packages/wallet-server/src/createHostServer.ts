@@ -131,6 +131,24 @@ export async function createHostServer(
 	// check.
 	app.post('/.well-known/auth', authMiddleware)
 
+	// Handle certs on the user domain: issued at registration, and backfilled
+	// on status for accounts registered before the host could issue them.
+	const paymailCfg = config.paymail
+	const handleCerts =
+		paymailCfg?.hostPrivateKey && config.handleCertStore
+			? {
+					store: config.handleCertStore,
+					hostPrivateKey: paymailCfg.hostPrivateKey,
+					userDomain: paymailCfg.userDomain,
+					stackUrl: paymailCfg.stackUrl,
+				}
+			: undefined
+	if (config.accountStore && handleCerts && !handleCerts.userDomain) {
+		console.error(
+			'[host] handle certificates are on but no paymail user domain is set: handle registration is refused until server.paymail.userDomain is configured',
+		)
+	}
+
 	// Account routes need auth; scope it to /account/*
 	app.use('/account', authMiddleware)
 	mountStatusRoute(app, {
@@ -140,6 +158,7 @@ export async function createHostServer(
 		accounts: config.accounts,
 		accountStore: config.accountStore,
 		handleCertStore: config.handleCertStore,
+		...(handleCerts && { handleCerts }),
 	})
 	if (config.accounts) {
 		mountPaymentRoute(app, '/', {
@@ -153,18 +172,9 @@ export async function createHostServer(
 	}
 
 	if (config.accountStore) {
-		const paymail = config.paymail
 		mountRegistrationRoutes(app, '/', {
 			store: config.accountStore,
-			...(paymail?.hostPrivateKey &&
-				config.handleCertStore && {
-					certs: {
-						store: config.handleCertStore,
-						hostPrivateKey: paymail.hostPrivateKey,
-						userDomain: paymail.userDomain,
-						stackUrl: paymail.stackUrl,
-					},
-				}),
+			...(handleCerts && { certs: handleCerts }),
 		})
 	}
 

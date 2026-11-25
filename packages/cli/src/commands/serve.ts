@@ -45,6 +45,7 @@ import {
 	type ServerMessageboxConfig,
 	type ServerStorageConfig,
 	loadConfig,
+	resolvePaymailUserDomain,
 	setConfigPath,
 } from '../config.js'
 import { ensureDataDir } from '../config.js'
@@ -445,6 +446,7 @@ async function startWalletServer(
 	await accountStore.init()
 	const handleCertStore = new KnexHandleCertStore(knex)
 	await handleCertStore.init()
+	const userDomain = resolvePaymailUserDomain(paymailCfg)
 
 	const handle = await createHostServer({
 		wallet: walletResult.wallet,
@@ -463,7 +465,7 @@ async function startWalletServer(
 			pendingStore,
 			accountStore,
 			certStore: handleCertStore,
-			...(paymailCfg?.userDomain && { userDomain: paymailCfg.userDomain }),
+			...(userDomain && { userDomain: userDomain.domain }),
 			...(paymailCfg?.verifySignature && { verifySignature: true }),
 			messageboxUrl: `http://127.0.0.1:${resolved.port}/messagebox`,
 			hostPrivateKey: resolved.privateKey,
@@ -476,7 +478,9 @@ async function startWalletServer(
 	const port = await handle.start()
 	const notes = [
 		resolved.accounts.enabled ? 'accounts: on' : '',
-		paymailCfg?.userDomain ? `paymail users: ${paymailCfg.userDomain}` : '',
+		userDomain
+			? `paymail users: ${userDomain.domain}${userDomain.source === 'baseUrl' ? ' (from server.paymail.baseUrl)' : ''}`
+			: 'paymail users: NONE, handle registration refused',
 	]
 		.filter(Boolean)
 		.join(', ')

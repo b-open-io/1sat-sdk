@@ -44,8 +44,43 @@ export async function issueHandleCert(opts: {
 		keyringForSubject: master.masterKeyring,
 		createdAt: new Date(),
 	}
-	await opts.store.put(issued)
+	try {
+		await opts.store.put(issued)
+	} catch (err) {
+		// Two requests can issue the same cert at once (a paymail lookup
+		// backfilling it while the wallet re-registers). The loser's insert
+		// hits the (domain, handle) key; the winner's cert is the one to use.
+		const winner = await opts.store.get(handle, domain)
+		if (
+			winner &&
+			winner.subject === opts.subject &&
+			winner.revocationOutpoint === opts.revocationOutpoint
+		) {
+			return winner
+		}
+		throw err
+	}
 	return issued
+}
+
+/**
+ * The user-domain cert for a registered username, issued if missing.
+ * Idempotent: an existing cert for the same identity is returned as is.
+ */
+export async function ensureUserDomainCert(
+	certs: { store: HandleCertStore; hostPrivateKey: PrivateKey },
+	userDomain: string,
+	identityKey: string,
+	username: string,
+) {
+	return issueHandleCert({
+		store: certs.store,
+		hostPrivateKey: certs.hostPrivateKey,
+		subject: identityKey,
+		handle: username,
+		domain: userDomain,
+		revocationOutpoint: DISABLED_REVOCATION_OUTPOINT,
+	})
 }
 
 export { DISABLED_REVOCATION_OUTPOINT }

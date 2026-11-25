@@ -114,8 +114,10 @@ export interface ServerPaymailConfig {
 	 * Domain served from the host accounts table (e.g. "1sat.app").
 	 * Aliases on this domain resolve username→identity key via registered
 	 * accounts; every other domain (e.g. "1sat.name") keeps resolving through
-	 * on-chain OpNS binds. Unset = OpNS for all domains. Either way an alias
+	 * on-chain OpNS binds. With no user domain, OpNS for all domains. Either way an alias
 	 * only resolves when its identity holds an account on this host.
+	 * Defaults to the host of an https `baseUrl`; with neither set, the host
+	 * refuses handle registration (it could not issue the names' certs).
 	 */
 	userDomain?: string
 	/**
@@ -345,4 +347,37 @@ export function ensureDataDir(): string {
 		mkdirSync(dataDir, { recursive: true, mode: 0o700 })
 	}
 	return dataDir
+}
+
+/**
+ * The domain whose usernames come from this host's accounts table, and on
+ * which registration issues handle certs. `server.paymail.userDomain` wins;
+ * otherwise the host of an explicitly configured https `server.paymail.baseUrl`
+ * (the domain the host already serves paymail on). With neither, the host
+ * refuses handle registration rather than claim names it can't certify.
+ */
+export function resolvePaymailUserDomain(
+	paymail: { userDomain?: string; baseUrl?: string } | undefined,
+): { domain: string; source: 'userDomain' | 'baseUrl' } | undefined {
+	const configured = paymail?.userDomain?.trim().toLowerCase()
+	if (configured) return { domain: configured, source: 'userDomain' }
+	if (!paymail?.baseUrl) return undefined
+	let url: URL
+	try {
+		url = new URL(paymail.baseUrl)
+	} catch {
+		console.error(
+			`[host] server.paymail.baseUrl is not a URL (${paymail.baseUrl}); no paymail user domain`,
+		)
+		return undefined
+	}
+	const host = url.hostname.toLowerCase()
+	if (
+		url.protocol !== 'https:' ||
+		!host.includes('.') ||
+		/^[\d.]+$/.test(host)
+	) {
+		return undefined
+	}
+	return { domain: host, source: 'baseUrl' }
 }

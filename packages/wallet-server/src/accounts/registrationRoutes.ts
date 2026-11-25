@@ -16,7 +16,7 @@ import type { Express, Request, Response } from 'express'
 import { resolvePaymailBind } from '../paymail/resolve.js'
 import type { HandleCertStore } from './certs.js'
 import { toDirectAcquireArgs } from './certs.js'
-import { DISABLED_REVOCATION_OUTPOINT, issueHandleCert } from './issueCert.js'
+import { ensureUserDomainCert, issueHandleCert } from './issueCert.js'
 import {
 	type Account,
 	type AccountProfile,
@@ -61,14 +61,36 @@ export function accountView(a: Account): AccountView {
 	}
 }
 
-/** Registration facet of /account/status. */
+/**
+ * Registration facet of /account/status.
+ *
+ * With `issuer`, an account registered before its certificate could be
+ * issued (the host ran without a user domain) gets it here, so the name
+ * becomes payable and listed without registering again.
+ */
 export async function registrationStatus(
 	store: AccountStore | undefined,
 	identityKey: string,
 	certs?: HandleCertStore,
+	issuer?: RegistrationCertDeps,
 ): Promise<RegistrationStatus> {
 	if (!store) return { registrationEnabled: false }
 	const account = await store.getByIdentity(identityKey)
+	const userDomain = issuer?.userDomain
+	if (account && issuer && userDomain) {
+		try {
+			await ensureUserDomainCert(
+				issuer,
+				userDomain,
+				identityKey,
+				account.username,
+			)
+		} catch (err) {
+			console.error(
+				`[accounts] ${account.username}@${userDomain}: could not issue the missing handle certificate: ${err instanceof Error ? err.message : String(err)}`,
+			)
+		}
+	}
 	const handles = certs
 		? (await certs.listBySubject(identityKey)).map((c) => ({
 				handle: c.handle,
@@ -77,11 +99,18 @@ export async function registrationStatus(
 			}))
 		: undefined
 	return {
-		registrationEnabled: true,
+		registrationEnabled: !issuer || issuer.userDomain != null,
 		account: account ? accountView(account) : null,
 		...(handles && { handles }),
 	}
 }
+
+/**
+ * Message for a host that issues handle certs but has no user domain to
+ * issue them on. Registering there would claim a name nobody can pay.
+ */
+export const NO_USER_DOMAIN_ERROR =
+	'handle registration is unavailable: this host has no paymail user domain (server.paymail.userDomain)'
 
 export const USERNAME_RULES =
 	'lowercase letters, digits, hyphens; 3-63 chars, no leading/trailing hyphen'
@@ -135,6 +164,15 @@ export function mountRegistrationRoutes(
 			const parsed = parseProfile(body)
 			if ('error' in parsed)
 				return res.status(400).json({ error: parsed.error })
+			const certs = deps.certs
+			if (certs && !certs.userDomain) {
+				// Never claim a name the host can't certify: it would be
+				// permanently reserved yet unpayable.
+				console.error(
+					`[accounts] refused to register ${username}: no user domain`,
+				)
+				return res.status(503).json({ error: NO_USER_DOMAIN_ERROR })
+			}
 
 			try {
 				const account = await deps.store.register(
@@ -142,11 +180,16 @@ export function mountRegistrationRoutes(
 					username,
 					parsed.profile,
 				)
-				const certificate = await maybeIssueAppCert(
-					deps.certs,
-					identityKey,
-					username,
-				)
+				const certificate = certs?.userDomain
+					? toDirectAcquireArgs(
+							await ensureUserDomainCert(
+								certs,
+								certs.userDomain,
+								identityKey,
+								account.username,
+							),
+						)
+					: undefined
 				return res.json({
 					identityKey,
 					...accountView(account),
@@ -256,23 +299,6 @@ export function mountRegistrationRoutes(
 			}
 		},
 	)
-}
-
-async function maybeIssueAppCert(
-	certs: RegistrationCertDeps | undefined,
-	identityKey: string,
-	username: string,
-) {
-	if (!certs?.userDomain) return undefined
-	const issued = await issueHandleCert({
-		store: certs.store,
-		hostPrivateKey: certs.hostPrivateKey,
-		subject: identityKey,
-		handle: username,
-		domain: certs.userDomain,
-		revocationOutpoint: DISABLED_REVOCATION_OUTPOINT,
-	})
-	return toDirectAcquireArgs(issued)
 }
 
 function normalizeAlias(input: unknown): string | null {
