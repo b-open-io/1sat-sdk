@@ -96,6 +96,7 @@ function toScannedAssets(result: ScanResult): ScannedAssets {
 		bsv20Tokens: result.bsv20Tokens,
 		locked: result.locked,
 		run: result.run,
+		twetch: result.twetch,
 		totalFundingSats: result.totalFundingSats,
 		totalBsv: result.totalFundingSats,
 	}

@@ -13,6 +13,7 @@ function scan(partial: Partial<ScanResult>): ScanResult {
 		locked: [],
 		run: [],
 		listings: [],
+		twetch: [],
 		totalFundingSats: 0,
 		...partial,
 	}

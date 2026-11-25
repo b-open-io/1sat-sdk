@@ -42,6 +42,7 @@ export {
 	Outpoint,
 	parseAddress,
 	SigmaIndexer,
+	TwetchIndexer,
 	type Bsv21,
 	type CosignData,
 	type File,
@@ -52,6 +53,7 @@ export {
 	type ParseContext,
 	type ParseResult,
 	type Sigma,
+	type Twetch,
 	type Txo,
 } from './indexers/index.js'
 

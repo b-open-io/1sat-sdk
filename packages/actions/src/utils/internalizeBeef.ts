@@ -22,6 +22,7 @@ import {
 	OriginIndexer,
 	Outpoint,
 	SigmaIndexer,
+	TwetchIndexer,
 } from '@1sat/wallet'
 import {
 	Beef,
@@ -152,6 +153,9 @@ export async function internalizeBeef(
 	)
 	const network = chain === 'main' ? 'mainnet' : 'testnet'
 	const indexers: Indexer[] = [
+		// Before FundIndexer: the first basket wins, and a Twetch NFT must never
+		// be filed as plain funds (spending it needs the hash preimage too).
+		new TwetchIndexer(owners, network),
 		new FundIndexer(owners, network),
 		new InscriptionIndexer(owners, network),
 		new Bsv21Indexer(owners, network, services),

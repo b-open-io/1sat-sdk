@@ -47,6 +47,13 @@ export const LOCK_BASKET = 'lock'
 export const SIGMA_BASKET = 'sigma'
 export const BSOCIAL_BASKET = 'bsocial'
 export const BAP_BASKET = 'bap'
+/**
+ * Twetch NFTs ("twonks", e.g. Muties): hash lock + P2PKH + JSON. Never plain
+ * funds — spending one needs the hash preimage as well as the owner's key.
+ */
+export const TWETCH_BASKET = 'twetch'
+/** Tag on every output in {@link TWETCH_BASKET}. */
+export const TWETCH_TAG = 'twetch'
 
 /** All preferred 1Sat asset baskets (for module basket-access gating). */
 export const ONESAT_ASSET_BASKETS: readonly string[] = [
