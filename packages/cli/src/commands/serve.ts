@@ -70,6 +70,8 @@ const DEFAULT_PURCHASE_UNIT_BYTES = 1_073_741_824 // 1 GB chunks for production
 const DEFAULT_SATS_PER_UNIT = 1_000_000
 const DEFAULT_DURATION_BLOCKS = 4383
 const DEFAULT_STORAGE_IDENTITY_KEY = '1sat-cli-default'
+const MONITOR_MAX_FAILURES = 10 // consecutive task-loop failures before exit
+const MONITOR_STABLE_MS = 5 * 60 * 1000 // a run this long resets the failure count
 
 type ServeMode = 'all' | 'storage' | 'monitor' | 'wallet-api'
 
@@ -360,13 +362,38 @@ async function runWithStorage(
 		}
 	}
 
+	let monitorStopping = false
 	if (runMonitor) {
-		// startTasks loops until stopTasks flips its flag. Fire without
-		// awaiting so the caller can install shutdown handlers and write
-		// the monitor pid file.
-		walletResult.monitor.startTasks().catch((err: unknown) => {
-			console.error('[monitor] task loop exited:', err)
-		})
+		// startTasks loops until stopTasks flips its flag and only rejects on
+		// a task error (e.g. a DB restart). Swallowing that leaves the process
+		// alive with nothing scheduled, so pm2 never restarts it. Retry with
+		// backoff, then exit so pm2 restarts the whole process.
+		// Fire without awaiting so the caller can install shutdown handlers
+		// and write the monitor pid file.
+		const monitor = walletResult.monitor
+		void (async () => {
+			let failures = 0
+			while (!monitorStopping) {
+				const startedAt = Date.now()
+				try {
+					await monitor.startTasks()
+					return
+				} catch (err) {
+					if (Date.now() - startedAt > MONITOR_STABLE_MS) failures = 0
+					failures++
+					console.error(
+						`[monitor] task loop exited (${failures}/${MONITOR_MAX_FAILURES}):`,
+						err,
+					)
+					if (failures >= MONITOR_MAX_FAILURES) {
+						console.error('[monitor] giving up, exiting for restart')
+						process.exit(1)
+					}
+					const delayMs = Math.min(5_000 * 2 ** (failures - 1), 60_000)
+					await new Promise((resolve) => setTimeout(resolve, delayMs))
+				}
+			}
+		})()
 		writeMonitorPid(resolved.dataDir)
 		console.log('[monitor] started')
 	}
@@ -374,6 +401,7 @@ async function runWithStorage(
 	return {
 		async stop() {
 			if (runMonitor) {
+				monitorStopping = true
 				walletResult.monitor.stopTasks()
 				clearMonitorPid(resolved.dataDir, process.pid)
 			}
