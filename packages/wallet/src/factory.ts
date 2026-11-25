@@ -155,8 +155,8 @@ export interface WalletCoreResult {
 export interface WalletStorageStatus {
 	/** URL of the active remote, or undefined when local storage is active. */
 	activeRemoteUrl: string | undefined
-	/** storageIdentityKey of the active store. */
-	activeStorageKey: string
+	/** storageIdentityKey of the active store; undefined while stores re-settle. */
+	activeStorageKey: string | undefined
 	/**
 	 * False when wallet-toolbox refuses writes: the active store's user row
 	 * names another store. Reads still work.
@@ -165,6 +165,9 @@ export interface WalletStorageStatus {
 	/**
 	 * Set when the wallet was moved, on another device, to a store this
 	 * wallet has no address for. Add that store with `addRemote` to follow.
+	 * Until then reads come from whichever registered store wallet-toolbox
+	 * picked (often the local backup), which may be stale, so a UI should
+	 * say so rather than show balances as current.
 	 */
 	movedTo: string | undefined
 }
@@ -323,35 +326,48 @@ export async function createWalletCore(
 	 *   rows already agree.
 	 */
 	const settleActive = async (): Promise<void> => {
-		movedTo = undefined
-		// The remote this wallet means to write to: from config at boot, or
-		// the one a later `setActiveStorage` chose.
-		const activeClient = remoteClients.find(
-			(c) => c.getSettings()?.storageIdentityKey === intendedActiveKey,
-		)
-		const configuredKey = intendedActiveKey
-		if (activeClient) {
-			const { user } = await activeClient.findOrInsertUser(identityPubKey)
+		const localKey = localStorage
+			? (await localStorage.makeAvailable()).storageIdentityKey
+			: undefined
+		const keyOf = (c: InstanceType<typeof toolbox.StorageClient>) =>
+			c.getSettings()?.storageIdentityKey as string | undefined
+		// Walk the rows from the remote this wallet means to write to (from
+		// config at boot, or the one a later `setActiveStorage` chose) until
+		// a store names itself. Following only one hop could re-enable a
+		// store that was itself moved on again from another device.
+		let follow = intendedActiveKey
+		let moved: string | undefined
+		const visited = new Set<string>()
+		for (;;) {
+			const client = remoteClients.find((c) => keyOf(c) === follow)
+			if (!client) break
+			visited.add(follow)
+			const { user } = await client.findOrInsertUser(identityPubKey)
 			const named: string | undefined = user?.activeStorage ?? undefined
-			const localKey = localStorage
-				? (await localStorage.makeAvailable()).storageIdentityKey
-				: undefined
-			if (named && named !== configuredKey && named !== localKey) {
-				const target = remoteClients.find(
-					(c) => c.getSettings()?.storageIdentityKey === named,
-				)
-				if (!target) {
-					movedTo = named
-					console.warn(
-						`[wallet-core] wallet storage moved to ${named}, which this wallet has no address for; open read-only until it is added`,
-					)
-					return
-				}
-				console.log(
-					`[wallet-core] following wallet storage move to ${target.endpointUrl}`,
-				)
-				intendedActiveKey = named
+			if (!named || named === follow || named === localKey) break
+			if (!remoteClients.some((c) => keyOf(c) === named)) {
+				moved = named
+				break
 			}
+			// A cycle (a switch that stopped halfway: A names B, B names A)
+			// settles on the store the first row names, which setActive below
+			// completes.
+			if (visited.has(named)) break
+			follow = named
+		}
+		movedTo = moved
+		if (moved) {
+			console.warn(
+				`[wallet-core] wallet storage moved to ${moved}, which this wallet has no address for; open read-only until it is added`,
+			)
+			return
+		}
+		if (follow !== intendedActiveKey) {
+			const target = remoteClients.find((c) => keyOf(c) === follow)
+			console.log(
+				`[wallet-core] following wallet storage move to ${target?.endpointUrl ?? follow}`,
+			)
+			intendedActiveKey = follow
 		}
 		if (
 			storage.getActiveStore() !== intendedActiveKey ||
@@ -555,6 +571,7 @@ export async function createWalletCore(
 			const localKey = (await localStorage.makeAvailable()).storageIdentityKey
 			await storage.setActive(localKey)
 			intendedActiveKey = localKey
+			movedTo = undefined
 			return
 		}
 
@@ -605,12 +622,21 @@ export async function createWalletCore(
 		setActiveStorage,
 		addRemote,
 		getActiveStorage: () => storage.getActive(),
-		getStorageStatus: () => ({
-			activeRemoteUrl: getActiveRemoteUrl(),
-			activeStorageKey: storage.getActiveStore(),
-			writable: storage.isActiveEnabled === true,
-			movedTo,
-		}),
+		getStorageStatus: () => {
+			let activeStorageKey: string | undefined
+			try {
+				activeStorageKey = storage.getActiveStore()
+			} catch {
+				// Stores are re-settling (addRemote / setActiveStorage running).
+			}
+			return {
+				activeRemoteUrl: getActiveRemoteUrl(),
+				activeStorageKey,
+				writable:
+					activeStorageKey !== undefined && storage.isActiveEnabled === true,
+				movedTo,
+			}
+		},
 		feeModel,
 	}
 }

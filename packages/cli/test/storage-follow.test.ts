@@ -61,6 +61,7 @@ describe('active storage moves are followed, not reclaimed', () => {
 	let dir: string
 	let a: Awaited<ReturnType<typeof provider>>
 	let b: Awaited<ReturnType<typeof provider>>
+	let c: Awaited<ReturnType<typeof provider>>
 	const userKey = PrivateKey.fromRandom()
 	const opened: NodeWalletResult[] = []
 	let n = 0
@@ -93,11 +94,12 @@ describe('active storage moves are followed, not reclaimed', () => {
 		dir = mkdtempSync(join(tmpdir(), 'storage-follow-'))
 		a = await provider(dir, 'provider-a')
 		b = await provider(dir, 'provider-b')
+		c = await provider(dir, 'provider-c')
 	})
 
 	afterAll(async () => {
 		for (const w of opened) await w.destroy().catch(() => {})
-		for (const p of [a, b]) {
+		for (const p of [a, b, c]) {
 			await p.server.close()
 			await p.node.destroy()
 		}
@@ -148,5 +150,30 @@ describe('active storage moves are followed, not reclaimed', () => {
 			writable: true,
 			movedTo: undefined,
 		})
+	})
+
+	test('a move that moved on again is followed to the end', async () => {
+		// A device that only knows B moves the wallet on to C: A names B, B names C.
+		const onB = await userWallet(b.url)
+		await onB.setActiveStorage(c.url)
+		expect(await activeStorageIn(a)).toBe(b.key)
+		expect(await activeStorageIn(b)).toBe(c.key)
+
+		const knowsAll = await userWallet(a.url, [b.url, c.url])
+		expect(knowsAll.getStorageStatus()).toMatchObject({
+			activeRemoteUrl: c.url,
+			writable: true,
+			movedTo: undefined,
+		})
+		expect(await activeStorageIn(b)).toBe(c.key)
+
+		const knowsB = await userWallet(a.url, [b.url])
+		expect(knowsB.getStorageStatus()).toMatchObject({
+			writable: false,
+			movedTo: c.key,
+		})
+		// B was not re-enabled.
+		expect(await activeStorageIn(b)).toBe(c.key)
+		expect(await activeStorageIn(c)).toBe(c.key)
 	})
 })
