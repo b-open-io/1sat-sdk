@@ -40,4 +40,8 @@ export {
 	type MneeSyncEntry,
 	type MneeFeeTier,
 } from './MneeClient.js'
-export { OneSatServices, type OneSatServicesSdk } from './OneSatServices.js'
+export {
+	describePostBeefResult,
+	OneSatServices,
+	type OneSatServicesSdk,
+} from './OneSatServices.js'

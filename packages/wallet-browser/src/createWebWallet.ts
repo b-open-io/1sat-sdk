@@ -1,5 +1,6 @@
 import type { OneSatServices } from '@1sat/client'
 import {
+	type BroadcastConfig,
 	DEFAULT_FEE_MODEL,
 	type TaskStateStore,
 	createWalletCore,
@@ -49,6 +50,11 @@ export interface WebWalletConfig {
 	 * caller will `addTask` then drive `runOnce` itself (e.g. AddressSync).
 	 */
 	skipInitialMonitor?: boolean
+	/**
+	 * Failover broadcasters used when 1sat-stack gives no verdict on a
+	 * transaction. See `BroadcastConfig` in `@1sat/wallet`.
+	 */
+	broadcast?: BroadcastConfig
 }
 
 export interface WebWalletResult {

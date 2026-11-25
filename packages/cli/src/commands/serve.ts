@@ -20,6 +20,7 @@
  */
 
 import { join } from 'node:path'
+import type { BroadcastConfig } from '@1sat/wallet'
 import {
 	type NodeWalletResult,
 	type NodeWalletStorageConfig,
@@ -85,6 +86,7 @@ interface ResolvedServe {
 	storageIdentityKey: string
 	activeRemote?: string
 	backups?: string[]
+	broadcast?: BroadcastConfig
 	accounts: ResolvedAccounts
 	repricer?: RepricerConfig
 	monitorEnabled: boolean
@@ -178,6 +180,7 @@ async function resolveServe(opts: GlobalFlags): Promise<ResolvedServe> {
 		host: server.host ?? DEFAULT_HOST,
 		port: resolvePort(server.port),
 		stackUrl: config.stackUrl ?? DEFAULT_STACK_URL,
+		broadcast: config.broadcast,
 		storage,
 		dataDir,
 		sqliteFilename: deriveSqliteFilename(dataDir, chain),
@@ -273,6 +276,7 @@ async function runWithStorage(
 		servicesBaseUrl: resolved.stackUrl,
 		activeRemote: resolved.activeRemote,
 		backups: resolved.backups,
+		broadcast: resolved.broadcast,
 		// Each serve mode manages monitor work explicitly (see runMonitor
 		// below); the factory's initial runOnce is redundant in every case.
 		skipInitialMonitor: true,

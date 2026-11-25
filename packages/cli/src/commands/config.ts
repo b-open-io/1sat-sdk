@@ -53,17 +53,46 @@ function configShow(opts: GlobalFlags): void {
 	const config = loadConfig()
 
 	if (opts.json) {
-		output(config, opts)
+		output(maskSecrets(config, ''), opts)
 		return
 	}
 
 	console.log()
-	printNested(config, '')
+	printNested(maskSecrets(config, ''), '')
 	console.log()
 	console.log(
 		`  ${formatLabel('config file:')}  ${formatValue(getConfigFile())}`,
 	)
 	console.log()
+}
+
+/**
+ * Config keys whose values are secrets: API keys, tokens and passwords.
+ * `config show` and `config set` print them masked.
+ */
+export function isSecretConfigKey(path: string): boolean {
+	const key = path.split('.').pop() ?? path
+	return /(apikey|token|secret|password|dburl)$/i.test(key)
+}
+
+/** Copy of `value` with every secret leaf replaced by a mask. */
+export function maskSecrets(value: unknown, prefix: string): unknown {
+	if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+		return value
+	}
+	const out: Record<string, unknown> = {}
+	for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+		const path = prefix ? `${prefix}.${k}` : k
+		if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+			out[k] = maskSecrets(v, path)
+		} else {
+			out[k] =
+				isSecretConfigKey(path) && typeof v === 'string' && v !== ''
+					? '(set, hidden)'
+					: v
+		}
+	}
+	return out
 }
 
 function printNested(value: unknown, prefix: string): void {
@@ -99,8 +128,11 @@ function configSet(args: string[], opts: GlobalFlags): void {
 	validateKnownPath(key, parsed)
 
 	setConfigPath(key, parsed)
+	const shown = isSecretConfigKey(key) ? '(set, hidden)' : value
 	output(
-		opts.json ? { [key]: parsed } : formatSuccess(`Set ${key} = ${value}`),
+		opts.json
+			? { [key]: isSecretConfigKey(key) ? shown : parsed }
+			: formatSuccess(`Set ${key} = ${shown}`),
 		opts,
 	)
 }
@@ -140,6 +172,22 @@ function validateKnownPath(key: string, value: unknown): void {
 		case 'server.accounts.enabled':
 			if (typeof value !== 'boolean') {
 				fatal('server.accounts.enabled must be true or false')
+			}
+			break
+		case 'broadcast.failover':
+			if (typeof value !== 'boolean') {
+				fatal('broadcast.failover must be true or false')
+			}
+			break
+		case 'broadcast.arcadeUrl':
+		case 'broadcast.arcGorillaPoolUrl':
+		case 'broadcast.arcUrl':
+			// An empty string removes that broadcaster.
+			if (
+				typeof value !== 'string' ||
+				(value !== '' && !/^https?:\/\//.test(value))
+			) {
+				fatal(`${key} must be an http(s) URL, or "" to remove it`)
 			}
 			break
 	}

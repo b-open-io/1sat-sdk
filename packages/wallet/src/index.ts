@@ -107,6 +107,13 @@ export {
 // Factory utilities
 export { parsePrivateKey } from './parsePrivateKey.js'
 
+// Broadcast failover config
+export {
+	applyBroadcastConfig,
+	BROADCAST_SECRET_KEYS,
+	type BroadcastConfig,
+} from './broadcastConfig.js'
+
 // Factory core
 export {
 	createWalletCore,

@@ -37,6 +37,7 @@ export {
 	type MneeTransferResponse,
 	type MneeTransferStatus,
 	type MneeSyncEntry,
+	describePostBeefResult,
 	OneSatServices,
 	type OneSatServicesSdk,
 	OpnsClient,

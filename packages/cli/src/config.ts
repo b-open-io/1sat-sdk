@@ -7,6 +7,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import type { BroadcastConfig } from '@1sat/wallet'
 
 const CONFIG_DIR = join(homedir(), '.1sat', 'cli')
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json')
@@ -211,6 +212,14 @@ export interface OneSatCliConfig {
 	 * when the stack runs on the same host to avoid a public round trip.
 	 */
 	stackUrl?: string
+	/**
+	 * Failover broadcasters, used when 1sat-stack gives no verdict on a
+	 * transaction. Defaults to GorillaPool ARC, TAAL ARC, Bitails and
+	 * WhatsOnChain with failover on. Set `broadcast.failover` to false to
+	 * broadcast through 1sat-stack only. Read by every wallet the CLI
+	 * builds, `1sat serve` included.
+	 */
+	broadcast?: BroadcastConfig
 	/** Settings read by `1sat serve` subcommands. Absent for client-only installs. */
 	server?: ServerConfig
 }

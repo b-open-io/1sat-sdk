@@ -96,8 +96,16 @@ export class OneSatServices implements WalletServices {
 	readonly overlay: OverlayClient
 	readonly ecosystemAlias: EcosystemAliasClient
 
-	// Optional fallback to wallet-toolbox Services for methods we don't implement
+	// Optional fallback to wallet-toolbox Services for methods we don't implement,
+	// and the broadcasters postBeef fails over to when 1sat-stack gives no verdict
 	private fallbackServices?: WalletServices
+
+	/**
+	 * When true (the default), postBeef sends a transaction 1sat-stack gave no
+	 * verdict on to the `fallbackServices` broadcasters. Off keeps 1sat-stack
+	 * as the only broadcaster.
+	 */
+	broadcastFailover = true
 
 	private readonly sdk: OneSatServicesSdk
 
@@ -290,120 +298,180 @@ export class OneSatServices implements WalletServices {
 		}
 	}
 
+	/**
+	 * Broadcast through 1sat-stack's /1sat/tx endpoint (arcade behind it). When
+	 * the stack gives no verdict for a txid — unreachable, or no accepted /
+	 * rejected status inside its wait window — the same BEEF goes to the
+	 * wallet-toolbox `Services` broadcasters (`fallbackServices`: ARC
+	 * GorillaPool, ARC TAAL, Bitails, WhatsOnChain unless configured otherwise),
+	 * which try each provider until one accepts. A definitive verdict from the
+	 * stack (accepted, rejected, double spend) is final and is not re-sent.
+	 *
+	 * Every provider's result is returned, so the toolbox aggregates them per
+	 * txid exactly as it does for its own `Services.postBeef`: any success
+	 * without a double spend counts as broadcast.
+	 */
 	async postBeef(
 		beef: Beef,
 		txids: string[],
-		_logger?: WalletLoggerInterface,
+		logger?: WalletLoggerInterface,
 	): Promise<PostBeefResult[]> {
 		console.log('[OneSatServices] postBeef called with txids:', txids)
 		console.log(`[OneSatServices] BEEF structure:\n${beef.toLogString()}`)
 		const results: PostBeefResult[] = []
 
 		for (const txid of txids) {
-			try {
-				// Submit as AtomicBEEF which includes all source transactions.
-				// 1sat-stack's /1sat/tx accepts BEEF and auto-detects the format.
-				console.log('[OneSatServices] Submitting tx to 1sat-stack:', txid)
-				const atomicBeef = beef.toBinaryAtomic(txid)
-				console.log(
-					'[OneSatServices] AtomicBEEF length:',
-					atomicBeef.length,
-					'bytes',
+			const stack = await this.postBeefToStack(beef, txid)
+			results.push(stack)
+			const noVerdict = stack.txidResults.every((r) => r.serviceError === true)
+			if (!noVerdict) continue
+
+			if (!this.broadcastFailover || !this.fallbackServices) {
+				console.warn(
+					`[OneSatServices] postBeef ${txid}: 1sat-stack gave no verdict (${describePostBeefResult(stack)}) and broadcast failover is off; the monitor retries it`,
 				)
-				const status = await this.submitToStack(atomicBeef)
-				console.log('[OneSatServices] /1sat/tx response:', status)
-
-				const SUCCESS_STATUSES = new Set([
-					'IMMUTABLE',
-					'MINED',
-					'SEEN_ON_NETWORK',
-					'SEEN_MULTIPLE_NODES',
-					'ACCEPTED_BY_NETWORK',
-				])
-				const PROCESSING_STATUSES = new Set([
-					'QUEUED',
-					'RECEIVED',
-					'STORED',
-					'ANNOUNCED_TO_NETWORK',
-					'REQUESTED_BY_NETWORK',
-					'SENT_TO_NETWORK',
-				])
-
-				if (
-					SUCCESS_STATUSES.has(status.txStatus) ||
-					PROCESSING_STATUSES.has(status.txStatus)
-				) {
-					results.push({
-						name: '1sat-api',
-						status: 'success',
-						txidResults: [{ txid: status.txid || txid, status: 'success' }],
-					})
-				} else if (status.txStatus === 'REJECTED') {
-					// Definitive verdict: the network validated and refused this tx.
-					// An unflagged error aggregates to invalidTx, failing the tx.
-					results.push({
-						name: '1sat-api',
-						status: 'error',
-						error: new WalletError(
-							status.txStatus,
-							status.extraInfo || `Broadcast rejected: ${status.txStatus}`,
-						),
-						txidResults: [{ txid, status: 'error', data: status }],
-					})
-				} else if (status.txStatus === 'DOUBLE_SPEND_ATTEMPTED') {
-					// doubleSpend routes into the monitor's double-spend review,
-					// which re-checks the chain and unfails false positives.
-					results.push({
-						name: '1sat-api',
-						status: 'error',
-						error: new WalletError(
-							status.txStatus,
-							status.extraInfo || `Broadcast failed: ${status.txStatus}`,
-						),
-						txidResults: [
-							{
-								txid,
-								status: 'error',
-								doubleSpend: true,
-								competingTxs: status.competingTxs,
-								data: status,
-							},
-						],
-					})
-				} else {
-					// No final accepted/rejected verdict (broadcast window timed out,
-					// SEEN_IN_ORPHAN_MEMPOOL, empty/unknown status). serviceError keeps
-					// the req in 'sending' for retry instead of failing a tx that may
-					// still be accepted.
-					results.push({
-						name: '1sat-api',
-						status: 'error',
-						error: new WalletError(
-							status.txStatus || 'UNKNOWN',
-							status.extraInfo || `No broadcast verdict: ${status.txStatus}`,
-						),
-						txidResults: [
-							{ txid, status: 'error', serviceError: true, data: status },
-						],
-					})
-				}
-			} catch (error) {
-				console.error('[OneSatServices] postBeef error:', error)
-				// The service was unreachable or errored — says nothing about the
-				// validity of the tx, so retry rather than fail it.
-				results.push({
-					name: '1sat-api',
-					status: 'error',
-					error: new WalletError(
-						'NETWORK_ERROR',
-						error instanceof Error ? error.message : 'Unknown error',
-					),
-					txidResults: [{ txid, status: 'error', serviceError: true }],
-				})
+				continue
 			}
+
+			console.warn(
+				`[OneSatServices] postBeef ${txid}: 1sat-stack gave no verdict (${describePostBeefResult(stack)}); failing over to the wallet-toolbox broadcasters`,
+			)
+			let fallback: PostBeefResult[]
+			try {
+				fallback = await this.fallbackServices.postBeef(beef, [txid], logger)
+			} catch (error) {
+				// Services.postBeef reports provider failures as results; a throw
+				// here is a programming or configuration error. Log it in full and
+				// keep the stack's no-verdict result, so the monitor retries.
+				console.error(
+					`[OneSatServices] postBeef ${txid}: failover broadcasters threw`,
+					error,
+				)
+				continue
+			}
+			for (const r of fallback) {
+				const line = `[OneSatServices] postBeef ${txid}: ${describePostBeefResult(r)}`
+				if (r.status === 'success') console.log(line)
+				else console.warn(line)
+			}
+			if (!fallback.some((r) => r.status === 'success')) {
+				console.warn(
+					`[OneSatServices] postBeef ${txid}: no broadcaster accepted it; ${fallback.length} failover provider(s) tried`,
+				)
+			}
+			results.push(...fallback)
 		}
 
 		return results
+	}
+
+	/** One txid's AtomicBEEF to 1sat-stack's /1sat/tx, mapped to a PostBeefResult. */
+	private async postBeefToStack(
+		beef: Beef,
+		txid: string,
+	): Promise<PostBeefResult> {
+		try {
+			// Submit as AtomicBEEF which includes all source transactions.
+			// 1sat-stack's /1sat/tx accepts BEEF and auto-detects the format.
+			console.log('[OneSatServices] Submitting tx to 1sat-stack:', txid)
+			const atomicBeef = beef.toBinaryAtomic(txid)
+			console.log(
+				'[OneSatServices] AtomicBEEF length:',
+				atomicBeef.length,
+				'bytes',
+			)
+			const status = await this.submitToStack(atomicBeef)
+			console.log('[OneSatServices] /1sat/tx response:', status)
+
+			const SUCCESS_STATUSES = new Set([
+				'IMMUTABLE',
+				'MINED',
+				'SEEN_ON_NETWORK',
+				'SEEN_MULTIPLE_NODES',
+				'ACCEPTED_BY_NETWORK',
+			])
+			const PROCESSING_STATUSES = new Set([
+				'QUEUED',
+				'RECEIVED',
+				'STORED',
+				'ANNOUNCED_TO_NETWORK',
+				'REQUESTED_BY_NETWORK',
+				'SENT_TO_NETWORK',
+			])
+
+			if (
+				SUCCESS_STATUSES.has(status.txStatus) ||
+				PROCESSING_STATUSES.has(status.txStatus)
+			) {
+				return {
+					name: '1sat-api',
+					status: 'success',
+					txidResults: [{ txid: status.txid || txid, status: 'success' }],
+				}
+			}
+			if (status.txStatus === 'REJECTED') {
+				// Definitive verdict: the network validated and refused this tx.
+				// An unflagged error aggregates to invalidTx, failing the tx.
+				return {
+					name: '1sat-api',
+					status: 'error',
+					error: new WalletError(
+						status.txStatus,
+						status.extraInfo || `Broadcast rejected: ${status.txStatus}`,
+					),
+					txidResults: [{ txid, status: 'error', data: status }],
+				}
+			}
+			if (status.txStatus === 'DOUBLE_SPEND_ATTEMPTED') {
+				// doubleSpend routes into the monitor's double-spend review,
+				// which re-checks the chain and unfails false positives.
+				return {
+					name: '1sat-api',
+					status: 'error',
+					error: new WalletError(
+						status.txStatus,
+						status.extraInfo || `Broadcast failed: ${status.txStatus}`,
+					),
+					txidResults: [
+						{
+							txid,
+							status: 'error',
+							doubleSpend: true,
+							competingTxs: status.competingTxs,
+							data: status,
+						},
+					],
+				}
+			}
+			// No final accepted/rejected verdict (broadcast window timed out,
+			// SEEN_IN_ORPHAN_MEMPOOL, empty/unknown status). serviceError keeps
+			// the req in 'sending' for retry instead of failing a tx that may
+			// still be accepted.
+			return {
+				name: '1sat-api',
+				status: 'error',
+				error: new WalletError(
+					status.txStatus || 'UNKNOWN',
+					status.extraInfo || `No broadcast verdict: ${status.txStatus}`,
+				),
+				txidResults: [
+					{ txid, status: 'error', serviceError: true, data: status },
+				],
+			}
+		} catch (error) {
+			console.error('[OneSatServices] postBeef error:', error)
+			// The service was unreachable or errored — says nothing about the
+			// validity of the tx, so retry rather than fail it.
+			return {
+				name: '1sat-api',
+				status: 'error',
+				error: new WalletError(
+					'NETWORK_ERROR',
+					error instanceof Error ? error.message : 'Unknown error',
+				),
+				txidResults: [{ txid, status: 'error', serviceError: true }],
+			}
+		}
 	}
 
 	async getBeefForTxid(txid: string): Promise<Beef> {
@@ -654,4 +722,22 @@ export class OneSatServices implements WalletServices {
 		const height = await this.getHeight()
 		return nLockTime < height
 	}
+}
+
+/**
+ * One line naming a provider's verdict, for logs: provider, status, and the
+ * error code and message or per-txid flags when it was not a success.
+ */
+export function describePostBeefResult(r: PostBeefResult): string {
+	if (r.status === 'success') return `${r.name} accepted`
+	const flags = r.txidResults
+		.flatMap((t) => [
+			t.doubleSpend ? 'double spend' : undefined,
+			t.serviceError ? 'no verdict' : undefined,
+		])
+		.filter((f): f is string => f !== undefined)
+	const error = r.error
+		? `${(r.error as { code?: string }).code ?? r.error.name}: ${r.error.message}`
+		: 'no error detail'
+	return `${r.name} refused (${error}${flags.length > 0 ? `; ${[...new Set(flags)].join(', ')}` : ''})`
 }
