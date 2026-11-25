@@ -24,3 +24,8 @@ export { Bsv21Indexer, deriveFundAddress, type Bsv21 } from './Bsv21Indexer.js'
 export { OrdLockIndexer, Listing } from './OrdLockIndexer.js'
 export { OpNSIndexer } from './OpNSIndexer.js'
 export { CosignIndexer, type CosignData } from './CosignIndexer.js'
+export {
+	TwetchIndexer,
+	type Twetch,
+	type TwetchAttribute,
+} from './TwetchIndexer.js'

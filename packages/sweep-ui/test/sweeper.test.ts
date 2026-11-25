@@ -277,6 +277,7 @@ function emptyAssets(overrides: Partial<ScannedAssets> = {}): ScannedAssets {
 		bsv20Tokens: [],
 		locked: [],
 		run: [],
+		twetch: [],
 		totalFundingSats: 0,
 		totalBsv: 0,
 		...overrides,

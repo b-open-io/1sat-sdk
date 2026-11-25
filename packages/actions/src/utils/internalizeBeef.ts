@@ -10,7 +10,12 @@
 
 import type { OneSatServices } from '@1sat/client'
 import type { Indexer, ParseContext, Txo } from '@1sat/types'
-import { DEPOSIT_BASKET, OPNS_BASKET, ORDINALS_BASKET } from '@1sat/types'
+import {
+	DEPOSIT_BASKET,
+	OPNS_BASKET,
+	ORDINALS_BASKET,
+	TWETCH_BASKET,
+} from '@1sat/types'
 import {
 	Bsv21Indexer,
 	CosignIndexer,
@@ -22,6 +27,7 @@ import {
 	OriginIndexer,
 	Outpoint,
 	SigmaIndexer,
+	TwetchIndexer,
 } from '@1sat/wallet'
 import {
 	Beef,
@@ -152,6 +158,9 @@ export async function internalizeBeef(
 	)
 	const network = chain === 'main' ? 'mainnet' : 'testnet'
 	const indexers: Indexer[] = [
+		// Before FundIndexer: the first basket wins, and a Twetch NFT must never
+		// be filed as plain funds (spending it needs the hash preimage too).
+		new TwetchIndexer(owners, network),
 		new FundIndexer(owners, network),
 		new InscriptionIndexer(owners, network),
 		new Bsv21Indexer(owners, network, services),
@@ -457,6 +466,8 @@ function buildDescription(ownedTxos: Txo[]): string {
 			parts.push('ordinal')
 		} else if (txo.basket === OPNS_BASKET) {
 			parts.push('OPNS name')
+		} else if (txo.basket === TWETCH_BASKET) {
+			parts.push('Twetch NFT')
 		} else if (txo.basket === 'fund') {
 			sats += Number(txo.output.satoshis || 0)
 		}

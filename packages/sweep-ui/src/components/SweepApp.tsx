@@ -232,7 +232,8 @@ export function SweepApp({
 				result.bsv21Tokens.reduce((n, t) => n + t.outputs.length, 0) +
 				grouped.reduce((n, t) => n + t.outputs.length, 0) +
 				result.locked.length +
-				result.run.length
+				result.run.length +
+				result.twetch.length
 			if (total === 0) toast.info('No assets found at legacy addresses')
 
 			if (result.ordinals.length > 0) setActiveTab('ordinals')

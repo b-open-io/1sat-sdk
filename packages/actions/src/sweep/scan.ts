@@ -6,7 +6,7 @@
  */
 
 import type { OneSatServices } from '@1sat/client'
-import { ORDLOCK_V2_TAG, type IndexedOutput } from '@1sat/types'
+import { ORDLOCK_V2_TAG, TWETCH_TAG, type IndexedOutput } from '@1sat/types'
 import { isValidOutpoint, parseOutpoint } from '@1sat/types'
 import type {
 	Bsv20Balance,
@@ -122,10 +122,10 @@ export async function scanAddress(
 	// Phase 2: Search for all unspent outputs
 	onProgress?.({ phase: 'search', detail: 'Searching for assets...' })
 	const allOutputs =
-		(await services.txo.search(`own:${address}`, {
+		(await services.txo.search([`own:${address}`, `${TWETCH_TAG}:${address}`], {
 			unspent: true,
 			events: true,
-			tags: [ORDLOCK_V2_TAG, 'insc', 'bsv20', 'bsv21'],
+			tags: [ORDLOCK_V2_TAG, 'insc', 'bsv20', 'bsv21', TWETCH_TAG],
 			sats: true,
 			limit: 0,
 		})) ?? []
@@ -163,6 +163,7 @@ export async function scanAddresses(
 		locked: allResults.flatMap((r) => r.locked),
 		run: allResults.flatMap((r) => r.run),
 		listings: allResults.flatMap((r) => r.listings),
+		twetch: allResults.flatMap((r) => r.twetch),
 		totalFundingSats: allResults.reduce(
 			(sum, r) => sum + r.totalFundingSats,
 			0,
@@ -184,6 +185,7 @@ async function categorizeOutputs(
 	const bsv20Tokens: IndexedOutput[] = []
 	const locked: IndexedOutput[] = []
 	const listings: IndexedOutput[] = []
+	const twetch: IndexedOutput[] = []
 
 	for (const out of outputs) {
 		const events = out.events ?? []
@@ -193,6 +195,13 @@ async function categorizeOutputs(
 
 		if (isBsv21Output(out)) {
 			bsv21Raw.push(out)
+			continue
+		}
+
+		// Twetch NFTs carry 2180 sats behind a hash lock, so they would
+		// otherwise land in funding and fail to spend as P2PKH.
+		if (events.includes(TWETCH_TAG)) {
+			twetch.push(out)
 			continue
 		}
 
@@ -245,6 +254,7 @@ async function categorizeOutputs(
 		locked,
 		run,
 		listings,
+		twetch,
 		totalFundingSats: cleanFunding.reduce(
 			(sum, o) => sum + (o.satoshis ?? 0),
 			0,

@@ -167,5 +167,10 @@ export interface ScanResult {
 	run: IndexedOutput[]
 	/** OrdLock v2 marketplace listings (a sweep cancels them to import them). */
 	listings: IndexedOutput[]
+	/**
+	 * Twetch NFTs ("twonks"). Unlocking one needs the hash-lock preimage as
+	 * well as a signature, so a sweep must never spend them as funds.
+	 */
+	twetch: IndexedOutput[]
 	totalFundingSats: number
 }
