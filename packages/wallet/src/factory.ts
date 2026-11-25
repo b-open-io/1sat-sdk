@@ -561,6 +561,91 @@ export async function createWalletCore(
 	}
 
 	// 6. Remote management operations
+	/**
+	 * Moves the wallet to `key`. wallet-toolbox names the new store in the
+	 * current active's user row before it copies data there, so a copy that
+	 * fails would leave the wallet pointing at a store that never got its
+	 * data and taking no writes. On failure the previous active is named
+	 * again, best effort, and the original error is thrown.
+	 */
+	// wallet-toolbox's manager has no public way to re-read cached user rows
+	// or to drop a store, so these reach its internals. Pinned to its
+	// `_isAvailable` and `_stores` fields; covered by storage-follow.test.ts.
+	type ManagerInternals = {
+		_isAvailable: boolean
+		_stores: { storage: unknown }[]
+	}
+
+	/** Re-reads every store's user row (wallet-toolbox caches them). */
+	const reloadStores = async (): Promise<void> => {
+		;(storage as unknown as ManagerInternals)._isAvailable = false
+		await storage.makeAvailable()
+	}
+
+	/**
+	 * Drops a remote connected for a switch or follow that did not happen,
+	 * so it neither blocks writes as a conflicting store nor receives this
+	 * wallet's backups for the rest of the session.
+	 */
+	const disconnectRemote = async (
+		client: InstanceType<typeof toolbox.StorageClient>,
+	): Promise<void> => {
+		const internals = storage as unknown as ManagerInternals
+		internals._stores = internals._stores.filter((s) => s.storage !== client)
+		const i = remoteClients.indexOf(client)
+		if (i >= 0) remoteClients.splice(i, 1)
+		await reloadStores()
+	}
+
+	const moveActiveTo = async (
+		key: string,
+		connectedNow?: InstanceType<typeof toolbox.StorageClient>,
+	): Promise<void> => {
+		const previous = storage.getActiveStore()
+		try {
+			await storage.setActive(key)
+		} catch (e) {
+			// A store connected only for this switch goes again: its own row
+			// names itself, which would leave the wallet with two actives.
+			if (connectedNow) await disconnectRemote(connectedNow).catch(() => {})
+			if (previous && previous !== key) {
+				try {
+					await storage.setActive(previous)
+					console.warn(
+						`[wallet-core] storage switch to ${key} failed; ${previous} is active again`,
+					)
+				} catch (rollback) {
+					// The previous row is usually named again before the copy to
+					// the broken store fails a second time; reload the cached rows
+					// so the status reports what the stores now say.
+					console.warn(
+						`[wallet-core] storage switch to ${key} failed; making ${previous} active again stopped partway`,
+						rollback,
+					)
+					await reloadStores().catch(() => {})
+				}
+			}
+			throw e
+		}
+		intendedActiveKey = key
+		movedTo = undefined
+	}
+
+	/**
+	 * A switch starts from the rows as they are now, not as they were at
+	 * boot: another device may have moved the wallet since. When it moved
+	 * to a store this wallet has no address for, switching would leave two
+	 * enabled actives, so it is refused until that store is added.
+	 */
+	const settleBeforeSwitch = async (): Promise<void> => {
+		await settleActive()
+		if (movedTo) {
+			throw new Error(
+				`This wallet was moved to storage ${movedTo} on another device. Add that storage with addRemote before switching.`,
+			)
+		}
+	}
+
 	const setActiveStorage = async (target: 'local' | string): Promise<void> => {
 		if (target === 'local') {
 			if (!localStorage) {
@@ -569,33 +654,51 @@ export async function createWalletCore(
 				)
 			}
 			const localKey = (await localStorage.makeAvailable()).storageIdentityKey
-			await storage.setActive(localKey)
-			intendedActiveKey = localKey
-			movedTo = undefined
+			await settleBeforeSwitch()
+			await moveActiveTo(localKey)
 			return
 		}
 
-		const client =
-			remoteClients.find((c) => c.endpointUrl === target) ??
-			(await connectRemote(target))
+		const known = remoteClients.find((c) => c.endpointUrl === target)
+		const client = known ?? (await connectRemote(target))
+		const connectedNow = known ? undefined : client
 		const key = client.getSettings()?.storageIdentityKey
-		if (!key) {
-			throw new Error(`Remote storage ${target} reported no storage identity`)
+		try {
+			if (!key) {
+				throw new Error(`Remote storage ${target} reported no storage identity`)
+			}
+			await settleBeforeSwitch()
+		} catch (e) {
+			if (connectedNow) await disconnectRemote(connectedNow).catch(() => {})
+			throw e
 		}
 		// Copies the current active's data into the new store, then moves
 		// every store's user row to it. Other devices follow the row.
-		await storage.setActive(key)
-		intendedActiveKey = key
-		movedTo = undefined
+		await moveActiveTo(key, connectedNow)
 	}
 
 	const addRemote = async (url: string): Promise<void> => {
-		const existing = remoteClients.find((c) => c.endpointUrl === url)
-		if (existing) return
-		await connectRemote(url)
+		// Already registered (an earlier add connected, then settling
+		// failed): settle again rather than return, so a retry still follows.
+		const known = remoteClients.find((c) => c.endpointUrl === url)
+		const client = known ?? (await connectRemote(url))
+		const movedBefore = movedTo
 		// Re-settle: the added store may be the one another device moved
 		// this wallet to, which is then followed rather than overwritten.
-		await settleActive()
+		try {
+			await settleActive()
+		} catch (e) {
+			if (!known) await disconnectRemote(client).catch(() => {})
+			throw e
+		}
+		// Added to follow a move but not on its path: the wrong store. Drop it
+		// so it doesn't take this wallet's backups.
+		if (!known && movedBefore && movedTo === movedBefore) {
+			await disconnectRemote(client)
+			throw new Error(
+				`Storage ${url} is not the one this wallet moved to (${movedBefore})`,
+			)
+		}
 	}
 
 	// 7. Destroy
