@@ -6,7 +6,14 @@
  * stores). Two `createStorageServer` instances stand in for two storage
  * providers. Needs dist/ in wallet, wallet-node and wallet-server.
  */
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import {
+	afterAll,
+	beforeAll,
+	describe,
+	expect,
+	setDefaultTimeout,
+	test,
+} from 'bun:test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -14,6 +21,9 @@ import { type NodeWalletResult, createNodeWallet } from '@1sat/wallet-node'
 import { createStorageServer } from '@1sat/wallet-server'
 import { PrivateKey } from '@bsv/sdk'
 import { StorageProvider } from '@bsv/wallet-toolbox'
+
+// Each test opens wallets against several local storage servers.
+setDefaultTimeout(30_000)
 
 async function freePort(): Promise<number> {
 	const probe = Bun.serve({ port: 0, fetch: () => new Response() })
@@ -62,6 +72,9 @@ describe('active storage moves are followed, not reclaimed', () => {
 	let a: Awaited<ReturnType<typeof provider>>
 	let b: Awaited<ReturnType<typeof provider>>
 	let c: Awaited<ReturnType<typeof provider>>
+	let d: Awaited<ReturnType<typeof provider>>
+	let e: Awaited<ReturnType<typeof provider>>
+	let f: Awaited<ReturnType<typeof provider>>
 	const userKey = PrivateKey.fromRandom()
 	const opened: NodeWalletResult[] = []
 	let n = 0
@@ -95,11 +108,14 @@ describe('active storage moves are followed, not reclaimed', () => {
 		a = await provider(dir, 'provider-a')
 		b = await provider(dir, 'provider-b')
 		c = await provider(dir, 'provider-c')
+		d = await provider(dir, 'provider-d')
+		e = await provider(dir, 'provider-e')
+		f = await provider(dir, 'provider-f')
 	})
 
 	afterAll(async () => {
 		for (const w of opened) await w.destroy().catch(() => {})
-		for (const p of [a, b, c]) {
+		for (const p of [a, b, c, d, e, f]) {
 			await p.server.close()
 			await p.node.destroy()
 		}
@@ -175,5 +191,111 @@ describe('active storage moves are followed, not reclaimed', () => {
 		// B was not re-enabled.
 		expect(await activeStorageIn(b)).toBe(c.key)
 		expect(await activeStorageIn(c)).toBe(c.key)
+	})
+
+	test('a switch from a stale session is refused, not forked', async () => {
+		// Both devices open on C; one moves the wallet to D.
+		const stale = await userWallet(c.url)
+		const other = await userWallet(c.url)
+		await other.setActiveStorage(d.url)
+		expect(await activeStorageIn(c)).toBe(d.key)
+
+		// The other one, still open from before, tries to move it to A.
+		await expect(stale.setActiveStorage(a.url)).rejects.toThrow(
+			/moved to storage/,
+		)
+		// Refused, and no longer taking writes on C either.
+		expect(stale.getStorageStatus()).toMatchObject({
+			movedTo: d.key,
+			writable: false,
+		})
+		expect(await activeStorageIn(c)).toBe(d.key)
+		expect(await activeStorageIn(d)).toBe(d.key)
+
+		// The wrong address is refused and not kept as a backup.
+		await expect(stale.addRemote(e.url)).rejects.toThrow(/not the one/)
+		expect(stale.getStorageStatus().movedTo).toBe(d.key)
+		expect(stale.storage.getAllStores()).not.toContain(e.key)
+
+		// Once it knows D it follows, and can switch from there.
+		await stale.addRemote(d.url)
+		expect(stale.getStorageStatus()).toMatchObject({
+			activeStorageKey: d.key,
+			writable: true,
+			movedTo: undefined,
+		})
+	})
+
+	test('a new provider that cannot take the copy is dropped', async () => {
+		const onD = await userWallet(d.url)
+		const manager = onD.storage as unknown as {
+			syncToWriter: (...args: unknown[]) => Promise<unknown>
+		}
+		const real = manager.syncToWriter.bind(manager)
+		let failures = 0
+		manager.syncToWriter = async (...args: unknown[]) => {
+			const writer = args[1] as {
+				getSettings?: () => { storageIdentityKey: string }
+			}
+			if (writer?.getSettings?.().storageIdentityKey === e.key) {
+				failures++
+				throw new Error('provider E refused the copy')
+			}
+			return real(...args)
+		}
+		await expect(onD.setActiveStorage(e.url)).rejects.toThrow(
+			/refused the copy/,
+		)
+		expect(failures).toBeGreaterThan(0)
+		expect(onD.storage.getAllStores()).not.toContain(e.key)
+		expect(await activeStorageIn(d)).toBe(d.key)
+		expect(onD.getStorageStatus()).toMatchObject({
+			activeStorageKey: d.key,
+			writable: true,
+			movedTo: undefined,
+		})
+
+		manager.syncToWriter = real
+		await onD.setActiveStorage(e.url)
+		expect(onD.getStorageStatus()).toMatchObject({
+			activeStorageKey: e.key,
+			writable: true,
+		})
+		expect(await activeStorageIn(d)).toBe(e.key)
+	})
+
+	test('a switch to a known backup whose copy fails is rolled back', async () => {
+		const onE = await userWallet(e.url)
+		await onE.addRemote(f.url)
+		expect(await activeStorageIn(f)).toBe(e.key)
+		expect(onE.storage.getBackupStores()).toContain(f.key)
+
+		type Writer = { getSettings?: () => { storageIdentityKey: string } }
+		const manager = onE.storage as unknown as {
+			syncToWriter: (...args: unknown[]) => Promise<unknown>
+		}
+		const real = manager.syncToWriter.bind(manager)
+		manager.syncToWriter = async (...args: unknown[]) => {
+			if ((args[1] as Writer)?.getSettings?.().storageIdentityKey === f.key) {
+				throw new Error('provider F refused the copy')
+			}
+			return real(...args)
+		}
+		try {
+			await expect(onE.setActiveStorage(f.url)).rejects.toThrow(
+				/refused the copy/,
+			)
+		} finally {
+			manager.syncToWriter = real
+		}
+		expect(await activeStorageIn(e)).toBe(e.key)
+		expect(await activeStorageIn(f)).toBe(e.key)
+		expect(onE.getStorageStatus()).toMatchObject({
+			activeStorageKey: e.key,
+			writable: true,
+			movedTo: undefined,
+		})
+		// A known backup stays registered.
+		expect(onE.storage.getAllStores()).toContain(f.key)
 	})
 })

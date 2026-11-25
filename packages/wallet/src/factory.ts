@@ -310,6 +310,28 @@ export async function createWalletCore(
 	// refuses writes) until that store is added with `addRemote`.
 	let movedTo: string | undefined
 
+	// wallet-toolbox's manager has no public way to re-read cached user rows
+	// or to drop a store, so these reach its internals: the manager's
+	// `_isAvailable` and `_stores`, and each managed store's `isAvailable`,
+	// `user` and `storage`. Covered by storage-follow.test.ts.
+	type ManagedStoreInternals = {
+		storage: unknown
+		isAvailable: boolean
+		user?: { userId: number }
+	}
+	type ManagerInternals = {
+		_isAvailable: boolean
+		_stores: ManagedStoreInternals[]
+	}
+	const internals = storage as unknown as ManagerInternals
+
+	/** Re-reads every store's settings and user row, which the manager caches. */
+	const reloadStores = async (): Promise<void> => {
+		for (const s of internals._stores) s.isAvailable = false
+		internals._isAvailable = false
+		await storage.makeAvailable()
+	}
+
 	/**
 	 * Settle the active store. A store's user row (`activeStorage`) is the
 	 * one source of truth for which store this wallet writes to, so a move
@@ -355,11 +377,15 @@ export async function createWalletCore(
 			if (visited.has(named)) break
 			follow = named
 		}
-		movedTo = moved
 		if (moved) {
+			movedTo = moved
 			console.warn(
 				`[wallet-core] wallet storage moved to ${moved}, which this wallet has no address for; open read-only until it is added`,
 			)
+			// The rows were read directly above; the manager's cache may still
+			// say this session is active (it opened before the move). Re-read
+			// so wallet-toolbox refuses writes here too.
+			await reloadStores()
 			return
 		}
 		if (follow !== intendedActiveKey) {
@@ -367,14 +393,14 @@ export async function createWalletCore(
 			console.log(
 				`[wallet-core] following wallet storage move to ${target?.endpointUrl ?? follow}`,
 			)
-			intendedActiveKey = follow
 		}
-		if (
-			storage.getActiveStore() !== intendedActiveKey ||
-			!storage.isActiveEnabled
-		) {
-			await storage.setActive(intendedActiveKey)
+		if (storage.getActiveStore() !== follow || !storage.isActiveEnabled) {
+			await storage.setActive(follow)
 		}
+		// Only once the follow took: a failed one keeps the earlier intent and
+		// move hint, so a later retry still knows where the wallet went.
+		intendedActiveKey = follow
+		movedTo = undefined
 	}
 
 	// Register every store, name the intended active from config, then
@@ -561,6 +587,97 @@ export async function createWalletCore(
 	}
 
 	// 6. Remote management operations
+	/**
+	 * Moves the wallet to `key`. wallet-toolbox names the new store in the
+	 * current active's user row before it copies data there, so a copy that
+	 * fails would leave the wallet pointing at a store that never got its
+	 * data and taking no writes. On failure the previous active is named
+	 * again, best effort, and the original error is thrown.
+	 */
+	/**
+	 * Drops a remote connected for a switch or follow that did not happen,
+	 * so it neither blocks writes as a conflicting store nor receives this
+	 * wallet's backups for the rest of the session.
+	 */
+	const disconnectRemote = async (
+		client: InstanceType<typeof toolbox.StorageClient>,
+	): Promise<void> => {
+		// Under the sync lock, so no wallet call or backup sync runs while the
+		// manager re-partitions its stores.
+		await storage.runAsSync(async () => {
+			internals._stores = internals._stores.filter((s) => s.storage !== client)
+			const i = remoteClients.indexOf(client)
+			if (i >= 0) remoteClients.splice(i, 1)
+			await reloadStores()
+		})
+	}
+
+	const moveActiveTo = async (
+		key: string,
+		connectedNow?: InstanceType<typeof toolbox.StorageClient>,
+	): Promise<void> => {
+		const previous = storage.getActiveStore()
+		try {
+			await storage.setActive(key)
+		} catch (e) {
+			// The copy may have written the target's row (naming itself) before
+			// it failed. Name the previous store there again, best effort, so no
+			// device that opens on the target takes it for the active.
+			const target = remoteClients.find(
+				(c) => c.getSettings()?.storageIdentityKey === key,
+			)
+			const targetUser = internals._stores.find(
+				(s) => s.storage === target,
+			)?.user
+			if (target && targetUser && previous && previous !== key) {
+				await target
+					.setActive(
+						{ identityKey: identityPubKey, userId: targetUser.userId },
+						previous,
+					)
+					.catch(() => {})
+			}
+			// A store connected only for this switch goes again: its own row
+			// names itself, which would leave the wallet with two actives.
+			if (connectedNow) await disconnectRemote(connectedNow).catch(() => {})
+			if (previous && previous !== key) {
+				try {
+					await storage.setActive(previous)
+					console.warn(
+						`[wallet-core] storage switch to ${key} failed; ${previous} is active again`,
+					)
+				} catch (rollback) {
+					// The previous row is usually named again before the copy to
+					// the broken store fails a second time; reload the cached rows
+					// so the status reports what the stores now say.
+					console.warn(
+						`[wallet-core] storage switch to ${key} failed; making ${previous} active again stopped partway`,
+						rollback,
+					)
+					await reloadStores().catch(() => {})
+				}
+			}
+			throw e
+		}
+		intendedActiveKey = key
+		movedTo = undefined
+	}
+
+	/**
+	 * A switch starts from the rows as they are now, not as they were at
+	 * boot: another device may have moved the wallet since. When it moved
+	 * to a store this wallet has no address for, switching would leave two
+	 * enabled actives, so it is refused until that store is added.
+	 */
+	const settleBeforeSwitch = async (): Promise<void> => {
+		await settleActive()
+		if (movedTo) {
+			throw new Error(
+				`This wallet was moved to storage ${movedTo} on another device. Add that storage with addRemote before switching.`,
+			)
+		}
+	}
+
 	const setActiveStorage = async (target: 'local' | string): Promise<void> => {
 		if (target === 'local') {
 			if (!localStorage) {
@@ -569,33 +686,51 @@ export async function createWalletCore(
 				)
 			}
 			const localKey = (await localStorage.makeAvailable()).storageIdentityKey
-			await storage.setActive(localKey)
-			intendedActiveKey = localKey
-			movedTo = undefined
+			await settleBeforeSwitch()
+			await moveActiveTo(localKey)
 			return
 		}
 
-		const client =
-			remoteClients.find((c) => c.endpointUrl === target) ??
-			(await connectRemote(target))
+		const known = remoteClients.find((c) => c.endpointUrl === target)
+		const client = known ?? (await connectRemote(target))
+		const connectedNow = known ? undefined : client
 		const key = client.getSettings()?.storageIdentityKey
-		if (!key) {
-			throw new Error(`Remote storage ${target} reported no storage identity`)
+		try {
+			if (!key) {
+				throw new Error(`Remote storage ${target} reported no storage identity`)
+			}
+			await settleBeforeSwitch()
+		} catch (e) {
+			if (connectedNow) await disconnectRemote(connectedNow).catch(() => {})
+			throw e
 		}
 		// Copies the current active's data into the new store, then moves
 		// every store's user row to it. Other devices follow the row.
-		await storage.setActive(key)
-		intendedActiveKey = key
-		movedTo = undefined
+		await moveActiveTo(key, connectedNow)
 	}
 
 	const addRemote = async (url: string): Promise<void> => {
-		const existing = remoteClients.find((c) => c.endpointUrl === url)
-		if (existing) return
-		await connectRemote(url)
+		// Already registered (an earlier add connected, then settling
+		// failed): settle again rather than return, so a retry still follows.
+		const known = remoteClients.find((c) => c.endpointUrl === url)
+		const client = known ?? (await connectRemote(url))
+		const movedBefore = movedTo
 		// Re-settle: the added store may be the one another device moved
 		// this wallet to, which is then followed rather than overwritten.
-		await settleActive()
+		try {
+			await settleActive()
+		} catch (e) {
+			if (!known) await disconnectRemote(client).catch(() => {})
+			throw e
+		}
+		// Added to follow a move but not on its path: the wrong store. Drop it
+		// so it doesn't take this wallet's backups.
+		if (!known && movedBefore && movedTo === movedBefore) {
+			await disconnectRemote(client)
+			throw new Error(
+				`Storage ${url} is not the one this wallet moved to (${movedBefore})`,
+			)
+		}
 	}
 
 	// 7. Destroy
