@@ -33,6 +33,8 @@ export type SweepPlan = {
 	leftover: {
 		locked: number
 		run: number
+		/** Twetch NFTs, which can't be moved yet. */
+		twetch: number
 		inactiveBsv21: number
 		unparsedBsv20: number
 	}
@@ -88,6 +90,7 @@ export function buildSweepPlan(
 		leftover: {
 			locked: scan.locked.length,
 			run: scan.run.length,
+			twetch: scan.twetch.length,
 			inactiveBsv21: skippedBsv21.reduce((n, t) => n + t.outputs.length, 0),
 			unparsedBsv20: scan.bsv20Tokens.filter(
 				(o) => !parsedOutpoints.has(o.outpoint),
