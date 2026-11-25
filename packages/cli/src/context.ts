@@ -58,6 +58,7 @@ export async function loadContext(
 		},
 		activeRemote: config.activeRemote,
 		backups: config.backups,
+		broadcast: config.broadcast,
 		// Monitor runs in a detached child after destroy, or in `1sat serve`.
 		skipInitialMonitor: true,
 	})

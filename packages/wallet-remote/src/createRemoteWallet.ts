@@ -1,5 +1,5 @@
 import type { OneSatServices } from '@1sat/client'
-import { createWalletCore } from '@1sat/wallet'
+import { type BroadcastConfig, createWalletCore } from '@1sat/wallet'
 import type { PrivateKey } from '@bsv/sdk'
 import {
 	Services,
@@ -22,6 +22,11 @@ export interface RemoteWalletConfig {
 	 * Set this to point a build at a non-production 1sat-stack.
 	 */
 	servicesBaseUrl?: string
+	/**
+	 * Failover broadcasters used when 1sat-stack gives no verdict on a
+	 * transaction. See `BroadcastConfig` in `@1sat/wallet`.
+	 */
+	broadcast?: BroadcastConfig
 }
 
 export interface RemoteWalletResult {

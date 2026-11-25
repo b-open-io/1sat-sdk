@@ -5,6 +5,10 @@ import {
 	PrivateKey,
 	type WalletInterface,
 } from '@bsv/sdk'
+import {
+	type BroadcastConfig,
+	applyBroadcastConfig,
+} from './broadcastConfig.js'
 import { parsePrivateKey } from './parsePrivateKey.js'
 import {
 	type StoragePaymentHook,
@@ -102,6 +106,12 @@ export interface WalletCoreConfig {
 	 * without recompiling.
 	 */
 	servicesBaseUrl?: string
+	/**
+	 * Failover broadcasters used when 1sat-stack gives no verdict on a
+	 * transaction. Defaults to the wallet-toolbox provider set with
+	 * failover on. See `BroadcastConfig`.
+	 */
+	broadcast?: BroadcastConfig
 }
 
 export interface WalletCoreResult {
@@ -176,13 +186,19 @@ export async function createWalletCore(
 	const keyDeriver = new sdk.KeyDeriver(privateKey)
 
 	// 1. Create services
-	const fallbackServices = new toolbox.Services(chain)
+	const fallbackServices = new toolbox.Services(
+		applyBroadcastConfig(
+			toolbox.Services.createDefaultOptions(chain),
+			config.broadcast,
+		),
+	)
 	const oneSatServices = new OneSatServices(
 		chain,
 		config.servicesBaseUrl,
 		fallbackServices,
 		sdk,
 	)
+	oneSatServices.broadcastFailover = config.broadcast?.failover ?? true
 
 	// 2. Create storage manager — empty initially
 	const storage = new toolbox.WalletStorageManager(identityPubKey)

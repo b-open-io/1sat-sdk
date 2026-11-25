@@ -1,5 +1,6 @@
 import type { OneSatServices } from '@1sat/client'
 import {
+	type BroadcastConfig,
 	DEFAULT_FEE_MODEL,
 	type TaskStateStore,
 	createWalletCore,
@@ -72,6 +73,11 @@ export interface NodeWalletConfig {
 	 * a non-production 1sat-stack without a code change.
 	 */
 	servicesBaseUrl?: string
+	/**
+	 * Failover broadcasters used when 1sat-stack gives no verdict on a
+	 * transaction. See `BroadcastConfig` in `@1sat/wallet`.
+	 */
+	broadcast?: BroadcastConfig
 }
 
 export interface NodeWalletResult {

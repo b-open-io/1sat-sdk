@@ -122,6 +122,7 @@ export async function runMonitorOnce(chain: 'main' | 'test'): Promise<void> {
 			},
 			activeRemote: config.activeRemote,
 			backups: config.backups,
+			broadcast: config.broadcast,
 			skipInitialMonitor: true,
 		})
 		try {
