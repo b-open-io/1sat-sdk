@@ -87,6 +87,8 @@ function leftoverLines(plan: SweepPlan): string[] {
 		lines.push(`${plan.leftover.locked} locked output(s) (not swept)`)
 	if (plan.leftover.run)
 		lines.push(`${plan.leftover.run} RUN token output(s) (not sweepable)`)
+	if (plan.leftover.twetch)
+		lines.push(`${plan.leftover.twetch} Twetch NFT(s) (can't be moved yet)`)
 	if (plan.leftover.inactiveBsv21)
 		lines.push(
 			`${plan.leftover.inactiveBsv21} BSV-21 UTXO(s) with no parseable amount`,

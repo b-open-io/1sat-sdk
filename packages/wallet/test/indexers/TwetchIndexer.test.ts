@@ -58,4 +58,13 @@ describe('TwetchIndexer', () => {
 		expect(await indexer.parse(txo(withJson('{"foo":1}')))).toBeUndefined()
 		expect(await indexer.parse(txo(muties.slice(0, 48 * 2)))).toBeUndefined()
 	})
+
+	it('caps a long title in its name tag', async () => {
+		const title = `${'x'.repeat(63)}\u{1F600}${'y'.repeat(10)}`
+		const result = await new TwetchIndexer().parse(
+			txo(withJson(JSON.stringify({ title }))),
+		)
+		expect(result?.tags).toEqual(['twetch', `name:${'x'.repeat(63)}`])
+		expect((result?.data as Record<string, unknown>).title).toBe(title)
+	})
 })

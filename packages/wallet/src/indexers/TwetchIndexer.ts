@@ -76,7 +76,7 @@ export class TwetchIndexer extends Indexer {
 		meta.hashLock = Utils.toHex(chunks[1].data)
 
 		const tags = [TWETCH_TAG]
-		if (meta.title) tags.push(`name:${meta.title}`)
+		if (meta.title) tags.push(`name:${TwetchIndexer.capName(meta.title)}`)
 		return {
 			data: meta,
 			tags,
@@ -90,6 +90,13 @@ export class TwetchIndexer extends Indexer {
 	 * OP_RETURN as one chunk of raw script bytes, so the push is re-read here.
 	 * Returns undefined unless it is a JSON object with a title or an image.
 	 */
+	/** Trims a title to 64 UTF-16 units for its name: tag, never splitting a surrogate pair. */
+	static capName(title: string): string {
+		if (title.length <= 64) return title
+		const end = /[\uD800-\uDBFF]/.test(title[63]) ? 63 : 64
+		return title.slice(0, end)
+	}
+
 	static parseMeta(raw: number[] | undefined): Twetch | undefined {
 		if (!raw?.length) return
 		let json: unknown

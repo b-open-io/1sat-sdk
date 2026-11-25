@@ -122,10 +122,10 @@ export async function scanAddress(
 	// Phase 2: Search for all unspent outputs
 	onProgress?.({ phase: 'search', detail: 'Searching for assets...' })
 	const allOutputs =
-		(await services.txo.search(`own:${address}`, {
+		(await services.txo.search([`own:${address}`, `${TWETCH_TAG}:${address}`], {
 			unspent: true,
 			events: true,
-			tags: [ORDLOCK_V2_TAG, 'insc', 'bsv20', 'bsv21'],
+			tags: [ORDLOCK_V2_TAG, 'insc', 'bsv20', 'bsv21', TWETCH_TAG],
 			sats: true,
 			limit: 0,
 		})) ?? []
