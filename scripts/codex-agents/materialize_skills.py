@@ -14,7 +14,12 @@ from pathlib import Path
 from typing import Any
 
 MANIFEST_FILE = ".1sat-package-skills.json"
-AUTHORED_SKILLS = {"codex-agent-setup", "mintflow", "test-app"}
+AUTHORED_SKILLS = {
+    "codex-agent-setup",
+    "legacy-brc100-migrate",
+    "mintflow",
+    "test-app",
+}
 TRUE_DISABLE = re.compile(r"(?m)^(disable[-_]model[-_]invocation):\s*true\s*$")
 
 
