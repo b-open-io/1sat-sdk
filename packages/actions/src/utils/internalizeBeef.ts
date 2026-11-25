@@ -10,7 +10,12 @@
 
 import type { OneSatServices } from '@1sat/client'
 import type { Indexer, ParseContext, Txo } from '@1sat/types'
-import { DEPOSIT_BASKET, OPNS_BASKET, ORDINALS_BASKET } from '@1sat/types'
+import {
+	DEPOSIT_BASKET,
+	OPNS_BASKET,
+	ORDINALS_BASKET,
+	TWETCH_BASKET,
+} from '@1sat/types'
 import {
 	Bsv21Indexer,
 	CosignIndexer,
@@ -461,6 +466,8 @@ function buildDescription(ownedTxos: Txo[]): string {
 			parts.push('ordinal')
 		} else if (txo.basket === OPNS_BASKET) {
 			parts.push('OPNS name')
+		} else if (txo.basket === TWETCH_BASKET) {
+			parts.push('Twetch NFT')
 		} else if (txo.basket === 'fund') {
 			sats += Number(txo.output.satoshis || 0)
 		}
