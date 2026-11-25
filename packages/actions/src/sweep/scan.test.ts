@@ -96,7 +96,7 @@ describe('legacy owner scan', () => {
 			expect(result.opnsNames).toEqual([listing])
 			expect(result.ordinals).toEqual([])
 			expect(paths).toHaveLength(2)
-			expect(paths[1]?.searchParams.get('key')).toBe('own:owner')
+			expect(paths[1]?.searchParams.get('key')).toBe('own:owner,twetch:owner')
 			expect(paths[1]?.searchParams.get('limit')).toBe('0')
 		} finally {
 			services.close()
