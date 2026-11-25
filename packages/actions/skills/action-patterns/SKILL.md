@@ -146,7 +146,7 @@ const tools = actionRegistry.toMcpTools()
 The complete, generated list of all actions:
 
 <!-- ACTION-INDEX -->
-_61 actions, generated from the registry — do not edit by hand._
+_55 actions, generated from the registry — do not edit by hand._
 
 | Category | Action | Services | Purpose |
 |----------|--------|:--------:|---------|
@@ -178,14 +178,8 @@ _61 actions, generated from the registry — do not edit by hand._
 | `ordinals` | `listOrdinals` |  | List ordinals/inscriptions (metadata by default; optional BEEF) |
 | `ordinals` | `sellOrdinal` |  | List an ordinal for sale on the global orderbook |
 | `ordinals` | `sendOrdinals` |  | Transfer one or more ordinals to new owners, optionally reinscribing new content onto the output (versioning: the origin chain tracks revision history) |
-| `payments` | `getMneeBalance` | ✓ | Get MNEE stablecoin balance by addresses or by self-key derivations |
-| `payments` | `getMneeConfig` | ✓ | Get MNEE service configuration including cosigner and fee structure |
-| `payments` | `getMneeHistory` | ✓ | Get MNEE transaction history with parsed amounts and counterparties |
-| `payments` | `getMneeTxStatus` | ✓ | Get the status of an MNEE transfer |
-| `payments` | `getMneeUtxos` | ✓ | Get MNEE UTXOs by addresses or by self-key derivations |
 | `payments` | `sendAllBsv` |  | Send all BSV from wallet to a single destination address |
 | `payments` | `sendBsv` |  | Send BSV to one or more destinations (addresses, scripts, or OP_RETURN) |
-| `payments` | `sendMnee` | ✓ | Send MNEE stablecoin to one or more recipients |
 | `signing` | `decryptFromCounterparty` |  | Decrypt data from a counterparty using Type-42 key derivation |
 | `signing` | `encryptForCounterparty` |  | Encrypt data for a counterparty using Type-42 key derivation |
 | `signing` | `getAuthToken` |  | Generate a BRC-77 auth token for HTTP request signing |

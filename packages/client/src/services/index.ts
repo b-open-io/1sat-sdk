@@ -21,16 +21,6 @@ export {
 } from './OpnsClient.js'
 export { OverlayClient } from './OverlayClient.js'
 export {
-	MneeClient,
-	type MneeConfig,
-	type MneeBalance,
-	type MneeUtxo,
-	type MneeTransferResponse,
-	type MneeTransferStatus,
-	type MneeSyncEntry,
-	type MneeFeeTier,
-} from './MneeClient.js'
-export {
 	describePostBeefResult,
 	OneSatServices,
 	type OneSatServicesSdk,

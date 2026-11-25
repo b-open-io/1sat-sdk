@@ -25,13 +25,6 @@
 			"generated_hash": "sha256:e4e0d3088b600d0442c1c082f5e32b860f4c56bd63f387306442b11d3de8a134"
 		},
 		{
-			"name": "mnee",
-			"source": "packages/actions/skills/mnee",
-			"destination": "skills/mnee",
-			"source_hash": "sha256:da8fcbffa9caff104c66eec10854c91949e5939bd6ac0742ad814c6dbbd2a2f2",
-			"generated_hash": "sha256:da8fcbffa9caff104c66eec10854c91949e5939bd6ac0742ad814c6dbbd2a2f2"
-		},
-		{
 			"name": "opns",
 			"source": "packages/actions/skills/opns",
 			"destination": "skills/opns",
