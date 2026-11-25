@@ -64,7 +64,6 @@ with `bun run scripts/gen-action-index.ts`).
 | permission-module | `packages/permission-module/skills/permission-module` | Host WPM modules, view scopes, spend labels, apply-on-approve |
 | opns | `packages/actions/skills/opns` | Claiming or buying OpNS names at 1sat.name; publishing, listing, transferring, or deregistering owned names |
 | sweep | `packages/actions/skills/sweep` | Sweeping/importing BSV, ordinals, tokens; claiming deposits |
-| mnee | `packages/actions/skills/mnee` | MNEE stablecoin — config, balance, utxos, history, send |
 | identity | `packages/actions/skills/identity` | BAP identity (publish/rotate/profile) and social posts |
 | signing | `packages/actions/skills/signing` | BSM signing, BRC-77 auth tokens, counterparty encrypt/decrypt, friend pubkeys |
 | sync-cosign | `packages/actions/skills/sync-cosign` | Multi-device address/message sync and cosigner attestation |

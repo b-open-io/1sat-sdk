@@ -635,7 +635,7 @@ export const IMAGE_CONTENT_TYPES = [
  * A single BRC-42 self-key identity: the triple that determines exactly which
  * key a wallet derives and signs with. This is the spend-side counterpart to
  * {@link AddressDerivation} (a BRC-29 remittance record) and is what actions
- * like `sendMnee` need to (a) compute the address to look up and (b) sign with
+ * that spend from self-derived addresses need to (a) compute the address to look up and (b) sign with
  * the matching key under the correct protocol.
  *
  * `protocolID` is a BRC-42 derivation input — the same `keyID` under two

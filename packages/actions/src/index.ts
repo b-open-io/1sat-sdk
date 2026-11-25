@@ -162,7 +162,6 @@ export * from './signing/index.js'
 export * from './social/index.js'
 export * from './identity/index.js'
 export * from './opns/index.js'
-export * from './mnee/index.js'
 
 // Export cosign module (cosigner-validated BSV21 transfer actions)
 export * from './cosign/index.js'
@@ -187,7 +186,6 @@ import { identityActions } from './identity/index.js'
 import { inscriptionsActions } from './inscriptions/index.js'
 import { locksActions } from './locks/index.js'
 import { metanetActions } from './metanet/index.js'
-import { mneeActions } from './mnee/index.js'
 import { opnsActions } from './opns/index.js'
 import { ordfsActions } from './ordfs/index.js'
 import { ordinalsActions } from './ordinals/index.js'
@@ -214,7 +212,6 @@ actionRegistry.registerAll([
 	...sweepActions,
 	...opnsActions,
 	...syncActions,
-	...mneeActions,
 	...ordfsActions,
 ])
 

@@ -10,9 +10,6 @@ import { Listings } from './components/Listings'
 import { SignMessage } from './components/SignMessage'
 import { BapProfile } from './components/BapProfile'
 import { LockBsv } from './components/LockBsv'
-import { SendMnee } from './components/SendMnee'
-import { MneeBalance } from './components/MneeBalance'
-import { MneeHistory } from './components/MneeHistory'
 import { OrdinalsList } from './components/OrdinalsList'
 import { TokensList } from './components/TokensList'
 import { UtxosList } from './components/UtxosList'
@@ -34,7 +31,6 @@ function WalletContent() {
 					<DepositSync />
 					<OpnsPanel />
 					<SendBsv />
-					<SendMnee />
 					<Inscribe />
 					<SendOrdinals />
 					<TransferToken />
@@ -45,8 +41,6 @@ function WalletContent() {
 					<LockBsv />
 				</div>
 				<div style={colStyle}>
-					<MneeBalance />
-					<MneeHistory />
 					<OrdinalsList />
 					<TokensList />
 					<UtxosList />
