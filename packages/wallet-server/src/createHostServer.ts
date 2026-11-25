@@ -103,9 +103,18 @@ export async function createHostServer(
 	// any session.
 	const authMiddleware = buildAuthMiddleware(wallet, config.sessionStore)
 
+	// One spelling of the user domain everywhere (certs are stored lowercase).
+	const userDomain =
+		config.paymail?.userDomain?.trim().toLowerCase().replace(/\.$/, '') ||
+		undefined
+	const paymailCfg = config.paymail && {
+		...config.paymail,
+		userDomain,
+	}
+
 	// --- public surface -------------------------------------------------------
-	if (config.paymail) {
-		await mountPaymailRoutes(app, config.paymail)
+	if (paymailCfg) {
+		await mountPaymailRoutes(app, paymailCfg)
 	}
 	app.get('/exchange-rate', (_req, res) => {
 		const quote = config.getExchangeRate?.() ?? null
@@ -131,6 +140,23 @@ export async function createHostServer(
 	// check.
 	app.post('/.well-known/auth', authMiddleware)
 
+	// Handle certs on the user domain: issued at registration, and backfilled
+	// on status for accounts registered before the host could issue them.
+	const handleCerts =
+		paymailCfg?.hostPrivateKey && config.handleCertStore
+			? {
+					store: config.handleCertStore,
+					hostPrivateKey: paymailCfg.hostPrivateKey,
+					userDomain: paymailCfg.userDomain,
+					stackUrl: paymailCfg.stackUrl,
+				}
+			: undefined
+	if (config.accountStore && handleCerts && !handleCerts.userDomain) {
+		console.error(
+			'[host] handle certificates are on but no paymail user domain is set: handle registration is refused until server.paymail.userDomain is configured',
+		)
+	}
+
 	// Account routes need auth; scope it to /account/*
 	app.use('/account', authMiddleware)
 	mountStatusRoute(app, {
@@ -140,6 +166,7 @@ export async function createHostServer(
 		accounts: config.accounts,
 		accountStore: config.accountStore,
 		handleCertStore: config.handleCertStore,
+		...(handleCerts && { handleCerts }),
 	})
 	if (config.accounts) {
 		mountPaymentRoute(app, '/', {
@@ -149,22 +176,15 @@ export async function createHostServer(
 			serverIdentityKey: config.serverIdentityKey,
 			currentBlock: config.accounts.currentBlock,
 			accountStore: config.accountStore,
+			handleCertStore: config.handleCertStore,
+			...(handleCerts && { handleCerts }),
 		})
 	}
 
 	if (config.accountStore) {
-		const paymail = config.paymail
 		mountRegistrationRoutes(app, '/', {
 			store: config.accountStore,
-			...(paymail?.hostPrivateKey &&
-				config.handleCertStore && {
-					certs: {
-						store: config.handleCertStore,
-						hostPrivateKey: paymail.hostPrivateKey,
-						userDomain: paymail.userDomain,
-						stackUrl: paymail.stackUrl,
-					},
-				}),
+			...(handleCerts && { certs: handleCerts }),
 		})
 	}
 

@@ -44,8 +44,65 @@ export async function issueHandleCert(opts: {
 		keyringForSubject: master.masterKeyring,
 		createdAt: new Date(),
 	}
-	await opts.store.put(issued)
+	try {
+		await opts.store.put(issued)
+	} catch (err) {
+		// Two requests can issue the same cert at once (a paymail lookup
+		// backfilling it while the wallet re-registers). The loser's insert
+		// hits the (domain, handle) key; the winner's cert is the one to use.
+		const winner = await opts.store.get(handle, domain).catch(() => null)
+		if (
+			winner &&
+			winner.subject === opts.subject &&
+			winner.revocationOutpoint === opts.revocationOutpoint
+		) {
+			return winner
+		}
+		throw err
+	}
 	return issued
+}
+
+/** The name already carries a cert this host must not replace. */
+export class HandleCertConflictError extends Error {
+	constructor(handle: string, domain: string) {
+		super(
+			`${handle}@${domain} already has a certificate for another identity or bind`,
+		)
+		this.name = 'HandleCertConflictError'
+	}
+}
+
+/**
+ * The user-domain cert for a registered username, issued if missing.
+ * Idempotent: the identity's existing account cert is returned as is. A
+ * cert for another identity, or one bound to an on-chain name, is never
+ * replaced; that throws HandleCertConflictError.
+ */
+export async function ensureUserDomainCert(
+	certs: { store: HandleCertStore; hostPrivateKey: PrivateKey },
+	userDomain: string,
+	identityKey: string,
+	username: string,
+): Promise<IssuedHandleCert> {
+	const existing = await certs.store.get(username, userDomain)
+	if (existing) {
+		if (
+			existing.subject === identityKey &&
+			existing.revocationOutpoint === DISABLED_REVOCATION_OUTPOINT
+		) {
+			return existing
+		}
+		throw new HandleCertConflictError(username, userDomain)
+	}
+	return issueHandleCert({
+		store: certs.store,
+		hostPrivateKey: certs.hostPrivateKey,
+		subject: identityKey,
+		handle: username,
+		domain: userDomain,
+		revocationOutpoint: DISABLED_REVOCATION_OUTPOINT,
+	})
 }
 
 export { DISABLED_REVOCATION_OUTPOINT }

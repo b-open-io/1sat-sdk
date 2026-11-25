@@ -264,7 +264,11 @@ export function registrationPaths(): PathsFragment {
 					'401': { description: 'Unauthenticated.' },
 					'409': {
 						description:
-							'Username held by another identity, or this identity already holds a different username.',
+							'Username held by another identity, this identity already holds a different username, or the name already carries a certificate for another identity or bind.',
+					},
+					'503': {
+						description:
+							'The host issues handle certificates but has no paymail user domain, so it registers no names.',
 					},
 				},
 			},

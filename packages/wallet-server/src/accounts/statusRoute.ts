@@ -7,7 +7,10 @@ import {
 	latestActivePaymentForPayer,
 	nextPaymentDerivation,
 } from './queries.js'
-import { registrationStatus } from './registrationRoutes.js'
+import {
+	type RegistrationCertDeps,
+	registrationStatus,
+} from './registrationRoutes.js'
 import type { AccountStore } from './store.js'
 import type { WalletServerAccounts } from './types.js'
 
@@ -18,6 +21,8 @@ export interface StatusRouteDeps {
 	accounts?: WalletServerAccounts
 	accountStore?: AccountStore
 	handleCertStore?: HandleCertStore
+	/** Issues a registered account's missing user-domain cert on status. */
+	handleCerts?: RegistrationCertDeps
 }
 
 type AuthenticatedRequest = Request & { auth?: { identityKey: string } }
@@ -42,6 +47,7 @@ export function mountStatusRoute(app: Express, deps: StatusRouteDeps): void {
 				deps.accountStore,
 				identityKey,
 				deps.handleCertStore,
+				deps.handleCerts,
 			)
 
 			const accounts = deps.accounts

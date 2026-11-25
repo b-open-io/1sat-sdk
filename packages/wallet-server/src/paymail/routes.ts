@@ -19,6 +19,7 @@ import {
 } from '@bsv/paymail'
 import { Transaction, Utils } from '@bsv/sdk'
 import type { Express, Request } from 'express'
+import { ensureUserDomainCert } from '../accounts/issueCert.js'
 import {
 	createPaymentDestination,
 	verifyPaymentOutputs,
@@ -153,7 +154,9 @@ export async function mountPaymailRoutes(
 	}
 
 	async function resolveCertified(alias: string, domain: string) {
-		const cert = await deps.certStore?.get(alias, domain)
+		const cert =
+			(await deps.certStore?.get(alias, domain)) ??
+			(await backfillUserDomainCert(alias, domain))
 		if (!cert) throw new NotFoundError()
 		await requireAccount(cert.subject, alias, domain)
 
@@ -177,6 +180,36 @@ export async function mountPaymailRoutes(
 		const spent = await isOutpointSpent(services, cert.revocationOutpoint)
 		if (spent) throw new NotFoundError()
 		return bind
+	}
+
+	/**
+	 * A username registered on the user domain before the host could issue
+	 * its cert (no user domain configured) has none. Issue it on first
+	 * lookup so the name resolves without the owner registering again.
+	 */
+	async function backfillUserDomainCert(alias: string, domain: string) {
+		const userDomain = deps.userDomain?.toLowerCase()
+		if (
+			!userDomain ||
+			domain.toLowerCase() !== userDomain ||
+			!accountResolver ||
+			!deps.certStore ||
+			!deps.hostPrivateKey
+		) {
+			return null
+		}
+		const bind = await accountResolver.resolve(alias, domain)
+		if (!bind) return null
+		const issued = await ensureUserDomainCert(
+			{ store: deps.certStore, hostPrivateKey: deps.hostPrivateKey },
+			userDomain,
+			bind.identityKey,
+			alias,
+		)
+		console.info(
+			`[paymail] ${alias}@${domain}: issued its missing handle certificate`,
+		)
+		return issued
 	}
 
 	const paymailClient = new PaymailClient()

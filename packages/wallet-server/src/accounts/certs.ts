@@ -1,3 +1,4 @@
+import { DISABLED_REVOCATION_OUTPOINT } from '@1sat/types'
 import type { Knex } from 'knex'
 
 export interface IssuedHandleCert {
@@ -81,6 +82,18 @@ export class KnexHandleCertStore implements HandleCertStore {
 			})
 			.first()
 		return row ? rowToCert(row) : null
+	}
+
+	/**
+	 * Whether any cert on `domain` is bound to an on-chain name (a real
+	 * revocation outpoint), i.e. the domain resolves through OpNS here.
+	 */
+	async hasBoundCerts(domain: string): Promise<boolean> {
+		const row = await this.db<CertRow>('handle_certs')
+			.where({ domain: domain.toLowerCase() })
+			.whereNot({ revocation_outpoint: DISABLED_REVOCATION_OUTPOINT })
+			.first()
+		return row != null
 	}
 
 	async listBySubject(subject: string): Promise<IssuedHandleCert[]> {

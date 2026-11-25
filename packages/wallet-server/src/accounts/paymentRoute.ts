@@ -12,6 +12,7 @@
 
 import type { WalletInterface } from '@bsv/sdk'
 import type { Express, NextFunction, Request, Response } from 'express'
+import type { HandleCertStore } from './certs.js'
 import { createAccountsPaymentMiddleware } from './paymentMiddleware.js'
 import { quoteRefundedCharge } from './pricing.js'
 import {
@@ -22,7 +23,10 @@ import {
 	nextPaymentDerivation,
 	payerLabel,
 } from './queries.js'
-import { registrationStatus } from './registrationRoutes.js'
+import {
+	type RegistrationCertDeps,
+	registrationStatus,
+} from './registrationRoutes.js'
 import type { AccountStore } from './store.js'
 import type {
 	AccountStatusResponse,
@@ -43,6 +47,9 @@ export interface PaymentRouteDeps {
 	currentBlock: () => Promise<number>
 	/** Host account registry, for the registration facet of the status body. */
 	accountStore?: AccountStore
+	handleCertStore?: HandleCertStore
+	/** Issues a registered account's missing user-domain cert on status. */
+	handleCerts?: RegistrationCertDeps
 }
 
 type AuthedRequest = Request & { auth?: { identityKey?: string } }
@@ -95,7 +102,12 @@ async function buildAccountStatus(
 	const userId = userResult?.user?.userId
 	const usedBytes =
 		userId == null ? 0 : await deps.walletStorage.measureUsedBytes(userId)
-	const registration = await registrationStatus(deps.accountStore, identityKey)
+	const registration = await registrationStatus(
+		deps.accountStore,
+		identityKey,
+		deps.handleCertStore,
+		deps.handleCerts,
+	)
 
 	if (!config.enabled) {
 		return {
