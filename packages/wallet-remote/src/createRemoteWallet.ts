@@ -1,5 +1,9 @@
 import type { OneSatServices } from '@1sat/client'
-import { type BroadcastConfig, createWalletCore } from '@1sat/wallet'
+import {
+	type BroadcastConfig,
+	type WalletStorageStatus,
+	createWalletCore,
+} from '@1sat/wallet'
 import type { PrivateKey } from '@bsv/sdk'
 import {
 	Services,
@@ -37,6 +41,8 @@ export interface RemoteWalletResult {
 	feeModel: { model: 'sat/kb'; value: number }
 	setActiveStorage: (target: 'local' | string) => Promise<void>
 	addRemote: (url: string) => Promise<void>
+	/** Which store is active, whether it takes writes, and any move to follow. */
+	getStorageStatus: () => WalletStorageStatus
 }
 
 export async function createRemoteWallet(
@@ -61,5 +67,6 @@ export async function createRemoteWallet(
 		feeModel: core.feeModel,
 		setActiveStorage: core.setActiveStorage,
 		addRemote: core.addRemote,
+		getStorageStatus: core.getStorageStatus,
 	}
 }

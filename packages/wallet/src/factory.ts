@@ -147,7 +147,26 @@ export interface WalletCoreResult {
 	 * rather than go through the single-tenant WalletStorageManager.
 	 */
 	getActiveStorage: () => WalletStorageProviderLike
+	/** Which store is active, whether it takes writes, and any move to follow. */
+	getStorageStatus: () => WalletStorageStatus
 	feeModel: { model: 'sat/kb'; value: number }
+}
+
+export interface WalletStorageStatus {
+	/** URL of the active remote, or undefined when local storage is active. */
+	activeRemoteUrl: string | undefined
+	/** storageIdentityKey of the active store. */
+	activeStorageKey: string
+	/**
+	 * False when wallet-toolbox refuses writes: the active store's user row
+	 * names another store. Reads still work.
+	 */
+	writable: boolean
+	/**
+	 * Set when the wallet was moved, on another device, to a store this
+	 * wallet has no address for. Add that store with `addRemote` to follow.
+	 */
+	movedTo: string | undefined
 }
 
 export async function createWalletCore(
@@ -282,6 +301,66 @@ export async function createWalletCore(
 		}
 	}
 
+	// Set when the configured active remote's user row names a store this
+	// wallet has no address for: the wallet was moved to another storage
+	// from another device. The wallet stays open read-only (wallet-toolbox
+	// refuses writes) until that store is added with `addRemote`.
+	let movedTo: string | undefined
+
+	/**
+	 * Settle the active store. A store's user row (`activeStorage`) is the
+	 * one source of truth for which store this wallet writes to, so a move
+	 * made on another device is followed, never undone:
+	 *
+	 * - The row names another registered remote: that remote becomes active.
+	 * - The row names a store not registered here: nothing is flipped and
+	 *   `movedTo` records the key. Reclaiming the configured store here
+	 *   would leave two enabled actives (the configured one and the one the
+	 *   other device moved to) and the wallet's stores would diverge.
+	 * - Otherwise (rows agree, the row names this browser's local store, or
+	 *   names none): `setActive(intendedActiveKey)` as before, which merges a
+	 *   divergent local store into the configured active and is a no-op when
+	 *   rows already agree.
+	 */
+	const settleActive = async (): Promise<void> => {
+		movedTo = undefined
+		// The remote this wallet means to write to: from config at boot, or
+		// the one a later `setActiveStorage` chose.
+		const activeClient = remoteClients.find(
+			(c) => c.getSettings()?.storageIdentityKey === intendedActiveKey,
+		)
+		const configuredKey = intendedActiveKey
+		if (activeClient) {
+			const { user } = await activeClient.findOrInsertUser(identityPubKey)
+			const named: string | undefined = user?.activeStorage ?? undefined
+			const localKey = localStorage
+				? (await localStorage.makeAvailable()).storageIdentityKey
+				: undefined
+			if (named && named !== configuredKey && named !== localKey) {
+				const target = remoteClients.find(
+					(c) => c.getSettings()?.storageIdentityKey === named,
+				)
+				if (!target) {
+					movedTo = named
+					console.warn(
+						`[wallet-core] wallet storage moved to ${named}, which this wallet has no address for; open read-only until it is added`,
+					)
+					return
+				}
+				console.log(
+					`[wallet-core] following wallet storage move to ${target.endpointUrl}`,
+				)
+				intendedActiveKey = named
+			}
+		}
+		if (
+			storage.getActiveStore() !== intendedActiveKey ||
+			!storage.isActiveEnabled
+		) {
+			await storage.setActive(intendedActiveKey)
+		}
+	}
+
 	// Register every store, name the intended active from config, then
 	// settle. Local registers as it is — its user row is the record of what
 	// this wallet last believed, and when it carries data the remote never
@@ -306,17 +385,10 @@ export async function createWalletCore(
 		}
 	}
 
-	// When any store's user row disagrees with config, `setActive` merges
-	// the divergent store into the chosen active and propagates the settled
-	// state. When rows already agree, `setActive` is a no-op. Backup refresh
-	// is not done at boot — it races first reads (balance) under runAsSync.
-	// Callers drive BackupSync via monitor.runOnce() after the wallet is up.
-	if (
-		storage.getActiveStore() !== intendedActiveKey ||
-		!storage.isActiveEnabled
-	) {
-		await storage.setActive(intendedActiveKey)
-	}
+	// Backup refresh is not done at boot — it races first reads (balance)
+	// under runAsSync. Callers drive BackupSync via monitor.runOnce() after
+	// the wallet is up.
+	await settleActive()
 
 	// Install 507 auto-retry on billable methods. Only meaningful when an
 	// active remote is (or may later become) in play; the hook bails early
@@ -486,29 +558,27 @@ export async function createWalletCore(
 			return
 		}
 
-		const existing = remoteClients.find((c) => c.endpointUrl === target)
-		if (existing) {
-			const settings = existing.getSettings()
-			if (settings?.storageIdentityKey) {
-				await storage.setActive(settings.storageIdentityKey)
-				intendedActiveKey = settings.storageIdentityKey
-			}
-			return
+		const client =
+			remoteClients.find((c) => c.endpointUrl === target) ??
+			(await connectRemote(target))
+		const key = client.getSettings()?.storageIdentityKey
+		if (!key) {
+			throw new Error(`Remote storage ${target} reported no storage identity`)
 		}
-
-		const client = await connectRemote(target)
-		const settings = client.getSettings()
-		if (settings?.storageIdentityKey) {
-			await storage.setActive(settings.storageIdentityKey)
-			intendedActiveKey = settings.storageIdentityKey
-		}
+		// Copies the current active's data into the new store, then moves
+		// every store's user row to it. Other devices follow the row.
+		await storage.setActive(key)
+		intendedActiveKey = key
+		movedTo = undefined
 	}
 
 	const addRemote = async (url: string): Promise<void> => {
 		const existing = remoteClients.find((c) => c.endpointUrl === url)
 		if (existing) return
 		await connectRemote(url)
-		await storage.setActive(intendedActiveKey)
+		// Re-settle: the added store may be the one another device moved
+		// this wallet to, which is then followed rather than overwritten.
+		await settleActive()
 	}
 
 	// 7. Destroy
@@ -535,6 +605,12 @@ export async function createWalletCore(
 		setActiveStorage,
 		addRemote,
 		getActiveStorage: () => storage.getActive(),
+		getStorageStatus: () => ({
+			activeRemoteUrl: getActiveRemoteUrl(),
+			activeStorageKey: storage.getActiveStore(),
+			writable: storage.isActiveEnabled === true,
+			movedTo,
+		}),
 		feeModel,
 	}
 }

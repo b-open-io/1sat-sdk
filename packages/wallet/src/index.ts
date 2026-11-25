@@ -124,6 +124,7 @@ export {
 	type WalletCoreConfig,
 	type WalletCoreSdk,
 	type WalletCoreResult,
+	type WalletStorageStatus,
 } from './factory.js'
 
 // 507 auto-retry

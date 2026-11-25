@@ -3,6 +3,7 @@ import {
 	type BroadcastConfig,
 	DEFAULT_FEE_MODEL,
 	type TaskStateStore,
+	type WalletStorageStatus,
 	createWalletCore,
 } from '@1sat/wallet'
 import type { PrivateKey } from '@bsv/sdk'
@@ -89,6 +90,8 @@ export interface NodeWalletResult {
 	remoteStorage?: StorageClient
 	setActiveStorage: (target: 'local' | string) => Promise<void>
 	addRemote: (url: string) => Promise<void>
+	/** Which store is active, whether it takes writes, and any move to follow. */
+	getStorageStatus: () => WalletStorageStatus
 	/**
 	 * Live getter for the currently active raw storage provider. Use this
 	 * (not `storage`) when wiring the wallet-server RPC — the manager is
@@ -165,6 +168,7 @@ export async function createNodeWallet(
 		remoteStorage: core.remoteClients[0],
 		setActiveStorage: core.setActiveStorage,
 		addRemote: core.addRemote,
+		getStorageStatus: core.getStorageStatus,
 		getActiveStorage: core.getActiveStorage as () => sdk.WalletStorageProvider,
 	}
 }
