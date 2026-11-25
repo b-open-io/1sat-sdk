@@ -310,6 +310,28 @@ export async function createWalletCore(
 	// refuses writes) until that store is added with `addRemote`.
 	let movedTo: string | undefined
 
+	// wallet-toolbox's manager has no public way to re-read cached user rows
+	// or to drop a store, so these reach its internals: the manager's
+	// `_isAvailable` and `_stores`, and each managed store's `isAvailable`,
+	// `user` and `storage`. Covered by storage-follow.test.ts.
+	type ManagedStoreInternals = {
+		storage: unknown
+		isAvailable: boolean
+		user?: { userId: number }
+	}
+	type ManagerInternals = {
+		_isAvailable: boolean
+		_stores: ManagedStoreInternals[]
+	}
+	const internals = storage as unknown as ManagerInternals
+
+	/** Re-reads every store's settings and user row, which the manager caches. */
+	const reloadStores = async (): Promise<void> => {
+		for (const s of internals._stores) s.isAvailable = false
+		internals._isAvailable = false
+		await storage.makeAvailable()
+	}
+
 	/**
 	 * Settle the active store. A store's user row (`activeStorage`) is the
 	 * one source of truth for which store this wallet writes to, so a move
@@ -355,11 +377,15 @@ export async function createWalletCore(
 			if (visited.has(named)) break
 			follow = named
 		}
-		movedTo = moved
 		if (moved) {
+			movedTo = moved
 			console.warn(
 				`[wallet-core] wallet storage moved to ${moved}, which this wallet has no address for; open read-only until it is added`,
 			)
+			// The rows were read directly above; the manager's cache may still
+			// say this session is active (it opened before the move). Re-read
+			// so wallet-toolbox refuses writes here too.
+			await reloadStores()
 			return
 		}
 		if (follow !== intendedActiveKey) {
@@ -367,14 +393,14 @@ export async function createWalletCore(
 			console.log(
 				`[wallet-core] following wallet storage move to ${target?.endpointUrl ?? follow}`,
 			)
-			intendedActiveKey = follow
 		}
-		if (
-			storage.getActiveStore() !== intendedActiveKey ||
-			!storage.isActiveEnabled
-		) {
-			await storage.setActive(intendedActiveKey)
+		if (storage.getActiveStore() !== follow || !storage.isActiveEnabled) {
+			await storage.setActive(follow)
 		}
+		// Only once the follow took: a failed one keeps the earlier intent and
+		// move hint, so a later retry still knows where the wallet went.
+		intendedActiveKey = follow
+		movedTo = undefined
 	}
 
 	// Register every store, name the intended active from config, then
@@ -568,20 +594,6 @@ export async function createWalletCore(
 	 * data and taking no writes. On failure the previous active is named
 	 * again, best effort, and the original error is thrown.
 	 */
-	// wallet-toolbox's manager has no public way to re-read cached user rows
-	// or to drop a store, so these reach its internals. Pinned to its
-	// `_isAvailable` and `_stores` fields; covered by storage-follow.test.ts.
-	type ManagerInternals = {
-		_isAvailable: boolean
-		_stores: { storage: unknown }[]
-	}
-
-	/** Re-reads every store's user row (wallet-toolbox caches them). */
-	const reloadStores = async (): Promise<void> => {
-		;(storage as unknown as ManagerInternals)._isAvailable = false
-		await storage.makeAvailable()
-	}
-
 	/**
 	 * Drops a remote connected for a switch or follow that did not happen,
 	 * so it neither blocks writes as a conflicting store nor receives this
@@ -590,11 +602,14 @@ export async function createWalletCore(
 	const disconnectRemote = async (
 		client: InstanceType<typeof toolbox.StorageClient>,
 	): Promise<void> => {
-		const internals = storage as unknown as ManagerInternals
-		internals._stores = internals._stores.filter((s) => s.storage !== client)
-		const i = remoteClients.indexOf(client)
-		if (i >= 0) remoteClients.splice(i, 1)
-		await reloadStores()
+		// Under the sync lock, so no wallet call or backup sync runs while the
+		// manager re-partitions its stores.
+		await storage.runAsSync(async () => {
+			internals._stores = internals._stores.filter((s) => s.storage !== client)
+			const i = remoteClients.indexOf(client)
+			if (i >= 0) remoteClients.splice(i, 1)
+			await reloadStores()
+		})
 	}
 
 	const moveActiveTo = async (
@@ -605,6 +620,23 @@ export async function createWalletCore(
 		try {
 			await storage.setActive(key)
 		} catch (e) {
+			// The copy may have written the target's row (naming itself) before
+			// it failed. Name the previous store there again, best effort, so no
+			// device that opens on the target takes it for the active.
+			const target = remoteClients.find(
+				(c) => c.getSettings()?.storageIdentityKey === key,
+			)
+			const targetUser = internals._stores.find(
+				(s) => s.storage === target,
+			)?.user
+			if (target && targetUser && previous && previous !== key) {
+				await target
+					.setActive(
+						{ identityKey: identityPubKey, userId: targetUser.userId },
+						previous,
+					)
+					.catch(() => {})
+			}
 			// A store connected only for this switch goes again: its own row
 			// names itself, which would leave the wallet with two actives.
 			if (connectedNow) await disconnectRemote(connectedNow).catch(() => {})

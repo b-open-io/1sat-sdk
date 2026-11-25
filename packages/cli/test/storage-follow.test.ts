@@ -74,6 +74,7 @@ describe('active storage moves are followed, not reclaimed', () => {
 	let c: Awaited<ReturnType<typeof provider>>
 	let d: Awaited<ReturnType<typeof provider>>
 	let e: Awaited<ReturnType<typeof provider>>
+	let f: Awaited<ReturnType<typeof provider>>
 	const userKey = PrivateKey.fromRandom()
 	const opened: NodeWalletResult[] = []
 	let n = 0
@@ -109,11 +110,12 @@ describe('active storage moves are followed, not reclaimed', () => {
 		c = await provider(dir, 'provider-c')
 		d = await provider(dir, 'provider-d')
 		e = await provider(dir, 'provider-e')
+		f = await provider(dir, 'provider-f')
 	})
 
 	afterAll(async () => {
 		for (const w of opened) await w.destroy().catch(() => {})
-		for (const p of [a, b, c, d, e]) {
+		for (const p of [a, b, c, d, e, f]) {
 			await p.server.close()
 			await p.node.destroy()
 		}
@@ -202,7 +204,11 @@ describe('active storage moves are followed, not reclaimed', () => {
 		await expect(stale.setActiveStorage(a.url)).rejects.toThrow(
 			/moved to storage/,
 		)
-		expect(stale.getStorageStatus().movedTo).toBe(d.key)
+		// Refused, and no longer taking writes on C either.
+		expect(stale.getStorageStatus()).toMatchObject({
+			movedTo: d.key,
+			writable: false,
+		})
 		expect(await activeStorageIn(c)).toBe(d.key)
 		expect(await activeStorageIn(d)).toBe(d.key)
 
@@ -220,7 +226,7 @@ describe('active storage moves are followed, not reclaimed', () => {
 		})
 	})
 
-	test('a switch whose copy fails leaves the previous store active', async () => {
+	test('a new provider that cannot take the copy is dropped', async () => {
 		const onD = await userWallet(d.url)
 		const manager = onD.storage as unknown as {
 			syncToWriter: (...args: unknown[]) => Promise<unknown>
@@ -256,5 +262,40 @@ describe('active storage moves are followed, not reclaimed', () => {
 			writable: true,
 		})
 		expect(await activeStorageIn(d)).toBe(e.key)
+	})
+
+	test('a switch to a known backup whose copy fails is rolled back', async () => {
+		const onE = await userWallet(e.url)
+		await onE.addRemote(f.url)
+		expect(await activeStorageIn(f)).toBe(e.key)
+		expect(onE.storage.getBackupStores()).toContain(f.key)
+
+		type Writer = { getSettings?: () => { storageIdentityKey: string } }
+		const manager = onE.storage as unknown as {
+			syncToWriter: (...args: unknown[]) => Promise<unknown>
+		}
+		const real = manager.syncToWriter.bind(manager)
+		manager.syncToWriter = async (...args: unknown[]) => {
+			if ((args[1] as Writer)?.getSettings?.().storageIdentityKey === f.key) {
+				throw new Error('provider F refused the copy')
+			}
+			return real(...args)
+		}
+		try {
+			await expect(onE.setActiveStorage(f.url)).rejects.toThrow(
+				/refused the copy/,
+			)
+		} finally {
+			manager.syncToWriter = real
+		}
+		expect(await activeStorageIn(e)).toBe(e.key)
+		expect(await activeStorageIn(f)).toBe(e.key)
+		expect(onE.getStorageStatus()).toMatchObject({
+			activeStorageKey: e.key,
+			writable: true,
+			movedTo: undefined,
+		})
+		// A known backup stays registered.
+		expect(onE.storage.getAllStores()).toContain(f.key)
 	})
 })
