@@ -359,7 +359,10 @@ export function ensureDataDir(): string {
 export function resolvePaymailUserDomain(
 	paymail: { userDomain?: string; baseUrl?: string } | undefined,
 ): { domain: string; source: 'userDomain' | 'baseUrl' } | undefined {
-	const configured = paymail?.userDomain?.trim().toLowerCase()
+	const configured = paymail?.userDomain
+		?.trim()
+		.toLowerCase()
+		.replace(/\.$/, '')
 	if (configured) return { domain: configured, source: 'userDomain' }
 	if (!paymail?.baseUrl) return undefined
 	let url: URL
@@ -371,7 +374,7 @@ export function resolvePaymailUserDomain(
 		)
 		return undefined
 	}
-	const host = url.hostname.toLowerCase()
+	const host = url.hostname.toLowerCase().replace(/\.$/, '')
 	if (
 		url.protocol !== 'https:' ||
 		!host.includes('.') ||

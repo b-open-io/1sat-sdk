@@ -103,9 +103,18 @@ export async function createHostServer(
 	// any session.
 	const authMiddleware = buildAuthMiddleware(wallet, config.sessionStore)
 
+	// One spelling of the user domain everywhere (certs are stored lowercase).
+	const userDomain =
+		config.paymail?.userDomain?.trim().toLowerCase().replace(/\.$/, '') ||
+		undefined
+	const paymailCfg = config.paymail && {
+		...config.paymail,
+		userDomain,
+	}
+
 	// --- public surface -------------------------------------------------------
-	if (config.paymail) {
-		await mountPaymailRoutes(app, config.paymail)
+	if (paymailCfg) {
+		await mountPaymailRoutes(app, paymailCfg)
 	}
 	app.get('/exchange-rate', (_req, res) => {
 		const quote = config.getExchangeRate?.() ?? null
@@ -133,7 +142,6 @@ export async function createHostServer(
 
 	// Handle certs on the user domain: issued at registration, and backfilled
 	// on status for accounts registered before the host could issue them.
-	const paymailCfg = config.paymail
 	const handleCerts =
 		paymailCfg?.hostPrivateKey && config.handleCertStore
 			? {
@@ -168,6 +176,8 @@ export async function createHostServer(
 			serverIdentityKey: config.serverIdentityKey,
 			currentBlock: config.accounts.currentBlock,
 			accountStore: config.accountStore,
+			handleCertStore: config.handleCertStore,
+			...(handleCerts && { handleCerts }),
 		})
 	}
 

@@ -16,7 +16,12 @@ import type { Express, Request, Response } from 'express'
 import { resolvePaymailBind } from '../paymail/resolve.js'
 import type { HandleCertStore } from './certs.js'
 import { toDirectAcquireArgs } from './certs.js'
-import { ensureUserDomainCert, issueHandleCert } from './issueCert.js'
+import {
+	DISABLED_REVOCATION_OUTPOINT,
+	HandleCertConflictError,
+	ensureUserDomainCert,
+	issueHandleCert,
+} from './issueCert.js'
 import {
 	type Account,
 	type AccountProfile,
@@ -99,7 +104,7 @@ export async function registrationStatus(
 			}))
 		: undefined
 	return {
-		registrationEnabled: !issuer || issuer.userDomain != null,
+		registrationEnabled: true,
 		account: account ? accountView(account) : null,
 		...(handles && { handles }),
 	}
@@ -173,6 +178,22 @@ export function mountRegistrationRoutes(
 				)
 				return res.status(503).json({ error: NO_USER_DOMAIN_ERROR })
 			}
+			if (certs?.userDomain) {
+				// Don't claim a name whose cert this host would have to replace.
+				const held = await certs.store.get(username, certs.userDomain)
+				if (
+					held &&
+					(held.subject !== identityKey ||
+						held.revocationOutpoint !== DISABLED_REVOCATION_OUTPOINT)
+				) {
+					const conflict = new HandleCertConflictError(
+						username,
+						certs.userDomain,
+					)
+					console.error(`[accounts] ${conflict.message}`)
+					return res.status(409).json({ error: conflict.message })
+				}
+			}
 
 			try {
 				const account = await deps.store.register(
@@ -200,6 +221,10 @@ export function mountRegistrationRoutes(
 					return res.status(409).json({ error: err.message })
 				}
 				if (err instanceof AlreadyRegisteredError) {
+					return res.status(409).json({ error: err.message })
+				}
+				if (err instanceof HandleCertConflictError) {
+					console.error(`[accounts] ${err.message}`)
 					return res.status(409).json({ error: err.message })
 				}
 				throw err

@@ -206,7 +206,7 @@ export async function mountPaymailRoutes(
 			bind.identityKey,
 			alias,
 		)
-		console.warn(
+		console.info(
 			`[paymail] ${alias}@${domain}: issued its missing handle certificate`,
 		)
 		return issued

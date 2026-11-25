@@ -446,7 +446,18 @@ async function startWalletServer(
 	await accountStore.init()
 	const handleCertStore = new KnexHandleCertStore(knex)
 	await handleCertStore.init()
-	const userDomain = resolvePaymailUserDomain(paymailCfg)
+	let userDomain = resolvePaymailUserDomain(paymailCfg)
+	if (
+		userDomain?.source === 'baseUrl' &&
+		(await handleCertStore.hasBoundCerts(userDomain.domain))
+	) {
+		// The baseUrl's domain already carries OpNS-bound certs: it resolves
+		// through OpNS here, so it can't silently become the accounts domain.
+		console.error(
+			`[host] not using ${userDomain.domain} from server.paymail.baseUrl as the paymail user domain: it has OpNS-bound handle certificates. Set server.paymail.userDomain explicitly.`,
+		)
+		userDomain = undefined
+	}
 
 	const handle = await createHostServer({
 		wallet: walletResult.wallet,

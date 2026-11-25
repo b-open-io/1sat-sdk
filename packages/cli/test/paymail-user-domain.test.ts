@@ -36,3 +36,15 @@ describe('resolvePaymailUserDomain', () => {
 		expect(resolvePaymailUserDomain({ baseUrl: 'not a url' })).toBeUndefined()
 	})
 })
+
+describe('resolvePaymailUserDomain trailing dot', () => {
+	test('a fully qualified name loses its trailing dot', () => {
+		expect(resolvePaymailUserDomain({ baseUrl: 'https://1sat.app./' })).toEqual(
+			{ domain: '1sat.app', source: 'baseUrl' },
+		)
+		expect(resolvePaymailUserDomain({ userDomain: '1sat.app.' })).toEqual({
+			domain: '1sat.app',
+			source: 'userDomain',
+		})
+	})
+})

@@ -7,6 +7,8 @@ import type { Knex } from 'knex'
 import { KnexHandleCertStore } from '../src/accounts/certs'
 import {
 	DISABLED_REVOCATION_OUTPOINT,
+	HandleCertConflictError,
+	ensureUserDomainCert,
 	issueHandleCert,
 } from '../src/accounts/issueCert'
 import {
@@ -30,6 +32,7 @@ import type { PendingStore } from '../src/paymail/types'
 const IDENTITY_A = '02'.padEnd(66, 'a')
 const IDENTITY_B = '03'.padEnd(66, 'b')
 const ORIGIN = `${'ab'.repeat(32)}_0`
+const BIND_OUTPOINT = `${'cd'.repeat(32)}.0`
 
 const pendingStore: PendingStore = {
 	async create() {},
@@ -558,14 +561,88 @@ describe('handle certs are never left unissued', () => {
 		}
 	})
 
-	test('status reports registration off when certs have no user domain', async () => {
+	test('status still reports the account when certs have no user domain', async () => {
 		const { accounts, certs } = await stores()
+		await accounts.register(IDENTITY_B, 'hank', {})
 		const status = await registrationStatus(accounts, IDENTITY_B, certs, {
 			store: certs,
 			hostPrivateKey: PrivateKey.fromRandom(),
 			stackUrl: 'http://127.0.0.1:1',
 		})
-		expect(status.registrationEnabled).toBe(false)
+		expect(status.registrationEnabled).toBe(true)
+		expect(status.account?.username).toBe('hank')
+		expect(status.handles).toEqual([])
+	})
+
+	test('a cert bound to another identity or an on-chain name is never replaced', async () => {
+		const { accounts, certs } = await stores()
+		const host = PrivateKey.fromRandom()
+		const opnsOwner = PrivateKey.fromRandom().toPublicKey().toString()
+		const accountHolder = PrivateKey.fromRandom().toPublicKey().toString()
+		const bound = await issueHandleCert({
+			store: certs,
+			hostPrivateKey: host,
+			subject: opnsOwner,
+			handle: 'ivan',
+			domain: '1sat.app',
+			revocationOutpoint: BIND_OUTPOINT,
+		})
+		const issuer = {
+			store: certs,
+			hostPrivateKey: host,
+			userDomain: '1sat.app',
+			stackUrl: 'http://127.0.0.1:1',
+		}
+
+		// Another identity's account with the same username.
+		await accounts.register(accountHolder, 'ivan', {})
+		await registrationStatus(accounts, accountHolder, certs, issuer)
+		expect((await certs.get('ivan', '1sat.app'))?.serialNumber).toBe(
+			bound.serialNumber,
+		)
+
+		// The owner's own on-chain bound cert is not downgraded either.
+		await expect(
+			ensureUserDomainCert(issuer, '1sat.app', opnsOwner, 'ivan'),
+		).rejects.toBeInstanceOf(HandleCertConflictError)
+		expect((await certs.get('ivan', '1sat.app'))?.revocationOutpoint).toBe(
+			BIND_OUTPOINT,
+		)
+
+		// Registration refuses before claiming the name.
+		const claimant = PrivateKey.fromRandom().toPublicKey().toString()
+		await issueHandleCert({
+			store: certs,
+			hostPrivateKey: host,
+			subject: opnsOwner,
+			handle: 'judy',
+			domain: '1sat.app',
+			revocationOutpoint: BIND_OUTPOINT,
+		})
+		const app = express()
+		app.use(express.json())
+		app.use('/account', (req, _res, next) => {
+			;(req as { auth?: { identityKey: string } }).auth = {
+				identityKey: claimant,
+			}
+			next()
+		})
+		mountRegistrationRoutes(app, '/', { store: accounts, certs: issuer })
+		const { server, base } = await listen(app)
+		try {
+			const res = await fetch(`${base}/account/register`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ username: 'judy' }),
+			})
+			expect(res.status).toBe(409)
+			expect(await accounts.getByUsername('judy')).toBeNull()
+		} finally {
+			await new Promise<void>((resolve) => server.close(() => resolve()))
+		}
+
+		expect(await certs.hasBoundCerts('1sat.app')).toBe(true)
+		expect(await certs.hasBoundCerts('other.app')).toBe(false)
 	})
 
 	test('paymail lookup issues the missing cert and resolves the name', async () => {
